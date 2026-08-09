@@ -2,73 +2,69 @@
 
 The default branch of [clinical-note](SKILL.md). Tiering rules live in the skill; this file is the shape.
 
-Omit no heading — this rubric wants the full set. A section the shorthand does not reach is **filled** per the skill's rules.
+Structure verified against submitted notes. This is **not** a four-paragraph prose note — it carries OLDCARTS, a three-generation family history, coded diagnoses and age-appropriate screening, the same as the H&P. The branches differ in headings and depth, not in rigour.
 
 ```
 S:
 
-CC: <one line, the presenting concern>
+CC: "<the patient's own words, quoted>"
 
-HPI: <narrative prose, third person, past tense. Opens with age, sex, and the
-pertinent history that frames the visit, then the story. Labs and values quoted
-as given. Closes with what was discussed or planned in conversation.>
+HPI (OLDCARTS):
+Onset · Location · Duration · Character · Aggravating · Relieving · Timing · Severity
+<one line, semicolon separated; then pertinent negatives the shorthand states>
 
-Allergies: <given, or "No known drug allergies">
-Medications: <given; "Not specified today" if none stated>
-PMH: <given, comma separated>
-Surgical History: <given, comma separated>
-
-ROS:
-General: <fragments; semicolon separated>
-Skin:
-HEENT:
-Cardiovascular:
-Respiratory:
-GI:
-GU:
-GYN: <include only where relevant to the patient>
-Musculoskeletal:
-Endocrine:
-Psych:
-Neuro:
+Allergies (reaction): <allergen — reaction; NKDA if none>
+Home meds: <drug dose route frequency (reason for taking)>
+PMH/PSH: <given>
+FH (3 generations): GP: … ; Parents: … ; Sibs: …
+SH: <occupation; education; marital; tobacco; alcohol; drugs; spiritual; environmental;
+     nutrition; fitness; sleep — one clause each>
+ROS pertinent:
+<System: finding +/-; finding +/->
 
 O:
 
-Vital Signs: BP, HR, Temp, RR, SpO2, Height, Weight, BMI
-General:
-<then only the systems examined or reasonably part of this visit>
-Diagnostics Reviewed: <given values only; omit the line entirely if none>
+VS: BP, HR, T, RR, SpO2, Ht, Wt → BMI
+Gen: <appearance, work of breathing>
+<then each system examined; state normal for the ones filled>
+Labs/Tests today: <given results only; treatments administered in clinic>
 
 A:
 
-Differential Diagnoses:
-<3-5, most likely first, each a noun phrase>
+Differential:
+<Diagnosis — the findings that support it. Favored.>
+<Diagnosis — the specific findings that argue against it. Less likely.>
+<Diagnosis — same. Less likely.>
 
-Diagnoses:
-<the working problem list, most acute first; include relevant history items
-the visit addresses>
+Preexisting diagnoses (ICD10): <condition CODE; condition CODE>
+Final diagnosis: <condition — CODE>
+Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
 P:
 
-<prose paragraph: orders placed, medications, return interval and its purpose,
-continued measures, then return precautions — what brings the patient back sooner.>
-
+Nonpharm: <rest, hydration, counselling, red flags>
+Pharm:
+<Generic name dose route frequency duration — one per line>
+Education: <technique, precautions, what was reviewed>
+Follow up: <interval, and what would bring them back sooner>
 ```
-
-## Intervention and Evaluation
-
-Medatrax's `2. FNP: Comprehensive Soap Note` has **six** boxes — `Intervention` and `Evaluation` follow `Plan`. **Leave both empty.** All 25 submitted SOAP notes on the account fill S/O/A/P and leave these two blank; that is the established practice and the notes are being accepted.
-
-Generate them only when the clinician asks. If asked: Plan states what will be done, Intervention what was done, Evaluation how you will know it worked.
 
 ## Section notes
 
-**HPI** carries the narrative weight. Every clinical fact in it is a given; the prose that connects them is yours.
+**Quote the chief complaint.** The patient's words, in quotation marks.
 
-**ROS** is where filling is heaviest. Systems the shorthand addresses get its content; the rest get routine negatives as fragments — `No chest pain; no palpitations`. Include every system relevant to the complaint, and enough others to read as a genuine review.
+**Codes belong in this note.** Preexisting diagnoses and the final diagnosis both carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here.
 
-**Diagnostics Reviewed** is never filled. Values appear only if given. Omit the heading rather than write a placeholder.
+**Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
 
-**Differential** is generated reasoning, and it is the one filled section that may name abnormal possibilities — a differential is explicitly a list of what has *not* been established. Keep it to entities the givens support.
+**The differential is graded work.** Each entry names the findings that place it, and every rejected entry names the specific finding that rejects it — *afebrile, no focal crackles or egophony*. A bare list of diagnoses scores nothing.
 
-**Plan** follows the shorthand's stated orders. Return precautions are filled and should be specific to this presentation, not generic.
+**Screening keys to risk, not just age.** A 0.5 PPD × 40 year history is 20 pack-years, which crosses the LDCT lung-cancer screening threshold — so the derived value earns a screening line. Compute the pack-years and say so.
+
+**Labs/Tests today is never filled.** Only what was given, plus treatments administered in clinic. Where there is none, say so rather than leave the line to be completed by someone else.
+
+## Intervention and Evaluation
+
+Medatrax's `2. FNP: Comprehensive Soap Note` has **six** boxes — `Intervention` and `Evaluation` follow `Plan`. **Leave both empty.** All 25 submitted notes sampled fill S/O/A/P and leave these blank; that is established practice and the notes are being accepted.
+
+Generate them only when the clinician asks.
