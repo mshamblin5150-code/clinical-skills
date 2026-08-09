@@ -48,7 +48,24 @@ Charted normals and filled normals read identically in the finished note. They a
 
 **Filled vitals** are permitted where the rubric requires a complete set and the encounter supplies only some. They must be within normal range for the patient's age, and every one of them is listed in the FILLED block for confirmation.
 
-**Never filled, under any circumstance:** a laboratory value, an imaging result, a diagnostic finding, a medication the patient takes, or an abnormality of any kind. If testing is not given, the note says `No new testing today` or the item becomes a gap.
+### What may be inferred
+
+Inference is the job. What the shorthand omits should be **grounded** in what it contains — reasoned from the givens, not invented beside them.
+
+Grounded, and expected:
+
+- Route, frequency, and duration for a drug the shorthand names — `zithromax 200/5ml 3/4 t x 3 days` becomes azithromycin 3.75 mL PO **daily** for 3 days.
+- A medication proposed in the **Plan** for a condition in the history — lisinopril where the history carries hypertension. This is the clinical reasoning being graded; make it.
+- Standard supportive care, health promotion, and return precautions for the stated diagnosis.
+- Screenings appropriate to the patient's age.
+- The exam of a system the shorthand never mentions.
+
+**One thing can never be inferred: a measurement.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result.
+
+Separate two acts in the tier block, because they carry different weight:
+
+- **Proposed** — a forward action: a drug started, a test ordered, a referral. Reasoning, and safe to be wrong about; the preceptor rules on it.
+- **Asserted** — a claim about the patient's past: a medication they already take, a condition they already carry. Ground these in the history, then be specific. An absent `meds:` line usually means no medication reconciliation was done that visit, **not** that the patient takes nothing — infer the likely regimen from the conditions listed and name actual agents. This is the tier a preceptor checks hardest, so every asserted inference is listed.
 
 ## Steps
 

@@ -22,7 +22,21 @@ Observed in real notes. Expansions confirmed against the finished versions.
 | `OP` | oropharynx |
 | `L` / `R` | left / right |
 | `36in 33lb` | height 36 inches, weight 33 pounds |
-| `2/2j` | **ambiguous** — grade 2/6 murmur, or 2+ pulses. Flag as unknown; do not choose |
+| `2/2j` | peripheral pulses 2+ and equal — a typo, confirmed |
+| `wnl` | within normal limits |
+| `emb` | endometrial biopsy |
+| `aub` | abnormal uterine bleeding |
+| `BTL` | bilateral tubal ligation |
+| `cocs` | combined oral contraceptives |
+| `TM` | tympanic membrane |
+| `RA` | room air |
+| `mamo` | mammogram |
+| `rtn` | return |
+| `fe` | iron |
+| `rx` | prescribe |
+| `MDI` | metered dose inhaler |
+| `TIA` | transient ischemic attack |
+| `#` (in `7# 10 oz`) | pounds — birth weight |
 
 ### Typos seen in the wild
 

@@ -9,13 +9,24 @@ A shift dump is many **encounters** run together in one paste. The unit of work 
 
 ## Steps
 
-### 1. Find the boundaries
+### 1. Read the day header
 
-Read the whole dump and locate the split points. Encounters typically separate on a room or bed number, a time stamp, a blank line plus a new age/sex opener (`44M`, `7yo F`), a `pt 3` style marker, or a new chief complaint with no connective tissue to what precedes it.
+A day's file carries the date and the **preceptor**, in the filename, in a header at the top of the file, or both:
 
-Assign **every line** of the source to exactly one encounter. A header, a shift note, or a personal reminder that belongs to no encounter goes to an **Unassigned** list — it is never folded into the nearest patient.
+- `4-8-26 Lindley Final Round_260427_204257.pdf` — preceptor in the filename only.
+- `1-12-26 dr frazer, sharon_260112_200412.pdf` — filename lists **two** preceptors, and the file itself opens `1-12-26 / Dr Frazer`.
 
-Completion: line count of all encounters plus Unassigned equals line count of the source.
+Read both sources. A comma in the preceptor position means a **dual-preceptor day**, and the file header decides which encounters belong to which — if it does not say, that is a question for the clinician, not a guess. Preceptor attribution is what makes the hours count.
+
+### 2. Find the boundaries
+
+`Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then age and sex, then some order of `hx:`, `meds:`, `cc:`, and a narrative.
+
+Split on `Note N` and nothing else. Fall back to heuristics — a new age/sex opener, an unconnected new chief complaint — only where the numbering is broken or absent, and say so when you do.
+
+Assign **every line** to exactly one encounter. The day header, and anything else belonging to no encounter, goes to an **Unassigned** list — never folded into the nearest patient.
+
+Completion: the encounter numbers run consecutively from 1 with no gaps, and line count of all encounters plus Unassigned equals line count of the source. A gap in the numbering is a missing note — report it rather than renumbering.
 
 ### 2. Confirm the split — stop here
 
