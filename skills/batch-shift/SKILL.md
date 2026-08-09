@@ -71,9 +71,12 @@ Found N encounters:
   2. …
 Unassigned lines: <verbatim, or "none">
 Low-confidence boundaries: <which splits you are unsure about, and why>
+Openers missing age or sex: <which encounters, and which field>
 ```
 
 Show the first and last line of each encounter verbatim — that is what lets the clinician spot a bad boundary at a glance. Naming a low-confidence boundary explicitly is part of the output; silence there reads as certainty you do not have.
+
+**An opener that omits age or sex is reported here, not later.** It is not a boundary problem, so it does not belong on the low-confidence line, and it is not the kind of gap that survives to be filled downstream — age sets `Patient Time`, and no amount of reading the encounter recovers it. This stop is the cheapest moment it can be answered: the clinician still remembers the patient. After this, the only source left is the Medatrax record.
 
 Resume only on the clinician's confirmation or correction.
 

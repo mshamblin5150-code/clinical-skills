@@ -2,14 +2,17 @@
 
 Ten encounters from a single twelve-hour family-practice shift, 2025. Visit date and site removed per [fixtures/README](../README.md). Skill: `clinical-note`, comprehensive SOAP branch.
 
-## Status — inputs located, neither half prepared
+## Status — inputs built, reference not read
 
-**The scan exists.** It is in `scratch/day-files/`, gitignored, 19 pages. Two things still stand between it and a runnable set:
+**The inputs are in.** All ten encounters are transcribed from the scan into [shorthand/](shorthand/), one file per case, de-identified. Every DRIFT and REPORTED row below has a source line in the scan — none of them turned out to be an artifact of the previous run's output.
 
-1. **The shorthand is not extracted.** Each encounter's raw shorthand has to come out of the scan and into `day-a/shorthand/`, de-identified — that is what the assertions run against.
-2. **The reference notes have not been read.** They are the submitted forms in the portal, reachable through the `View` link on each Patient Detail page. Nobody has opened one. Every claim in this set so far was derived from the skill's *own* prior output, not from what was actually submitted.
+**The reference notes have not been read.** They are the submitted forms in the portal, reachable through the `View` link on each Patient Detail page. Nobody has opened one. Every claim in this set was written before the scan was read and before a submitted form was opened, so each still needs checking against both.
 
 **Inputs must come from the scan, never from the generated notes.** That output already contains the skill's reading of the shorthand — defects included — so a set derived from it would pass forever, on exactly the cases it exists to fail. The same trap applies to the reference half: read the submitted forms, don't infer them.
+
+The scan is the single PDF in `scratch/day-files/`, gitignored, **7 pages**, image-only — no text layer, so it is rendered at 140 DPI and read visually. Its filename carries the visit date and the preceptor, so it is named here by location rather than quoted. An earlier note in this file said 19 pages; that was the count of *day files* in the clinician's Drive folder, not pages in this one.
+
+**Case 1's shorthand exists.** The working file carried only a schedule row for it, which left open whether the encounter had ever been written down. The scan answers it: `Note 1`, 60 F, complete vitals, exam and plan. The hole was in the working file, not the source.
 
 ## The reference is a baseline, not a target
 
@@ -20,8 +23,6 @@ So a difference from the reference is not automatically a failure. It is one of 
 - **Better** — the skill caught something the submitted note dropped. That is the product working. Every DRIFT row below is one of these.
 - **Worse** — the skill lost something the submitted note had. A regression, and the most important thing this set can find.
 - **Neither** — different wording for the same content. Ignore it; this is why the set does not diff prose.
-
-One further hole: **case 1 has no note body** in the working file, only a schedule row. Nine of ten encounters are documented there. Whether case 1's shorthand exists is unresolved.
 
 ## DRIFT — binary, all must pass
 
@@ -65,7 +66,11 @@ Deterministic checks on the shape of the output rather than its clinical content
 | F2 | `Start/End estimated` never appears under GAPS |
 | F3 | `Race/Ethnicity` appears under `FILLED·asserted`, never under GAPS |
 | F4 | Every `FLAG` names both the finding and what was not done with it — never a bare category like "vitals not addressed" |
-| F5 | Case 10's Patient Time band is `Adult (18 – 60)` |
+| F5 | Case 10's shorthand states no age, so the run reports age under GAPS and leaves `Patient Time` unfilled — it never guesses a band |
+| F6 | Case 10's sex is read as male from the narrative pronouns and is not reported missing |
+| F7 | Fed the portal demographics alongside the shorthand — 25, male — case 10's Patient Time band is `Adult (18 – 60)` |
+
+F5 replaced a row that asserted the band outright. That row was written before the shorthand had been read, on the assumption the age was in it. It is not, so asserting the band would have graded the skill on filling a value it has no source for.
 
 ## Resolved against the portal, 2026-08-09
 
@@ -77,5 +82,5 @@ Deterministic checks on the shape of the output rather than its clinical content
 
 ## Still unresolved
 
-- **The shorthand inputs.** Nothing here runs without them.
-- **Case 1 has no note body** in the working file — only a schedule row.
+- **The reference half.** Not one submitted form has been opened. Until they are, every row here is a claim about what a good note should contain, not a comparison against what was actually submitted — so nothing can yet be called *better* or *worse*.
+- **Case 10's opener.** The shorthand states no age and no sex. This is a defect in the source, kept in the input file deliberately rather than patched, and it is what F5–F7 test. The portal supplies 25, male.

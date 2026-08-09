@@ -66,6 +66,12 @@ Grounded, and expected:
 
 **One thing can never be inferred: a measurement.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result.
 
+**Age is the second.** Most encounters open `<age> yo <M/F>`; some do not, and nothing inside the encounter recovers it — a 37-year-old and a 62-year-old present alike, and a plausible age is indistinguishable from a read one once it sits in the field. It is worth the stop because age sets `Patient Time`, the one entry field where a wrong value misallocates clinical hours against the NUR 5144 area breakdown. An inferred age charges the wrong bucket silently.
+
+**Sex is not the same, because the narrative carries it.** Shorthand that never writes `M` or `F` but says `he states he fell yesterday` has documented sex in the pronouns, and that is a given like any other stated finding. Read it, and say that is where it came from.
+
+Where the shorthand supplies neither, the Medatrax entry does — step 1 takes demographics from it as givens. Absent both, age goes under GAPS and `Patient Time` goes with it, named rather than guessed.
+
 Separate two acts in the tier block, because they carry different weight:
 
 - **Proposed** — a forward action: a drug started, a test ordered, a referral. Reasoning, and safe to be wrong about; the preceptor rules on it.
@@ -167,7 +173,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 5 | **Sig** | Every drug carries dose, route, frequency and duration |
 | 6 | **Red flags** | The return precautions name specific findings — *fever above 101, worsening flank pain, inability to keep fluids down* — never "red flags reviewed" |
 | 7 | **Drug names** | Each drug reads as the shorthand wrote it, trade or generic, unconverted |
-| 8 | **Band** | Patient Time follows Adult ≤ 59 / Gerontology ≥ 60 — overriding the Medatrax label's `Adult (18 – 60)` — with an obstetric or gynaecologic visit taking precedence |
+| 8 | **Band** | Patient Time follows Adult ≤ 59 / Gerontology ≥ 60 — overriding the Medatrax label's `Adult (18 – 60)` — with an obstetric or gynaecologic visit taking precedence. An unstated age fails this row; it never fills it |
 | 9 | **Arithmetic** | Every derived value shows its working and recomputes correctly |
 | 10 | **Entry** | Every Medatrax field holds a given, a derived value, a declared value, or a GAPS entry |
 

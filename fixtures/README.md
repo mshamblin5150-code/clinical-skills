@@ -45,9 +45,9 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 
 ## Sets
 
-| Set | Skill | Cases | Inputs |
-| --- | --- | --- | --- |
-| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | scan located, **not yet extracted** |
+| Set | Skill | Cases | Inputs | Reference |
+| --- | --- | --- | --- | --- |
+| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | **not read** |
 
 ## A set has two halves
 
