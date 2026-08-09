@@ -47,4 +47,12 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 
 | Set | Skill | Cases | Inputs |
 | --- | --- | --- | --- |
-| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | **pending — see the set** |
+| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | scan located, **not yet extracted** |
+
+## A set has two halves
+
+**Inputs** are the shorthand — extracted from the day-file scan, de-identified, committed under the set's `shorthand/`.
+
+**Reference** is what the clinician actually submitted to the portal. It is a **baseline to beat, not a target to match**: the submitted notes were written under time pressure at the end of a long shift, and the skill exists to do better than that consistently. A difference from the reference is therefore *better*, *worse*, or *neither* — and only *worse* is a regression.
+
+The reference has to be read, never inferred. Inferring it from the skill's own prior output produces a set that agrees with itself forever.

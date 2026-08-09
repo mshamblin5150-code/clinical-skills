@@ -2,13 +2,26 @@
 
 Ten encounters from a single twelve-hour family-practice shift, 2025. Visit date and site removed per [fixtures/README](../README.md). Skill: `clinical-note`, comprehensive SOAP branch.
 
-## Status — documented, not yet runnable
+## Status — inputs located, neither half prepared
 
-The shorthand inputs are **not in this repo**. They exist in a scanned day file that has not been located. Until it is placed in `day-a/shorthand/`, this set records what a correct run must produce but cannot be executed.
+**The scan exists.** It is in `scratch/day-files/`, gitignored, 19 pages. Two things still stand between it and a runnable set:
 
-**The inputs must come from the original scan.** They must never be reconstructed from the previously generated notes. That output already contains the skill's own reading of the shorthand — including every defect below — so a set derived from it would pass forever, on exactly the cases it exists to fail.
+1. **The shorthand is not extracted.** Each encounter's raw shorthand has to come out of the scan and into `day-a/shorthand/`, de-identified — that is what the assertions run against.
+2. **The reference notes have not been read.** They are the submitted forms in the portal, reachable through the `View` link on each Patient Detail page. Nobody has opened one. Every claim in this set so far was derived from the skill's *own* prior output, not from what was actually submitted.
 
-One further hole: **case 1 has no note body** in the working file, only a schedule row. Nine of ten encounters are documented. Whether case 1's shorthand exists is unresolved.
+**Inputs must come from the scan, never from the generated notes.** That output already contains the skill's reading of the shorthand — defects included — so a set derived from it would pass forever, on exactly the cases it exists to fail. The same trap applies to the reference half: read the submitted forms, don't infer them.
+
+## The reference is a baseline, not a target
+
+The submitted notes are what was documented under time pressure at the end of a twelve-hour shift. The skill is not trying to reproduce them — it is trying to **beat them, identically, every run.**
+
+So a difference from the reference is not automatically a failure. It is one of three things, and the set has to say which:
+
+- **Better** — the skill caught something the submitted note dropped. That is the product working. Every DRIFT row below is one of these.
+- **Worse** — the skill lost something the submitted note had. A regression, and the most important thing this set can find.
+- **Neither** — different wording for the same content. Ignore it; this is why the set does not diff prose.
+
+One further hole: **case 1 has no note body** in the working file, only a schedule row. Nine of ten encounters are documented there. Whether case 1's shorthand exists is unresolved.
 
 ## DRIFT — binary, all must pass
 
