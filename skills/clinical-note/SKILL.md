@@ -87,8 +87,12 @@ Completion: every token in the source is in exactly one of the three buckets.
 
 ### 3. Choose the branch
 
-- **Comprehensive SOAP** → [SOAP.md](SOAP.md). The default.
-- **FNP H&P** → [HP.md](HP.md). Use when the user says H&P, FNP, OLDCARTS, or asks for the long form.
+The program sets the rule: **the first six documented encounters of a practicum course must be H&P forms.** After six, SOAP is the student's choice and is the practical default.
+
+- **FNP H&P** → [HP.md](HP.md). The first six encounters of a course, or whenever the user says H&P, FNP, OLDCARTS, or asks for the long form.
+- **Comprehensive SOAP** → [SOAP.md](SOAP.md). Everything after that.
+
+Check the count before assuming. `Student Overview` in Medatrax reports forms by type; if the current course has fewer than six H&Ps, this encounter is an H&P regardless of what is convenient. State which branch you chose and why.
 
 Load only the branch's template.
 
