@@ -14,13 +14,13 @@ AGENTS.md                 skill index + standing rules
 
 ## Wiring it to an agent
 
-**Claude Code** — from the repo root, point `.claude/skills` at `skills/` so the skills load natively:
+**Claude Code** — junction each skill into `.claude/skills/` so they load natively:
 
 ```bash
-cmd //c mklink //J .claude\skills skills
+for s in clinical-note batch-shift icd10-cpt; do cmd //c mklink //J ".claude\\skills\\$s" "skills\\$s"; done
 ```
 
-The junction is gitignored, so each machine makes its own. Claude Code also reads `CLAUDE.md` → `AGENTS.md` automatically.
+Per-skill rather than one junction on the whole folder, so `.claude/skills/` can also hold the maintainer's own tooling without mixing it into the deliverable. The whole directory is gitignored, so each machine makes its own. Claude Code also reads `CLAUDE.md` → `AGENTS.md` automatically.
 
 **Codex / Cursor / Copilot** — these read `AGENTS.md` from the repo root with no setup. The index there tells the agent which `SKILL.md` to open.
 
