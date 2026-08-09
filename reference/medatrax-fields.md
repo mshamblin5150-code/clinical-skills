@@ -6,14 +6,29 @@ Portal: `np.medatrax.com` — **not** `medatrax.com`, which is the Anesthesia-de
 
 Read from the live portal. Picklist strings below are exact — match them character for character, including `Wyoming County Health Dept.` with its period and `New River Health - Oak Hill` with spaced hyphen.
 
-## Two clocks, and only one counts
+## The 360 hours
+
+Two courses, both starting **2026-08-10**, additive:
+
+| Course | Hours |
+| --- | --- |
+| NUR 5144 70 — Prim Care Across the Lifespan Prac | 270 |
+| NUR 5042 70 — Transition into Leadership | 90 |
+
+Due **2026-11-20**. Neither course existed in the portal as of 2026-08-09, which is what the "No Active Course" banner means.
+
+**The 360 starts from zero.** The 515:55 under Hours to Date is prior coursework — NUR5143 (2026 Spring), NUR5111 (2025 Spring), NUR5153 (2025 Fall) — and none of it carries over. From 8/10 to 11/20 is about 14.5 weeks, so roughly **25 hours a week with no slack**.
+
+## Two clocks, and both count
 
 Patient encounters and clinical hours are **separate systems**:
 
-- **Patient encounters** (`patient.aspx`) log a `Visit Time` that is `0:15` on every entry. At fifteen minutes each, 360 hours would take 1,440 encounters — these do not accrue the requirement.
-- **Time Log** (`timesheetentry.aspx`) is where total hours at the clinical site are entered, and is almost certainly what the 360 hours are counted from.
+- **Patient encounters** (`patient.aspx`) satisfy the case requirement. Each logs a `Visit Time` — variable in practice, 0:30 to 0:45 on 10/20/2025 and a flat 0:15 across 4/8/2026.
+- **Time Log** (`timesheetentry.aspx`) is where hours at the site accrue, entered per day with a location, preceptor and course. This is what the 360 counts.
 
-Log encounters for the case requirement; log hours in the Time Log. Missing either one leaves a hole the other cannot fill.
+Log encounters for the case requirement; log hours in the Time Log. Missing either leaves a hole the other cannot fill.
+
+Every Time Log row carries an unchecked **`Confirmed`** column. Find out whether that is preceptor attestation and whether unconfirmed hours count — 360 hours that do not count is the worst failure mode available here.
 
 ## Forms
 

@@ -31,9 +31,28 @@ Day files name preceptors by first name; Medatrax wants `Last,First` exactly. Ma
 
 A name that does not map — `dr frazer` appears in `1-12-26 dr frazer, sharon` but is on no Medatrax preceptor list — is **reported, never substituted**. It usually means a physician who was present but is not the preceptor of record, and only the clinician knows which.
 
-### 2. Find the boundaries
+### 2. Get the text out
+
+Day files are PDFs, and they come in two kinds. Check before parsing:
+
+- **Text layer present** — extract directly with PyMuPDF. Two of eighteen files are like this.
+- **Image-only scan** — `page.get_text()` returns nothing and each page holds a single image. Sixteen of eighteen are like this. No OCR tool is needed: render each page and read it visually.
+
+```python
+import fitz
+d = fitz.open(path)
+if not "".join(p.get_text() for p in d).strip():
+    for i, pg in enumerate(d):
+        pg.get_pixmap(dpi=140).save(f"page{i+1}.png")   # then read the PNGs
+```
+
+140 DPI renders these legibly. A zero-length extraction is a scan, never an empty file — never report a scanned day as containing no notes.
+
+### 3. Find the boundaries
 
 `Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then age and sex, then some order of `hx:`, `meds:`, `cc:`, and a narrative.
+
+**Match case-insensitively.** Real files carry `Note 3`, `NOte 3`, and `NOte 4` in the same document. A case-sensitive match silently merges encounters.
 
 Split on `Note N` and nothing else. Fall back to heuristics — a new age/sex opener, an unconnected new chief complaint — only where the numbering is broken or absent, and say so when you do.
 
@@ -41,7 +60,7 @@ Assign **every line** to exactly one encounter. The day header, and anything els
 
 Completion: the encounter numbers run consecutively from 1 with no gaps, and line count of all encounters plus Unassigned equals line count of the source. A gap in the numbering is a missing note — report it rather than renumbering.
 
-### 2. Confirm the split — stop here
+### 4. Confirm the split — stop here
 
 Present the proposed split and wait for the clinician. Do not process.
 
@@ -57,13 +76,13 @@ Show the first and last line of each encounter verbatim — that is what lets th
 
 Resume only on the clinician's confirmation or correction.
 
-### 3. Process each encounter
+### 5. Process each encounter
 
 Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter independently, on the branch the user named — the whole shift takes the same branch unless they say otherwise. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 fills its own from its own age — it never borrows encounter 3's.
 
 Number the output and keep the source order.
 
-### 4. Roll up the gaps
+### 6. Roll up the gaps
 
 After the last note, consolidate:
 
