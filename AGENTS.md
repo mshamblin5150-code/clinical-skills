@@ -9,6 +9,8 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 | Skill | Read | Use when |
 | --- | --- | --- |
 | soap-note | [skills/soap-note/SKILL.md](skills/soap-note/SKILL.md) | Raw encounter shorthand needs to become a SOAP note |
+| batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A whole shift is pasted at once and needs splitting into encounters |
+| icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
 
 <!-- Additional skills are appended here as they are written. -->
 
