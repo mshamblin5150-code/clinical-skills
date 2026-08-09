@@ -73,13 +73,7 @@ Separate two acts in the tier block, because they carry different weight:
 
 ## Conventions
 
-**Favor the more complex note.** Where a differential could run three deep or five, run five. Where a finding could be left in Objective or carried into Assessment, carry it. Submitted notes drift toward the thin version over a long day; this skill exists to hold the line. Thoroughness is the tiebreaker, always.
-
-**Name the red flags.** Never write "red flags reviewed" or "precautions discussed". Write the actual list, specific to this presentation — *return immediately for fever above 101, worsening flank pain, or inability to keep fluids down.*
-
-**Keep the drug name as written.** The shorthand mixes trade and generic — Duoneb, Toradol, Decadron, Tessalon Perle — and that is fine. Carry through whichever was used; do not convert. Dose, route and frequency stay exactly as given; fill only a missing duration.
-
-**Age bands.** Adult runs to **59**. Anyone **60 or older** is Gerontology, despite the Medatrax label reading `Adult (18 – 60)`. An obstetric or gynaecologic visit overrides the band.
+**Favor the more complex note.** Where a differential could run three deep or five, run five. Where a finding could be left in Objective or carried into Assessment, carry it. Thoroughness is the tiebreaker, always.
 
 **Marital status** is inferred from age and written into the Social History, not left as unreported.
 
@@ -148,8 +142,27 @@ Below the note, always:
 <required entry fields not supplied>
 ```
 
-### 7. Check
+### 7. Check for drift
 
-Walk the note line by line and confirm two things: every line carries a tier, and **no filled line contains an abnormality**. Report as one line — `N given, N derived, N filled, 0 abnormal filled` — then stop.
+A note **drifts** when a finding goes in the front and never comes out the back — documented in the shorthand, carried dutifully into Objective, and then absent from the Assessment and the Plan. Drift is what a long day does to documentation, and catching it is the reason this skill exists.
 
-The second half of that check is the whole safety property. A filled abnormality is a finding you did not observe, in a note you sign.
+Walk every row. **Emit a verdict for each one by name** — a summary line invites declaring the set passed without walking it.
+
+| # | Test | Passes when |
+| --- | --- | --- |
+| 1 | **Invention** | Every abnormal, diagnosis and clinically meaningful value in the note traces to a given |
+| 2 | **Drift** | Every abnormal *in the shorthand* appears in the Assessment or the Plan |
+| 3 | **Measurements** | No laboratory value, imaging result or diagnostic finding is filled |
+| 4 | **Vitals** | Every vital outside the normal range for this age is addressed somewhere, not just recorded |
+| 5 | **Sig** | Every drug carries dose, route, frequency and duration |
+| 6 | **Red flags** | The return precautions name specific findings — *fever above 101, worsening flank pain, inability to keep fluids down* — never "red flags reviewed" |
+| 7 | **Drug names** | Each drug reads as the shorthand wrote it, trade or generic, unconverted |
+| 8 | **Band** | Patient Time follows Adult ≤ 59 / Gerontology ≥ 60 — overriding the Medatrax label's `Adult (18 – 60)` — with an obstetric or gynaecologic visit taking precedence |
+| 9 | **Arithmetic** | Every derived value shows its working and recomputes correctly |
+| 10 | **Entry** | Every Medatrax field holds a value or is listed under GAPS |
+
+Row 2 carries the most weight and is the easiest to skip, because a drifting note reads perfectly well. Take each abnormal from step 2's expansion in turn and name where it lands. An abnormal that lands nowhere is either a diagnosis missing from the Assessment or a problem missing from the Plan — say which.
+
+A failing row is reported, never quietly repaired into a pass.
+
+Close with `N given, N derived, N filled` and stop.
