@@ -8,7 +8,7 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 
 | Skill | Read | Use when |
 | --- | --- | --- |
-| soap-note | [skills/soap-note/SKILL.md](skills/soap-note/SKILL.md) | Raw encounter shorthand needs to become a SOAP note |
+| clinical-note | [skills/clinical-note/SKILL.md](skills/clinical-note/SKILL.md) | Encounter shorthand needs to become a comprehensive SOAP or an FNP H&P |
 | batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A whole shift is pasted at once and needs splitting into encounters |
 | icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
 
@@ -19,5 +19,5 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 These bind every skill in this repo.
 
 1. **No PHI is ever committed.** Live notes are worked in `scratch/`, which is gitignored. Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read.
-2. **Traceable over complete.** Every clinical claim in generated output maps to a token in the source. A missing detail is reported as a gap; it is never inferred from clinical plausibility.
+2. **Every line is given, derived, or filled.** These are academic notes against a school rubric, so sections the shorthand cannot supply are generated — but **filled content is always unremarkable**. Every abnormal finding, lab value, imaging result, medication, and diagnosis traces to the source. Filled lines are listed for the clinician to confirm before submission. Full rules in [clinical-note](skills/clinical-note/SKILL.md).
 3. **Proposals are labelled.** Any clinical reasoning the agent contributes — a differential, a code, a plan item — appears under `PROPOSED (verify before use)`, outside the document body, for the clinician to accept or drop.

@@ -35,7 +35,7 @@ Resume only on the clinician's confirmation or correction.
 
 ### 3. Process each encounter
 
-Run [soap-note](../soap-note/SKILL.md) against each confirmed encounter independently. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 has no vitals — it does not borrow encounter 3's.
+Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter independently, on the branch the user named — the whole shift takes the same branch unless they say otherwise. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 fills its own from its own age — it never borrows encounter 3's.
 
 Number the output and keep the source order.
 
@@ -53,4 +53,4 @@ NEW GLOSSARY CANDIDATES: <unknown tokens seen across the shift, with frequency>
 
 Completion: every encounter appears in exactly one of the two note lists.
 
-The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding to [GLOSSARY.md](../soap-note/GLOSSARY.md) — offer to add them, and the next shift needs less input than this one.
+The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding to [GLOSSARY.md](../clinical-note/GLOSSARY.md) — offer to add them, and the next shift needs less input than this one.
