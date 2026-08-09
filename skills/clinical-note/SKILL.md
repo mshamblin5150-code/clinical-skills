@@ -40,7 +40,11 @@ The rule runs one way only. The clinician charts abnormals reliably and normals 
 
 - **An abnormal in the note must be a given.** No exceptions. This is the direction that carries the safety.
 - **A normal in the shorthand is still a given** — it means that system was examined. Keep it verbatim; do not move it to filled.
-- **Silence means normal, not unknown.** An unmentioned system gets filled, not raised as a gap.
+- **Silence is undocumented, never absent.** A section the shorthand omits means it was not written down that visit — not that the patient has nothing there. This holds everywhere, and it reads two ways depending on the section:
+  - **Exam and ROS** — an unmentioned system is normal, because abnormals get charted.
+  - **History, medications, surgical, family, social, allergies** — an omitted section is inferred from the rest of the encounter. A history of hypertension and no `meds:` line means a med rec was not done, so infer the likely regimen. Never write "none" where the shorthand is merely silent.
+
+  Either way it gets filled, never raised as a gap.
 
 Everything filled is therefore normal, absent, or not reported — and says so in those words: `no chronic illness reported`, `fever by history`, `no smoke exposure reported`, `no treatment-limiting cultural practice reported`.
 

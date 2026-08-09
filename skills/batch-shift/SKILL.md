@@ -18,6 +18,19 @@ A day's file carries the date and the **preceptor**, in the filename, in a heade
 
 Read both sources. A comma in the preceptor position means a **dual-preceptor day**, and the file header decides which encounters belong to which — if it does not say, that is a question for the clinician, not a guess. Preceptor attribution is what makes the hours count.
 
+Day files name preceptors by first name; Medatrax wants `Last,First` exactly. Map through [medatrax-fields.md](../../reference/medatrax-fields.md):
+
+| In the filename | Medatrax |
+| --- | --- |
+| Sharon | `Cecil,Sharon` |
+| Marie | `Green,Marie` |
+| Miranda | `Lester,Miranda` |
+| Lindley | `Lindley,Juddson` |
+| Jessica | `Sharp,Jessica` |
+| Julie | `Sison,Julie` |
+
+A name that does not map — `dr frazer` appears in `1-12-26 dr frazer, sharon` but is on no Medatrax preceptor list — is **reported, never substituted**. It usually means a physician who was present but is not the preceptor of record, and only the clinician knows which.
+
 ### 2. Find the boundaries
 
 `Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then age and sex, then some order of `hx:`, `meds:`, `cc:`, and a narrative.

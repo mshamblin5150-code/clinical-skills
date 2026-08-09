@@ -52,7 +52,14 @@ P:
 
 <prose paragraph: orders placed, medications, return interval and its purpose,
 continued measures, then return precautions — what brings the patient back sooner.>
+
 ```
+
+## Intervention and Evaluation
+
+Medatrax's `2. FNP: Comprehensive Soap Note` has **six** boxes — `Intervention` and `Evaluation` follow `Plan`. **Leave both empty.** All 25 submitted SOAP notes on the account fill S/O/A/P and leave these two blank; that is the established practice and the notes are being accepted.
+
+Generate them only when the clinician asks. If asked: Plan states what will be done, Intervention what was done, Evaluation how you will know it worked.
 
 ## Section notes
 
