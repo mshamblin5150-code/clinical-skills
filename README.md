@@ -8,7 +8,10 @@ Agent-agnostic skills that turn ER-style clinical shorthand into documentation �
 skills/<name>/SKILL.md    the skill, canonical location
 skills/<name>/*.md        reference the skill loads on demand
 reference/                shared reference (Medatrax field map, etc.)
+fixtures/                 regression sets — de-identified, committed
 scratch/                  live working notes — gitignored, never committed
+CONTEXT.md                domain glossary
+docs/adr/                 architectural decisions
 AGENTS.md                 skill index + standing rules
 ```
 

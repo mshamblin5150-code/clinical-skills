@@ -1,0 +1,91 @@
+# Clinical skills
+
+Turning ER-style clinical shorthand into academic documentation — comprehensive SOAP notes and FNP H&Ps against a school rubric, plus the portal fields that record the clinical hours.
+
+## Language
+
+### The work
+
+**Shorthand**:
+Raw ER-style scratch for one encounter, written at the bedside, typo-ridden and incomplete.
+_Avoid_: notes, scribbles, raw text
+
+**Encounter**:
+One patient seen once. The atomic unit of the domain.
+_Avoid_: visit, case, patient
+
+**Day file**:
+One shift's shorthand in a single document, holding many encounters under a header naming the date and preceptor.
+_Avoid_: shift file, batch, dump
+
+**Note**:
+The finished document produced from one encounter's shorthand.
+_Avoid_: writeup, report
+
+**Branch**:
+Which template a note is written against — FNP H&P or comprehensive SOAP.
+_Avoid_: format, type, form
+
+### Tiers
+
+Every line of a finished note is a given, a derived value, or a filled one.
+
+**Given**:
+Content present in the shorthand or the portal entry, passing through unchanged — numbers, doses, results, stated findings, quoted speech.
+_Avoid_: source, actual, real
+
+**Derived**:
+A value computed from a given by a rule with exactly one right answer, such as a BMI, an age, or a duration.
+_Avoid_: calculated, inferred
+
+**Filled**:
+Content generated to satisfy the rubric where shorthand cannot supply it. Always unremarkable — normal, absent, or not reported.
+_Avoid_: generated, invented, made up
+
+**Asserted**:
+A filled claim about the patient's past, such as a medication they already take or a condition they already carry.
+_Avoid_: history, background
+
+**Proposed**:
+A filled forward action, such as a drug started, a test ordered, or a referral made.
+_Avoid_: recommendation, suggestion
+
+**Declared**:
+A value fixed by a stated rule rather than observed. Either a constant, which always holds, or a default, which is overridable on sight.
+_Avoid_: assumed, hardcoded
+
+### Defects
+
+**Drift**:
+A finding documented in the shorthand, carried into the Objective, and absent from both the Assessment and the Plan. A drifting note reads perfectly well, which is why it survives.
+_Avoid_: omission, miss, oversight
+
+**Flag**:
+A defect raised for the clinician's eye before submission, naming the finding and what was not done with it. Most often an instance of drift.
+_Avoid_: warning, issue, note
+
+**Gap**:
+Something the rubric needs that the encounter genuinely did not supply.
+_Avoid_: missing, hole, TODO
+
+**Unknown token**:
+A shorthand token matching no glossary entry.
+_Avoid_: unrecognised, garbage, typo
+
+### Artifacts
+
+**Working file**:
+The complete, identified record of a day's encounters, used to enter the portal. Never leaves the machine it was made on.
+_Avoid_: draft, local copy
+
+**Fixture**:
+A regression set derived from a working file with the visit date and site removed, committed so a skill's behaviour can be checked after an edit.
+_Avoid_: test data, sample, example
+
+**Assertion**:
+A claim in the clinician's own words about what a correct run must contain.
+_Avoid_: expectation, check, test case
+
+**Patient Time band**:
+The hours bucket an encounter accrues against. The one administrative field where a wrong value has a real consequence.
+_Avoid_: age group, category

@@ -119,28 +119,38 @@ Assign each element a tier before writing, then draft into the branch template. 
 
 ### 5. Emit the Medatrax entry
 
-Produce the field block from [../../reference/medatrax-fields.md](../../reference/medatrax-fields.md) in that file's field order, so it can be tabbed straight into the form. Any field the encounter does not supply is listed as missing rather than filled — Medatrax fields are administrative and a wrong one misattributes your hours.
+Produce the field block from [../../reference/medatrax-fields.md](../../reference/medatrax-fields.md) in that file's field order, so it can be tabbed straight into the form.
+
+Fields carrying a **declared rule** there — `Primary Payment Method`, `Race/Ethnicity` — are filled from that rule rather than reported missing. Neither is visible in bedside shorthand, and reporting them missing on every note is what teaches a clinician to skim this block. The rules live in the reference; do not restate them here.
+
+Everything else the encounter does not supply goes under GAPS rather than being invented — except start and end times, which the Times convention estimates by design. The field that justifies the caution is `Patient Time`: it feeds the NUR 5144 area breakdown, so a wrong band misallocates clinical hours. Most of the rest feed no hours bucket at all.
 
 ### 6. Emit the tier block
 
-Below the note, always:
+Below the note, always, in this order:
 
 ```
---- FILLED (confirm before submitting) ---
-<every generated line, grouped by section>
-
---- DERIVED ---
-<value = the arithmetic>
-
---- GAPS ---
-<what the rubric needs and nothing supplied>
-
---- UNKNOWN TOKENS ---
-<verbatim, with any guess marked as a guess>
-
---- MISSING FOR MEDATRAX ---
-<required entry fields not supplied>
+DERIVED           <value = the arithmetic>
+FILLED·asserted   <claims about the patient's past — inferred history, meds, family, social>
+FILLED·proposed   <forward actions — drugs, tests, referrals, education, follow-up interval>
+FLAG              <a documented finding the note failed to act on>
+GAPS              <what the rubric needs and the encounter genuinely did not supply>
+UNKNOWN           <tokens carried verbatim, any guess marked as a guess>
 ```
+
+The two FILLED lines together are **the FILLED block** — everything generated, in one place, for confirmation before submission. It splits into **asserted** and **proposed** because they carry different weight, as set out under *What may be inferred*: a preceptor checks asserted hardest, while proposed is reasoning and safe to be wrong about. A declared administrative value is a claim about the patient, so it belongs under `FILLED·asserted`.
+
+**FLAG is the block that matters.** A flag is a finding that was documented and then abandoned — an abnormal that reached the Objective and stopped there, a vital nobody addressed, a second problem the Assessment never names. It is neither a gap (nothing is missing from the source) nor a filled line (nothing was generated). It is the note failing to act on what it was told, which is the defect this skill exists to catch.
+
+One FLAG per finding. Name the finding and name what was not done with it — `BP 151/93 undiscussed`, not `vitals not addressed`.
+
+**What never goes under GAPS:**
+
+- **Start and end times.** Estimated by design, and they say so where they appear. Estimated is a property of the value, not the absence of one.
+- **Primary Payment Method and Race/Ethnicity.** Both have declared rules and are filled, not missing.
+- **Anything the skill was instructed to generate.** Reporting your own compliance as a defect is what makes the block unreadable, and an unreadable block hides the real omissions.
+
+GAPS holds what the rubric needs and the encounter did not supply: an x-ray ordered with no result recorded, a missing age, a swab sent and never returned.
 
 ### 7. Check for drift
 
@@ -159,10 +169,10 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 7 | **Drug names** | Each drug reads as the shorthand wrote it, trade or generic, unconverted |
 | 8 | **Band** | Patient Time follows Adult ≤ 59 / Gerontology ≥ 60 — overriding the Medatrax label's `Adult (18 – 60)` — with an obstetric or gynaecologic visit taking precedence |
 | 9 | **Arithmetic** | Every derived value shows its working and recomputes correctly |
-| 10 | **Entry** | Every Medatrax field holds a value or is listed under GAPS |
+| 10 | **Entry** | Every Medatrax field holds a given, a derived value, a declared value, or a GAPS entry |
 
 Row 2 carries the most weight and is the easiest to skip, because a drifting note reads perfectly well. Take each abnormal from step 2's expansion in turn and name where it lands. An abnormal that lands nowhere is either a diagnosis missing from the Assessment or a problem missing from the Plan — say which.
 
-A failing row is reported, never quietly repaired into a pass.
+A failing row is written as a **FLAG** in the tier block, never quietly repaired into a pass. That is what FLAG is for — the matrix finds the defect, FLAG is where it is recorded.
 
 Close with `N given, N derived, N filled` and stop.

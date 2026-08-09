@@ -18,6 +18,6 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 
 These bind every skill in this repo.
 
-1. **No PHI is ever committed.** Live notes are worked in `scratch/`, which is gitignored. Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read.
+1. **No PHI is ever committed.** Live notes are worked in `scratch/`, which is gitignored. Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).
 2. **Every line is given, derived, or filled.** These are academic notes against a school rubric, so sections the shorthand cannot supply are generated — but **filled content is always unremarkable**. Every abnormal finding, lab value, imaging result, medication, and diagnosis traces to the source. Filled lines are listed for the clinician to confirm before submission. Full rules in [clinical-note](skills/clinical-note/SKILL.md).
 3. **Proposals are labelled.** Any clinical reasoning the agent contributes — a differential, a code, a plan item — appears under `PROPOSED (verify before use)`, outside the document body, for the clinician to accept or drop.

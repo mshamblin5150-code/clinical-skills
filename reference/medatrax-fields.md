@@ -4,7 +4,20 @@ Single source of truth for the Medatrax NP portal. [clinical-note](../skills/cli
 
 Portal: `np.medatrax.com` — **not** `medatrax.com`, which is the Anesthesia-defaulted marketing login. Evaluations live on a third host, `evaluations.medatrax.com`.
 
+**Every authenticated page lives under `/login/`.** `np.medatrax.com/patient.aspx` returns Page Not Found; `np.medatrax.com/login/patient.aspx` is the patient list. Page names recorded below are relative to that prefix:
+
+| Page | URL |
+| --- | --- |
+| Patient Visit List | `/login/patient.aspx` — date-range and course filters, 50 rows per page |
+| Patient Detail | `/login/patientdetail.aspx?patid=…&visitid=…` — the whole visit record on one page, read-only |
+| Time Log entry | `/login/timesheetentry.aspx` |
+| Reports index | `/login/reports` |
+
+**Patient Detail is the field-by-field view.** It renders every per-encounter field as text without opening an edit form, which makes it the safe way to read an existing encounter.
+
 Picklist strings below are exact — match them character for character, including `Wyoming County Health Dept.` with its period and `New River Health - Oak Hill` with spaced hyphen.
+
+**Scope.** This file currently documents Medatrax for *reading* — what the fields are, what they accept, and how a note supplies them. Entering encounters through the portal is out of scope for this pass, **not permanently**: the field table and selection rules below are written to serve entry when it lands, which is the destination of the whole toolchain.
 
 ## The requirement
 
@@ -118,6 +131,8 @@ Obstetrical Hours            Women's Health
 
 Age decides the band; a gyn or obstetric visit overrides it — a 35-year-old seen for hormone review logs as Women's Health, not Adult.
 
+**The override is not being applied in existing entries.** A sampled encounter carrying `Case Type: Gynecology` is logged as `Adult (18 – 60) Hours`. NUR 5144 wants 20 Gynecology hours in its own bucket, so every visit like it credits the wrong area. Worth a sweep of historical entries for `Case Type: Gynecology` or `Obstetrics` sitting on an age band — this is the one administrative field where a wrong value actually costs something.
+
 ## Per-encounter fields (`patientedit.aspx`)
 
 | Field | Type | Source |
@@ -128,14 +143,14 @@ Age decides the band; a gyn or obstetric visit overrides it — a 35-year-old se
 | Site | picklist | given |
 | Preceptor | picklist | from the day file |
 | Interaction Level | picklist | given |
-| Race/Ethnicity | picklist | given |
+| Race/Ethnicity | picklist | declared default — see Field selection rules |
 | Gender | picklist | given |
 | Age + unit | text + picklist | given |
 | Marital status at first contact | picklist | given |
-| Primary Payment Method | picklist | given |
+| Primary Payment Method | picklist | declared constant — see Field selection rules |
 | Case Type | picklist | given |
 | Patient Time | picklist | derived from age and visit type |
-| Start time / End time | text | given |
+| Start time / End time | text | estimated — see Field selection rules |
 | Blood pressure | two text boxes | given |
 | Respiratory Rate | text | given |
 | Height | text | given |
@@ -143,7 +158,33 @@ Age decides the band; a gyn or obstetric visit overrides it — a 35-year-old se
 
 **There is no weight, heart rate, temperature or SpO2 field.** The note rubric wants a complete vital set, so those are filled and listed for confirmation. Anything Medatrax does carry is a given the note must match exactly.
 
-Visit Time is derived from start and end, and varies — 0:30 to 0:45 on 10/20/2025, a flat 0:15 across 4/8/2026. The program expects roughly 2 patients per hour in family practice.
+Visit Time is derived from start and end, and varies — 0:30 to 0:45 across one sampled day, a flat 0:15 across another. The program expects roughly 2 patients per hour in family practice.
+
+### Field selection rules
+
+Some fields are administrative and never appear in bedside shorthand. Without a stated rule the skill reports them missing on every note, which is what trains a clinician to skim the block that is supposed to catch real omissions. Each one below has a rule, so it is answered once here rather than ten times a day.
+
+**Primary Payment Method — `Medicaid`.**
+
+Payer data is not visible at the bedside and is not inferable from an encounter. The value is *declared*, not derived: `Medicaid` for every patient, except `Worker's comp` where the shorthand documents a work-related injury — and that exception is a **given**, read from the note, not a guess about the payer.
+
+Filled silently. It never appears under GAPS.
+
+Confirmed against the portal: on a sampled day, **all eleven existing encounters already carried `Medicaid`.** The constant is not an assumption about what the value should be — it is what the record already says.
+
+The rejected alternative was varying the value to produce a realistic-looking payer mix. That fabricates administrative data into an academic record, and nothing in the program grades payer distribution.
+
+**Race/Ethnicity — `Caucasian/White`, corrected on sight.**
+
+Unlike payer, this one is observable — the clinician saw the patient. It simply never gets written down.
+
+**The default is wrong about once in four.** On a sampled day, eight of eleven encounters were `Caucasian/White` and three `African American/Black`. Treat it as a starting value that genuinely needs a glance, not one that is usually safe to wave through — which is why it is filled under `FILLED·asserted` rather than written straight into the field.
+
+**Start time / End time — estimated, not missing.**
+
+The Times convention in [clinical-note](../skills/clinical-note/SKILL.md) assigns each visit 15–40 minutes across the shift and reports every time as estimated. Estimated is a property of the value, not the absence of one, so these do not belong under GAPS — a note that lists them there is spending a slot announcing that the skill obeyed its own instruction.
+
+**Not every administrative field is equal.** `Patient Time` is the one where a wrong value has a real consequence: it feeds the NUR 5144 area breakdown, so an error there misallocates clinical hours. Payment method and race/ethnicity feed no hours bucket at all. Treat them accordingly — `Patient Time` is worth stopping for, these are not.
 
 ## Add Visit Data
 

@@ -83,18 +83,34 @@ Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter 
 
 Number the output and keep the source order.
 
-### 6. Roll up the gaps
+### 6. Roll up the shift
 
-After the last note, consolidate:
+First the **schedule table** — the Medatrax entry view, one row per encounter in visit order:
+
+```
+| # | Age/Sex | Start–End | Len | Case Type | Patient Time |
+```
+
+Fields constant across the day — Course, Site, Preceptor, Interaction Level — are stated once above the table, not repeated on every row. **No patient name column.** Medatrax generates its own Patient Reference and never accepts a name, so the table has no use for one and standing rule 1 forbids it.
+
+This is a **roll-up of** the per-encounter Medatrax blocks from `clinical-note` step 5, not a replacement for them. Every note still emits its own block; the table is the tabbing view across the day. Dropping the per-note blocks is what previously hid `Race/Ethnicity` — a field never reported missing because it was never reported at all.
+
+Then consolidate:
 
 ```
 --- SHIFT SUMMARY ---
 Encounters: N
-Notes complete (no gaps): <numbers>
-Notes needing input: <number — what it needs, one line each>
+Notes clean (no flags, no gaps): <numbers>
+Notes needing attention: <number — the flag or the gap, one line each>
+
+--- FLAGS ACROSS THE SHIFT ---
+<note number — the finding, and what was not done with it>
+
 NEW GLOSSARY CANDIDATES: <unknown tokens seen across the shift, with frequency>
 ```
 
 Completion: every encounter appears in exactly one of the two note lists.
+
+**Read FLAGS first.** A gap is work outstanding and announces itself. A flag is a note that reads perfectly well and acted on only part of what it documented — nothing about it looks wrong. The roll-up is the only place the pattern is visible: one flag in one note looks like a hard case, five across a shift is what a twelve-hour day does to documentation.
 
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding to [GLOSSARY.md](../clinical-note/GLOSSARY.md) — offer to add them, and the next shift needs less input than this one.
