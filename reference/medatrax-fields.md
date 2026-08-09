@@ -4,6 +4,14 @@ Single source of truth for the Medatrax NP portal. [clinical-note](../skills/cli
 
 Portal: `np.medatrax.com` — **not** `medatrax.com`, which is the Anesthesia-defaulted marketing login. Evaluations live on a third host, `evaluations.medatrax.com`.
 
+### Getting in
+
+**Use the clinician's real Chrome, not an in-app or preview browser.** The password manager autofills the Medatrax login form there. A fresh in-app browser carries no session and no stored credentials, so the login page is the only page it will ever reach — the tools to reach for are the Chrome ones (`claude-in-chrome`), not the built-in browser pane.
+
+The agent **never types credentials**. Open `np.medatrax.com/default.aspx` in Chrome, let the password manager populate both fields, click Login, and go no further into the account.
+
+`default.aspx` renders the public marketing page whether or not a session exists, so it is useless as an auth check. Load `/login/patient.aspx` instead: the patient list means signed in, a bounce back to the form means signed out.
+
 **Every authenticated page lives under `/login/`.** `np.medatrax.com/patient.aspx` returns Page Not Found; `np.medatrax.com/login/patient.aspx` is the patient list. Page names recorded below are relative to that prefix:
 
 | Page | URL |
