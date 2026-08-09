@@ -23,6 +23,7 @@ Day files name preceptors by first name; Medatrax wants `Last,First` exactly. Ma
 | In the filename | Medatrax |
 | --- | --- |
 | Sharon | `Cecil,Sharon` |
+| dr frazer | not on the Medatrax list — **paediatrics only**, so every encounter on a Frazer day is a Pediatric (0–17) Hours entry. Ask which Medatrax preceptor of record applies |
 | Marie | `Green,Marie` |
 | Miranda | `Lester,Miranda` |
 | Lindley | `Lindley,Juddson` |

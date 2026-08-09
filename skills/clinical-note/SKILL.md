@@ -71,6 +71,29 @@ Separate two acts in the tier block, because they carry different weight:
 - **Proposed** — a forward action: a drug started, a test ordered, a referral. Reasoning, and safe to be wrong about; the preceptor rules on it.
 - **Asserted** — a claim about the patient's past: a medication they already take, a condition they already carry. Ground these in the history, then be specific. An absent `meds:` line usually means no medication reconciliation was done that visit, **not** that the patient takes nothing — infer the likely regimen from the conditions listed and name actual agents. This is the tier a preceptor checks hardest, so every asserted inference is listed.
 
+## Conventions
+
+**Favor the more complex note.** Where a differential could run three deep or five, run five. Where a finding could be left in Objective or carried into Assessment, carry it. Submitted notes drift toward the thin version over a long day; this skill exists to hold the line. Thoroughness is the tiebreaker, always.
+
+**Name the red flags.** Never write "red flags reviewed" or "precautions discussed". Write the actual list, specific to this presentation — *return immediately for fever above 101, worsening flank pain, or inability to keep fluids down.*
+
+**Keep the drug name as written.** The shorthand mixes trade and generic — Duoneb, Toradol, Decadron, Tessalon Perle — and that is fine. Carry through whichever was used; do not convert. Dose, route and frequency stay exactly as given; fill only a missing duration.
+
+**Age bands.** Adult runs to **59**. Anyone **60 or older** is Gerontology, despite the Medatrax label reading `Adult (18 – 60)`. An obstetric or gynaecologic visit overrides the band.
+
+**Marital status** is inferred from age and written into the Social History, not left as unreported.
+
+**Social history** does not blanket-fill with "not reported". Say it where it is genuinely unknown and would matter; otherwise write the inference.
+
+### Times
+
+Ask up front, once per day file, and reuse for every encounter in it:
+
+- **What time did the day start?** Note 1 is the first patient; each subsequent note follows in order.
+- **How long was the shift?** Clinical days often run twelve hours.
+
+Then assign each visit **15 to 40 minutes, in 5-minute steps**, by complexity — a brief recheck or simple sprain at 15–20, a routine acute visit at 25–30, a multi-problem or procedural visit at 35–40. Space the encounters across the shift rather than stacking them back to back, and report every start and end as estimated.
+
 ## Steps
 
 ### 1. Intake and de-identify
