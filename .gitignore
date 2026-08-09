@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------
+# PHI FIREWALL — real patient data never enters this repo.
+# Work on live notes inside scratch/. It is never committed.
+# ---------------------------------------------------------------
+scratch/
+cases/
+patients/
+*.phi
+*.phi.md
+
+# Exported spreadsheets / documents commonly carrying PHI
+*.csv
+*.xlsx
+*.xls
+*.docx
+*.pdf
+
+# Local agent wiring (see README: junction setup)
+.claude/skills
+.codex/
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
