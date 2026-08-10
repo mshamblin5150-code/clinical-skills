@@ -43,11 +43,13 @@ It is also deliberately **not** the drift-matrix verdicts from `clinical-note` s
 
 Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta instead of a judgment call.
 
+**A first run graded by whoever wrote it is a baseline, not a pass.** The same objection that disqualified the drift-matrix verdicts in [ADR 0001](../docs/adr/0001-fixture-asserts-on-named-findings.md) applies to any run scored by the pass that produced it. Asserting against the output text rather than a self-report is what makes the score checkable at all — someone else can re-read the same text and disagree. Until someone does, the number's job is to give the next run something to differ from.
+
 ## Sets
 
-| Set | Skill | Cases | Inputs | Reference | Run |
+| Set | Skill | Cases | Inputs | Reference | Last run |
 | --- | --- | --- | --- | --- | --- |
-| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | **never** |
+| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | `DRIFT 10/10` · `REPORTED 14/14` |
 
 The reference notes themselves live in `scratch/day-a-reference/`, gitignored — they carry the visit date, the site and social-history detail that the committed half deliberately does not.
 

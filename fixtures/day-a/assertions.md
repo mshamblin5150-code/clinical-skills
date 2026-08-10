@@ -10,7 +10,11 @@ Ten encounters from a single twelve-hour family-practice shift, 2025. Visit date
 
 **Inputs must come from the scan, never from the generated notes.** That output already contains the skill's reading of the shorthand — defects included — so a set derived from it would pass forever, on exactly the cases it exists to fail. The same trap applied to the reference half, and reading it changed four of the six DRIFT rows.
 
-**What has not happened yet: the skill has not been run against these inputs.** The set is now runnable and has never been run.
+**Run 1, 2026-08-09: `DRIFT 10/10` · `REPORTED 14/14` · block 6/6 tested.** Output in `scratch/day-a-run-1/`.
+
+That number carries a caveat worth more than the number. **The run and the grading were done by the same pass**, which is the arrangement [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) rejected for the drift matrix. Checking against output text rather than a self-report is the safeguard the ADR chose and it holds here, but a first run graded by its own author is a **baseline recorded, not a bar cleared.** The value of run 1 is that run 2 now has something to differ from.
+
+**Eight of the twenty-four rows came back *neither*, not *better*** — D3, D5, R6 and R8 among them. Before the reference was read the set implied every row was a catch.
 
 The scan is the single PDF in `scratch/day-files/`, gitignored, **7 pages**, image-only — no text layer, so it is rendered at 140 DPI and read visually. Its filename carries the visit date and the preceptor, so it is named here by location rather than quoted. An earlier note in this file said 19 pages; that was the count of *day files* in the clinician's Drive folder, not pages in this one.
 
@@ -40,6 +44,12 @@ The **Reference** column says what the submitted note actually did, read from th
 | D4 | 6 — 37 M | Pulmonary embolism, against family history of DVT/PE, HR 115, pleuritic pain, BMI 43.9 and diminished breath sounds | PE is absent from the differential | Ran URI / CAP / sinusitis and **ordered a CXR** — the differential does reach past URI. **PE never appears.** Considering it is *better*. |
 | D5 | 9 — 11 F | Anatomical snuff box tenderness after a fall | Scaphoid is absent from the Assessment | **Named it first** — "Scaphoid fracture (occult) … must exclude" — and immobilised in a **thumb spica**. Only the coded diagnosis is sprain. Matching this is *neither*. |
 | D6 | 10 — 25 M | Months of dysuria with right CVA tenderness | The GU problem is absent from the **final diagnosis** | Built a GU differential and ordered UA + culture, then coded only the ankles — the Final line reads `Bilateral ankle pain-M25.571 & M25.572;` and stops mid-line. Coding it is *better*. |
+| D7 | 6 — 37 M | HR 115 | Not named in the Assessment or the Plan | Recorded, never addressed. |
+| D8 | 7 — 10 F | HR 119 | Not named in the Assessment or the Plan | Recorded, never addressed. The temperature beside it *was* addressed. |
+| D9 | 8 — 23 F | HR 114, with palpitations documented in the ROS | Not named in the Assessment or the Plan | Recorded, never addressed. |
+| D10 | 10 — 25 M | BP 141/93 in a 25-year-old | Not named in the Assessment or the Plan | Recorded, never addressed. |
+
+D7–D10 were promoted from REPORTED after the reference read. They are one defect — **a vital recorded and abandoned** — occurring four times across four patients, which is the pattern a shift roll-up is supposed to make visible and a single note never does.
 
 Issue #1 named five defects. These are six, because its fifth bullet — "BP 151/93, HR 115, never mentioned" — bundles two findings from two different patients.
 
@@ -52,10 +62,9 @@ Issue #1 named five defects. These are six, because its fifth bullet — "BP 151
 | R1 | 3 — 18 | BP 139/85 in an 18-year-old is elevated and gets addressed | Recorded it; never addressed. BMI 40.9 appears only as a recovery-biomechanics aside. |
 | R2 | 4 — 48 F | Unprotected intercourse × 2 days documented → STI testing considered | Wrote "STI risk with recent unprotected intercourse" and ordered nothing for it; recorded that no pelvic exam was done. |
 | R3 | 4 — 48 F | 32 pack-years → LDCT screening discussed | No screening section at all. Tobacco appears only as an ICD-10 code. |
-| R4 | 6 — 37 M | Motrin 800 TID against documented GERD is called out — and no home acid suppression is invented to make it safe | **Asserted omeprazole 20 mg QD** as a home med. The shorthand has no `meds:` line, so the conflict was resolved by inventing the drug that resolves it. |
+| R4 | 6 — 37 M | Motrin 800 TID against documented GERD is called out — **and the flag fires whatever the inferred home regimen contains** | **Asserted omeprazole 20 mg QD** as a home med, then let that silence the conflict. Inferring a PPI is not itself the defect: `clinical-note` instructs that an absent `meds:` line with documented conditions be inferred. Suppressing the flag because of the inference is. |
 | R5 | 6 — 37 M | Second positive Rovsing's, with RUQ and LLQ tenderness, is not left undiagnosed | Worse than undiagnosed — **the Objective has no abdominal exam at all**. All three findings vanished between shorthand and note. |
-| R6a | 7 — 10 F | Temperature rising 99.2 → 102 during the visit is addressed | Addressed — recorded as a recheck, called out in the general appearance, coded `Fever-R50.9`. *Neither.* |
-| R6b | 7 — 10 F | HR 119 is addressed | Never addressed. |
+| R6 | 7 — 10 F | Temperature rising 99.2 → 102 during the visit is addressed | Addressed — recorded as a recheck, called out in the general appearance, coded `Fever-R50.9`. *Neither.* (The HR 119 half of the original row is now D8.) |
 | R7 | 7 — 10 F | Diffuse lower abdominal tenderness is not left undiagnosed | Reached the Objective; three diagnoses made, none abdominal. |
 | R8 | 8 — 23 F | Unilateral exudate plus syncope → peritonsillar abscess and mono explicitly excluded | **Did both**, with the reasoning for each. *Neither* — and losing either is *worse*. |
 | R9 | 8 — 23 F | Amoxil listed as current while clindamycin is added → a stop instruction appears | Dropped amoxil from the med list entirely, so no conflict appeared to resolve. |
@@ -68,16 +77,13 @@ These came out of the submitted notes, not from issue #1. All are drift-class.
 | # | Case | Claim | Reference did |
 | --- | --- | --- | --- |
 | R11 | 1 — 60 F | Left CVA tenderness and epigastric tenderness are not left undiagnosed | Both reached the Objective; the Assessment is respiratory only. |
-| R12 | 6 — 37 M | HR 115 is addressed | Recorded, never addressed. |
-| R13 | 8 — 23 F | HR 114 with documented palpitations is addressed | Recorded, never addressed. |
-| R14 | 10 — 25 M | BP 141/93 in a 25-year-old is addressed | Recorded, never addressed. |
-| R15 | 2 — 40 F | PCOS from the history reaches the note | Dropped. PMH lists only PE tubes and tonsillectomy. |
-| R16 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
-| R17 | 3, 6, 8, 10 | No tobacco or vaping status is asserted where the shorthand supplies none | Invented one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". Case 10's shorthand says `hx: none`. |
+| R12 | 2 — 40 F | PCOS from the history reaches the note | Dropped. PMH lists only PE tubes and tonsillectomy. |
+| R13 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
+| R14 | 3, 6, 8, 10 | No tobacco or vaping status is asserted where the shorthand supplies none | Invented one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". Case 10's shorthand says `hx: none`. |
 
-R17 is the one to watch. Four inventions across ten notes, all in the same field, all plausible — this is what standing rule 2 is for, and it is the failure mode a tired clinician and a generative model share.
+R14 is the one to watch. Four inventions across ten notes, all in the same field, all plausible — this is what standing rule 2 is for, and it is the failure mode a tired clinician and a generative model share.
 
-Several of these are drift-class and could be promoted to binary once the set actually runs. They start here because the agreed bar was the defects named in issue #1, and a bar is only worth having if it was set deliberately. The rows found by reading the reference start here for the same reason.
+The rest stay counted rather than enforced. The four vitals rows were promoted to D7–D10 because they are one repeating defect with unambiguous pass conditions; these are not, and a bar is only worth having if it was set deliberately.
 
 ## Block-structure assertions
 

@@ -37,6 +37,17 @@ Observed in real notes. Expansions confirmed against the finished versions.
 | `MDI` | metered dose inhaler |
 | `TIA` | transient ischemic attack |
 | `#` (in `7# 10 oz`) | pounds — birth weight |
+| `lmp` | last menstrual period |
+| `pcos` | polycystic ovary syndrome |
+| `g2p2a0` | gravida 2, para 2, abortus 0 |
+| `pna` | pneumonia |
+| `adhd` | attention-deficit hyperactivity disorder |
+| `hfa` | hydrofluoroalkane — a metered-dose inhaler propellant, so `albuterol hfa` is the inhaler |
+| `duoneb` | ipratropium-albuterol nebuliser solution |
+
+### Not added, deliberately
+
+`rosvig` — seen twice in one day file, in two different patients. Best guess is **Rovsing's sign**, and it has not been confirmed. It stays out of this table because the two readings produce completely different notes: in one of them a patient with an otherwise normal abdomen has a peritoneal sign. A guess written into the glossary becomes a given on every future note, which is exactly the wrong place to resolve an ambiguity. **Ask the clinician what it means, then add it.**
 
 ### Typos seen in the wild
 
