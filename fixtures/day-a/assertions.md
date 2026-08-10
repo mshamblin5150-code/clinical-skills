@@ -2,13 +2,15 @@
 
 Ten encounters from a single twelve-hour family-practice shift, 2025. Visit date and site removed per [fixtures/README](../README.md). Skill: `clinical-note`, comprehensive SOAP branch.
 
-## Status — inputs built, reference not read
+## Status — both halves built
 
-**The inputs are in.** All ten encounters are transcribed from the scan into [shorthand/](shorthand/), one file per case, de-identified. Every DRIFT and REPORTED row below has a source line in the scan — none of them turned out to be an artifact of the previous run's output.
+**The inputs are in.** All ten encounters are transcribed from the scan into [shorthand/](shorthand/), one file per case, de-identified. Every DRIFT and REPORTED row has a source line in the scan.
 
-**The reference notes have not been read.** They are the submitted forms in the portal, reachable through the `View` link on each Patient Detail page. Nobody has opened one. Every claim in this set was written before the scan was read and before a submitted form was opened, so each still needs checking against both.
+**The reference is read.** All ten submitted notes were opened in the portal on 2026-08-09 and are kept, un-de-identified, in `scratch/day-a-reference/` — gitignored, because they carry the visit date, the site and the clinician's own social-history detail. Every row below now records what the submitted note actually did.
 
-**Inputs must come from the scan, never from the generated notes.** That output already contains the skill's reading of the shorthand — defects included — so a set derived from it would pass forever, on exactly the cases it exists to fail. The same trap applies to the reference half: read the submitted forms, don't infer them.
+**Inputs must come from the scan, never from the generated notes.** That output already contains the skill's reading of the shorthand — defects included — so a set derived from it would pass forever, on exactly the cases it exists to fail. The same trap applied to the reference half, and reading it changed four of the six DRIFT rows.
+
+**What has not happened yet: the skill has not been run against these inputs.** The set is now runnable and has never been run.
 
 The scan is the single PDF in `scratch/day-files/`, gitignored, **7 pages**, image-only — no text layer, so it is rendered at 140 DPI and read visually. Its filename carries the visit date and the preceptor, so it is named here by location rather than quoted. An earlier note in this file said 19 pages; that was the count of *day files* in the clinician's Drive folder, not pages in this one.
 
@@ -28,33 +30,54 @@ So a difference from the reference is not automatically a failure. It is one of 
 
 Each row is a finding the shorthand documented and the original note then abandoned. A run passes the row when the finding is named in the **Assessment or the Plan** — not merely recorded in the Objective.
 
-| # | Case | The finding | Fails when |
-| --- | --- | --- | --- |
-| D1 | 2 — 40 F | Hemoptysis in a smoker | The note diagnoses without addressing imaging. No CXR was ordered in the original. |
-| D2 | 5 — 45 F | Positive Rovsing's sign | Diagnosed as URI with no abdominal workup. Rovsing's is an appendicitis sign; it is either a real finding that went unaddressed or a token meaning something else in this shorthand. |
-| D3 | 5 — 45 F | BP 151/93 | Recorded and never discussed. Stage 2 hypertension. |
-| D4 | 6 — 37 M | HR 115 with fever to 103, pleuritic pain, diminished breath sounds, BMI 43.9, family history of DVT/PE | Diagnosed as URI alone. The differential must reach beyond it. |
-| D5 | 9 — 11 F | Anatomical snuff box tenderness after a fall | Diagnosed as sprain alone. Scaphoid must appear in the Assessment — scaphoid fractures are commonly occult on initial x-ray, so a normal film does not clear the row. |
-| D6 | 10 — 25 M | Months of dysuria with right CVA tenderness | Only the ankles are diagnosed. Two problems presented; the note must address both. |
+The **Reference** column says what the submitted note actually did, read from the portal on 2026-08-09. It is what makes *better* / *worse* / *neither* answerable instead of assumed.
+
+| # | Case | The finding | Fails when | Reference did |
+| --- | --- | --- | --- | --- |
+| D1 | 2 — 40 F | Hemoptysis in a smoker | No imaging is ordered or discussed | Named hemoptysis, listed pneumonia as "Unlikely" on auscultation alone, **ordered no film**. Imaging is *better*. |
+| D2 | 5 — 45 F | Positive Rovsing's sign | Not named in the Assessment or the Plan | Carried `+ Rosvig` into the Objective and stopped. Pure drift. Naming it is *better*. |
+| D3 | 5 — 45 F | BP 151/93 | Not named in the Assessment or the Plan | **Addressed it** — `Essential HTN I10 (elevated BP today)` in the Assessment, home BP log and PCP review in the Plan. Matching this is *neither*; losing it is *worse*. |
+| D4 | 6 — 37 M | Pulmonary embolism, against family history of DVT/PE, HR 115, pleuritic pain, BMI 43.9 and diminished breath sounds | PE is absent from the differential | Ran URI / CAP / sinusitis and **ordered a CXR** — the differential does reach past URI. **PE never appears.** Considering it is *better*. |
+| D5 | 9 — 11 F | Anatomical snuff box tenderness after a fall | Scaphoid is absent from the Assessment | **Named it first** — "Scaphoid fracture (occult) … must exclude" — and immobilised in a **thumb spica**. Only the coded diagnosis is sprain. Matching this is *neither*. |
+| D6 | 10 — 25 M | Months of dysuria with right CVA tenderness | The GU problem is absent from the **final diagnosis** | Built a GU differential and ordered UA + culture, then coded only the ankles — the Final line reads `Bilateral ankle pain-M25.571 & M25.572;` and stops mid-line. Coding it is *better*. |
 
 Issue #1 named five defects. These are six, because its fifth bullet — "BP 151/93, HR 115, never mentioned" — bundles two findings from two different patients.
 
+**Two of these six were wrong before the reference was read.** D3 and D5 both asserted the original had abandoned a finding it had in fact carried into the Assessment and the Plan. Both were written from the skill's own prior output, which is exactly the failure `fixtures/README` warns about — and the reason it is worth saying plainly is that a set claiming credit for catching what the clinician already caught is not measuring anything. D4 and D6 needed narrowing for the same reason. Only D1 and D2 survived unchanged.
+
 ## REPORTED — counted, not enforced
 
-| # | Case | Claim |
-| --- | --- | --- |
-| R1 | 3 — 18 M | BP 139/85 in an 18-year-old is elevated and gets addressed |
-| R2 | 4 — 48 F | Unprotected intercourse × 2 days documented → STI testing considered |
-| R3 | 4 — 48 F | 32 pack-years → LDCT screening discussed |
-| R4 | 6 — 37 M | Motrin 800 TID against documented GERD on no acid suppression is called out |
-| R5 | 6 — 37 M | Second positive Rovsing's, with RUQ and LLQ tenderness, is not left undiagnosed |
-| R6 | 7 — 10 F | Temperature rising 99.2 → 102 during the visit with HR 119 is addressed |
-| R7 | 7 — 10 F | Diffuse lower abdominal tenderness is not left undiagnosed |
-| R8 | 8 — 23 F | Unilateral exudate failing amoxicillin, plus syncope → peritonsillar abscess and mono explicitly excluded |
-| R9 | 8 — 23 F | Amoxil listed as current while clindamycin is added → a stop instruction appears |
-| R10 | 9 — 11 F | Implausible vitals are questioned rather than transcribed silently |
+| # | Case | Claim | Reference did |
+| --- | --- | --- | --- |
+| R1 | 3 — 18 | BP 139/85 in an 18-year-old is elevated and gets addressed | Recorded it; never addressed. BMI 40.9 appears only as a recovery-biomechanics aside. |
+| R2 | 4 — 48 F | Unprotected intercourse × 2 days documented → STI testing considered | Wrote "STI risk with recent unprotected intercourse" and ordered nothing for it; recorded that no pelvic exam was done. |
+| R3 | 4 — 48 F | 32 pack-years → LDCT screening discussed | No screening section at all. Tobacco appears only as an ICD-10 code. |
+| R4 | 6 — 37 M | Motrin 800 TID against documented GERD is called out — and no home acid suppression is invented to make it safe | **Asserted omeprazole 20 mg QD** as a home med. The shorthand has no `meds:` line, so the conflict was resolved by inventing the drug that resolves it. |
+| R5 | 6 — 37 M | Second positive Rovsing's, with RUQ and LLQ tenderness, is not left undiagnosed | Worse than undiagnosed — **the Objective has no abdominal exam at all**. All three findings vanished between shorthand and note. |
+| R6a | 7 — 10 F | Temperature rising 99.2 → 102 during the visit is addressed | Addressed — recorded as a recheck, called out in the general appearance, coded `Fever-R50.9`. *Neither.* |
+| R6b | 7 — 10 F | HR 119 is addressed | Never addressed. |
+| R7 | 7 — 10 F | Diffuse lower abdominal tenderness is not left undiagnosed | Reached the Objective; three diagnoses made, none abdominal. |
+| R8 | 8 — 23 F | Unilateral exudate plus syncope → peritonsillar abscess and mono explicitly excluded | **Did both**, with the reasoning for each. *Neither* — and losing either is *worse*. |
+| R9 | 8 — 23 F | Amoxil listed as current while clindamycin is added → a stop instruction appears | Dropped amoxil from the med list entirely, so no conflict appeared to resolve. |
+| R10 | 9 — 11 F | Implausible vitals are questioned rather than transcribed silently | BP 133/86 and BMI 37.9 in an 11-year-old, both transcribed without comment. |
 
-Several of these are drift-class and could be promoted to binary once the set actually runs. They start here because the agreed bar was the defects named in issue #1, and a bar is only worth having if it was set deliberately.
+### Found by reading the reference
+
+These came out of the submitted notes, not from issue #1. All are drift-class.
+
+| # | Case | Claim | Reference did |
+| --- | --- | --- | --- |
+| R11 | 1 — 60 F | Left CVA tenderness and epigastric tenderness are not left undiagnosed | Both reached the Objective; the Assessment is respiratory only. |
+| R12 | 6 — 37 M | HR 115 is addressed | Recorded, never addressed. |
+| R13 | 8 — 23 F | HR 114 with documented palpitations is addressed | Recorded, never addressed. |
+| R14 | 10 — 25 M | BP 141/93 in a 25-year-old is addressed | Recorded, never addressed. |
+| R15 | 2 — 40 F | PCOS from the history reaches the note | Dropped. PMH lists only PE tubes and tonsillectomy. |
+| R16 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
+| R17 | 3, 6, 8, 10 | No tobacco or vaping status is asserted where the shorthand supplies none | Invented one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". Case 10's shorthand says `hx: none`. |
+
+R17 is the one to watch. Four inventions across ten notes, all in the same field, all plausible — this is what standing rule 2 is for, and it is the failure mode a tired clinician and a generative model share.
+
+Several of these are drift-class and could be promoted to binary once the set actually runs. They start here because the agreed bar was the defects named in issue #1, and a bar is only worth having if it was set deliberately. The rows found by reading the reference start here for the same reason.
 
 ## Block-structure assertions
 
@@ -78,9 +101,14 @@ F5 replaced a row that asserted the band outright. That row was written before t
 
 **There is an eleventh encounter and it is not a fixture case.** 29 F, Case Type Gynecology, BP 118/76, height 64, RR 16 — and it already has two comprehensive SOAP notes attached in the portal. The note exists; the *day file scan* is missing it. It is not part of this set because its shorthand was never captured.
 
-**Recorded times differ from the estimates.** The portal has case 10 at 19:20–19:50; the working file estimated 16:35–17:00 from an assumed 09:00–21:00 shift. The Times convention produces plausible times, not real ones, and the two should not be expected to agree.
+**Recorded times differ from the estimates.** The portal has case 10 at 19:20–19:50; the working file estimated 16:35–17:00 from an assumed 09:00–21:00 shift. The Times convention produces plausible times, not real ones, and the two should not be expected to agree. Recorded times across the day run 09:30 to 20:35 — so the assumed twelve-hour shape was about right and only the placement was off.
+
+**Case 3's recorded gender contradicts the shorthand.** The portal says `Gender: Female`. The shorthand says `18 yo M` and the narrative is "he can bear weight but it hurts". Every other recorded field on that visit matches — height 70, BP 139/85, RR 20, BMI 40.9 — so this is one wrong picklist, not a mismatched patient. Worth correcting in the portal; it is not a fixture question.
+
+**Primary Payment Method is not a constant.** On this day the eleven encounters carry six `Medicaid`, three `Commercial insurance/HMO/PPO` and two `Medicare` — including `Medicare` on a 23-year-old. `reference/medatrax-fields.md` previously recorded that all eleven were `Medicaid`; they are not, and the rule there has been changed to match.
 
 ## Still unresolved
 
-- **The reference half.** Not one submitted form has been opened. Until they are, every row here is a claim about what a good note should contain, not a comparison against what was actually submitted — so nothing can yet be called *better* or *worse*.
+- **The set has never been run.** Both halves exist; no `clinical-note` output has been checked against them. Until it is, `DRIFT n/n` and `REPORTED n/m` have no first value to measure drift from.
 - **Case 10's opener.** The shorthand states no age and no sex. This is a defect in the source, kept in the input file deliberately rather than patched, and it is what F5–F7 test. The portal supplies 25, male.
+- **Whether R11–R17 should be binary.** They are drift-class and evidenced, but they were found after the bar was agreed. Promote them deliberately or not at all.

@@ -82,7 +82,13 @@ One preclinical self-evaluation; **three** evaluations of the student by the pre
 
 > The system auto saves forms every 2 minutes. Only have 1 form/window open at a time, as the auto save could override progress.
 
-Draft outside Medatrax, paste once, close. And: **paging a report grid past its last page throws an Application Error** that requires backing out to the home page. Never guess a page index — walk the pager.
+Draft outside Medatrax, paste once, close.
+
+**Reading a submitted form is safe.** The `View` link opens `forms/ComprehensiveSoapNoteV2.aspx?resultid=…`, and that page renders the real edit form — enabled textareas, autosave and all — which reads alarming and is not. Autosave overwrites *progress*, and there is no progress unless something was typed. Open a submitted note, read it, leave it: nothing changes. The rule above is about two windows racing each other during entry, not about looking.
+
+So the reference half of a fixture set is read straight off these pages. `resultid` comes from the `View` link on Patient Detail; there is no other index of them, and it is never guessed — a wrong `resultid` is another student's note.
+
+**View the form. Do not fetch its HTML.** Requesting the page and parsing the markup looks equivalent and is not: what a submitted note actually contains is what the *rendered* fields hold, and treating the served HTML as the answer is how a field that populates after load gets silently recorded as empty. Open the page, read the field values off it. The caution that makes this tempting — autosave — is the paragraph above, and it does not apply. And: **paging a report grid past its last page throws an Application Error** that requires backing out to the home page. Never guess a page index — walk the pager.
 
 ## Current state (read 2026-08-09)
 
@@ -139,7 +145,15 @@ Obstetrical Hours            Women's Health
 
 Age decides the band; a gyn or obstetric visit overrides it — a 35-year-old seen for hormone review logs as Women's Health, not Adult.
 
-**The override is not being applied in existing entries.** A sampled encounter carrying `Case Type: Gynecology` is logged as `Adult (18 – 60) Hours`. NUR 5144 wants 20 Gynecology hours in its own bucket, so every visit like it credits the wrong area. Worth a sweep of historical entries for `Case Type: Gynecology` or `Obstetrics` sitting on an age band — this is the one administrative field where a wrong value actually costs something.
+**The override has never been applied. Swept 2026-08-09: 30 of 30.**
+
+Every `Gynecology` and `Obstetrics` visit in the entire record sits on an age band. Twenty-seven gynaecologic visits — 23 on `Adult (18 – 60) Hours`, 4 on `Gerontology (60 and>)` — and three obstetric visits, all on `Adult`. **`Women's Health` and `Obstetrical Hours` have never been used once.** Ages ran 18 to 79 and the age rule was applied correctly throughout, so this is not carelessness; the override simply is not part of the habit.
+
+Those hours are not recoverable and do not need to be. All 30 belong to NUR5153, NUR5111 and NUR5143, and the 360 starts from zero — correcting them shuffles buckets inside closed courses. What matters is that NUR 5144 wants 20 Gynecology and 20 Obstetrics hours in their own buckets, and the habit has a perfect record of not supplying them.
+
+**No report exposes Patient Time.** Case Type Report gives case type, date and reference; the Statistics Report has a Case Type view but no Patient Time view; Data Totals covers visit-data categories, all empty. The value appears only on `patientdetail.aspx`, one visit at a time.
+
+**To audit a specific visit fast:** `patList:txtSearch` on `/login/patient.aspx` accepts a Patient Reference and returns that single visit at `Select$0`. That is what makes a per-visit sweep possible without walking twelve pages of fifty.
 
 ## Per-encounter fields (`patientedit.aspx`)
 
@@ -172,15 +186,15 @@ Visit Time is derived from start and end, and varies — 0:30 to 0:45 across one
 
 Some fields are administrative and never appear in bedside shorthand. Without a stated rule the skill reports them missing on every note, which is what trains a clinician to skim the block that is supposed to catch real omissions. Each one below has a rule, so it is answered once here rather than ten times a day.
 
-**Primary Payment Method — `Medicaid`.**
+**Primary Payment Method — `Medicaid`, corrected on sight.**
 
-Payer data is not visible at the bedside and is not inferable from an encounter. The value is *declared*, not derived: `Medicaid` for every patient, except `Worker's comp` where the shorthand documents a work-related injury — and that exception is a **given**, read from the note, not a guess about the payer.
+Payer data is not visible at the bedside and is not inferable from an encounter. The value is *declared*, not derived: `Medicaid` as the starting value, except `Worker's comp` where the shorthand documents a work-related injury — and that exception is a **given**, read from the note, not a guess about the payer.
 
-Filled silently. It never appears under GAPS.
+**This field used to be filled silently, on a claim that turns out to be false.** The earlier note here said all eleven encounters on a sampled day carried `Medicaid`. All eleven were read field by field on 2026-08-09, and they carry **six `Medicaid`, three `Commercial insurance/HMO/PPO`, two `Medicare`** — including `Medicare` on a 23-year-old. The default is wrong closer to two times in five, which is worse than the Race/Ethnicity default below.
 
-Confirmed against the portal: on a sampled day, **all eleven existing encounters already carried `Medicaid`.** The constant is not an assumption about what the value should be — it is what the record already says.
+So it is treated the same way: a starting value that genuinely needs a glance, listed under `FILLED·asserted` rather than written straight into the field. It still never appears under GAPS — it is filled, not missing.
 
-The rejected alternative was varying the value to produce a realistic-looking payer mix. That fabricates administrative data into an academic record, and nothing in the program grades payer distribution.
+The rejected alternative was varying the value to produce a realistic-looking payer mix. That fabricates administrative data into an academic record, and nothing in the program grades payer distribution. Guessing a *spread* is not better than guessing a constant; both are invention. The fix is that the clinician confirms it, not that the skill guesses more artfully.
 
 **Race/Ethnicity — `Caucasian/White`, corrected on sight.**
 

@@ -45,9 +45,11 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 
 ## Sets
 
-| Set | Skill | Cases | Inputs | Reference |
-| --- | --- | --- | --- | --- |
-| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | **not read** |
+| Set | Skill | Cases | Inputs | Reference | Run |
+| --- | --- | --- | --- | --- | --- |
+| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | **never** |
+
+The reference notes themselves live in `scratch/day-a-reference/`, gitignored — they carry the visit date, the site and social-history detail that the committed half deliberately does not.
 
 ## A set has two halves
 
