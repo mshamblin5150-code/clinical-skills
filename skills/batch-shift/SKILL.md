@@ -13,31 +13,29 @@ A shift dump is many **encounters** run together in one paste. The unit of work 
 
 A day's file carries the date and the **preceptor**, in the filename, in a header at the top of the file, or both:
 
-- `4-8-26 Lindley Final Round_260427_204257.pdf` — preceptor in the filename only.
-- `1-12-26 dr frazer, sharon_260112_200412.pdf` — filename lists **two** preceptors, and the file itself opens `1-12-26 / Dr Frazer`.
+The convention is `<date> <preceptor>_<scan timestamp>.pdf`, and it varies:
+
+- `<date> <preceptor> Final Round_<timestamp>.pdf` — preceptor in the filename only.
+- `<preceptor> <date>_<timestamp>.pdf` — the two swap places in about a fifth of the catalog.
+- `<date> <preceptor>, <preceptor>_<timestamp>.pdf` — **two** preceptors, and the file itself opens with only the first.
+- `Notes_<timestamp>.pdf` — no date and no preceptor at all. Both must be asked for.
 
 Read both sources. A comma in the preceptor position means a **dual-preceptor day**, and the file header decides which encounters belong to which — if it does not say, that is a question for the clinician, not a guess. Preceptor attribution is what makes the hours count.
 
-Day files name preceptors by first name; Medatrax wants `Last,First` exactly. Map through [medatrax-fields.md](../../reference/medatrax-fields.md):
+Day files name preceptors by first name; Medatrax wants `Last,First` exactly.
 
-| In the filename | Medatrax |
-| --- | --- |
-| Sharon | `Cecil,Sharon` |
-| dr frazer | not on the Medatrax list — **paediatrics only**, so every encounter on a Frazer day is a Pediatric (0–17) Hours entry. Ask which Medatrax preceptor of record applies |
-| Marie | `Green,Marie` |
-| Miranda | `Lester,Miranda` |
-| Lindley | `Lindley,Juddson` |
-| Jessica | `Sharp,Jessica` |
-| Julie | `Sison,Julie` |
+**The mapping is per-clinician and lives in `scratch/medatrax-profile.md`**, written by [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Read it there rather than from this file — a preceptor list belongs to one account and does not travel.
 
-A name that does not map — `dr frazer` appears in `1-12-26 dr frazer, sharon` but is on no Medatrax preceptor list — is **reported, never substituted**. It usually means a physician who was present but is not the preceptor of record, and only the clinician knows which.
+**A name that maps to nobody is reported, never substituted.** In this clinician's catalog three of them do not map: one is a physician who was present but is not the preceptor of record, and two are a first name whose nearest picklist entry has a different surname. Guessing the nearest match is how a shift's hours get attributed to someone who was not there, and nothing downstream will catch it. Only the clinician knows.
+
+Where an unmapped preceptor is known to work a single population — a paediatrician, say — that still settles the `Patient Time` band for the whole day even while the preceptor field stays open. Record the band, hold the name.
 
 ### 2. Get the text out
 
 Day files are PDFs, and they come in two kinds. Check before parsing:
 
-- **Text layer present** — extract directly with PyMuPDF. Two of eighteen files are like this.
-- **Image-only scan** — `page.get_text()` returns nothing and each page holds a single image. Sixteen of eighteen are like this. No OCR tool is needed: render each page and read it visually.
+- **Text layer present** — extract directly with PyMuPDF. **32 of the 49 files** in this clinician's catalog are like this, and they are the newer ones.
+- **Image-only scan** — `page.get_text()` returns nothing and each page holds a single image. **17 of 49**, all from one stretch of 2025. No OCR tool is needed: render each page and read it visually.
 
 ```python
 import fitz
@@ -53,16 +51,29 @@ if not "".join(p.get_text() for p in d).strip():
 
 `Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then the demographic line, then some order of `hx:`, `meds:`, `cc:`, and a narrative.
 
-**It held for all 353 encounters in the clinician's catalog.** No encounter in 49 day files opened any other way, so the fallback below is genuinely a fallback.
+**It held for all 548 encounters in the clinician's catalog** — 48 unique day files, both halves. No encounter opened any other way, so the fallback below is genuinely a fallback.
+
+**The name is not reliably the line after `Note N`.** It can sit below the vitals, or below a remark the clinician wrote to themselves. Both of these are real:
+
+```
+Note 1                          Note 22
+8yo F                           i saw this patient last week
+124/65 HR 115 SpO2 99% T 99.6   [PT]
+[PT]                            dob [DOB]
+```
+
+Read a **window** of the first few lines and take the first one shaped like a name. Reading exactly one line loses both patients above, and a patient whose name is lost is a patient who gets a second Patient Reference — see [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 6.
 
 **The demographic line takes four shapes, and only two of them state an age:**
 
 | Shape | Share | What it means |
 | --- | --- | --- |
-| `dob <date>` and no age | **47%** | Age is derived from the date of birth and the visit date, and must be computed **before** the date of birth is redacted |
-| `48 yo F`, `10 F`, `13 month male` | 42% | Age given |
-| Both | 3% | Cross-check them; a disagreement is a question, not a rounding choice |
-| **Neither** | **7%** | Roughly one encounter in fourteen. Report it — see step 4 |
+| `48 yo F`, `10 F`, `13 month male` | **69%** | Age given |
+| Both age and `dob` | 15% | Cross-check them; a disagreement is a question, not a rounding choice |
+| `dob <date>` and no age | 12% | Age is derived from the date of birth and the visit date, and must be computed **before** the date of birth is redacted |
+| **Neither** | **5%** | Report it — see step 4 |
+
+**The mix differs sharply between the two halves of this catalog**, so do not carry a share from one into the other: the image-only 2025 scans nearly always state an age outright, while the 2026 text files lean on `dob`. Measure the file in front of you. The derive-age-before-redacting rule matters wherever `dob` appears, whatever the share.
 
 **Match case-insensitively.** Real files carry `Note 3`, `NOte 3`, and `NOte 4` in the same document. A case-sensitive match silently merges encounters.
 
@@ -70,7 +81,7 @@ Split on `Note N` and nothing else. Fall back to heuristics — a new age/sex op
 
 Assign **every line** to exactly one encounter. The day header, and anything else belonging to no encounter, goes to an **Unassigned** list — never folded into the nearest patient.
 
-Completion: the encounter numbers run consecutively from 1 with no gaps, and line count of all encounters plus Unassigned equals line count of the source. A gap in the numbering is a missing note — report it rather than renumbering.
+**The numbering is not trustworthy, and that is not a parsing bug.** In this catalog one file skips from `Note 8` to `Note 10` with no encounter missing, and another numbers two consecutive encounters `Note 2`. Completion is therefore: every line lands in exactly one encounter or in Unassigned. **Report a gap or a repeated number; never renumber to make the sequence tidy.**
 
 ### 4. Confirm the split — stop here
 

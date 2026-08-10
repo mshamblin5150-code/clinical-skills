@@ -50,7 +50,7 @@ Observed in real notes. Expansions confirmed against the finished versions.
 
 ### Conditions and history
 
-Drawn from a sweep of the clinician's full day-file catalog — 49 files, 340 pages, 32 of them carrying a text layer.
+Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 unique; one is duplicated on disk), 340 pages, **548 encounters**. The 32 text-layer files were extracted; the 17 image-only scans were rendered and read. **Every count below is a total, not a floor.**
 
 | Shorthand | Expansion |
 | --- | --- |
@@ -125,6 +125,48 @@ The catalog carries obstetric encounters, and they feed a separate hours bucket 
 | `g5p4a0`, `g3p1a1` | gravida, para, abortus — the same pattern as `g2p2a0` |
 | `iud` | intrauterine device |
 | `depo` | depot medroxyprogesterone injection |
+| `sud` | substance use disorder — usually with the substance appended (`sud-marijuana`, `SUD - heroin`) |
+| `dips`, `chews` | smokeless tobacco. Counted in years, not packs: `dips x 55 years` |
+| `oe` / `aom` / `om` | otitis externa / acute otitis media / otitis media |
+| `pad` | peripheral artery disease |
+
+### Exam and procedure — from the 2025 scans
+
+These appear throughout the image-only half and were absent from the earlier text-only sweep.
+
+| Shorthand | Expansion |
+| --- | --- |
+| `s1,s2` | first and second heart sounds, normal (229) |
+| `2/2` | peripheral pulses 2+ and equal (215) — the un-typo'd form of `2/2j` |
+| `clear x 4`, `dm x 4` | clear / diminished in all four lung fields |
+| `exw`, `iew` | expiratory wheezing / inspiratory and expiratory wheezing |
+| `ckls` | crackles |
+| `i&d` | incision and drainage |
+| `d&c` | dilation and curettage |
+| `t&a` | tonsillectomy and adenoidectomy |
+| `lac` | laceration |
+| `ble` / `rle` / `lle` / `rue` / `lue` | bilateral / right lower / left lower / right upper / left upper extremity |
+| `ac space`, `AC area` | antecubital fossa |
+| `xerosis`, `xeroisis` | abnormally dry skin |
+| `homen sign` | Homans sign |
+| `psoas`, `obturator` (`oturbator`), `murphys`, `mcburneys` | the named abdominal signs. **Like `rosvig`, a positive one is never a throwaway** |
+| `kub` | kidneys-ureters-bladder film |
+| `flat plate` | plain supine abdominal film |
+| `micro urine` | microscopic urinalysis (28) |
+| `c/s` | culture and sensitivity — see the ambiguity note below |
+| `amy`, `lip` | amylase, lipase |
+| `trop` | troponin |
+| `uds` | urine drug screen |
+| `spot mono` | monospot |
+| `gtt` | drops (`cortisporin gtt 4 tid`) |
+| `zpac`, `z-pack` | azithromycin course |
+| `solu 125`, `solumedrol 125` | methylprednisolone 125 mg |
+| `decadron`, `decaron` | dexamethasone |
+| `tessalon perle`, `teselon perle` | benzonatate |
+| `macrobid` | nitrofurantoin — **does not reach the renal parenchyma; check it against any flank or CVA finding in the same note** |
+| `wic` | walk-in clinic |
+| `fht` | fetal heart tones (13) |
+| `edd` | estimated date of delivery |
 
 ## Ambiguous — resolve from context, never by default
 
@@ -136,6 +178,13 @@ These carry more than one standard expansion and the wrong one invents a diagnos
 - `family hx: Mother - CAD, DM, CVA` — cerebrovascular accident. A stroke.
 
 The tell is the neighbouring word. `CVA tenderness` is anatomical; `CVA` in a history or problem list is a stroke. Expanding a family history's `CVA` as costovertebral angle loses a stroke from the family history; expanding an exam finding as a stroke invents one. **Neither is recoverable downstream, because both read perfectly well.**
+
+**`dm` — diabetes mellitus, or diminished.** This one is new from the 2025 scans and it is the worst of the set, because both readings are common in this catalog and both are plausible in the same note:
+
+- `hx: dm, htn, hyperlipidemia` — diabetes mellitus. A chronic condition.
+- `lungs clear/dm, s1, s2 2/2` · `DM on right` · `lung sounds are dm in all fields` — **diminished breath sounds.** A physical exam finding.
+
+The tell is the section. In a history, problem list or family history it is diabetes; **attached to lung sounds it is diminished.** The failure runs both ways and neither is visible downstream: reading the exam's `dm` as diabetes gives a patient a disease they do not have, and reading the history's `dm` as diminished quietly deletes one they do. The clinician also writes `dm` in full as `diminished` far more often than in shorthand, so the shorthand form is easy to miss.
 
 **`PPD` — packs per day, or purified protein derivative.** Every instance in this catalog is packs per day: `3 ppd smoker`, `smokes 0.5 ppd x 1 year`. The TB skin test meaning has not appeared here, so read it as packs per day and flag anything that reads otherwise.
 
@@ -153,13 +202,15 @@ Corrected silently as transcription noise, per the skill's Given rules.
 
 `triglycerieds` → triglycerides · `oorphectomy` → oophorectomy · `endometroises` → endometriosis · `labido` → libido · `dryiness` → dryness · `sicnce` → since · `draininge` → drainage · `eart tympansotomy` → ear tympanostomy · `prednisolono` → prednisolone · `claritian` → Claritin · `zithromax` → Zithromax (azithromycin) · `brom fed` → Bromfed
 
-**Recurring across the catalog**, with counts from the 32 text-layer files. These are habits rather than slips, so they will be in the next day file too:
+**Recurring across the catalog**, counted over all 48 unique files. These are habits rather than slips, so they will be in the next day file too:
 
-`buldging` → bulging (50) · `exm` → exam (14) · `cetrazine` → cetirizine (13) · `apces` → apices (8) · `vist` → visit (6) · `clinc` → clinic (6) · `brith` → birth (5) · `obsucred` → obscured (5) · `insurence` → insurance (5) · `erythma` → erythema (4) · `diminised` → diminished (3) · `migranes` → migraines (3) · `hypothryroid` → hypothyroid (3) · `difuse` → diffuse (2) · `urinatin` → urination (2) · `proceedure` → procedure (2)
+`buldging` → bulging (77) · `cetrazine` → cetirizine (17) · `dimnished` → diminished (17) · `obsucred` → obscured (15) · `exm` → exam (14) · `erythma` → erythema (10) · `migranes` → migraines (9) · `phayrngeal` → pharyngeal (9) · `pharngeal` → pharyngeal (8) · `hypothryroid` → hypothyroid (7) · `difuse` → diffuse (7) · `netti pot` → neti pot (7) · `apces` → apices (6) · `vist` → visit (6) · `clinc` → clinic (6) · `brith` → birth (5) · `insurence` → insurance (5) · `urinatin` → urination (4) · `anitomical` → anatomical (4) · `bowl sounds` → bowel sounds (4) · `proceedure` → procedure (3) · `occiptial` → occipital (3) · `diminised` → diminished (2) · `lymph note` → lymph node (2) · `eryethma` → erythema (2) · `famliy` → family (2)
 
-Seen once each, listed because the pattern is the same: `famliy`, `diminisnished`, `occiptial`, `tonsuilar`, `pharngeal`, `comited`, `neuorpathy`, `palpatiations`, `anitomical`, `poping`, `rinoplasy`, `anerysim`, `syphallis`, `nostiril`, `opthalmic`, `strated`, `abck` → back, `bowl sounds` → bowel sounds, `lymph note` → lymph node, `netti pot` → neti pot.
+Also seen: `diminisnished`, `tonsuilar`, `comited`, `neuorpathy`, `palpatiations`, `poping`, `rinoplasy`, `anerysim`, `syphallis`, `nostiril`, `opthalmic`, `strated`, `abck` → back, `oturbator` → obturator, `rosving` → Rovsing's.
 
-**`cetrazine` is the one that matters.** It is a drug name, it appears thirteen times, and cetirizine is what it means. A word typo produces an odd-looking note; a drug typo produces a prescription. Correct it, and treat any unrecognised drug spelling as a candidate for the same treatment rather than passing it through as written — the rule against "correcting" a number does not extend to a misspelled drug.
+**Two of these are worth reading twice.** `buldging` at 77 is by a wide margin the most frequent token in the catalog that is not a real word — it is how this clinician writes a bulging tympanic membrane, and it appears in almost every note with an ear finding. And **`dimnished` at 17 plus `diminised` at 2 is the same word as the `dm` above**: the clinician has three spellings for "diminished" and one of them collides with diabetes.
+
+**`cetrazine` is the one that matters most.** It is a drug name, it appears seventeen times, and cetirizine is what it means. A word typo produces an odd-looking note; a drug typo produces a prescription. Correct it, and treat any unrecognised drug spelling as a candidate for the same treatment rather than passing it through as written — the rule against "correcting" a number does not extend to a misspelled drug.
 
 `apces` deserves a note too: it appears only inside one stock phrase — *"lungs are clear in the apces, diminished in the bases"* — which is this clinician's habitual way of recording that finding.
 
