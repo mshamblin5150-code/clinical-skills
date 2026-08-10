@@ -51,7 +51,18 @@ if not "".join(p.get_text() for p in d).strip():
 
 ### 3. Find the boundaries
 
-`Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then age and sex, then some order of `hx:`, `meds:`, `cc:`, and a narrative.
+`Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then the demographic line, then some order of `hx:`, `meds:`, `cc:`, and a narrative.
+
+**It held for all 353 encounters in the clinician's catalog.** No encounter in 49 day files opened any other way, so the fallback below is genuinely a fallback.
+
+**The demographic line takes four shapes, and only two of them state an age:**
+
+| Shape | Share | What it means |
+| --- | --- | --- |
+| `dob <date>` and no age | **47%** | Age is derived from the date of birth and the visit date, and must be computed **before** the date of birth is redacted |
+| `48 yo F`, `10 F`, `13 month male` | 42% | Age given |
+| Both | 3% | Cross-check them; a disagreement is a question, not a rounding choice |
+| **Neither** | **7%** | Roughly one encounter in fourteen. Report it — see step 4 |
 
 **Match case-insensitively.** Real files carry `Note 3`, `NOte 3`, and `NOte 4` in the same document. A case-sensitive match silently merges encounters.
 

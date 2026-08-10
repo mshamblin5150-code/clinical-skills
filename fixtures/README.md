@@ -20,6 +20,8 @@ A fixture is **derived from** a working file, never a copy of one. Two things ar
 
 Names are already `[PT]` under standing rule 1. Ages and findings stay, because they are what the assertions test.
 
+**Compute the age before removing either.** Nearly half this clinician's encounters give a date of birth and no age. Removing the visit date and redacting the date of birth in the same pass leaves a case whose age cannot be recovered by anyone — including the fixture, which needs it. Derive first, then strip both. A fixture that has lost its age is testing the missing-age rule whether it meant to or not.
+
 ## What an assertion is
 
 A claim, in the clinician's own words, about what a correct run must contain — checked against the output text.

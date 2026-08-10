@@ -89,3 +89,15 @@ _Avoid_: expectation, check, test case
 **Patient Time band**:
 The hours bucket an encounter accrues against. The one administrative field where a wrong value has a real consequence.
 _Avoid_: age group, category
+
+**Patient Reference**:
+The opaque identifier Medatrax generates for a patient, such as `40EEE8DB06FB466`. The portal's only handle on a person; it never accepts or stores a name.
+_Avoid_: patient ID, MRN, reference number
+
+**Identity map**:
+The clinician's private table joining a patient name to their Patient Reference, so a returning patient is found rather than created again. Lives beside the working files and never leaves the machine.
+_Avoid_: patient list, roster, lookup table
+
+**Duplicate**:
+A second Patient Reference for a person who already had one, created because the encounter reached the portal without a name to match on. Indistinguishable from a new patient afterwards.
+_Avoid_: dupe, repeat, double entry

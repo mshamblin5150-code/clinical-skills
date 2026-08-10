@@ -66,7 +66,9 @@ Grounded, and expected:
 
 **One thing can never be inferred: a measurement.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result.
 
-**Age is the second.** Most encounters open `<age> yo <M/F>`; some do not, and nothing inside the encounter recovers it — a 37-year-old and a 62-year-old present alike, and a plausible age is indistinguishable from a read one once it sits in the field. It is worth the stop because age sets `Patient Time`, the one entry field where a wrong value misallocates clinical hours against the NUR 5144 area breakdown. An inferred age charges the wrong bucket silently.
+**Age is the second — but look for a date of birth first.** Only 42% of this clinician's encounters state an age outright; 47% give a date of birth instead, and there the age is *derived*, not missing. Compute it.
+
+**The remaining 7% supply neither, and there age cannot be inferred.** Nothing inside an encounter recovers it — a 37-year-old and a 62-year-old present alike, and a plausible age is indistinguishable from a read one once it sits in the field. It is worth the stop because age sets `Patient Time`, the one entry field where a wrong value misallocates clinical hours against the course's area breakdown. An inferred age charges the wrong bucket silently.
 
 **Sex is not the same, because the narrative carries it.** Shorthand that never writes `M` or `F` but says `he states he fell yesterday` has documented sex in the pronouns, and that is a given like any other stated finding. Read it, and say that is where it came from.
 
@@ -100,7 +102,11 @@ Then assign each visit **15 to 40 minutes, in 5-minute steps**, by complexity �
 
 Collect the shorthand and, if supplied, the Medatrax entry — it carries demographics and some vitals, and those are **givens** the note must match exactly.
 
-Replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]`, `[PRECEPTOR]`. Keep age, sex, visit date, and everything clinical.
+**Derive the age before you redact the date of birth.** Across the clinician's catalog — 353 encounters — the age is stated outright in 42% and a **date of birth appears instead in 47%**. Redacting `[DOB]` on the way past destroys the only thing age can be computed from, and age sets the `Patient Time` band. So: compute the age from the date of birth and the visit date, write it down as a derived value showing the arithmetic, and redact afterwards.
+
+Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]`, `[PRECEPTOR]`. Keep age, sex, visit date, and everything clinical.
+
+**7% of encounters carry neither an age nor a date of birth.** That is roughly one in fourteen, not a freak case — see *What may be inferred* for what happens then.
 
 ### 2. Expand the shorthand
 
@@ -128,6 +134,8 @@ Assign each element a tier before writing, then draft into the branch template. 
 Produce the field block from [../../reference/medatrax-fields.md](../../reference/medatrax-fields.md) in that file's field order, so it can be tabbed straight into the form.
 
 Fields carrying a **declared rule** there — `Primary Payment Method`, `Race/Ethnicity` — are filled from that rule rather than reported missing. Neither is visible in bedside shorthand, and reporting them missing on every note is what teaches a clinician to skim this block. The rules live in the reference; do not restate them here.
+
+**Resolve the patient before the fields.** Medatrax stores no name — it generates a Patient Reference and that is its only handle on a person. An encounter entered without matching the existing record creates a **second** patient, silently and unmergeably. So look the name up in the clinician's identity map first, and emit either the matched Patient Reference or an explicit `NEW PATIENT` line. Where the day file gave no name to match on, say that: it is the exact mechanism by which duplicates are made, and it is worth one line rather than a discovery months later. Location and format of the map come from `/setup-clinical-skills`.
 
 Everything else the encounter does not supply goes under GAPS rather than being invented — except start and end times, which the Times convention estimates by design. The field that justifies the caution is `Patient Time`: it feeds the NUR 5144 area breakdown, so a wrong band misallocates clinical hours. Most of the rest feed no hours bucket at all.
 

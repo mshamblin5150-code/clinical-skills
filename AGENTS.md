@@ -11,8 +11,11 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 | clinical-note | [skills/clinical-note/SKILL.md](skills/clinical-note/SKILL.md) | Encounter shorthand needs to become a comprehensive SOAP or an FNP H&P |
 | batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A whole shift is pasted at once and needs splitting into encounters |
 | icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
+| setup-clinical-skills | [skills/setup-clinical-skills/SKILL.md](skills/setup-clinical-skills/SKILL.md) | **Run once first.** A new clinician's portal, programme, picklists and patient identity map need configuring |
 
 <!-- Additional skills are appended here as they are written. -->
+
+**Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
 
 ## Standing rules
 
