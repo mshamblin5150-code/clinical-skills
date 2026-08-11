@@ -295,12 +295,104 @@ class SyntheticPragma(unittest.TestCase):
         buried = "x\n" * 3000 + ps.SYNTHETIC_PRAGMA + "\n"
         self.assertFalse(ps.declares_synthetic(buried))
 
+    def test_prose_about_the_pragma_does_not_exempt_a_file(self):
+        """Explaining the rule is not invoking it.
+
+        A substring test let any file that documented the pragma near its top
+        exempt itself by accident, and two files did.
+        """
+        prose = (
+            "# The scanner\n\n"
+            f"A file needing PHI-shaped literals declares `{ps.SYNTHETIC_PRAGMA}` "
+            "near its top. That exempts the shape rules only.\n"
+        )
+        self.assertFalse(ps.declares_synthetic(prose))
+        found = scan(prose + "dob 03/04/1990\n", names=set(), dates=set())
+        self.assertIn("dob-with-date", [f.rule for f in found])
+
     def test_the_repo_test_files_declare_it(self):
-        from pathlib import Path
         for name in ("test_corpus_census.py", "test_phi_scan.py"):
             with self.subTest(file=name):
                 text = (ps.REPO_ROOT / "tools" / name).read_text(encoding="utf-8")
                 self.assertTrue(ps.declares_synthetic(text))
+
+    def test_the_repo_test_files_declare_it_as_stored_on_disk(self):
+        """As ``scan_all`` sees them, which is not what ``read_text`` returns.
+
+        The working tree here is CRLF and ``read_text_if_text`` decodes bytes
+        without newline translation, so the pragma line ends ``\\r\\n``. The test
+        above cannot catch a rule that rejects that, because ``read_text``
+        translates the ``\\r`` away first.
+        """
+        for name in ("test_corpus_census.py", "test_phi_scan.py"):
+            with self.subTest(file=name):
+                text = self.on_disk(ps.REPO_ROOT / "tools" / name)
+                self.assertTrue(ps.declares_synthetic(text))
+
+    def test_the_files_that_only_document_the_pragma_are_not_exempt(self):
+        """Four files discuss the rule near their top. None of them invokes it.
+
+        Three exempted themselves by accident until 2026-08-11 -- phi_scan.py via
+        its own ``SYNTHETIC_PRAGMA`` assignment, README.md via its PHI section,
+        test_icd10.py via a docstring paragraph -- while CLAUDE.md, which says the
+        same thing further down, did not. What that hid was those files' own
+        illustration of the date rule, not any real PHI.
+
+        test_icd10.py is why this test lists files rather than testing a synthetic
+        string: its docstring states it "deliberately does not claim" the pragma,
+        and under the old rule saying so was how it claimed one.
+        """
+        for name in ("tools/phi_scan.py", "tools/test_icd10.py",
+                     "README.md", "CLAUDE.md"):
+            with self.subTest(file=name):
+                text = self.on_disk(ps.REPO_ROOT / name)
+                self.assertFalse(ps.declares_synthetic(text))
+
+    def on_disk(self, path):
+        """The file as ``scan_all`` reads it, failing loudly if it reads as binary."""
+        text = ps.read_text_if_text(path)
+        self.assertIsNotNone(text, f"{path} read as binary")
+        return text
+
+    def test_comment_punctuation_around_the_pragma_is_allowed(self):
+        """A declaration has to survive being written in a comment.
+
+        Nothing in the repo uses these forms today -- both real declarations sit
+        in a bare docstring line -- so this pins the intent rather than a caller:
+        the rule excludes prose, not comment syntax.
+        """
+        for line in (f"# {ps.SYNTHETIC_PRAGMA}",
+                     f"// {ps.SYNTHETIC_PRAGMA}",
+                     f" * {ps.SYNTHETIC_PRAGMA}",
+                     f"    {ps.SYNTHETIC_PRAGMA}  "):
+            with self.subTest(line=line):
+                self.assertTrue(ps.declares_synthetic(f"header\n{line}\nbody\n"))
+
+    def test_the_pragma_must_end_its_line(self):
+        """Trailing prose is prose, wherever the line started."""
+        self.assertFalse(
+            ps.declares_synthetic(f"# {ps.SYNTHETIC_PRAGMA} is how you opt out\n")
+        )
+
+    def test_the_search_window_cannot_fake_a_line_end(self):
+        """A prose line the window cut through is not a declaration.
+
+        The cut has to land exactly where the pragma stops, on a line that starts
+        with it -- so this is an accident, not an attack. But it was a way for a
+        file to exempt itself by explaining the rule, which is the one thing the
+        line anchor exists to prevent.
+        """
+        pragma_line_start = "x" * (ps.PRAGMA_SEARCH_CHARS - len(ps.SYNTHETIC_PRAGMA) - 1)
+        cut_mid_sentence = (
+            pragma_line_start + "\n" + ps.SYNTHETIC_PRAGMA + " is how you opt out\n"
+        )
+        self.assertFalse(ps.declares_synthetic(cut_mid_sentence))
+        found = scan(cut_mid_sentence + "dob 03/04/1990\n", names=set(), dates=set())
+        self.assertIn("dob-with-date", [f.rule for f in found])
+
+    def test_an_unterminated_final_pragma_line_still_declares(self):
+        """Dropping a cut line must not cost a file with no trailing newline."""
+        self.assertTrue(ps.declares_synthetic(f'"""header\n\n{ps.SYNTHETIC_PRAGMA}'))
 
 
 class PhiDirectories(unittest.TestCase):

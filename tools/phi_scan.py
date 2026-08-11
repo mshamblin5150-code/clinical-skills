@@ -10,9 +10,18 @@ Two layers, and the difference between them is the whole design:
   and **nothing can exempt a file from it.**
 - **Shape layer.** Things that look like PHI whatever the corpus says: a ``dob``
   token followed by a date, an SSN, a phone number, an MRN followed by digits, a
-  US-style ``M-D-YY`` short date. A file may exempt itself from this layer only, by
-  declaring ``phi-scan: synthetic`` near the top -- which ``test_corpus_census``
-  does, because testing a date extractor requires date-shaped literals.
+  US-style ``M-D-YY`` short date. A file may exempt itself from this layer only,
+  by declaring ``phi-scan: synthetic`` near the top and alone on its line --
+  which ``test_corpus_census`` does, because testing a date extractor requires
+  date-shaped literals. Naming the pragma in a sentence, as this docstring is
+  doing, declares nothing.
+
+  This prose names the date shape rather than writing one out, here and in
+  README.md and CLAUDE.md. All three used to give an impossible February date as
+  the example; ``--all`` flagged CLAUDE.md for it and stayed silent about the
+  other two, which had accidentally exempted themselves -- see
+  ``SYNTHETIC_PRAGMA_LINE``. A file explaining a rule should not have to opt out
+  of that rule to say what it does.
 
 The asymmetry is deliberate. A file can say "my dates are invented"; no file can
 say "my patient names are fine".
@@ -61,6 +70,40 @@ REVIEWED_LEDGER = REPO_ROOT / "scratch" / "harvest-reviewed.json"
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"
 PRAGMA_SEARCH_CHARS = 4000
+
+# The declaration has to be the whole line -- comment or docstring punctuation
+# around it is fine, prose is not. Until 2026-08-11 this was a substring test, so
+# any file that merely *explained* the pragma near its top exempted itself, and
+# three did: this module, whose ``SYNTHETIC_PRAGMA`` assignment sat at char 726;
+# README.md, whose PHI section reached it at char 2760; and test_icd10.py, at char
+# 531. CLAUDE.md explains the same pragma at char 5647, past the window, and so was
+# never exempt -- that inconsistency, files saying one thing and being treated two
+# ways, is what gave it away. What the exemptions hid was the scanner's own
+# documentation, not any real PHI -- the module docstring says what that was and
+# how it was resolved.
+#
+# test_icd10.py is the one that shows what was wrong with the old rule. Its
+# docstring says it "needs no ``phi-scan: synthetic`` pragma and deliberately does
+# not claim one" -- and saying so was what claimed one. A file could not describe
+# its own relationship to this scanner without changing it.
+#
+# The offsets are one-based over the LF form, measured 2026-08-11 against the
+# commit before this one; all three files have been edited since, so only
+# CLAUDE.md's still stands. They are approximate on purpose about which form they
+# count, because the two paths in here disagree and it changed nothing: LF is what
+# ``scan_staged`` reads from the index blob, while ``scan_all`` decodes the working
+# tree verbatim, CRLF and all, putting the same three at 739, 2811 and 5730.
+# Neither figure crosses the 4000 boundary the other stays inside.
+#
+# That same disagreement is why ``\r`` is allowed before the line end: this has to
+# accept both forms of one file. Trailing-whitespace classes are spelled out rather
+# than using ``\s``, which would match a newline and let the "line" span two.
+#
+# README.md and CLAUDE.md write the pragma mid-sentence inside backticks, so
+# anchoring to the line excludes them without either file being reworded.
+SYNTHETIC_PRAGMA_LINE = re.compile(
+    r"(?m)^[ \t]*(?:#|//|\*|--)?[ \t]*" + re.escape(SYNTHETIC_PRAGMA) + r"[ \t\r]*$"
+)
 
 SHAPE_RULES = {
     # Requires an actual date after the token, so a `dob` field named in a
@@ -451,8 +494,37 @@ def _looks_like_a_name(text: str) -> bool:
     )
 
 
+def _pragma_window(text: str) -> str:
+    """The file's first lines -- whole ones only.
+
+    Truncating at a character count can cut through the middle of a line, and
+    ``$`` matches the end of the string as readily as a newline, so a *prose*
+    line beginning with the pragma whose remainder fell past the cut would have
+    read as a bare declaration and silenced the shape layer. Constructing it
+    takes a line starting at exactly the right offset, which is why this is an
+    accident rather than an attack -- but the whole point of the line rule is
+    that documenting the pragma cannot exempt a file, and this was a way for it
+    to do so anyway.
+
+    A cut line is dropped rather than repaired. When the window contains no
+    newline at all the result is empty, which is correct: there is no complete
+    line to judge. Text shorter than the window is returned untouched, so a
+    pragma on an unterminated final line still counts.
+    """
+    head = text[:PRAGMA_SEARCH_CHARS]
+    if len(text) > PRAGMA_SEARCH_CHARS:
+        head = head[: head.rfind("\n") + 1]
+    return head
+
+
 def declares_synthetic(text: str) -> bool:
-    return SYNTHETIC_PRAGMA in text[:PRAGMA_SEARCH_CHARS]
+    """True where the file's own first lines declare the pragma, alone on a line.
+
+    Two conditions, and both are about accidents rather than adversaries: near
+    the top, so the declaration is where a reader looks, and on its own line, so
+    a file cannot exempt itself merely by documenting the rule.
+    """
+    return SYNTHETIC_PRAGMA_LINE.search(_pragma_window(text)) is not None
 
 
 def scan_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
@@ -594,9 +666,12 @@ def main(argv: list[str]) -> int:
         "\nMatches are redacted. Re-run with --show to reveal them:\n"
         "    python tools/phi_scan.py --show\n"
         "\nIdentifiers become placeholders -- [PT], [DOB], [MRN]. If a value is\n"
-        "genuinely synthetic and the file needs PHI-shaped literals, declare\n"
-        f"'{SYNTHETIC_PRAGMA}' near the top of that file. That exempts the shape\n"
-        "rules only; real corpus names and dates are still refused.\n",
+        "genuinely synthetic and the file needs PHI-shaped literals, put this on\n"
+        "a line of its own near the top of that file:\n"
+        f"\n    {SYNTHETIC_PRAGMA}\n"
+        "\nAlone on the line -- mentioning it in a sentence declares nothing. That\n"
+        "exempts the shape rules only; real corpus names and dates are still\n"
+        "refused.\n",
         file=sys.stderr,
     )
 

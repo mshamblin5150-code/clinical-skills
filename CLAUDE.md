@@ -81,7 +81,9 @@ After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py` on every commit in
 - **Corpus layer** — every patient name and date literal appearing in `scratch/`. **No file can exempt itself from this.**
 - **Shape layer** — things that look like PHI whatever the corpus says: a `dob` token followed by a date, SSN, phone, MRN plus digits, an `M-D-YY`-style short date. ISO dates are deliberately not flagged, since the skill files are full of `measured 2026-08-11`.
 
-A file that genuinely needs PHI-shaped literals — `tools/test_corpus_census.py` tests a date-of-birth extractor — declares `phi-scan: synthetic` near its top. **That exempts the shape rules only.** A file may say its dates are invented; no file may say its patient names are fine.
+A file that genuinely needs PHI-shaped literals — `tools/test_corpus_census.py` tests a date-of-birth extractor — declares `phi-scan: synthetic` near its top, **alone on its own line**, comment or docstring punctuation aside. **That exempts the shape rules only.** A file may say its dates are invented; no file may say its patient names are fine.
+
+The own-line requirement is why this paragraph does not exempt this file: mentioning the pragma mid-sentence is not declaring it. It used to be a bare substring test, and README.md and `tools/phi_scan.py` both exempted themselves just by explaining the rule near the top.
 
 Findings are redacted by default so hook output is safe to paste. Reveal them with:
 
