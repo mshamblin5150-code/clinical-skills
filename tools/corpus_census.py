@@ -36,7 +36,7 @@ from pathlib import Path
 NOTE_DELIMITER = re.compile(r"(?im)^\s*note\s*#?\s*\d+")
 
 # Two to three digits either side, not touching another digit, slash, dot or dash.
-# The negative look-around is what keeps "03/04/1990" and "200/5ml" out; the
+# The negative look-around is what keeps a three-part date and "200/5ml" out; the
 # plausibility range below is what keeps "10/10 pain" out.
 BP_PAIR = re.compile(r"(?<![\d/.\-])(\d{2,3})\s*/\s*(\d{2,3})(?![\d/.\-])")
 SYSTOLIC_RANGE = (70, 260)

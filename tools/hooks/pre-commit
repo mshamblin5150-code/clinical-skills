@@ -1,0 +1,15 @@
+#!/bin/sh
+# Standing rule 1, enforced. See tools/phi_scan.py and CLAUDE.md.
+# Bypass with `git commit --no-verify` only when you have checked by hand.
+
+repo_root=$(git rev-parse --show-toplevel) || exit 0
+
+for python in python python3 py; do
+    if command -v "$python" >/dev/null 2>&1; then
+        exec "$python" "$repo_root/tools/phi_scan.py"
+    fi
+done
+
+echo "phi-scan: no python on PATH -- PHI check SKIPPED for this commit." >&2
+echo "          Standing rule 1 is unenforced here; check by hand." >&2
+exit 0

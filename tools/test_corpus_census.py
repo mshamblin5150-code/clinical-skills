@@ -4,6 +4,14 @@ These run against the committed, PHI-free fixtures in ``fixtures/day-a/shorthand
 and against inline strings. They never touch ``scratch/``. Their job is to catch
 the silent failure mode the census exists to prevent: an extractor that stops
 matching and reports a confident wrong number.
+
+phi-scan: synthetic
+
+Testing a date-of-birth extractor requires date-shaped literals, so this file is
+exempt from the shape rules. **Every date below is invented.** The pragma does not
+exempt it from the corpus layer: a real patient name or a real date lifted from
+``scratch/`` is still refused here, which is exactly how the first version of this
+file was caught using both.
 """
 
 import unittest
