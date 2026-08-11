@@ -115,6 +115,6 @@ F5 replaced a row that asserted the band outright. That row was written before t
 
 ## Still unresolved
 
-- **The set has never been run.** Both halves exist; no `clinical-note` output has been checked against them. Until it is, `DRIFT n/n` and `REPORTED n/m` have no first value to measure drift from.
+- **Run 2 has not happened.** Run 1 is a baseline, not a bar cleared, for the reason recorded above it. Until a second run graded by a pass that did not produce it, there is nothing to measure drift *from*. This bullet said the set had never been run until 2026-08-11; the commit that recorded run 1 left it standing.
 - **Case 10's opener.** The shorthand states no age and no sex. This is a defect in the source, kept in the input file deliberately rather than patched, and it is what F5–F7 test. The portal supplies 25, male.
-- **Whether R11–R17 should be binary.** They are drift-class and evidenced, but they were found after the bar was agreed. Promote them deliberately or not at all.
+- **Whether R11–R14 should be binary.** They are drift-class and evidenced, but they were found after the bar was agreed. Promote them deliberately or not at all. This bullet read R11–R17 until 2026-08-11; the three rows that range has lost were **promoted, not dropped** — HR 115, HR 114 and BP 141/93 became D7, D9 and D10, and the rows below them renumbered down by three. Nothing was written in that table and then lost.
