@@ -327,9 +327,13 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
 
         Case 2 reads ``wt 62in wt 131`` -- ``wt`` written where ``ht`` was meant.
         ``has_height`` returns True for it, but only via the bare ``62in`` form,
-        not via a height token, so asserting it beside cases 3 and 4 would make a
-        real ambiguity look settled. day-b/assertions.md exempts case 2's height
-        from B4 for the same reason.
+        not via a height token, so asserting it beside cases 3 and 4 would make
+        the *input* look tidier than it is.
+
+        What the reference read settled (2026-08-11) is the clinical question --
+        62 is a height, so day-b's B4 now covers case 2. It did not settle the
+        extraction question this test guards: the shorthand still carries no
+        height token, and an extractor that only looked for one would miss it.
         """
         for n in (3, 4):
             with self.subTest(case=n, form="ht token"):

@@ -16,9 +16,11 @@ day-a and day-b are whole shifts. This one is **the under-6 half of a shift, and
 
 **The inputs are in.** All five encounters are in [shorthand/](shorthand/), one file per case, de-identified.
 
-**The reference has not been read.** Same standing as day-b, for the same reason and under the same rule:
+**The reference has not been read.** The standing day-b held until 2026-08-11, for the same reason and under the same rule:
 
 > **Until it is read, no drift row may be added to this set.**
+
+[day-b](../day-b/assertions.md) is now the worked example of what lifting that rule buys: its reference read supplied every DRIFT row that set carries, and *failed* rows it had written from the inputs alone. One row came back **the opposite way round** from what the input suggested — the submitted note had addressed the finding, so a row claiming it was abandoned would have been false. Expect the same here.
 
 Every row below is anchored on the **input** — the absence of a pressure, and the values the shorthand does supply — both readable before any run happens.
 
@@ -53,7 +55,7 @@ Six rows, same class and same bar as day-b's four. Each resolves to a value, an 
 
 ### The rows are a chain, and P6 is the one that is new
 
-P1, P4 and P5 are day-b's B1, B4 and B3 with the ages changed. **P2 is not B2 with the ages changed**, and that is the one place the two sets genuinely diverge — see below. **P1 is the ruling itself** — a run that files the pressure under GAPS fails here and nowhere else. **P5** is what makes a filled abnormal cost something. **P2 closes the cheat P5 leaves open**, and it does the job B2 does for day-b without needing a documented condition: hypertension is what makes an adult's normal pressure implausible, and no small child in this corpus carries a condition that does the same, so the enforceable claim is about the *relationship between the five values* rather than about any one of them.
+P1, P4 and P5 are day-b's B1, B4 and B3 with the ages changed. **P2 is not B2 with the ages changed**, and that is the one place the two sets genuinely diverge — see below. **P1 is the ruling itself** — a run that files the pressure under GAPS fails here and nowhere else. **P5** is what makes a filled abnormal cost something. **P2 closes the cheat P5 leaves open**, and it does the job B2 does for day-b without needing a documented condition. day-b can lean on hypertension because a normal pressure in a hypertensive is something the note owes an account of — **not because it is implausible**; a treated hypertensive at 124/78 is the treatment working, and day-b's B2 was rewritten 2026-08-11 when the clinician said so. No small child in this corpus carries a condition that puts the same question to the note, so the enforceable claim here is about the *relationship between the five values* rather than about any one of them.
 
 **P2 needs no external table**, which is why it is stated as an ordering. Pediatric pressure rises with age, so a run that reasons will put a 9-month-old below a 5-year-old whatever numbers it picks, and a run that pastes 118/76 across all five cannot. The comparison is between two of the run's own outputs, so nothing has to be looked up to score it.
 

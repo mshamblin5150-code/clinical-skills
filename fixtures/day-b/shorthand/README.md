@@ -38,4 +38,4 @@ So the vital line tends to be written whole or not at all, and this shift is the
 
 These three carry a full vital line. They are here to test the other direction of the same license — that a **given** value survives unchanged and nothing is filled over it. Without them the set could not tell a skill that fills correctly from one that fills always.
 
-Case 3's `bp 147/81` is a given abnormal. The set does not yet claim anything about it — see *Still unresolved* in [assertions.md](../assertions.md).
+Case 3's `bp 147/81` is a given abnormal, and it is now **drift row D1** — the submitted note recorded it and stopped. Case 2's `wt 62in` is a **height**, settled by the same reference read, so B4 covers it. Both in [assertions.md](../assertions.md).
