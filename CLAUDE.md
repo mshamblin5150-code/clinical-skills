@@ -17,6 +17,8 @@ Two constraints that are not about permission:
 
 GitHub issues on `mshamblin5150-code/clinical-skills`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
+**Search before you file** — `gh issue list --state all --search "..."`, on the command or file or symbol rather than your own framing. #20 and #21 are one bug filed 25 minutes apart by two sessions that never saw each other, both labeled correctly: labeling makes a ticket findable once it exists, and only searching stops the second copy being written.
+
 ### Triage labels
 
 The five canonical roles, kept at their default strings, plus a local `grilling`. See `docs/agents/triage-labels.md`.
