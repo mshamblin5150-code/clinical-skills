@@ -81,10 +81,18 @@ SHAPE_RULES = {
 # harvested at all -- "allergies: nkda" fails the fullmatch in _looks_like_a_name
 # -- which is why day-a never tripped it.
 #
-# **Curate this by hand, one entry at a time.** 26 of the harvested names contain
-# clinical vocabulary, and two of those are longer strings with a real patient
-# name inside them. Exempting the class wholesale would open a hole in the layer
-# that nothing else closes.
+# **Curate this by hand, one entry at a time.** #12 counted 26 harvested names
+# carrying clinical vocabulary. That figure is not reproducible here and should
+# not be quoted as if it were: it came from an unrecorded word list, and the
+# count moves with whatever list you pick. What is reproducible is the shape of
+# the problem -- each such name is a fixture refusal waiting to happen.
+#
+# The entries that hid a real patient name inside a longer phrase are gone;
+# `prune_covered` drops those, and there were 3. What stops the class being
+# exempted in bulk is the other direction: the harvest is lexical, so a
+# surviving two-word phrase may simply *be* a patient name the index's own name
+# field missed. Nothing in the set distinguishes that from vocabulary, which is
+# the open question in #12.
 NOT_NAMES = {
     "african american",
     "sore throat",
@@ -159,6 +167,10 @@ class CorpusIndex:
     that loop. ``re`` caches 512 compiled patterns, so 1,031 names thrashed the
     cache and recompiled nearly every name on nearly every line: ``--all`` took
     128s. It now takes under half a second.
+
+    Those 1,031 are what the harvest produced *before* #12 added `prune_covered`;
+    the same corpus now yields 563. Both figures are left standing because the
+    cache argument is about the size that broke it, not today's size.
 
     Two changes, and only the second one matters. Compiling each name once is
     the obvious one and gets 128s to ~5s. The buckets are what make the layer
@@ -264,8 +276,74 @@ def corpus_identifiers() -> tuple[set[str], set[str]]:
             text = path.read_text(encoding="utf-8", errors="replace")
             dates.update(re.findall(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", text))
 
-    names = {n for n in names if len(n) > 5 and n.lower() not in NOT_NAMES}
-    return names, dates
+    return kept_names(names), dates
+
+
+def kept_names(harvested: set[str]) -> set[str]:
+    """The harvested strings the corpus layer will actually scan for.
+
+    One function rather than two calls at the call site, because the order is
+    load-bearing and easy to get wrong: the length floor and the allowlist run
+    **before** the pruning, so a string they remove is not available to cover
+    anything. `prune_covered` says what that costs.
+    """
+    kept = {n for n in harvested if len(n) > 5 and n.lower() not in NOT_NAMES}
+    return prune_covered(kept)
+
+
+def prune_covered(names: set[str]) -> set[str]:
+    """The harvested names, minus those that cannot refuse a line on their own.
+
+    A name is dropped when a kept name matches inside it at word boundaries.
+    That is sound in one step: a match of ``\\bouter\\b`` in a line carries the
+    inner name at the same boundaries it has inside ``outer``, so the inner name
+    matches that line too. Dropping ``outer`` changes which identifier a finding
+    *names* -- to the shorter, more likely real one -- and cannot change whether
+    the line is refused.
+
+    **Measured 2026-08-11, because the reason is not the one it looks like.**
+    Of 1031 harvested strings, 468 are dropped and **465 of those are case
+    variants of a name that is kept** -- the harvest holds only 566 distinct
+    names case-insensitively, and the corpus layer matches with ``re.I``, so
+    every duplicate was always dead weight. Exactly **3** are the longer-phrase
+    case above. So this is a deduplication that happens to subsume phrase
+    nesting, not a filter aimed at note fragments, and it does **not**
+    meaningfully shrink the surface #12 is about: the clinical-vocabulary false
+    positives are two-word phrases with no name inside them, and every one of
+    them survives.
+
+    It goes some way toward #12's stated blocker without removing it. The
+    objection to reasoning about the harvested class was that some entries hide
+    a real patient name inside a longer phrase; those are exactly what gets
+    dropped, and the issue counted two where this measures 3.
+
+    **But the guarantee is narrower than "no survivor hides a name."** What
+    holds is that no survivor contains another *surviving harvested* name, and
+    `kept_names` applies the length floor and `NOT_NAMES` first -- so a phrase
+    carrying a surname of five characters or fewer is covered by nothing and
+    survives intact. No such survivor exists in the corpus today, which makes
+    that a fact about this corpus and not a property of this code.
+
+    **This prunes the harvest, not the matcher.** ``build_index`` is untouched
+    and still reports nested names separately, because a nested name surviving
+    here is one the corpus genuinely carries twice.
+
+    Shortest first, so a name is only tested against names already kept. That
+    terminates and cannot delete a whole coverage chain, because coverage
+    composes: whatever a dropped name covered directly is still covered by the
+    kept name that displaced it. Strictly shorter coverage bottoms out at a name
+    nothing covers. Equal-length coverage means the two differ only in case --
+    they cover each other -- and sorting on ``(len, name)`` breaks that tie so
+    one survives rather than both being dropped.
+    """
+    survivors: list[IndexedName] = []
+    for name in sorted(names, key=lambda n: (len(n), n)):
+        if any(pattern.search(name) for _, pattern in survivors):
+            continue
+        survivors.append(
+            IndexedName(name, re.compile(r"\b" + re.escape(name) + r"\b", re.I))
+        )
+    return {name for name, _ in survivors}
 
 
 def _looks_like_a_name(text: str) -> bool:

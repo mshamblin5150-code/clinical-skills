@@ -113,9 +113,14 @@ class CorpusIndexing(unittest.TestCase):
     def test_a_nested_name_is_still_reported_separately(self):
         """The alternation fix would have lost this one, so it is asserted.
 
-        Two of the harvested names are longer strings with a real patient name
-        inside them -- see NOT_NAMES. A single alternation matches the outer one
-        and resumes past it, silently dropping the inner. Bucketing does not.
+        A single alternation matches the outer name and resumes past it,
+        silently dropping the inner. Bucketing does not.
+
+        `prune_covered` now keeps such pairs out of the harvest, so this is no
+        longer reachable from `corpus_identifiers`. It is still asserted:
+        `build_index` is a matcher any caller may hand a set to, and the pruning
+        leans on it behaving this way -- a nested name that survives pruning is
+        one the corpus carries twice and must still be reported twice.
         """
         found = self.indexed("seen by Doctor Jordan Vance", self.HOSTILE)
         self.assertEqual(found, {(1, "Doctor Jordan Vance"), (1, "Jordan Vance")})
@@ -323,6 +328,151 @@ class Redaction(unittest.TestCase):
 
     def test_show_reveals(self):
         self.assertIn("Jordan Vance", scan("Jordan Vance")[0].render(show=True))
+
+
+class CoveredNamePruning(unittest.TestCase):
+    """Dropping harvested names that cannot refuse a line on their own (#12).
+
+    Mostly this is case-variant deduplication -- 465 of the 468 names dropped on
+    2026-08-11 were another spelling of a name that is kept, and the corpus
+    layer has always matched with ``re.I``. The remaining 3 are the longer
+    phrases with a real name inside that #12 named as the reason the harvested
+    class could not be reasoned about. Both fall out of one rule, so both are
+    tested here.
+
+    **This prunes the harvest, not the matcher.** ``build_index`` still reports
+    nested names separately and `CorpusIndexing` still holds it to that; a name
+    the harvest keeps is matched exactly as before. The only claim here is that
+    the pruned set refuses exactly the lines the unpruned set refuses.
+    """
+
+    def refused_lines(self, text, names):
+        index = ps.build_index(names, set())
+        return {f.line for f in ps.scan_text(text, "f.md", index)}
+
+    def assert_refuses_the_same_lines(self, text, names):
+        self.assertEqual(self.refused_lines(text, ps.prune_covered(names)),
+                         self.refused_lines(text, names))
+
+    def test_a_phrase_containing_a_kept_name_is_dropped(self):
+        self.assertEqual(ps.prune_covered({"Jordan Vance", "allergy Jordan Vance"}),
+                         {"Jordan Vance"})
+
+    def test_a_phrase_containing_no_kept_name_survives(self):
+        """The residual #12 is really about: clinical vocabulary has no patient
+        name in it, so nothing covers it and pruning leaves it alone."""
+        self.assertEqual(ps.prune_covered({"Jordan Vance", "allergy nkda"}),
+                         {"Jordan Vance", "allergy nkda"})
+
+    def test_coverage_needs_a_word_boundary(self):
+        """``\\bJordan Vance\\b`` does not match inside "Jordan Vancely", so the
+        longer string really can refuse a line the shorter one cannot."""
+        names = {"Jordan Vance", "Jordan Vancely"}
+        self.assertEqual(ps.prune_covered(names), names)
+        self.assert_refuses_the_same_lines("a Jordan Vancely line", names)
+
+    def test_coverage_is_case_insensitive_like_the_match(self):
+        self.assertEqual(ps.prune_covered({"Jordan Vance", "seen by JORDAN VANCE"}),
+                         {"Jordan Vance"})
+
+    def test_case_variants_leave_exactly_one_survivor(self):
+        """Two spellings of one name cover each other. Dropping both would empty
+        the layer, so the tie is broken and one is kept."""
+        self.assertEqual(len(ps.prune_covered({"Jordan Vance", "jordan vance"})), 1)
+
+    def test_a_chain_of_coverage_collapses_to_the_shortest(self):
+        """B covers A and C covers B. Dropping B must not strand C -- the name
+        inside B is inside C too, so the shortest speaks for all three."""
+        self.assertEqual(
+            ps.prune_covered({"Vance", "Jordan Vance", "seen by Jordan Vance"}),
+            {"Vance"})
+
+    def test_no_survivor_contains_another_survivor(self):
+        """The property, stated as narrowly as it actually holds.
+
+        #12's objection to exempting a class of harvested phrases was that some
+        of them had a real patient name inside -- it counted two, and pruning
+        drops 3. But what this asserts is only that no survivor contains another
+        *surviving* name, which is weaker than "no survivor hides a name": see
+        `KeptNames.test_a_short_name_is_removed_before_it_can_cover_anything`.
+        """
+        survivors = ps.prune_covered({
+            "Jordan Vance", "Doctor Jordan Vance", "Priya Raman", "allergy nkda",
+            "Ellery Fane", "Ellery Fane referred", "sore throat", "Mary-Ann O'Dell",
+        })
+        for outer in survivors:
+            for inner in survivors:
+                if outer != inner:
+                    with self.subTest(outer=outer, inner=inner):
+                        self.assertIsNone(
+                            re.search(r"\b" + re.escape(inner) + r"\b", outer, re.I))
+
+    def test_refuses_the_same_lines_over_hostile_input(self):
+        names = CorpusIndexing.HOSTILE | {"allergy nkda", "seen by Ellery Fane"}
+        for line in (
+            "seen by Doctor Jordan Vance today",
+            "seen by Ellery Fane",
+            "allergy nkda",
+            "Jordan Vancely is not a hit",
+            "handed off to Mary-Ann O'Dell at 0700",
+            "no identifiers here",
+            "",
+        ):
+            with self.subTest(line=line):
+                self.assert_refuses_the_same_lines(line, names)
+
+    def test_refuses_the_same_lines_on_generated_input(self):
+        """The hand-written cases are the ones somebody thought of.
+
+        A tiny, collision-prone alphabet makes coverage between generated names
+        common, which is the condition the argument has to hold under, and the
+        apostrophe and space put word boundaries at the edges of a name as well
+        as inside it. Seeded, so a failure is reproducible.
+        """
+        alphabet = "ab -'"
+        random = Random(20260811)
+        for trial in range(400):
+            names = {
+                "".join(random.choices(alphabet, k=random.randint(1, 7)))
+                for _ in range(5)
+            }
+            line = "".join(random.choices(alphabet, k=random.randint(0, 20)))
+            with self.subTest(trial=trial):
+                self.assert_refuses_the_same_lines(line, names)
+
+
+class KeptNames(unittest.TestCase):
+    """The harvest's filter and its pruning, in the order `corpus_identifiers`
+    runs them. Extracted so the wiring is reachable from a test: every case in
+    `CoveredNamePruning` calls `prune_covered` directly, so dropping the call
+    from the harvest left all of them green.
+    """
+
+    def test_it_both_filters_and_prunes(self):
+        kept = ps.kept_names({"Jordan Vance", "jordan vance", "allergy nkda",
+                              "Short", "seen by Jordan Vance"})
+        self.assertEqual(kept, {"Jordan Vance"})
+
+    def test_a_short_name_is_removed_before_it_can_cover_anything(self):
+        """The limit of the "no survivor hides a name" claim, pinned down.
+
+        The length floor runs first, so a real surname of five characters or
+        fewer is gone before pruning and covers nothing -- and the phrase
+        carrying it survives with the name still inside. No such survivor exists
+        in the corpus today, which makes that luck rather than a guarantee.
+        """
+        kept = ps.kept_names({"Voss", "allergy Voss"})
+        self.assertEqual(kept, {"allergy Voss"})
+        self.assertTrue(re.search(r"\bVoss\b", kept.pop()))
+
+    def test_an_allowlisted_entry_also_covers_nothing(self):
+        """The same ordering via NOT_NAMES -- but this one is not a hole.
+
+        An allowlisted entry is by definition not an identifier, so a phrase
+        that outlives it is not hiding anything. Asserted to keep the two cases
+        apart: only the length floor can strand a real name.
+        """
+        self.assertEqual(ps.kept_names({"nkda", "reaction nkda"}), {"reaction nkda"})
 
 
 class NameHarvesting(unittest.TestCase):
