@@ -7,9 +7,11 @@ input, so this file declares itself synthetic -- and, like every file, remains
 subject to the corpus layer regardless.
 """
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
+from random import Random
 
 import phi_scan as ps
 
@@ -18,8 +20,9 @@ DATES = {"4-17-88", "11/02/2011"}
 
 
 def scan(text, path="some/file.md", names=None, dates=None):
-    return ps.scan_text(text, path, NAMES if names is None else names,
-                        DATES if dates is None else dates)
+    index = ps.build_index(NAMES if names is None else names,
+                           DATES if dates is None else dates)
+    return ps.scan_text(text, path, index)
 
 
 class CorpusLayer(unittest.TestCase):
@@ -44,6 +47,194 @@ class CorpusLayer(unittest.TestCase):
 
     def test_clean_text_passes(self):
         self.assertEqual(scan("bp 134/77 hr 79, no identifiers here"), [])
+
+
+class CorpusIndexing(unittest.TestCase):
+    """The prefilter that makes the corpus layer affordable (#18).
+
+    `build_index` buckets each name under a word it requires, and a line is only
+    tested against the buckets its own tokens land in. That is a **filter, not a
+    matcher**: every candidate it lets through is still tested with the same
+    ``\\bname\\b`` pattern, so the only way it can be wrong is by skipping a pair
+    that would have matched. These tests are all aimed at that one failure.
+    """
+
+    HOSTILE = {
+        "Jordan Vance",         # plain two-part name
+        "Doctor Jordan Vance",  # contains another name outright
+        "Ellery Fane",          # shares its bucket word with the next one
+        "Ellery Voss",
+        "Mary-Ann O'Dell",      # punctuation inside the name
+        "Patient Zervas",       # bucket word is common English
+        "Smithers Fane",
+    }
+
+    def naive(self, text, names):
+        """What the scan did before the index existed. The reference answer."""
+        return {
+            (number, name)
+            for number, line in enumerate(text.splitlines(), start=1)
+            for name in names
+            if re.search(r"\b" + re.escape(name) + r"\b", line, re.I)
+        }
+
+    def indexed(self, text, names):
+        index = ps.build_index(names, set())
+        return {(f.line, f.match) for f in ps.scan_text(text, "f.md", index)}
+
+    def assert_agrees(self, text):
+        self.assertEqual(self.indexed(text, self.HOSTILE),
+                         self.naive(text, self.HOSTILE))
+
+    def test_agrees_with_a_naive_scan_over_hostile_lines(self):
+        for line in (
+            "seen by Jordan Vance today",
+            "seen by Doctor Jordan Vance today",   # two names, one nested
+            "JORDAN VANCE and jordan vance",
+            "Ellery Fane referred to Ellery Voss",
+            "handed off to Mary-Ann O'Dell at 0700",
+            "the patient denies chest pain",       # bucket word, no name
+            "doctor ellery patient vance jordan",  # every bucket word, no name
+            "Jordan Vancely is not a hit",
+            "",
+            "no identifiers here",
+        ):
+            with self.subTest(line=line):
+                self.assert_agrees(line)
+
+    def test_agrees_line_by_line_across_a_whole_document(self):
+        self.assert_agrees("\n".join([
+            "clean line",
+            "seen by Doctor Jordan Vance",
+            "",
+            "Ellery Voss, Ellery Fane, Mary-Ann O'Dell",
+        ]))
+
+    def test_a_nested_name_is_still_reported_separately(self):
+        """The alternation fix would have lost this one, so it is asserted.
+
+        Two of the harvested names are longer strings with a real patient name
+        inside them -- see NOT_NAMES. A single alternation matches the outer one
+        and resumes past it, silently dropping the inner. Bucketing does not.
+        """
+        found = self.indexed("seen by Doctor Jordan Vance", self.HOSTILE)
+        self.assertEqual(found, {(1, "Doctor Jordan Vance"), (1, "Jordan Vance")})
+
+    def test_names_sharing_a_bucket_word_are_both_found(self):
+        found = self.indexed("Ellery Fane paged Ellery Voss", self.HOSTILE)
+        self.assertEqual(found, {(1, "Ellery Fane"), (1, "Ellery Voss")})
+
+    def test_the_bucket_word_alone_is_not_a_finding(self):
+        self.assertEqual(self.indexed("Zervas was the patient", self.HOSTILE), set())
+
+    def test_folding_a_long_s_agrees(self):
+        """``re.I`` matches ``s`` against U+017F LATIN SMALL LETTER LONG S, and
+        ``'ſ'.lower()`` is itself while ``.casefold()`` is ``'s'``. Tokens
+        are therefore casefolded -- but see the next test for why casefolding is
+        not on its own enough.
+        """
+        line = "ſmithers Fane"
+        self.assertTrue(self.naive(line, self.HOSTILE))  # the old scan caught it
+        self.assert_agrees(line)
+
+    def test_a_line_outside_ascii_is_tested_against_every_name(self):
+        """Why casefolding is not enough, and the ASCII guard exists.
+
+        ``str.casefold`` is **not** the equivalence ``re.I`` uses, and the Latin
+        i family is where they part. ``re.I`` matches ``i`` against U+0130 and
+        U+0131; ``'İ'.casefold()`` is ``i`` + U+0307 COMBINING DOT ABOVE,
+        which is not a word character, so the line tokenizes to ``i`` + ``smail``
+        and the bucket ``ismail`` is never reached. ``'ı'.casefold()`` is
+        itself. Either way the name was skipped before its pattern ran -- a
+        silent miss on the staged path as well as the audit.
+
+        The guard is coarse on purpose: over pure ASCII, casefold and ``re.I``
+        agree exactly, so anything else falls back to testing every name.
+        """
+        for label, line in (
+            ("U+0130 dotted capital I", "İsmail Kaya"),
+            ("U+0131 dotless small i", "ısmail Kaya"),
+        ):
+            with self.subTest(label=label):
+                names = {"Ismail Kaya"}
+                self.assertTrue(self.naive(line, names))  # the old scan caught it
+                self.assertEqual(self.indexed(line, names), self.naive(line, names))
+
+    def test_a_name_outside_ascii_is_tested_against_every_line(self):
+        """The same hole from the other side: the exotic character is in the
+        name and the line is plain, so the name's own bucket word is one no
+        ASCII line can produce."""
+        names = {"İsmail Kaya"}
+        line = "seen by ismail kaya"
+        self.assertTrue(self.naive(line, names))
+        self.assertEqual(self.indexed(line, names), self.naive(line, names))
+
+    def test_punctuation_outside_ascii_does_not_force_the_fallback(self):
+        """The guard is on non-ASCII *word* characters, not on non-ASCII.
+
+        This repo's Markdown carries em dashes and curly quotes on nearly every
+        prose line. Falling back to every-name-per-line for those gives the
+        right answer and loses most of the speedup -- `--all` measured 0.2s with
+        this distinction and 2.0s without it.
+        """
+        index = ps.build_index(self.HOSTILE, set())
+        line = "the note — filed “properly” — by Ellery Fane"
+        self.assertLess(len(index.candidates(line)), len(index.everything))
+        self.assertEqual(self.indexed(line, self.HOSTILE),
+                         self.naive(line, self.HOSTILE))
+
+    def test_a_letter_outside_ascii_does_force_the_fallback(self):
+        index = ps.build_index(self.HOSTILE, set())
+        self.assertEqual(list(index.candidates("İsmail")),
+                         list(index.everything))
+
+    def test_agrees_with_a_naive_scan_on_generated_input(self):
+        """The hand-written cases above are the ones somebody thought of.
+
+        This is the one that found the U+0130 hole. The alphabet is small and
+        deliberately nasty -- the Latin i family, a long s, a Kelvin sign, an em
+        dash, and the punctuation that splits word runs -- so short random names
+        and lines collide often. Seeded, so a failure is reproducible.
+        """
+        alphabet = "aiIsSİıſK -'—"
+        random = Random(20260811)
+        for trial in range(400):
+            names = {
+                "".join(random.choices(alphabet, k=random.randint(1, 6)))
+                for _ in range(4)
+            }
+            line = "".join(random.choices(alphabet, k=random.randint(0, 24)))
+            with self.subTest(trial=trial):
+                self.assertEqual(self.indexed(line, names), self.naive(line, names))
+
+    def test_a_name_with_no_word_characters_is_always_tested(self):
+        """No word run means no bucket, so such a name goes in the always-run
+        list rather than being filed under nothing and never tested again."""
+        names = {"-- --"}
+        index = ps.build_index(names, set())
+        self.assertEqual([name for name, _ in index.unbucketed], ["-- --"])
+        self.assertEqual(index.buckets, {})
+        # Whatever `\b` makes of a name edged with punctuation, the indexed scan
+        # has to reach the same answer as the naive one.
+        text = "signed-- --here"
+        self.assertEqual(self.indexed(text, names), self.naive(text, names))
+
+    def test_the_required_token_is_the_longest_word_in_the_name(self):
+        # Longest, because it is the most selective: the rarer the word, the
+        # fewer lines drag the name into a pattern match.
+        self.assertEqual(ps._required_token("Jordan Vance"), "jordan")
+        self.assertEqual(ps._required_token("Mary-Ann O'Dell"), "mary")
+        self.assertIsNone(ps._required_token("-- --"))
+
+    def test_findings_come_out_ordered_by_name(self):
+        """The scanner prints these, and set iteration order is not stable
+        across processes. These two names bucket in the opposite order to the
+        order they are reported in, so the test fails if the buckets leak out.
+        """
+        names = {"Zeta Alpha", "Beta Gamma"}   # bucket words: alpha, gamma
+        found = [f.match for f in ps.scan_text(
+            "Zeta Alpha met Beta Gamma", "f.md", ps.build_index(names, set()))]
+        self.assertEqual(found, ["Beta Gamma", "Zeta Alpha"])
 
 
 class ShapeLayer(unittest.TestCase):

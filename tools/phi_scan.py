@@ -45,6 +45,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -92,6 +93,127 @@ NOT_NAMES = {
     "allergy nkda",
     "allergies nkda",
 }
+
+
+_WORD_RUN = re.compile(r"\w+")
+
+
+# A word character outside ASCII: word, and not one of the first 128.
+_NON_ASCII_WORD = re.compile(r"[^\W\x00-\x7f]")
+
+
+def _outside_ascii(text: str) -> bool:
+    """True where comparing tokens cannot stand in for what ``re.I`` matches.
+
+    Only **word** characters can break that correspondence, because only they
+    take part in a word run or in a case substitution. Punctuation outside
+    ASCII -- the em dashes and curly quotes this repo's Markdown is full of --
+    separates runs on both sides and changes nothing. The distinction is worth
+    making: treating any non-ASCII character as unindexable put most of the
+    repo's own prose back on the slow path, and ``--all`` went from 0.2s to 2s.
+    """
+    return not text.isascii() and _NON_ASCII_WORD.search(text) is not None
+
+
+class IndexedName(NamedTuple):
+    name: str
+    pattern: re.Pattern[str]
+
+
+def _by_name(entry: IndexedName) -> str:
+    """Sort on the name alone -- a compiled pattern has no ordering."""
+    return entry.name
+
+
+def _required_token(name: str) -> str | None:
+    """A word every ASCII line containing ``name`` must also contain, or None.
+
+    Any maximal run of word characters inside the name shows up in a matching
+    line as a whole word: inside the name the run is bounded by non-word
+    characters, and at the name's own edges the ``\\b`` anchors assert the same
+    boundary. So a line whose word tokens exclude the run cannot contain the
+    name, and the run is a sound thing to filter on. The longest run is chosen
+    because it is the most selective.
+
+    **Over ASCII only**, which is what ``build_index`` and ``CorpusIndex``
+    between them guarantee. Case folding is where a token comparison and
+    ``re.I`` part company, and the Latin i family is the specific hole:
+    ``re.I`` matches ``i`` against U+0130 and U+0131, while
+    ``'İ'.casefold()`` is ``i`` + a combining dot that is not a word character
+    -- so ``İsmail`` tokenizes to ``i`` + ``smail`` and the bucket ``ismail``
+    is never reached. Restricted to ASCII, folding and ``re.I`` agree exactly.
+
+    Returns None for a name with no word run at all; the caller tests those
+    against every line.
+    """
+    runs = _WORD_RUN.findall(name.casefold())
+    return max(runs, key=len) if runs else None
+
+
+@dataclass(frozen=True)
+class CorpusIndex:
+    """Corpus identifiers arranged for scanning many lines against many names.
+
+    The scan is names x lines -- 1,031 names over 4,657 tracked lines when this
+    was measured on 2026-08-11 -- and until #18 it built a fresh pattern inside
+    that loop. ``re`` caches 512 compiled patterns, so 1,031 names thrashed the
+    cache and recompiled nearly every name on nearly every line: ``--all`` took
+    128s. It now takes under half a second.
+
+    Two changes, and only the second one matters. Compiling each name once is
+    the obvious one and gets 128s to ~5s. The buckets are what make the layer
+    effectively free: a line is only tested against the names filed under the
+    words that line actually contains, which skips over 99% of the pairs.
+
+    **The buckets are a filter, not a matcher.** Every candidate they let
+    through is still tested with the same ``\\bname\\b`` pattern the naive scan
+    used, so nested names are still reported separately and nothing about a
+    finding changes. The only way this can be wrong is by skipping a pair that
+    would have matched, which is what ``CorpusIndexing`` in the tests exists to
+    rule out -- by generated input as well as by hand, because the hand-written
+    cases missed one.
+    """
+
+    buckets: dict[str, tuple[IndexedName, ...]]
+    # Names the buckets cannot speak for: no word run to file them under, or a
+    # character outside ASCII. Tested against every line.
+    unbucketed: tuple[IndexedName, ...]
+    # Every name, for lines the buckets cannot speak for.
+    everything: tuple[IndexedName, ...]
+    dates: tuple[str, ...]
+
+    def candidates(self, text: str) -> Sequence[IndexedName]:
+        """The names that could appear in this line, in reporting order."""
+        if _outside_ascii(text):
+            return self.everything
+        found = list(self.unbucketed)
+        for token in set(_WORD_RUN.findall(text.casefold())) & self.buckets.keys():
+            found.extend(self.buckets[token])
+        return sorted(found, key=_by_name)
+
+
+def build_index(names: set[str], dates: set[str]) -> CorpusIndex:
+    buckets: dict[str, list[IndexedName]] = {}
+    unbucketed: list[IndexedName] = []
+    everything: list[IndexedName] = []
+
+    for name in names:
+        entry = IndexedName(name, re.compile(r"\b" + re.escape(name) + r"\b", re.I))
+        everything.append(entry)
+        token = None if _outside_ascii(name) else _required_token(name)
+        if token is None:
+            unbucketed.append(entry)
+        else:
+            buckets.setdefault(token, []).append(entry)
+
+    # Sorted throughout: findings get printed, and set iteration order is not
+    # stable across processes.
+    return CorpusIndex(
+        buckets={token: tuple(sorted(v, key=_by_name)) for token, v in buckets.items()},
+        unbucketed=tuple(sorted(unbucketed, key=_by_name)),
+        everything=tuple(sorted(everything, key=_by_name)),
+        dates=tuple(sorted(dates)),
+    )
 
 
 @dataclass(frozen=True)
@@ -157,25 +279,13 @@ def declares_synthetic(text: str) -> bool:
     return SYNTHETIC_PRAGMA in text[:PRAGMA_SEARCH_CHARS]
 
 
-def scan_text(
-    text: str, path: str, names: set[str], dates: set[str], line_offset: int = 0
-) -> list[Finding]:
+def scan_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
     """Corpus layer always runs. Shape layer runs unless the file opts out."""
     findings: list[Finding] = []
-    lines = text.splitlines()
     shapes_apply = not declares_synthetic(text)
 
-    for number, line in enumerate(lines, start=1 + line_offset):
-        for name in names:
-            if re.search(r"\b" + re.escape(name) + r"\b", line, re.I):
-                findings.append(Finding(path, number, "corpus-name", name))
-        for date in dates:
-            if date in line:
-                findings.append(Finding(path, number, "corpus-date", date))
-        if shapes_apply:
-            for rule, pattern in SHAPE_RULES.items():
-                for match in re.finditer(pattern, line):
-                    findings.append(Finding(path, number, rule, match.group(0)))
+    for number, line in enumerate(text.splitlines(), start=1):
+        findings.extend(_scan_line(line, path, number, index, shapes_apply))
     return findings
 
 
@@ -213,7 +323,7 @@ def parse_diff(diff: str) -> dict[str, list[tuple[int, str]]]:
     return additions
 
 
-def scan_staged(names: set[str], dates: set[str]) -> list[Finding]:
+def scan_staged(index: CorpusIndex) -> list[Finding]:
     findings: list[Finding] = []
 
     for path in staged_paths():
@@ -226,20 +336,18 @@ def scan_staged(names: set[str], dates: set[str]) -> list[Finding]:
         whole = _git("show", f":{path}")
         shapes_apply = not declares_synthetic(whole)
         for number, text in added:
-            findings.extend(
-                _scan_line(text, path, number, names, dates, shapes_apply)
-            )
+            findings.extend(_scan_line(text, path, number, index, shapes_apply))
     return findings
 
 
 def _scan_line(
-    text: str, path: str, number: int, names: set[str], dates: set[str], shapes: bool
+    text: str, path: str, number: int, index: CorpusIndex, shapes: bool
 ) -> list[Finding]:
     findings: list[Finding] = []
-    for name in names:
-        if re.search(r"\b" + re.escape(name) + r"\b", text, re.I):
+    for name, pattern in index.candidates(text):
+        if pattern.search(text):
             findings.append(Finding(path, number, "corpus-name", name))
-    for date in dates:
+    for date in index.dates:
         if date in text:
             findings.append(Finding(path, number, "corpus-date", date))
     if shapes:
@@ -273,7 +381,7 @@ def read_text_if_text(path: Path) -> str | None:
     return data.decode("utf-8", errors="replace")
 
 
-def scan_all(names: set[str], dates: set[str]) -> list[Finding]:
+def scan_all(index: CorpusIndex) -> list[Finding]:
     findings: list[Finding] = []
     for path in _git("ls-files").splitlines():
         full = REPO_ROOT / path
@@ -282,7 +390,7 @@ def scan_all(names: set[str], dates: set[str]) -> list[Finding]:
         text = read_text_if_text(full)
         if text is None:
             continue
-        findings.extend(scan_text(text, path, names, dates))
+        findings.extend(scan_text(text, path, index))
     return findings
 
 
@@ -297,7 +405,8 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
 
-    findings = scan_all(names, dates) if "--all" in argv else scan_staged(names, dates)
+    index = build_index(names, dates)
+    findings = scan_all(index) if "--all" in argv else scan_staged(index)
     if not findings:
         return 0
 
