@@ -20,7 +20,7 @@ day-a and day-b are whole shifts. This one is **the under-6 half of a shift, and
 
 > **Until it is read, no drift row may be added to this set.**
 
-day-b is now the worked example of what lifting that rule costs and buys: reading its reference supplied five DRIFT rows, failed two of its four FILLED rows, and produced one row — day-b D5 — that would have been written **backwards** from the input alone. Expect the same here.
+[day-b](../day-b/assertions.md) is now the worked example of what lifting that rule buys: its reference read supplied every DRIFT row that set carries, and *failed* rows it had written from the inputs alone. One row came back **the opposite way round** from what the input suggested — the submitted note had addressed the finding, so a row claiming it was abandoned would have been false. Expect the same here.
 
 Every row below is anchored on the **input** — the absence of a pressure, and the values the shorthand does supply — both readable before any run happens.
 

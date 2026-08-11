@@ -12,13 +12,13 @@ Opened for [issue #8](https://github.com/mshamblin5150-code/clinical-skills/issu
 
 **The reference is read.** All twelve submitted notes were opened in the portal on 2026-08-11 and are kept, un-de-identified, in `scratch/day-b-reference/` — gitignored, because they carry the visit date, the site, a named outside physician and the patient references. Every row below now records what the submitted note actually did.
 
-**Inputs must come from the day file, never from the generated notes**, and the same trap applies to the reference half. That is why the rule below stood until today:
+**Inputs must come from the day file, never from the generated notes**, and the same trap applies to the reference half. That is why the rule below stood:
 
 > ~~Until it is, no drift row may be added to this set.~~ **Lifted 2026-08-11.** The reference is read, so a drift row can now be checked against what the submitted note did rather than against the skill's own prior output.
 
 The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows changed when its reference was finally read, and two had claimed the clinician abandoned a finding he had in fact carried into the Assessment and the Plan.
 
-**It earned its keep here too.** Of the five DRIFT rows below, **D5 would have been written backwards** without the reference. Case 10's shorthand reads `labs good mg 1.6` — a normal-sounding phrase wrapped around a low magnesium — and the obvious row to write from the input alone is *the clinician called abnormal labs good*. He did not. The submitted note caught it and supplemented. The row exists to stop the skill **losing** what the reference already had.
+**Here it changed one of five.** D1 through D4 turn out to say what a careful read of the input would have said. D5 is the exception, and in the direction the rule exists to catch: the submitted note **addressed** the low magnesium, so a row asserting it was abandoned would have been false. Its `Reference did` cell reads *neither*, not *better*, and it is the set's only anti-regression row.
 
 **The set has never been run.** `DRIFT n/n` and `FILLED n/n` have no first value yet.
 
@@ -26,23 +26,38 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 Same three verdicts as [day-a](../day-a/assertions.md): a difference from the submitted note is **better**, **worse**, or **neither**, and only *worse* is a regression. The `Reference did` columns below say which.
 
-**Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the set's own four FILLED rows** — B2 on case 8 and B4 on case 4. A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
+**Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the set's own four FILLED rows** — B4 on case 4 outright, and B2 on case 8 given the warrant below. A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
+
+### What "the reference filled it" rests on
+
+A submitted note does not say whether a value was measured at the visit or supplied at write-up. Nine of these twelve carry no vital in the shorthand and a complete vital set in the note, and reading that as *filled* is a step past what the note itself states. **Two of the four FILLED verdicts depend on that step and two do not**, which is worth separating rather than blurring:
+
+- **B3 and B4 are inference-free.** B3 asks what happened to a value *downstream* — Objective only, or named in the Assessment — and that is true of the value whatever its origin. B4 is about **given** vitals, where the shorthand supplies the value and the comparison is direct.
+- **B1 and B2 depend on the values being filled.** If case 8's 124/78 was measured at the bedside and merely transcribed late, it is a fact rather than a bland invention, and B2 has nothing to say about it.
+
+**The warrant is the clinician's own recorded practice, not a guess.** `reference/medatrax-fields.md` records that the 2025 Spring batch leaves Height and BMI blank while every 2025 Fall and 2026 Spring encounter fills both, *"inventing a height where the shorthand carries none"* — and quotes him directly: *"the newer records everything is filled out."* This shift is 2025 Fall.
+
+**It is a warrant, not proof, and the B2 verdict is where that matters.** Ask him if the row is ever contested.
 
 ## DRIFT — binary, all must pass
 
-Each row is a finding the shorthand documented and the original note then abandoned. A run passes the row when the finding is named in the **Assessment or the Plan** — not merely recorded in the Objective.
+Each row is a finding the shorthand documented that a note can drop between the Objective and the Assessment. A run passes the row when the finding is named in the **Assessment or the Plan** — not merely recorded in the Objective.
+
+**Four of the five are findings the submitted note did drop. D5 is not** — see below the table.
 
 | # | Case | The finding | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
-| D1 | 3 — 57 F | BP 147/81, with `htn` in the history | The elevated pressure is not addressed in the Assessment or the Plan. **A generic `BP` entry inside an age-based screening list does not count** — see below | Recorded it in the Objective and the portal field and stopped. The Assessment names scabies, traumatic otitis externa and tobacco use; **`hx htn` is dropped from the note entirely** — no I10, no recheck, no home log. Addressing it is *better*. |
+| D1 | 3 — 57 F | BP 147/81, with `htn` in the history | The elevated pressure is not named in the Assessment or the Plan. **A bare `BP` inside an age-based screening list is not a naming** — see below | Recorded it in the Objective and the portal field and stopped. The Assessment names scabies, traumatic otitis externa and tobacco use; **`hx htn` is dropped from the note entirely** — no I10, no recheck, no home log. Addressing it is *better*. |
 | D2 | 1 — 36 M | Breath sounds diminished in all four fields, in a 1 PPD × 24-year smoker | Not named in the Assessment or the Plan | Carried it into the Objective and stopped. The Assessment codes `Tobacco use (Z72.0)` but never the finding; no spirometry, no film, no COPD consideration. Naming it is *better*. |
 | D3 | 11 — 32 M | Inspiratory wheezing in all fields, in a documented asthmatic | Absent from the Assessment or the Plan | Recorded it on exam, then **recast it in the HPI as `inspiratory wheeze history`** — past tense — and carried asthma only in the *pre-existing* code list. No inhaler, no peak flow, no asthma plan item. Addressing it is *better*. |
-| D4 | 7 — 67 F | Elevated liver enzymes, AST 48 and ALP 136, in a patient on a statin | Absent from the Assessment or the Plan | **Dropped all three.** No AST, no ALP, no statin, no hepatic follow-up anywhere in the note — and a CMP ordered without saying why. The shorthand had already written the follow-up (`f/u pcp re elevated lft`). Keeping it is *better*. |
+| D4 | 7 — 67 F | Elevated liver enzymes — AST 48, ALP 136 — in a patient on a statin | The elevated enzymes are absent from the Assessment or the Plan | **Dropped them.** No AST, no ALP, no statin and no hepatic follow-up anywhere in the note, and a CMP ordered without saying why. The shorthand had already written the follow-up (`f/u pcp re elevated lft`). Keeping it is *better*. |
 | D5 | 10 — 48 M | Magnesium 1.6, written in the shorthand as `labs good mg 1.6` | The low magnesium is absent from the Assessment or the Plan | **Caught it** — `Mg 1.6 → recommend OTC magnesium supplement`. Matching this is *neither*; losing it is *worse*. |
 
 **D1's fail condition is worded against a real decoy.** The submitted note's Plan contains the string `BP` — inside `Screenings: Colon CA (age), mammogram, BP, smoking cessation`, boilerplate that appears on other notes from this shift regardless of the pressure recorded and would read identically had the pressure been 118/70. A row that passed on a substring match for `BP` would score the reference as having addressed 147/81. It did not.
 
-**D5 is the row that only a reference could produce**, and it is the reason the no-drift-rows rule existed. Every other row here is the skill being asked to beat the reference; this one is the skill being asked not to fall behind it.
+**D5 does not fit the sentence above the table, and it is kept anyway.** Nothing was abandoned: the shorthand's own plan line already reads `recommend mg otc mg supplement`, and the submitted note carried it through. So D5 is not a defect the reference committed — it is the one place on this shift where the reference did the right thing, and the row asks the skill not to fall behind it. day-a keeps D3 and D5 on the same terms, both marked *neither*.
+
+**What it still tests is the decoy in the input.** `labs good mg 1.6` wraps a low magnesium inside a phrase that says the labs were fine. A run that reads `labs good` and moves on drops the abnormal, and the recommendation two words later is the only thing that would catch it. The row is checkable from the input alone; what the reference added was the verdict — *neither*, not *better*.
 
 **Case 2 is the counter-example that makes D1 legible.** The same `htn` history, a pressure of 121/61, and the Assessment reads `HTN, controlled (I10)`. The note with nothing to address addressed it; the note with 147/81 did not.
 
@@ -53,6 +68,8 @@ A third assertion class alongside DRIFT and REPORTED, defined in [fixtures/READM
 **Enforced rather than counted, deliberately.** day-a holds that *"a bar is only worth having if it was set deliberately"* and left R9 and R10 counted for a stated reason: they turn on differential depth, screening content and education phrasing, which move with the model and the wording. Failing a run over those would be failing it over style.
 
 These four do not move with wording. Each resolves to a value or its absence — is there a blood pressure in the FILLED block, is it below 130 over 80, does the string naming it appear in the Assessment or the Plan, does the given value survive. Two runs can word case 9 completely differently and still agree on all four. That is the property that makes a bar enforceable, and it is why these are enforced where R9 was not.
+
+**The rows are about the skill's output, where "filled" is stated outright.** The `Reference did` cells are the looser half — the submitted note does not label its own values, so B1's and B2's verdicts rest on the warrant under *The reference is a baseline* above. B3's and B4's do not.
 
 | # | Cases | Passes when | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
