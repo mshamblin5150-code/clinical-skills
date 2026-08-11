@@ -74,7 +74,30 @@ Reason it from age, body habitus, the documented conditions and the presenting c
 
 Height and weight follow the same rule, in this order: pick a height plausible for the age and sex, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and leave the height and weight to be read backwards out of it.
 
-Every filled vital and every filled measurement is listed in the FILLED block for confirmation.
+**Every filled vital and every filled measurement is listed in the FILLED block carrying its value, written exactly as it appears in the note body.** Not `blood pressure filled` — `BP 142/88 filled`. Two reasons, and the second is the load-bearing one:
+
+- The clinician confirms a value, not a category, and cannot confirm what the block does not state.
+- The note body is written so given and filled content read identically. **The FILLED block is therefore the only thing in the whole document that can tell them apart**, and [icd10-cpt](../icd10-cpt/SKILL.md) reads it to decide which numbers a code may rest on. It matches on the value. A block naming the field without its value says a pressure was filled but not which one, and the check fails open in silence.
+
+**A derived value with a filled input is listed in the FILLED block too**, naming which inputs were filled — and it stays on the `DERIVED` line as well, with its arithmetic. A BMI is the case that matters: derived is a true statement about it, since the arithmetic has one right answer, but the answer is only ever as real as the height that went in. A BMI appearing under `DERIVED` alone reads as computed from measurements, which is exactly the impression it must not give.
+
+#### A filled BMI near a threshold says how near
+
+BMI is banded, and the bands do real work: an abnormal one must be worked up in full (drift row 4), and 30.0 diagnoses obesity where 29.1 does not. Where the BMI was derived from a filled height or a filled weight, a single invented inch decides which side of that line it falls on:
+
+```
+175 lb    5'4" -> 30.0    5'5" -> 29.1
+150 lb    5'5" -> 25.0    5'6" -> 24.2
+```
+
+**Where a BMI with a filled input lands within 1.0 of 18.5, 25, 30, 35 or 40, say so on its own FILLED line** — naming the adjacent value and what it changes:
+
+```
+FILLED·asserted   HEIGHT 5'4" filled; BMI 30.0 = 703 x 175 / 64^2. Within 1.0 of the
+                  obesity threshold — 5'5" gives 29.1, and the obesity workup drops.
+```
+
+**Do not move the value to avoid making the disclosure.** The rule is still *the value this patient most plausibly had*; the disclosure is what makes a plausible value safe to act on, never a reason to choose a safer one.
 
 ### What may be inferred
 
@@ -190,6 +213,10 @@ UNKNOWN           <tokens carried verbatim, any guess marked as a guess>
 ```
 
 The two FILLED lines together are **the FILLED block** — everything generated, in one place, for confirmation before submission. It splits into **asserted** and **proposed** because they carry different weight, as set out under *What may be inferred*: a preceptor checks asserted hardest, while proposed is reasoning and safe to be wrong about. A declared administrative value is a claim about the patient, so it belongs under `FILLED·asserted`.
+
+A value can occupy two lines at once, and one routinely does: a BMI derived from a filled height is written under `DERIVED` with its arithmetic *and* under `FILLED·asserted` naming the filled input. Listing it only as derived hides that it was invented; listing it only as filled hides that it was computed.
+
+**The block travels with the note.** [icd10-cpt](../icd10-cpt/SKILL.md) takes the note body *and* this block, because the body alone cannot say which of its numbers were measured — that is the whole point of writing filled content so it reads like the rest. Never hand a note to the coder with the tier block stripped. Where codes are produced mid-draft, as [SOAP.md](SOAP.md) and [HP.md](HP.md) both do, the step 4 tier assignment is what the coder needs; the block is that assignment's written form, not its only form.
 
 **FLAG is the block that matters.** A flag is a finding that was documented and then abandoned — an abnormal that reached the Objective and stopped there, a vital nobody addressed, a second problem the Assessment never names. It is neither a gap (nothing is missing from the source) nor a filled line (nothing was generated). It is the note failing to act on what it was told, which is the defect this skill exists to catch.
 

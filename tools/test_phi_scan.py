@@ -7,7 +7,9 @@ input, so this file declares itself synthetic -- and, like every file, remains
 subject to the corpus layer regardless.
 """
 
+import tempfile
 import unittest
+from pathlib import Path
 
 import phi_scan as ps
 
@@ -168,6 +170,75 @@ class NameHarvesting(unittest.TestCase):
 
     def test_rejects_a_line_with_digits(self):
         self.assertFalse(ps._looks_like_a_name("bp 134/77 hr 79"))
+
+
+class BinaryFiles(unittest.TestCase):
+    """This repo tracks a 13 MB SQLite code set, and the scanner reads every
+    tracked file. Decoded as text and regexed, a binary produces findings that
+    are neither true nor false -- just bytes that happened to match. A scanner
+    whose output cannot be trusted is worse than one that says nothing.
+    """
+
+    def test_a_null_byte_marks_a_file_binary(self):
+        self.assertTrue(ps.looks_binary(b"SQLite format 3\x00\x04\x00\x01"))
+
+    def test_plain_text_is_not_binary(self):
+        self.assertFalse(ps.looks_binary(b"seen by Jordan Vance today\n"))
+
+    def test_accented_text_is_not_binary(self):
+        # Nothing in this repo needs them, but a scanner that called UTF-8 text
+        # binary would skip a real file and say nothing about it.
+        self.assertFalse(ps.looks_binary("clinician's note - café".encode("utf-8")))
+
+    def test_reading_a_binary_file_yields_nothing_to_scan(self):
+        path = Path(tempfile.mkdtemp()) / "code.sqlite"
+        # A real SQLite header, then a corpus name in the bytes. Even a genuine
+        # hit inside a binary is unactionable: there is no line to fix.
+        path.write_bytes(b"SQLite format 3\x00" + b"Jordan Vance" + b"\x00\x01\x02")
+        self.assertIsNone(ps.read_text_if_text(path))
+
+    def test_reading_a_text_file_yields_its_content(self):
+        path = Path(tempfile.mkdtemp()) / "note.md"
+        path.write_text("seen by Jordan Vance today\n", encoding="utf-8")
+        self.assertIn("Jordan Vance", ps.read_text_if_text(path))
+
+
+class StagedDiffParsing(unittest.TestCase):
+    """The staged path is already safe from binaries, and this pins down why."""
+
+    def test_a_binary_diff_contributes_no_lines(self):
+        # git emits no `+++ b/` header and no + lines for a binary file, so the
+        # path never enters the additions map and `git show :path` is never
+        # called on 13 MB of it. That is load-bearing and invisible, so it is
+        # asserted here rather than trusted.
+        diff = (
+            "diff --git a/reference/icd10cm-2026.sqlite b/reference/icd10cm-2026.sqlite\n"
+            "new file mode 100644\n"
+            "index 0000000..1234567\n"
+            "Binary files /dev/null and b/reference/icd10cm-2026.sqlite differ\n"
+        )
+        self.assertEqual(ps.parse_diff(diff), {})
+
+    def test_a_text_diff_contributes_its_added_lines(self):
+        diff = (
+            "diff --git a/notes.md b/notes.md\n"
+            "--- a/notes.md\n"
+            "+++ b/notes.md\n"
+            "@@ -0,0 +12 @@\n"
+            "+seen by Jordan Vance today\n"
+        )
+        self.assertEqual(
+            ps.parse_diff(diff), {"notes.md": [(12, "seen by Jordan Vance today")]}
+        )
+
+    def test_line_numbers_advance_within_a_hunk(self):
+        diff = (
+            "+++ b/notes.md\n"
+            "@@ -0,0 +5,2 @@\n"
+            "+first\n"
+            "+second\n"
+        )
+        self.assertEqual(ps.parse_diff(diff), {"notes.md": [(5, "first"), (6, "second")]})
 
 
 if __name__ == "__main__":

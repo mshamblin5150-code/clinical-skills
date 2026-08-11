@@ -1,0 +1,17 @@
+00001 A00     0 Cholera                                                      Cholera
+00002 A000    1 Cholera due to Vibrio cholerae 01, biovar cholerae           Cholera due to Vibrio cholerae 01, biovar cholerae
+04749 E66     0 Overweight and obesity                                       Overweight and obesity
+04758 E66811  1 Obesity, class 1                                             Obesity, class 1
+04762 E669    1 Obesity, unspecified                                         Obesity, unspecified
+30524 R030    1 Elevated blood-pressure reading, w/o diagnosis of htn        Elevated blood-pressure reading, without diagnosis of hypertension
+30557 R0682   1 Tachypnea, not elsewhere classified                          Tachypnea, not elsewhere classified
+30573 R0902   1 Hypoxemia                                                    Hypoxemia
+97297 Z68     0 Body mass index [BMI]                                        Body mass index [BMI]
+97298 Z681    1 Body mass index [BMI] 19.9 or less, adult                    Body mass index [BMI] 19.9 or less, adult
+97299 Z682    0 Body mass index [BMI] 20-29, adult                           Body mass index [BMI] 20-29, adult
+97300 Z6820   1 Body mass index [BMI] 20.0-20.9, adult                       Body mass index [BMI] 20.0-20.9, adult
+97316 Z6835   1 Body mass index [BMI] 35.0-35.9, adult                       Body mass index [BMI] 35.0-35.9, adult
+97317 Z6836   1 Body mass index [BMI] 36.0-36.9, adult                       Body mass index [BMI] 36.0-36.9, adult
+97326 Z6845   1 Body mass index [BMI] 70 or greater, adult                   Body mass index [BMI] 70 or greater, adult
+97327 Z685    0 Body mass index [BMI] pediatric                              Body mass index [BMI] pediatric
+97330 Z6853   1 Body mass index pediatric, 85% to less than 95% for age      Body mass index [BMI] pediatric, 85th percentile to less than 95th percentile for age

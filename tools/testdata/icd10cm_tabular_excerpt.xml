@@ -1,0 +1,264 @@
+<ICD10CM.tabular>
+  <version>excerpt of FY2026 April 1 2026 release</version>
+  <chapter>
+    <section>
+      <diag>
+        <name>E66</name>
+        <desc>Overweight and obesity</desc>
+        <codeFirst>
+          <note>obesity complicating pregnancy, childbirth and the puerperium, if applicable (O99.21-)</note>
+        </codeFirst>
+        <useAdditionalCode>
+          <note>code to identify body mass index (BMI), if known, for adults (Z68.1-Z68.45) or pediatrics (Z68.5-)</note>
+        </useAdditionalCode>
+        <excludes2>
+          <note>adiposogenital dystrophy (E23.6)</note>
+          <note>lipomatosis dolorosa [Dercum] (E88.2)</note>
+          <note>lipomatosis NOS (E88.2)</note>
+          <note>Prader-Willi syndrome (Q87.11)</note>
+        </excludes2>
+        <diag>
+          <name>E66.0</name>
+          <desc>Obesity due to excess calories</desc>
+          <diag>
+            <name>E66.01</name>
+            <desc>Morbid (severe) obesity due to excess calories</desc>
+            <excludes1>
+              <note>morbid (severe) obesity with alveolar hypoventilation (E66.2)</note>
+            </excludes1>
+          </diag>
+          <diag>
+            <name>E66.09</name>
+            <desc>Other obesity due to excess calories</desc>
+          </diag>
+        </diag>
+        <diag>
+          <name>E66.1</name>
+          <desc>Drug-induced obesity</desc>
+          <useAdditionalCode>
+            <note>code for adverse effect, if applicable, to identify drug (T36-T50 with fifth or sixth character 5)</note>
+          </useAdditionalCode>
+        </diag>
+        <diag>
+          <name>E66.2</name>
+          <desc>Morbid (severe) obesity with alveolar hypoventilation</desc>
+          <inclusionTerm>
+            <note>Obesity hypoventilation syndrome (OHS)</note>
+            <note>Pickwickian syndrome</note>
+          </inclusionTerm>
+        </diag>
+        <diag>
+          <name>E66.3</name>
+          <desc>Overweight</desc>
+        </diag>
+        <diag>
+          <name>E66.8</name>
+          <desc>Other obesity</desc>
+          <diag>
+            <name>E66.81</name>
+            <desc>Obesity class</desc>
+            <diag>
+              <name>E66.811</name>
+              <desc>Obesity, class 1</desc>
+            </diag>
+            <diag>
+              <name>E66.812</name>
+              <desc>Obesity, class 2</desc>
+            </diag>
+            <diag>
+              <name>E66.813</name>
+              <desc>Obesity, class 3</desc>
+            </diag>
+          </diag>
+          <diag>
+            <name>E66.89</name>
+            <desc>Other obesity not elsewhere classified</desc>
+          </diag>
+        </diag>
+        <diag>
+          <name>E66.9</name>
+          <desc>Obesity, unspecified</desc>
+          <inclusionTerm>
+            <note>Obesity NOS</note>
+          </inclusionTerm>
+        </diag>
+      </diag>
+      <diag>
+        <name>R03</name>
+        <desc>Abnormal blood-pressure reading, without diagnosis</desc>
+        <diag>
+          <name>R03.0</name>
+          <desc>Elevated blood-pressure reading, without diagnosis of hypertension</desc>
+          <notes>
+            <note>This category is to be used to record an episode of elevated blood pressure in a patient in whom no formal diagnosis of hypertension has been made, or as an isolated incidental finding.</note>
+          </notes>
+        </diag>
+        <diag>
+          <name>R03.1</name>
+          <desc>Nonspecific low blood-pressure reading</desc>
+          <excludes1>
+            <note>hypotension (I95.-)</note>
+            <note>maternal hypotension syndrome (O26.5-)</note>
+            <note>neurogenic orthostatic hypotension (G90.3)</note>
+          </excludes1>
+        </diag>
+      </diag>
+      <diag>
+        <name>Z68</name>
+        <desc>Body mass index [BMI]</desc>
+        <inclusionTerm>
+          <note>Kilograms per meters squared</note>
+        </inclusionTerm>
+        <notes>
+          <note>BMI adult codes are for use for persons 20 years of age or older</note>
+          <note>BMI pediatric codes are for use for persons 2-19 years of age.</note>
+          <note>These percentiles are based on the growth charts published by the Centers for Disease Control and Prevention (CDC)</note>
+        </notes>
+        <diag>
+          <name>Z68.1</name>
+          <desc>Body mass index [BMI] 19.9 or less, adult</desc>
+        </diag>
+        <diag>
+          <name>Z68.2</name>
+          <desc>Body mass index [BMI] 20-29, adult</desc>
+          <diag>
+            <name>Z68.20</name>
+            <desc>Body mass index [BMI] 20.0-20.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.21</name>
+            <desc>Body mass index [BMI] 21.0-21.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.22</name>
+            <desc>Body mass index [BMI] 22.0-22.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.23</name>
+            <desc>Body mass index [BMI] 23.0-23.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.24</name>
+            <desc>Body mass index [BMI] 24.0-24.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.25</name>
+            <desc>Body mass index [BMI] 25.0-25.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.26</name>
+            <desc>Body mass index [BMI] 26.0-26.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.27</name>
+            <desc>Body mass index [BMI] 27.0-27.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.28</name>
+            <desc>Body mass index [BMI] 28.0-28.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.29</name>
+            <desc>Body mass index [BMI] 29.0-29.9, adult</desc>
+          </diag>
+        </diag>
+        <diag>
+          <name>Z68.3</name>
+          <desc>Body mass index [BMI] 30-39, adult</desc>
+          <diag>
+            <name>Z68.30</name>
+            <desc>Body mass index [BMI] 30.0-30.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.31</name>
+            <desc>Body mass index [BMI] 31.0-31.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.32</name>
+            <desc>Body mass index [BMI] 32.0-32.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.33</name>
+            <desc>Body mass index [BMI] 33.0-33.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.34</name>
+            <desc>Body mass index [BMI] 34.0-34.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.35</name>
+            <desc>Body mass index [BMI] 35.0-35.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.36</name>
+            <desc>Body mass index [BMI] 36.0-36.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.37</name>
+            <desc>Body mass index [BMI] 37.0-37.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.38</name>
+            <desc>Body mass index [BMI] 38.0-38.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.39</name>
+            <desc>Body mass index [BMI] 39.0-39.9, adult</desc>
+          </diag>
+        </diag>
+        <diag>
+          <name>Z68.4</name>
+          <desc>Body mass index [BMI] 40 or greater, adult</desc>
+          <diag>
+            <name>Z68.41</name>
+            <desc>Body mass index [BMI] 40.0-44.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.42</name>
+            <desc>Body mass index [BMI] 45.0-49.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.43</name>
+            <desc>Body mass index [BMI] 50.0-59.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.44</name>
+            <desc>Body mass index [BMI] 60.0-69.9, adult</desc>
+          </diag>
+          <diag>
+            <name>Z68.45</name>
+            <desc>Body mass index [BMI] 70 or greater, adult</desc>
+          </diag>
+        </diag>
+        <diag>
+          <name>Z68.5</name>
+          <desc>Body mass index [BMI] pediatric</desc>
+          <diag>
+            <name>Z68.51</name>
+            <desc>Body mass index [BMI] pediatric, less than 5th percentile for age</desc>
+          </diag>
+          <diag>
+            <name>Z68.52</name>
+            <desc>Body mass index [BMI] pediatric, 5th percentile to less than 85th percentile for age</desc>
+          </diag>
+          <diag>
+            <name>Z68.53</name>
+            <desc>Body mass index [BMI] pediatric, 85th percentile to less than 95th percentile for age</desc>
+          </diag>
+          <diag>
+            <name>Z68.54</name>
+            <desc>Body mass index [BMI] pediatric, 95th percentile for age to less than 120% of the 95th percentile for age</desc>
+          </diag>
+          <diag>
+            <name>Z68.55</name>
+            <desc>Body mass index [BMI] pediatric, 120% of the 95th percentile for age to less than 140% of the 95th percentile for age</desc>
+          </diag>
+          <diag>
+            <name>Z68.56</name>
+            <desc>Body mass index [BMI] pediatric, greater than or equal to 140% of the 95th percentile for age</desc>
+          </diag>
+        </diag>
+      </diag>
+    </section>
+  </chapter>
+</ICD10CM.tabular>

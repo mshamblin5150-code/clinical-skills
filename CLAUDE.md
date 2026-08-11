@@ -49,6 +49,22 @@ python -m unittest discover -s tools -t tools
 
 Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
 
+### ICD-10-CM code set
+
+`reference/icd10cm-2026.sqlite` is **committed**, unlike everything else generated here, and that was decided rather than drifted into: `icd10-cpt` sits on the consumer's critical path, so a database that had to be built before the skill worked would make the skill's Markdown insufficient on its own. 13.6 MB on disk, **2.68 MB as a git object** — measured 2026-08-11, one time.
+
+Rebuild it from the CMS release zips — downloaded, left unextracted — when a new fiscal year lands:
+
+```bash
+python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
+```
+
+98,186 codes and 22,988 tabular notes from the FY2026 April 1 2026 revision. `meta.release` inside the database names the zip it was built from, because the tabular's own `<version>` reads `2026` and is equally true of two revisions that code differently.
+
+**It holds the tabular, not the index.** So it verifies a code and never finds one: `tools/icd10_lookup.py --find` is a substring match over descriptors, which is a weaker thing than the alphabetic index and must not be read as one. The index, the neoplasm table and the drug table are all deliberately out — see the module docstring for what that costs.
+
+Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
+
 ### PHI pre-commit hook
 
 Standing rule 1 is enforced rather than remembered. **Git does not clone hooks, so every clone needs this once:**
@@ -79,4 +95,5 @@ Audit everything already committed with `python tools/phi_scan.py --all`.
 
 - `git commit --no-verify` bypasses it, as it bypasses any hook.
 - The corpus layer needs `scratch/` present. On a fresh clone it finds nothing and only the shape layer remains.
+- **Binary files are skipped entirely**, so nothing inside `reference/icd10cm-2026.sqlite` is read. Its contents are the public ICD-10-CM release and carry no patient data — but a tracked binary that *could* carry PHI would go unexamined and unmentioned.
 - A patient name that appears nowhere in the corpus and is not date-shaped is caught by neither layer. All PHI here originates in the corpus, so the hole is narrow — but it is real, and it is why the rule still has to be read.

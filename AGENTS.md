@@ -15,6 +15,8 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 
 <!-- Additional skills are appended here as they are written. -->
 
+**One skill is no longer Markdown alone.** `icd10-cpt` ships the ICD-10-CM code set at `reference/icd10cm-2026.sqlite` and queries it with `tools/icd10_lookup.py`, so a code is looked up rather than recalled. **There is still nothing to install** — the database is in this repo and `sqlite3` is in the Python standard library — but an agent that cannot run the script is working from recall, and every code it proposes must carry `verify this number`.
+
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
 
 ## Standing rules

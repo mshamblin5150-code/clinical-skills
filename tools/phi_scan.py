@@ -25,6 +25,10 @@ Known limits, stated so nobody mistakes this for a guarantee:
 - A patient name that appears nowhere in the corpus and is not date-shaped is
   caught by neither layer. All PHI here originates in the corpus, so this is a
   narrow hole, but it is a real one.
+- **Binary files are skipped entirely**, so nothing inside ``reference/
+  icd10cm-2026.sqlite`` is scanned. Its contents are the public ICD-10-CM
+  release and carry no patient data. If a binary that could carry PHI is ever
+  tracked here, this scanner will not say so.
 
 Usage:
 
@@ -182,7 +186,17 @@ def staged_paths() -> list[str]:
 
 def staged_additions() -> dict[str, list[tuple[int, str]]]:
     """Added lines per file, with their line numbers in the new file."""
-    diff = _git("diff", "--cached", "--unified=0", "--diff-filter=ACMR")
+    return parse_diff(_git("diff", "--cached", "--unified=0", "--diff-filter=ACMR"))
+
+
+def parse_diff(diff: str) -> dict[str, list[tuple[int, str]]]:
+    """Added lines per file, keyed by path.
+
+    A binary file contributes nothing: git prints ``Binary files ... differ``
+    with no ``+++ b/`` header and no ``+`` lines, so the path never enters this
+    map. That is what keeps ``scan_staged`` from pulling the 13 MB code set
+    through ``git show`` on every commit, and ``test_phi_scan`` pins it down.
+    """
     additions: dict[str, list[tuple[int, str]]] = {}
     path = ""
     number = 0
@@ -235,13 +249,39 @@ def _scan_line(
     return findings
 
 
+def looks_binary(data: bytes) -> bool:
+    """A NUL byte in the first block. The same test git itself uses.
+
+    Deliberately not an extension list: this repo tracks a ``.sqlite`` today and
+    an allowlist would need editing for whatever it tracks next, silently
+    scanning the new thing as text until someone noticed.
+    """
+    return b"\x00" in data[:8192]
+
+
+def read_text_if_text(path: Path) -> str | None:
+    """The file's text, or None where it is binary and there is nothing to scan.
+
+    Decoding a binary with ``errors="replace"`` and running the shape rules over
+    it produces findings that are neither true nor false -- bytes that happened
+    to match a phone number. Every finding this scanner prints has to be worth
+    reading, or the hook becomes something people learn to skip.
+    """
+    data = path.read_bytes()
+    if looks_binary(data):
+        return None
+    return data.decode("utf-8", errors="replace")
+
+
 def scan_all(names: set[str], dates: set[str]) -> list[Finding]:
     findings: list[Finding] = []
     for path in _git("ls-files").splitlines():
         full = REPO_ROOT / path
         if not full.is_file():
             continue
-        text = full.read_text(encoding="utf-8", errors="replace")
+        text = read_text_if_text(full)
+        if text is None:
+            continue
         findings.extend(scan_text(text, path, names, dates))
     return findings
 

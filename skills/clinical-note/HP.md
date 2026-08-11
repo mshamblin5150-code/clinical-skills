@@ -103,7 +103,7 @@ illness but matters for counselling and future care>
 
 **Family and Social History** are filled almost entirely. Phrase every one as a report of absence — `No chronic illness reported` — never as an examined finding.
 
-**ICD-9 vs ICD-10** — the rubric headings say ICD-9. That text is stale; supply ICD-10-CM codes under the heading as written. Codes follow [icd10-cpt](../icd10-cpt/SKILL.md): anchored to documented findings, and flagged for verification.
+**ICD-9 vs ICD-10** — the rubric headings say ICD-9. That text is stale; supply ICD-10-CM codes under the heading as written. Codes follow [icd10-cpt](../icd10-cpt/SKILL.md): anchored to documented findings, and flagged for verification. Give it the tier assignment along with the text — it declines to code off a filled value, and the note body alone cannot say which values those are.
 
 **Differential rationale** is the graded core. Each excluded diagnosis needs the specific finding that excludes it — `no facial swelling, no focal sinus tenderness` — drawn from the exam, whether that exam line is given or filled.
 

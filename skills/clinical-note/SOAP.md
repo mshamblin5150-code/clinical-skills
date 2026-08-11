@@ -53,7 +53,7 @@ Follow up: <interval, and what would bring them back sooner>
 
 **Quote the chief complaint.** The patient's words, in quotation marks.
 
-**Codes belong in this note.** Preexisting diagnoses and the final diagnosis both carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here.
+**Codes belong in this note.** Preexisting diagnoses and the final diagnosis both carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
 
 **Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
 
