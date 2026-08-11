@@ -16,9 +16,11 @@ day-a and day-b are whole shifts. This one is **the under-6 half of a shift, and
 
 **The inputs are in.** All five encounters are in [shorthand/](shorthand/), one file per case, de-identified.
 
-**The reference has not been read.** Same standing as day-b, for the same reason and under the same rule:
+**The reference has not been read.** The standing day-b held until 2026-08-11, for the same reason and under the same rule:
 
 > **Until it is read, no drift row may be added to this set.**
+
+day-b is now the worked example of what lifting that rule costs and buys: reading its reference supplied five DRIFT rows, failed two of its four FILLED rows, and produced one row — day-b D5 — that would have been written **backwards** from the input alone. Expect the same here.
 
 Every row below is anchored on the **input** — the absence of a pressure, and the values the shorthand does supply — both readable before any run happens.
 
