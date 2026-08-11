@@ -20,11 +20,18 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 **Here it changed one of five.** D1 through D4 turn out to say what a careful read of the input would have said. D5 is the exception, and in the direction the rule exists to catch: the submitted note **addressed** the low magnesium, so a row asserting it was abandoned would have been false. Its `Reference did` cell reads *neither*, not *better*, and it is the set's only anti-regression row.
 
-**The set has never been run.** `DRIFT n/n` and `FILLED n/n` have no first value yet.
+**The set has never been run.** `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value yet.
 
 ## The reference is a baseline, not a target
 
-Same three verdicts as [day-a](../day-a/assertions.md): a difference from the submitted note is **better**, **worse**, or **neither**, and only *worse* is a regression. The `Reference did` columns below say which.
+Same four verdicts as [day-a](../day-a/assertions.md), and only *worse* is a regression. The `Reference did` columns below say which:
+
+- **Better** — the skill caught something the submitted note dropped.
+- **Worse** — the skill lost something the submitted note had. The most important thing this set can find.
+- **Neither** — different wording for the same content.
+- **Out of reach** — the submitted note is better on information the skill never had. The clinician was in the room; the skill has the shorthand and nothing else. Matching this is not a target and failing it is not a regression — **the skill is required not to try.**
+
+**The fourth class arrived while this set could not host it.** It was added to day-a on 2026-08-11, and the commit that added it recorded why day-b was left on three: *"neither has read its reference, so neither can host the class yet, and both belong to other tickets."* This is that other ticket. day-b's one row of the class is **R1**, below.
 
 **Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the set's own four FILLED rows** — B4 on case 4 and B2 on case 8. A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
 
@@ -135,7 +142,25 @@ Issue #8 asked for both halves — a filled vital and a filled body measurement 
 
 So a run can satisfy this set while never generating an abnormal BMI at all. Closing it needs a case whose shorthand documents obesity without a weight, and none of these twelve does.
 
-**The reference is evidence the gap matters, not that it can be closed here.** The clinician generated a BMI of 37.8 for case 9 unprompted — from a shorthand that documents lymphedema, arthritis in both knees and a hip fracture, none of which requires it — and then addressed it nowhere. That is precisely the defect a body-measurement B2 would catch, and this set still cannot demand it.
+**The reference is evidence the gap matters.** The clinician generated a BMI of 37.8 for case 9 unprompted — from a shorthand that documents lymphedema, arthritis in both knees and a hip fracture, none of which requires it — and then addressed it nowhere.
+
+**B2's rewrite may also have made this section obsolete, and that is [#15](https://github.com/mshamblin5150-code/clinical-skills/issues/15)'s call rather than this ticket's.** Everything above assumes the analogue must *force an abnormal BMI*, because that is what B2 used to do. B2 no longer forces a value — it forces an account — and an analogue of the new shape needs no case that makes a normal BMI implausible. #15 is open on exactly this and its reasoning was written against the old B2. Left standing here rather than rewritten, because #15 is where it gets settled.
+
+## REPORTED — counted, not enforced
+
+One row, and it exists because the reference read produced a difference of the fourth class. Counted rather than enforced on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and this one has not been run even once.
+
+| # | Cases | Claim | Reference did |
+| --- | --- | --- | --- |
+| R1 | 1, 2 | No social, allergy or medication detail is asserted where the shorthand supplies none. Absent or not-reported phrasing is the passing form | Asserted three. Case 1: `Social: Works manual labor` against a shorthand saying only that the injury happened `at work`, and `Allergies: NKDA` against a shorthand silent on allergies. Case 2: `Allergies: Seasonal-itching/sneezing` against a bare `seasonal allergies` — the reaction is new. ***Out of reach*** — right in his note, forbidden in the skill's. |
+
+**This is day-a's R14 with two cases instead of four**, and it is the same argument: he was in the room and knew these; the skill has the shorthand and would be inventing them. His note is right and the skill's would not be.
+
+**One thing day-a's R14 has that this row does not.** R14 records *"Recalled from the encounters, not invented, per the clinician on 2026-08-11"* — he was asked, about those four. **He has not been asked about these three**, so *out of reach* is carried over by analogy rather than confirmed. It does not change what the row demands: the skill is forbidden to assert them whether he recalled them or invented them. It changes only the label, and *worse* is the alternative.
+
+**Case 1 is the row's own counter-example, in the same note.** It writes `Meds: None reported`, `No DM history reported` and `no PAD reported` — the passing form, three times — and then `Works manual labor`. The distinction is available to him; it is not applied evenly.
+
+**Case 2's `Meds: Unspecified antihypertensive` is deliberately not counted here.** The shorthand carries no meds line, so on its face it is the same defect — but [`clinical-note`](../../skills/clinical-note/SKILL.md) explicitly instructs the skill to *"infer the likely regimen"* in exactly that situation, and `Unspecified` is the hedge doing its job. A row that failed it would be failing the skill for obeying its own instructions. Whether that instruction should survive is [#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23).
 
 ## What the reference surfaced that this set does not assert
 
@@ -150,7 +175,7 @@ The inputs cannot test any of these: they carry no visit date, no portal entry f
 ## Still unresolved
 
 - **`clinical-note` still says what B2 stopped saying.** [SKILL.md](../../skills/clinical-note/SKILL.md) reads *"A known hypertensive seen for a productive cough gets a hypertensive pressure"* — the rule B2 was written to fixture, and the one the clinician's *"she may be compliant with her BP meds"* contradicts. The same file also tells the skill to **infer a likely regimen** where a hypertensive history carries no `meds:` line, and to propose *"lisinopril where the history carries hypertension"*. So it currently instructs the skill to put a patient on an ACE inhibitor and then hand her a hypertensive pressure anyway. **B2 was changed and the skill rule was not**, deliberately: rewriting a clinical rule is the clinician's call and it would ripple into `peds-bp` and drift row 4. Filed as [#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23).
-- **The set has never been run.** Until it is, `DRIFT n/n` and `FILLED n/n` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
+- **The set has never been run.** Until it is, `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
 - **Cases 6 and 12 are 17 and 16, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) turned out not to reach them.** That issue asked whether a filled pediatric vital should be filled at all, and pointed here for the fixture. The corpus answered the boundary question first: measured 2026-08-11, a blood pressure going missing from a vital line that was otherwise written happens **only under 6** — every band from 9 up produces not one instance, and a 16-year-old is transcribed exactly like an adult. So these two are adolescent only in the sense that their filled values must suit their age, which B1 already demands. The ruling — filled, no exception — is fixtured in [peds-bp](../peds-bp/assertions.md), whose cases are young enough to test it.
 
   What is genuinely untested here is **B2's** analogue, not B1's: B2 reaches only cases 8 and 9 because only those two document a condition making a normal value implausible, and neither of these adolescents does. (An earlier version of this bullet named B1 for that; B1's case list has covered 6 and 12 all along.)
