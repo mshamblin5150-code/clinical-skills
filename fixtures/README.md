@@ -57,10 +57,15 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 | --- | --- | --- | --- | --- | --- |
 | [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | `DRIFT 10/10` · `REPORTED 14/14` |
 | [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | **owed** | never run |
+| [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | **owed** | never run |
 
 The reference notes themselves live in `scratch/day-a-reference/`, gitignored — they carry the visit date, the site and social-history detail that the committed half deliberately does not.
 
+**A set is not always a day.** `day-a` and `day-b` are whole shifts and are named for that. `peds-bp` is the under-6 half of one shift, named for the question instead — because calling it `day-c` would claim a completeness it does not have. Either shape is fine; what is not fine is a partial set that reads as a whole one. **A set scoped to part of its source says so in its own README, and names what it left out.**
+
 **day-b has one half on purpose.** It exists to test the *filled* half of the vitals license, which day-a cannot reach: all ten day-a cases carry a complete vital line, so nothing there exercises a vital the skill had to invent. Nine of day-b's twelve carry none at all. A filled vital was never in the shorthand, so there is nothing for the submitted note to have drifted from and its rows are checkable without a reference — but the reference is **owed, not unnecessary**, and until it is read no drift row may be added to that set. See [day-b/assertions.md](day-b/assertions.md).
+
+**`peds-bp` tests the shape day-b's inputs cannot reach.** day-b's nine vital-less cases are the corpus's dominant pattern — the line written whole or not at all. Under 6 that pattern inverts: measured 2026-08-11, 18 of the 21 under-6 encounters carry a vital line with the **blood pressure alone** missing, against 11 of 106 for encounters aged 20 and over. A selective absence is a decision rather than a transcription gap, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) settled that it is filled anyway. `peds-bp` is what holds that ruling to it. Its reference is owed on the same terms. See [peds-bp/assertions.md](peds-bp/assertions.md).
 
 ## A set has two halves
 

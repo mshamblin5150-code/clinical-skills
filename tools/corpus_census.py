@@ -1,6 +1,6 @@
 """Recompute the measured claims asserted in prose in skills/clinical-note/SKILL.md.
 
-Four claims in that file are counts over the clinician's shorthand corpus. They are
+Five claims in that file are counts over the clinician's shorthand corpus. They are
 load-bearing — rulings have turned on them — and until this script existed none of
 them could be re-derived. Run it when a claim is about to be relied on again, or
 when the corpus grows:
@@ -27,6 +27,21 @@ Extractor limits worth knowing before quoting a number:
   one of them a menstrual, follow-up, referral or administrative date, and
   none a birth date. Counting all nine encounters anyway is what lands at
   530 of 559 -- the reading the prose carried before 2026-08-11. Issue #9.
+- ``OTHER_VITALS`` matches the bare words ``hr``, ``temp``, ``rr`` and ``spo2``
+  with no number after them, so an encounter that merely *mentions* a
+  temperature in prose counts as carrying a vital. This is load-bearing for the
+  band report: of the 18 under-6 encounters counted as a vital line missing only
+  its pressure, **17 carry a structured line and one carries the word "temp"**
+  inside the exam narrative. Audited 2026-08-11. The claim survives either
+  reading, and ``fixtures/peds-bp`` preserves that one case rather than hiding
+  it. Every other band's figure is structured throughout.
+- A band count is only as good as ``age_in_years``, which takes the **first**
+  age in the note and cannot tell a patient's from a parent's or a sibling's.
+  Ages sit at the top of these notes, so it is usually the patient's — but no
+  band figure should be quoted about an individual encounter, only about the
+  distribution. And the ``no age`` band is large: 202 of 559 as of 2026-08-11,
+  so every other band is a **floor**, not a population. Quote the ratio within
+  a band, never the count as though it were exhaustive.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -82,7 +97,7 @@ OTHER_VITALS = re.compile(r"(?i)\b(?:hr|pulse|rr|spo2|sao2|temp)\b|\bt\s*\d{2,3}
 # stray "3 your" out; today the corpus's one instance is counted only because it
 # sits alone on a line and AGE_AND_SEX_LINE catches it.
 AGE_IN_YEARS = re.compile(
-    r"(?i)\b\d{1,3}\s*(?:y\.?o\.?\b|y/o\b|y\.?/?o\.?[mf]\b"
+    r"(?i)\b(\d{1,3})\s*(?:y\.?o\.?\b|y/o\b|y\.?/?o\.?[mf]\b"
     r"|years?\s*old\b|yrs?\s*old\b|years?\s*of\s*age\b)"
 )
 # Infants are written "8 months old" or "13 month male". A bare "[mf]" is not
@@ -96,7 +111,25 @@ AGE_UNDER_ONE = re.compile(
 # corpus sit anywhere other than alone on a line, and all three are decoys — two
 # doses, and the "f/u" follow-up token taking the "f", which is the form the
 # anchor most has to reject. No encounter loses an age to it.
-AGE_AND_SEX_LINE = re.compile(r"(?im)^\s*\d{1,3}\s*(?:yo|y/o)?\s*[mf]\b\.?\s*$")
+AGE_AND_SEX_LINE = re.compile(r"(?im)^\s*(\d{1,3})\s*(?:yo|y/o)?\s*[mf]\b\.?\s*$")
+
+# Age bands. Both boundaries are borrowed rather than invented, because a fourth
+# age line in this repo is a defect waiting to happen:
+#
+# - 6 is where the corpus changes shape. Below it the clinician has never
+#   recorded a blood pressure, and the absence is selective rather than a
+#   transcription gap. Issue #11.
+# - 20 is ``Z68``'s own tabular boundary between the pediatric and adult BMI
+#   codes, already ratified in this repo by the shipped code set. It is used
+#   here only to name a band; nothing about blood pressure switches on at 20.
+#
+# The SIX_TO_NINETEEN band exists to hold what neither claim is about, so the bands
+# partition the corpus instead of sampling it.
+UNDER_SIX = "0-5"
+SIX_TO_NINETEEN = "6-19"
+ADULT = "20+"
+AGE_UNKNOWN = "no age"
+BANDS = (UNDER_SIX, SIX_TO_NINETEEN, ADULT, AGE_UNKNOWN)
 
 DOB_TOKEN = re.compile(r"(?i)\bd\.?o\.?b\.?\b")
 DOB_BARE_LINE = re.compile(r"(?m)^\s*\d{1,2}[/-]\d{1,2}[/-](?:19|20)?\d{2}\s*$")
@@ -158,6 +191,48 @@ def has_stated_age(note: str) -> bool:
 
 def has_dob(note: str) -> bool:
     return bool(DOB_TOKEN.search(note) or DOB_BARE_LINE.search(note))
+
+
+def age_in_years(note: str) -> int | None:
+    """The stated age in whole years, or None where none is stated.
+
+    The value counterpart to ``has_stated_age``, and it reads the same three
+    forms in the same order so the two can never disagree — a note the presence
+    check accepts always yields a number here, and one it rejects always yields
+    None. ``test_corpus_census.py`` asserts that against every committed fixture.
+
+    **An infant floors to 0.** ``9 months old`` and ``3 week old`` are all the
+    same band for every purpose this census serves, and a fractional year would
+    invite arithmetic nobody wants on a corpus this size.
+
+    **The first stated age in the note wins**, and a year form beats a month
+    form wherever both appear — ``2 yo M`` with ``x 3 months`` later in the
+    prose reads as 2. What it cannot do is tell the patient's age from a
+    sibling's or a parent's: a note saying the mother is 28 has no marker
+    distinguishing that from the patient, and this returns whichever comes
+    first. Ages sit at the top of these notes, so that is usually the patient,
+    and it is the reason no band count here is quoted to the encounter.
+    """
+    match = AGE_IN_YEARS.search(note)
+    if match:
+        return int(match.group(1))
+    if AGE_UNDER_ONE.search(note):
+        return 0
+    match = AGE_AND_SEX_LINE.search(note)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def band_of(note: str) -> str:
+    age = age_in_years(note)
+    if age is None:
+        return AGE_UNKNOWN
+    if age < 6:
+        return UNDER_SIX
+    if age < 20:
+        return SIX_TO_NINETEEN
+    return ADULT
 
 
 @dataclass(frozen=True)
@@ -234,11 +309,78 @@ def survey(notes: list[str]) -> Census:
     )
 
 
+@dataclass(frozen=True)
+class BandCensus:
+    """Counts only, for one age band. Nothing here can carry note text."""
+
+    notes: int = 0
+    with_bp: int = 0
+    no_vital_at_all: int = 0
+    vital_line_no_bp: int = 0
+
+    @property
+    def without_bp(self) -> int:
+        return self.notes - self.with_bp
+
+
+def survey_bands(notes: list[str]) -> dict[str, BandCensus]:
+    """Split the corpus by age and count how a missing pressure goes missing.
+
+    The distinction the whole thing exists for is between the two ways an
+    encounter can lack a blood pressure:
+
+    - ``no_vital_at_all`` -- nothing was transcribed. The absence says nothing
+      about the value, which is the premise the filled-vitals license rests on.
+    - ``vital_line_no_bp`` -- a line **was** transcribed and the pressure alone
+      is missing. A selective absence is a decision, not a transcription gap.
+
+    They are exhaustive over ``without_bp`` by construction: a note with no
+    pressure either carries some other vital or carries none.
+    """
+    fields = ("notes", "with_bp", "no_vital_at_all", "vital_line_no_bp")
+    tally = {name: dict.fromkeys(fields, 0) for name in BANDS}
+    for note in notes:
+        row = tally[band_of(note)]
+        row["notes"] += 1
+        # Exactly one of the three, which is what makes the invariant hold.
+        if has_bp(note):
+            row["with_bp"] += 1
+        elif has_any_vital(note):
+            row["vital_line_no_bp"] += 1
+        else:
+            row["no_vital_at_all"] += 1
+    return {name: BandCensus(**row) for name, row in tally.items()}
+
+
 def _pct(part: int, whole: int) -> str:
     return f"{round(100 * part / whole)}%" if whole else "n/a"
 
 
-def format_report(census: Census, source: str, date: str) -> str:
+def format_band_report(bands: dict[str, BandCensus]) -> list[str]:
+    """The issue #11 claim, as lines. Integers and fixed labels only."""
+    lines = [
+        'claim: "18 of the 21 encounters under 6 carry a vital line with the',
+        '        blood pressure alone missing" (Filled vitals: a small child)',
+        "  band      n    BP  no BP   no vital  line, no BP",
+    ]
+    for name in BANDS:
+        b = bands[name]
+        lines.append(
+            f"  {name:<8}{b.notes:>4}  {b.with_bp:>4}  {b.without_bp:>5}  "
+            f"{b.no_vital_at_all:>9}  {b.vital_line_no_bp:>11}"
+        )
+    lines.append(
+        "  a selective absence is a decision; a whole missing line is not"
+    )
+    return lines
+
+
+def format_report(
+    census: Census,
+    source: str,
+    date: str,
+    bands: dict[str, BandCensus],
+) -> str:
     c = census
     # ASCII only: this output is read in a Windows console and pasted into tickets.
     lines = [
@@ -273,6 +415,7 @@ def format_report(census: Census, source: str, date: str) -> str:
         f"  normal                {c.readings_normal:>5}  "
         f"{_pct(c.readings_normal, c.readings)}",
     ]
+    lines += ["", *format_band_report(bands)]
     return "\n".join(lines)
 
 
@@ -295,7 +438,14 @@ def main(argv: list[str]) -> int:
         print(f"no notes found in {directory}", file=sys.stderr)
         return 1
     today = __import__("datetime").date.today().isoformat()
-    print(format_report(survey(notes), source=directory.name, date=today))
+    print(
+        format_report(
+            survey(notes),
+            source=directory.name,
+            date=today,
+            bands=survey_bands(notes),
+        )
+    )
     return 0
 
 

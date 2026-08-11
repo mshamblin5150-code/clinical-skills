@@ -27,12 +27,22 @@ import corpus_census as cc
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "fixtures" / "day-a" / "shorthand"
 DAY_B = REPO_ROOT / "fixtures" / "day-b" / "shorthand"
+PEDS_BP = REPO_ROOT / "fixtures" / "peds-bp" / "shorthand"
 
 # day-b/shorthand/README.md states this split in prose; the numbers are here so a
 # change to either one has to be made in both places on purpose.
 DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 DAY_B_CONTROL = (2, 3, 4)
 DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
+
+# peds-bp keeps its source shift's numbering, so the gaps are the omitted cases.
+PEDS_BP_CASES = (2, 3, 5, 8, 9)
+PEDS_BP_VITAL_LINE = (3, 5)  # a structured line was written; only the BP is missing
+# Case 8 joins them under the census's reading, which counts the bare word "temp"
+# in "temp this vist is 99.5" as a vital. That is a real given temperature written
+# into the exam prose rather than onto a vital line -- the distinction peds-bp's
+# assertions list under *Still unresolved*, and the reason these are two constants.
+PEDS_BP_ANY_VITAL = (3, 5, 8)
 
 
 def fixture(name: str) -> str:
@@ -41,6 +51,10 @@ def fixture(name: str) -> str:
 
 def day_b(number: int) -> str:
     return (DAY_B / f"case-{number:02d}.md").read_text(encoding="utf-8")
+
+
+def peds_bp(number: int) -> str:
+    return (PEDS_BP / f"case-{number:02d}.md").read_text(encoding="utf-8")
 
 
 class SplitNotes(unittest.TestCase):
@@ -346,6 +360,150 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
                 self.assertFalse(cc.has_dob(path.read_text(encoding="utf-8")))
 
 
+class AgeInYears(unittest.TestCase):
+    """The value extractor, as opposed to ``has_stated_age``'s presence check.
+
+    Every decoy ``Age`` rejects must resolve to ``None`` here, not to a number:
+    a presence check that over-matches inflates a percentage, but a value
+    extractor that over-matches puts an encounter in the wrong age band, which
+    is the thing issue #11's ruling turns on.
+    """
+
+    def test_years(self):
+        self.assertEqual(cc.age_in_years("45 yo M"), 45)
+        self.assertEqual(cc.age_in_years("a 7 years old male"), 7)
+        self.assertEqual(cc.age_in_years("62 years of age"), 62)
+
+    def test_bare_age_and_sex_on_its_own_line(self):
+        self.assertEqual(cc.age_in_years("cc: cough\n51 f\nhx: none"), 51)
+
+    def test_months_floor_to_zero(self):
+        self.assertEqual(cc.age_in_years("9 months old M"), 0)
+        self.assertEqual(cc.age_in_years("11 month old F"), 0)
+        self.assertEqual(cc.age_in_years("3 week old female"), 0)
+
+    def test_a_stated_year_beats_a_month_form_later_in_the_note(self):
+        self.assertEqual(cc.age_in_years("2 yo M\ncough x 3 months old habit"), 2)
+
+    def test_decoys_resolve_to_none(self):
+        for decoy in (
+            "t 98 F",              # a temperature on its own line
+            "toradol 10 m",        # a dose
+            "x 3 days f/u",        # the follow-up token taking the sex letter
+            "32 weeks gestation",  # not the patient's age
+            "no age anywhere",
+        ):
+            with self.subTest(decoy=decoy):
+                self.assertIsNone(cc.age_in_years(decoy))
+
+    def test_agrees_with_the_presence_check_on_every_committed_fixture(self):
+        """The two must never disagree: one says there is an age, the other reads it."""
+        for directory in (FIXTURES, DAY_B, PEDS_BP):
+            for path in sorted(directory.glob("case-*.md")):
+                note = path.read_text(encoding="utf-8")
+                with self.subTest(case=f"{directory.name}/{path.name}"):
+                    self.assertEqual(
+                        cc.has_stated_age(note), cc.age_in_years(note) is not None
+                    )
+
+    def test_reads_the_day_b_adolescents(self):
+        """Issue #11 turned on these two not being small children."""
+        self.assertEqual(cc.age_in_years(day_b(6)), 17)
+        self.assertEqual(cc.age_in_years(day_b(12)), 16)
+
+
+class PedsBpIsTheSelectiveAbsenceSet(unittest.TestCase):
+    """Guards the property every peds-bp assertion rests on.
+
+    day-b's set is defined by encounters carrying *no* vital. This one is
+    defined by the opposite shape -- a vital line that was written and is
+    missing only the blood pressure -- and a well-meaning edit that added a
+    pressure to case 3 or 5 would void the set rather than fail it.
+    """
+
+    def test_the_set_has_five_cases(self):
+        self.assertEqual(len(sorted(PEDS_BP.glob("case-*.md"))), 5)
+
+    def test_the_case_numbers_are_the_shifts_own(self):
+        """Gaps in the numbering are the four school-age controls left out."""
+        numbers = [int(p.stem.split("-")[1]) for p in sorted(PEDS_BP.glob("case-*.md"))]
+        self.assertEqual(numbers, list(PEDS_BP_CASES))
+
+    def test_every_case_is_exactly_one_note(self):
+        for path in sorted(PEDS_BP.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertEqual(len(cc.split_notes(path.read_text(encoding="utf-8"))), 1)
+
+    def test_no_case_carries_a_blood_pressure(self):
+        for n in PEDS_BP_CASES:
+            with self.subTest(case=n):
+                self.assertFalse(cc.has_bp(peds_bp(n)))
+
+    def test_every_case_is_under_six(self):
+        for n in PEDS_BP_CASES:
+            with self.subTest(case=n):
+                age = cc.age_in_years(peds_bp(n))
+                self.assertIsNotNone(age)
+                self.assertLess(age, 6)
+
+    def test_the_two_anchors_carry_a_vital_line_without_a_pressure(self):
+        """Cases 3 and 5 are the inversion the set exists to test."""
+        for n in PEDS_BP_VITAL_LINE:
+            with self.subTest(case=n):
+                note = peds_bp(n)
+                self.assertTrue(cc.has_other_vitals(note))
+                self.assertTrue(cc.has_weight(note))
+                self.assertFalse(cc.has_bp(note))
+
+    def test_case_three_carries_the_given_height_and_weight_percentiles(self):
+        """P4 asserts these survive, and the anchor argument rests on them."""
+        note = peds_bp(3)
+        self.assertTrue(cc.has_height(note))
+        self.assertIn("99.9th percentile", note)
+
+
+class Bands(unittest.TestCase):
+    """The age-band counts behind the two figures issue #11 wrote into SKILL.md."""
+
+    def test_bands_partition_the_notes(self):
+        notes = [peds_bp(n) for n in PEDS_BP_CASES] + [day_b(n) for n in (1, 6, 12)]
+        bands = cc.survey_bands(notes)
+        self.assertEqual(sum(b.notes for b in bands.values()), len(notes))
+
+    def test_the_peds_set_lands_entirely_under_six(self):
+        bands = cc.survey_bands([peds_bp(n) for n in PEDS_BP_CASES])
+        self.assertEqual(bands[cc.UNDER_SIX].notes, 5)
+        self.assertEqual(bands[cc.UNDER_SIX].without_bp, 5)
+        self.assertEqual(bands[cc.UNDER_SIX].vital_line_no_bp, len(PEDS_BP_ANY_VITAL))
+        self.assertEqual(bands[cc.UNDER_SIX].no_vital_at_all, 5 - len(PEDS_BP_ANY_VITAL))
+
+    def test_a_missing_age_lands_in_its_own_band_rather_than_an_age_one(self):
+        bands = cc.survey_bands(["cc: cough\nbp 120/80\n"])
+        self.assertEqual(bands[cc.AGE_UNKNOWN].notes, 1)
+        for name in (cc.UNDER_SIX, cc.ADULT):
+            with self.subTest(band=name):
+                self.assertEqual(bands[name].notes, 0)
+
+    def test_no_vital_at_all_and_vital_line_no_bp_are_disjoint(self):
+        notes = [peds_bp(n) for n in PEDS_BP_CASES] + [day_b(n) for n in range(1, 13)]
+        for name, band in cc.survey_bands(notes).items():
+            with self.subTest(band=name):
+                self.assertEqual(
+                    band.no_vital_at_all + band.vital_line_no_bp, band.without_bp
+                )
+
+    def test_the_band_report_emits_no_note_text(self):
+        notes = [peds_bp(n) for n in PEDS_BP_CASES]
+        report = cc.format_report(
+            cc.survey(notes), source="fixtures", date="2026-08-11",
+            bands=cc.survey_bands(notes),
+        )
+        self.assertIn("line, no BP", report)  # the section really rendered
+        for leak in ("cc:", "hx:", "exam:", "[PT]", "plan ", "percentile"):
+            with self.subTest(leak=leak):
+                self.assertNotIn(leak, report)
+
+
 class Survey(unittest.TestCase):
     def setUp(self):
         self.notes = [
@@ -360,7 +518,10 @@ class Survey(unittest.TestCase):
 
     def test_report_emits_no_note_text(self):
         """Standing rule 1: the census output must be safe to paste anywhere."""
-        report = cc.format_report(cc.survey(self.notes), source="fixtures", date="2026-08-11")
+        report = cc.format_report(
+            cc.survey(self.notes), source="fixtures", date="2026-08-11",
+            bands=cc.survey_bands(self.notes),
+        )
         for leak in ("cc:", "hx:", "exam:", "[PT]", "plan "):
             with self.subTest(leak=leak):
                 self.assertNotIn(leak, report)

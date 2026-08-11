@@ -70,7 +70,20 @@ A vital is not a finding the clinician chose to record, and two things follow th
 
 Reason it from age, body habitus, the documented conditions and the presenting complaint — not from the middle of the normal range. A known hypertensive seen for a productive cough gets a hypertensive pressure and a raised respiratory rate. A two-year-old gets a two-year-old's pressure, not a scaled-down adult's.
 
+**A small child's anchors are different, not absent.** The adult anchors — documented hypertension, body habitus — are usually missing under 6, which invites the conclusion that there is nothing to reason from and the middle of the range is all that is left. The corpus says the reverse. Measured 2026-08-11, **18 of the 21 encounters under 6 carry a transcribed vital line with the blood pressure alone missing** — 17 a structured line, one a temperature written into the exam prose — where 95 of the 106 encounters aged 20 and over with no pressure carry no vital at all. Both figures are over the 357 encounters whose age the census can read; 202 state none, so 21 is a floor on the under-6 population rather than a count of it. A young child's fill is the best-anchored one in this record, not the worst: the pulse, temperature, respiratory rate and oxygen saturation are usually sitting right there as givens.
+
+Work it in two steps:
+
+- **The band comes from age, sex and height percentile** — which is how pediatric pressure norms are defined in the first place. Where the height is not given, fill it first and use it.
+- **The position within the band comes from the encounter** — the given pulse and temperature, the distress the exam describes, any documented weight percentile. A fussy, febrile toddler with a pulse of 125 does not sit at the fiftieth percentile.
+
+**No age boundary applies here.** The rule is continuous: the anchors shift with age and nothing switches on at a birthday. This repo already carries three incompatible age lines — `Patient Time` at 18, `Z68`'s BMI band at 2–19, and the 6 the corpus happens to show — and this is deliberately not a fourth.
+
+**A missing pressure in a small child is still filled, and never a GAPS entry.** It is the one band where silence about a vital genuinely is informative: the pressure was decided against rather than merely left unwritten, eighteen times out of twenty-one. That changes the reasoning and not the outcome, because *whether the measurement happened is beside the point* — knowing the cuff never touched the arm still does not say what the reading would have been, and the Medatrax field is required whatever the patient's age. Issue #11.
+
 **A filled vital that lands abnormal is worked up like any other abnormal.** It reaches the Assessment and the Plan; drift row 4 applies to it in full. This is the cost of the license and it is not optional — a note that invents 142/88 and then says nothing about it has manufactured the exact defect this skill exists to catch.
+
+**Worked up does not mean the disease is worked up.** Where the encounter documents a cause for the elevation — fever, pain, a crying child — the response is to **name it, attribute it to that cause, and recheck when the patient is well**. A raised pressure in a febrile, distressed toddler is addressed by a recheck when afebrile and calm; never by an antihypertensive, an echocardiogram, a renal ultrasound or a nephrology referral. Row 4 asks that a generated value not be abandoned. It does not ask for the evaluation of a condition nothing documented — that is a second invention resting on the first, and it is the one standing rule 2 forbids outright.
 
 Height and weight follow the same rule, in this order: pick a height plausible for the age and sex, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and leave the height and weight to be read backwards out of it.
 
