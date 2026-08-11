@@ -41,7 +41,7 @@ This class did not exist for run 1, which graded R14 ***better*** — the skill 
 
 Each row is a finding the shorthand documented and the original note then abandoned. A run passes the row when the finding is named in the **Assessment or the Plan** — not merely recorded in the Objective.
 
-The **Reference** column says what the submitted note actually did, read from the portal on 2026-08-09. It is what makes *better* / *worse* / *neither* answerable instead of assumed.
+The **Reference** column says what the submitted note actually did, read from the portal on 2026-08-09. It is what makes *better* / *worse* / *neither* / *out of reach* answerable instead of assumed.
 
 | # | Case | The finding | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
