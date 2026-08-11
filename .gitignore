@@ -25,3 +25,7 @@ desktop.ini
 .DS_Store
 .vscode/
 .idea/
+
+# Python bytecode from tools/
+__pycache__/
+*.pyc

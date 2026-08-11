@@ -38,7 +38,7 @@ One rule governs everything filled:
 
 The rule runs one way only. The clinician charts abnormals reliably and normals sometimes — `lungs are clear`, `well appearing` do appear in shorthand. So:
 
-- **An abnormal *finding* in the note must be a given.** No exceptions. This is the direction that carries the safety. A finding is something observed and chartable — an exam finding, a symptom, a result. It does not cover vitals and body measurements, which are taken at every visit and written down at some; those follow *Filled vitals and body measurements* below.
+- **An abnormal *finding* in the note must be a given.** No exceptions. This is the direction that carries the safety. A finding is something observed and chartable — an exam finding, a symptom, a result. It does not cover vitals and body measurements; those follow *Filled vitals and body measurements* below.
 - **A normal in the shorthand is still a given** — it means that system was examined. Keep it verbatim; do not move it to filled.
 - **Silence is undocumented, never absent.** A section the shorthand omits means it was not written down that visit — not that the patient has nothing there. This holds everywhere, and it reads two ways depending on the section:
   - **Exam and ROS** — an unmentioned system is normal, because abnormals get charted.
@@ -54,7 +54,13 @@ Charted normals and filled normals read identically in the finished note. They a
 
 **Filled vitals and body measurements** are permitted where the rubric requires a complete set and the encounter supplies only some — or none. They are the one exception to *filled content is unremarkable*, and the exception is narrow enough to state exactly.
 
-A vital is not a finding the clinician chose to record. It is taken at every visit and transcribed at some, so its absence from the shorthand means untranscribed — never normal, and never not measured. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart.
+A vital is not a finding the clinician chose to record, and two things follow that do not follow for a finding.
+
+**A value is required.** The rubric wants a complete vital set, and Medatrax holds fields for blood pressure, respiratory rate, height and BMI that are filled rather than left blank. A result has no field standing empty in the same way — it exists only if testing was ordered and run. Something has to go in the box.
+
+**Nothing in the shorthand constrains which value.** Transcription is all-or-nothing: measured 2026-08-11 across 559 encounters, 47% carry no vital at all, and of the 249 blood pressures he does transcribe, half are below 130/80. He is not writing them down because they were interesting, so an absent vital carries no information about its value — and never means it was normal. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart. For a finding, silence is evidence, because abnormals get charted. For a vital, silence is evidence of nothing.
+
+**Whether the measurement happened is beside the point**, which is what height makes obvious. In 16 encounters he transcribes a blood pressure and a weight and no height, and nothing in the record says whether that height was taken and left unwritten or never taken at all. Neither leg above asks. The license rests on the box needing a value and the shorthand constraining none, never on a tape measure having touched the wall.
 
 > **A filled vital is the value this patient most plausibly had.**
 
@@ -78,7 +84,7 @@ Grounded, and expected:
 - Screenings appropriate to the patient's age.
 - The exam of a system the shorthand never mentions.
 
-**One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — they are taken at every visit; see *Filled vitals and body measurements*.
+**One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — a result exists only if testing was ordered and run, while a vital set is required of the encounter record whether anything was ordered or not; see *Filled vitals and body measurements*.
 
 **Age needs a date of birth looked for first.** About 95% of this clinician's encounters carry one or the other, and where a date of birth appears the age is *derived*, not missing — compute it. The newer shorthand runs age and sex together with no marker — `51 f`, `48f` — and that form is easy to miss.
 
@@ -206,7 +212,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 1 | **Invention** | Every abnormal finding, diagnosis and result in the note traces to a given. Filled vitals and body measurements are exempt — they are declared in FILLED, not traced |
 | 2 | **Drift** | Every abnormal *in the shorthand* appears in the Assessment or the Plan |
 | 3 | **Results** | No laboratory value, imaging result or diagnostic finding is filled. Vitals and body measurements are not results and do not fail this row |
-| 4 | **Vitals** | Every vital outside the normal range for this age is addressed somewhere, not just recorded — **filled vitals included**, with no exemption for being generated |
+| 4 | **Vitals** | Every vital **or body measurement** outside the normal range for this age is addressed somewhere, not just recorded — **filled ones included**, with no exemption for being generated. A filled height and weight yield a BMI, and an abnormal BMI is addressed like any other |
 | 5 | **Sig** | Every drug carries dose, route, frequency and duration |
 | 6 | **Red flags** | The return precautions name specific findings — *fever above 101, worsening flank pain, inability to keep fluids down* — never "red flags reviewed" |
 | 7 | **Drug names** | Each drug reads as the shorthand wrote it, trade or generic, unconverted |
