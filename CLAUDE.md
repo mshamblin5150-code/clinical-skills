@@ -79,7 +79,7 @@ After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py` on every commit in
 
 - **Path layer** — anything staged from `scratch/`, `output/`, `cases/` or `patients/`. Those are gitignored, so a staged path there means someone reached for `git add -f`.
 - **Corpus layer** — every patient name and date literal appearing in `scratch/`. **No file can exempt itself from this.**
-- **Shape layer** — things that look like PHI whatever the corpus says: a `dob` token followed by a date, SSN, phone, MRN plus digits, a `2-30-99`-style date. ISO dates are deliberately not flagged, since the skill files are full of `measured 2026-08-11`.
+- **Shape layer** — things that look like PHI whatever the corpus says: a `dob` token followed by a date, SSN, phone, MRN plus digits, an `M-D-YY`-style short date. ISO dates are deliberately not flagged, since the skill files are full of `measured 2026-08-11`.
 
 A file that genuinely needs PHI-shaped literals — `tools/test_corpus_census.py` tests a date-of-birth extractor — declares `phi-scan: synthetic` near its top. **That exempts the shape rules only.** A file may say its dates are invented; no file may say its patient names are fine.
 

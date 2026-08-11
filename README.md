@@ -46,7 +46,7 @@ git config core.hooksPath tools/hooks
 `/setup-clinical-skills` does this for you and creates the folders. After that, every commit in that clone is scanned by `tools/phi_scan.py`, which refuses:
 
 - any patient name or date literal appearing in your local corpus,
-- anything PHI-shaped — a `dob` followed by a date, an SSN, a phone number, an MRN plus digits, a `2-30-99`-style date,
+- anything PHI-shaped — a `dob` followed by a date, an SSN, a phone number, an MRN plus digits, an `M-D-YY`-style short date,
 - any attempt to force-add a path under `scratch/` or `output/`.
 
 A file that genuinely needs PHI-shaped literals — the tests for the date extractors do — declares `phi-scan: synthetic` near its top. **That exempts the shape rules only.** A file may say its dates are invented; no file may say its patient names are fine.

@@ -10,7 +10,7 @@ Two layers, and the difference between them is the whole design:
   and **nothing can exempt a file from it.**
 - **Shape layer.** Things that look like PHI whatever the corpus says: a ``dob``
   token followed by a date, an SSN, a phone number, an MRN followed by digits, a
-  US-style ``2-30-99`` date. A file may exempt itself from this layer only, by
+  US-style ``M-D-YY`` short date. A file may exempt itself from this layer only, by
   declaring ``phi-scan: synthetic`` near the top -- which ``test_corpus_census``
   does, because testing a date extractor requires date-shaped literals.
 
