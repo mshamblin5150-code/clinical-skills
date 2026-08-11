@@ -96,12 +96,47 @@ SHAPE_RULES = {
 # exempted in bulk is the other direction: the harvest is lexical, so a
 # surviving two-word phrase may simply *be* a patient name the index's own name
 # field missed. Nothing in the set distinguishes that from vocabulary, which is
-# the open question in #12.
+# why `tools/harvest_review.py` prints them for a human and rules on nothing.
+#
+# The block below is the first such review, run 2026-08-11 against the 28 strings
+# outstanding at the time. 27 were vocabulary. **One was a real patient name**,
+# and it went to scratch/harvest-reviewed.json rather than here -- which is the
+# entire reason this list is not generated. The misspellings are the clinician's
+# own and are kept verbatim: the harvester indexes the literal line, so a
+# corrected spelling would exempt nothing.
 NOT_NAMES = {
     "african american",
     "sore throat",
     "vaccs utd",
     "nkda",
+    # Reviewed 2026-08-11, issue #12.
+    "allergies codeine",
+    "allergies seasonal.",
+    "allergies seroqeul",
+    "allergy amoxicillin",
+    "allergy asa",
+    "allergy avelox",
+    "allergy pcn",
+    "allergy to biaxin",
+    "annual exam",
+    "awaiting ultrasound",
+    "enometrial ablation",
+    "family hx copd",
+    "friday fever yesterday.",
+    "hospital follow up",
+    "hx anxiety",
+    "hx fibroids",
+    "hx gerd",
+    "hx seasonal allergies",
+    "hx uti",
+    "known to me",
+    "meds none",
+    "no allergies",
+    "no dating ultrasound",
+    "no meds",
+    "nonadherent with medication",
+    "pmh strep",
+    "started yesterday eveneing",
     "allergy nkda",
     "allergies nkda",
 }

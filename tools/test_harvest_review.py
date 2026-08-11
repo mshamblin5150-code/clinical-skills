@@ -55,6 +55,18 @@ class UnruledNames(unittest.TestCase):
         self.assertNotIn("reaction latex",
                          self.unruled([JORDAN], reviewed={"reaction latex"}))
 
+    def test_a_ledgered_string_is_still_scanned_for(self):
+        """The ledger records a ruling; it does not grant an exemption.
+
+        Only NOT_NAMES exempts. A string ruled to be a real name must drop off
+        the review list and keep refusing -- collapsing those two meanings would
+        put every reviewed patient name on the safe list, which is the one hole
+        in the corpus layer nothing else closes.
+        """
+        ledger = {"Ellery Voss"}
+        self.assertNotIn("Ellery Voss", ps.unreviewed_names([PRIYA], ledger))
+        self.assertIn("Ellery Voss", ps.kept_names(ps.harvested_names([PRIYA])))
+
     def test_the_ledger_is_case_insensitive_like_the_match(self):
         self.assertNotIn("reaction latex",
                          self.unruled([JORDAN], reviewed={"REACTION LATEX"}))
