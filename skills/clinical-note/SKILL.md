@@ -90,9 +90,9 @@ Grounded, and expected:
 
 **One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — a result exists only if testing was ordered and run, while a vital set is required of the encounter record whether anything was ordered or not; see *Filled vitals and body measurements*.
 
-**Age needs a date of birth looked for first.** About 95% of this clinician's encounters carry one or the other, and where a date of birth appears the age is *derived*, not missing — compute it. The newer shorthand runs age and sex together with no marker — `51 f`, `48f` — and that form is easy to miss.
+**Age needs a date of birth looked for first.** About 93% of this clinician's encounters carry one or the other, and where a date of birth appears the age is *derived*, not missing — compute it. The newer shorthand runs age and sex together with no marker — `51 f`, `48f` — and that form is easy to miss.
 
-**Where neither appears — about one note in twenty — infer the age, and flag it harder than anything else in the block.** The old rule stopped, because age sets `Patient Time` and a wrong band misallocates clinical hours. But a note that stops cannot be entered at all, and the clinician infers and enters it himself: three confirmed cases, one carrying nothing but `1 ppd x 41 yrs`.
+**Where neither appears — about one note in fourteen — infer the age, and flag it harder than anything else in the block.** The old rule stopped, because age sets `Patient Time` and a wrong band misallocates clinical hours. But a note that stops cannot be entered at all, and the clinician infers and enters it himself: three confirmed cases, one carrying nothing but `1 ppd x 41 yrs`.
 
 Anchor the age in whatever the narrative gives — pack-years, gravidity, post-menopausal status, school grade, a spouse's age — and name the anchor. Then put it at the **top of `FILLED·asserted`, on its own line, naming the band it sets**:
 
@@ -143,7 +143,7 @@ Collect the shorthand and, if supplied, the Medatrax entry — it carries demogr
 
 Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]`, `[PRECEPTOR]`. Keep age, sex, visit date, and everything clinical.
 
-**About 5% of encounters carry neither an age nor a date of birth** — roughly one in twenty, measured 2026-08-10 across 559 notes, of which 529 carry one or the other. Not a freak case, and not a stop: see *What may be inferred* for how the age is inferred and flagged.
+**About 7% of encounters carry neither an age nor a date of birth** — roughly one in fourteen, measured 2026-08-11 across 559 notes, of which 521 carry one or the other. Not a freak case, and not a stop: see *What may be inferred* for how the age is inferred and flagged.
 
 ### 2. Expand the shorthand
 

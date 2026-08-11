@@ -49,8 +49,6 @@ python -m unittest discover -s tools -t tools
 
 Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
 
-**Known open disagreement.** On its first run the census landed at 521/559 carrying an age or a date of birth (93%), against the 529 and "about 95%" currently written into `clinical-note`. Tracked as [issue #9](https://github.com/mshamblin5150-code/clinical-skills/issues/9) — unresolved, so treat both figures as in question.
-
 ### PHI pre-commit hook
 
 Standing rule 1 is enforced rather than remembered. **Git does not clone hooks, so every clone needs this once:**

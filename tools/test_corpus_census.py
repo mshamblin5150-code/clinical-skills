@@ -212,6 +212,38 @@ class Age(unittest.TestCase):
         self.assertTrue(cc.has_stated_age("[PT]\n48f\ncc: dysuria"))
         self.assertTrue(cc.has_stated_age("61F\n"))
 
+    def test_yo_run_together_with_the_sex_letter(self):
+        # The form that broke HEIGHT, in the age extractor: "45yof" welds the
+        # value, the token and the sex letter, so the trailing \b after "o"
+        # cannot match. One note in the corpus writes it. That note is counted
+        # today only because the token happens to sit alone on its own line and
+        # AGE_AND_SEX_LINE rescues it -- move it into a sentence and the age
+        # disappears, which is the silent failure this file exists to prevent.
+        self.assertTrue(cc.has_stated_age("[PT] presents, 45yof c/o dysuria x 2 days"))
+        self.assertTrue(cc.has_stated_age("[PT] presents, 45y/om c/o cough"))
+
+    def test_the_welded_form_has_no_decoy_the_older_rule_misses(self):
+        """Stated rather than asserted, because the obvious decoy is vacuous.
+
+        The tempting test for the ``[mf]`` guard is "hold 3 your own meds" --
+        and it does not exercise the guard at all. The pre-existing
+        ``y\\.?o\\.?\\b`` alternative already rejects it, so the assertion
+        passes identically with the guard deleted. Writing it as an assert
+        would name a finding it never checks, which is the ADR 0001 failure
+        mode. The guard earns its place by argument, not by this test:
+        without it the alternative would end in nothing at all.
+        """
+        self.assertFalse(cc.has_stated_age("hold 3 your own meds"))  # by the older rule
+
+    def test_a_follow_up_token_is_not_an_age(self):
+        # "f/u" puts an "f" directly after a number, and audited 2026-08-11 it is
+        # the commonest of the three digit+sex shapes in the corpus that sit
+        # anywhere but alone on a line -- the form AGE_AND_SEX_LINE's line anchor
+        # most has to reject. Unanchor that rule and every "augmentin 500 f/u"
+        # becomes a 500-year-old.
+        self.assertFalse(cc.has_stated_age("plan augmentin 500 f/u prn"))
+        self.assertFalse(cc.has_stated_age("wbc 12 f/u in 2 weeks"))
+
     def test_pediatric_months(self):
         self.assertTrue(cc.has_stated_age("[PT]\n8 months old\nhr 130"))
         self.assertTrue(cc.has_stated_age("[PT]\n13 month male\nBp 164"))

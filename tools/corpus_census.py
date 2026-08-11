@@ -21,7 +21,16 @@ Extractor limits worth knowing before quoting a number:
   forms. A height written any other way reads as absent.
 - A date of birth is the ``dob`` token or a bare date alone on its own line.
   A date embedded in prose is not counted, because visit dates and LMP dates
-  outnumber birth dates in that position.
+  outnumber birth dates in that position. Audited 2026-08-11 against every
+  date literal in the 38 encounters the census reads as carrying neither an
+  age nor a birth date: ten literals across nine of those encounters, every
+  one of them a menstrual, follow-up, referral or administrative date, and
+  none a birth date. Counting all nine encounters anyway is what lands at
+  530 of 559 -- the reading the prose carried before 2026-08-11. Issue #9.
+- ``dob`` welded straight to its date, with no space between token and value,
+  is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
+  here either. There is no instance of it in the corpus as of 2026-08-11, so
+  the alternative is not carried; this is the line to change if one appears.
 """
 
 from __future__ import annotations
@@ -66,8 +75,15 @@ HEIGHT = re.compile(
 WEIGHT = re.compile(r"(?i)\b(?:wt|weight)\b|\bwt\s*\d|\b\d{2,3}\s?lbs?\b")
 OTHER_VITALS = re.compile(r"(?i)\b(?:hr|pulse|rr|spo2|sao2|temp)\b|\bt\s*\d{2,3}(?:\.\d)?\b")
 
+# ``y\.?/?o\.?[mf]\b`` is the run-together form -- "45yof", "45y/om" -- where the
+# sex letter is welded to the token and defeats the trailing ``\b`` after "o",
+# the same shape that defeated ``\bht\b`` for "ht5'7"". It is an extra
+# alternative, never a replacement. Requiring the sex letter is what keeps a
+# stray "3 your" out; today the corpus's one instance is counted only because it
+# sits alone on a line and AGE_AND_SEX_LINE catches it.
 AGE_IN_YEARS = re.compile(
-    r"(?i)\b\d{1,3}\s*(?:y\.?o\.?\b|y/o\b|years?\s*old\b|yrs?\s*old\b|years?\s*of\s*age\b)"
+    r"(?i)\b\d{1,3}\s*(?:y\.?o\.?\b|y/o\b|y\.?/?o\.?[mf]\b"
+    r"|years?\s*old\b|yrs?\s*old\b|years?\s*of\s*age\b)"
 )
 # Infants are written "8 months old" or "13 month male". A bare "[mf]" is not
 # accepted here: it would read "x 3 days f/u" as a three-day-old.
@@ -76,7 +92,10 @@ AGE_UNDER_ONE = re.compile(
 )
 # "51 f" / "48f" / "61F" — always alone on its own line in this corpus. Anchoring
 # to the line is what stops "t 98 F" reading as a 98-year-old and "toradol 10 m"
-# as a ten-year-old; both appear, and both are the only inline matches there are.
+# as a ten-year-old. Audited 2026-08-11: exactly three digit+sex matches in the
+# corpus sit anywhere other than alone on a line, and all three are decoys — two
+# doses, and the "f/u" follow-up token taking the "f", which is the form the
+# anchor most has to reject. No encounter loses an age to it.
 AGE_AND_SEX_LINE = re.compile(r"(?im)^\s*\d{1,3}\s*(?:yo|y/o)?\s*[mf]\b\.?\s*$")
 
 DOB_TOKEN = re.compile(r"(?i)\bd\.?o\.?b\.?\b")
@@ -226,7 +245,7 @@ def format_report(census: Census, source: str, date: str) -> str:
         f"corpus census - {source} - {date}",
         f"encounters: {c.notes}",
         "",
-        'claim: "about 95% carry an age or a date of birth"',
+        'claim: "about 93% carry an age or a date of birth"',
         'claim: "age stated in 42%, a date of birth appears instead in 47%"',
         "  (the second was measured over a 353-note catalog, not this corpus)",
         f"  stated age            {c.with_stated_age:>5}  {_pct(c.with_stated_age, c.notes)}",
