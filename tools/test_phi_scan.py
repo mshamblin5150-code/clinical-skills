@@ -441,6 +441,36 @@ class CoveredNamePruning(unittest.TestCase):
                 self.assert_refuses_the_same_lines(line, names)
 
 
+class ReviewHint(unittest.TestCase):
+    """The pointer to `harvest_review`, printed on a corpus-name refusal (#12)."""
+
+    NAME_HIT = [ps.Finding("f.md", 1, "corpus-name", "Jordan Vance")]
+    SHAPE_HIT = [ps.Finding("f.md", 1, "us-short-date", "4-17-88")]
+    WAITING = {"reaction latex", "vaccs utd"}
+
+    def test_it_names_the_count_and_the_command(self):
+        hint = ps.review_hint(self.NAME_HIT, self.WAITING)
+        self.assertIn("2", hint)
+        self.assertIn("tools/harvest_review.py", hint)
+
+    def test_a_shape_only_refusal_does_not_drag_it_along(self):
+        """The count is only worth reading when a *name* matched."""
+        self.assertEqual(ps.review_hint(self.SHAPE_HIT, self.WAITING), "")
+
+    def test_nothing_left_to_review_says_nothing(self):
+        self.assertEqual(ps.review_hint(self.NAME_HIT, set()), "")
+
+    def test_it_reports_how_many_and_never_which(self):
+        """The hook's output has to stay safe to paste into a ticket. Apart from
+        the count, the line is fixed text -- no harvested string reaches it."""
+        one = ps.review_hint(self.NAME_HIT, {"reaction latex"})
+        two = ps.review_hint(self.NAME_HIT, self.WAITING)
+        self.assertEqual(one.replace("1 harvested", "N harvested"),
+                         two.replace("2 harvested", "N harvested"))
+        for string in self.WAITING:
+            self.assertNotIn(string, two)
+
+
 class KeptNames(unittest.TestCase):
     """The harvest's filter and its pruning, in the order `corpus_identifiers`
     runs them. Extracted so the wiring is reachable from a test: every case in

@@ -54,6 +54,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # means someone reached for `git add -f`.
 PHI_DIRECTORIES = ("scratch/", "output/", "cases/", "patients/")
 
+# Harvested strings a human has ruled on and judged to be real names. Under
+# scratch/ because that is what it holds -- see `reviewed_names`.
+REVIEWED_LEDGER = REPO_ROOT / "scratch" / "harvest-reviewed.json"
+
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"
 PRAGMA_SEARCH_CHARS = 4000
@@ -251,24 +255,83 @@ def _git(*args: str) -> str:
     ).stdout
 
 
+def _load_json(path: Path, fallback):
+    if not path.is_file():
+        return fallback
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return fallback
+
+
+def harvest_entries() -> list[dict]:
+    """The raw name-index records, or [] where there is no corpus."""
+    return _load_json(REPO_ROOT / "scratch" / "name-index.json", [])
+
+
+def reviewed_names() -> set[str]:
+    """Strings already ruled on by a human and judged to be real names (#12).
+
+    Lives under ``scratch/`` because it is a list of patient names, so the
+    firewall that covers the corpus covers it too -- gitignored, and refused by
+    the path layer if anybody force-adds it. Absent on a fresh clone, which
+    costs a re-review and never costs a refusal.
+    """
+    return {str(n).strip() for n in _load_json(REVIEWED_LEDGER, [])}
+
+
+def harvested_names(entries: Sequence[dict]) -> set[str]:
+    names: set[str] = set()
+    for entry in entries:
+        if entry.get("name"):
+            names.add(entry["name"].strip())
+        for line in entry.get("win", []):
+            candidate = line.strip()
+            if _looks_like_a_name(candidate):
+                names.add(candidate)
+    return names
+
+
+def name_position_names(entries: Sequence[dict]) -> set[str]:
+    """Strings the index itself puts where a name goes.
+
+    ``win[0]`` is the name's own line -- 491 of 548 entries on 2026-08-11 have
+    the ``name`` field there verbatim, which is also why the harvest carried 465
+    case-variant duplicates before #12 pruned them. Everything at ``win[1..3]``
+    is the shorthand that follows, and a string appearing only there has no
+    positional evidence that it is a name at all.
+    """
+    found: set[str] = set()
+    for entry in entries:
+        if entry.get("name"):
+            found.add(entry["name"].strip())
+        window = entry.get("win", [])
+        if window and _looks_like_a_name(window[0].strip()):
+            found.add(window[0].strip())
+    return found
+
+
+def unreviewed_names(entries: Sequence[dict], reviewed: set[str]) -> set[str]:
+    """Scanned-for strings with no name-position evidence and no ruling yet.
+
+    The residual #12 is about. Each is either clinical vocabulary -- in which
+    case it will refuse an innocent fixture line sooner or later -- or a real
+    name the index only ever caught in passing. **Nothing here can tell which**,
+    which is why `tools/harvest_review.py` prints them for a human instead of
+    deciding. 28 of them on 2026-08-11.
+    """
+    positions = {n.casefold() for n in name_position_names(entries)}
+    ruled = {n.casefold() for n in reviewed}
+    return {
+        name for name in kept_names(harvested_names(entries))
+        if name.casefold() not in positions and name.casefold() not in ruled
+    }
+
+
 def corpus_identifiers() -> tuple[set[str], set[str]]:
     """Patient names and date literals harvested from the gitignored corpus."""
-    names: set[str] = set()
     dates: set[str] = set()
-
-    index = REPO_ROOT / "scratch" / "name-index.json"
-    if index.is_file():
-        try:
-            entries = json.loads(index.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            entries = []
-        for entry in entries:
-            if entry.get("name"):
-                names.add(entry["name"].strip())
-            for line in entry.get("win", []):
-                candidate = line.strip()
-                if _looks_like_a_name(candidate):
-                    names.add(candidate)
+    names = harvested_names(harvest_entries())
 
     corpus = REPO_ROOT / "scratch" / "day-file-text"
     if corpus.is_dir():
@@ -501,7 +564,33 @@ def main(argv: list[str]) -> int:
         "rules only; real corpus names and dates are still refused.\n",
         file=sys.stderr,
     )
+
+    hint = review_hint(findings, unreviewed_names(harvest_entries(), reviewed_names()))
+    if hint:
+        print(hint, file=sys.stderr)
     return 1
+
+
+def review_hint(findings: Sequence[Finding], unreviewed: set[str]) -> str:
+    """The line pointing at `harvest_review`, or "" where there is nothing to say.
+
+    Printed only on a ``corpus-name`` refusal, because that is the one moment the
+    number is worth reading: a name matched, and somebody is deciding whether it
+    is really a name. On every commit it would be noise, and this scanner cannot
+    afford noise -- see `read_text_if_text` for the same argument.
+
+    Takes the set and reports only its size. The hook's output has to stay safe
+    to paste into a ticket, so this line may say how many and never which. #12.
+    """
+    waiting = len(unreviewed)
+    if not waiting or not any(f.rule == "corpus-name" for f in findings):
+        return ""
+    return (
+        f"{waiting} harvested strings have never been ruled on, and any of them\n"
+        "can refuse a line that is not PHI at all. If this refusal is spurious,\n"
+        "that list is where to look:\n"
+        "    python tools/harvest_review.py\n"
+    )
 
 
 if __name__ == "__main__":
