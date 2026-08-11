@@ -105,6 +105,22 @@ class SyntheticPragma(unittest.TestCase):
                 self.assertTrue(ps.declares_synthetic(text))
 
 
+class PhiDirectories(unittest.TestCase):
+    def test_both_working_and_output_are_guarded(self):
+        # scratch/ is working material, output/ is finished notes. Both are
+        # gitignored, so both are only ever staged via `git add -f`.
+        for directory in ("scratch/", "output/"):
+            with self.subTest(directory=directory):
+                self.assertIn(directory, ps.PHI_DIRECTORIES)
+
+    def test_gitignore_lists_every_guarded_directory(self):
+        """A guarded directory that is not gitignored is a trap, not a guard."""
+        ignored = (ps.REPO_ROOT / ".gitignore").read_text(encoding="utf-8").split()
+        for directory in ps.PHI_DIRECTORIES:
+            with self.subTest(directory=directory):
+                self.assertIn(directory, ignored)
+
+
 class Redaction(unittest.TestCase):
     def test_findings_are_redacted_by_default(self):
         finding = scan("Jordan Vance")[0]

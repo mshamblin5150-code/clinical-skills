@@ -162,6 +162,6 @@ What stays out, and this is the whole point of the step:
 
 **The document carries exactly what the notes carry.** Writing it is not a second pass at de-identification and it is not the moment to restore anything: `[PT]`, `[DOB]`, `[MRN]`, `[SITE]` stay as placeholders. It is, though, the last point at which a leaked identifier is still cheap to catch and the first at which it becomes a file that gets opened somewhere else — so read the notes for real names before writing, not after.
 
-**Write it into `scratch/`.** Standing rule 1, and the repo's `.gitignore` already excludes both `scratch/` and `*.docx`. Name it by date; a filename is text like any other and carries no patient name and no Patient Reference.
+**Write it into `output/notes/`.** Standing rule 1: `output/` is the gitignored home for finished work, as `scratch/` is for working material, and `.gitignore` excludes both along with `*.docx`. Name it by date; a filename is text like any other and carries no patient name and no Patient Reference.
 
 Completion: every confirmed encounter from step 4 appears in the document exactly once, and no tier block, Medatrax block, schedule row or summary line appears in it at all.

@@ -3,6 +3,7 @@
 # Work on live notes inside scratch/. It is never committed.
 # ---------------------------------------------------------------
 scratch/
+output/
 cases/
 patients/
 *.phi

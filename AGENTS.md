@@ -21,7 +21,11 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 
 These bind every skill in this repo.
 
-1. **No PHI is ever committed.** Live notes are worked in `scratch/`, which is gitignored. Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).
+1. **No PHI is ever committed.** Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).
+
+   **Two gitignored directories, split by stage.** Working material — day files, the identity map, the account profile — lives in `scratch/`. **Anything finished and handed over — a note, a batch document, a case study — is written to `output/`.** Never write a finished note anywhere else, and never into the repo root: everywhere else is tracked, and a note written there is a committed patient record one `git add -A` later.
+
+   A pre-commit hook enforces this rather than trusting it to be remembered (`tools/phi_scan.py`; setup in [README.md](README.md)). It is a seatbelt, not a vault — it does not replace reading this rule.
 2. **Every line is given, derived, or filled.** These are academic notes against a school rubric, so sections the shorthand cannot supply are generated — but **filled content is always unremarkable**. Every abnormal finding, lab value, imaging result, and diagnosis traces to the source. Filled lines are listed for the clinician to confirm before submission. Full rules in [clinical-note](skills/clinical-note/SKILL.md).
 
    **Exception — vitals and body measurements.** These are the single exception to *filled content is unremarkable*. A missing one is filled with the value that patient most plausibly had, worked up in the note if it lands abnormal (drift row 4, which grants it no exemption for being generated), and disclosed in the FILLED block like everything else generated. **No exam finding, symptom, or result is ever filled, however plausible.**

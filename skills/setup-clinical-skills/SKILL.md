@@ -18,10 +18,40 @@ This skill collects the second kind. It is prompt-driven, not a script: explore,
 
 ## Process
 
+### 0. Arm the PHI firewall — before collecting anything
+
+Everything after this step writes identifying data to disk. Do this first, in this order, and do not proceed past a failure.
+
+**Enable the pre-commit hook.** Git does not clone hooks, so a fresh clone has none and every commit is unguarded:
+
+```bash
+git config core.hooksPath tools/hooks
+```
+
+Verify it took, and verify it actually fires — a hook that is configured but silently not running is worse than none, because it reads as protection:
+
+```bash
+git config --get core.hooksPath        # must print: tools/hooks
+python tools/phi_scan.py --all         # must exit 0 against what is committed today
+```
+
+If `python` is not on PATH the hook degrades to a warning and lets the commit through by design. Say so out loud rather than leaving the clinician believing they are covered.
+
+**Create the two gitignored directories and confirm both are ignored:**
+
+```bash
+mkdir -p scratch output/notes output/case-studies
+git check-ignore scratch output
+```
+
+That last command must print **both** `scratch` and `output`. It lists only the paths git is ignoring, so a missing line means that directory is tracked. (Do not add `-q` — it accepts a single pathname and errors on two.)
+
+**If either line is missing, stop and fix `.gitignore` first.** Everything below, and every note the other skills write afterwards, depends on it.
+
 ### 1. Explore before asking
 
 - `scratch/` — does `medatrax-profile.md` or `identity-map.md` already exist? If so this is a re-run; read them and confirm rather than re-collect.
-- `.gitignore` — confirm `scratch/` is listed. **If it is not, stop and fix that first.** Everything below writes identifying data.
+- `output/` — already populated? A re-run must not overwrite finished work.
 - `reference/medatrax-fields.md` — read it. Much of what you need may already be recorded from a previous account; present it as *someone else's values to overwrite*, never as defaults to accept.
 - Is a browser tool available that reaches the clinician's real logged-in session? Portal steps need one.
 
@@ -82,6 +112,8 @@ Write the map's format and location into `scratch/medatrax-profile.md` so the ot
 
 Show a draft of `scratch/medatrax-profile.md` and `scratch/identity-map.md` and let the clinician edit before writing. Then write both, and tell them:
 
+- That finished notes and case studies are written to `output/`, working material to `scratch/`, and that both are gitignored — so nothing they produce ever reaches GitHub.
+- That the pre-commit hook from step 0 is now armed in this clone only, and a clone on another machine needs `git config core.hooksPath tools/hooks` again.
 - Which skills read the profile.
 - That `reference/medatrax-fields.md` holds the universal Medatrax behavior and the profile holds everything about them — and that where the two disagree, **the profile wins.**
 - That re-running this skill is only needed to change accounts, courses or program; the files can be edited directly otherwise.

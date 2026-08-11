@@ -9,11 +9,15 @@ skills/<name>/SKILL.md    the skill, canonical location
 skills/<name>/*.md        reference the skill loads on demand
 reference/                shared reference (Medatrax field map, etc.)
 fixtures/                 regression sets — de-identified, committed
-scratch/                  live working notes — gitignored, never committed
+scratch/                  live working files — gitignored, never committed
+output/                   finished notes and case studies — gitignored, never committed
+tools/                    maintainer scripts + the PHI pre-commit hook
 CONTEXT.md                domain glossary
 docs/adr/                 architectural decisions
 AGENTS.md                 skill index + standing rules
 ```
+
+`scratch/` and `output/` are both gitignored and both hold PHI. The split is by *stage*, not by sensitivity: `scratch/` is working material — day files, the identity map, the account profile — and `output/` is the finished deliverable you actually hand in.
 
 ## Wiring it to an agent
 
@@ -31,4 +35,20 @@ Per-skill rather than one junction on the whole folder, so `.claude/skills/` can
 
 ## PHI
 
-Nothing in this repo is a patient record, and nothing should become one. `.gitignore` blocks `scratch/`, `cases/`, and common export formats. Work live notes inside `scratch/`; commit only skills and de-identified examples.
+Nothing in this repo is a patient record, and nothing should become one. `.gitignore` blocks `scratch/`, `output/`, `cases/`, `patients/` and common export formats. Work live material inside `scratch/`, write finished notes into `output/`; commit only skills and de-identified examples.
+
+**Enable the pre-commit hook — git does not clone hooks, so every clone needs this once:**
+
+```bash
+git config core.hooksPath tools/hooks
+```
+
+`/setup-clinical-skills` does this for you and creates the folders. After that, every commit in that clone is scanned by `tools/phi_scan.py`, which refuses:
+
+- any patient name or date literal appearing in your local corpus,
+- anything PHI-shaped — a `dob` followed by a date, an SSN, a phone number, an MRN plus digits, a `2-30-99`-style date,
+- any attempt to force-add a path under `scratch/` or `output/`.
+
+A file that genuinely needs PHI-shaped literals — the tests for the date extractors do — declares `phi-scan: synthetic` near its top. **That exempts the shape rules only.** A file may say its dates are invented; no file may say its patient names are fine.
+
+It is a seatbelt, not a vault: `--no-verify` bypasses it, and the corpus layer is inert on a clone with no local corpus. Details and limits in [CLAUDE.md](CLAUDE.md).

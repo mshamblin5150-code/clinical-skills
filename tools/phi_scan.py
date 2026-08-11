@@ -44,9 +44,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Directories the PHI firewall in .gitignore already covers. Staging anything
-# under them means someone reached for `git add -f`.
-PHI_DIRECTORIES = ("scratch/", "cases/", "patients/")
+# Directories the PHI firewall in .gitignore already covers -- scratch/ is working
+# files, output/ is finished notes and case studies. Staging anything under them
+# means someone reached for `git add -f`.
+PHI_DIRECTORIES = ("scratch/", "output/", "cases/", "patients/")
 
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"

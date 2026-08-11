@@ -7,6 +7,10 @@ The input is **shorthand** — raw ER-style scratch for one encounter, typo-ridd
 
 These are **academic** notes documenting clinical hours, not the legal chart. The rubric demands complete sections — three-generation family history, age-appropriate screenings, a full ROS — that bedside shorthand never contains. Producing them is the job, and the tiers below are how it stays honest.
 
+**Where the note goes.** A finished note or case study is written to **`output/notes/`** (case studies to `output/case-studies/`), never to the repo root and never to a tracked directory. `output/` and `scratch/` are the only two gitignored places; everywhere else is committed, and a note written there becomes a patient record on GitHub one `git add -A` later. Working material — day files, the identity map — stays in `scratch/`. Standing rule 1, and a pre-commit hook enforces it. Name files by date; a filename carries no patient name and no Patient Reference.
+
+Output to the chat rather than a file when the clinician has not asked for one — but the moment it is written down, it is written down there.
+
 ## Three tiers
 
 Every line of the finished note is **given**, **derived**, or **filled**.

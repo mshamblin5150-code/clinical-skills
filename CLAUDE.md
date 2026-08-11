@@ -52,6 +52,7 @@ After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py` on every commit in
 
 **Two layers, and the asymmetry between them is the design.**
 
+- **Path layer** — anything staged from `scratch/`, `output/`, `cases/` or `patients/`. Those are gitignored, so a staged path there means someone reached for `git add -f`.
 - **Corpus layer** — every patient name and date literal appearing in `scratch/`. **No file can exempt itself from this.**
 - **Shape layer** — things that look like PHI whatever the corpus says: a `dob` token followed by a date, SSN, phone, MRN plus digits, a `2-30-99`-style date. ISO dates are deliberately not flagged, since the skill files are full of `measured 2026-08-11`.
 
