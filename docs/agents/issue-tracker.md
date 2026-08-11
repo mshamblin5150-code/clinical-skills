@@ -56,6 +56,19 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
-## Note on triage labels
+## Every issue you create gets a label
 
-The `triage` skill is not installed in this environment, so no label vocabulary is configured. If it is installed later, run the setup again to add `docs/agents/triage-labels.md`.
+**A ticket filed with no label is a ticket nobody can find.** `--label` takes a comma-separated list and works on `gh issue create` as well as `gh issue edit`:
+
+```bash
+gh issue create --title "..." --label "needs-triage,grilling" --body-file - <<'EOF'
+...
+EOF
+```
+
+The vocabulary and how to choose between the labels is in [triage-labels.md](triage-labels.md). Two rules worth repeating here, because both have already been broken in this repo:
+
+- **A ticket with an open decision gets `grilling`, never `ready-for-agent`.** `ready-for-agent` is a promise that an unattended agent can build it without guessing.
+- **Record dependencies rather than describing them in prose.** `gh issue edit <n> --add-blocked-by <m>` and `--add-blocking <m>` are supported, and they show up in `gh issue view`.
+
+Label at creation time. Coming back to label later is the step that gets skipped.
