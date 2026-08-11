@@ -52,10 +52,18 @@ NORMAL_DIASTOLIC = 80
 # preserves "hr 65 inches", and its README names that typo as a defect the set
 # exists to find. A bare "165 in the office" is excluded by requiring either the
 # full word or no space before "in".
+#
+# ``\bht\s*\d`` is the token run straight into its value -- he writes both
+# "ht 62.5" and "ht5'7"". The trailing ``\b`` on the plain token cannot match the
+# second, and neither can the feet-and-inches alternative, because there is no
+# word boundary between the "t" and the "5". It is an extra alternative rather
+# than a replacement, so nothing the plain token caught is lost; requiring the
+# digit is what keeps "htn" out.
 HEIGHT = re.compile(
-    r"(?i)\b(?:ht|hgt|height)\b|\b\d\s*'\s*\d{1,2}|\b\d{2,3}\s*inch(?:es)?\b|\b\d{2,3}in\b"
+    r"(?i)\b(?:ht|hgt|height)\b|\bht\s*\d"
+    r"|\b\d\s*'\s*\d{1,2}|\b\d{2,3}\s*inch(?:es)?\b|\b\d{2,3}in\b"
 )
-WEIGHT = re.compile(r"(?i)\b(?:wt|weight)\b|\b\d{2,3}\s?lbs?\b")
+WEIGHT = re.compile(r"(?i)\b(?:wt|weight)\b|\bwt\s*\d|\b\d{2,3}\s?lbs?\b")
 OTHER_VITALS = re.compile(r"(?i)\b(?:hr|pulse|rr|spo2|sao2|temp)\b|\bt\s*\d{2,3}(?:\.\d)?\b")
 
 AGE_IN_YEARS = re.compile(

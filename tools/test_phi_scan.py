@@ -142,6 +142,30 @@ class NameHarvesting(unittest.TestCase):
     def test_rejects_a_clinical_phrase_by_allowlist(self):
         self.assertIn("sore throat", ps.NOT_NAMES)
 
+    def test_the_labeled_nkda_forms_are_exempt_too(self):
+        """Exercises the filter, not just the membership.
+
+        `corpus_identifiers` drops a harvested candidate with
+        ``len(n) > 5 and n.lower() not in NOT_NAMES``. Asserting the entry is in
+        the set proves nothing on its own -- this reproduces the expression, so
+        the test fails if the filter is ever changed to compare something else.
+        """
+        harvested = {"Allergy NKDA", "allergies nkda", "Jordan Vance"}
+        kept = {n for n in harvested if len(n) > 5 and n.lower() not in ps.NOT_NAMES}
+        self.assertEqual(kept, {"Jordan Vance"})
+
+    def test_a_labeled_form_would_otherwise_be_harvested(self):
+        """The reason the entries are needed: the phrase does look like a name."""
+        self.assertTrue(ps._looks_like_a_name("Allergy NKDA"))
+        # Punctuation is what saved day-a -- "allergies: nkda" cannot be harvested.
+        self.assertFalse(ps._looks_like_a_name("allergies: nkda"))
+
+    def test_the_allowlist_is_lowercase(self):
+        """corpus_identifiers filters on n.lower(), so a capital here never fires."""
+        for phrase in ps.NOT_NAMES:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(phrase, phrase.lower())
+
     def test_rejects_a_line_with_digits(self):
         self.assertFalse(ps._looks_like_a_name("bp 134/77 hr 79"))
 

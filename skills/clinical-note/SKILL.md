@@ -64,7 +64,7 @@ A vital is not a finding the clinician chose to record, and two things follow th
 
 **Nothing in the shorthand constrains which value.** Transcription is all-or-nothing: measured 2026-08-11 across 559 encounters, 47% carry no vital at all, and of the 249 blood pressures he does transcribe, half are below 130/80. He is not writing them down because they were interesting, so an absent vital carries no information about its value — and never means it was normal. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart. For a finding, silence is evidence, because abnormals get charted. For a vital, silence is evidence of nothing.
 
-**Whether the measurement happened is beside the point**, which is what height makes obvious. In 16 encounters he transcribes a blood pressure and a weight and no height, and nothing in the record says whether that height was taken and left unwritten or never taken at all. Neither leg above asks. The license rests on the box needing a value and the shorthand constraining none, never on a tape measure having touched the wall.
+**Whether the measurement happened is beside the point**, which is what height makes obvious. In 15 encounters he transcribes a blood pressure and a weight and no height, and nothing in the record says whether that height was taken and left unwritten or never taken at all. Neither leg above asks. The license rests on the box needing a value and the shorthand constraining none, never on a tape measure having touched the wall.
 
 > **A filled vital is the value this patient most plausibly had.**
 

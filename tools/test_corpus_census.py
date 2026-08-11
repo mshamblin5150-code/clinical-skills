@@ -1,9 +1,14 @@
 """Tests for the corpus census extractors.
 
 These run against the committed, PHI-free fixtures in ``fixtures/day-a/shorthand/``
-and against inline strings. They never touch ``scratch/``. Their job is to catch
-the silent failure mode the census exists to prevent: an extractor that stops
-matching and reports a confident wrong number.
+and ``fixtures/day-b/shorthand/`` and against inline strings. They never touch
+``scratch/``. Their job is to catch the silent failure mode the census exists to
+prevent: an extractor that stops matching and reports a confident wrong number.
+
+``DayBIsTheAbsenceSet`` does a second job. day-b's whole reason for existing is
+that nine of its twelve encounters carry no vital at all, and every row in its
+assertion set rests on that. A well-meaning edit that "completes" one of those
+vital lines would quietly void the set instead of failing it.
 
 phi-scan: synthetic
 
@@ -21,10 +26,21 @@ import corpus_census as cc
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "fixtures" / "day-a" / "shorthand"
+DAY_B = REPO_ROOT / "fixtures" / "day-b" / "shorthand"
+
+# day-b/shorthand/README.md states this split in prose; the numbers are here so a
+# change to either one has to be made in both places on purpose.
+DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
+DAY_B_CONTROL = (2, 3, 4)
+DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
 
 
 def fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def day_b(number: int) -> str:
+    return (DAY_B / f"case-{number:02d}.md").read_text(encoding="utf-8")
 
 
 class SplitNotes(unittest.TestCase):
@@ -113,6 +129,18 @@ class BodyMeasurements(unittest.TestCase):
         self.assertTrue(cc.has_height(fixture("case-05.md")))
         self.assertTrue(cc.has_height(fixture("case-10.md")))
 
+    def test_height_with_no_space_after_the_token(self):
+        # He writes the vital line both ways. "ht5'7"" defeats a trailing \b on the
+        # token, and the feet-and-inches alternative cannot rescue it either: there
+        # is no word boundary between the "t" and the "5". Three encounters in the
+        # corpus were read as having no height because of this.
+        self.assertTrue(cc.has_height("bp 122/63, hr 59 ht5'7\" wt145"))
+        self.assertTrue(cc.has_height("spo2 100% ht62.5 wt141"))
+
+    def test_a_bare_token_is_still_a_height(self):
+        # The no-space form is added, never substituted for the plain token.
+        self.assertTrue(cc.has_height("ht 62.5 wt 141"))
+
     def test_a_measurement_in_prose_is_not_a_height(self):
         self.assertFalse(cc.has_height("wt 165 in the office today"))
 
@@ -125,8 +153,28 @@ class BodyMeasurements(unittest.TestCase):
     def test_weight_by_unit_alone(self):
         self.assertTrue(cc.has_weight("36in 33lb"))
 
+    def test_weight_with_no_space_after_the_token(self):
+        self.assertTrue(cc.has_weight("bp 122/63, hr 59 ht5'7\" wt145"))
+        self.assertTrue(cc.has_weight("ht 5'10 wt285"))
+
     def test_no_weight(self):
         self.assertFalse(cc.has_weight("hx: htn, djd, l knee surgery"))
+
+    def test_the_no_space_form_still_requires_a_number(self):
+        # "htn" is the decoy the digit exists to exclude: without it the new
+        # alternative would read every hypertension history as a height.
+        self.assertFalse(cc.has_height("hx: htn, gerd, hypothyroid"))
+
+    def test_weight_has_no_equivalent_decoy(self):
+        """Stated rather than asserted, because there is nothing to assert.
+
+        The plain ``\\bwt\\b`` alternative predates this change and still counts a
+        bare "wt" with no value as a weight. So there is no string that the
+        no-space alternative must reject and the plain one accepts, and a
+        mirror of the height test above would be vacuous -- it would pass
+        whatever the new alternative did.
+        """
+        self.assertTrue(cc.has_weight("wt not recorded"))  # by the plain token
 
     def test_fixtures_carry_both(self):
         for name in ("case-01.md", "case-03.md"):
@@ -202,6 +250,68 @@ class DateOfBirth(unittest.TestCase):
 
     def test_a_visit_date_header_is_not_a_birth_date(self):
         self.assertFalse(cc.has_dob("Date: 5-06-20\ncc: cough"))
+
+
+class DayBIsTheAbsenceSet(unittest.TestCase):
+    """Guards the property every day-b assertion rests on."""
+
+    def test_the_set_has_twelve_cases(self):
+        self.assertEqual(len(sorted(DAY_B.glob("case-*.md"))), 12)
+
+    def test_every_case_is_exactly_one_note(self):
+        for path in sorted(DAY_B.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertEqual(len(cc.split_notes(path.read_text(encoding="utf-8"))), 1)
+
+    def test_nine_cases_carry_no_vital_at_all(self):
+        for n in DAY_B_NO_VITAL:
+            with self.subTest(case=n):
+                self.assertFalse(cc.has_any_vital(day_b(n)))
+
+    def test_the_three_controls_carry_a_full_vital_line(self):
+        for n in DAY_B_CONTROL:
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertTrue(cc.has_bp(note))
+                self.assertTrue(cc.has_weight(note))
+                self.assertTrue(cc.has_other_vitals(note))
+
+    def test_only_two_controls_carry_an_unambiguous_height(self):
+        """Case 2's height is a preserved typo, and this test must not hide it.
+
+        Case 2 reads ``wt 62in wt 131`` -- ``wt`` written where ``ht`` was meant.
+        ``has_height`` returns True for it, but only via the bare ``62in`` form,
+        not via a height token, so asserting it beside cases 3 and 4 would make a
+        real ambiguity look settled. day-b/assertions.md exempts case 2's height
+        from B4 for the same reason.
+        """
+        for n in (3, 4):
+            with self.subTest(case=n, form="ht token"):
+                self.assertRegex(day_b(n), r"(?i)\bht\s*\d|\bht\b")
+        self.assertNotRegex(day_b(2), r"(?i)\bht\b")
+        self.assertTrue(cc.has_height(day_b(2)))  # by "62in" alone
+
+    def test_the_split_is_the_whole_set(self):
+        self.assertEqual(sorted(DAY_B_NO_VITAL + DAY_B_CONTROL), list(range(1, 13)))
+
+    def test_the_b1_anchors_document_hypertension_and_no_pressure(self):
+        """B1 is only checkable where the history says htn and no BP was taken."""
+        for n in DAY_B_HYPERTENSIVE:
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertIn("htn", note.lower())
+                self.assertFalse(cc.has_bp(note))
+
+    def test_every_case_states_an_age(self):
+        """No day-b row is about a missing age; day-a case 10 already covers that."""
+        for path in sorted(DAY_B.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertTrue(cc.has_stated_age(path.read_text(encoding="utf-8")))
+
+    def test_no_case_carries_a_date_of_birth(self):
+        for path in sorted(DAY_B.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertFalse(cc.has_dob(path.read_text(encoding="utf-8")))
 
 
 class Survey(unittest.TestCase):

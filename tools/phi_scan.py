@@ -67,7 +67,27 @@ SHAPE_RULES = {
 
 # Clinical phrases the name harvester mistakes for names. These are vocabulary,
 # not identifiers, and they are already committed.
-NOT_NAMES = {"african american", "sore throat", "vaccs utd", "nkda"}
+#
+# The labeled forms are here because the bare token is not enough: the filter
+# below tests the WHOLE harvested string, and the harvester really does index
+# "allergy NKDA" and "allergies nkda" as two-word names, so "nkda" alone exempts
+# neither. fixtures/day-b/shorthand/case-10.md writes it without a colon and was
+# refused on exactly this. Only a form written without punctuation can be
+# harvested at all -- "allergies: nkda" fails the fullmatch in _looks_like_a_name
+# -- which is why day-a never tripped it.
+#
+# **Curate this by hand, one entry at a time.** 26 of the harvested names contain
+# clinical vocabulary, and two of those are longer strings with a real patient
+# name inside them. Exempting the class wholesale would open a hole in the layer
+# that nothing else closes.
+NOT_NAMES = {
+    "african american",
+    "sore throat",
+    "vaccs utd",
+    "nkda",
+    "allergy nkda",
+    "allergies nkda",
+}
 
 
 @dataclass(frozen=True)

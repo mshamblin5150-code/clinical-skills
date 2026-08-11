@@ -34,14 +34,18 @@ It is also deliberately **not** the drift-matrix verdicts from `clinical-note` s
 
 **DRIFT assertions are binary.** All of them, every run, no exceptions. Each one is a documented abnormal that reached the Objective and stopped there — the defect class the skill exists to catch. One miss fails the run.
 
+**FILLED assertions are binary.** Same bar as DRIFT, different subject: what the skill does with a value the shorthand never supplied. DRIFT asks whether a *given* abnormal survived to the Assessment; FILLED asks whether a *generated* one was produced at all, was plausible for that patient, and then survived the same way. They are separate classes because a set can have one and not the other — a set whose inputs all carry complete vitals can hold no FILLED row, and a set with no reference read may hold no DRIFT row.
+
 **REPORTED assertions are counted, not enforced.** Differential depth, screening content, education phrasing. They move with the model and the wording; tracking the count catches slow erosion without failing a run over style.
+
+**What makes a row enforceable is that it does not move with wording.** A row resolving to a value or its absence — is there a pressure in the FILLED block, is it below 130 over 80, does the finding appear in the Assessment — can be binary. A row turning on how well something is phrased cannot, and belongs in REPORTED however important it is.
 
 ## Running a set
 
 1. Feed each case's shorthand to the named skill, on the stated branch.
 2. Check the output text against that case's assertions.
-3. Report `DRIFT n/n` — which must be full — and `REPORTED n/m`.
-4. Any DRIFT miss names the case, the finding, and where the finding landed instead.
+3. Report every class the set defines — `DRIFT n/n` and `FILLED n/n`, both of which must be full, and `REPORTED n/m`. A set that defines no rows of a class omits its line rather than reporting `0/0`.
+4. Any DRIFT or FILLED miss names the case, the finding, and where the finding landed instead.
 
 Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta instead of a judgment call.
 
@@ -52,8 +56,11 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 | Set | Skill | Cases | Inputs | Reference | Last run |
 | --- | --- | --- | --- | --- | --- |
 | [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | `DRIFT 10/10` · `REPORTED 14/14` |
+| [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | **owed** | never run |
 
 The reference notes themselves live in `scratch/day-a-reference/`, gitignored — they carry the visit date, the site and social-history detail that the committed half deliberately does not.
+
+**day-b has one half on purpose.** It exists to test the *filled* half of the vitals license, which day-a cannot reach: all ten day-a cases carry a complete vital line, so nothing there exercises a vital the skill had to invent. Nine of day-b's twelve carry none at all. A filled vital was never in the shorthand, so there is nothing for the submitted note to have drifted from and its rows are checkable without a reference — but the reference is **owed, not unnecessary**, and until it is read no drift row may be added to that set. See [day-b/assertions.md](day-b/assertions.md).
 
 ## A set has two halves
 
