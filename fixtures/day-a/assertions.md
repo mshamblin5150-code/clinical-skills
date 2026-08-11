@@ -24,11 +24,18 @@ The scan is the single PDF in `scratch/day-files/`, gitignored, **7 pages**, ima
 
 The submitted notes are what was documented under time pressure at the end of a twelve-hour shift. The skill is not trying to reproduce them — it is trying to **beat them, identically, every run.**
 
-So a difference from the reference is not automatically a failure. It is one of three things, and the set has to say which:
+**Some of them were drafted with DAVID, and which ones is not recoverable.** The clinician was using it to test how well a model matched differential, diagnosis, evidence and plan, and confirmed on 2026-08-11 that he can no longer tell which of the ten it touched. None of the ten carries a marker — no version string, no `Case ID`, no generation line — so the text cannot answer it either. The tell that first raised the question, a stray `Case ID: 877106`, sits in the *case-study* corpus, not this one.
+
+That does not invalidate a single row. Every row is graded on what the submitted note **says**, and that is fixed whoever typed it. What it invalidates is any claim about **why** a note dropped something: *"the clinician was tired"* and *"a model softened it"* are indistinguishable here, and this set must not assert either. Where a Reference cell does name a cause, it is because the clinician supplied it directly.
+
+So a difference from the reference is not automatically a failure. It is one of **four** things, and the set has to say which:
 
 - **Better** — the skill caught something the submitted note dropped. That is the product working. Every DRIFT row below is one of these.
 - **Worse** — the skill lost something the submitted note had. A regression, and the most important thing this set can find.
 - **Neither** — different wording for the same content. Ignore it; this is why the set does not diff prose.
+- **Out of reach** — the submitted note is better on information the skill never had. The clinician remembers the encounter; the skill has the shorthand and nothing else. Matching this is not a target and failing it is not a regression — **the skill is required not to try.** R14 is the only row of this class, and it is why the class exists.
+
+This class did not exist for run 1, which graded R14 ***better*** — the skill beating the note. It did not beat anything; it declined to state what it could not know, against a clinician who knew it. **The pass stands and `REPORTED 14/14` is unchanged. The label does not.** Run 2 grades this row *out of reach*.
 
 ## DRIFT — binary, all must pass
 
@@ -79,9 +86,11 @@ These came out of the submitted notes, not from issue #1. All are drift-class.
 | R11 | 1 — 60 F | Left CVA tenderness and epigastric tenderness are not left undiagnosed | Both reached the Objective; the Assessment is respiratory only. |
 | R12 | 2 — 40 F | PCOS from the history reaches the note | Dropped. PMH lists only PE tubes and tonsillectomy. |
 | R13 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
-| R14 | 3, 6, 8, 10 | No tobacco or vaping status is asserted where the shorthand supplies none | Invented one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". Case 10's shorthand says `hx: none`. |
+| R14 | 3, 6, 8, 10 | No tobacco or vaping status is asserted where the shorthand supplies none | Asserted one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". **Recalled from the encounters, not invented**, per the clinician on 2026-08-11. *Out of reach* — right in his note, forbidden in the skill's. |
 
-R14 is the one to watch. Four inventions across ten notes, all in the same field, all plausible — this is what *every filled finding is normal, absent, or not reported* is for (`no smoke exposure reported`), and it is the failure mode a tired clinician and a generative model share. Standing rule 2's list names no category that reaches it.
+R14 is the one to watch, and not for the reason first recorded here. The four statuses were **recalled, not invented** — the clinician knew them from the encounters and the shorthand never captured them. His note is right. The skill's would not be: it has the shorthand and nothing else, so the same four sentences out of it are unsourced. This is what *every filled finding is normal, absent, or not reported* is for (`no smoke exposure reported`), and standing rule 2's list still names no category that reaches it.
+
+This row read *"Invented one in all four"* until 2026-08-11, and called it the failure mode a tired clinician and a generative model share. That was wrong about the clinician, and correcting it is what moved the row from *better* to *out of reach*. Case 10 is the one still worth a look: its `hx: none` is a past-history line, so the shorthand neither supplies a smoking status there nor denies one.
 
 The rest stay counted rather than enforced. The four vitals rows were promoted to D7–D10 because they are one repeating defect with unambiguous pass conditions; these are not, and a bar is only worth having if it was set deliberately.
 
