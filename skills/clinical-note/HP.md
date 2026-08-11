@@ -2,7 +2,7 @@
 
 The long-form branch of [clinical-note](SKILL.md). Tiering rules live in the skill; this file is the shape.
 
-**The italicised instructions under each heading are the school's rubric, not commentary.** Obey them literally and keep them out of the finished note.
+**The italicized instructions under each heading are the school's rubric, not commentary.** Obey them literally and keep them out of the finished note.
 
 ```
 Chief Complaint

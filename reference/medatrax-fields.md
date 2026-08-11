@@ -23,6 +23,18 @@ The agent **never types credentials**. Open `np.medatrax.com/default.aspx` in Ch
 
 **Patient Detail is the field-by-field view.** It renders every per-encounter field as text without opening an edit form, which makes it the safe way to read an existing encounter.
 
+### Navigating the portal
+
+Five behaviors that decide whether a sweep works at all. Each one has cost a pass.
+
+1. **`patient.aspx` opens with `Course` preset to a single course**, and every date search runs inside it — so an encounter in any other course reads as "not found". Set `Course` to `(All Courses)` before searching; it persists for the session. One whole pass matched 1 of 10 encounters and concluded the rest were unfindable, on nothing but this.
+2. **`/login/forms/` has a lower panel — *"To retrieve an existing form"*.** It filters every submitted form by type, patient, location, course and plan keyword, and it is the only index of *form type* that does not require opening visits one at a time. Setting Form to the H&P and clicking Search returns all 19 in a single postback. **Do not touch the upper panel** — that one is `Open New Form` and offers only the live course.
+3. **`patientdetail.aspx` `<Prev` / `Next>` walk the currently filtered patient list in entry order** (`Created` ascending), not grid order. One search plus five `Next>` reads a whole batch, turning a per-visit sweep from four round trips per patient into two. The entry ordering is itself evidence — it is how the six contiguous H&Ps were found.
+4. **`patientdetail.aspx?patid=…` alone throws an Application Error.** `visitid` is required, and the only way to get one is the `Select$N` postback.
+5. **Drive the grid by element id, not by accessibility ref** — ids survive postbacks where refs do not: `patList_txtFrom`, `patList_txtTo`, `patList_btnSearch`, `__doPostBack('patList$gvPatList','Select$N')`.
+
+**Do not ask the page for hrefs or raw markup.** A `javascript_tool` call returning page HTML that contained `resultid=` query strings came back `[BLOCKED: Cookie/query string data]`. Returning a short slice of `innerText` works fine.
+
 Picklist strings below are exact — match them character for character, including `Wyoming County Health Dept.` with its period and `New River Health - Oak Hill` with spaced hyphen.
 
 **Scope.** This file currently documents Medatrax for *reading* — what the fields are, what they accept, and how a note supplies them. Entering encounters through the portal is out of scope for this pass, **not permanently**: the field table and selection rules below are written to serve entry when it lands, which is the destination of the whole toolchain.
@@ -147,7 +159,7 @@ Age decides the band; a gyn or obstetric visit overrides it — a 35-year-old se
 
 **The override has never been applied. Swept 2026-08-09: 30 of 30.**
 
-Every `Gynecology` and `Obstetrics` visit in the entire record sits on an age band. Twenty-seven gynaecologic visits — 23 on `Adult (18 – 60) Hours`, 4 on `Gerontology (60 and>)` — and three obstetric visits, all on `Adult`. **`Women's Health` and `Obstetrical Hours` have never been used once.** Ages ran 18 to 79 and the age rule was applied correctly throughout, so this is not carelessness; the override simply is not part of the habit.
+Every `Gynecology` and `Obstetrics` visit in the entire record sits on an age band. Twenty-seven gynecologic visits — 23 on `Adult (18 – 60) Hours`, 4 on `Gerontology (60 and>)` — and three obstetric visits, all on `Adult`. **`Women's Health` and `Obstetrical Hours` have never been used once.** Ages ran 18 to 79 and the age rule was applied correctly throughout, so this is not carelessness; the override simply is not part of the habit.
 
 Those hours are not recoverable and do not need to be. All 30 belong to NUR5153, NUR5111 and NUR5143, and the 360 starts from zero — correcting them shuffles buckets inside closed courses. What matters is that NUR 5144 wants 20 Gynecology and 20 Obstetrics hours in their own buckets, and the habit has a perfect record of not supplying them.
 
@@ -169,20 +181,20 @@ Those hours are not recoverable and do not need to be. All 30 belong to NUR5153,
 | Gender | picklist | given |
 | Age + unit | text + picklist | given |
 | Marital status at first contact | picklist | given |
-| Primary Payment Method | picklist | declared constant — see Field selection rules |
+| Primary Payment Method | picklist | declared pattern — see Field selection rules |
 | Case Type | picklist | given |
 | Patient Time | picklist | derived from age and visit type |
 | Start time / End time | text | estimated — see Field selection rules |
-| Blood pressure | two text boxes | given |
-| Respiratory Rate | text | given |
-| Height | text | given |
-| BMI | text | derived |
+| Blood pressure | two text boxes | given, or filled — see Field selection rules |
+| Respiratory Rate | text | given, or filled — see Field selection rules |
+| Height | text | given, or filled — see Field selection rules |
+| BMI | text | derived from the height and a weight, filled or given |
 
 ### The identity problem
 
 **Medatrax has no name field, anywhere.** `Patient Reference` is generated, opaque, and the only handle the portal has on a person. Nothing in the record says who a patient is.
 
-So a returning patient can only be recognised from outside the portal, and an encounter entered without that match **creates a second patient**. No warning, no merge, and afterwards the two records are indistinguishable. The clinician's identity map — name to Patient Reference, kept in `scratch/` — is the only thing standing between a repeat visit and a duplicate.
+So a returning patient can only be recognized from outside the portal, and an encounter entered without that match **creates a second patient**. No warning, no merge, and afterwards the two records are indistinguishable. The clinician's identity map — name to Patient Reference, kept in `scratch/` — is the only thing standing between a repeat visit and a duplicate.
 
 **The arithmetic shows it has not been standing there.** `studentoverview.aspx` reports **582 patients against 592 visits**: ten repeat visits across the whole record. Fifteen Patient Detail pages opened at random all read `1 Visit(s)`. A year of family practice does not produce ten returning patients, so most of that gap is duplicates already made.
 
@@ -196,21 +208,36 @@ Visit Time is derived from start and end, and varies — 0:30 to 0:45 across one
 
 Some fields are administrative and never appear in bedside shorthand. Without a stated rule the skill reports them missing on every note, which is what trains a clinician to skim the block that is supposed to catch real omissions. Each one below has a rule, so it is answered once here rather than ten times a day.
 
-**Primary Payment Method — `Medicaid`, corrected on sight.**
+**Primary Payment Method — a site, age and status pattern, corrected on sight.**
 
-Payer data is not visible at the bedside and is not inferable from an encounter. The value is *declared*, not derived: `Medicaid` as the starting value, except `Worker's comp` where the shorthand documents a work-related injury — and that exception is a **given**, read from the note, not a guess about the payer.
+Payer data is not visible at the bedside. The value is *declared*, not derived — but it is not a constant either. The flat `Medicaid` default that used to sit here was wrong close to two times in five: all eleven encounters on a sampled day were read field by field on 2026-08-09 and carry **six `Medicaid`, three `Commercial insurance/HMO/PPO`, two `Medicare`** — including `Medicare` on a 23-year-old.
 
-**This field used to be filled silently, on a claim that turns out to be false.** The earlier note here said all eleven encounters on a sampled day carried `Medicaid`. All eleven were read field by field on 2026-08-09, and they carry **six `Medicaid`, three `Commercial insurance/HMO/PPO`, two `Medicare`** — including `Medicare` on a 23-year-old. The default is wrong closer to two times in five, which is worse than the Race/Ethnicity default below.
+Read off the clinician's own entries, the pattern below fits 16 of the 18 H&P encounters and most of the SOAP comparison set:
 
-So it is treated the same way: a starting value that genuinely needs a glance, listed under `FILLED·asserted` rather than written straight into the field. It still never appears under GAPS — it is filled, not missing.
+| Site | Rule |
+| --- | --- |
+| Bluestone | `Self-pay/other` |
+| Welch | `Medicaid` for pediatric patients and single adults · `Commercial insurance/HMO/PPO` for married working-age patients · `Medicare` from about 60 |
 
-The rejected alternative was varying the value to produce a realistic-looking payer mix. That fabricates administrative data into an academic record, and nothing in the program grades payer distribution. Guessing a *spread* is not better than guessing a constant; both are invention. The fix is that the clinician confirms it, not that the skill guesses more artfully.
+`Worker's comp` overrides all of it where the shorthand documents a work-related injury — and that exception is a **given**, read from the note, not a guess about the payer.
+
+**This is not the rejected alternative.** The idea turned down earlier was varying the value to produce a realistic-*looking* payer mix, which fabricates administrative data to pass as plausible. This is a pattern read off the clinician's own record, and it is right more often than the constant was. Guessing a spread is invention; reproducing an observed one is not.
+
+Still `FILLED·asserted`, still a starting value that genuinely needs a glance, still never under GAPS — it is filled, not missing.
 
 **Race/Ethnicity — `Caucasian/White`, corrected on sight.**
 
 Unlike payer, this one is observable — the clinician saw the patient. It simply never gets written down.
 
 **The default is wrong about once in four.** On a sampled day, eight of eleven encounters were `Caucasian/White` and three `African American/Black`. Treat it as a starting value that genuinely needs a glance, not one that is usually safe to wave through — which is why it is filled under `FILLED·asserted` rather than written straight into the field.
+
+**Blood pressure, Respiratory Rate, Height and BMI — filled, not left blank.**
+
+The four vital and measurement fields are filled where the encounter does not supply them, to the value that patient most plausibly had. The rule and its cost — a filled vital that lands abnormal is worked up in the note like any other abnormal — are in [clinical-note](../skills/clinical-note/SKILL.md) under *Filled vitals and body measurements*. Do not restate it here; do apply it.
+
+**The clinician's own practice settled this.** The 2025 Spring batch leaves `Height` and `BMI` blank; **every 2025 Fall and 2026 Spring encounter fills both**, inventing a height where the shorthand carries none. His words: *"the newer records everything is filled out."* The blank ones are the older habit, not the standard — the same shape as the flat visit lengths under Visit Time.
+
+Order matters for the pair: pick a plausible height, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and read the height and weight backwards out of it. There is no weight field in Medatrax, so the weight lives in the note only — but the BMI in the field must recompute from it.
 
 **Start time / End time — estimated, not missing.**
 

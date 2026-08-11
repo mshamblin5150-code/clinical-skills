@@ -11,7 +11,7 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 | clinical-note | [skills/clinical-note/SKILL.md](skills/clinical-note/SKILL.md) | Encounter shorthand needs to become a comprehensive SOAP or an FNP H&P |
 | batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A whole shift is pasted at once and needs splitting into encounters |
 | icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
-| setup-clinical-skills | [skills/setup-clinical-skills/SKILL.md](skills/setup-clinical-skills/SKILL.md) | **Run once first.** A new clinician's portal, programme, picklists and patient identity map need configuring |
+| setup-clinical-skills | [skills/setup-clinical-skills/SKILL.md](skills/setup-clinical-skills/SKILL.md) | **Run once first.** A new clinician's portal, program, picklists and patient identity map need configuring |
 
 <!-- Additional skills are appended here as they are written. -->
 
@@ -22,5 +22,8 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 These bind every skill in this repo.
 
 1. **No PHI is ever committed.** Live notes are worked in `scratch/`, which is gitignored. Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).
-2. **Every line is given, derived, or filled.** These are academic notes against a school rubric, so sections the shorthand cannot supply are generated — but **filled content is always unremarkable**. Every abnormal finding, lab value, imaging result, medication, and diagnosis traces to the source. Filled lines are listed for the clinician to confirm before submission. Full rules in [clinical-note](skills/clinical-note/SKILL.md).
-3. **Proposals are labelled.** Any clinical reasoning the agent contributes — a differential, a code, a plan item — appears under `PROPOSED (verify before use)`, outside the document body, for the clinician to accept or drop.
+2. **Every line is given, derived, or filled.** These are academic notes against a school rubric, so sections the shorthand cannot supply are generated — but **filled content is always unremarkable**. Every abnormal finding, lab value, imaging result, and diagnosis traces to the source. Filled lines are listed for the clinician to confirm before submission. Full rules in [clinical-note](skills/clinical-note/SKILL.md).
+
+   **Exception — vitals and body measurements.** These are the single exception to *filled content is unremarkable*. A missing one is filled with the value that patient most plausibly had, worked up in the note if it lands abnormal (drift row 4, which grants it no exemption for being generated), and disclosed in the FILLED block like everything else generated. **No exam finding, symptom, or result is ever filled, however plausible.**
+
+3. **Proposals are labeled.** Any clinical reasoning the agent contributes — a differential, a code, a plan item — appears under `PROPOSED (verify before use)`, outside the document body, for the clinician to accept or drop.

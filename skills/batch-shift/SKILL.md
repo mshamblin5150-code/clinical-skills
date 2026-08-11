@@ -28,7 +28,7 @@ Day files name preceptors by first name; Medatrax wants `Last,First` exactly.
 
 **A name that maps to nobody is reported, never substituted.** In this clinician's catalog three of them do not map: one is a physician who was present but is not the preceptor of record, and two are a first name whose nearest picklist entry has a different surname. Guessing the nearest match is how a shift's hours get attributed to someone who was not there, and nothing downstream will catch it. Only the clinician knows.
 
-Where an unmapped preceptor is known to work a single population — a paediatrician, say — that still settles the `Patient Time` band for the whole day even while the preceptor field stays open. Record the band, hold the name.
+Where an unmapped preceptor is known to work a single population — a pediatrician, say — that still settles the `Patient Time` band for the whole day even while the preceptor field stays open. Record the band, hold the name.
 
 ### 2. Get the text out
 
@@ -139,3 +139,29 @@ Completion: every encounter appears in exactly one of the two note lists.
 **Read FLAGS first.** A gap is work outstanding and announces itself. A flag is a note that reads perfectly well and acted on only part of what it documented — nothing about it looks wrong. The roll-up is the only place the pattern is visible: one flag in one note looks like a hard case, five across a shift is what a twelve-hour day does to documentation.
 
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding to [GLOSSARY.md](../clinical-note/GLOSSARY.md) — offer to add them, and the next shift needs less input than this one.
+
+### 7. Offer the shift document
+
+**Offer a `.docx` of the shift. Produce it only when the clinician asks.**
+
+The shift is the unit that leaves the machine — a single encounter is never handed over on its own, which is why the emit lives here and [clinical-note](../clinical-note/SKILL.md) has no document branch at all.
+
+It is offered rather than produced because of what step 6 just printed. The FILLED block is generated content awaiting confirmation, and standing rule 2 puts that confirmation before submission. A document written straight off the roll-up is a document of unconfirmed content that looks finished. So the offer comes after the FLAGS, and the file comes after the clinician has read them.
+
+**One file per shift. The finished notes and nothing else.**
+
+Head it with the constants step 6 already states once — course, date, preceptor, site — then the notes, numbered, in source order, one per page.
+
+What stays out, and this is the whole point of the step:
+
+| Kept out | Because |
+| --- | --- |
+| The tier blocks — `DERIVED`, `FILLED`, `FLAG`, `GAPS`, `UNKNOWN` | Working output. A FLAG says *this note failed to act on what it documented*; traveling inside the file it describes, it is a defect report stapled to the work |
+| The per-encounter Medatrax field blocks | Portal data entry. They are tabbed into a form, not read |
+| The schedule table and the shift summary | The tabbing and triage views of the day, for the chat |
+
+**The document carries exactly what the notes carry.** Writing it is not a second pass at de-identification and it is not the moment to restore anything: `[PT]`, `[DOB]`, `[MRN]`, `[SITE]` stay as placeholders. It is, though, the last point at which a leaked identifier is still cheap to catch and the first at which it becomes a file that gets opened somewhere else — so read the notes for real names before writing, not after.
+
+**Write it into `scratch/`.** Standing rule 1, and the repo's `.gitignore` already excludes both `scratch/` and `*.docx`. Name it by date; a filename is text like any other and carries no patient name and no Patient Reference.
+
+Completion: every confirmed encounter from step 4 appears in the document exactly once, and no tier block, Medatrax block, schedule row or summary line appears in it at all.

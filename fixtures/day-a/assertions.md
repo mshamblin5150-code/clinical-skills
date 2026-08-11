@@ -42,7 +42,7 @@ The **Reference** column says what the submitted note actually did, read from th
 | D2 | 5 — 45 F | Positive Rovsing's sign | Not named in the Assessment or the Plan | Carried `+ Rosvig` into the Objective and stopped. Pure drift. Naming it is *better*. |
 | D3 | 5 — 45 F | BP 151/93 | Not named in the Assessment or the Plan | **Addressed it** — `Essential HTN I10 (elevated BP today)` in the Assessment, home BP log and PCP review in the Plan. Matching this is *neither*; losing it is *worse*. |
 | D4 | 6 — 37 M | Pulmonary embolism, against family history of DVT/PE, HR 115, pleuritic pain, BMI 43.9 and diminished breath sounds | PE is absent from the differential | Ran URI / CAP / sinusitis and **ordered a CXR** — the differential does reach past URI. **PE never appears.** Considering it is *better*. |
-| D5 | 9 — 11 F | Anatomical snuff box tenderness after a fall | Scaphoid is absent from the Assessment | **Named it first** — "Scaphoid fracture (occult) … must exclude" — and immobilised in a **thumb spica**. Only the coded diagnosis is sprain. Matching this is *neither*. |
+| D5 | 9 — 11 F | Anatomical snuff box tenderness after a fall | Scaphoid is absent from the Assessment | **Named it first** — "Scaphoid fracture (occult) … must exclude" — and immobilized in a **thumb spica**. Only the coded diagnosis is sprain. Matching this is *neither*. |
 | D6 | 10 — 25 M | Months of dysuria with right CVA tenderness | The GU problem is absent from the **final diagnosis** | Built a GU differential and ordered UA + culture, then coded only the ankles — the Final line reads `Bilateral ankle pain-M25.571 & M25.572;` and stops mid-line. Coding it is *better*. |
 | D7 | 6 — 37 M | HR 115 | Not named in the Assessment or the Plan | Recorded, never addressed. |
 | D8 | 7 — 10 F | HR 119 | Not named in the Assessment or the Plan | Recorded, never addressed. The temperature beside it *was* addressed. |
@@ -81,7 +81,7 @@ These came out of the submitted notes, not from issue #1. All are drift-class.
 | R13 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
 | R14 | 3, 6, 8, 10 | No tobacco or vaping status is asserted where the shorthand supplies none | Invented one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". Case 10's shorthand says `hx: none`. |
 
-R14 is the one to watch. Four inventions across ten notes, all in the same field, all plausible — this is what standing rule 2 is for, and it is the failure mode a tired clinician and a generative model share.
+R14 is the one to watch. Four inventions across ten notes, all in the same field, all plausible — this is what *every filled finding is normal, absent, or not reported* is for (`no smoke exposure reported`), and it is the failure mode a tired clinician and a generative model share. Standing rule 2's list names no category that reaches it.
 
 The rest stay counted rather than enforced. The four vitals rows were promoted to D7–D10 because they are one repeating defect with unambiguous pass conditions; these are not, and a bar is only worth having if it was set deliberately.
 
@@ -103,7 +103,7 @@ F5 replaced a row that asserted the band outright. That row was written before t
 
 ## Resolved against the portal, 2026-08-09
 
-**Case 10 is 25, male, African American/Black.** Matched on every recorded field — BP 141/93, height 66, BMI 37.1, RR 20, Case Type Musculoskeletal, marital single. Not a judgement call; the portal record and the note agree on all six.
+**Case 10 is 25, male, African American/Black.** Matched on every recorded field — BP 141/93, height 66, BMI 37.1, RR 20, Case Type Musculoskeletal, marital single. Not a judgment call; the portal record and the note agree on all six.
 
 **There is an eleventh encounter and it is not a fixture case.** 29 F, Case Type Gynecology, BP 118/76, height 64, RR 16 — and it already has two comprehensive SOAP notes attached in the portal. The note exists; the *day file scan* is missing it. It is not part of this set because its shorthand was never captured.
 

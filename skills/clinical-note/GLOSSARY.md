@@ -98,7 +98,7 @@ Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 uni
 
 | Shorthand | Expansion |
 | --- | --- |
-| `a1c` | haemoglobin A1c |
+| `a1c` | hemoglobin A1c |
 | `micro urine` | microscopic urinalysis, ordered alongside `ua` |
 | `c/s` | culture and sensitivity — `urine c/s`, `pharyngeal c/s` |
 | `rsv` | respiratory syncytial virus |
@@ -194,7 +194,7 @@ The tell is the section. In a history, problem list or family history it is diab
 
 **`appy` — appendectomy, not appendicitis.** It appears only in surgical histories here. A note that turns it into an active diagnosis has invented an acute abdomen out of a scar.
 
-**Local facility abbreviations** — the catalog refers to hospitals and imaging centres by initials for referral destinations. They are per-clinician and are collected by [`/setup-clinical-skills`](../setup-clinical-skills/SKILL.md), not hardcoded here.
+**Local facility abbreviations** — the catalog refers to hospitals and imaging centers by initials for referral destinations. They are per-clinician and are collected by [`/setup-clinical-skills`](../setup-clinical-skills/SKILL.md), not hardcoded here.
 
 ### Typos seen in the wild
 
@@ -210,7 +210,7 @@ Also seen: `diminisnished`, `tonsuilar`, `comited`, `neuorpathy`, `palpatiations
 
 **Two of these are worth reading twice.** `buldging` at 77 is by a wide margin the most frequent token in the catalog that is not a real word — it is how this clinician writes a bulging tympanic membrane, and it appears in almost every note with an ear finding. And **`dimnished` at 17 plus `diminised` at 2 is the same word as the `dm` above**: the clinician has three spellings for "diminished" and one of them collides with diabetes.
 
-**`cetrazine` is the one that matters most.** It is a drug name, it appears seventeen times, and cetirizine is what it means. A word typo produces an odd-looking note; a drug typo produces a prescription. Correct it, and treat any unrecognised drug spelling as a candidate for the same treatment rather than passing it through as written — the rule against "correcting" a number does not extend to a misspelled drug.
+**`cetrazine` is the one that matters most.** It is a drug name, it appears seventeen times, and cetirizine is what it means. A word typo produces an odd-looking note; a drug typo produces a prescription. Correct it, and treat any unrecognized drug spelling as a candidate for the same treatment rather than passing it through as written — the rule against "correcting" a number does not extend to a misspelled drug.
 
 `apces` deserves a note too: it appears only inside one stock phrase — *"lungs are clear in the apces, diminished in the bases"* — which is this clinician's habitual way of recording that finding.
 

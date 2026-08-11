@@ -8,7 +8,7 @@ Codes are **proposed**, never asserted. A code you supply is a suggestion the cl
 Two disciplines make that verification fast:
 
 - **Anchor** — every code quotes the note text that documents it. A code with no anchor is not a code, it is a guess about the patient.
-- **Descriptor** — every code carries its official descriptor next to its number. When the number and the descriptor disagree, the clinician sees it instantly. This is the defence against a fluent, plausible, wrong code number, and it is the reason the descriptor is never omitted to save space.
+- **Descriptor** — every code carries its official descriptor next to its number. When the number and the descriptor disagree, the clinician sees it instantly. This is the defense against a fluent, plausible, wrong code number, and it is the reason the descriptor is never omitted to save space.
 
 ## Steps
 

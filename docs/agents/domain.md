@@ -27,7 +27,7 @@ Single-context repo:
 
 When output names a domain concept, use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary avoids.
 
-This repo's vocabulary is load-bearing and already carries meaning across [clinical-note](../../skills/clinical-note/SKILL.md), [batch-shift](../../skills/batch-shift/SKILL.md), and [icd10-cpt](../../skills/icd10-cpt/SKILL.md) — **shorthand**, **encounter**, **day file**, **given / derived / filled**, **proposed / asserted**, **branch**. Changing one of these words changes behaviour in more than one skill, so treat a rename as a domain decision, not an edit.
+This repo's vocabulary is load-bearing and already carries meaning across [clinical-note](../../skills/clinical-note/SKILL.md), [batch-shift](../../skills/batch-shift/SKILL.md), and [icd10-cpt](../../skills/icd10-cpt/SKILL.md) — **shorthand**, **encounter**, **day file**, **given / derived / filled**, **proposed / asserted**, **branch**. Changing one of these words changes behavior in more than one skill, so treat a rename as a domain decision, not an edit.
 
 If a concept isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use, or there's a real gap worth taking to `/domain-modeling`.
 

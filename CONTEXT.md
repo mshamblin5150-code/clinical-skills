@@ -70,7 +70,7 @@ _Avoid_: missing, hole, TODO
 
 **Unknown token**:
 A shorthand token matching no glossary entry.
-_Avoid_: unrecognised, garbage, typo
+_Avoid_: unrecognized, garbage, typo
 
 ### Artifacts
 
@@ -79,7 +79,7 @@ The complete, identified record of a day's encounters, used to enter the portal.
 _Avoid_: draft, local copy
 
 **Fixture**:
-A regression set derived from a working file with the visit date and site removed, committed so a skill's behaviour can be checked after an edit.
+A regression set derived from a working file with the visit date and site removed, committed so a skill's behavior can be checked after an edit.
 _Avoid_: test data, sample, example
 
 **Assertion**:

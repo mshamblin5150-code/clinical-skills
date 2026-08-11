@@ -38,7 +38,7 @@ One rule governs everything filled:
 
 The rule runs one way only. The clinician charts abnormals reliably and normals sometimes — `lungs are clear`, `well appearing` do appear in shorthand. So:
 
-- **An abnormal in the note must be a given.** No exceptions. This is the direction that carries the safety.
+- **An abnormal *finding* in the note must be a given.** No exceptions. This is the direction that carries the safety. A finding is something observed and chartable — an exam finding, a symptom, a result. It does not cover vitals and body measurements, which are taken at every visit and written down at some; those follow *Filled vitals and body measurements* below.
 - **A normal in the shorthand is still a given** — it means that system was examined. Keep it verbatim; do not move it to filled.
 - **Silence is undocumented, never absent.** A section the shorthand omits means it was not written down that visit — not that the patient has nothing there. This holds everywhere, and it reads two ways depending on the section:
   - **Exam and ROS** — an unmentioned system is normal, because abnormals get charted.
@@ -46,11 +46,25 @@ The rule runs one way only. The clinician charts abnormals reliably and normals 
 
   Either way it gets filled, never raised as a gap.
 
-Everything filled is therefore normal, absent, or not reported — and says so in those words: `no chronic illness reported`, `fever by history`, `no smoke exposure reported`, `no treatment-limiting cultural practice reported`.
+Every filled *finding* is therefore normal, absent, or not reported — and says so in those words: `no chronic illness reported`, `fever by history`, `no smoke exposure reported`, `no treatment-limiting cultural practice reported`.
 
 Charted normals and filled normals read identically in the finished note. They are separated in the tier block so only the filled ones need confirming.
 
-**Filled vitals** are permitted where the rubric requires a complete set and the encounter supplies only some. They must be within normal range for the patient's age, and every one of them is listed in the FILLED block for confirmation.
+#### Filled vitals and body measurements
+
+**Filled vitals and body measurements** are permitted where the rubric requires a complete set and the encounter supplies only some — or none. They are the one exception to *filled content is unremarkable*, and the exception is narrow enough to state exactly.
+
+A vital is not a finding the clinician chose to record. It is taken at every visit and transcribed at some, so its absence from the shorthand means untranscribed — never normal, and never not measured. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart.
+
+> **A filled vital is the value this patient most plausibly had.**
+
+Reason it from age, body habitus, the documented conditions and the presenting complaint — not from the middle of the normal range. A known hypertensive seen for a productive cough gets a hypertensive pressure and a raised respiratory rate. A two-year-old gets a two-year-old's pressure, not a scaled-down adult's.
+
+**A filled vital that lands abnormal is worked up like any other abnormal.** It reaches the Assessment and the Plan; drift row 4 applies to it in full. This is the cost of the license and it is not optional — a note that invents 142/88 and then says nothing about it has manufactured the exact defect this skill exists to catch.
+
+Height and weight follow the same rule, in this order: pick a height plausible for the age and sex, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and leave the height and weight to be read backwards out of it.
+
+Every filled vital and every filled measurement is listed in the FILLED block for confirmation.
 
 ### What may be inferred
 
@@ -64,20 +78,31 @@ Grounded, and expected:
 - Screenings appropriate to the patient's age.
 - The exam of a system the shorthand never mentions.
 
-**One thing can never be inferred: a measurement.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result.
+**One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — they are taken at every visit; see *Filled vitals and body measurements*.
 
-**Age is the second — but look for a date of birth first.** Only 42% of this clinician's encounters state an age outright; 47% give a date of birth instead, and there the age is *derived*, not missing. Compute it.
+**Age needs a date of birth looked for first.** About 95% of this clinician's encounters carry one or the other, and where a date of birth appears the age is *derived*, not missing — compute it. The newer shorthand runs age and sex together with no marker — `51 f`, `48f` — and that form is easy to miss.
 
-**The remaining 7% supply neither, and there age cannot be inferred.** Nothing inside an encounter recovers it — a 37-year-old and a 62-year-old present alike, and a plausible age is indistinguishable from a read one once it sits in the field. It is worth the stop because age sets `Patient Time`, the one entry field where a wrong value misallocates clinical hours against the course's area breakdown. An inferred age charges the wrong bucket silently.
+**Where neither appears — about one note in twenty — infer the age, and flag it harder than anything else in the block.** The old rule stopped, because age sets `Patient Time` and a wrong band misallocates clinical hours. But a note that stops cannot be entered at all, and the clinician infers and enters it himself: three confirmed cases, one carrying nothing but `1 ppd x 41 yrs`.
+
+Anchor the age in whatever the narrative gives — pack-years, gravidity, post-menopausal status, school grade, a spouse's age — and name the anchor. Then put it at the **top of `FILLED·asserted`, on its own line, naming the band it sets**:
+
+```
+FILLED·asserted   AGE 60 y — inferred from 41 pack-years begun in adulthood;
+                  sets Patient Time = Adult (18 – 60). CONFIRM BEFORE ENTRY.
+```
+
+An inferred age charges an hours bucket silently, which is why it is confirmed loudest rather than not made.
 
 **Sex is not the same, because the narrative carries it.** Shorthand that never writes `M` or `F` but says `he states he fell yesterday` has documented sex in the pronouns, and that is a given like any other stated finding. Read it, and say that is where it came from.
 
-Where the shorthand supplies neither, the Medatrax entry does — step 1 takes demographics from it as givens. Absent both, age goes under GAPS and `Patient Time` goes with it, named rather than guessed.
+Where the shorthand supplies no demographics at all, the Medatrax entry does — step 1 takes them from it as givens.
 
 Separate two acts in the tier block, because they carry different weight:
 
 - **Proposed** — a forward action: a drug started, a test ordered, a referral. Reasoning, and safe to be wrong about; the preceptor rules on it.
 - **Asserted** — a claim about the patient's past: a medication they already take, a condition they already carry. Ground these in the history, then be specific. An absent `meds:` line usually means no medication reconciliation was done that visit, **not** that the patient takes nothing — infer the likely regimen from the conditions listed and name actual agents. This is the tier a preceptor checks hardest, so every asserted inference is listed.
+
+  **An inferred regimen never answers a conflict the givens raise.** Motrin 800 TID against a documented GERD is called out whatever the inference contains — and a given drug is never dropped from the list to make the conflict disappear. Inferring the PPI is the instruction; letting it settle the question is the defect. Drift row 11.
 
 ## Conventions
 
@@ -104,9 +129,11 @@ Collect the shorthand and, if supplied, the Medatrax entry — it carries demogr
 
 **Derive the age before you redact the date of birth.** Across the clinician's catalog — 353 encounters — the age is stated outright in 42% and a **date of birth appears instead in 47%**. Redacting `[DOB]` on the way past destroys the only thing age can be computed from, and age sets the `Patient Time` band. So: compute the age from the date of birth and the visit date, write it down as a derived value showing the arithmetic, and redact afterwards.
 
+**Read the unmarked form.** The newer shorthand runs age and sex together with no marker at all — `51 f`, `48f`, `35 f` — and it is the dominant form in the recent files. Anything scanning for `yo`, `y/o` or `dob` misses it and reports a recent encounter as ageless.
+
 Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]`, `[PRECEPTOR]`. Keep age, sex, visit date, and everything clinical.
 
-**7% of encounters carry neither an age nor a date of birth.** That is roughly one in fourteen, not a freak case — see *What may be inferred* for what happens then.
+**About 5% of encounters carry neither an age nor a date of birth** — roughly one in twenty, measured 2026-08-10 across 559 notes, of which 529 carry one or the other. Not a freak case, and not a stop: see *What may be inferred* for how the age is inferred and flagged.
 
 ### 2. Expand the shorthand
 
@@ -137,7 +164,7 @@ Fields carrying a **declared rule** there — `Primary Payment Method`, `Race/Et
 
 **Resolve the patient before the fields.** Medatrax stores no name — it generates a Patient Reference and that is its only handle on a person. An encounter entered without matching the existing record creates a **second** patient, silently and unmergeably. So look the name up in the clinician's identity map first, and emit either the matched Patient Reference or an explicit `NEW PATIENT` line. Where the day file gave no name to match on, say that: it is the exact mechanism by which duplicates are made, and it is worth one line rather than a discovery months later. Location and format of the map come from `/setup-clinical-skills`.
 
-Everything else the encounter does not supply goes under GAPS rather than being invented — except start and end times, which the Times convention estimates by design. The field that justifies the caution is `Patient Time`: it feeds the NUR 5144 area breakdown, so a wrong band misallocates clinical hours. Most of the rest feed no hours bucket at all.
+Everything else the encounter does not supply goes under GAPS rather than being invented — with three exceptions, each generated by design and declared rather than reported missing: start and end times, which the Times convention estimates; **vitals and body measurements**, which are filled to the value the patient most plausibly had; and **age**, which is inferred and flagged at the top of `FILLED·asserted`. The field that justifies the caution is `Patient Time`: it feeds the NUR 5144 area breakdown, so a wrong band misallocates clinical hours. Most of the rest feed no hours bucket at all.
 
 ### 6. Emit the tier block
 
@@ -161,10 +188,12 @@ One FLAG per finding. Name the finding and name what was not done with it — `B
 **What never goes under GAPS:**
 
 - **Start and end times.** Estimated by design, and they say so where they appear. Estimated is a property of the value, not the absence of one.
+- **Vitals and body measurements.** Filled by design to the value the patient most plausibly had, and declared in FILLED.
+- **Age.** Inferred by design where the shorthand and the entry both lack it, and flagged at the top of `FILLED·asserted`.
 - **Primary Payment Method and Race/Ethnicity.** Both have declared rules and are filled, not missing.
 - **Anything the skill was instructed to generate.** Reporting your own compliance as a defect is what makes the block unreadable, and an unreadable block hides the real omissions.
 
-GAPS holds what the rubric needs and the encounter did not supply: an x-ray ordered with no result recorded, a missing age, a swab sent and never returned.
+GAPS holds what the rubric needs and the encounter did not supply: an x-ray ordered with no result recorded, a swab sent and never returned.
 
 ### 7. Check for drift
 
@@ -174,16 +203,19 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 
 | # | Test | Passes when |
 | --- | --- | --- |
-| 1 | **Invention** | Every abnormal, diagnosis and clinically meaningful value in the note traces to a given |
+| 1 | **Invention** | Every abnormal finding, diagnosis and result in the note traces to a given. Filled vitals and body measurements are exempt — they are declared in FILLED, not traced |
 | 2 | **Drift** | Every abnormal *in the shorthand* appears in the Assessment or the Plan |
-| 3 | **Measurements** | No laboratory value, imaging result or diagnostic finding is filled |
-| 4 | **Vitals** | Every vital outside the normal range for this age is addressed somewhere, not just recorded |
+| 3 | **Results** | No laboratory value, imaging result or diagnostic finding is filled. Vitals and body measurements are not results and do not fail this row |
+| 4 | **Vitals** | Every vital outside the normal range for this age is addressed somewhere, not just recorded — **filled vitals included**, with no exemption for being generated |
 | 5 | **Sig** | Every drug carries dose, route, frequency and duration |
 | 6 | **Red flags** | The return precautions name specific findings — *fever above 101, worsening flank pain, inability to keep fluids down* — never "red flags reviewed" |
 | 7 | **Drug names** | Each drug reads as the shorthand wrote it, trade or generic, unconverted |
-| 8 | **Band** | Patient Time follows Adult ≤ 59 / Gerontology ≥ 60 — overriding the Medatrax label's `Adult (18 – 60)` — with an obstetric or gynaecologic visit taking precedence. An unstated age fails this row; it never fills it |
+| 8 | **Band** | Patient Time follows Adult ≤ 59 / Gerontology ≥ 60 — overriding the Medatrax label's `Adult (18 – 60)` — with an obstetric or gynecologic visit taking precedence. An inferred age passes this row only if the inference is named on its own line in `FILLED·asserted` |
 | 9 | **Arithmetic** | Every derived value shows its working and recomputes correctly |
 | 10 | **Entry** | Every Medatrax field holds a given, a derived value, a declared value, or a GAPS entry |
+| 11 | **Conflict** | A conflict between givens — a drug against a documented condition, or a drug against a drug — is named in the Assessment or the Plan. No inferred medication resolves one, and no given medication is dropped to dissolve one |
+
+**Row 8 is worth a second look even when the age is given.** The clinician's own record puts an 82-year-old on `Adult`, and misses the gyn/obstetric override on every opportunity it has had. A stated age is not the same as a correct band.
 
 Row 2 carries the most weight and is the easiest to skip, because a drifting note reads perfectly well. Take each abnormal from step 2's expansion in turn and name where it lands. An abnormal that lands nowhere is either a diagnosis missing from the Assessment or a problem missing from the Plan — say which.
 

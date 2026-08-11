@@ -27,18 +27,18 @@ This skill collects the second kind. It is prompt-driven, not a script: explore,
 
 ### 2. Portal access
 
-Confirm the host. `np.medatrax.com` is the NP portal; `medatrax.com` is a different, anaesthesia-defaulted login; evaluations live on `evaluations.medatrax.com`. A clinician in another programme may be on a different host entirely.
+Confirm the host. `np.medatrax.com` is the NP portal; `medatrax.com` is a different, anesthesia-defaulted login; evaluations live on `evaluations.medatrax.com`. A clinician in another program may be on a different host entirely.
 
 **The agent never types credentials.** The clinician signs in themselves, or the password manager fills the form in their own browser. Confirm the session with `/login/patient.aspx` — the patient list means signed in, a bounce back to the form means signed out. `default.aspx` renders the same public page either way and proves nothing.
 
-### 3. Programme and hours
+### 3. Program and hours
 
 Ask, and record the answers rather than deriving them:
 
-- Which courses, and the documented hour requirement for each. **Medatrax's own Objectives page is not authoritative** — it was stale by 100 hours on one account. The programme's own hours breakdown is.
-- The area breakdown, if the course has one: family practice, paediatrics, obstetrics, gynaecology, geriatrics.
+- Which courses, and the documented hour requirement for each. **Medatrax's own Objectives page is not authoritative** — it was stale by 100 hours on one account. The program's own hours breakdown is.
+- The area breakdown, if the course has one: family practice, pediatrics, obstetrics, gynecology, geriatrics.
 - Whether prior hours carry, or the count starts from zero.
-- Course start and end dates, and any documentation deadline. One programme removes students from clinical if they fall more than 48 hours behind.
+- Course start and end dates, and any documentation deadline. One program removes students from clinical if they fall more than 48 hours behind.
 - The minimum number of H&P forms before SOAP becomes the clinician's choice.
 
 ### 4. Picklists — read them, do not assume them
@@ -83,8 +83,8 @@ Write the map's format and location into `scratch/medatrax-profile.md` so the ot
 Show a draft of `scratch/medatrax-profile.md` and `scratch/identity-map.md` and let the clinician edit before writing. Then write both, and tell them:
 
 - Which skills read the profile.
-- That `reference/medatrax-fields.md` holds the universal Medatrax behaviour and the profile holds everything about them — and that where the two disagree, **the profile wins.**
-- That re-running this skill is only needed to change accounts, courses or programme; the files can be edited directly otherwise.
+- That `reference/medatrax-fields.md` holds the universal Medatrax behavior and the profile holds everything about them — and that where the two disagree, **the profile wins.**
+- That re-running this skill is only needed to change accounts, courses or program; the files can be edited directly otherwise.
 
 ## Which skills need this
 
@@ -92,4 +92,4 @@ Following the same split as [ADR 0001](../../docs/adr/0001-fixture-asserts-on-na
 
 **Hard dependency — wrong without it, not merely vague.** Any skill emitting a Medatrax entry block, choosing a `Patient Time` band, naming a preceptor or site, or matching a patient to an existing record. That is [clinical-note](../clinical-note/SKILL.md) step 5 and [batch-shift](../batch-shift/SKILL.md) step 6.
 
-**Soft dependency.** The note body itself. A SOAP note is a SOAP note; it is sharper with the programme's rubric in view and it does not become wrong without it.
+**Soft dependency.** The note body itself. A SOAP note is a SOAP note; it is sharper with the program's rubric in view and it does not become wrong without it.

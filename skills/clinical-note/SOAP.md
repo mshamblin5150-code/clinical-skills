@@ -42,7 +42,7 @@ Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
 P:
 
-Nonpharm: <rest, hydration, counselling, red flags>
+Nonpharm: <rest, hydration, counseling, red flags>
 Pharm:
 <Generic name dose route frequency duration — one per line>
 Education: <technique, precautions, what was reviewed>
