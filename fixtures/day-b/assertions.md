@@ -26,18 +26,30 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 Same three verdicts as [day-a](../day-a/assertions.md): a difference from the submitted note is **better**, **worse**, or **neither**, and only *worse* is a regression. The `Reference did` columns below say which.
 
-**Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the set's own four FILLED rows** — B4 on case 4 outright, and B2 on case 8 given the warrant below. A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
+**Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the set's own four FILLED rows** — B4 on case 4 and B2 on case 8. A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
 
-### What "the reference filled it" rests on
+### The provenance question was asked, and it has no answer
 
-A submitted note does not say whether a value was measured at the visit or supplied at write-up. Nine of these twelve carry no vital in the shorthand and a complete vital set in the note, and reading that as *filled* is a step past what the note itself states. **Two of the four FILLED verdicts depend on that step and two do not**, which is worth separating rather than blurring:
+A submitted note does not say whether a value was measured at the visit or supplied at write-up, and these were typed 78 days after the shift. **The clinician was asked directly, 2026-08-11, and could not answer**: *"i probably made them up… i can't give you a real answer."*
 
-- **B3 and B4 are inference-free.** B3 asks what happened to a value *downstream* — Objective only, or named in the Assessment — and that is true of the value whatever its origin. B4 is about **given** vitals, where the shorthand supplies the value and the comparison is direct.
-- **B1 and B2 depend on the values being filled.** If case 8's 124/78 was measured at the bedside and merely transcribed late, it is a fact rather than a bland invention, and B2 has nothing to say about it.
+`reference/medatrax-fields.md` points the same way — every 2025 Fall and 2026 Spring encounter fills Height and BMI, *"inventing a height where the shorthand carries none"*, in his words *"the newer records everything is filled out."* That is a pattern, not a record of what happened at these nine bedsides, and no read of the portal will ever produce one.
 
-**The warrant is the clinician's own recorded practice, not a guess.** `reference/medatrax-fields.md` records that the 2025 Spring batch leaves Height and BMI blank while every 2025 Fall and 2026 Spring encounter fills both, *"inventing a height where the shorthand carries none"* — and quotes him directly: *"the newer records everything is filled out."* This shift is 2025 Fall.
+**So no row here may depend on the answer, and none does.** Every `Reference did` cell below is worded to hold whether the value was measured or invented:
 
-**It is a warrant, not proof, and the B2 verdict is where that matters.** Ask him if the row is ever contested.
+- **B1** asks only that something went in every box. True either way.
+- **B3** asks what happened to a value *downstream* — Objective only, or named in the Assessment. True of the value whatever its origin.
+- **B4** is about **given** vitals, where the shorthand supplies the value and the comparison is direct.
+- **B2 used to depend on it**, and was rewritten so it no longer does. See below.
+
+### B2 was wrong, and the clinician is what corrected it
+
+The row previously read: a hypertensive with no recorded pressure must not be given a *normal* one, on the rationale that hypertension makes a normal pressure implausible. Asked about case 8's 124/78, he answered: **"hell she may be compliant with her BP meds."**
+
+He is right, and it breaks the rationale. A treated, compliant hypertensive at 124/78 is not an implausible value — **it is the goal of the treatment.** A row demanding an abnormal pressure from every documented hypertensive was demanding an invented abnormal finding, which is the thing standing rule 2 exists to forbid. The set had it backwards.
+
+**B2 now has two exits and forbids only silence.** A filled pressure for a documented hypertensive may be abnormal, or it may be normal *and* the note says the hypertension is controlled or treated. What fails is a normal number with no account of why it is normal — because that is the run that picked 124/78 out of the air, and it is indistinguishable from the run that reasoned unless the note says so.
+
+**Case 2 is the in-corpus proof the passing form is writable.** A *given* 121/61 with the same `htn` history, and the Assessment reads `HTN, controlled (I10)`. That is the shape B2 now asks for.
 
 ## DRIFT — binary, all must pass
 
@@ -69,12 +81,14 @@ A third assertion class alongside DRIFT and REPORTED, defined in [fixtures/READM
 
 These four do not move with wording. Each resolves to a value or its absence — is there a blood pressure in the FILLED block, is it below 130 over 80, does the string naming it appear in the Assessment or the Plan, does the given value survive. Two runs can word case 9 completely differently and still agree on all four. That is the property that makes a bar enforceable, and it is why these are enforced where R9 was not.
 
-**The rows are about the skill's output, where "filled" is stated outright.** The `Reference did` cells are the looser half — the submitted note does not label its own values, so B1's and B2's verdicts rest on the warrant under *The reference is a baseline* above. B3's and B4's do not.
+**B2's second exit is the one word of judgment in the table**, and it is bounded: does the Assessment call the hypertension *controlled*, *treated*, *on therapy*, or name the medication. A code in a pre-existing list is not that, and neither is a monitoring instruction. Scoring it needs a reader, not a taste.
+
+**Grading the skill is easier than grading the reference**, because the skill's output labels its own filled values in the FILLED block and a submitted note does not. Every `Reference did` cell is written to hold either way — see *The provenance question* above.
 
 | # | Cases | Passes when | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
-| B1 | 1, 5, 6, 7, 8, 9, 10, 11, 12 | A case whose shorthand carries no vitals is given a **complete filled set** — blood pressure, respiratory rate, height and weight, with BMI derived from the last two — each declared in the FILLED block | Any of the four is left blank, reported under GAPS, or silently omitted | **Filled all nine, completely.** Blood pressure, pulse, respiratory rate, temperature, oxygen saturation, height, weight and a derived BMI on every one; not a single blank and nothing reported as missing. Matching this is *neither*; anything less is *worse*. |
-| B2 | 8 — 33 F, 9 — 44 F | The filled blood pressure for a patient with **documented hypertension** is **not normal** — normal being systolic below 130 *and* diastolic below 80 | A hypertensive with no recorded pressure is given a normal one | **Split — one each way.** Case 9: 132/84, above on both limbs, in a hypertensive with peripheral arterial disease. Case 8: **124/78 — normal, in a documented hypertensive**, which is this row's own failure condition. Matching case 9 is *neither*; beating case 8 is *better*. |
+| B1 | 1, 5, 6, 7, 8, 9, 10, 11, 12 | A case whose shorthand carries no vitals is given a **complete filled set** — blood pressure, respiratory rate, height and weight, with BMI derived from the last two — each declared in the FILLED block | Any of the four is left blank, reported under GAPS, or silently omitted | **Produced a complete set on all nine** — blood pressure, pulse, respiratory rate, temperature, oxygen saturation, height, weight and a derived BMI on every one. Not a blank, not a GAPS line. Whether he measured them or supplied them at write-up is unrecoverable and does not bear on this row: something went in every box. Matching this is *neither*; anything less is *worse*. |
+| B2 | 8 — 33 F, 9 — 44 F | The filled blood pressure for a patient with **documented hypertension** is either **not normal** — systolic 130 or above, *or* diastolic 80 or above — **or** normal *and* the Assessment names the hypertension as **controlled or treated** | A hypertensive with no recorded pressure is given a normal one and the note says nothing about why it is normal | **Split — one each way.** Case 9: 132/84, above on both limbs; passes on the first exit. Case 8: **124/78, and the hypertension appears only as `HTN I10` inside a pre-existing code list** — no medication, nothing calling it controlled or treated, and `BP monitors at home` in the Plan says to watch it rather than accounting for the number. Fails on both exits. Matching case 9 is *neither*; beating case 8 is *better*. |
 | B3 | 1, 5, 6, 7, 8, 9, 10, 11, 12 | Every **filled** vital or body measurement outside the normal range for that age is named in the Assessment or the Plan | It reaches the Objective and the FILLED block and stops | **Failed it everywhere it fired.** Four filled pressures landed outside normal — case 5 at 132/74, case 7 at 138/82, case 9 at 132/84, case 10 at 126/80 — and not one is named in an Assessment or a Plan. Case 9's filled **BMI of 37.8**, class II obesity, is not coded or mentioned anywhere at all. Naming them is *better*. |
 | B4 | 2, 3, 4 | Every **given** vital appears in the note unchanged, and no vital is filled over one the shorthand supplied | A recorded value is replaced, rounded, or duplicated by a generated one | **Failed on case 4.** The given `ht 6'2"` — 74 inches — was recorded as `6'1" (73 in)`, and the BMI of 26.4 is derived from the altered value rather than the given one. Cases 2 and 3 came through unchanged, every value. Beating case 4 is *better*. |
 
@@ -84,17 +98,19 @@ B3 is what [issue #8](https://github.com/mshamblin5150-code/clinical-skills/issu
 
 **B3 alone is passable by filling a bland value.** `clinical-note` requires that a filled vital be *"the value this patient most plausibly had … not from the middle of the normal range"*, and that one landing abnormal be worked up in full. But whether it lands abnormal is itself generated. A run that fills 118/76 for case 9 — 44, hypertensive, with peripheral arterial disease — has nothing abnormal to address, so B3 passes with nothing having been tested. The note that manufactured a bland vital scores identically to the one that reasoned.
 
-**B2 closes that, and is deterministic.** `clinical-note` sets normal below 130/80 and `corpus_census.py::is_normal_bp` encodes the same threshold as an explicit conjunction, so a split reading like 132/78 is unambiguously *not* normal and B2 fires on it. Checkable against the output text without judgment.
+**B2 closes that**, and its threshold is deterministic: `clinical-note` sets normal below 130/80 and `corpus_census.py::is_normal_bp` encodes the same as an explicit conjunction, so a split reading like 132/78 is unambiguously *not* normal.
+
+**What B2 does not do is demand an abnormal number**, and an earlier version of it did. A treated hypertensive at 124/78 is not implausible — that reading is what the treatment is *for* — so a row insisting on an abnormal pressure would have been ordering up an invented abnormal finding, exactly what standing rule 2 forbids. The bland-fill cheat is still real; what distinguishes it from good care is not the number but whether the note accounts for it. Hence the second exit, and hence the only thing B2 actually forbids: **a normal pressure in a hypertensive, unexplained.**
 
 **B2 alone is passable by filling nothing at all.** This is the same defect one level up, and it is the one worth stating plainly: B2 and B3 are both conditional on a value having been generated. A run that leaves case 9's blood pressure blank, or reports it under GAPS, has no filled pressure to be normal or abnormal — and passes both rows having tested nothing.
 
 **B1 closes that**, and it is the row the license itself demands: *"A value is required … Something has to go in the box."* Medatrax holds fields for blood pressure, respiratory rate, height and BMI, so those are what B1 names. It is the precondition the other two rest on, which is why it comes first.
 
-Cases 8 and 9 are B2's anchors — both carry `htn` in the history and neither carries a single vital. Case 9 is the stronger: hypertension plus peripheral arterial disease plus hyperlipidemia at 44 makes a normal pressure not merely unlikely but clinically incoherent.
+Cases 8 and 9 are B2's anchors — both carry `htn` in the history and neither carries a single vital. Case 9 is the stronger: hypertension plus peripheral arterial disease plus hyperlipidemia at 44 makes an *unexplained* normal pressure incoherent. Not an impossible one — she could be well controlled — but a note that produces 118/76 for her and then says nothing about how she got there has not reasoned, it has guessed.
 
-**The reference read confirms the chain was not theoretical.** The clinician cleared B1 on all nine, then produced exactly the two failures the chain predicts: a bland pressure for a hypertensive (case 8, B2) and four abnormal filled pressures that reach the Objective and stop (B3). Both were written into this set before the reference was read, from the input alone. Both fired.
+**The reference read confirms the chain was not theoretical.** The clinician cleared B1 on all nine, then produced the two failures the chain predicts: an unaccounted-for normal pressure in a hypertensive (case 8, B2) and four abnormal filled pressures that reach the Objective and stop (B3). Both rows were written into this set from the inputs before the reference was read. Both fired.
 
-**B1 and B3 still leave the other seven cases vacuous-passable on the vital half.** Cases 1, 5, 6, 7, 10, 11 and 12 must now be filled completely, but nothing forces any of those filled values abnormal, so B3 can pass on them without firing. Only cases 8 and 9 are forced. That is a narrower hole than before and it is not closed — closing it needs a documented condition per case that makes a normal value implausible, which these seven do not supply.
+**B1 and B3 still leave the other seven cases vacuous-passable on the vital half.** Cases 1, 5, 6, 7, 10, 11 and 12 must now be filled completely, but nothing forces any of those filled values abnormal, so B3 can pass on them without firing. Only cases 8 and 9 are reached at all, and B2 no longer forces even those to be abnormal — it forces them to be *explained*. That is a narrower hole than before and it is not closed.
 
 ### Case 2's height: resolved, and B4 now covers it
 
@@ -114,7 +130,7 @@ Issue #8 asked for both halves — a filled vital and a filled body measurement 
 
 **Not delivered:** nothing forces it to land abnormal, and that gap is real rather than an oversight:
 
-- Hypertension is documented, and it makes a normal blood pressure affirmatively implausible. That is what B2 rests on.
+- Hypertension is documented, so a normal pressure is a thing the note owes an account of. That is what B2 rests on — not that the pressure must be high.
 - **No condition in these twelve does the same for BMI.** Cases 5 and 10 carry diabetes, which raises the odds of an obese BMI without requiring one. A row demanding an obese BMI from a documented diabetic would be demanding an invented abnormal finding — the thing standing rule 2 exists to forbid.
 
 So a run can satisfy this set while never generating an abnormal BMI at all. Closing it needs a case whose shorthand documents obesity without a weight, and none of these twelve does.
@@ -133,6 +149,7 @@ The inputs cannot test any of these: they carry no visit date, no portal entry f
 
 ## Still unresolved
 
+- **`clinical-note` still says what B2 stopped saying.** [SKILL.md](../../skills/clinical-note/SKILL.md) reads *"A known hypertensive seen for a productive cough gets a hypertensive pressure"* — the rule B2 was written to fixture, and the one the clinician's *"she may be compliant with her BP meds"* contradicts. The same file also tells the skill to **infer a likely regimen** where a hypertensive history carries no `meds:` line, and to propose *"lisinopril where the history carries hypertension"*. So it currently instructs the skill to put a patient on an ACE inhibitor and then hand her a hypertensive pressure anyway. **B2 was changed and the skill rule was not**, deliberately: rewriting a clinical rule is the clinician's call and it would ripple into `peds-bp` and drift row 4. Filed as [#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23).
 - **The set has never been run.** Until it is, `DRIFT n/n` and `FILLED n/n` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
 - **Cases 6 and 12 are 17 and 16, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) turned out not to reach them.** That issue asked whether a filled pediatric vital should be filled at all, and pointed here for the fixture. The corpus answered the boundary question first: measured 2026-08-11, a blood pressure going missing from a vital line that was otherwise written happens **only under 6** — every band from 9 up produces not one instance, and a 16-year-old is transcribed exactly like an adult. So these two are adolescent only in the sense that their filled values must suit their age, which B1 already demands. The ruling — filled, no exception — is fixtured in [peds-bp](../peds-bp/assertions.md), whose cases are young enough to test it.
 
