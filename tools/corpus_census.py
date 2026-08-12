@@ -1,9 +1,11 @@
-"""Recompute the measured claims asserted in prose in skills/clinical-note/SKILL.md.
+"""Recompute the measured claims this repo asserts in prose.
 
-Five claims in that file are counts over the clinician's shorthand corpus. They are
-load-bearing — rulings have turned on them — and until this script existed none of
-them could be re-derived. Run it when a claim is about to be relied on again, or
-when the corpus grows:
+Five of them are in skills/clinical-note/SKILL.md and a sixth is in
+fixtures/obesity-bmi, where the counts are what justify a fixture set existing at
+all. All are counts over the clinician's shorthand corpus, all are load-bearing —
+rulings have turned on them — and until this script existed none could be
+re-derived. Run it when a claim is about to be relied on again, or when the
+corpus grows:
 
     python tools/corpus_census.py [path-to-day-files]
 
@@ -89,6 +91,54 @@ HEIGHT = re.compile(
 )
 WEIGHT = re.compile(r"(?i)\b(?:wt|weight)\b|\bwt\s*\d|\b\d{2,3}\s?lbs?\b")
 OTHER_VITALS = re.compile(r"(?i)\b(?:hr|pulse|rr|spo2|sao2|temp)\b|\bt\s*\d{2,3}(?:\.\d)?\b")
+
+# Documented obesity, and the two things adjacent to it. Added for issue #15,
+# which turns on whether the corpus holds a case that can anchor a row about a
+# *filled* BMI -- one whose shorthand documents obesity and supplies no body
+# measurement to derive the BMI from.
+#
+# The three markers stay separate because they are not the same claim:
+#
+# - ``OBESITY`` is the anchor. The word is written, so a filled BMI below 30
+#   contradicts a given.
+# - ``BARIATRIC`` is the control. A post-surgical history documents a *past*
+#   obesity, which is exactly where a sub-30 BMI is plausible and accountable.
+#   Folding it into OBESITY would lose the distinction ``fixtures/obesity-bmi``
+#   is built on.
+# - ``SLEEP_APNEA`` associates with obesity and entails none of it. It is
+#   counted so the set's README can say what it left out and be checked on it.
+#
+# The leading ``\b`` is load-bearing and was learned the hard way: a bare
+# ``obes`` matches inside **lobes**, and this clinician writes lung fields in
+# almost every note. "crackles in the bilateral upper lobes" counted as a
+# documented obesity until 2026-08-11 and inflated the very figure issue #15
+# turned on.
+#
+# No negation guard is carried. ``\bobes`` matches whatever word precedes it, so
+# "no obesity" would count -- and audited 2026-08-11 the corpus contains no
+# negated form among the encounters that write the token, so a guard would be
+# exercised by nothing. This is the line to change if one appears.
+OBESITY = re.compile(r"(?i)\bobes")
+
+# The procedures are spelled several ways and hyphenated inconsistently, so the
+# separator is ``[ -]?`` rather than ``.`` -- a dot would match any character at
+# all and let "lapXband" through, which is looser than anything the corpus needs.
+# Every alternative is leading-``\b``-anchored on the same reasoning that fixed
+# OBESITY above: a three- or four-letter token with no boundary hides inside
+# longer words, and this corpus is where that was learned.
+BARIATRIC = re.compile(
+    r"(?i)\bbariatric|\bgastric bypass|\bsleeve gastrectomy|\blap[ -]?band"
+    r"|\broux[ -]?en[ -]?y"
+)
+
+# Counted only so the set that leaves these encounters out can say how many it
+# left out and be checked on it -- OSA associates with obesity and entails none
+# of it. ``osa`` and ``cpap`` need their boundaries for the reason above;
+# ``apnea`` gets one for consistency rather than against a known decoy. The
+# British ``apnoea`` is deliberately not carried: this is an American corpus,
+# the spelling appears in it zero times, and an alternative matched by nothing
+# is one nothing can catch going wrong.
+SLEEP_APNEA = re.compile(r"(?i)\bosa\b|\bcpap\b|\bapnea")
 
 # ``y\.?/?o\.?[mf]\b`` is the run-together form -- "45yof", "45y/om" -- where the
 # sex letter is welded to the token and defeats the trailing ``\b`` after "o",
@@ -177,6 +227,28 @@ def has_other_vitals(note: str) -> bool:
     return bool(OTHER_VITALS.search(note))
 
 
+def has_body_measurement(note: str) -> bool:
+    """A height or a weight -- either one makes a BMI partly given.
+
+    Named separately from ``has_any_vital`` because a BMI needs both, and an
+    encounter carrying one of them is not a case where the whole measurement had
+    to be invented.
+    """
+    return has_height(note) or has_weight(note)
+
+
+def has_documented_obesity(note: str) -> bool:
+    return bool(OBESITY.search(note))
+
+
+def has_bariatric_history(note: str) -> bool:
+    return bool(BARIATRIC.search(note))
+
+
+def has_sleep_apnea(note: str) -> bool:
+    return bool(SLEEP_APNEA.search(note))
+
+
 def has_any_vital(note: str) -> bool:
     return has_bp(note) or has_height(note) or has_weight(note) or has_other_vitals(note)
 
@@ -252,6 +324,12 @@ class Census:
     with_dob: int = 0
     with_both_age_and_dob: int = 0
     with_neither: int = 0
+    with_obesity: int = 0
+    obesity_no_measurement: int = 0
+    with_bariatric: int = 0
+    bariatric_no_measurement: int = 0
+    with_sleep_apnea: int = 0
+    sleep_apnea_no_measurement: int = 0
 
     @property
     def without_bp(self) -> int:
@@ -271,8 +349,20 @@ def survey(notes: list[str]) -> Census:
     bp_n = height_n = weight_n = other_n = no_vital_n = 0
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
     age_n = dob_n = both_n = neither_n = 0
+    obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
 
     for note in notes:
+        measured = has_body_measurement(note)
+        if has_documented_obesity(note):
+            obes_n += 1
+            obes_bare_n += not measured
+        if has_bariatric_history(note):
+            bar_n += 1
+            bar_bare_n += not measured
+        if has_sleep_apnea(note):
+            osa_n += 1
+            osa_bare_n += not measured
+
         bp, height, weight = has_bp(note), has_height(note), has_weight(note)
         other, age, dob = has_other_vitals(note), has_stated_age(note), has_dob(note)
 
@@ -306,6 +396,12 @@ def survey(notes: list[str]) -> Census:
         with_dob=dob_n,
         with_both_age_and_dob=both_n,
         with_neither=neither_n,
+        with_obesity=obes_n,
+        obesity_no_measurement=obes_bare_n,
+        with_bariatric=bar_n,
+        bariatric_no_measurement=bar_bare_n,
+        with_sleep_apnea=osa_n,
+        sleep_apnea_no_measurement=osa_bare_n,
     )
 
 
@@ -414,6 +510,13 @@ def format_report(
         f"  readings              {c.readings:>5}",
         f"  normal                {c.readings_normal:>5}  "
         f"{_pct(c.readings_normal, c.readings)}",
+        "",
+        'claim: "the corpus holds a case that can anchor a filled-BMI row"',
+        "  (fixtures/obesity-bmi; issue #15. no ht and no wt is the fixturable shape)",
+        "                        any  no ht/wt",
+        f"  obesity written     {c.with_obesity:>5}  {c.obesity_no_measurement:>9}",
+        f"  bariatric history   {c.with_bariatric:>5}  {c.bariatric_no_measurement:>9}",
+        f"  sleep apnea / cpap  {c.with_sleep_apnea:>5}  {c.sleep_apnea_no_measurement:>9}",
     ]
     lines += ["", *format_band_report(bands)]
     return "\n".join(lines)

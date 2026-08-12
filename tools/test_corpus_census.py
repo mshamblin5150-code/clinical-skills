@@ -210,6 +210,112 @@ class OtherVitals(unittest.TestCase):
         self.assertFalse(cc.has_any_vital("cc: cough x 2 days\nallergy nkda"))
 
 
+class DocumentedObesity(unittest.TestCase):
+    """The markers behind the counts issue #15 turned on.
+
+    A row demanding that a *filled* BMI be consistent with a documented obesity
+    needs a case whose shorthand documents one. day-b has none, so the figures
+    naming how many the corpus holds are what justify ``fixtures/obesity-bmi``
+    existing at all -- and an extractor that quietly stopped matching would leave
+    that justification asserting a number nobody could recompute.
+    """
+
+    def test_obesity_in_a_history_line(self):
+        self.assertTrue(cc.has_documented_obesity("hx: htn, obesity, gerd"))
+
+    def test_the_adjective_counts_too(self):
+        self.assertTrue(cc.has_documented_obesity("exam: obese female, nad"))
+
+    def test_morbid_obesity(self):
+        self.assertTrue(cc.has_documented_obesity("hx morbid obesity, osa"))
+
+    def test_absent(self):
+        self.assertFalse(cc.has_documented_obesity("hx: dm, copd, prostate ca"))
+
+    def test_a_lung_lobe_is_not_an_obesity(self):
+        """The decoy that was live in the corpus, not a hypothetical one.
+
+        ``obes`` with no leading boundary matches inside "lobes", and the
+        clinician writes lung fields constantly: "crackles in the bilateral
+        upper lobes" counted as documented obesity until 2026-08-11. It
+        inflated the corpus figure this whole fixture set is justified by,
+        which is the silent wrong number this file exists to prevent.
+        """
+        self.assertFalse(cc.has_documented_obesity("crackles in the bilateral upper lobes"))
+        self.assertFalse(cc.has_documented_obesity("wheezing in the b/l lower lobes"))
+
+    def test_a_negated_obesity_is_not_excluded(self):
+        """Stated rather than asserted, because there is nothing to exclude.
+
+        ``\bobes`` matches whatever word precedes it, so "no obesity" would
+        count. A negation guard is not carried: audited 2026-08-11, the corpus
+        contains zero negated forms among the encounters that write the token,
+        so the guard would be exercised by nothing and could break silently in
+        either direction. This is the line to change if one appears.
+
+        **No count is quoted here on purpose.** An earlier draft said "the five
+        encounters", which was the pre-``\b`` figure and stayed behind when the
+        lobes decoy dropped it. A number in a docstring is one nothing
+        recomputes; ``corpus_census.py`` prints the live one.
+        """
+        self.assertTrue(cc.has_documented_obesity("denies obesity"))  # by design
+
+    def test_bariatric_surgery(self):
+        for shorthand in (
+            "hx gastric bypass 2016",
+            "s/p bariatric surgery",
+            "hx: sleeve gastrectomy, chole",
+            "lap band placed, then removed",
+            "s/p roux-en-y",
+        ):
+            with self.subTest(shorthand=shorthand):
+                self.assertTrue(cc.has_bariatric_history(shorthand))
+
+    def test_bariatric_absent(self):
+        self.assertFalse(cc.has_bariatric_history("hx: chole, btl, d&c"))
+
+    def test_bariatric_is_not_obesity(self):
+        """The two markers are deliberately separate, and O2 rests on the split.
+
+        A post-bypass patient is where a sub-30 BMI is *plausible and
+        accountable* -- the second exit -- while a written "obesity" is where an
+        unexplained sub-30 BMI is the defect. Folding them into one marker would
+        lose the distinction the set is built on.
+        """
+        self.assertFalse(cc.has_documented_obesity("s/p gastric bypass"))
+        self.assertFalse(cc.has_bariatric_history("hx: obesity"))
+
+    def test_sleep_apnea(self):
+        for shorthand in ("hx osa", "uses cpap nightly", "obstructive sleep apnea"):
+            with self.subTest(shorthand=shorthand):
+                self.assertTrue(cc.has_sleep_apnea(shorthand))
+
+    def test_osa_needs_its_own_word(self):
+        # The token is three letters and would otherwise fire inside a longer one.
+        self.assertFalse(cc.has_sleep_apnea("hx: rosacea, gerd"))
+
+    def test_body_measurement_is_the_union_of_height_and_weight(self):
+        self.assertTrue(cc.has_body_measurement("ht 5'4\" wt 212 lbs"))
+        self.assertTrue(cc.has_body_measurement("wt 212"))
+        self.assertTrue(cc.has_body_measurement("36in"))
+        self.assertFalse(cc.has_body_measurement("bp 142/88 hr 79 t 98.1"))
+
+    def test_the_survey_counts_the_qualifying_shape(self):
+        """Documented obesity *and* no body measurement -- the fixturable case."""
+        c = cc.survey(
+            [
+                "hx: obesity, htn\ncc: cough",          # qualifies
+                "hx: obesity\nht 5'4\" wt 240",          # documented, measured
+                "hx: gastric bypass\ncc: sore throat",   # bariatric, qualifies
+                "hx: dm\ncc: rash",                      # neither
+            ]
+        )
+        self.assertEqual(c.with_obesity, 2)
+        self.assertEqual(c.obesity_no_measurement, 1)
+        self.assertEqual(c.with_bariatric, 1)
+        self.assertEqual(c.bariatric_no_measurement, 1)
+
+
 class Age(unittest.TestCase):
     def test_years_spelled_out(self):
         self.assertTrue(cc.has_stated_age("48 year old F"))
@@ -464,6 +570,80 @@ class PedsBpIsTheSelectiveAbsenceSet(unittest.TestCase):
         note = peds_bp(3)
         self.assertTrue(cc.has_height(note))
         self.assertIn("99.9th percentile", note)
+
+
+class ObesityBmiIsTheDocumentedObesitySet(unittest.TestCase):
+    """Guards the property every obesity-bmi assertion rests on.
+
+    Two properties, and O2 needs both. The set's cases must carry **no body
+    measurement**, so the BMI under test is wholly invented -- a weight alone
+    would be enough to void it, because a given weight plus a filled height
+    makes the arithmetic partly real. And the anchors must document obesity
+    while the controls must not: fold those two groups together and the row
+    loses the distinction between "a BMI below 30 contradicts a given" and "a
+    BMI below 30 is exactly what a successful bypass looks like".
+    """
+
+    OBESITY_BMI = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+    ANCHORS = (1, 2)      # the shorthand writes "obese" / "obesity"
+    CONTROLS = (3, 4)     # a bariatric history, and no claim about today
+
+    def case(self, number: int) -> str:
+        return (self.OBESITY_BMI / f"case-{number:02d}.md").read_text(encoding="utf-8")
+
+    def test_the_set_has_four_cases(self):
+        self.assertEqual(len(sorted(self.OBESITY_BMI.glob("case-*.md"))), 4)
+
+    def test_every_case_is_exactly_one_note(self):
+        for path in sorted(self.OBESITY_BMI.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertEqual(len(cc.split_notes(path.read_text(encoding="utf-8"))), 1)
+
+    def test_no_case_carries_a_body_measurement(self):
+        """The row under test is about a BMI with no given input at all."""
+        for n in self.ANCHORS + self.CONTROLS:
+            with self.subTest(case=n):
+                self.assertFalse(cc.has_body_measurement(self.case(n)))
+
+    def test_no_case_carries_any_vital(self):
+        for n in self.ANCHORS + self.CONTROLS:
+            with self.subTest(case=n):
+                self.assertFalse(cc.has_any_vital(self.case(n)))
+
+    def test_the_anchors_document_obesity(self):
+        for n in self.ANCHORS:
+            with self.subTest(case=n):
+                self.assertTrue(cc.has_documented_obesity(self.case(n)))
+
+    def test_the_controls_document_a_bariatric_history_and_not_an_obesity(self):
+        for n in self.CONTROLS:
+            with self.subTest(case=n):
+                note = self.case(n)
+                self.assertTrue(cc.has_bariatric_history(note))
+                self.assertFalse(cc.has_documented_obesity(note))
+
+    def test_the_anchors_carry_no_bariatric_history(self):
+        """Otherwise O2's second exit would be available on every case."""
+        for n in self.ANCHORS:
+            with self.subTest(case=n):
+                self.assertFalse(cc.has_bariatric_history(self.case(n)))
+
+    def test_every_case_states_an_age(self):
+        """Including case 2, whose age was derived before its birth date came out."""
+        for n in self.ANCHORS + self.CONTROLS:
+            with self.subTest(case=n):
+                self.assertIsNotNone(cc.age_in_years(self.case(n)))
+
+    def test_no_case_carries_a_date_of_birth(self):
+        for n in self.ANCHORS + self.CONTROLS:
+            with self.subTest(case=n):
+                self.assertFalse(cc.has_dob(self.case(n)))
+
+    def test_the_split_is_the_whole_set(self):
+        numbers = [
+            int(p.stem.split("-")[1]) for p in sorted(self.OBESITY_BMI.glob("case-*.md"))
+        ]
+        self.assertEqual(numbers, sorted(self.ANCHORS + self.CONTROLS))
 
 
 class Bands(unittest.TestCase):
