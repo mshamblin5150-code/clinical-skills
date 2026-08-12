@@ -13,6 +13,10 @@ HPI (OLDCARTS):
 Onset, Location, Duration, Character, Aggravating, Relieving, Timing, Severity
 <one line, semicolon separated. All eight carry a value and severity is N/10;
  then pertinent negatives the shorthand states>
+<Onset and Duration may name more than one symptom's timeline, each written
+ duration-first as "<duration> for <symptoms>". Their clauses take a comma
+ here, never a semicolon — that is the element separator on this line.
+ See SKILL.md>
 
 Allergies (reaction): <allergen - reaction; NKDA if none>
 Home meds: <drug dose route frequency (reason for taking)>

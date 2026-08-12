@@ -28,6 +28,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from typing import NamedTuple
 
 import corpus_census as cc
 
@@ -74,6 +75,35 @@ DAY_B_SEVERITY_NONZERO = (6, 9)  # B8's anchors. Case 3 itches rather than hurts
 DAY_B_B9 = (1, 3, 5, 6, 7, 8, 9, 10, 11, 12)
 NO_PAIN = r"(?i)\bno pain\b"
 
+# B10 and B11's anchors, for issue #33: the two cases that hang one duration off
+# a multi-symptom chief complaint and then date a *different* symptom to
+# yesterday. Both values each case must keep are named rather than positional --
+# ``[1]`` never says *second onset statement* -- because the two limbs of the
+# rule divide on a property of that second string. Case 8 writes ``right
+# earache``, so attaching it is reading; case 9 writes ``this``, so attaching it
+# rests on the ``is worse`` marker beside it and is an inference B11 declares.
+class Timelines(NamedTuple):
+    cc_duration: str
+    second_onset: str
+
+
+DAY_B_TWO_TIMELINES = {
+    8: Timelines("x 2 days", "right earache yesterday"),
+    9: Timelines("x 2 days", "states this started yesterday"),
+}
+
+# The other two cases that state a timeline twice and state the *same* one both
+# times, which is why B10 sits on 8 and 9 rather than on all four. Case 12's
+# second statement carries the ``saturdy`` typo, so both halves match on a
+# prefix rather than on the whole word.
+DAY_B_TIMELINES_AGREE = {4: "x 5 days", 12: "started saturd"}
+
+# The span form row 16 falls back to when one symptom carries two durations is
+# the clinician's own idiom rather than this repo's invention, and case 11 is
+# where day-b writes it. Asserted because ``clinical-note`` rests the rule's
+# residual limb on that claim in prose.
+DAY_B_SPAN_IDIOM = (11, ("11-12 yrs ago", "3-4 days"))
+
 # peds-bp keeps its source shift's numbering, so the gaps are the omitted cases.
 PEDS_BP_CASES = (2, 3, 5, 8, 9)
 PEDS_BP_VITAL_LINE = (3, 5)  # a structured line was written; only the BP is missing
@@ -90,6 +120,30 @@ def fixture(name: str) -> str:
 
 def day_b(number: int) -> str:
     return (DAY_B / f"case-{number:02d}.md").read_text(encoding="utf-8")
+
+
+def day_b_line(number: int, prefix: str) -> str:
+    """The first line of a day-b input starting with ``prefix``, lowercased.
+
+    Crude in the same way ``day_b_plan`` is, and for the same reason: the two
+    duration rows turn on *where* a timeline was written, so a whole-file
+    substring test would score a chief complaint and a narrative onset as the
+    same statement. These twelve write one ``cc`` line and one ``exam`` line
+    each, which is the whole structure this needs. Case 12 punctuates its exam
+    line with a period rather than a colon, so the prefix carries neither.
+    """
+    for line in day_b(number).splitlines():
+        if line.strip().lower().startswith(prefix):
+            return line.lower()
+    return ""
+
+
+def day_b_cc(number: int) -> str:
+    return day_b_line(number, "cc")
+
+
+def day_b_exam(number: int) -> str:
+    return day_b_line(number, "exam")
 
 
 def day_b_plan(number: int) -> str:
@@ -1216,6 +1270,86 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
             sorted(tuple(DAY_B_PAIN_SCORE) + DAY_B_NO_PAIN + DAY_B_SEVERITY_FILLED),
             list(range(1, 13)),
         )
+
+    def test_the_two_duration_anchors_state_a_timeline_twice(self):
+        """B10's ground: a chief complaint duration and a later onset that differ.
+
+        Both cases hang ``x 2 days`` off the end of a multi-symptom chief
+        complaint and then date one symptom to yesterday. Remove either half of
+        either case and B10 passes on a note that never attributed anything.
+        """
+        for n, timelines in DAY_B_TWO_TIMELINES.items():
+            with self.subTest(case=n):
+                self.assertIn(timelines.cc_duration, day_b_cc(n))
+                self.assertIn(timelines.second_onset, day_b_exam(n))
+                self.assertNotIn(timelines.second_onset, day_b_cc(n))
+
+    def test_case_eight_names_the_symptom_its_second_onset_belongs_to(self):
+        """B10's first limb: the onset line names its own symptom.
+
+        ``right earache yesterday`` needs no referent resolved -- the duration
+        is written next to the thing it describes, so attaching it is reading
+        rather than inferring, and B11 does not reach this case. The earache is
+        also what the shorthand's own ``right AOM`` rests on, so a run that
+        folded it into the chief complaint's two days would misdate the
+        diagnosis.
+        """
+        self.assertIn("earache", DAY_B_TWO_TIMELINES[8].second_onset)
+        self.assertIn("right aom", day_b(8).lower())
+
+    def test_case_nine_uses_a_pronoun_and_supplies_the_marker(self):
+        """B11's ground, and it is two properties rather than one.
+
+        The onset line names no symptom -- ``states this started yesterday`` --
+        so the attribution rests entirely on ``pain inface is worse`` in the
+        next clause. Delete the marker and the pronoun means the whole illness,
+        which is a genuine conflict and a different rule; add a symptom name and
+        the case stops testing B11 and becomes a second case 8.
+        """
+        onset = DAY_B_TWO_TIMELINES[9].second_onset
+        self.assertIn("this started yesterday", onset)
+        for symptom in ("pain", "sinus", "congestion", "cough", "sneeze"):
+            with self.subTest(symptom=symptom):
+                self.assertNotIn(symptom, onset)
+        self.assertIn("pain inface is worse", day_b_exam(9))  # typo preserved
+
+    def test_the_two_restating_cases_agree_and_are_not_rows(self):
+        """Cases 4 and 12 restate a timeline and state the same one twice.
+
+        They are why B10 sits on 8 and 9 rather than on every case that says a
+        duration twice: a run that ignored the rule entirely would still write
+        the right number here, so neither case can separate a run that
+        attributed from one that copied. Asserted so an edit that made either
+        disagree gets noticed as the new row it would be.
+
+        Case 12's second statement carries the ``saturdy`` typo, which is why
+        both halves are matched on a prefix rather than on the whole word.
+        """
+        for n, token in DAY_B_TIMELINES_AGREE.items():
+            with self.subTest(case=n):
+                self.assertIn(token, day_b_cc(n))
+                self.assertIn(token, day_b_exam(n))
+
+    def test_the_four_timeline_cases_are_the_whole_of_them(self):
+        """B10's two and the two that agree do not overlap, and nothing else states one twice."""
+        self.assertEqual(
+            sorted(set(DAY_B_TWO_TIMELINES) | set(DAY_B_TIMELINES_AGREE)), [4, 8, 9, 12]
+        )
+        self.assertFalse(set(DAY_B_TWO_TIMELINES) & set(DAY_B_TIMELINES_AGREE))
+
+    def test_the_span_form_is_the_clinicians_own(self):
+        """`clinical-note` rests row 16's residual limb on this, so assert it.
+
+        The rule says a same-symptom duration conflict is written as a span
+        containing both endpoints, and argues that this is his idiom rather than
+        a shape invented here. Case 11 is where day-b writes it -- twice, on two
+        different scales -- and the claim breaks loudly if that input is edited.
+        """
+        case, spans = DAY_B_SPAN_IDIOM
+        note = day_b(case).lower()
+        for span in spans:
+            with self.subTest(span=span):
+                self.assertIn(span, note)
 
 
 class AgeInYears(unittest.TestCase):
