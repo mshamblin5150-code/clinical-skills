@@ -289,6 +289,29 @@ So `VS: BP 138/86 · HR 88 · T 98.8 F` is written `VS: BP 138/86, HR 88, T 98.8
 
 It binds both branches, which is why it lives here rather than in either template. Both were swept when it was added: [SOAP.md](SOAP.md) did not merely permit the arrow, it **specified** it — `Ht, Wt → BMI`. A convention that contradicts the template it governs loses. Issue #31.
 
+### Spelling
+
+**American English, always.** His ruling, and it is unconditional. These are notes for an American program, read by American faculty, and a British spelling reads as a note written by somebody else.
+
+| Never | Always |
+| --- | --- |
+| `dyspnoea`, `apnoea`, `anaemia`, `haemoglobin`, `oedema`, `diarrhoea`, `paediatric` | `dyspnea`, `apnea`, `anemia`, `hemoglobin`, `edema`, `diarrhea`, `pediatric` |
+| `caesarean` | `cesarean` |
+| `sulphate`, `nebuliser`, `catheterise` | `sulfate`, `nebulizer`, `catheterize` |
+| `millilitre`, `centimetre`, `litre`, `fibre` | `milliliter`, `centimeter`, `liter`, `fiber` |
+| `grey`, `behaviour`, `colour`, `tumour` | `gray`, `behavior`, `color`, `tumor` |
+| `labelled`, `recognisable`, `programme`, `licence` | `labeled`, `recognizable`, `program`, `license` |
+
+**Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not paracetamol, `epinephrine` not adrenaline, `albuterol` not salbutamol, `ferrous sulfate` not ferrous sulphate. A clinician reading the other name has to translate it before they can check the dose.
+
+**Wider scope than the punctuation rule above, and the difference is deliberate.** That one governs the note body only. This one governs **everything** — the note body, the tier blocks, the Medatrax fields, the file names, and prose about the skill including this file. There is no place a British spelling is correct here, so there is no place to carve out.
+
+**About the output, not the input.** A British spelling arriving in the shorthand is normalized on the way out like any other spelling variant — the same treatment [GLOSSARY.md](GLOSSARY.md) gives `cetrazine`. It is not a hedge and it is not a number, so nothing in *Given* protects it.
+
+**Thirteen of the forms above were written by this repo**, and that is why the rule is here rather than assumed. Five came from [GLOSSARY.md](GLOSSARY.md)'s own expansion tables — `nebuliser`, `sulphate`, `millilitres`, `centimetres`, `caesarean` — which is where a wrong spelling does the most damage, because the skill copies an expansion into a note by design. Seven more came from a `clinical-note` run — `dyspnoea`, `fibre`, `grey`, `behaviour`, `labelled`, `recognisable`, `programme`, across four of the twelve notes in `fixtures/filled-anchor/notes/`, which also repeats `caesarean`. The thirteenth is `licence`, in `fixtures/peds-bp/assertions.md`. All were corrected 2026-08-12 **except the run's**, which are preserved because that set is a byte-for-byte record of what a run produced and correcting it would falsify the evidence. Issue #73.
+
+The remaining rows are the same families, listed to be caught before they are written rather than after. One deliberate exception: `tools/corpus_census.py` writes `apnoea` in a comment explaining that the spelling is *not* matched, which is a mention rather than a use — leave it.
+
 ### Times
 
 Ask up front, once per day file, and reuse for every encounter in it:
