@@ -134,7 +134,7 @@ Emitted in the field order of [reference/medatrax-fields.md](../../reference/med
 | Gender | `Female` (given) |
 | Age + unit | `16` `Years` (given) |
 | Marital status at first contact | `Single` (age 16) |
-| Primary Payment Method | `Medicaid` (declared, pediatric patient under the Welch pattern). The site is a GAPS, so the site-keyed rule could not be applied; if this was Bluestone the value is `Self-pay/other`. Correct on sight. |
+| Primary Payment Method | `Medicaid` (declared, pediatric patient under the [SITE-B] pattern). The site is a GAPS, so the site-keyed rule could not be applied; if this was [SITE-A] the value is `Self-pay/other`. Correct on sight. |
 | Case Type | `ENT` (given: sinusitis, pharyngitis, cervical lymphadenopathy) |
 | Patient Time | `Pediatric (0 – 17) Hours` (derived from age 16). See the row 8 verdict for the gynecologic-override ruling. |
 | Start time | `17:50` (estimated) |
@@ -215,7 +215,7 @@ FILLED·asserted   VITALS AND MEASUREMENTS, each carrying its value as written i
                       region is a documentation defect rather than evidence of normality.
                   22. Race/Ethnicity: Caucasian/White. Declared default, wrong about once in
                       four, correct on sight.
-                  23. Primary Payment Method: Medicaid. Declared under the Welch pediatric
+                  23. Primary Payment Method: Medicaid. Declared under the [SITE-B] pediatric
                       pattern; the Site is a GAPS, so the site key could not be applied and
                       this needs a glance.
                   24. Start time 17:50 and End time 18:20, estimated by the Times convention

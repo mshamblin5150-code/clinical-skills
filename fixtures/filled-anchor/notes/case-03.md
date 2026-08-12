@@ -236,7 +236,7 @@ Per-encounter fields table.)*
 | Gender | Female |
 | Age + unit | 57 Years |
 | Marital status at first contact | Married — inferred from age |
-| Primary Payment Method | Medicaid — declared starting value, **wrong about two times in five. Confirm.** The site pattern (Bluestone → Self-pay/other; Welch → Medicaid / Commercial / Medicare) could not be keyed, because Site is a GAP. No work-related injury is documented, so `Worker's comp` does not apply. |
+| Primary Payment Method | Medicaid — declared starting value, **wrong about two times in five. Confirm.** The site pattern ([SITE-A] → Self-pay/other; [SITE-B] → Medicaid / Commercial / Medicare) could not be keyed, because Site is a GAP. No work-related injury is documented, so `Worker's comp` does not apply. |
 | Case Type | Dermatology |
 | Patient Time | **Adult (18 – 60) Hours** — age 57, and the visit is dermatologic, so no gynecologic or obstetric override applies. The total hysterectomy is history, not the reason for this visit. |
 | Start time / End time | **09:50 – 10:20 (estimated)** — encounter 3 of a 12-encounter walk-in shift starting 08:00, 12 hours; 30 minutes for a routine acute visit with a chronic-disease finding attached |

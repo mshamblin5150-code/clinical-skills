@@ -389,7 +389,7 @@ Field order per `reference/medatrax-fields.md`, *Per-encounter fields
 | **Gender** | `Female` *(given — "67 yo F")* |
 | **Age + unit** | `67` · `Years` *(given — no inference, no date of birth needed)* |
 | **Marital status at first contact** | `Married` *(inferred from age 67 per the Conventions; confirm)* |
-| **Primary Payment Method** | `Medicare` *(declared — the site rule gives Medicare from about 60 at Welch; **the site is unknown, and at Bluestone the rule would give `Self-pay/other` instead.** Resolve the site, then confirm this field.)* |
+| **Primary Payment Method** | `Medicare` *(declared — the site rule gives Medicare from about 60 at [SITE-B]; **the site is unknown, and at [SITE-A] the rule would give `Self-pay/other` instead.** Resolve the site, then confirm this field.)* |
 | **Case Type** | `Respiratory` *(COVID-19 is the primary diagnosis; the ENT and GI findings are secondary and the picklist takes one value)* |
 | **Patient Time** | `Gerontology (60 and>) Hours` *(derived from age 67. **Not** `Adult (18 – 60) Hours` — the Medatrax label's own upper bound of 60 is misleading and the clinician's record has put an 82-year-old on Adult. No gynecologic or obstetric override applies: the hysterectomy is history, not the reason for this visit.)* |
 | **Start time** | `13:20` — **estimated** |

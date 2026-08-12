@@ -131,7 +131,7 @@ Emitted in the field order of [reference/medatrax-fields.md](../../reference/med
 | Gender | `Male` (given) |
 | Age + unit | `32` `Years` (given) |
 | Marital status at first contact | `Married` (inferred from age 32, per the Conventions rule) |
-| Primary Payment Method | `Commercial insurance/HMO/PPO` (declared, married working-age adult under the Welch pattern). The site is a GAPS, so the site-keyed rule could not be applied; if this was Bluestone the value is `Self-pay/other`. Correct on sight. |
+| Primary Payment Method | `Commercial insurance/HMO/PPO` (declared, married working-age adult under the [SITE-B] pattern). The site is a GAPS, so the site-keyed rule could not be applied; if this was [SITE-A] the value is `Self-pay/other`. Correct on sight. |
 | Case Type | `GU` (given: infected penile cyst, testicular pain) |
 | Patient Time | `Adult (18 – 60) Hours` (derived from age 32; 32 is at or below 59, so Adult. No obstetric or gynecologic override, this is a male genitourinary visit.) |
 | Start time | `17:00` (estimated) |
@@ -200,7 +200,7 @@ FILLED·asserted   VITALS AND MEASUREMENTS, each carrying its value as written i
                   25. Race/Ethnicity: Caucasian/White. Declared default, wrong about once in
                       four, correct on sight.
                   26. Primary Payment Method: Commercial insurance/HMO/PPO. Declared under the
-                      Welch married-working-age pattern; the Site is a GAPS, so the site key
+                      [SITE-B] married-working-age pattern; the Site is a GAPS, so the site key
                       could not be applied and this needs a glance.
                   27. Start time 17:00 and End time 17:30, estimated by the Times convention
                       (12-encounter walk-in shift, 08:00 start, 12 hours; encounter 11 of 12,

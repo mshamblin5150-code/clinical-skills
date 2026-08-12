@@ -305,7 +305,7 @@ patient, and each one entered without a match creates another record.
 | Gender | Male (given) |
 | Age + unit | 17 Years (given) |
 | Marital status at first contact | Single (inferred from age 17) |
-| Primary Payment Method | Medicaid (declared; site-and-age pattern, pediatric patient). Two contingencies: a Bluestone site would make this Self-pay/other, and a work-related mechanism would override everything with Worker's comp. Employment context is not documented and is a GAPS entry, so the override is not applied — it is a given, read from the note, and this note does not carry it |
+| Primary Payment Method | Medicaid (declared; site-and-age pattern, pediatric patient). Two contingencies: a [SITE-A] site would make this Self-pay/other, and a work-related mechanism would override everything with Worker's comp. Employment context is not documented and is a GAPS entry, so the override is not applied — it is a given, read from the note, and this note does not carry it |
 | Case Type | Dermatology (skin laceration with primary repair). Musculoskeletal is the defensible alternative if the site prefers to file hand injuries there |
 | Patient Time | **Pediatric (0 – 17) Hours** — age 17 falls in the pediatric band, not Adult. This feeds the 20-hour Pediatrics bucket in the NUR 5144 area breakdown |
 | Start time | 12:25 (estimated) |

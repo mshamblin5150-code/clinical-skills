@@ -370,7 +370,7 @@ Field order per `reference/medatrax-fields.md`, *Per-encounter fields
 | **Gender** | `Female` *(given — "33 yo F")* |
 | **Age + unit** | `33` · `Years` *(given)* |
 | **Marital status at first contact** | `Married` *(inferred; supported by the documented daughter-in-law and by age. Confirm.)* |
-| **Primary Payment Method** | `Commercial insurance/HMO/PPO` *(declared — the site rule gives commercial insurance for a married working-age patient at Welch; **the site is unknown, and at Bluestone the rule would give `Self-pay/other` instead.** Resolve the site, then confirm.)* |
+| **Primary Payment Method** | `Commercial insurance/HMO/PPO` *(declared — the site rule gives commercial insurance for a married working-age patient at [SITE-B]; **the site is unknown, and at [SITE-A] the rule would give `Self-pay/other` instead.** Resolve the site, then confirm.)* |
 | **Case Type** | `Respiratory` *(COVID-19 is the primary diagnosis. `ENT` is defensible for the otitis media and the picklist takes one value; Respiratory is chosen because the confirmed positive test drives the visit.)* |
 | **Patient Time** | `Adult (18 – 60) Hours` *(derived from age 33. No gynecologic or obstetric override applies: the cesarean section is past surgical history and this is a febrile respiratory illness, not an obstetric or gynecologic visit.)* |
 | **Start time** | `14:20` — **estimated** |

@@ -228,7 +228,7 @@ Field order per [reference/medatrax-fields.md](../../reference/medatrax-fields.m
 | Gender | `Male` — given |
 | Age + unit | `48` + `Years` — given |
 | Marital status at first contact | `Married` — inferred from age 48 |
-| Primary Payment Method | `Commercial insurance/HMO/PPO` — declared. **The rule is site-keyed and the site is missing**, so this cannot be selected properly: under the Welch rule a married working-age patient is Commercial; under Bluestone it would be `Self-pay/other`. No work-related injury is documented, so `Worker's comp` does not override. Set once the site is known |
+| Primary Payment Method | `Commercial insurance/HMO/PPO` — declared. **The rule is site-keyed and the site is missing**, so this cannot be selected properly: under the [SITE-B] rule a married working-age patient is Commercial; under [SITE-A] it would be `Self-pay/other`. No work-related injury is documented, so `Worker's comp` does not override. Set once the site is known |
 | Case Type | `ENT` — from the final diagnosis of acute sinusitis with pharyngitis and a left middle-ear effusion |
 | Patient Time | `Adult (18 – 60) Hours` — age 48. No gynecologic or obstetric override applies |
 | Start time | `16:05` — estimated |

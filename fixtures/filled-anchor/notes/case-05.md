@@ -311,7 +311,7 @@ it is recorded here rather than discovered later.
 | Gender | Male (given) |
 | Age + unit | 68 Years (given) |
 | Marital status at first contact | Married (inferred from age) |
-| Primary Payment Method | Medicare (declared; site-and-age pattern, age 68. Site is unknown, and a Bluestone site would make this Self-pay/other) |
+| Primary Payment Method | Medicare (declared; site-and-age pattern, age 68. Site is unknown, and a [SITE-A] site would make this Self-pay/other) |
 | Case Type | Dermatology (skin and soft tissue infection follow-up) |
 | Patient Time | Gerontology (60 and>) Hours — age 68 ≥ 60. No gyn or obstetric override applies |
 | Start time | 11:40 (estimated) |

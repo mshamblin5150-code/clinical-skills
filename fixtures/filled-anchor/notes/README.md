@@ -10,16 +10,31 @@ This is the first set in the repo whose inputs are not shorthand, and the reason
 
 **Case numbers match day-b's.** `notes/case-07.md` is the note generated from `day-b/shorthand/case-07.md`, and day-b's assertions about case 7 are assertions about the same encounter. Nothing here renumbers.
 
-## De-identification is inherited, not reapplied
+## De-identification could not be inherited, and assuming it could was wrong
 
-day-b's shorthand had the visit date and the site removed before it was committed ([fixtures/README](../../README.md)), and names were already `[PT]` under standing rule 1. A note generated from that shorthand cannot reintroduce what its input did not carry — each of these twelve records the absence explicitly, under `GAPS`:
+This section used to say that a note generated from de-identified shorthand cannot reintroduce what its input did not carry, and that the twelve were therefore byte-for-byte copies needing nothing.
+
+**That is false, and it was caught in review rather than by a tool.** Nine of the twelve named both of the clinician's practicum sites, in the Medatrax `Primary Payment Method` row:
 
 ```
-GAPS              Visit Date — removed in de-identification.
-                  Site — not named in the shorthand.
+The site pattern ([SITE-A] -> Self-pay/other; [SITE-B] -> Medicaid / ...)
+could not be keyed, because Site is a GAP.
 ```
 
-Ages and clinical findings stay, on the same terms as every other set: they are what the assertions test.
+The generating skill reads the account profile in `scratch/` to decide a payer, so it had the site names whether or not its *encounter* input did. **A generated note's provenance is its whole context, not its prompt.** Both names are now `[SITE-A]` and `[SITE-B]`, and that is the one edit made to the run's output — the notes are otherwise byte-for-byte.
+
+**Nothing in the repo would have caught this.** `phi_scan`'s corpus layer harvests patient names from `scratch/name-index.json`; a site name is not a patient name and no shape rule matches one. The claim in this file was the only control, and it was wrong. Filed as [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50), which carries the general form: **a fixture derived from generated output inherits the generator's whole context, not its input's.** Every set before this one derived from shorthand, so the reasoning never had to be right.
+
+**What travels, and on whose authority:**
+
+| | Removed by | Where |
+| --- | --- | --- |
+| Patient names | day-b, already `[PT]` | standing rule 1 |
+| Visit date | day-b, before commit | [fixtures/README](../../README.md) |
+| Site name | **here, on the way across** | [fixtures/README](../../README.md) — *"Date plus site plus age narrows the population sharply"* |
+| Ages, findings | kept | they are what the assertions test |
+
+Each of the twelve also records the missing date and site under `GAPS`, in its own wording — `case-01` reads *"Visit Date — removed in de-identification"*, `case-09` *"removed from the fixture"*, `case-05` *"not in the source"*. **The absence is recorded everywhere; the phrasing is not standard**, so nothing should match on the string.
 
 ## How the twelve were selected
 
@@ -42,9 +57,21 @@ Each note body carries `Preexisting diagnoses (ICD10)` and `Final diagnosis` lis
 That is the input `icd10-cpt` really receives, and it cuts two ways.
 
 - **For the ANCHOR class it is a decoy, and the best one available.** Case 1's note offers `Z68.26` in its Final diagnosis list, with a caveat underneath saying the pair rests on a filled height. The rule requires refusing it anyway. A run that copies the list fails.
-- **For the CODE class it is an answer key**, which is why that class is scoped to codes the skill *adds or upgrades* rather than to every code in the output. Stated plainly in [assertions](../assertions.md) rather than worked around.
+- **For the CODE class it is a partial answer key**, which is why that class is scoped to codes the skill *adds or upgrades* rather than to every code in the output. Stated plainly in [assertions](../assertions.md) rather than worked around.
 
-Every one of case 1's ten codes was checked against `reference/icd10cm-2026.sqlite` on 2026-08-11: all ten exist, all ten are billable, and each descriptor matches the string written beside it. So a run that copies passes CODE having coded nothing. ANCHOR is what tells the two apart.
+**How partial, measured rather than assumed.** All ten of case 1's codes were checked against `reference/icd10cm-2026.sqlite` on 2026-08-11. All ten exist and all ten are billable — so a run that copies them clears C1 and C3 having coded nothing. **Five of the ten descriptors do not match the official string**, which is a good deal less of an answer key than it first looked:
+
+| Code | The note writes | The release says |
+| --- | --- | --- |
+| `L02.612` | Cutaneous abscess of left foot**, plantar great toe** | Cutaneous abscess of left foot |
+| `M79.5` | Residual foreign body in soft tissue**, suspected, to be confirmed at drainage** | Residual foreign body in soft tissue |
+| `R06.89` | Other abnormalities of breathing **(diminished breath sounds in all four fields)** | Other abnormalities of breathing |
+| `R79.89` | Other specified abnormal findings of blood chemistry **(history of elevated troponin)** | Other specified abnormal findings of blood chemistry |
+| `Z68.26` | Body mass index 26.0–26.9, adult | Body mass index **[BMI]** 26.0-26.9, adult |
+
+Four append the clinical detail that anchored the code, which is useful reading and is not the descriptor. The fifth drops the official `[BMI]` and swaps an en dash for the hyphen — a difference no reader would notice and `icd10_lookup.py` settles in one call, which is the argument for having the CODE class at all.
+
+**So copying is not free even on CODE.** It clears C1 and C3 and fails C2 five times in one note. ANCHOR is still what tells coding from copying, but the descriptor discipline is doing real work here rather than rubber-stamping.
 
 ## What the inputs are not
 
