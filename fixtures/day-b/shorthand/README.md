@@ -21,14 +21,14 @@ The source is a single **text** file in `scratch/day-file-text/`, gitignored, ho
 
 This is the reason the set exists, so it is worth stating flatly: **cases 1, 5, 6, 7, 8, 9, 10, 11 and 12 have no blood pressure, no pulse, no temperature, no respiratory rate, no oxygen saturation, no height and no weight.** Not a partial set — nothing.
 
-That is a genuine property of the source, not a transcription loss and not a redaction. It is the corpus-wide pattern in miniature. Measured 2026-08-11 across 559 encounters with `tools/corpus_census.py`:
+That is a genuine property of the source, not a transcription loss and not a redaction. It is the corpus-wide pattern in miniature. Measured 2026-08-11 across 551 encounters with `tools/corpus_census.py`:
 
 | | |
 | --- | --- |
-| no vital at all | 263 — 47% |
-| at least one vital | 296 |
+| no vital at all | 256 — 46% |
+| at least one vital | 295 |
 | … of those, a complete set | 201 — 68% |
-| … of those, partial | 95 — 32% |
+| … of those, partial | 94 — 32% |
 
 So the vital line tends to be written whole or not at all, and this shift is the pattern concentrated: nine written not at all, three written whole, none partial. It is a tendency rather than a rule — a third of the encounters that carry anything carry only some of it — and day-b tests the two ends, not the middle.
 
