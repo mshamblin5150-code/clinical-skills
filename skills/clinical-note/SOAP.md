@@ -10,10 +10,10 @@ S:
 CC: "<the patient's own words, quoted>"
 
 HPI (OLDCARTS):
-Onset · Location · Duration · Character · Aggravating · Relieving · Timing · Severity
+Onset, Location, Duration, Character, Aggravating, Relieving, Timing, Severity
 <one line, semicolon separated; then pertinent negatives the shorthand states>
 
-Allergies (reaction): <allergen — reaction; NKDA if none>
+Allergies (reaction): <allergen - reaction; NKDA if none>
 Home meds: <drug dose route frequency (reason for taking)>
 PMH/PSH: <given>
 FH (3 generations): GP: … ; Parents: … ; Sibs: …
@@ -24,7 +24,7 @@ ROS pertinent:
 
 O:
 
-VS: BP, HR, T, RR, SpO2, Ht, Wt → BMI
+VS: BP, HR, T, RR, SpO2, Ht, Wt ∴ BMI
 Gen: <appearance, work of breathing>
 <then each system examined; state normal for the ones filled>
 Labs/Tests today: <given results only; treatments administered in clinic>
@@ -32,12 +32,12 @@ Labs/Tests today: <given results only; treatments administered in clinic>
 A:
 
 Differential:
-<Diagnosis — the findings that support it. Favored.>
-<Diagnosis — the specific findings that argue against it. Less likely.>
-<Diagnosis — same. Less likely.>
+<Diagnosis: the findings that support it. Favored.>
+<Diagnosis: the specific findings that argue against it. Less likely.>
+<Diagnosis: same. Less likely.>
 
 Preexisting diagnoses (ICD10): <condition CODE; condition CODE>
-Final diagnosis: <condition — CODE>
+Final diagnosis: <condition - CODE>
 Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
 P:

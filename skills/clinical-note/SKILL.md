@@ -158,6 +158,26 @@ Separate two acts in the tier block, because they carry different weight:
 
 **Social history** does not blanket-fill with "not reported". Say it where it is genuinely unknown and would matter; otherwise write the inference.
 
+### Punctuation
+
+Three characters that never reach the finished note, given unprompted as absolutes — *"i would never"*, *"i never"*:
+
+| Never | Always |
+| --- | --- |
+| `·` middot as a separator | `,` comma |
+| `—` em dash | `:` colon |
+| `→` arrow | `∴` therefore (U+2234) |
+
+So `VS: BP 138/86 · HR 88 · T 98.8 F` is written `VS: BP 138/86, HR 88, T 98.8 F`, and `Ht 5'4", Wt 198 lb → BMI 34.0` is written `Ht 5'4", Wt 198 lb ∴ BMI 34.0`.
+
+**A value pinned to its label takes a hyphen, not the colon** — `Cystitis - N30.00`, `Penicillin - rash`, `Lisinopril - hypertension`. His ruling on the templates, and it is the one place the colon would double up: `Final diagnosis: cystitis: N30.00` puts two colons on one line and reads as a nesting that isn't there. The colon keeps every position where it introduces a clause rather than a value — the differential rationale is the case in both branches: `Acute bronchitis: cough three weeks, clear lungs, afebrile. Favored.`
+
+**About the output, not the input.** The arrow is a token he writes — [GLOSSARY.md](GLOSSARY.md) carries it as *leading to, progressing to* — so it arrives in the shorthand as a given like any other, and this rule governs only what it expands to.
+
+**And the note body only.** The tier block keeps its `FILLED·asserted` middot, the Medatrax field block is unaffected, and prose about the skill — this file, [GLOSSARY.md](GLOSSARY.md), the section notes in both templates — is not the note. An em dash inside a template placeholder that instructs the writer rather than shaping the output is prose too: `<… duration — one per line>` stays, because a colon there would read as a field whose value is *one per line*.
+
+It binds both branches, which is why it lives here rather than in either template. Both were swept when it was added: [SOAP.md](SOAP.md) did not merely permit the arrow, it **specified** it — `Ht, Wt → BMI`. A convention that contradicts the template it governs loses. Issue #31.
+
 ### Times
 
 Ask up front, once per day file, and reuse for every encounter in it:
