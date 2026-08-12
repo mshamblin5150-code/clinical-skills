@@ -42,7 +42,7 @@ One rule governs everything filled:
 
 The rule runs one way only. The clinician charts abnormals reliably and normals sometimes — `lungs are clear`, `well appearing` do appear in shorthand. So:
 
-- **An abnormal *finding* in the note must be a given.** No exceptions. This is the direction that carries the safety. A finding is something observed and chartable — an exam finding, a symptom, a result. It does not cover vitals and body measurements; those follow *Filled vitals and body measurements* below.
+- **An abnormal *finding* in the note must be a given.** No exceptions. This is the direction that carries the safety. A finding is something observed and chartable — an exam finding, a symptom, a result. It does not cover vitals, body measurements and the OLDCARTS pain score; those follow *Filled vitals, body measurements and the pain score* below.
 - **A normal in the shorthand is still a given** — it means that system was examined. Keep it verbatim; do not move it to filled.
 - **Silence is undocumented, never absent.** A section the shorthand omits means it was not written down that visit — not that the patient has nothing there. This holds everywhere, and it reads two ways depending on the section:
   - **Exam and ROS** — an unmentioned system is normal, because abnormals get charted.
@@ -54,13 +54,15 @@ Every filled *finding* is therefore normal, absent, or not reported — and says
 
 Charted normals and filled normals read identically in the finished note. They are separated in the tier block so only the filled ones need confirming — and *identically* is literal, which is why *The tier language stays out of the note* below forbids annotating them apart.
 
-#### Filled vitals and body measurements
+#### Filled vitals, body measurements and the pain score
 
-**Filled vitals and body measurements** are permitted where the rubric requires a complete set and the encounter supplies only some — or none. They are the one exception to *filled content is unremarkable*, and the exception is narrow enough to state exactly.
+**Filled vitals, body measurements and the OLDCARTS pain score** are permitted where the rubric requires a complete set and the encounter supplies only some — or none. They are the one exception to *filled content is unremarkable*, and the exception is narrow enough to state exactly.
+
+**The class is a test, not a list.** A value joins it when both of the next two paragraphs hold of it: a box demands a value, and the shorthand constrains none. Three members are named because three are known — anything else has to earn entry by those two arguments, and **no exam finding, symptom or result will ever pass them.** A result has no box standing empty, and an unmentioned system is already answered by *Silence is undocumented, never absent* one level up.
 
 A vital is not a finding the clinician chose to record, and two things follow that do not follow for a finding.
 
-**A value is required.** The rubric wants a complete vital set, and Medatrax holds fields for blood pressure, respiratory rate, height and BMI that are filled rather than left blank. A result has no field standing empty in the same way — it exists only if testing was ordered and run. Something has to go in the box.
+**A value is required.** The rubric wants a complete vital set, and Medatrax holds fields for blood pressure, respiratory rate, height and BMI that are filled rather than left blank. The rubric's HPI is the same shape: eight OLDCARTS boxes, one of them severity. A result has no field standing empty in the same way — it exists only if testing was ordered and run. Something has to go in the box.
 
 **Nothing in the shorthand constrains which value.** Transcription is all-or-nothing: measured 2026-08-11 across 551 encounters, 46% carry no vital at all, and of the 249 blood pressures he does transcribe, half are below 130/80. He is not writing them down because they were interesting, so an absent vital carries no information about its value — and never means it was normal. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart. For a finding, silence is evidence, because abnormals get charted. For a vital, silence is evidence of nothing.
 
@@ -87,7 +89,22 @@ Work it in two steps:
 
 Height and weight follow the same rule, in this order: pick a height plausible for the age and sex, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and leave the height and weight to be read backwards out of it.
 
-**Every filled vital and every filled measurement is listed in the FILLED block carrying its value, written exactly as it appears in the note body.** Not `blood pressure filled` — `BP 142/88 filled`. Two reasons, and the second is the load-bearing one:
+**The OLDCARTS severity is the third member, and it is a pain scale.** The box reads `6/10 facial pressure`, never `not documented` and never a word. (The separator between the element and its value is *Punctuation*'s business, not this rule's — a hyphen on SOAP's one-liner, the template's own colon in H&P's block.) Both arguments above hold of it exactly. A value is required, because severity is one of the rubric's eight HPI boxes. And nothing in the shorthand constrains which value, because a clinician who did not write a number down has said nothing about what the number was — the same asymmetry that makes an absent blood pressure uninformative.
+
+*Filled content is unremarkable* would put the score at 0/10, and that is precisely the collapse this exception exists to prevent. 0/10 is the reading for a patient in no pain — a real answer where the shorthand says so, and a given when it does, but not one to arrive at by default.
+
+**Score it the way a vital is scored: the value this patient most plausibly had.** Anchor it in the complaint, the exam and what was done about it. **The treatment given is the anchor a pressure does not have**, so use it: a run that writes 2/10 for a sinus pressure treated with intramuscular methylprednisolone has described a patient who would not have been given it, and one that writes 9/10 has described a patient who would not have been sent home.
+
+**A filled score is answered in the Plan**, by analgesia or by the treatment of what is causing the pain. This is the same cost the license charges for a filled vital that lands abnormal, and the pain scale's normal range is one value wide — 0/10, and nothing else. It is not optional for the same reason either: a note that invents a 7/10 and offers nothing for it has manufactured the defect this skill exists to catch.
+
+**Two things are givens rather than fills, and reading either one wrong invents a symptom.**
+
+- **A score the shorthand writes is a given.** `c/o 8/10 pain` is 8/10 in the note — unrounded, unreplaced, exactly as a transcribed pressure is.
+- **A documented absence of pain is a given too, and it scores 0/10.** `no pain`, or `is in no pain only when she bumps it`, is a charted finding. Filling a number over either is inventing a symptom, and no part of this exception licenses that: it buys a number for a complaint the shorthand documents, never a complaint.
+
+**Where the presenting complaint is not a painful one, the scale still takes a number and names what it scores** — `4/10 itching`. What the eight boxes forbid is a blank; they do not require that every patient hurt. This is the rule carried past the case it was ruled on — issue #30 was raised about a patient in pain — and it is stated rather than left open because *eight, always eight* leaves no third option.
+
+**Every filled vital, every filled measurement and every filled OLDCARTS element is listed in the FILLED block carrying its value, written exactly as it appears in the note body.** Not `blood pressure filled` — `BP 142/88 filled`. Not `aggravating factors filled` — `AGGRAVATING bending forward, lying flat filled`, and `SEVERITY 6/10 facial pressure filled`. Two reasons, and the second is the load-bearing one:
 
 - The clinician confirms a value, not a category, and cannot confirm what the block does not state.
 - The note body is written so given and filled content read identically. **The FILLED block is therefore the only thing in the whole document that can tell them apart**, and [icd10-cpt](../icd10-cpt/SKILL.md) reads it to decide which numbers a code may rest on. It matches on the value. A block naming the field without its value says a pressure was filled but not which one, and the check fails open in silence.
@@ -124,6 +141,7 @@ Grounded, and expected:
 - Testing for a documented infectious exposure — see below.
 - Screenings appropriate to the patient's age.
 - The exam of a system the shorthand never mentions.
+- **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*.
 
 **A documented infectious exposure with a congruent presentation orders testing by default.** The contact is a given; testing for what the contact had is standard care for that presentation, and it belongs in the Plan the way return precautions do. Respiratory contact plus respiratory symptoms means **COVID-19 and influenza at minimum**, and **group A streptococcus where the pharynx is involved** — a sore throat, pharyngeal erythema, tonsillar exudate. Name the agent and name the specimen: `COVID-19 and influenza A/B, nasopharyngeal swab`, never `viral testing`.
 
@@ -133,7 +151,7 @@ It is a `FILLED·proposed` line like any other order, generated from the exposur
 
 **And its missing result is not a GAPS entry.** GAPS holds *a swab sent and never returned* — the encounter ran a test and the record lost the answer. A swab this rule orders has no answer to have lost, so it is complete as written, and reporting it as an omission is the *anything the skill was instructed to generate* case in step 6.
 
-**One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — a result exists only if testing was ordered and run, while a vital set is required of the encounter record whether anything was ordered or not; see *Filled vitals and body measurements*.
+**One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — a result exists only if testing was ordered and run, while a vital set is required of the encounter record whether anything was ordered or not; see *Filled vitals, body measurements and the pain score*.
 
 **Age needs a date of birth looked for first.** About 93% of this clinician's encounters carry one or the other, and where a date of birth appears the age is *derived*, not missing — compute it. The newer shorthand runs age and sex together with no marker — `51 f`, `48f` — and that form is easy to miss.
 
@@ -307,6 +325,7 @@ One FLAG per finding. Name the finding and name what was not done with it — `B
 
 - **Start and end times.** Estimated by design, and they say so where they appear. Estimated is a property of the value, not the absence of one.
 - **Vitals and body measurements.** Filled by design to the value the patient most plausibly had, and declared in FILLED.
+- **Any of the eight OLDCARTS elements.** All eight are mandatory and all eight are filled where the shorthand is silent. `Aggravating - not documented` is the same defect written into the note body instead, and it fails the branch template rather than earning a GAPS line.
 - **Age.** Inferred by design where the shorthand and the entry both lack it, and flagged at the top of `FILLED·asserted`.
 - **Primary Payment Method and Race/Ethnicity.** Both have declared rules and are filled, not missing.
 - **Anything the skill was instructed to generate.** Reporting your own compliance as a defect is what makes the block unreadable, and an unreadable block hides the real omissions.
@@ -321,10 +340,10 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 
 | # | Test | Passes when |
 | --- | --- | --- |
-| 1 | **Invention** | Every abnormal finding, diagnosis and result in the note traces to a given. Filled vitals and body measurements are exempt — they are declared in FILLED, not traced |
+| 1 | **Invention** | Every abnormal finding, diagnosis and result in the note traces to a given. Filled vitals, body measurements and the pain score are exempt — they are declared in FILLED, not traced |
 | 2 | **Drift** | Every abnormal *in the shorthand* appears in the Assessment or the Plan |
-| 3 | **Results** | No laboratory value, imaging result or diagnostic finding is filled. Vitals and body measurements are not results and do not fail this row |
-| 4 | **Vitals** | Every vital **or body measurement** outside the normal range for this age is addressed somewhere, not just recorded — **filled ones included**, with no exemption for being generated. A filled height and weight yield a BMI, and an abnormal BMI is addressed like any other |
+| 3 | **Results** | No laboratory value, imaging result or diagnostic finding is filled. Vitals, body measurements and the pain score are not results and do not fail this row |
+| 4 | **Vitals** | Every vital **or body measurement** outside the normal range for this age is addressed somewhere, not just recorded — **filled ones included**, with no exemption for being generated. A filled height and weight yield a BMI, and an abnormal BMI is addressed like any other. A filled pain score is the same rule with a one-value normal range: **0/10 is the only unremarkable score**, so any other is answered in the Plan |
 | 5 | **Sig** | Every drug carries dose, route, frequency and duration |
 | 6 | **Red flags** | The return precautions name specific findings — *fever above 101, worsening flank pain, inability to keep fluids down* — never "red flags reviewed" |
 | 7 | **Drug names** | Each drug reads as the shorthand wrote it, trade or generic, unconverted |
