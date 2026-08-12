@@ -5,10 +5,15 @@ and ``fixtures/day-b/shorthand/`` and against inline strings. They never touch
 ``scratch/``. Their job is to catch the silent failure mode the census exists to
 prevent: an extractor that stops matching and reports a confident wrong number.
 
-``DayBIsTheAbsenceSet`` does a second job. day-b's whole reason for existing is
-that nine of its twelve encounters carry no vital at all, and every row in its
-assertion set rests on that. A well-meaning edit that "completes" one of those
-vital lines would quietly void the set instead of failing it.
+``DayBIsTheAbsenceSet`` does a second job: it guards the properties of the
+*inputs* that day-b's assertion rows rest on, so an edit to one voids the set
+loudly rather than quietly. Three shapes, and the first two are absences. Nine of
+the twelve encounters carry no vital at all, which is that set's whole reason for
+existing; case 9 documents a COVID contact and orders no swab, which is what makes
+D6 checkable; and the twelve split seven / two / three on whether the shorthand
+writes a pain score, writes "no pain", or writes neither, which is what B7 and B8
+divide on. A well-meaning edit that "completes" any of them would leave every row
+above it passing with nothing tested.
 
 phi-scan: synthetic
 
@@ -61,6 +66,29 @@ def fixture(name: str) -> str:
 
 def day_b(number: int) -> str:
     return (DAY_B / f"case-{number:02d}.md").read_text(encoding="utf-8")
+
+
+def day_b_plan(number: int) -> str:
+    """Everything after the last ``plan`` token in a day-b input, lowercased.
+
+    Crude on purpose, and it has one job: separate an order the clinician placed
+    from the same word appearing earlier in the note for another reason. Case 9
+    writes ``covid`` in the exam prose, as the contact's diagnosis, and orders no
+    swab -- so a whole-file substring test for ``covid`` would report the
+    exposure as a test that was run. The plans in these twelve are all a trailing
+    ``plan``-prefixed run of comma-separated items, which is the whole structure
+    this needs.
+
+    Two things keep the crudeness from failing open. The token is matched on word
+    boundaries, so ``planned``, ``plantar`` and ``explains`` do not split the
+    note and silently truncate the half being searched. And a note with no plan
+    token raises rather than returning "", which would make every ``assertNotIn``
+    below pass on an empty string.
+    """
+    parts = re.split(r"\bplan\b", day_b(number).lower())
+    if len(parts) == 1:
+        raise AssertionError(f"day-b case {number} has no plan line to read")
+    return parts[-1]
 
 
 def peds_bp(number: int) -> str:
@@ -556,6 +584,35 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
         for path in sorted(DAY_B.glob("case-*.md")):
             with self.subTest(case=path.name):
                 self.assertFalse(cc.has_dob(path.read_text(encoding="utf-8")))
+
+    def test_the_d6_anchor_documents_a_contact_and_orders_no_test(self):
+        """D6 is only checkable while case 9's plan stays empty of testing.
+
+        The row asks the skill to order COVID-19, influenza and strep swabs from
+        a documented positive contact ([issue #32]). Writing any of those into
+        the input would make it a *given* order, and the row would pass having
+        tested nothing -- the same way a vital added to one of the nine would
+        void B1. The exposure itself is asserted rather than assumed for the
+        opposite reason: remove it and the row fails a correct note.
+
+        [issue #32]: https://github.com/mshamblin5150-code/clinical-skills/issues/32
+        """
+        self.assertIn("postive for covid", day_b(9).lower())  # typo preserved
+        for token in ("covid", "flu", "strep", "swab", "rsv"):
+            with self.subTest(token=token):
+                self.assertNotIn(token, day_b_plan(9))
+
+    def test_the_two_contacts_he_did_swab_carry_the_order(self):
+        """D6's prose claims swabbing a documented contact is his own practice.
+
+        Cases 8 and 12 are where the same shift did it, and they are what makes
+        case 9 a lapse rather than a house style. Asserted here so the claim
+        breaks loudly if either input is edited.
+        """
+        self.assertIn("covid", day_b_plan(8))
+        for token in ("covid", "strep", "flu"):
+            with self.subTest(token=token):
+                self.assertIn(token, day_b_plan(12))
 
     def test_seven_cases_transcribe_a_severity(self):
         """B7's list, with the value each case must survive with."""
