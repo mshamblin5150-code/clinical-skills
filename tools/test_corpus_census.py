@@ -59,6 +59,12 @@ DAY_B_PAIN_SCORE = {1: 8, 4: 5, 5: 2, 7: 7, 8: 8, 10: 8, 11: 6}
 DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
 DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
 DAY_B_SEVERITY_NONZERO = (6, 9)  # B8's anchors. Case 3 itches rather than hurts
+
+# B9's ten: every case where *anything* in the filled-vitals license class was
+# generated. The vital-less nine plus case 3, whose vital line is complete and
+# whose severity the run has to invent. Not B1's list, which is the mistake the
+# first draft of the row made. Issue #27.
+DAY_B_B9 = (1, 3, 5, 6, 7, 8, 9, 10, 11, 12)
 NO_PAIN = r"(?i)\bno pain\b"
 
 # peds-bp keeps its source shift's numbering, so the gaps are the omitted cases.
@@ -743,8 +749,49 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
         """
         for n, finding in DAY_B_LUNG_FINDING.items():
             with self.subTest(case=n):
-                self.assertIn(finding, day_b(n).lower())
-                self.assertIn(n, DAY_B_NO_VITAL)
+                note = day_b(n)
+                self.assertIn(finding, note.lower())
+                self.assertFalse(cc.has_any_vital(note))
+
+    def test_b9_reaches_every_case_with_something_generated(self):
+        """B9's list is a union, and case 3 is the member easy to lose.
+
+        The row reaches any case where something in the filled-vitals license
+        class was generated -- a vital, a body measurement, or the OLDCARTS
+        severity. That is the vital-less nine *plus* case 3, whose vital line is
+        complete and whose severity the run must invent. Derived from the inputs
+        here rather than copied from B1's list, because the first draft of the
+        row did copy B1 and dropped her.
+
+        [issue #27]: https://github.com/mshamblin5150-code/clinical-skills/issues/27
+        """
+        reached = tuple(
+            n
+            for n in range(1, 13)
+            if not cc.has_any_vital(day_b(n))
+            or not (cc.has_pain_score(day_b(n)) or re.search(NO_PAIN, day_b(n)))
+        )
+        self.assertEqual(reached, DAY_B_B9)
+
+    def test_the_two_cases_b9_does_not_reach_supply_both(self):
+        """Cases 2 and 4 are outside B9, and the row is vacuous on them.
+
+        Both carry a full vital line and both settle the severity in the
+        shorthand, so a run has nothing generated to reason from and B9 has
+        nothing to check. This is what makes the exclusion a property of the
+        inputs rather than an oversight.
+
+        **The two settle it differently**, and asserting a score on both would
+        be wrong: case 4 writes ``5``, while case 2 writes ``no pain`` -- an
+        absence, which is a given scoring 0/10 rather than a value to invent.
+        ``DAY_B_NO_PAIN`` is the split, and the first version of this test
+        failed on exactly that distinction.
+        """
+        for n in (2, 4):
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertTrue(cc.has_any_vital(note))
+                self.assertTrue(cc.has_pain_score(note) or re.search(NO_PAIN, note))
 
     def test_seven_cases_transcribe_a_severity(self):
         """B7's list, with the value each case must survive with."""

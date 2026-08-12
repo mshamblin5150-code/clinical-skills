@@ -65,7 +65,7 @@ A lap band or a gastric bypass documents a **past** obesity and claims nothing a
 
 ## FILLED — binary, all must pass
 
-Five rows, same class and same bar as day-b's four. Each resolves to a value, a threshold, or the presence of a string; none moves with wording.
+Five rows, same class and same bar as day-b's nine. Each resolves to a value, a threshold, or the presence of a string; none moves with wording.
 
 | # | Cases | Passes when | Fails when |
 | --- | --- | --- | --- |
