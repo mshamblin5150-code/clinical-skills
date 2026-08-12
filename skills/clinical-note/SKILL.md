@@ -291,7 +291,7 @@ It binds both branches, which is why it lives here rather than in either templat
 
 ### Spelling
 
-**American English, always.** His ruling, and it is unconditional. These are notes for an American program, read by American faculty, and a British spelling reads as a note written by somebody else.
+**American English, always** — [standing rule 4](../../AGENTS.md), so it binds every skill here and not only this one. His ruling, and it is unconditional. These are notes for an American program, read by American faculty, and a British spelling reads as a note written by somebody else. This section is the table the rule points at.
 
 | Never | Always |
 | --- | --- |
@@ -304,7 +304,7 @@ It binds both branches, which is why it lives here rather than in either templat
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not paracetamol, `epinephrine` not adrenaline, `albuterol` not salbutamol, `ferrous sulfate` not ferrous sulphate. A clinician reading the other name has to translate it before they can check the dose.
 
-**Wider scope than the punctuation rule above, and the difference is deliberate.** That one governs the note body only. This one governs **everything** — the note body, the tier blocks, the Medatrax fields, the file names, and prose about the skill including this file. There is no place a British spelling is correct here, so there is no place to carve out.
+**Wider scope than the punctuation rule above, and the difference is why this one is a standing rule and that one is not.** Punctuation governs the note body only, and it lives here because it governs *this skill's* two branches. Spelling reaches the tier blocks, the Medatrax fields, the filenames, the commit messages and the prose about the skills — which is more than a skill file can bind, so it is stated in [AGENTS.md](../../AGENTS.md) and only tabulated here.
 
 **About the output, not the input.** A British spelling arriving in the shorthand is normalized on the way out like any other spelling variant — the same treatment [GLOSSARY.md](GLOSSARY.md) gives `cetrazine`. It is not a hedge and it is not a number, so nothing in *Given* protects it.
 
