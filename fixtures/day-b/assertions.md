@@ -129,22 +129,21 @@ Case 2's vital line reads `wt 62in wt 131` — `wt` written where `ht` was meant
 
 This does **not** generalize to day-a case 8's `hr 65 inches`, which has no reference reading behind it in this set.
 
-### The body-measurement half has no equivalent to B2
+### The body-measurement half has an equivalent to B2, and this set cannot host it
 
 Issue #8 asked for both halves — a filled vital and a filled body measurement — because [#7](https://github.com/mshamblin5150-code/clinical-skills/issues/7) widened drift row 4 to reach height, weight and a derived BMI.
 
-**Delivered:** B1 forces a height, a weight and a derived BMI on all nine cases, so the body measurement is always generated and always declared. B3 then covers it **whenever that BMI lands abnormal.**
+**Delivered here:** B1 forces a height, a weight and a derived BMI on all nine cases, so the body measurement is always generated and always declared. B3 then covers it **whenever that BMI lands abnormal.**
 
-**Not delivered:** nothing forces it to land abnormal, and that gap is real rather than an oversight:
+**Settled on [#15](https://github.com/mshamblin5150-code/clinical-skills/issues/15), 2026-08-11.** The analogue is a real row and it is **not** contained in B3 — B3 fires only when the value lands abnormal, and the analogue fires on the *normal* branch, where a patient the shorthand calls obese is handed a BMI of 24 and nothing is said about it. There is no abnormal value for B3 to have lost, so B3 passes having tested nothing. The two rows are disjoint, not nested.
 
-- Hypertension is documented, so a normal pressure is a thing the note owes an account of. That is what B2 rests on — not that the pressure must be high.
-- **No condition in these twelve does the same for BMI.** Cases 5 and 10 carry diabetes, which raises the odds of an obese BMI without requiring one. A row demanding an obese BMI from a documented diabetic would be demanding an invented abnormal finding — the thing standing rule 2 exists to forbid.
+**What it needs is an anchor these twelve do not contain.** Cases 5 and 10 carry diabetes, which raises the odds of an obese BMI without documenting one; a row demanding an obese BMI from a documented diabetic would be demanding an invented abnormal finding, which standing rule 2 forbids outright. Nothing in this shift documents obesity itself.
 
-So a run can satisfy this set while never generating an abnormal BMI at all. Closing it needs a case whose shorthand documents obesity without a weight, and none of these twelve does.
+**So the row lives in [obesity-bmi](../obesity-bmi/assertions.md) as O2**, on the two encounters in the whole corpus that write the word and supply no body measurement. This section is now a pointer rather than a gap: day-b's body-measurement half stays **conditional by construction**, and that is the correct answer for this shift rather than a hole in it.
 
-**The reference is evidence the gap matters.** The clinician generated a BMI of 37.8 for case 9 unprompted — from a shorthand that documents lymphedema, arthritis in both knees and a hip fracture, none of which requires it — and then addressed it nowhere.
+**#15's own diagnosis of why was wrong, and it is worth recording which part.** The ticket held that the row could not be written at all, because any analogue would have to *force an abnormal BMI*. That was true of the **old** B2 and stopped being true when [#14](https://github.com/mshamblin5150-code/clinical-skills/issues/14) rewrote it: B2 no longer forces a value, it forces an account, and an account can be demanded of a normal value without ordering up an abnormal one. The obstacle was never the rule. It was the shift.
 
-**B2's rewrite may also have made this section obsolete, and that is [#15](https://github.com/mshamblin5150-code/clinical-skills/issues/15)'s call rather than this ticket's.** Everything above assumes the analogue must *force an abnormal BMI*, because that is what B2 used to do. B2 no longer forces a value — it forces an account — and an analogue of the new shape needs no case that makes a normal BMI implausible. #15 is open on exactly this and its reasoning was written against the old B2. Left standing here rather than rewritten, because #15 is where it gets settled.
+**The reference is evidence the gap matters.** The clinician generated a BMI of 37.8 for case 9 unprompted — from a shorthand that documents lymphedema, arthritis in both knees and a hip fracture, none of which requires it — and then addressed it nowhere. **B3 would already have fired on it**, which is the half this set does hold.
 
 ## REPORTED — counted, not enforced
 
