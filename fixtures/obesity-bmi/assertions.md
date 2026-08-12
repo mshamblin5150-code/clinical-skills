@@ -61,11 +61,11 @@ A lap band or a gastric bypass documents a **past** obesity and claims nothing a
 
 **They are the *candidate* for day-b case 2's job, not yet the equivalent of it.** Case 2 is proof the passing form is writable because its reference was **read**: a given 121/61 next to an Assessment reading `HTN, controlled (I10)`. This set's reference is owed, so all cases 3 and 4 establish today is that a patient exists for whom the passing form *would* be the right answer. They become the proof when the reference is read, and not before — the distinction matters because a set that claims a worked precedent it does not have is exactly what an unread reference produces.
 
-**So they carry no O2 row.** Nothing in their shorthand forces the BMI either way, and a row that pushed it would be demanding an invented value in one direction or the other. They are in O1, O3 and O4, and their weight in the set is evidential.
+**So they carry no O2 row.** Nothing in their shorthand forces the BMI either way, and a row that pushed it would be demanding an invented value in one direction or the other. They carry **O5** instead, which forbids something else entirely — see below.
 
 ## FILLED — binary, all must pass
 
-Four rows, same class and same bar as day-b's four. Each resolves to a value, a threshold, or the presence of a string; none moves with wording.
+Five rows, same class and same bar as day-b's four. Each resolves to a value, a threshold, or the presence of a string; none moves with wording.
 
 | # | Cases | Passes when | Fails when |
 | --- | --- | --- | --- |
@@ -73,10 +73,11 @@ Four rows, same class and same bar as day-b's four. Each resolves to a value, a 
 | O2 | 1, 2 | The filled BMI is **30.0 or above** — *or* below 30.0 **and the Assessment** says the obesity is resolved, improved or post-surgical, or names the weight-loss intervention | A BMI below 30.0 with no such account. **An `E66` code inside a pre-existing or problem list is not an account**, and neither is weight-loss counseling attached to no statement about the number |
 | O3 | 1, 2, 3, 4 | Every **filled** vital or body measurement outside the normal range for that age is named in the Assessment or the Plan | It reaches the Objective and the FILLED block and stops |
 | O4 | 1, 2, 3, 4 | Where a filled BMI lands **within 1.0 of 18.5, 25, 30, 35 or 40**, the FILLED block carries a disclosure line stating **an adjacent height or weight and the BMI that value would yield** | The BMI lands within 1.0 of a band edge and the block states the value alone |
+| O5 | 3, 4 | Obesity is **never stated as a given**. The word, and any `E66` code, appear only in the Assessment or Plan resting on the filled BMI — which the FILLED block declares. **The bariatric procedure itself is a given and belongs in the history** | Obesity or an `E66` appears in the HPI, the past medical history, or a pre-existing or problem code list — asserted about a patient whose shorthand documents the surgery and never the diagnosis |
 
 ### The rows are a chain, and each closes the one below it
 
-This is day-b's B1 → B2 → B3 argument transposed onto the measurement half, plus one row day-b never needed.
+O1 → O2 → O3 is day-b's B1 → B2 → B3 argument transposed onto the measurement half. **O4 and O5 are the two rows day-b never needed** — one because its cases never reach a BMI with a filled input, the other because none of its twelve carries a history that invites a diagnosis the shorthand never made.
 
 **O2 alone is passable by filling nothing at all.** A run that leaves height and weight blank, or files them under GAPS, has no BMI to be obese or not, and passes having tested nothing. **O1 closes that**, and it is the row the license itself demands: *"A value is required … Something has to go in the box."*
 
@@ -96,11 +97,27 @@ This is day-b's B1 → B2 → B3 argument transposed onto the measurement half, 
 
 **What no row here does is demand an abnormal number.** O2 has two exits and forbids only silence, which is the shape #14 settled and the shape standing rule 2 requires — a row ordering up an invented abnormal finding is the thing that rule exists to forbid.
 
+### O5 runs the other way, and it is not about the number
+
+O1 through O4 all ask what the run did with a value it generated. **O5 forbids a claim** — it is `peds-bp` P6's shape, where the cost of a license is a row saying what the license does *not* buy.
+
+The defect it catches: a run reads `gastric bypass`, concludes the patient is obese today, and writes obesity into her history. That is an invented **finding**, from a shorthand that documents a past procedure and no present diagnosis — and standing rule 2 forbids it outright: *"No exam finding, symptom, or result is ever filled, however plausible."* The body-measurement exception does not reach it. The exception licenses a *measurement*; it licenses no diagnosis at all.
+
+**O5 says nothing about where the BMI lands, and that is the whole of its design.** A post-bariatric patient plausibly still carries a BMI of 33, and filling one is exactly what the license asks for. A row forbidding an obese BMI on cases 3 and 4 would be demanding a normal value — the mirror of demanding an abnormal one, invented in the other direction, and it would contradict both O3 and the paragraph above saying nothing forces those cases' BMI either way.
+
+**So the row is about provenance, not magnitude.** Obesity may appear for these two — but only downstream of the filled BMI, in the Assessment or Plan, with the FILLED block declaring the measurement it rests on. What fails is obesity presented as something the clinician documented.
+
+**That distinction is exactly what the FILLED block exists to carry.** `clinical-note` puts it plainly: the note body is written so given and filled content read identically, so *"the FILLED block is therefore the only thing in the whole document that can tell them apart"* — and [icd10-cpt](../../skills/icd10-cpt/SKILL.md) reads it to decide which numbers a code may rest on. An `E66` sitting in a pre-existing list has no filled value under it and is indistinguishable from one the clinician diagnosed. **O5 is the row that makes that difference cost something.**
+
+**Why the case list is 3 and 4 only.** For cases 1 and 2 obesity *is* a given, so it belongs in the history and O5 would fail a correct note. The two case lists are the contrast that makes the row legible: the same word, required in the history on one pair and forbidden there on the other, decided entirely by what the shorthand said.
+
+**And O2's carve-out is the same idea seen from the other end.** O2 refuses to accept an `E66` in a pre-existing list as an *account*; O5 refuses to let it be written there at all. Both rest on the claim that a code in a history list asserts provenance the shorthand never supplied.
+
 ## Still unresolved
 
 - **The set has never been run.** Until it is, `FILLED n/n` has no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
 - **The reference.** Owed, across three day files rather than one. Reading it is what would let this set carry drift rows and answer *better / worse / neither*, and it is a reconciliation rather than a query — see [fixtures/README](../README.md).
 - **The drift-class row is deferred, not dropped.** Does a documented obesity reach the Assessment at all? Cases 1 and 2 are exactly where that can be asked, and the unread reference is what forbids asking it now.
-- **Nothing forbids the reverse invention on cases 3 and 4.** A run that reads `gastric bypass`, concludes the patient is obese today and writes an obese BMI plus an `E66` code has invented an abnormal finding from a history that documents a *past* one — and no row here fails it. A forbidding row of `peds-bp` P6's shape would close it. It is named rather than written because #15 settled this set at four rows.
+- **O5 forbids the invented diagnosis and not the invented emphasis.** A run can satisfy it and still lean the whole note toward a patient it has decided is obese — filling a high BMI, ordering weight-related workup, and keeping every mention formally downstream of the measurement. That is a shape judgment, so it belongs in REPORTED, and this set defines no REPORTED rows. Stated rather than hidden, on `peds-bp` P6's terms.
 - **`clinical-note` still says a known hypertensive *"gets a hypertensive pressure"*** — the rule day-b's B2 stopped enforcing, filed as [#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23). It has no direct analogue for BMI in that file, so this set is not blocked on it, but a rewrite that touches the filled-vitals license will reach O2.
 - **Case 2's age is derived from a date of birth against a backlog file and carries ±1 year.** No row turns on it; see [shorthand/README](shorthand/README.md).

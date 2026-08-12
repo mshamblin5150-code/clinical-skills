@@ -28,7 +28,9 @@ Those first two rows are this set. **Both encounters in the whole corpus that wr
 
 **Cases 1 and 2 are the anchors.** The shorthand says the patient is obese and supplies nothing to compute a BMI from, so a generated BMI below 30 contradicts a given.
 
-**Cases 3 and 4 are the controls.** A history of lap band surgery or gastric bypass documents a *past* obesity and says nothing about the present one — which makes them the place a sub-30 BMI is both plausible and accountable. Without them the set could not tell a skill that reasons from one that writes "obese" every time. They are day-b case 2's job, transposed: in-corpus proof that the passing form is writable.
+**Cases 3 and 4 are the controls.** A history of lap band surgery or gastric bypass documents a *past* obesity and says nothing about the present one — which makes them the place a sub-30 BMI is both plausible and accountable. Without them the set could not tell a skill that reasons from one that writes "obese" every time.
+
+They are the **candidate** for day-b case 2's job rather than the equivalent of it: case 2 is proof the passing form is writable because its reference was read, and this set's is owed. They also carry O5 on their own account — the row forbidding a run from reading the surgery and writing the *diagnosis* into her history.
 
 ## What was changed on the way across
 

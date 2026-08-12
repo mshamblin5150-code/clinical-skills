@@ -616,6 +616,13 @@ class ObesityBmiIsTheDocumentedObesitySet(unittest.TestCase):
                 self.assertTrue(cc.has_documented_obesity(self.case(n)))
 
     def test_the_controls_document_a_bariatric_history_and_not_an_obesity(self):
+        """Both halves are load-bearing, and O5 is why the second one is.
+
+        O5 forbids obesity being written into these two patients' histories,
+        on the ground that the shorthand documents the surgery and never the
+        diagnosis. Add the word to either input and the row starts failing
+        correct notes -- so this asserts the premise rather than trusting it.
+        """
         for n in self.CONTROLS:
             with self.subTest(case=n):
                 note = self.case(n)
