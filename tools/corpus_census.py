@@ -732,8 +732,10 @@ def format_report(
         f"encounters: {c.notes}",
         "",
         'claim: "about 93% carry an age or a date of birth"',
-        'claim: "age given 69%, both 15%, dob only 12%, neither 5%"',
-        "  (batch-shift step 3, over 548 encounters in 48 unique day files)",
+        'claim: "about 7% carry neither" (both clinical-note step 1, and the',
+        "   only two rows below that any skill quotes. batch-shift step 3 quoted",
+        "   the other four until 2026-08-11 and now sends you to the file in",
+        "   front of you instead; issue #36. read them as raw material)",
         f"  stated age            {c.with_stated_age:>5}  {_pct(c.with_stated_age, c.notes)}",
         f"  date of birth         {c.with_dob:>5}  {_pct(c.with_dob, c.notes)}",
         f"  dob and no age        {c.with_dob_instead_of_age:>5}  "
@@ -746,7 +748,13 @@ def format_report(
         "",
         'claim: "this catalog holds day files in which not one encounter states',
         '        an age" (clinical-note step 1, which is why it quotes no share)',
-        f"  day files with none   {files.with_no_stated_age:>5}  of {files.unique_files}",
+        'claim: "the mix differs so sharply between day files that a corpus-wide',
+        '        share describes none of them" (batch-shift step 3; issue #36)',
+        "  a day file states an age in every encounter, in none, or in some",
+        f"  every encounter       {files.with_age_in_every_note:>5}  "
+        f"of {files.unique_files}",
+        f"  no encounter          {files.with_no_stated_age:>5}  of {files.unique_files}",
+        f"  some                  {files.with_mixed_age:>5}  of {files.unique_files}",
         "",
         'claim: "transcription is all-or-nothing"',
         "  (Filled vitals, body measurements and the pain score)",
@@ -838,18 +846,33 @@ class FileCensus:
     files: int
     unique_files: int
     with_no_stated_age: int
+    with_age_in_every_note: int
+    with_mixed_age: int
 
 
 def survey_files(corpus: Corpus) -> FileCensus:
-    """Reduce a ``Corpus`` to integers — the boundary note text does not cross."""
+    """Reduce a ``Corpus`` to integers — the boundary note text does not cross.
+
+    The three age counts partition the files that hold encounters: a day file
+    states an age in every one, in none, or in some. **The two ends are not
+    thresholds**, which is the point of measuring them rather than a
+    "dominant" share — a boundary would have to be invented, and issue #36 is
+    what an invented figure costs. Bimodality shows up as weight at both ends;
+    a corpus sitting uniformly at the corpus-wide rate would have almost none.
+
+    **An empty file is in none of the three.** ``all()`` of nothing is true, so
+    a file the delimiter found no encounters in would otherwise count at the
+    *every* end and inflate the figure ``batch-shift`` step 3 rests on.
+    """
+    with_age = [
+        [has_stated_age(note) for note in day] for day in corpus.day_files if day
+    ]
     return FileCensus(
         files=corpus.files,
         unique_files=corpus.unique_files,
-        with_no_stated_age=sum(
-            1
-            for day in corpus.day_files
-            if day and not any(has_stated_age(note) for note in day)
-        ),
+        with_no_stated_age=sum(1 for day in with_age if not any(day)),
+        with_age_in_every_note=sum(1 for day in with_age if all(day)),
+        with_mixed_age=sum(1 for day in with_age if any(day) and not all(day)),
     )
 
 
