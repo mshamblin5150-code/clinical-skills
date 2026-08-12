@@ -40,7 +40,14 @@ PEDS_BP = REPO_ROOT / "fixtures" / "peds-bp" / "shorthand"
 # change to either one has to be made in both places on purpose.
 DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 DAY_B_CONTROL = (2, 3, 4)
-DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
+DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors: htn documented, no pressure
+# Every case documenting hypertension, which is wider than the B2 anchors. Cases
+# 2 and 3 carry a given pressure, so the run has nothing to fill and B2 does not
+# score them -- but they are what stops the extractor test being vacuous, and
+# case 2's given 121/61 is the reading day-b/assertions.md cites as the in-corpus
+# proof that a normal pressure in a hypertensive is a real patient. Issue #23.
+DAY_B_DOCUMENTS_HTN = (2, 3, 8, 9)
+DAY_B_HTN_WITH_BP = (2, 3)
 
 # The OLDCARTS severity split B5-B8 rest on, for issue #30. Every case is in
 # exactly one of the three, and which one decides whether its severity is a
@@ -405,6 +412,140 @@ class PainScore(unittest.TestCase):
     def test_the_survey_counts_the_notes_not_the_scores(self):
         c = cc.survey(["c/o 8/10 pain, later 6/10", "no score here", "2/10"])
         self.assertEqual(c.with_pain_score, 2)
+
+
+class DocumentedHypertension(unittest.TestCase):
+    """The marker behind the counts issue #23 turned on.
+
+    ``clinical-note`` used to instruct that a documented hypertensive gets a
+    hypertensive filled pressure. What decided that rule was how often the
+    clinician's *own* transcribed pressures agree with it, and that count is
+    only computable if the history marker is extractable. An extractor that
+    quietly stopped matching would leave the rule's stated evidence asserting a
+    number nobody could recompute -- the failure this whole module exists for.
+    """
+
+    def test_the_abbreviation(self):
+        self.assertTrue(cc.has_documented_hypertension("hx: htn, djd"))
+
+    def test_the_word_both_ways(self):
+        self.assertTrue(cc.has_documented_hypertension("hx of hypertension"))
+        self.assertTrue(cc.has_documented_hypertension("known hypertensive"))
+
+    def test_the_code(self):
+        self.assertTrue(cc.has_documented_hypertension("pre-existing: I10, E11.9"))
+
+    def test_absent(self):
+        self.assertFalse(cc.has_documented_hypertension("cc: cough x 2 days"))
+
+    def test_height_is_not_hypertension(self):
+        """``ht`` welded to its value is the shape that defeated other tokens.
+
+        ``\\bhtn\\b`` cannot match inside "ht5'7"" and must not, but the pair is
+        close enough in this corpus's shorthand to be worth pinning: three
+        encounters were misread once already over exactly this welding.
+        """
+        self.assertFalse(cc.has_documented_hypertension("bp 122/63, hr 59 ht5'7\" wt145"))
+        self.assertFalse(cc.has_documented_hypertension("ht 5'4\" wt 212 lbs"))
+
+    def test_a_negated_mention_still_counts(self):
+        """Asserted so the known over-count is visible rather than assumed away.
+
+        No negation guard is carried, on the same reasoning as ``OBESITY``: the
+        corpus holds no negated form among the 175 encounters that write the
+        token, audited 2026-08-11, so a guard would be exercised by nothing.
+        This is the line to change if one appears -- and the test that would
+        start failing when it does.
+        """
+        self.assertTrue(cc.has_documented_hypertension("denies htn"))
+
+    def test_day_b_documents_it_in_exactly_four_cases(self):
+        """Two with a pressure and two without, and the pair matters.
+
+        ``DAY_B_HYPERTENSIVE`` is narrower than this on purpose -- it is the two
+        B2 anchors, which need the pressure *absent* so the run has to fill one.
+        Cases 2 and 3 document the same history and carry a given pressure, so
+        they are hypertensives the extractor must find and B2 must not score.
+        An extractor matching everything would pass the first assertion alone.
+        """
+        matched = [n for n in range(1, 13) if cc.has_documented_hypertension(day_b(n))]
+        self.assertEqual(matched, list(DAY_B_DOCUMENTS_HTN))
+        self.assertEqual(
+            [n for n in matched if cc.has_bp(day_b(n))], list(DAY_B_HTN_WITH_BP)
+        )
+
+    def test_case_2_is_the_normal_hypertensive_the_rule_rests_on(self):
+        """day-b/assertions.md cites this reading by value; here it is checked.
+
+        A *given* 121/61 against a documented hypertension is the in-corpus
+        proof that B2's second exit describes a real patient rather than a
+        loophole -- and the single clearest refutation of the retired rule that
+        a documented hypertensive gets a hypertensive pressure. Case 3 is the
+        other way at 147/81, which is what stops the pair being one-sided.
+        """
+        self.assertEqual(cc.bp_readings(day_b(2)), [(121, 61)])
+        self.assertTrue(cc.all_bp_readings_normal(day_b(2)))
+        self.assertEqual(cc.bp_readings(day_b(3)), [(147, 81)])
+        self.assertFalse(cc.all_bp_readings_normal(day_b(3)))
+
+    def test_the_documented_false_positives_are_the_ones_documented(self):
+        """Each is audited at zero in the corpus; each would still match here.
+
+        The comment beside ``HYPERTENSION`` lists three ways it can be wrong and
+        says all three cost nothing today. That is a claim about the corpus, not
+        about the regex, and this is what stops the two being confused: the
+        regex really does behave this way, and the comment is honest only for
+        as long as the audit holds.
+        """
+        # Included wrongly: a different disease, and a non-diagnosis.
+        self.assertTrue(cc.has_documented_hypertension("hx: pulmonary hypertension"))
+        self.assertTrue(cc.has_documented_hypertension("pre-hypertensive"))
+        # Excluded wrongly: the plural defeats the closing boundary.
+        self.assertFalse(cc.has_documented_hypertension("two hypertensives seen"))
+
+    def test_the_code_is_matched_in_either_case(self):
+        """Wanted, not tolerated -- and asserted because it looks accidental.
+
+        ``I10`` is written with a capital in the pattern, under a leading
+        ``(?i)`` that a reader scanning the alternatives can easily miss.
+        """
+        self.assertTrue(cc.has_documented_hypertension("pre-existing: i10"))
+        self.assertTrue(cc.has_documented_hypertension("pre-existing: I10"))
+
+    def test_the_lenient_leg_is_counted_beside_the_strict_one(self):
+        """Both legs are printed so the day they diverge is visible.
+
+        The strict figure is the one the rule was written on. It is only safe
+        to quote while the difference is inspectable, which is what the lenient
+        counter exists to make it.
+        """
+        c = cc.survey(["hx: htn. bp 162/98, recheck 128/78", "hx: htn. bp 118/70"])
+        self.assertEqual(c.hypertension_bp_normal, 1)
+        self.assertEqual(c.hypertension_bp_normal_lenient, 2)
+
+    def test_the_survey_counts_the_population_and_its_pressures(self):
+        notes = [
+            "hx: htn. bp 117/74",  # documented, and normal
+            "hx: htn. bp 148/92",  # documented, and not
+            "hx: htn, no vitals taken",  # documented, no pressure to count
+            "cc: cough. bp 118/70",  # a pressure, but no hypertension
+        ]
+        c = cc.survey(notes)
+        self.assertEqual(c.with_hypertension, 3)
+        self.assertEqual(c.hypertension_with_bp, 2)
+        self.assertEqual(c.hypertension_bp_normal, 1)
+        self.assertEqual(c.hypertension_bp_not_normal, 1)
+
+    def test_a_note_is_normal_only_when_every_reading_is(self):
+        """Per note, not per reading, and the strict leg is the safe one.
+
+        A recheck after treatment is the case: counting the note normal on its
+        best reading would overstate how often his hypertensives sit at target,
+        which is the direction that would flatter the rule being written.
+        """
+        c = cc.survey(["hx: htn. bp 162/98, recheck 128/78"])
+        self.assertEqual(c.hypertension_with_bp, 1)
+        self.assertEqual(c.hypertension_bp_normal, 0)
 
 
 class DocumentedObesity(unittest.TestCase):
