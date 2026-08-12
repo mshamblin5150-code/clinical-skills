@@ -63,15 +63,29 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 
 **A first run graded by whoever wrote it is a baseline, not a pass.** The same objection that disqualified the drift-matrix verdicts in [ADR 0001](../docs/adr/0001-fixture-asserts-on-named-findings.md) applies to any run scored by the pass that produced it. Asserting against the output text rather than a self-report is what makes the score checkable at all — someone else can re-read the same text and disagree. Until someone does, the number's job is to give the next run something to differ from.
 
+**So separate the two passes, and it is cheap enough that there is no excuse not to.** day-b and peds-bp were both run this way on 2026-08-11: subagents wrote the notes with the assertion files withheld, a fresh pass graded the output text against them, and the orchestrating pass re-derived every row from the output files having authored none of them. What it bought was immediate — **each set failed a row**, and in both cases the note's own drift matrix had reported that row as a pass, once citing Plan text the Plan did not contain. That is ADR 0001's argument happening rather than being made, twice in one sitting.
+
+**Withhold the set's `shorthand/README.md` too, not just `assertions.md`.** Both inputs READMEs state what their set exists to test, and day-b's names two assertion rows outright. Three of the ten generation passes on that day read one — five of the seventeen cases — having reasoned that a file in the inputs directory was an input. All five were regenerated from scratch by passes that had not.
+
+**That audit is a self-report, and it cannot be made anything better.** Each pass was asked afterwards to list every file it opened; three said yes, the rest said no, and the yeses are the only reason the regeneration happened. **Nothing in the output distinguishes a contaminated run from a clean one** — that is what makes the contamination worth avoiding, and it is also why no later check can catch it. ADR 0001 rejects a self-report as *evidence for a verdict*, which this is not: it is an admission against interest, and the correct response to one is to re-run rather than to trust it. **Withhold the file up front**, because the audit cannot be relied on to find what the prompt failed to prevent.
+
 ## Sets
 
 | Set | Skill | Cases | Inputs | Reference | Last run |
 | --- | --- | --- | --- | --- | --- |
 | [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | `DRIFT 10/10` · `REPORTED 14/14` |
-| [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | read | never run |
-| [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | **owed** | never run |
+| [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | read | `DRIFT 5/5` · **`FILLED 3/4`** · `REPORTED 0/1` — **10 of 17 rows**, see below |
+| [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | **owed** | **`FILLED 5/6`** |
 | [obesity-bmi](obesity-bmi/assertions.md) | `clinical-note`, SOAP branch | 4 | [extracted](obesity-bmi/shorthand/) | **owed** | never run |
 | [filled-anchor](filled-anchor/assertions.md) | `icd10-cpt` | 12 | [finished notes](filled-anchor/notes/) | read | never run |
+
+**Two of the three sets that have run fail their bar, on the same defect** — a filled value that reaches the Objective and stops, which is the defect this repo exists to catch appearing in the skill's own output. Filed against the skill as [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47); neither was resolved by editing a fixture. Which rows, on which cases, and where each finding landed instead live in the sets' own files, per the paragraphs below.
+
+**day-b's score covers ten of its seventeen rows, and the column says so.** D6, B5 through B8, C1 and C2 landed here while that run was in flight — three separate tickets, one of them arriving between the run's commit and its merge — so it graded the set as it stood on the commit it names and not as it stands now. Its `CODING` line is absent because the class did not exist, which is a different thing from a class with no rows.
+
+**A partial run states its denominator.** The alternative is a `Last run` column that reads as a full pass over rows nobody scored, and this column is the first thing anyone checks. Scoring the new rows from the old run's output was available and was refused: those rows exist *because* `clinical-note` changed, and the notes predate the change, so the number would have belonged to neither commit. [#55](https://github.com/mshamblin5150-code/clinical-skills/issues/55) is run 2.
+
+**A set that is being added to faster than it is being run is worth noticing as a pattern**, not just as this run's bad luck. Rows are cheap to write and a run costs seventeen generations and a grading pass, so the gap widens by default.
 
 The reference notes themselves live in `scratch/day-a-reference/` and `scratch/day-b-reference/`, gitignored — they carry the visit date, the site, patient references and social-history detail that the committed half deliberately does not.
 
