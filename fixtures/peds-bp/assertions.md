@@ -44,7 +44,7 @@ Settled on [issue #11](https://github.com/mshamblin5150-code/clinical-skills/iss
 
 **The annotation was corrected the same day**, and this paragraph is the only durable record of it. The annotation lives in `scratch/`, gitignored, so nothing about it can be committed — but it had asserted that a small child's missing pressure is *"a genuine gap, not a fill"*, which is exactly what this ruling overturns, and it now records the ruling instead. That was the fourth of issue #11's asks.
 
-**What the corpus changed, and what it did not.** The license's second leg reads *"transcription is all-or-nothing … so an absent vital carries no information about its value."* Measured 2026-08-11 over 559 encounters, that is true from 20 up — 95 of those 106 encounters with no pressure carry **no vital at all** — and false under 6, where 18 of 21 carry a line with the pressure alone missing. The absence there is a decision, written down eighteen times.
+**What the corpus changed, and what it did not.** The license's second leg reads *"transcription is all-or-nothing … so an absent vital carries no information about its value."* Measured 2026-08-11 over 551 encounters, that is true from 20 up — 95 of those 106 encounters with no pressure carry **no vital at all** — and false under 6, where 18 of 21 carry a line with the pressure alone missing. The absence there is a decision, written down eighteen times.
 
 It changes the reasoning and not the outcome, because `clinical-note` had already answered it: *"Whether the measurement happened is beside the point."* Knowing the cuff never touched the arm still does not say what the reading would have been.
 

@@ -16,7 +16,7 @@ So the cases are renumbered `01`–`04` and the `Note <n>` line inside each file
 
 **All four carry no vital and no body measurement at all** — no blood pressure, no pulse, no temperature, no respiratory rate, no oxygen saturation, **no height and no weight**. That is day-b's dominant shape, and it is what makes the BMI wholly generated: there is no given input for the arithmetic to rest on.
 
-What day-b cannot supply is the other half of the pair. Measured 2026-08-11 across 559 encounters with `tools/corpus_census.py`:
+What day-b cannot supply is the other half of the pair. Measured 2026-08-11 across 551 encounters with `tools/corpus_census.py`:
 
 | | any | with no height and no weight |
 | --- | --- | --- |

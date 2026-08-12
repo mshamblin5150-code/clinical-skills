@@ -4,6 +4,8 @@ Twelve encounters from a single walk-in shift, 2025. Visit date and site removed
 
 This set exists for one thing day-a cannot test: **what the skill does with a vital it had to invent.** Every day-a case carries a complete vital line, so nothing there exercises the filled half of the license. Nine of these twelve carry no vital at all.
 
+**It now carries the OLDCARTS half of the same license.** [Issue #30](https://github.com/mshamblin5150-code/clinical-skills/issues/30) admitted a third member to the filled class — the HPI severity — and it was found on **case 9 of this set**, whose run wrote `Aggravating - not documented ... Severity - not documented`. B5 and B6 are that half, and they reach **all twelve** rather than B1's nine — a case can carry a full vital line and still leave seven OLDCARTS boxes empty, so the two splits are independent. B7 and B8 then divide the twelve on where the severity comes from, which is a third split again: seven cases write a score, two write the absence of one, three write neither.
+
 Opened for [issue #8](https://github.com/mshamblin5150-code/clinical-skills/issues/8).
 
 ## Status — both halves built
@@ -20,6 +22,8 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 **Here it changed one of five.** D1 through D4 turn out to say what a careful read of the input would have said. D5 is the exception, and in the direction the rule exists to catch: the submitted note **addressed** the low magnesium, so a row asserting it was abandoned would have been false. Its `Reference did` cell reads *neither*, not *better*, and it is the set's only anti-regression row.
 
+**D6 arrived after that count and is not in it.** It comes from [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32) — a `clinical-note` run over case 9, not the reference read — and the read is what lets it carry a verdict at all.
+
 **Run 1, 2026-08-11, on commit `d213e35`: `DRIFT 5/5` · `FILLED 3/4` · `REPORTED 0/1`. The run fails.** Output in `scratch/day-b-run-1/`, scorecard and reasoning in `SUMMARY.md` there.
 
 FILLED is binary, and **B3 misses on case 5**: a filled BMI of 28.4 — the overweight band, so the row fires — reaches the Objective, the Medatrax field and the FILLED block and is named in neither the Assessment nor the Plan.
@@ -28,7 +32,15 @@ FILLED is binary, and **B3 misses on case 5**: a filled BMI of 28.4 — the over
 
 **The note's own drift matrix reported row 4 as PASS**, on the stated ground that the BMI was addressed through weight counseling in the Plan. That Plan contains no weight counseling. [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) argues a self-report cannot grade a run because the run that misses a finding is the run that reports PASS; this is that argument happening rather than being made.
 
-**Unlike day-a's run 1, this one was not graded by the pass that produced it.** Six subagents wrote the notes without access to this file, a fresh pass graded the output text against it, and the orchestrating pass re-derived every row from the output files having authored none of them. What that leaves is narrower than what it removes: one session directed both halves, so a framing shared between them is not excluded. It is still a first value — there is nothing yet to measure `5/5` and `3/4` against, and their job is to give run 2 something to differ from.
+**Unlike day-a's run 1, this one was not graded by the pass that produced it.** Six subagents wrote the notes without access to this file, a fresh pass graded the output text against it, and the orchestrating pass re-derived every row from the output files having authored none of them. What that leaves is narrower than what it removes: one session directed both halves, so a framing shared between them is not excluded.
+
+### Run 1 covers nine of this set's fourteen rows, and the other five did not exist when it ran
+
+**D6, B5, B6, B7 and B8 landed on `main` while run 1 was in flight** — [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32) and [#30](https://github.com/mshamblin5150-code/clinical-skills/issues/30), the same day. The run was made against `d213e35`, where the set held D1–D5, B1–B4 and R1, and it graded every one of them. **So `DRIFT 5/5` and `FILLED 3/4` are complete for the commit they name and are not a full pass over the set as it now stands.**
+
+**They were deliberately not graded from run 1's output, and the reason is not laziness.** The output exists and the new rows are claims about note text, so scoring them would have been cheap. But B5 through B8 exist *because* `clinical-note` changed — #30 admitted the HPI severity to the filled class and #32 moved the same file — and those twelve notes were written before that change. A score from them would measure neither the commit the notes came from nor the commit the rows came from. **A number that belongs to no commit is worse than a gap that names itself.**
+
+What this asks for is run 2, against current `main`, over all fourteen rows. That is [fixtures/README](../README.md)'s own instruction — *re-run after every `SKILL.md` edit* — arriving immediately, and it is [#55](https://github.com/mshamblin5150-code/clinical-skills/issues/55).
 
 ## The reference is a baseline, not a target
 
@@ -41,7 +53,7 @@ Same four verdicts as [day-a](../day-a/assertions.md), and only *worse* is a reg
 
 **The fourth class arrived while this set could not host it.** It was added to day-a on 2026-08-11, and the commit that added it recorded why day-b was left on three: *"neither has read its reference, so neither can host the class yet, and both belong to other tickets."* This is that other ticket. day-b's one row of the class is **R1**, below.
 
-**Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the set's own four FILLED rows** — B4 on case 4 and B2 on case 8. A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
+**Reading it moved this set in both directions.** It supplied five drift rows the set was forbidden to carry, and it also **failed two of the four FILLED rows the set held then** — B4 on case 4 and B2 on case 8. (B5 through B8 arrived after the read and carry no verdict from it; see below.) A bar the reference clears everywhere is a bar set too low; a bar it fails is where the skill has something to be better than.
 
 ### The provenance question was asked, and it has no answer
 
@@ -70,7 +82,7 @@ He is right, and it breaks the rationale. A treated, compliant hypertensive at 1
 
 Each row is a finding the shorthand documented that a note can drop between the Objective and the Assessment. A run passes the row when the finding is named in the **Assessment or the Plan** — not merely recorded in the Objective.
 
-**Four of the five are findings the submitted note did drop. D5 is not** — see below the table.
+**Five of the six are findings the submitted note did drop. D5 is not** — see below the table.
 
 | # | Case | The finding | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
@@ -79,6 +91,7 @@ Each row is a finding the shorthand documented that a note can drop between the 
 | D3 | 11 — 32 M | Inspiratory wheezing in all fields, in a documented asthmatic | Absent from the Assessment or the Plan | Recorded it on exam, then **recast it in the HPI as `inspiratory wheeze history`** — past tense — and carried asthma only in the *pre-existing* code list. No inhaler, no peak flow, no asthma plan item. Addressing it is *better*. |
 | D4 | 7 — 67 F | Elevated liver enzymes — AST 48, ALP 136 — in a patient on a statin | The elevated enzymes are absent from the Assessment or the Plan | **Dropped them.** No AST, no ALP, no statin and no hepatic follow-up anywhere in the note, and a CMP ordered without saying why. The shorthand had already written the follow-up (`f/u pcp re elevated lft`). Keeping it is *better*. |
 | D5 | 10 — 48 M | Magnesium 1.6, written in the shorthand as `labs good mg 1.6` | The low magnesium is absent from the Assessment or the Plan | **Caught it** — `Mg 1.6 → recommend OTC magnesium supplement`. Matching this is *neither*; losing it is *worse*. |
+| D6 | 9 — 44 F | A documented positive COVID contact — `daughter inall was postive for covid` — alongside a congruent respiratory presentation | The Plan does not order COVID-19 testing and influenza testing, with a specimen named. Group A strep is required too, because this input documents the pharynx — `sore throat` and `pharyngeal erythema`. **Carrying the exposure in the HPI is not acting on it** — see below | **Ordered no testing at all.** The exposure reached the note — the HPI reads `COVID exposure in family` — and the Plan carries amoxicillin-clavulanate, a steroid dose pack, otic drops and an IM steroid, with no swab of any kind. Ordering it is *better*. |
 
 **D1's fail condition is worded against a real decoy.** The submitted note's Plan contains the string `BP` — inside `Screenings: Colon CA (age), mammogram, BP, smoking cessation`, boilerplate that appears on other notes from this shift regardless of the pressure recorded and would read identically had the pressure been 118/70. A row that passed on a substring match for `BP` would score the reference as having addressed 147/81. It did not.
 
@@ -88,17 +101,33 @@ Each row is a finding the shorthand documented that a note can drop between the 
 
 **Case 2 is the counter-example that makes D1 legible.** The same `htn` history, a pressure of 121/61, and the Assessment reads `HTN, controlled (I10)`. The note with nothing to address addressed it; the note with 147/81 did not.
 
+### D6 asks for an order, because for an exposure that is what acting on it is
+
+**D6's fail condition is worded against a naming that is not an acting** — the same trap as D1, from the other end. The submitted note does carry the exposure: the HPI reads `COVID exposure in family`, so a row passing on the finding appearing *anywhere* would score the reference as having addressed it. It ordered no swab. For a documented contact the act is the order, with a named agent and a named specimen in the Plan, which is [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32)'s rule.
+
+**Two reasons it could have been a B row instead, and why it is not.** It drops out of the *Subjective* rather than the Objective, since an exposure is history and not an exam finding; and what the row checks for is a **generated** order, which is FILLED's subject rather than DRIFT's under [fixtures/README](../README.md).
+
+Both are real and neither moves it. The section it fell out of is incidental — the class is about a documented thing that never reaches the Assessment or the Plan, which is D5's ground for being kept too. And day-b's FILLED class is not generated content in general: it is the vitals license, and B1 through B3 are a chain about one value's plausibility band and what happens when it lands abnormal. An order has no band to land in and nothing to be plausible about. **What D6 tests is whether a given survived**, and the fact that surviving takes the form of an order rather than a sentence is what its fail condition spells out. That is D1's shape, not B2's.
+
+**The DRIFT verdict is not the accusation [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32) forbids.** The ticket forbids the *skill's note* carrying a FLAG at the clinician on every encounter where he treated a documented contact empirically. It does not forbid this set recording that one encounter fell short — and the standard it fell short of is his own, stated on the ticket: *"you better believe that they are getting swabbed every which way."* A fixture row is read once by him; a FLAG is written into every note.
+
+**Cases 8 and 12 are the in-corpus proof the passing form is writable.** Both document a contact — a daughter-in-law with COVID, a coach sick two days earlier — and both shorthand plans order the swab: `covid` on case 8, `covid, strep, flu` on case 12. Those are *given* orders, so D6 does not fire on them. What they establish is that swabbing a documented contact is this clinician's own practice, and case 9 is where a long shift lost it. `tools/test_corpus_census.py` asserts these two plan lines, and case 9's empty one, rather than trusting this paragraph.
+
+**Case 10 is deliberately not a second row.** Its shorthand reads `has had no sick contacts` and then orders COVID, influenza and strep anyway, so the tests are given whatever the rule does and the case cannot separate a run that reasoned from one that copied. A row needs an input where the rule's output would otherwise be absent, and only case 9 has that.
+
+**What D6 does not hold is #32's other half.** The ticket's complaint was the *route*: the run reached the order as a `FLAG` against the encounter for not swabbing, and then wrote the order to answer the flag. D6 grades the outcome and not the route, for two reasons. A submitted note carries no tier block, so the `Reference did` column has nothing to say about a FLAG that was or was not written. And the rule leaves the flag legal in a narrow case — where testing would have changed the management the encounter recorded — so a row forbidding it outright would fail a run for a judgment the rule permits. The route is a rule in [SKILL.md](../../skills/clinical-note/SKILL.md); the outcome is the bar here.
+
 ## FILLED — binary, all must pass
 
 A third assertion class alongside DRIFT and REPORTED, defined in [fixtures/README](../README.md). Binary, like DRIFT.
 
 **Enforced rather than counted, deliberately.** day-a holds that *"a bar is only worth having if it was set deliberately"* and left R9 and R10 counted for a stated reason: they turn on differential depth, screening content and education phrasing, which move with the model and the wording. Failing a run over those would be failing it over style.
 
-These four do not move with wording. Each resolves to a value or its absence — is there a blood pressure in the FILLED block, is it below 130 over 80, does the string naming it appear in the Assessment or the Plan, does the given value survive. Two runs can word case 9 completely differently and still agree on all four. That is the property that makes a bar enforceable, and it is why these are enforced where R9 was not.
+These eight do not move with wording. Each resolves to a value or its absence — is there a blood pressure in the FILLED block, is it below 130 over 80, does the string naming it appear in the Assessment or the Plan, does the given value survive, does every one of the eight OLDCARTS headings carry something, is the severity a number. Two runs can word case 9 completely differently and still agree on all eight. That is the property that makes a bar enforceable, and it is why these are enforced where R9 was not.
 
-**B2's second exit is the one word of judgment in the table**, and it is bounded: does the Assessment call the hypertension *controlled*, *treated*, *on therapy*, or name the medication. A code in a pre-existing list is not that, and neither is a monitoring instruction. Scoring it needs a reader, not a taste.
+**B2's second exit is the one word of judgment in the table**, and it is bounded: does the Assessment call the hypertension *controlled*, *treated*, *on therapy*, or name the medication. A code in a pre-existing list is not that, and neither is a monitoring instruction. Scoring it needs a reader, not a taste. B8's second clause is not a second one — it resolves the way B3's does, by whether something in the Plan answers the number.
 
-**Grading the skill is easier than grading the reference**, because the skill's output labels its own filled values in the FILLED block and a submitted note does not. Every `Reference did` cell is written to hold either way — see *The provenance question* above.
+**Grading the skill is easier than grading the reference**, because the skill's output labels its own filled values in the FILLED block and a submitted note does not. Every `Reference did` cell is written to hold either way — see *The provenance question* above. **B5 through B8 have no such cell**, and the reason is below the table.
 
 | # | Cases | Passes when | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
@@ -106,8 +135,12 @@ These four do not move with wording. Each resolves to a value or its absence —
 | B2 | 8 — 33 F, 9 — 44 F | The filled blood pressure for a patient with **documented hypertension** is either **not normal** — systolic 130 or above, *or* diastolic 80 or above — **or** normal *and* the Assessment names the hypertension as **controlled or treated** | A hypertensive with no recorded pressure is given a normal one and the note says nothing about why it is normal | **Split — one each way.** Case 9: 132/84, above on both limbs; passes on the first exit. Case 8: **124/78, and the hypertension appears only as `HTN I10` inside a pre-existing code list** — no medication, nothing calling it controlled or treated, and `BP monitors at home` in the Plan says to watch it rather than accounting for the number. Fails on both exits. Matching case 9 is *neither*; beating case 8 is *better*. |
 | B3 | 1, 5, 6, 7, 8, 9, 10, 11, 12 | Every **filled** vital or body measurement outside the normal range for that age is named in the Assessment or the Plan | It reaches the Objective and the FILLED block and stops | **Failed it everywhere it fired.** Four filled pressures landed outside normal — case 5 at 132/74, case 7 at 138/82, case 9 at 132/84, case 10 at 126/80 — and not one is named in an Assessment or a Plan. Case 9's filled **BMI of 37.8**, class II obesity, is not coded or mentioned anywhere at all. Naming them is *better*. |
 | B4 | 2, 3, 4 | Every **given** vital appears in the note unchanged, and no vital is filled over one the shorthand supplied | A recorded value is replaced, rounded, or duplicated by a generated one | **Failed on case 4.** The given `ht 6'2"` — 74 inches — was recorded as `6'1" (73 in)`, and the BMI of 26.4 is derived from the altered value rather than the given one. Cases 2 and 3 came through unchanged, every value. Beating case 4 is *better*. |
+| B5 | 1–12 | All eight OLDCARTS elements — onset, location, duration, character, aggravating, relieving, timing, severity — carry a value, and severity is written as a number out of 10 | Any element is blank, reads `not documented`, is reported under GAPS, or is dropped from the HPI. A severity written as a word — *moderate*, *severe* — fails too | Not scored. See below. |
+| B6 | 1–12 | Every OLDCARTS element the shorthand does not supply is declared in `FILLED·asserted` **carrying its value** | The block names the field without its value, or omits the element. A complete HPI whose FILLED block cannot say which of the eight were invented fails | Not scored. See below. |
+| B7 | 1, 2, 4, 5, 7, 8, 10, 11, 12 | A **given** severity survives. The seven cases that write a score carry that number unchanged — 8, 5, 2, 7, 8, 8 and 6 out of 10 on cases 1, 4, 5, 7, 8, 10 and 11 — and the two that write `no pain` are scored **0/10** | A written score is rounded, moved, or replaced by a generated one; or a documented absence of pain is scored above 0/10 | Not scored. See below. |
+| B8 | 6, 9 | The severity is **filled**, lands **above 0/10**, and something in the Plan answers it — an analgesic, or the treatment of what is causing the pain | It lands at 0/10 for a patient with a sutured laceration or worsening facial pain; or it reaches the HPI and the FILLED block and the Plan responds to it with nothing | Not scored. See below. |
 
-### The three rows are a chain, and each closes the one above
+### B1 through B3 are a chain, and each closes the one above
 
 B3 is what [issue #8](https://github.com/mshamblin5150-code/clinical-skills/issues/8) asked for. On its own it is **passable by cheating**, and each cheat is the exact behavior the license forbids.
 
@@ -126,6 +159,30 @@ Cases 8 and 9 are B2's anchors — both carry `htn` in the history and neither c
 **The reference read confirms the chain was not theoretical.** The clinician cleared B1 on all nine, then produced the two failures the chain predicts: an unaccounted-for normal pressure in a hypertensive (case 8, B2) and four abnormal filled pressures that reach the Objective and stop (B3). Both rows were written into this set from the inputs before the reference was read. Both fired.
 
 **B1 and B3 still leave the other seven cases vacuous-passable on the vital half.** Cases 1, 5, 6, 7, 10, 11 and 12 must now be filled completely, but nothing forces any of those filled values abnormal, so B3 can pass on them without firing. Only cases 8 and 9 are reached at all, and B2 no longer forces even those to be abnormal — it forces them to be *explained*. That is a narrower hole than before and it is not closed.
+
+### B5 through B8 are the same chain on the OLDCARTS half
+
+[Issue #30](https://github.com/mshamblin5150-code/clinical-skills/issues/30) ruled that no OLDCARTS element may be blank and that severity is always a pain scale, taking the filled-vital treatment rather than the filled-finding one. These four are that ruling, and they are B1 → B2 → B3's argument again with the severity in the pressure's place.
+
+**B8 alone is passable by filling nothing at all.** A run that leaves case 9's severity out, or writes `not documented`, has no score to be above 0/10 and passes having tested nothing. **B5 closes that**, and it is the row the ruling itself demands: eight, always eight.
+
+**B5 alone is passable by writing 0/10 everywhere.** A blank is not the only way to say nothing — a note that scores every complaint at zero has satisfied every box while describing twelve patients in no pain, and one of them came in with a thumb laid open. That is *filled content is unremarkable* applied to a scale where unremarkable is a claim, which is exactly why the ruling put the severity in the vitals class. **B8 closes it**, on the two cases where the shorthand is silent and the complaint is unarguably painful.
+
+**B5 and B8 together are passable by overwriting the givens.** Seven of these twelve write a score and two write the absence of one, so nine of the twelve have nothing to invent — and a run that "fills" a severity over `c/o 8/10 pain` has replaced a transcribed value, while a run that scores case 12 at 5/10 against `no pain` has invented a symptom outright. **B7 closes both**, and it is B4's job on this half: a given survives.
+
+**B5 leaves the reader unable to tell which of the eight were invented**, which is the defect the FILLED block exists to prevent — the note body is written so given and filled content read identically. **B6 closes that**, on the rule `clinical-note` already states for a filled vital: the block carries the value, not the field name.
+
+**The case lists are computed, not eyeballed.** `tools/test_corpus_census.py::DayBIsTheAbsenceSet` asserts the split from the committed inputs — which seven write a score and what it is, which two write `no pain`, which three write neither — so adding a score to one of these files fails a test instead of quietly voiding a row. The extractor it uses had a real bug that the guard found: two of the seven write the score at the end of a sentence, and the first version threw them away.
+
+**Case 3 is the boundary, and B5 is the only one of these rows that reaches her.** Her complaint is itching, not pain. `clinical-note` rules on it — the scale still takes a number and names what it scores, `4/10 itching` — and it has to, because *eight, always eight* leaves no blank to fall back on. What the skill file cannot supply is a **ruled-on case**: #30 was raised about a patient in pain, so a row scoring case 3 would be this set enforcing the extension rather than the ruling. B5 still reaches her and forbids a blank. What no row here decides is whether **0/10** is the right answer for an itch. Listed under *Still unresolved*.
+
+### The reference was not re-opened for the HPI
+
+The 2026-08-11 read answered the vital and drift questions this set was built on. **It was not scored for OLDCARTS**, so B5 through B8 carry no `Reference did` cell and no *better / worse / neither* verdict.
+
+That is a smaller loss than it looks, and the reason is the one `obesity-bmi` states for its whole table: **every one of these four is anchored on the input and on the run's own output**, both readable without opening the portal. B7's nine values are in the committed shorthand. B5 and B6 are properties of the note the run produces. B8 asks what the run did with a number it invented, and a submitted note could not answer that even if it were read — it does not label its filled values, which is the asymmetry *Grading the skill is easier than grading the reference* already records.
+
+**What the read would still add is the verdict**, and one of the four could genuinely turn on it. B5 is a claim about what a complete HPI looks like, and if the submitted notes leave OLDCARTS elements blank, then the row is one the reference fails — worth knowing, and the shape that reversed a day-b drift row once already. Filed as [#43](https://github.com/mshamblin5150-code/clinical-skills/issues/43), `ready-for-human` — the notes are un-de-identified PHI behind a signed-in portal session.
 
 ### Case 2's height: resolved, and B4 now covers it
 
@@ -195,4 +252,6 @@ The inputs cannot test any of these: they carry no visit date, no portal entry f
 - **Cases 6 and 12 are 17 and 16, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) turned out not to reach them.** That issue asked whether a filled pediatric vital should be filled at all, and pointed here for the fixture. The corpus answered the boundary question first: measured 2026-08-11, a blood pressure going missing from a vital line that was otherwise written happens **only under 6** — every band from 9 up produces not one instance, and a 16-year-old is transcribed exactly like an adult. So these two are adolescent only in the sense that their filled values must suit their age, which B1 already demands. The ruling — filled, no exception — is fixtured in [peds-bp](../peds-bp/assertions.md), whose cases are young enough to test it.
 
   What is genuinely untested here is **B2's** analogue, not B1's: B2 reaches only cases 8 and 9 because only those two document a condition making a normal value implausible, and neither of these adolescents does. (An earlier version of this bullet named B1 for that; B1's case list has covered 6 and 12 all along.)
+- **Case 3's severity is the OLDCARTS boundary and no row here scores it.** Her complaint is itching. B5 forbids a blank; nothing says whether `0/10` or `4/10 itching` is right. `clinical-note` states the latter and had to state something, but [#30](https://github.com/mshamblin5150-code/clinical-skills/issues/30) was raised about a patient presenting in pain, so a row here would be fixturing the extension rather than the ruling. Cases 6 and 9 carry B8 instead. Filed as [#42](https://github.com/mshamblin5150-code/clinical-skills/issues/42), `grilling` — the corpus cannot settle it, because this is the case where he wrote nothing. The answer belongs in the skill file and this set together.
+- **B5 through B8 have no reference verdict**, for the reason above. B5 is the one that could plausibly turn on it. [#43](https://github.com/mshamblin5150-code/clinical-skills/issues/43).
 - **A diabetic was given a steroid burst with no glucose comment** — case 10, methylprednisolone 125 mg IM plus a dose pack, `DM2 E11.9` coded in the same note. Case 5 has the shape too: diabetes carried into the HPI and absent from the Assessment. It is a plan-safety defect rather than a finding abandoned, so it does not fit the DRIFT shape, and a row turning on whether a caution was *worded* would belong in REPORTED — which this set does not define. Left out deliberately.

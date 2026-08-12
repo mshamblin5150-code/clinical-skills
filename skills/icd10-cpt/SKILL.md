@@ -19,7 +19,7 @@ The third one is invisible and is the reason for *The input* below.
 
 That is a hard requirement, not a convenience. Every line of a finished note is **given**, **derived**, or **filled** ([clinical-note](../clinical-note/SKILL.md)), and the finished note is written so those three read identically. `BMI 36.4` in the Objective is the same eleven characters whether it was measured or generated. The tier block is the only place the difference is recorded, so a note arriving without one has had its source information stripped.
 
-**Where the tier block is missing, say so and treat every vital, body measurement and BMI in the note as filled.** Not as a punishment — as the accurate reading. Measured 2026-08-11 with `tools/corpus_census.py` across 559 encounters, 47% carry no vital at all and only 41% carry a height — so **59% have no height to write down**. An unmarked measurement in a note from this pipeline is more likely to have been filled than recorded. Being wrong in that direction costs a code that had to be earned by measuring; being wrong in the other direction puts a number nobody measured onto a claim.
+**Where the tier block is missing, say so and treat every vital, body measurement and BMI in the note as filled.** Not as a punishment — as the accurate reading. Measured 2026-08-11 with `tools/corpus_census.py` across 551 encounters, 46% carry no vital at all and only 41% carry a height — so **59% have no height to write down**. An unmarked measurement in a note from this pipeline is more likely to have been filled than recorded. Being wrong in that direction costs a code that had to be earned by measuring; being wrong in the other direction puts a number nobody measured onto a claim.
 
 ## The code set
 
@@ -126,7 +126,9 @@ One invented inch, a different code. Nothing in the finished note distinguishes 
 
 **What is still codable, and this is most of it.** The rule reaches the value, not the patient.
 
-- A **documented** diagnosis of obesity, hypertension or asthma is codable from the Assessment however the vitals got there. `E66.9` off a charted diagnosis is a given anchored to given text.
+- A **documented** diagnosis of obesity, hypertension or asthma is codable from the Assessment however the vitals got there — **where the source documented it.** `E66.9` off a charted diagnosis is a given anchored to given text.
+
+  **"Charted" means charted by the clinician, not written into the Assessment by the upstream skill.** The note arriving here is generated, so its Assessment can name a diagnosis that rests on nothing but a filled measurement — `clinical-note` is permitted to write one there, provided the FILLED block declares what it rests on. That entry is the measurement wearing a diagnosis, and step 2 strikes it: its only support is a value from step 1. Reading this bullet as blanket permission to code any `E66` sitting in an Assessment launders a filled height into a code in two moves, and the output reads perfectly well.
 - A **given** vital codes normally. Only the filled ones are struck.
 - A **derived** value whose inputs were all given is given for this purpose — a BMI computed from a recorded height and a recorded weight is a measurement, not an invention.
 

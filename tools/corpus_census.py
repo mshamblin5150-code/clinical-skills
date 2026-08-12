@@ -28,7 +28,7 @@ Extractor limits worth knowing before quoting a number:
   age nor a birth date: ten literals across nine of those encounters, every
   one of them a menstrual, follow-up, referral or administrative date, and
   none a birth date. Counting all nine encounters anyway is what lands at
-  530 of 559 -- the reading the prose carried before 2026-08-11. Issue #9.
+  522 of 551 -- the reading the prose carried before 2026-08-11. Issue #9.
 - ``OTHER_VITALS`` matches the bare words ``hr``, ``temp``, ``rr`` and ``spo2``
   with no number after them, so an encounter that merely *mentions* a
   temperature in prose counts as carrying a vital. This is load-bearing for the
@@ -41,9 +41,18 @@ Extractor limits worth knowing before quoting a number:
   age in the note and cannot tell a patient's from a parent's or a sibling's.
   Ages sit at the top of these notes, so it is usually the patient's — but no
   band figure should be quoted about an individual encounter, only about the
-  distribution. And the ``no age`` band is large: 202 of 559 as of 2026-08-11,
+  distribution. And the ``no age`` band is large: 194 of 551 as of 2026-08-11,
   so every other band is a **floor**, not a population. Quote the ratio within
   a band, never the count as though it were exhaustive.
+- **The pain-score line reports a figure no prose asserts yet**, which is the
+  one place this script runs ahead of the repo rather than behind it. Issue #30
+  made an OLDCARTS severity mandatory on every note without a count behind it,
+  and the count that would justify the rule -- how often he writes one himself
+  -- was not computable while ``scratch/`` was out of reach. The line is here so
+  the first person with the corpus can produce it. **It is neither a floor nor
+  a ceiling**: a written date has a score's exact shape and is counted as one,
+  and a "12/10" is dropped as out of range. The two errors run opposite ways
+  and neither is measured, so quote it as an estimate and say so.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -52,6 +61,7 @@ Extractor limits worth knowing before quoting a number:
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from dataclasses import dataclass
@@ -72,6 +82,34 @@ DIASTOLIC_RANGE = (30, 160)
 # because a different threshold gives a materially different percentage.
 NORMAL_SYSTOLIC = 130
 NORMAL_DIASTOLIC = 80
+
+# The OLDCARTS severity, for issue #30. ``clinical-note`` now requires a pain
+# scale on every note, so the number worth having is how often he writes one --
+# the population the rule fills for is everything else.
+#
+# Nearly BP_PAIR's shape, for the same reason in reverse: BP_PAIR's plausibility
+# range is what keeps "10/10 pain" out of the pressures, and the
+# ``(?<![\d/.\-])`` here is what keeps the "10" inside a systolic of 110 from
+# pairing with what follows it.
+#
+# **The trailing guard is narrower than BP_PAIR's, and deliberately.** A score
+# ends a sentence -- "rates his pain 2/10." -- so a dot after it is punctuation,
+# not a decimal point. Copying BP_PAIR's ``(?![\d/.\-])`` verbatim silently lost
+# two of day-b's seven transcribed scores, and the fixture guard in
+# ``test_corpus_census.py`` is what found it. A pressure is written onto a vital
+# line where a following dot really is a decimal; a severity is written into
+# prose. Same characters, different neighbors.
+#
+# **A written date is the false positive this cannot exclude.** "3/10" is a
+# score and a date in the same characters, and nothing in a line of shorthand
+# distinguishes them. Two things keep it small: the denominator must be exactly
+# 10, so only the tenth of a month collides, and ``fixtures/day-b`` -- the set
+# the split is guarded against -- contains no bare month/day token at all
+# (day-b/shorthand/README states it). It runs the opposite way to the
+# out-of-range drop below, and neither error is measured; see the module
+# docstring for how to quote the figure.
+PAIN_SCORE = re.compile(r"(?<![\d/.\-])(\d{1,2})\s*/\s*10\b(?![\d/])")
+PAIN_SCALE_MAX = 10
 
 # The spelled-out "63 inches" form must be matched without relying on the "ht"
 # token, because the token is sometimes mistyped: fixtures/day-a/shorthand/case-08
@@ -214,6 +252,22 @@ def has_bp(note: str) -> bool:
     return bool(bp_readings(note))
 
 
+def pain_scores(note: str) -> list[int]:
+    """Every transcribed OLDCARTS severity in a note, as whole numbers out of 10.
+
+    Values above 10 are dropped. That loses the occasional "12/10" a patient
+    really did say, and it is the deliberate trade: above 10 the shape is far
+    likelier to be a date than a score, and the date collision is the error
+    this extractor cannot otherwise reduce at all.
+    """
+    scores = [int(m.group(1)) for m in PAIN_SCORE.finditer(note)]
+    return [s for s in scores if s <= PAIN_SCALE_MAX]
+
+
+def has_pain_score(note: str) -> bool:
+    return bool(pain_scores(note))
+
+
 def has_height(note: str) -> bool:
     return bool(HEIGHT.search(note))
 
@@ -330,6 +384,12 @@ class Census:
     bariatric_no_measurement: int = 0
     with_sleep_apnea: int = 0
     sleep_apnea_no_measurement: int = 0
+    with_pain_score: int = 0
+
+    @property
+    def without_pain_score(self) -> int:
+        """The population the OLDCARTS severity rule fills for. Issue #30."""
+        return self.notes - self.with_pain_score
 
     @property
     def without_bp(self) -> int:
@@ -350,6 +410,7 @@ def survey(notes: list[str]) -> Census:
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
     age_n = dob_n = both_n = neither_n = 0
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
+    pain_n = 0
 
     for note in notes:
         measured = has_body_measurement(note)
@@ -372,6 +433,7 @@ def survey(notes: list[str]) -> Census:
         other_n += other
         no_vital_n += not has_any_vital(note)
         bp_weight_no_height_n += bp and weight and not height
+        pain_n += has_pain_score(note)
 
         for reading in bp_readings(note):
             readings_n += 1
@@ -402,6 +464,7 @@ def survey(notes: list[str]) -> Census:
         bariatric_no_measurement=bar_bare_n,
         with_sleep_apnea=osa_n,
         sleep_apnea_no_measurement=osa_bare_n,
+        with_pain_score=pain_n,
     )
 
 
@@ -476,16 +539,21 @@ def format_report(
     source: str,
     date: str,
     bands: dict[str, BandCensus],
+    files: FileCensus,
 ) -> str:
     c = census
     # ASCII only: this output is read in a Windows console and pasted into tickets.
+    header = f"files: {files.files}"
+    if files.files != files.unique_files:
+        header += f" ({files.unique_files} unique)"
     lines = [
         f"corpus census - {source} - {date}",
+        header,
         f"encounters: {c.notes}",
         "",
         'claim: "about 93% carry an age or a date of birth"',
-        'claim: "age stated in 42%, a date of birth appears instead in 47%"',
-        "  (the second was measured over a 353-note catalog, not this corpus)",
+        'claim: "age given 69%, both 15%, dob only 12%, neither 5%"',
+        "  (batch-shift step 3, over 548 encounters in 48 unique day files)",
         f"  stated age            {c.with_stated_age:>5}  {_pct(c.with_stated_age, c.notes)}",
         f"  date of birth         {c.with_dob:>5}  {_pct(c.with_dob, c.notes)}",
         f"  dob and no age        {c.with_dob_instead_of_age:>5}  "
@@ -496,7 +564,12 @@ def format_report(
         f"{_pct(c.with_either_age_or_dob, c.notes)}",
         f"  neither               {c.with_neither:>5}  {_pct(c.with_neither, c.notes)}",
         "",
-        'claim: "transcription is all-or-nothing" (Filled vitals and body measurements)',
+        'claim: "this catalog holds day files in which not one encounter states',
+        '        an age" (clinical-note step 1, which is why it quotes no share)',
+        f"  day files with none   {files.with_no_stated_age:>5}  of {files.unique_files}",
+        "",
+        'claim: "transcription is all-or-nothing"',
+        "  (Filled vitals, body measurements and the pain score)",
         f"  no vital at all       {c.with_no_vital:>5}  {_pct(c.with_no_vital, c.notes)}",
         f"  blood pressure        {c.with_bp:>5}  {_pct(c.with_bp, c.notes)}",
         f"  height                {c.with_height:>5}  {_pct(c.with_height, c.notes)}",
@@ -517,17 +590,92 @@ def format_report(
         f"  obesity written     {c.with_obesity:>5}  {c.obesity_no_measurement:>9}",
         f"  bariatric history   {c.with_bariatric:>5}  {c.bariatric_no_measurement:>9}",
         f"  sleep apnea / cpap  {c.with_sleep_apnea:>5}  {c.sleep_apnea_no_measurement:>9}",
+        "",
+        'claim: "the severity the note fills is the one he did not write"',
+        "  (issue #30. an estimate, not a bound - a written date reads as a",
+        "   score and a 12/10 is dropped, and the two errors run opposite ways)",
+        f"  pain score written    {c.with_pain_score:>5}  "
+        f"{_pct(c.with_pain_score, c.notes)}",
+        f"  no score written      {c.without_pain_score:>5}  "
+        f"{_pct(c.without_pain_score, c.notes)}",
     ]
     lines += ["", *format_band_report(bands)]
     return "\n".join(lines)
 
 
-def read_corpus(directory: Path) -> list[str]:
-    notes: list[str] = []
+@dataclass(frozen=True)
+class Corpus:
+    """The day files read from a directory, byte-identical copies already dropped.
+
+    Grouped by file rather than flattened, because two of this repo's claims are
+    about *files* and not about encounters: ``GLOSSARY.md`` counts the catalog in
+    files, and ``clinical-note`` step 1 rests on there being whole day files in
+    which no encounter states an age. A flat list of notes cannot answer either.
+
+    ``files`` and ``unique_files`` differ by design rather than by accident. One
+    day file in the catalog is on disk twice, byte for byte. ``GLOSSARY.md``
+    already said so — 49 files, 48 unique — but this script did not, and counted
+    that shift's encounters twice. Issue #16.
+
+    **This holds note text.** It is the one thing here that does, so it never
+    reaches ``format_report``; ``survey_files`` reduces it to integers first.
+    """
+
+    day_files: tuple[tuple[str, ...], ...]
+    files: int
+
+    @property
+    def notes(self) -> list[str]:
+        return [note for day in self.day_files for note in day]
+
+    @property
+    def unique_files(self) -> int:
+        return len(self.day_files)
+
+
+@dataclass(frozen=True)
+class FileCensus:
+    """Counts *of day files*, not of encounters. Integers only, so it can be printed."""
+
+    files: int
+    unique_files: int
+    with_no_stated_age: int
+
+
+def survey_files(corpus: Corpus) -> FileCensus:
+    """Reduce a ``Corpus`` to integers — the boundary note text does not cross."""
+    return FileCensus(
+        files=corpus.files,
+        unique_files=corpus.unique_files,
+        with_no_stated_age=sum(
+            1
+            for day in corpus.day_files
+            if day and not any(has_stated_age(note) for note in day)
+        ),
+    )
+
+
+def read_corpus(directory: Path) -> Corpus:
+    """Read every day file in ``directory``, dropping byte-identical copies.
+
+    Deduplication is by content, not by filename: the copy in the catalog does
+    not share a name with its original. It is also per *file* — two identical
+    encounters inside one shift are two encounters, and always were.
+    """
+    day_files: list[tuple[str, ...]] = []
+    seen: set[str] = set()
+    files = 0
     for path in sorted(directory.iterdir()):
-        if path.suffix.lower() in (".txt", ".md") and path.is_file():
-            notes.extend(split_notes(path.read_text(encoding="utf-8", errors="replace")))
-    return notes
+        if path.suffix.lower() not in (".txt", ".md") or not path.is_file():
+            continue
+        files += 1
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest in seen:
+            continue
+        seen.add(digest)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        day_files.append(tuple(split_notes(text)))
+    return Corpus(day_files=tuple(day_files), files=files)
 
 
 def main(argv: list[str]) -> int:
@@ -536,17 +684,18 @@ def main(argv: list[str]) -> int:
     if not directory.is_dir():
         print(f"no corpus at {directory}", file=sys.stderr)
         return 1
-    notes = read_corpus(directory)
-    if not notes:
+    corpus = read_corpus(directory)
+    if not corpus.notes:
         print(f"no notes found in {directory}", file=sys.stderr)
         return 1
     today = __import__("datetime").date.today().isoformat()
     print(
         format_report(
-            survey(notes),
+            survey(corpus.notes),
             source=directory.name,
             date=today,
-            bands=survey_bands(notes),
+            bands=survey_bands(corpus.notes),
+            files=survey_files(corpus),
         )
     )
     return 0

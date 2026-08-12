@@ -58,7 +58,7 @@ Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 uni
 | `htn` | hypertension |
 | `cad` | coronary artery disease |
 | `copd` | chronic obstructive pulmonary disease |
-| `gerd` | gastro-oesophageal reflux disease |
+| `gerd` | gastroesophageal reflux disease |
 | `afib` | atrial fibrillation |
 | `dvt` | deep vein thrombosis |
 | `sud` | substance use disorder |
@@ -105,7 +105,7 @@ Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 uni
 | `rpr` | rapid plasma reagin — syphilis screening |
 | `abg` | arterial blood gas |
 | `trop` | troponin |
-| `egd` | oesophagogastroduodenoscopy |
+| `egd` | esophagogastroduodenoscopy |
 | `dexa` | dual-energy x-ray absorptiometry — bone density |
 | `pap` | Papanicolaou smear |
 | `tms` | tympanic membranes — the plural of `TM` |
