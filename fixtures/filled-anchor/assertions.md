@@ -20,9 +20,23 @@ Opened for [issue #17](https://github.com/mshamblin5150-code/clinical-skills/iss
 
 **The reference is read.** All twelve submitted notes were opened in the portal on 2026-08-11 and are kept in `scratch/day-b-reference/`, gitignored. Their code lists were lifted on 2026-08-11 and every `Reference did` cell below rests on them. Reading it cost nothing — day-b had already paid for it.
 
-**The set has never been run.** `ANCHOR n/n` and `CODE n/n` have no first value yet, and `REPORTED n/m` has none either.
+**Run 1, 2026-08-11: `ANCHOR 5/5` · `CODE 4/4` · `REPORTED 1/2`.** Output in
+`scratch/filled-anchor-run-1/`, twelve worksheets plus the two graders described below.
 
-That is deliberate rather than unfinished. [#17](https://github.com/mshamblin5150-code/clinical-skills/issues/17) opens by explaining why this set was not built alongside #10 — *"a first assertion set written from this skill's own output is a baseline agreeing with itself forever"*, which is [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md). Writing the rows and grading the run in one session reproduces that defect exactly. **The rows below were written from the inputs and the reference, before `icd10-cpt` was run over any of them.** Running it is [issue #44](https://github.com/mshamblin5150-code/clinical-skills/issues/44).
+The rows were written from the inputs and the reference, before `icd10-cpt` was run over any of
+them, and run 1 was produced and graded by a different session. That separation is
+[#17](https://github.com/mshamblin5150-code/clinical-skills/issues/17)'s whole reason for not
+building the set alongside #10 — *"a first assertion set written from this skill's own output is a
+baseline agreeing with itself forever"*, which is
+[ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md). **What it does not buy is a
+graded pass**: run 1 was scored by the pass that produced it, so on
+[fixtures/README](../README.md)'s terms it is a baseline, and its job is to give run 2 something to
+differ from.
+
+**`REPORTED 1/2` is the run failing R2, not the row failing.** One specificity flag in twelve
+worksheets — `Z98.51` on case 9 — reads a bare `complete` with no axis named, against 66 of 67 that
+carry a reason, and the same code on case 2 carries one. It was left standing rather than corrected
+to make the row pass. See *Still unresolved* for why it may be R2 that needs the edit.
 
 ## The classes are new, and two of them are
 
@@ -126,7 +140,10 @@ Counted on day-a's terms: *"a bar is only worth having if it was set deliberatel
 - **A3 and A4 are answer-keyed in the direction they assert, and a copying run passes both for free.** This was raised in review and it is a real limit rather than a defect to argue away. A3 wants `Z68.25` on case 4 — the note already lists it. A4 wants `I10` on cases 2, 3, 8 and 9 — all four notes already carry it. So a run that transcribes every input list clears both rows.
 
   **What they still discriminate is the other failure**, and it is the one #10 actually predicted: a run that applies the filled-anchor rule *too widely* and stops coding the family altogether. That run passes A1, A2 and A5 and fails A3 and A4, which is the whole reason A3 exists. **What no row in this set can catch is a run that copies.** ANCHOR catches copying only where the input is wrong — case 1, one case in twelve — and the other eleven inputs are right, so copying them is indistinguishable from coding them. Closing it needs an input whose *correct* codes are absent, which none of these twelve is.
-- **The set has never been run**, so `ANCHOR n/n`, `CODE n/n` and `REPORTED n/m` have no first value. [Issue #44](https://github.com/mshamblin5150-code/clinical-skills/issues/44). A first run graded by the pass that wrote the rows would be a baseline, not a pass — and here it would be the second time this ticket made that mistake, since not making it the first time is why the set did not ship with #10.
+
+  **Run 1 measured how large that hole is, and it is larger than the paragraph above implies.** Of 140 ICD-10 proposals across the twelve worksheets, **137 already appeared in the input note's own lists and 3 did not** — `R20.2` on case 5, `R06.89` on cases 9 and 10. So 98% of the run is indistinguishable from a transcription, and every row in this set passed anyway. The number is the argument for the input this set does not have.
+- **A3 is not worded as a string test, and grading it as one gives a false negative.** Run 1's case-4 worksheet says in prose, inside the `NOT CODED, ANCHOR WAS FILLED` block, that `Z68.25` was proposed *rather than* routed there — so a substring search for `Z68.25` in that block reports a routing that did not happen. The row's fail condition is *routed to step 4*, and routing has a signature in `icd10-cpt`'s own step-4 format: a `NOT CODED:` line. **A grader has to test that, not the bare string.** This is the same problem A2 solved by rewording, and A3 has not had it done; the difference is that A2's *pass* condition needed to become mechanical, while A3's *fail* condition still reads as prose.
+- **R2 asks for more than `icd10-cpt`'s own template requires.** The skill's step 3 writes `SPECIFICITY: <complete | needs: laterality / episode / site / severity / a billable child>`, so a bare `complete` is compliant output. R2 grades a bare `complete` as reading complete "by default" and fails it. **A run can therefore satisfy the skill and fail the row**, which is what run 1 did once in 153 proposed codes. Either the skill should require a reason beside `complete` or R2 should ask only that the *needs* branch name an axis when it is taken. Filed as [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
 - **The `E66.-` control is owed.** A4 covers the diagnosis-survives-filled-vitals claim on `I10` only. Its obesity instance needs `obesity-bmi` cases 1 and 2 run through `clinical-note` first, at which point this set can span two sources on [fixtures/README](../README.md)'s terms.
 - **CODE cannot ask whether a code is *right*.** C1 through C3 verify existence, descriptor and billability; nothing in the database encodes the coding guidelines and there is no alphabetic index, so a plausible code for the wrong diagnosis passes. It does not move with wording, so it is not a REPORTED row by rights — it is a row this set would enforce if the reference material existed.
 - **A2's failure is a `clinical-note` defect, and this set only taxes it downstream.** Case 1 wrote `E66.3` and `Z68.26` into a Medatrax diagnosis field off a filled height, while six of its siblings held the same family back. A2 makes the launder visible in the coding worksheet; it does nothing about the note, which is submitted as it stands. Filed as [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46).

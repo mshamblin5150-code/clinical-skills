@@ -65,7 +65,7 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 | [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | read | never run |
 | [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | **owed** | never run |
 | [obesity-bmi](obesity-bmi/assertions.md) | `clinical-note`, SOAP branch | 4 | [extracted](obesity-bmi/shorthand/) | **owed** | never run |
-| [filled-anchor](filled-anchor/assertions.md) | `icd10-cpt` | 12 | [finished notes](filled-anchor/notes/) | read | never run |
+| [filled-anchor](filled-anchor/assertions.md) | `icd10-cpt` | 12 | [finished notes](filled-anchor/notes/) | read | `ANCHOR 5/5` · `CODE 4/4` · `REPORTED 1/2` |
 
 The reference notes themselves live in `scratch/day-a-reference/` and `scratch/day-b-reference/`, gitignored — they carry the visit date, the site, patient references and social-history detail that the committed half deliberately does not.
 
