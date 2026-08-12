@@ -126,7 +126,9 @@ One invented inch, a different code. Nothing in the finished note distinguishes 
 
 **What is still codable, and this is most of it.** The rule reaches the value, not the patient.
 
-- A **documented** diagnosis of obesity, hypertension or asthma is codable from the Assessment however the vitals got there. `E66.9` off a charted diagnosis is a given anchored to given text.
+- A **documented** diagnosis of obesity, hypertension or asthma is codable from the Assessment however the vitals got there — **where the source documented it.** `E66.9` off a charted diagnosis is a given anchored to given text.
+
+  **"Charted" means charted by the clinician, not written into the Assessment by the upstream skill.** The note arriving here is generated, so its Assessment can name a diagnosis that rests on nothing but a filled measurement — `clinical-note` is permitted to write one there, provided the FILLED block declares what it rests on. That entry is the measurement wearing a diagnosis, and step 2 strikes it: its only support is a value from step 1. Reading this bullet as blanket permission to code any `E66` sitting in an Assessment launders a filled height into a code in two moves, and the output reads perfectly well.
 - A **given** vital codes normally. Only the filled ones are struck.
 - A **derived** value whose inputs were all given is given for this purpose — a BMI computed from a recorded height and a recorded weight is a measurement, not an invention.
 
