@@ -20,7 +20,15 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 **Here it changed one of five.** D1 through D4 turn out to say what a careful read of the input would have said. D5 is the exception, and in the direction the rule exists to catch: the submitted note **addressed** the low magnesium, so a row asserting it was abandoned would have been false. Its `Reference did` cell reads *neither*, not *better*, and it is the set's only anti-regression row.
 
-**The set has never been run.** `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value yet.
+**Run 1, 2026-08-11, on commit `d213e35`: `DRIFT 5/5` · `FILLED 3/4` · `REPORTED 0/1`. The run fails.** Output in `scratch/day-b-run-1/`, scorecard and reasoning in `SUMMARY.md` there.
+
+FILLED is binary, and **B3 misses on case 5**: a filled BMI of 28.4 — the overweight band, so the row fires — reaches the Objective, the Medatrax field and the FILLED block and is named in neither the Assessment nor the Plan.
+
+**Of B3's nine cases, seven produced an abnormal filled BMI and six of those addressed it.** Cases 6 and 12 landed normal, at 23.0 and 21.6, so the row never fired on them. Case 5 is the only case where it fired and was missed.
+
+**The note's own drift matrix reported row 4 as PASS**, on the stated ground that the BMI was addressed through weight counseling in the Plan. That Plan contains no weight counseling. [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) argues a self-report cannot grade a run because the run that misses a finding is the run that reports PASS; this is that argument happening rather than being made.
+
+**Unlike day-a's run 1, this one was not graded by the pass that produced it.** Six subagents wrote the notes without access to this file, a fresh pass graded the output text against it, and the orchestrating pass re-derived every row from the output files having authored none of them. What that leaves is narrower than what it removes: one session directed both halves, so a framing shared between them is not excluded. It is still a first value — there is nothing yet to measure `5/5` and `3/4` against, and their job is to give run 2 something to differ from.
 
 ## The reference is a baseline, not a target
 
@@ -147,7 +155,13 @@ Issue #8 asked for both halves — a filled vital and a filled body measurement 
 
 ## REPORTED — counted, not enforced
 
-One row, and it exists because the reference read produced a difference of the fourth class. Counted rather than enforced on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and this one has not been run even once.
+One row, and it exists because the reference read produced a difference of the fourth class. Counted rather than enforced on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and when it was written the set had not been run even once.
+
+**Run 1 scored it `0/1`, and it cost the run nothing** — which is what *counted rather than enforced* buys. Case 1 asserted an allergy status against a shorthand silent on allergies, plus an education level, a marital status and an occupational detail; case 2 asserted the allergy status again, plus an occupation and an education level. Each is declared in `FILLED·asserted`, and **declaring an assertion is not the not-reported phrasing the row asks for.** Case 2's `seasonal allergies (stated), reaction pattern not documented` is the passing form and is the one place the run got it right; case 2's inferred antihypertensive is exempt under the note below.
+
+Graded ***worse***, not *out of reach*: the reference asserted three of these having been in the room, which is what puts its version out of reach. The skill was not in the room and asserted them anyway.
+
+**A `0/1` is not an argument for enforcing the row, and no number of them would be.** [fixtures/README](../README.md) sets one criterion — *"what makes a row enforceable is that it does not move with wording"* — and R1 turns on phrasing, as the paragraph above demonstrates by scoring it on whether a declaration reads as not-reported. What a repeated `0/1` would be evidence for is that the underlying behavior is stable enough to be worth a *differently worded* binary row: one resolving to whether a named social, allergy or medication field appears at all where the shorthand supplies none. That row does not exist and writing it is not this run's business.
 
 | # | Cases | Claim | Reference did |
 | --- | --- | --- | --- |
@@ -174,7 +188,10 @@ The inputs cannot test any of these: they carry no visit date, no portal entry f
 ## Still unresolved
 
 - **`clinical-note` still says what B2 stopped saying.** [SKILL.md](../../skills/clinical-note/SKILL.md) reads *"A known hypertensive seen for a productive cough gets a hypertensive pressure"* — the rule B2 was written to fixture, and the one the clinician's *"she may be compliant with her BP meds"* contradicts. The same file also tells the skill to **infer a likely regimen** where a hypertensive history carries no `meds:` line, and to propose *"lisinopril where the history carries hypertension"*. So it currently instructs the skill to put a patient on an ACE inhibitor and then hand her a hypertensive pressure anyway. **B2 was changed and the skill rule was not**, deliberately: rewriting a clinical rule is the clinician's call and it would ripple into `peds-bp` and drift row 4. Filed as [#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23).
-- **The set has never been run.** Until it is, `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
+
+  **Run 1 narrowed the disagreement, and [#26](https://github.com/mshamblin5150-code/clinical-skills/issues/26) had expected the opposite.** That ticket predicted a B2 failure as the visible cost of the two documents contradicting each other. B2 passed. The reason is structural rather than lucky: B2's **first** exit is an abnormal pressure, and the skill rule produces exactly that — case 8 was filled 148/92 and case 9 146/90, both above on both limbs, so neither reached the second exit and the clause the two documents fight over was never tested. **B2 can only fail a run that fills a *normal* pressure for a documented hypertensive and leaves it unaccounted for, and the skill rule steers away from that reading.** The two are not in conflict on any input this set contains; they conflict on a run the rule discourages. That is a smaller disagreement than it looked, and it is evidence for #23 to weigh rather than a reason to close it — the rule still orders up an abnormal finding on principle, which is the objection, and the objection survives a passing row.
+- **B3 fails, and the fix is not this set's to make.** Run 1 lost case 5's filled BMI between the FILLED block and the Assessment. The row is doing exactly its job; what it surfaced is a `clinical-note` behavior — an abnormal filled BMI addressed on six of the seven cases that produced one, and dropped on the seventh, which is the case with the busiest Plan. Filed as [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47), with peds-bp's identical P5 miss, and **not resolved by editing this row.**
+- **Run 2 has not happened.** Run 1 is a first value, not a bar cleared: nothing exists yet to measure `DRIFT 5/5` and `FILLED 3/4` against. What run 1 does establish is that the assertions are checkable against real output by someone who did not produce it, and that they can fail a run whose own matrix says it passed.
 - **Cases 6 and 12 are 17 and 16, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) turned out not to reach them.** That issue asked whether a filled pediatric vital should be filled at all, and pointed here for the fixture. The corpus answered the boundary question first: measured 2026-08-11, a blood pressure going missing from a vital line that was otherwise written happens **only under 6** — every band from 9 up produces not one instance, and a 16-year-old is transcribed exactly like an adult. So these two are adolescent only in the sense that their filled values must suit their age, which B1 already demands. The ruling — filled, no exception — is fixtured in [peds-bp](../peds-bp/assertions.md), whose cases are young enough to test it.
 
   What is genuinely untested here is **B2's** analogue, not B1's: B2 reaches only cases 8 and 9 because only those two document a condition making a normal value implausible, and neither of these adolescents does. (An earlier version of this bullet named B1 for that; B1's case list has covered 6 and 12 all along.)
