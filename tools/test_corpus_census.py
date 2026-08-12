@@ -7,10 +7,12 @@ prevent: an extractor that stops matching and reports a confident wrong number.
 
 ``DayBIsTheAbsenceSet`` does a second job: it guards the properties of the
 *inputs* that day-b's assertion rows rest on, so an edit to one voids the set
-loudly rather than quietly. Two shapes, and both are absences. Nine of the twelve
-encounters carry no vital at all, which is that set's whole reason for existing;
-and case 9 documents a COVID contact and orders no swab, which is what makes D6
-checkable. A well-meaning edit that "completes" either one would leave every row
+loudly rather than quietly. Three shapes, and the first two are absences. Nine of
+the twelve encounters carry no vital at all, which is that set's whole reason for
+existing; case 9 documents a COVID contact and orders no swab, which is what makes
+D6 checkable; and the twelve split seven / two / three on whether the shorthand
+writes a pain score, writes "no pain", or writes neither, which is what B7 and B8
+divide on. A well-meaning edit that "completes" any of them would leave every row
 above it passing with nothing tested.
 
 phi-scan: synthetic
@@ -23,6 +25,7 @@ file was caught using both.
 """
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -38,6 +41,15 @@ PEDS_BP = REPO_ROOT / "fixtures" / "peds-bp" / "shorthand"
 DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 DAY_B_CONTROL = (2, 3, 4)
 DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
+
+# The OLDCARTS severity split B5-B8 rest on, for issue #30. Every case is in
+# exactly one of the three, and which one decides whether its severity is a
+# given the run must preserve or a value the run must invent.
+DAY_B_PAIN_SCORE = {1: 8, 4: 5, 5: 2, 7: 7, 8: 8, 10: 8, 11: 6}
+DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
+DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
+DAY_B_SEVERITY_NONZERO = (6, 9)  # B8's anchors. Case 3 itches rather than hurts
+NO_PAIN = r"(?i)\bno pain\b"
 
 # peds-bp keeps its source shift's numbering, so the gaps are the omitted cases.
 PEDS_BP_CASES = (2, 3, 5, 8, 9)
@@ -111,6 +123,86 @@ class SplitNotes(unittest.TestCase):
             p.read_text(encoding="utf-8") for p in sorted(FIXTURES.glob("case-*.md"))
         )
         self.assertEqual(len(cc.split_notes(day)), 10)
+
+
+class ReadCorpusDropsDuplicateDayFiles(unittest.TestCase):
+    """One day file in the clinician's catalog is on disk twice, byte for byte.
+
+    ``GLOSSARY.md`` and ``batch-shift`` both describe the catalog as 48 unique
+    files; the census walked all 49 and reported a corpus eight encounters
+    larger, with nothing to reconcile the two. Issue #16.
+
+    Deduplication is by **content**, not by name: the copy does not share a
+    filename with its original, so a name-based check would not have seen it.
+    """
+
+    SHIFT = "day header\nNote 1\n51 f\ncc: cough\n\nNote 2\n7 yo M\ncc: rash\n"
+    OTHER = "day header\nNote 1\n34 f\ncc: fever\n"
+
+    def corpus_of(self, files: dict[str, str]) -> cc.Corpus:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, text in files.items():
+                (root / name).write_text(text, encoding="utf-8")
+            return cc.read_corpus(root)
+
+    def test_identical_content_under_different_names_is_read_once(self):
+        corpus = self.corpus_of({"a.txt": self.SHIFT, "scan-copy.txt": self.SHIFT})
+        self.assertEqual(len(corpus.notes), 2)
+        self.assertEqual(corpus.files, 2)
+        self.assertEqual(corpus.unique_files, 1)
+
+    def test_files_that_differ_are_all_kept(self):
+        corpus = self.corpus_of({"a.txt": self.SHIFT, "b.txt": self.OTHER})
+        self.assertEqual(len(corpus.notes), 3)
+        self.assertEqual(corpus.files, 2)
+        self.assertEqual(corpus.unique_files, 2)
+
+    def test_a_repeated_encounter_inside_one_file_is_not_deduplicated(self):
+        """Dedup is per file. A shift that saw two alike patients saw two patients."""
+        corpus = self.corpus_of({"a.txt": "hdr\nNote 1\n51 f\n\nNote 2\n51 f\n"})
+        self.assertEqual(len(corpus.notes), 2)
+        self.assertEqual(corpus.unique_files, 1)
+
+    def test_encounters_stay_grouped_by_the_file_they_came_from(self):
+        corpus = self.corpus_of({"a.txt": self.SHIFT, "b.txt": self.OTHER})
+        self.assertEqual([len(day) for day in corpus.day_files], [2, 1])
+
+
+class SurveyFilesCountsFilesNotEncounters(unittest.TestCase):
+    """The claim clinical-note step 1 rests on, made re-derivable. Issue #16.
+
+    Step 1 quotes no share deliberately, and says instead that whole day files
+    state no age at all. Nothing printed that until this existed, which left the
+    replacement claim exactly as unverifiable as the 353-encounter one it
+    replaced.
+    """
+
+    AGELESS = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\ndob 5/5/55\ncc: rash\n")
+    HAS_ONE = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\n51 f\ncc: rash\n")
+
+    def survey(self, *days: tuple[str, ...]) -> cc.FileCensus:
+        return cc.survey_files(cc.Corpus(day_files=days, files=len(days)))
+
+    def test_a_file_with_no_age_anywhere_counts(self):
+        self.assertEqual(self.survey(self.AGELESS).with_no_stated_age, 1)
+
+    def test_one_stated_age_is_enough_to_clear_a_file(self):
+        self.assertEqual(self.survey(self.HAS_ONE).with_no_stated_age, 0)
+
+    def test_counts_files_and_not_the_encounters_inside_them(self):
+        census = self.survey(self.AGELESS, self.AGELESS, self.HAS_ONE)
+        self.assertEqual(census.with_no_stated_age, 2)
+        self.assertEqual(census.unique_files, 3)
+
+    def test_an_empty_file_is_not_a_file_without_an_age(self):
+        """A file the delimiter found nothing in says nothing about ages."""
+        self.assertEqual(self.survey(()).with_no_stated_age, 0)
+
+    def test_the_duplicate_is_not_counted_twice(self):
+        corpus = cc.Corpus(day_files=(self.AGELESS,), files=2)
+        self.assertEqual(cc.survey_files(corpus).files, 2)
+        self.assertEqual(cc.survey_files(corpus).unique_files, 1)
 
 
 class BloodPressure(unittest.TestCase):
@@ -235,6 +327,84 @@ class OtherVitals(unittest.TestCase):
         self.assertTrue(cc.has_any_vital("hr 130 t 97.3 rr 32 spo2 99% wt 15"))
         self.assertTrue(cc.has_any_vital("bp 170/78"))
         self.assertFalse(cc.has_any_vital("cc: cough x 2 days\nallergy nkda"))
+
+
+class PainScore(unittest.TestCase):
+    """The severity marker behind issue #30.
+
+    ``clinical-note`` now requires an OLDCARTS severity on every note, written
+    as a pain scale. What the census answers is how often the clinician writes
+    one himself -- the population the rule fills for is the remainder, and a
+    rule about it should be able to say how large it is.
+
+    The extractor lives beside ``BP_PAIR`` because they read the same shape and
+    must not read each other's: ``BloodPressure.test_ignores_a_pain_score``
+    is this class seen from the other side.
+    """
+
+    def test_a_bare_score(self):
+        self.assertEqual(cc.pain_scores("he c/o 8/10 pain"), [8])
+
+    def test_spaces_around_the_slash(self):
+        self.assertEqual(cc.pain_scores("rates his pain 2 / 10"), [2])
+
+    def test_both_ends_of_the_scale_are_in_range(self):
+        self.assertEqual(cc.pain_scores("0/10 now, was 10/10 overnight"), [0, 10])
+
+    def test_above_the_scale_is_not_a_score(self):
+        """``12/10`` is rejected, and the reason is the decoy it shares.
+
+        Patients do say "twelve out of ten", so this loses a real score now and
+        then. Above 10 the same characters are far likelier to be a written
+        date -- the false positive the module cannot otherwise exclude at all,
+        see the limit in ``corpus_census`` -- so the range check is spent where
+        it buys the most.
+        """
+        self.assertEqual(cc.pain_scores("12/10"), [])
+
+    def test_a_score_that_ends_a_sentence(self):
+        """The form BP_PAIR's trailing guard would have thrown away.
+
+        Two of day-b's seven scores are written this way, and copying that
+        guard verbatim dropped both. On a vital line a following dot is a
+        decimal point; in prose it is a full stop.
+        """
+        self.assertEqual(cc.pain_scores("rates his pain 2/10. there is swelling"), [2])
+        self.assertEqual(cc.pain_scores("exacerbated by movment 6/10."), [6])
+
+    def test_a_date_after_the_score_is_still_not_a_score(self):
+        # Loosening the trailing guard must not reach the digits: "10/10/25"
+        # is a date, and the slash and digit alternatives are what refuse it.
+        self.assertEqual(cc.pain_scores("f/u 10/10/25"), [])
+        self.assertEqual(cc.pain_scores("wbc 6/100"), [])
+
+    def test_heart_sounds_are_not_a_score(self):
+        self.assertEqual(cc.pain_scores("s1,s2 2/2"), [])
+
+    def test_a_blood_pressure_is_not_a_score(self):
+        self.assertEqual(cc.pain_scores("bp 121/61 hr 64 t 96.9"), [])
+
+    def test_a_pressure_whose_digits_end_in_ten_is_not_a_score(self):
+        # The lookaround is what does this: "10" sits inside "110", so the
+        # character before it is a digit and the match is refused. Without it
+        # every systolic in the hundreds would offer a "10" to pair with.
+        self.assertEqual(cc.pain_scores("bp 110/104"), [])
+
+    def test_a_concentration_is_not_a_score(self):
+        self.assertEqual(cc.pain_scores("zithromax 200/5ml 3/4 t x 3 days"), [])
+
+    def test_a_suture_size_is_not_a_score(self):
+        # day-b case 6 writes "5 5-0 sutures placed" and carries no pain score;
+        # a run that read one there would make the fixture's own split wrong.
+        self.assertEqual(cc.pain_scores("lidocaine 1% 5 5-0 sutures placed"), [])
+
+    def test_presence_follows_the_values(self):
+        self.assertTrue(cc.has_pain_score("c/o 8/10 body aches"))
+        self.assertFalse(cc.has_pain_score("cc: itching, can feel ince in her ears"))
+
+    def test_the_survey_counts_the_notes_not_the_scores(self):
+        c = cc.survey(["c/o 8/10 pain, later 6/10", "no score here", "2/10"])
+        self.assertEqual(c.with_pain_score, 2)
 
 
 class DocumentedObesity(unittest.TestCase):
@@ -663,6 +833,72 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, day_b_plan(12))
 
+    def test_seven_cases_transcribe_a_severity(self):
+        """B7's list, with the value each case must survive with."""
+        for n, score in DAY_B_PAIN_SCORE.items():
+            with self.subTest(case=n):
+                self.assertEqual(cc.pain_scores(day_b(n)), [score])
+
+    def test_two_cases_write_the_absence_of_pain(self):
+        """B7's other half, and it is a given rather than a silence.
+
+        Cases 2 and 12 say "no pain" outright, so 0/10 there is transcribed and
+        not the bland fill the rule forbids. A run that scores either of them
+        above zero has invented a symptom, which standing rule 2 covers without
+        any exception -- the severity license buys a number for a complaint the
+        shorthand documents, not a complaint.
+        """
+        for n in DAY_B_NO_PAIN:
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertRegex(note, NO_PAIN)
+                self.assertFalse(cc.has_pain_score(note))
+
+    def test_three_cases_leave_the_severity_to_be_filled(self):
+        """No number written, and no absence written either.
+
+        B5 and B6 reach all twelve, but these three are the only ones where the
+        severity is *invented* rather than transcribed. Writing a score into any
+        of them, or writing "no pain" into one, would start failing correct
+        notes -- the same trap ``obesity-bmi``'s control guard exists for.
+        """
+        for n in DAY_B_SEVERITY_FILLED:
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertFalse(cc.has_pain_score(note))
+                self.assertNotRegex(note, NO_PAIN)
+
+    def test_two_of_the_seven_scores_end_a_sentence(self):
+        """The count day-b's prose quotes, computed rather than eyeballed.
+
+        It is the count that justifies the narrowed trailing guard in
+        ``PAIN_SCORE``. Written by hand it would have been the one figure in
+        this set nothing recomputes -- and it was, until the review caught it.
+        """
+        sentence_final = [
+            n for n in sorted(DAY_B_PAIN_SCORE) if re.search(r"/\s*10\s*\.", day_b(n))
+        ]
+        self.assertEqual(sentence_final, [5, 11])
+
+    def test_b8_takes_two_of_those_three_and_leaves_the_boundary_out(self):
+        """Case 3 itches; B8 demands a score above 0/10 and she is not in it.
+
+        Asserted rather than assumed, because the two lists differing by
+        exactly one case is the whole of B8's design, and a future edit that
+        "tidied" them into agreement would enforce a ruling nobody made --
+        whether a non-painful complaint scores 0/10 or scores its own
+        intensity. day-b lists that under *Still unresolved*.
+        """
+        self.assertEqual(
+            sorted(set(DAY_B_SEVERITY_FILLED) - set(DAY_B_SEVERITY_NONZERO)), [3]
+        )
+
+    def test_the_severity_split_is_the_whole_set(self):
+        self.assertEqual(
+            sorted(tuple(DAY_B_PAIN_SCORE) + DAY_B_NO_PAIN + DAY_B_SEVERITY_FILLED),
+            list(range(1, 13)),
+        )
+
 
 class AgeInYears(unittest.TestCase):
     """The value extractor, as opposed to ``has_stated_age``'s presence check.
@@ -882,6 +1118,7 @@ class Bands(unittest.TestCase):
         report = cc.format_report(
             cc.survey(notes), source="fixtures", date="2026-08-11",
             bands=cc.survey_bands(notes),
+            files=cc.FileCensus(files=1, unique_files=1, with_no_stated_age=0),
         )
         self.assertIn("line, no BP", report)  # the section really rendered
         for leak in ("cc:", "hx:", "exam:", "[PT]", "plan ", "percentile"):
@@ -901,15 +1138,42 @@ class Survey(unittest.TestCase):
         self.assertEqual(c.with_bp + c.without_bp, 10)
         self.assertEqual(c.with_either_age_or_dob + c.with_neither, 10)
 
-    def test_report_emits_no_note_text(self):
-        """Standing rule 1: the census output must be safe to paste anywhere."""
-        report = cc.format_report(
+    def report(self, files: int = 11, unique: int = 10) -> str:
+        return cc.format_report(
             cc.survey(self.notes), source="fixtures", date="2026-08-11",
             bands=cc.survey_bands(self.notes),
+            files=cc.FileCensus(files=files, unique_files=unique, with_no_stated_age=1),
         )
+
+    def test_report_emits_no_note_text(self):
+        """Standing rule 1: the census output must be safe to paste anywhere."""
+        report = self.report()
         for leak in ("cc:", "hx:", "exam:", "[PT]", "plan "):
             with self.subTest(leak=leak):
                 self.assertNotIn(leak, report)
+
+    def test_format_report_is_never_handed_a_note(self):
+        """The invariant the module docstring states, asserted rather than trusted.
+
+        ``Corpus`` holds note text and ``FileCensus`` does not, which is the whole
+        reason the second type exists. A signature that took the first would put
+        note text one formatting mistake away from the console.
+        """
+        # ``from __future__ import annotations`` keeps these as strings.
+        annotations = cc.format_report.__annotations__
+        self.assertNotIn("Corpus", annotations.values())
+        self.assertEqual(annotations["files"], "FileCensus")
+        for field in cc.FileCensus.__dataclass_fields__.values():
+            with self.subTest(field=field.name):
+                self.assertEqual(field.type, "int")
+
+    def test_reports_the_duplicate_when_there_is_one(self):
+        self.assertIn("files: 11 (10 unique)", self.report())
+
+    def test_says_nothing_about_uniqueness_when_no_file_repeats(self):
+        report = self.report(files=10, unique=10)
+        files_line = next(l for l in report.splitlines() if l.startswith("files:"))
+        self.assertEqual(files_line, "files: 10")
 
 
 if __name__ == "__main__":

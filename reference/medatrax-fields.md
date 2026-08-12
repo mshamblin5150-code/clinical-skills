@@ -233,7 +233,7 @@ Unlike payer, this one is observable — the clinician saw the patient. It simpl
 
 **Blood pressure, Respiratory Rate, Height and BMI — filled, not left blank.**
 
-The four vital and measurement fields are filled where the encounter does not supply them, to the value that patient most plausibly had. The rule and its cost — a filled vital that lands abnormal is worked up in the note like any other abnormal — are in [clinical-note](../skills/clinical-note/SKILL.md) under *Filled vitals and body measurements*. Do not restate it here; do apply it.
+The four vital and measurement fields are filled where the encounter does not supply them, to the value that patient most plausibly had. The rule and its cost — a filled vital that lands abnormal is worked up in the note like any other abnormal — are in [clinical-note](../skills/clinical-note/SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate it here; do apply it. **Medatrax holds no severity field**, so the third member of that class never reaches this block — it lives in the note's HPI and in `FILLED·asserted`, and it is named here only so the section title reads as the same rule.
 
 **The clinician's own practice settled this.** The 2025 Spring batch leaves `Height` and `BMI` blank; **every 2025 Fall and 2026 Spring encounter fills both**, inventing a height where the shorthand carries none. His words: *"the newer records everything is filled out."* The blank ones are the older habit, not the standard — the same shape as the flat visit lengths under Visit Time.
 

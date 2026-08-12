@@ -34,9 +34,17 @@ It is also deliberately **not** the drift-matrix verdicts from `clinical-note` s
 
 **DRIFT assertions are binary.** All of them, every run, no exceptions. Each one is a documented abnormal that reached the Objective and stopped there — the defect class the skill exists to catch. One miss fails the run.
 
-**FILLED assertions are binary.** Same bar as DRIFT, different subject: what the skill does with a value the shorthand never supplied. DRIFT asks whether a *given* abnormal survived to the Assessment; FILLED asks whether a *generated* one was produced at all, was plausible for that patient, and then survived the same way. They are separate classes because a set can have one and not the other — a set whose inputs all carry complete vitals can hold no FILLED row, and a set with no reference read may hold no DRIFT row.
+**FILLED assertions are binary.** Same bar as DRIFT, different subject: what the skill does with a value the shorthand never supplied. DRIFT asks whether a *given* abnormal survived to the Assessment; FILLED asks whether a *generated* one was produced at all, was plausible for that patient, and then survived the same way. They are separate classes because they ask different questions of the same run, and a set can hold rows of one and none of the other. A set with no reference read may hold no DRIFT row. A set whose inputs supply every value the note needs holds no FILLED row.
 
-**CODING assertions are binary.** Same bar again, and a third subject: the codes the note carries. DRIFT asks whether a given abnormal survived, FILLED asks what happened to a value nobody supplied, and CODING asks whether the codes attached to what survived say what the encounter can support. It is a separate class because a set can hold one and not the others — the rows turn on the presence or absence of a code string in the output, which needs neither a reference read nor a vital-less input.
+**But FILLED is no longer the vitals class**, and the difference is worth stating because it changes which sets can host one. What admits a row is that the value was generated and the skill licensed generating it; `clinical-note` states that license as a test — a box demands a value and the shorthand constrains none — and names three members. day-b's B1 through B4 are the vital and body-measurement half, and only its nine vital-less cases reach them. B5 through B8 are the OLDCARTS half, and they reach all twelve: shorthand never supplies eight OLDCARTS elements, so **that half of the class fires on every input there is.** A set with complete vitals throughout, like day-a, is no longer a set with no FILLED row to write.
+
+**ANCHOR and CODE assertions are binary, and they belong to `icd10-cpt` rather than to `clinical-note`.** DRIFT asks what a note did with a finding it was given; FILLED asks what it did with one it generated under license. Neither question means anything for a skill that generates nothing and writes no prose — which is why `filled-anchor` brings two classes rather than reusing these. ANCHOR asks whether a proposed code rests on a number the encounter actually recorded — the rule [#10](https://github.com/mshamblin5150-code/clinical-skills/issues/10) added, whose whole failure mode is that it is invisible when it fails. CODE asks whether a proposed code exists, carries its official descriptor, and can be submitted.
+
+**CODE is the only class in this repo a machine decides.** `python tools/icd10_lookup.py` answers all three of its questions against `reference/icd10cm-2026.sqlite`, so no reader is involved and two readers cannot disagree. Every other class here, binary ones included, needs someone to read the output and rule.
+
+**CODING assertions are binary**, and they belong to `clinical-note` — the codes a **note** carries, as against the codes a worksheet proposes. DRIFT asks whether a given abnormal survived, FILLED asks what happened to a value nobody supplied, and CODING asks whether the codes attached to what survived say what the encounter can support. It is a separate class because a set can hold one and not the others: its rows turn on a code string being present or absent in the note text, which needs neither a reference read nor a vital-less input.
+
+**CODING is not CODE, and the names sit close enough to be worth separating.** CODE asks whether a code number is real, correctly described and submittable, and `icd10_lookup.py` answers it. CODING asks whether the note attached a code that claims more than the encounter established, and **no lookup can decide that** — `U07.1` is a real, billable, correctly described code, which is precisely what makes it wrong on a COVID nobody swabbed. A set passing every CODE row can fail every CODING row with codes that all exist.
 
 **REPORTED assertions are counted, not enforced.** Differential depth, screening content, education phrasing. They move with the model and the wording; tracking the count catches slow erosion without failing a run over style.
 
@@ -46,10 +54,10 @@ It is also deliberately **not** the drift-matrix verdicts from `clinical-note` s
 
 ## Running a set
 
-1. Feed each case's shorthand to the named skill, on the stated branch.
+1. Feed each case's input to the named skill, on the stated branch. For most sets that is the shorthand; for a set whose skill consumes a finished note it is the note and its tier block, and the set's own `Inputs` column says which.
 2. Check the output text against that case's assertions.
-3. Report every class the set defines — `DRIFT n/n`, `FILLED n/n` and `CODING n/n`, all of which must be full, and `REPORTED n/m`. A set that defines no rows of a class omits its line rather than reporting `0/0`.
-4. Any DRIFT, FILLED or CODING miss names the case, the finding, and where the finding landed instead. For a CODING miss that is the entry and the code it carried, or that it carried none.
+3. Report every class the set defines — the binary ones must be full, and `REPORTED n/m` alongside. A set that defines no rows of a class omits its line rather than reporting `0/0`.
+4. Any miss in a binary class names the case, the finding or the code, and where it landed instead. For a CODING miss that is the entry and the code it carried, or that it carried none.
 
 Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta instead of a judgment call.
 
@@ -63,12 +71,15 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 | [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | read | never run |
 | [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | **owed** | never run |
 | [obesity-bmi](obesity-bmi/assertions.md) | `clinical-note`, SOAP branch | 4 | [extracted](obesity-bmi/shorthand/) | **owed** | never run |
+| [filled-anchor](filled-anchor/assertions.md) | `icd10-cpt` | 12 | [finished notes](filled-anchor/notes/) | read | never run |
 
 The reference notes themselves live in `scratch/day-a-reference/` and `scratch/day-b-reference/`, gitignored — they carry the visit date, the site, patient references and social-history detail that the committed half deliberately does not.
 
 **A reference is not always a date search.** day-b's twelve were filed under eleven visit dates: one encounter carries the *entry* date rather than the encounter date, so a date-range search returns eleven of the set plus one stranger seen the same day. It was found by patient creation order instead, and confirmed by content. Budget for a reference read to be a reconciliation rather than a query, and record how the set was matched — `scratch/day-b-reference/README.md` is the worked example.
 
 **A set is not always a day.** `day-a` and `day-b` are whole shifts and are named for that. `peds-bp` is the under-6 half of one shift, named for the question instead — because calling it `day-c` would claim a completeness it does not have. Either shape is fine; what is not fine is a partial set that reads as a whole one. **A set scoped to part of its source says so in its own README, and names what it left out.**
+
+**And a set is not always for `clinical-note`.** `filled-anchor` is the first set for a different skill, and it is a fourth shape: its inputs are **finished notes** rather than shorthand, because [icd10-cpt](../skills/icd10-cpt/SKILL.md) states as a hard requirement that what it consumes is *"the note body and the tier block beneath it"*. A set that fed it shorthand would be testing a shape the skill refuses. It also brings two classes of its own — see the pass bar above — because DRIFT and FILLED both ask what a note did with a finding, and neither question means anything for a skill that generates no values. **What travels between skills is the discipline, not the row names.**
 
 **And a set is not always one source.** `obesity-bmi` is four encounters from **three different day files**, which is a third shape and the one that needs the most care: a set drawn from across the corpus can look like a curated sample chosen to make a skill pass. It is not one — those four are the entirety of a shape the corpus contains twice over, which its README states as a count rather than an assurance. **A set spanning several sources says how it was selected, and the selection has to be recomputable** — `tools/corpus_census.py` carries the markers that found these, so the population can be re-derived rather than taken on trust.
 
@@ -82,9 +93,13 @@ It shipped inputs-only for a while, on the argument that a filled vital was neve
 
 **`peds-bp` tests the shape day-b's inputs cannot reach.** day-b's nine vital-less cases are the corpus's dominant pattern — the line written whole or not at all. Under 6 that pattern inverts: measured 2026-08-11, 18 of the 21 under-6 encounters carry a vital line with the **blood pressure alone** missing, against 11 of 106 for encounters aged 20 and over. A selective absence is a decision rather than a transcription gap, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) settled that it is filled anyway. `peds-bp` is what holds that ruling to it. Its reference is owed on the same terms. See [peds-bp/assertions.md](peds-bp/assertions.md).
 
+**`filled-anchor` tests what happens to a filled value one skill later.** day-b, `obesity-bmi` and `peds-bp` all grade the skill that *generates* a value. None of them can see what the next skill does with it, and [issue #10](https://github.com/mshamblin5150-code/clinical-skills/issues/10) found that `icd10-cpt` could not tell a filled value from a given one at all — a filled `BMI 36.4` is the same eleven characters as a measured one, and `Z68` is banded to 1.0 BMI units, so one invented inch moves a code. The rule #10 added routes such a code to `NOT CODED, ANCHOR WAS FILLED`; **its failure mode is that a run which ignores it produces a worksheet that reads perfectly well.** This set is what makes that cost something. Its inputs are day-b's own twelve encounters carried one stage further down the pipeline, and its reference was free — day-b had already read it. See [filled-anchor/assertions.md](filled-anchor/assertions.md).
+
 ## A set has two halves
 
-**Inputs** are the shorthand — extracted from the day-file scan, de-identified, committed under the set's `shorthand/`.
+**Inputs** are whatever the set's skill consumes, committed under the set. For every `clinical-note` set that is the shorthand — extracted from the day-file scan, de-identified, under `shorthand/`. For `filled-anchor` it is finished notes with their tier blocks, under `notes/`, because that is what `icd10-cpt` takes.
+
+**An input further down the pipeline is a skill's output, and that carries one obligation.** A set built on generated material must not read as endorsing it: the note is *real input*, not *correct input*, and a row quoting it is quoting an artifact rather than a source. Where the generating run's own score is not yet in, the set says so — `filled-anchor` names day-b's unset counts in its Status.
 
 **Reference** is what the clinician actually submitted to the portal. It is a **baseline to beat, not a target to match**: the submitted notes were written under time pressure at the end of a long shift, and the skill exists to do better than that consistently. A difference from the reference is therefore *better*, *worse*, or *neither* — and only *worse* is a regression.
 
