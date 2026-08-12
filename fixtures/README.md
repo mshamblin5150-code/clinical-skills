@@ -66,7 +66,7 @@ The reference notes themselves live in `scratch/day-a-reference/`, `scratch/day-
 
 **A reference is not always a date search.** day-b's twelve were filed under eleven visit dates: one encounter carries the *entry* date rather than the encounter date, so a date-range search returns eleven of the set plus one stranger seen the same day. It was found by patient creation order instead, and confirmed by content. Budget for a reference read to be a reconciliation rather than a query, and record how the set was matched — `scratch/day-b-reference/README.md` is the worked example.
 
-**And when the date search does work, the reconciliation is still owed.** All ten of `peds-bp`'s source shift carry the right visit date, so the query half was trivial — and the day file's ages match the portal's on nine of ten, because one encounter's Age field disagrees with its own shorthand. Patient creation order settled it there too. **The discriminator that survived both reads is the order the patients were created in, not the date and not the age.**
+**And when the date search does work, the reconciliation is still owed.** All ten of `peds-bp`'s source shift carry the right visit date, so the query half was trivial. Matching them to notes was not: one encounter's Age field disagrees with its own shorthand, so age alone matches nine of ten and leaves one record and one note unpaired. Patient creation order settled it there too. **The discriminator that survived both reads is the order the patients were created in, not the date and not the age.**
 
 **A day file is sometimes a census of its shift and sometimes not.** day-b's shift held thirteen encounters against twelve notes; `peds-bp`'s source shift is ten against ten. Neither is the rule, which is why both were counted rather than assumed.
 
@@ -84,7 +84,7 @@ It shipped inputs-only for a while, on the argument that a filled vital was neve
 
 **Its reference was read 2026-08-11** ([#25](https://github.com/mshamblin5150-code/clinical-skills/issues/25)) and it confirms the ruling is the clinician's own practice: all four Medatrax vital boxes populated on all five under-6 encounters, a blood pressure generated every time, not one blank and not one gap. It also supplied the set's single DRIFT row — a documented 99.9th-percentile weight the submitted note states and never acts on — and the *out of reach* verdict class the set could not host unread.
 
-**It pushed in the other direction too, and that is recorded rather than smoothed over.** day-b's read *failed* two of the four FILLED rows that set held; peds-bp's read failed none, and two of its six passed **vacuously** — the reference generated no abnormal value, so the two rows that price a filled abnormal were never put under load. Counts and verdicts live in [peds-bp/assertions.md](peds-bp/assertions.md) and are deliberately not restated here.
+**It pushed in the other direction too, and that is recorded rather than smoothed over.** day-b's read *failed* FILLED rows that set had written from its inputs alone; peds-bp's read failed none of them, and some passed **vacuously** — the reference generated no abnormal value, so the rows that price a filled abnormal were never put under load. **A row the reference never approached has not been tested, and a set that reports it as a pass is flattering itself.** Which rows, and the counts, live in [peds-bp/assertions.md](peds-bp/assertions.md) and are deliberately not restated here.
 
 ## A set has two halves
 
