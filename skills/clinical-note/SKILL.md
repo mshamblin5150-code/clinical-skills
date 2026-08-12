@@ -21,6 +21,62 @@ Present in the shorthand or the Medatrax entry. Passes through unchanged: number
 
 Correct obvious misspellings of clinical terms as you read: `endometroises` → endometriosis, `oorphectomy` → oophorectomy, `prednisolono` → prednisolone, `tympansotomy` → tympanostomy. Transcription noise is not content. **Never "correct" a number.**
 
+#### A duration belongs to what it is written next to
+
+Shorthand hangs one duration off the end of a multi-symptom complaint and then dates a symptom differently further down:
+
+```
+cc: sinus pressure, congestion, sneeze, cough x 2 days
+exam: states this started yesterday, pain inface is worse
+```
+
+Read as one timeline stated twice, that is a contradiction, and resolving it means choosing one number over another — which the paragraph above forbids outright. Read as two facts about two symptoms, there is no contradiction to resolve.
+
+**Read it as two facts.** A duration attaches to the symptoms it was written beside: the chief complaint's number covers the symptoms the chief complaint lists, and a later onset statement covers whatever that statement is about. The example is congestion, sneezing and cough for two days with facial pain newer and worsening, and a note saying so has dropped nothing and invented nothing. **It is a conflict only when the same symptom carries two numbers** — `cough x 5 days` against `cough started 2 days ago`.
+
+That distinction is not bookkeeping here. Acute bacterial rhinosinusitis is defined by ten days or more, **or by worsening after initial improvement**, and the second criterion is exactly what a newer, worse facial pain is. A note that folds it into the chief complaint's two days has destroyed the finding the antibiotic decision turns on.
+
+**Where the onset statement names its symptom, attaching it is reading.** `right earache yesterday` inside a complaint given as `x 2 days` needs no referent worked out — the same act as correcting `endometroises`, and disclosed the same way, which is to say not at all.
+
+**Where it uses a pronoun — `this`, `it`, `sx` — it attaches to the newer symptom only if the same clause marks something new or worse.** `pain inface is worse` is that marker; so are `now also`, `new`, `worsening`, `worse today`. **With no marker a pronoun means the whole illness**, and then it is a genuine conflict. This is the one call in the rule that can be wrong, so it is the one that gets declared.
+
+**A genuine conflict is written as a span containing both.** `Duration within the past 1 to 2 days`, never one endpoint chosen over the other. Both stated values survive as the span's endpoints, so nothing is rounded, replaced or corrected, and *Never "correct" a number* stands untouched. The form is his own rather than this file's invention: the shorthand writes `11-12 yrs ago` and `worsening in the past 3-4 days`, both in `fixtures/day-b/shorthand/case-11.md`, and `tools/test_corpus_census.py` asserts them rather than trusting this sentence.
+
+**Drift row 11 does not own this, and what separates them is whether a span exists.** Row 11's conflicts — a drug against a documented condition, a drug against a drug — are *named* rather than resolved, because no single value contains both `ibuprofen 800 TID` and `GERD`; the only honest thing to do with them is say they clash. Two durations are points on one ordered scale, so a span contains both without preferring either. **The rule is written for durations because durations are what was ruled on.** The reasoning carries to any givens that order — two weights, two doses — and carrying it there is a decision somebody has to make, not a reading of this paragraph.
+
+**And it is never a FLAG.** The run this rule replaces carried both durations into the note verbatim and raised `Onset - states this started yesterday; chief complaint records 2 days`, which is the note reporting that it could not read its own input. FLAG holds a documented finding the note failed to act on; a timeline the note read and wrote down is not one. Issue #33.
+
+**A pronoun-resolved attribution is declared, carrying its value**, and so is a span. Neither is a filled *value* — every number involved is a given — but both are generated: the shorthand nowhere says which symptom started yesterday, and nowhere writes `1 to 2 days`. They are claims about the patient's past, so they go under `FILLED·asserted`, which is where a preceptor rules on an inference:
+
+```
+FILLED·asserted   DURATION facial pain 1 day, attached to "states this started
+                  yesterday" on the "pain inface is worse" beside it; the chief
+                  complaint's 2 days covers the congestion, sneezing and cough.
+
+FILLED·asserted   DURATION 1 to 2 days spans a conflict — the chief complaint
+                  says 2 days and the history says 1, both about the cough.
+```
+
+An attribution the onset line named for itself gets no such line. Declaring it would be reporting this skill's own compliance, which *What never goes under GAPS* already refuses one block down, and a block full of those is a block nobody reads.
+
+**One OLDCARTS box, both values.** Onset and Duration are one element each, and *eight, always eight* forbids a blank rather than a compound value. A value naming two timelines is the only form that keeps every given inside the mandatory element; moving a symptom's onset out into the narrative paragraph puts a given somewhere nothing checks it.
+
+**Each timeline is written duration-first, `<duration> for <symptoms>`**, and that is a requirement rather than a preference. Written symptoms-first, the clause boundary is a comma sitting among the commas of the symptom list, and `congestion, sneezing and cough 2 days ago, facial pain 1 day ago` gives a reader nothing to tell a new timeline from a fourth symptom. Duration-first, every clause opens with the one token that can only start a clause:
+
+```
+Duration: 2 days for congestion, sneezing and cough; 1 day for the facial pain, worsening
+```
+
+**The clause separator is the branch's, and on SOAP it cannot be the semicolon.** [HP.md](HP.md) gives each element its own line, so the semicolon above has nothing to collide with. [SOAP.md](SOAP.md) runs all eight onto **one semicolon-separated line**, where that same semicolon would read as the boundary between Duration and Character and silently split one element into two. There the clauses take a comma, and duration-first is what keeps them legible:
+
+```
+Duration - 2 days for congestion, sneezing and cough, 1 day for the facial pain, worsening
+```
+
+(The separator between the element and its value is a third thing again, and *Punctuation*'s business rather than this rule's — as it is for the severity.)
+
+**Onset and Duration both take the compound value, and they are not interchangeable.** Duration is how long each symptom has run; Onset is when each began and what it began with. A conflict resolved to a span lands in whichever element states it — `Duration within the past 1 to 2 days`, and Onset the corresponding range of start times.
+
 ### Derived
 
 Computed from a given by a rule with exactly one right answer:
@@ -192,7 +248,7 @@ Grounded, and expected:
 - Testing for a documented infectious exposure — see below.
 - Screenings appropriate to the patient's age.
 - The exam of a system the shorthand never mentions.
-- **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*.
+- **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
 
 **A documented infectious exposure with a congruent presentation orders testing by default.** The contact is a given; testing for what the contact had is standard care for that presentation, and it belongs in the Plan the way return precautions do. Respiratory contact plus respiratory symptoms means **COVID-19 and influenza at minimum**, and **group A streptococcus where the pharynx is involved** — a sore throat, pharyngeal erythema, tonsillar exudate. Name the agent and name the specimen: `COVID-19 and influenza A/B, nasopharyngeal swab`, never `viral testing`.
 
@@ -408,6 +464,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 13 | **Differential** | Every differential entry carries an ICD-10-CM code, and **no diagnosis the encounter did not establish** — differential entry, favored entry or final — carries a code whose descriptor names a confirmed organism or disease |
 | 14 | **Control** | A **filled** value that is a documented condition's own diagnostic measure and lands **normal** is accounted for **in the Assessment**. Hypertension: called *controlled*, *treated*, *on therapy*, or with the medication named. Obesity: called resolved, improved or post-surgical, or with the weight-loss intervention named. A code in a pre-existing or problem list is not an account, and neither is a monitoring instruction. A **given** value never fails this row, and neither does a filled abnormal — row 4 already holds that one |
 | 15 | **Filled reassurance** | Every reassurance in the note traces to a given. No decision to withhold, defer or narrow the workup of a documented finding rests on a filled vital, body measurement or pain score, and any cause a filled abnormal is attributed to is a **given finding**. A filled 0/10 is not a discharge — row 4 owns that direction |
+| 16 | **Duration** | Every stated duration reaches the HPI attached to the symptoms it was written beside, written `<duration> for <symptoms>`. None is dropped, and none is applied to a symptom the shorthand did not attach it to. Two durations for the **same** symptom are written as a span containing both, never one endpoint chosen over the other and never a FLAG. **Both a span and an attribution that rested on resolving a pronoun are declared in `FILLED·asserted` carrying their value**; an attribution whose onset line named its own symptom is not |
 
 **Row 14 is appended rather than slotted beside row 4**, which is where it belongs by subject. Rows 1 through 13 are cited by number across this file, three fixture sets and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md), so renumbering to put it in its natural place would silently redirect every one of those citations. Its subject is row 4's, its number is not, and that is a deliberate cost.
 
@@ -420,6 +477,14 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 **Row 15 is appended for row 14's reason and became 15 the same way**, on a third branch landing at the same time — it was written as row 13 for issue #27 before either of the two above existed. Its subject is row 4's and row 14's; its number is neither's neighbor. The convention holds: **append, never insert**, because inserting silently redirects every citation by number in this file, the fixture sets and the ADR, where appending only ever costs a merge conflict that announces itself.
 
 **Rows 14 and 15 are the two halves of what a filled normal owes and is owed.** Row 14 says a filled normal against its own condition must be accounted for. Row 15 says a filled normal may never be spent — it buys no deferral, no narrowing and no withheld test. A note can satisfy one and fail the other, which is why they are two rows: `HTN, controlled on lisinopril` accounts for a generated 124/78 and passes row 14, and the same note can go on to defer a workup on that same number and fail row 15.
+
+**Row 16 is appended for the same reason as 14 and 15, and its natural neighbor is row 11.** It is a rule about two givens disagreeing, which is row 11's subject, and it sits at the bottom instead. The convention holds: **append, never insert** — inserting silently redirects every citation by number in this file, the fixture sets and the ADR, where appending only ever costs a merge conflict that announces itself.
+
+**But it is not row 11 widened, and the two rows demand opposite things.** Row 11 says a conflict between givens is *named*; row 16 says one particular conflict is *resolved*. Both are right, because a span exists for durations and does not exist for a drug against a condition — the argument is in *A duration belongs to what it is written next to*. A run that names a duration conflict instead of spanning it has not satisfied row 11 by proxy; it has failed row 16.
+
+**It is checked by counting, the way row 2 is.** Take each duration in step 2's expansion — every `x N days`, every `started yesterday`, every dated onset — and name the symptom it landed on in the finished HPI. A duration that landed on nothing was dropped; a duration that landed on a symptom the shorthand never attached it to was moved. Both fail, and both read perfectly well, which is why this is a count rather than an impression.
+
+**Its quiet failure is the folded timeline.** A note that reads a multi-symptom complaint, takes the chief complaint's number as the illness's duration and never notices the second onset statement produces a fluent, internally consistent HPI with one timeline in it. Nothing in the note points at the missing one. The count is what finds it.
 
 **Row 12 is checked by reading the body without the block.** Every other row asks whether the note said enough; this one asks whether it said something only the tier block may say. The two failing shapes are a parenthetical that labels its own line — `(inferred)`, `(dose given; duration filled)` — and a sentence that accounts for the note's own content, such as what was not reconciled or what must be confirmed before entry. Both read as diligence, which is why they survive a reading that is looking for omissions.
 
