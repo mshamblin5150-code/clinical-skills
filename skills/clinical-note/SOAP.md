@@ -2,7 +2,7 @@
 
 The default branch of [clinical-note](SKILL.md). Tiering rules live in the skill; this file is the shape.
 
-Structure verified against submitted notes. This is **not** a four-paragraph prose note — it carries OLDCARTS, a three-generation family history, coded diagnoses and age-appropriate screening, the same as the H&P. The branches differ in headings and depth, not in rigour.
+Structure verified against submitted notes. This is **not** a four-paragraph prose note — it carries OLDCARTS, a three-generation family history, coded diagnoses and age-appropriate screening, the same as the H&P. The branches differ in headings and depth, not in rigor.
 
 ```
 S:
@@ -57,6 +57,10 @@ Follow up: <interval, and what would bring them back sooner>
 **No OLDCARTS element is ever blank.** Eight, always eight — `not documented` in any of them is a defect, not a disclosure. Where the shorthand supplies none, infer one that follows from the presenting complaint; that is the same act as the exam of a system the shorthand never mentions, which [SKILL.md](SKILL.md) lists as grounded and expected. Each filled element is declared in `FILLED·asserted` carrying its value.
 
 **Severity is a numeric pain scale.** `6/10 facial pressure`, never a word and never blank. It is the one OLDCARTS element that is not ordinary filled content — it takes the filled-vital treatment, and the reasoning, the 0/10 boundary and the two forms in which the score is a *given* are all in [SKILL.md](SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate them here; do apply them.
+
+**`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `NKDA if none` is what the template above says, and it means it: `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus and every other box by the grounding rule — and drift row 16 checks it. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issue #29.
+
+**Screening keys to a *given* tobacco history and never to a filled one.** The pack-year note below computes from a history the shorthand supplied. A **positive** tobacco status is never filled into the `SH:` clause in the first place, so there is no case where this note's screening line rests on a smoking history the skill invented.
 
 **Codes belong in this note, in three places.** Preexisting diagnoses, **every differential entry**, and the final diagnosis all carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
 

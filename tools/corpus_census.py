@@ -2,8 +2,10 @@
 
 Six of them are in skills/clinical-note/SKILL.md, a seventh is in
 fixtures/obesity-bmi, where the counts are what justify a fixture set existing at
-all, and an eighth is drift row 13's rate — how often a hedge reaches the
-shorthand at all, against a differential that is generated every time. All are
+all, an eighth is drift row 13's rate — how often a hedge reaches the shorthand at
+all, against a differential that is generated every time — and a ninth is the
+social-slot split, which decides whether silence about a slot is a transcription
+gap or a real absence and so which value the note fills into it. All are
 counts over the clinician's shorthand corpus, all are load-bearing — rulings have
 turned on them — and until this script existed none could be re-derived. Run it
 when a claim is about to be relied on again, or when the corpus grows:
@@ -67,6 +69,27 @@ Extractor limits worth knowing before quoting a number:
   token writes a negated form, so a guard would be exercised by nothing. The
   hypertensive-pressure figures are therefore a **ceiling** on the population and
   not a floor -- but by nothing measurable today. Issue #23.
+- The allergy and tobacco slot counts answer **which way silence reads**, not how
+  complete the social history is, and only the second column of that block bears
+  on it. ``ALLERGY_NONE`` matches a written "none" and ``TOBACCO_POSITIVE``
+  matches a written history, so each slot's other reading is a complement --
+  which is why a note carrying an allergy denial *and* a stated allergen reads as
+  a denial, and a note carrying a tobacco history *and* a denial reads as a
+  history. Both are absent from the 31 committed inputs. **These two slots are
+  the only ones measurable at all** -- and only one of them, tobacco, is a social
+  slot; the allergy line is a heading of its own in both branch templates. No
+  count of the unmeasurable remainder is quoted here, because the two templates
+  enumerate different lists and any number would be wrong on one of them, which
+  is the reasoning ``SKILL.md`` states where it declines to quote one. What
+  defeats them is transcription frequency for occupation, education, marital
+  status, spiritual, cultural, environmental, nutrition, fitness and sleep, and
+  for alcohol and recreational drugs a shared denial -- "no smoke, drink, drugs"
+  -- where the negation does not sit adjacent to the word it negates. Issue #29.
+- ``\bppd\b`` is packs per day throughout this corpus and is also the standard
+  abbreviation for a **purified protein derivative**. Nothing here can tell them
+  apart, so a TB skin test written that way counts as a positive tobacco history
+  and inflates that column. Audited against the 31 committed inputs, where every
+  instance is a pack-per-day quantity; unaudited against ``scratch/``.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -285,6 +308,91 @@ HEDGE = re.compile(
     r"|[a-z]\?"
 )
 
+# Issue #29. ``clinical-note`` reads silence about a section two ways -- an
+# unmentioned exam system is normal because abnormals get charted, while an
+# omitted history section is inferred from the rest of the encounter -- and it
+# never said which reading a given social slot takes. These two count that.
+#
+# **The question is not how often he writes the slot. It is what he writes in
+# it.** A slot he fills even when the answer is nothing is a habitual template
+# field, so silence there is a transcription gap and the note fills the
+# unremarkable value. A slot he fills only when there *is* something is charted
+# like an abnormal, so silence there is a real absence and the note fills the
+# negative. The corpus can decide exactly two slots; the rest of the twelve the
+# templates enumerate are transcribed too rarely to classify, which is why
+# ``clinical-note`` sends those to the grounding rule instead.
+#
+# Neither pair carries a negation guard in the ``HYPERTENSION`` sense, because
+# here the negation *is* the measurement -- ``ALLERGY_NONE`` and the absence of a
+# positive tobacco marker are the whole point.
+ALLERGY_SLOT = re.compile(r"(?i)\ballerg|\bnkda\b|\bnka\b")
+
+# The "nothing there" form. ``nkda`` is the corpus's dominant spelling by far;
+# the longhand alternatives are carried so a day file that spells it out is not
+# read as a stated allergen.
+#
+# **A note writing both is counted as none, and no committed case does.** ``NKDA``
+# means no known *drug* allergy and coexists with a seasonal one, so "nkda,
+# seasonal allergies" is a real shape this would misclassify. It is absent from
+# all 31 committed inputs, so the branch is untested rather than wrong; this is
+# the line to change if one appears.
+ALLERGY_NONE = re.compile(
+    r"(?i)\bnkda\b|\bnka\b"
+    r"|\bno\s+known\s+(?:drug\s+)?allerg"
+    r"|\bno\s+allerg|\bdenies\s+allerg"
+    r"|\ballerg\w*\s*[:\-]?\s*(?:none|neg)\b"
+)
+
+# ``\bnon-?smok`` is a separate alternative because ``\bsmok`` cannot match inside
+# "nonsmoker" -- there is no word boundary between "non" and "smoker" when the
+# hyphen is dropped, the same shape that defeated ``\bht\b`` for "ht5'7"".
+#
+# ``\bsnuff\b(?!\s*box)`` is the one exclusion, and it is not hypothetical:
+# ``fixtures/day-a/shorthand/case-09.md`` writes "anitomical snuff box
+# tenderness" about a scaphoid exam. A bare ``\bsnuff\b`` reads a wrist injury as
+# tobacco use. Chewing is required to name tobacco for the same reason --
+# ``fixtures/peds-bp/shorthand/case-03.md`` writes "he chews on cardboard".
+# The spelled-out pack-per-day form is here *and* in TOBACCO_POSITIVE below, and
+# it has to be in both. ``tobacco_negated`` is the slot count minus the positive
+# count, so a string the second pattern matches and the first does not makes that
+# subtraction go negative. ``survey`` gates the second counter behind the first,
+# which hides such a divergence instead of preventing it -- so the invariant is
+# asserted directly by
+# ``test_corpus_census.py::test_a_positive_tobacco_marker_always_implies_the_slot``,
+# which is what caught this alternative missing here.
+PACK_PER_DAY = r"\d+\s*(?:pack|pk)s?\s*(?:per|/|a)\s*day"
+
+TOBACCO_SLOT = re.compile(
+    r"(?i)\btobacco\b|\bsmok|\bnon-?smok|\bppd\b"
+    r"|" + PACK_PER_DAY +
+    r"|\bvap(?:e|es|er|ing)\b|\bnicotine\b|\bcigarette"
+    r"|\bchew(?:s|ing)?\s+tobacco|\bdips?\s+now\b|\bsnuff\b(?!\s*box)"
+)
+
+# Positive is matched explicitly and the denial is the complement, which is the
+# opposite of how ``ALLERGY_NONE`` works and is deliberate. A note carrying both a
+# history and a denial -- "1 ppd smoker, no smoke in the home" -- would read as a
+# denial under a negation regex, and that error inflates the very count the
+# ruling turns on. Matching the history instead makes the safe reading the
+# default.
+#
+# ``\bppd\b`` is packs per day throughout this corpus. It is also the abbreviation
+# for a purified protein derivative, and nothing here can tell them apart; a TB
+# skin test written that way would count as a smoking history.
+#
+# Second-hand exposure counts as positive. It is not the patient smoking, and it
+# is equally not an absence -- the slot was written because there was something to
+# write, which is the only thing being measured.
+TOBACCO_POSITIVE = re.compile(
+    r"(?i)\bppd\b"
+    r"|" + PACK_PER_DAY +
+    r"|(?<!non-)\bsmoker\b|\bsmokes\b"
+    r"|\bformer\s+(?:\d+\s*)?(?:ppd\s+)?(?:smok|vap)"
+    r"|\bvaper\b|\bvapes\b"
+    r"|\bchew(?:s|ing)?\s+tobacco|\bdips?\s+now\b"
+    r"|\bexposed\s+to\s+.{0,20}smoke"
+)
+
 # ``y\.?/?o\.?[mf]\b`` is the run-together form -- "45yof", "45y/om" -- where the
 # sex letter is welded to the token and defeats the trailing ``\b`` after "o",
 # the same shape that defeated ``\bht\b`` for "ht5'7"". It is an extra
@@ -444,6 +552,30 @@ def has_sleep_apnea(note: str) -> bool:
     return bool(SLEEP_APNEA.search(note))
 
 
+def has_allergy_status(note: str) -> bool:
+    """The allergy slot was written, whatever it says. Issue #29."""
+    return bool(ALLERGY_SLOT.search(note))
+
+
+def has_stated_allergy(note: str) -> bool:
+    """The slot was written *and* names something. The complement is ``NKDA``."""
+    return has_allergy_status(note) and not ALLERGY_NONE.search(note)
+
+
+def has_tobacco_status(note: str) -> bool:
+    """The tobacco slot was written, whatever it says. Issue #29."""
+    return bool(TOBACCO_SLOT.search(note))
+
+
+def has_positive_tobacco(note: str) -> bool:
+    """A tobacco history, past or present, or a second-hand exposure.
+
+    The complement over the notes writing the slot at all is the denial count,
+    and that ratio is what tells this slot apart from the allergy one.
+    """
+    return bool(TOBACCO_POSITIVE.search(note))
+
+
 def has_hedge(note: str) -> bool:
     """A token marking something as suspected rather than established.
 
@@ -540,6 +672,20 @@ class Census:
     hypertension_with_bp: int = 0
     hypertension_bp_normal: int = 0
     hypertension_bp_normal_lenient: int = 0
+    with_allergy_status: int = 0
+    allergy_status_none: int = 0
+    with_tobacco_status: int = 0
+    tobacco_positive: int = 0
+
+    @property
+    def allergy_status_stated(self) -> int:
+        """Written and naming something. Issue #29."""
+        return self.with_allergy_status - self.allergy_status_none
+
+    @property
+    def tobacco_negated(self) -> int:
+        """Written and denying it -- the count that separates the two slots."""
+        return self.with_tobacco_status - self.tobacco_positive
 
     @property
     def hypertension_bp_not_normal(self) -> int:
@@ -572,9 +718,17 @@ def survey(notes: list[str]) -> Census:
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
     hedge_n = pain_n = 0
     htn_n = htn_bp_n = htn_normal_n = htn_lenient_n = 0
+    allergy_n = allergy_none_n = tobacco_n = tobacco_pos_n = 0
 
     for note in notes:
         hedge_n += has_hedge(note)
+
+        if has_allergy_status(note):
+            allergy_n += 1
+            allergy_none_n += not has_stated_allergy(note)
+        if has_tobacco_status(note):
+            tobacco_n += 1
+            tobacco_pos_n += has_positive_tobacco(note)
 
         # Parsed once and reused: the hypertension counters, the reading loop
         # below and ``has_bp`` all want the same list, and three passes over the
@@ -645,6 +799,10 @@ def survey(notes: list[str]) -> Census:
         hypertension_with_bp=htn_bp_n,
         hypertension_bp_normal=htn_normal_n,
         hypertension_bp_normal_lenient=htn_lenient_n,
+        with_allergy_status=allergy_n,
+        allergy_status_none=allergy_none_n,
+        with_tobacco_status=tobacco_n,
+        tobacco_positive=tobacco_pos_n,
     )
 
 
@@ -796,6 +954,20 @@ def format_report(
         f"{_pct(c.with_pain_score, c.notes)}",
         f"  no score written      {c.without_pain_score:>5}  "
         f"{_pct(c.without_pain_score, c.notes)}",
+        "",
+        'claim: "silence about allergies is a gap; silence about tobacco is an',
+        '        absence" (Silence is undocumented, never absent; issue #29)',
+        "  (what matters is the second column, not the first: a slot written to",
+        "   say nothing is habitual, so silence in it says nothing either)",
+        "                        written   says none   names something",
+        f"  allergies           {c.with_allergy_status:>7}  "
+        f"{c.allergy_status_none:>10}  {c.allergy_status_stated:>15}",
+        f"  tobacco             {c.with_tobacco_status:>7}  "
+        f"{c.tobacco_negated:>10}  {c.tobacco_positive:>15}",
+        f"  allergies saying none  {_pct(c.allergy_status_none, c.with_allergy_status):>4}"
+        f"     tobacco denying it  "
+        f"{_pct(c.tobacco_negated, c.with_tobacco_status):>4}",
+        "  the two slots must land opposite ways or the ruling has no basis",
     ]
     lines += ["", *format_band_report(bands)]
     return "\n".join(lines)

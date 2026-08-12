@@ -83,9 +83,38 @@ PEDS_BP_VITAL_LINE = (3, 5)  # a structured line was written; only the BP is mis
 # assertions list under *Still unresolved*, and the reason these are two constants.
 PEDS_BP_ANY_VITAL = (3, 5, 8)
 
+# Issue #29's measurement. ``clinical-note`` reads silence about a section two
+# ways -- undocumented-and-inferable, or genuinely absent -- and which way a given
+# slot takes is a property of how this clinician transcribes it. A slot he writes
+# even when the answer is nothing is a transcription gap when silent. A slot he
+# writes only when there *is* something is a real absence when silent.
+#
+# The two slots the corpus can decide split opposite ways, which is the whole
+# ruling: allergies are written to say "none" eleven times out of sixteen, and
+# tobacco is written to say "none" once out of fifteen.
+#
+# **Per case, not per clause.** Three cases write two allergy clauses and two
+# write two tobacco clauses; counting clauses double-counts a patient and was the
+# first reading taken of this, off a grep rather than off these constants.
+DAY_A_ALLERGY_NONE = (2, 3, 7, 8, 9, 10)
+DAY_A_ALLERGY_STATED = (6,)  # "seasonal allergies"
+DAY_B_ALLERGY_NONE = (3, 10, 12)
+DAY_B_ALLERGY_STATED = (2, 7, 11)  # 7's "allergic to prednisone" is the only drug one
+PEDS_BP_ALLERGY_NONE = (2, 9)
+PEDS_BP_ALLERGY_STATED = (5,)
+
+DAY_A_TOBACCO_POSITIVE = (1, 2, 4, 7, 9)
+DAY_B_TOBACCO_POSITIVE = (1, 2, 3, 4, 5, 7, 8, 11, 12)
+DAY_B_TOBACCO_NEGATED = (6,)  # "no smoke, drink, drugs" -- the corpus's one denial
+
 
 def fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def case(directory: Path, number: int) -> str:
+    """One committed input, by set directory and case number."""
+    return (directory / f"case-{number:02d}.md").read_text(encoding="utf-8")
 
 
 def day_b(number: int) -> str:
@@ -1320,6 +1349,189 @@ class ObesityBmiIsTheDocumentedObesitySet(unittest.TestCase):
             int(p.stem.split("-")[1]) for p in sorted(self.OBESITY_BMI.glob("case-*.md"))
         ]
         self.assertEqual(numbers, sorted(self.ANCHORS + self.CONTROLS))
+
+
+class SocialSlotsSplitTwoWays(unittest.TestCase):
+    """Issue #29. The two slots the corpus can classify, and they go opposite ways.
+
+    This class does the second job ``DayBIsTheAbsenceSet`` does: it guards a
+    property of the *inputs* that a ruling rests on. day-a R14 forbids filling a
+    positive tobacco status and day-b R1 no longer forbids filling ``NKDA``, and
+    both of those follow from the split asserted here. A well-meaning edit that
+    "completed" a fixture's social history would leave the rows standing on
+    nothing.
+
+    **These are 31 committed fixture cases, a floor on the corpus and not the
+    corpus** -- and they are also, as of issue #29, the figures ``SKILL.md`` and
+    both assertion files quote, each of them marked there as a fixture floor with
+    the corpus run owed. ``corpus_census.py`` prints the same two rows against
+    ``scratch/`` and **has not been run against it since these extractors
+    landed**, so nothing here should be read as a corpus measurement. What is
+    pinned is the direction, which is what the ruling turns on.
+    """
+
+    OBESITY_BMI = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+
+    ALLERGY_SPLIT = (
+        (FIXTURES, DAY_A_ALLERGY_NONE, DAY_A_ALLERGY_STATED),
+        (DAY_B, DAY_B_ALLERGY_NONE, DAY_B_ALLERGY_STATED),
+        (PEDS_BP, PEDS_BP_ALLERGY_NONE, PEDS_BP_ALLERGY_STATED),
+    )
+    TOBACCO_SPLIT = (
+        (FIXTURES, DAY_A_TOBACCO_POSITIVE, ()),
+        (DAY_B, DAY_B_TOBACCO_POSITIVE, DAY_B_TOBACCO_NEGATED),
+    )
+
+    def all_cases(self):
+        for directory in (FIXTURES, DAY_B, PEDS_BP, self.OBESITY_BMI):
+            for path in sorted(directory.glob("case-*.md")):
+                yield path, path.read_text(encoding="utf-8")
+
+    def test_thirty_one_committed_cases(self):
+        """The denominator every figure below is quoted against."""
+        self.assertEqual(len(list(self.all_cases())), 31)
+
+    def test_the_allergy_slot_is_written_even_to_say_none(self):
+        """The gap reading: eleven of sixteen written statuses are ``NKDA``."""
+        none = stated = 0
+        for directory, none_cases, stated_cases in self.ALLERGY_SPLIT:
+            for number in none_cases:
+                with self.subTest(set=directory.parent.name, case=number, says="none"):
+                    note = case(directory, number)
+                    self.assertTrue(cc.has_allergy_status(note))
+                    self.assertFalse(cc.has_stated_allergy(note))
+                none += 1
+            for number in stated_cases:
+                with self.subTest(set=directory.parent.name, case=number, says="an allergen"):
+                    note = case(directory, number)
+                    self.assertTrue(cc.has_allergy_status(note))
+                    self.assertTrue(cc.has_stated_allergy(note))
+                stated += 1
+        self.assertEqual((none, stated), (11, 5))
+
+    def test_the_tobacco_slot_is_written_only_when_there_is_something_in_it(self):
+        """The absence reading: fourteen of fifteen written statuses are positive."""
+        positive = negated = 0
+        for directory, positive_cases, negated_cases in self.TOBACCO_SPLIT:
+            for number in positive_cases:
+                with self.subTest(set=directory.parent.name, case=number, says="positive"):
+                    note = case(directory, number)
+                    self.assertTrue(cc.has_tobacco_status(note))
+                    self.assertTrue(cc.has_positive_tobacco(note))
+                positive += 1
+            for number in negated_cases:
+                with self.subTest(set=directory.parent.name, case=number, says="denied"):
+                    note = case(directory, number)
+                    self.assertTrue(cc.has_tobacco_status(note))
+                    self.assertFalse(cc.has_positive_tobacco(note))
+                negated += 1
+        self.assertEqual((positive, negated), (14, 1))
+
+    def test_no_other_committed_case_writes_either_slot(self):
+        """Both case lists are exhaustive, so the denominators mean something."""
+        allergy = {(d, n) for d, none, stated in self.ALLERGY_SPLIT
+                   for n in none + stated}
+        tobacco = {(d, n) for d, pos, neg in self.TOBACCO_SPLIT for n in pos + neg}
+        for path, note in self.all_cases():
+            number = int(path.stem.split("-")[1])
+            key = (path.parent, number)
+            with self.subTest(case=str(path.relative_to(REPO_ROOT))):
+                self.assertEqual(cc.has_allergy_status(note), key in allergy)
+                self.assertEqual(cc.has_tobacco_status(note), key in tobacco)
+
+    def test_the_two_slots_classify_opposite_ways(self):
+        """The ruling itself, as one comparison rather than two counts.
+
+        A slot written to say nothing is a transcription gap when silent; a slot
+        written only when positive is a real absence. Stated as a ratio so it
+        survives the corpus growing, which the raw counts above do not.
+        """
+        allergy_none = sum(
+            1 for _, note in self.all_cases()
+            if cc.has_allergy_status(note) and not cc.has_stated_allergy(note)
+        )
+        allergy_any = sum(1 for _, n in self.all_cases() if cc.has_allergy_status(n))
+        tobacco_negated = sum(
+            1 for _, note in self.all_cases()
+            if cc.has_tobacco_status(note) and not cc.has_positive_tobacco(note)
+        )
+        tobacco_any = sum(1 for _, n in self.all_cases() if cc.has_tobacco_status(n))
+        self.assertGreater(allergy_none / allergy_any, 0.5)
+        self.assertLess(tobacco_negated / tobacco_any, 0.2)
+
+    def test_the_anatomical_snuff_box_is_a_wrist_exam(self):
+        """A bare ``snuff`` reads day-a case 9's scaphoid exam as tobacco use."""
+        self.assertFalse(cc.has_tobacco_status("she has anitomical snuff box tenderness"))
+
+    def test_chewing_cardboard_is_not_chewing_tobacco(self):
+        """A bare ``chew`` reads peds-bp case 3's sensory habit as tobacco use."""
+        note = case(PEDS_BP, 3)
+        self.assertIn("chews on cardboard", note)
+        self.assertFalse(cc.has_tobacco_status(note))
+
+    def test_day_a_case_9_survives_its_own_decoy(self):
+        """It carries both: second-hand smoke exposure *and* the snuff box."""
+        note = case(FIXTURES, 9)
+        self.assertTrue(cc.has_tobacco_status(note))
+        self.assertTrue(cc.has_positive_tobacco(note))
+
+    def test_second_hand_exposure_is_a_positive_status(self):
+        """Not the patient smoking, and still not an absence. day-a 7 and 9."""
+        self.assertTrue(cc.has_positive_tobacco("is exposed to second hand smoke"))
+
+    def test_a_former_smoker_is_a_positive_status(self):
+        for text in ("is a former smoker 0", "former 3 ppd smoker for 30 yrs",
+                     "former vaper", "former smoker 1 ppd x 1 yr dips now"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_positive_tobacco(text))
+
+    def test_the_denial_forms_are_not_positive(self):
+        for text in ("no smoke, drink, drugs,", "non-smoker", "nonsmoker",
+                     "denies tobacco", "never smoked", "no tobacco use"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_tobacco_status(text))
+                self.assertFalse(cc.has_positive_tobacco(text))
+
+    def test_a_positive_tobacco_marker_always_implies_the_slot(self):
+        """The invariant ``tobacco_negated`` subtracts on, asserted rather than assumed.
+
+        ``Census.tobacco_negated`` is ``with_tobacco_status - tobacco_positive``, so a
+        string matching ``TOBACCO_POSITIVE`` and not ``TOBACCO_SLOT`` makes that
+        subtraction produce a negative count. ``survey`` happens to gate the second
+        counter behind the first, which hides the divergence rather than preventing
+        it -- ``\\bppd\\b`` was in both patterns and the spelled-out pack-per-day form
+        was in neither, and no case-list test could have caught it.
+        """
+        for text in ("2 packs a day", "1 pack per day", "3 pks/day", "1 ppd",
+                     "he is a smoker", "former vaper", "chews tobacco now",
+                     "is exposed to second hand smoke"):
+            with self.subTest(text=text):
+                if cc.has_positive_tobacco(text):
+                    self.assertTrue(cc.has_tobacco_status(text))
+
+    def test_the_invariant_holds_on_every_committed_case(self):
+        for path, note in self.all_cases():
+            with self.subTest(case=str(path.relative_to(REPO_ROOT))):
+                if cc.has_positive_tobacco(note):
+                    self.assertTrue(cc.has_tobacco_status(note))
+                if cc.has_stated_allergy(note):
+                    self.assertTrue(cc.has_allergy_status(note))
+
+    def test_neither_slot_count_can_go_negative(self):
+        """The two derived properties, over the whole committed corpus."""
+        c = cc.survey([note for _, note in self.all_cases()])
+        self.assertGreaterEqual(c.tobacco_negated, 0)
+        self.assertGreaterEqual(c.allergy_status_stated, 0)
+
+    def test_survey_counts_both_slots(self):
+        notes = [note for _, note in self.all_cases()]
+        c = cc.survey(notes)
+        self.assertEqual(c.with_allergy_status, 16)
+        self.assertEqual(c.allergy_status_none, 11)
+        self.assertEqual(c.allergy_status_stated, 5)
+        self.assertEqual(c.with_tobacco_status, 15)
+        self.assertEqual(c.tobacco_positive, 14)
+        self.assertEqual(c.tobacco_negated, 1)
 
 
 class Bands(unittest.TestCase):
