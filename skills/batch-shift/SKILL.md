@@ -26,9 +26,17 @@ Day files name preceptors by first name; Medatrax wants `Last,First` exactly.
 
 **The mapping is per-clinician and lives in `scratch/medatrax-profile.md`**, written by [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Read it there rather than from this file — a preceptor list belongs to one account and does not travel.
 
-**A name that maps to nobody is reported, never substituted.** In this clinician's catalog three of them do not map: one is a physician who was present but is not the preceptor of record, and two are a first name whose nearest picklist entry has a different surname. Guessing the nearest match is how a shift's hours get attributed to someone who was not there, and nothing downstream will catch it. Only the clinician knows.
+**A day file names who the clinician worked alongside. The `Preceptor` field names who supervises them for the programme.** Those are two different questions, and a filename answers only the first. The person in the filename may be a physician the clinician rounded with who is not on the picklist at all — in which case nothing is missing from the record and nothing needs mapping.
 
-Where an unmapped preceptor is known to work a single population — a pediatrician, say — that still settles the `Patient Time` band for the whole day even while the preceptor field stays open. Record the band, hold the name.
+**So a name that maps to nobody is a question, not a defect.** Look it up before treating it as one:
+
+1. **Read the profile.** The unmapped names for an account are recorded there once the clinician has ruled on them, along with what goes in the box instead. An answered name needs no further thought.
+2. **If the shift is already in Medatrax, read the record.** It carries the `Preceptor` and the `Site` together, and it is authoritative over any filename.
+3. **Only then ask.** An unanswered name is the clinician's to settle, and it is a *who supervises this time* question rather than a *which picklist entry is nearest* one.
+
+**Never guess a nearest surname match.** That is how a shift's hours get attributed to someone who was not there, and nothing downstream will catch it. A clinician recording his own preceptor of record where the picklist has no row for the physician he rounded with is a different act entirely — it is his call, it is already made, and it is in the profile.
+
+Where an unmapped name is known to work a single population — a pediatrician, say — that settles the `Patient Time` band for the whole day even while the preceptor question is open. Record the band, hold the name.
 
 ### 2. Get the text out
 
