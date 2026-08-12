@@ -28,7 +28,7 @@ Extractor limits worth knowing before quoting a number:
   age nor a birth date: ten literals across nine of those encounters, every
   one of them a menstrual, follow-up, referral or administrative date, and
   none a birth date. Counting all nine encounters anyway is what lands at
-  530 of 559 -- the reading the prose carried before 2026-08-11. Issue #9.
+  522 of 551 -- the reading the prose carried before 2026-08-11. Issue #9.
 - ``OTHER_VITALS`` matches the bare words ``hr``, ``temp``, ``rr`` and ``spo2``
   with no number after them, so an encounter that merely *mentions* a
   temperature in prose counts as carrying a vital. This is load-bearing for the
@@ -41,7 +41,7 @@ Extractor limits worth knowing before quoting a number:
   age in the note and cannot tell a patient's from a parent's or a sibling's.
   Ages sit at the top of these notes, so it is usually the patient's — but no
   band figure should be quoted about an individual encounter, only about the
-  distribution. And the ``no age`` band is large: 202 of 559 as of 2026-08-11,
+  distribution. And the ``no age`` band is large: 194 of 551 as of 2026-08-11,
   so every other band is a **floor**, not a population. Quote the ratio within
   a band, never the count as though it were exhaustive.
 - ``dob`` welded straight to its date, with no space between token and value,
@@ -52,6 +52,7 @@ Extractor limits worth knowing before quoting a number:
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from dataclasses import dataclass
@@ -476,16 +477,21 @@ def format_report(
     source: str,
     date: str,
     bands: dict[str, BandCensus],
+    files: FileCensus,
 ) -> str:
     c = census
     # ASCII only: this output is read in a Windows console and pasted into tickets.
+    header = f"files: {files.files}"
+    if files.files != files.unique_files:
+        header += f" ({files.unique_files} unique)"
     lines = [
         f"corpus census - {source} - {date}",
+        header,
         f"encounters: {c.notes}",
         "",
         'claim: "about 93% carry an age or a date of birth"',
-        'claim: "age stated in 42%, a date of birth appears instead in 47%"',
-        "  (the second was measured over a 353-note catalog, not this corpus)",
+        'claim: "age given 69%, both 15%, dob only 12%, neither 5%"',
+        "  (batch-shift step 3, over 548 encounters in 48 unique day files)",
         f"  stated age            {c.with_stated_age:>5}  {_pct(c.with_stated_age, c.notes)}",
         f"  date of birth         {c.with_dob:>5}  {_pct(c.with_dob, c.notes)}",
         f"  dob and no age        {c.with_dob_instead_of_age:>5}  "
@@ -495,6 +501,10 @@ def format_report(
         f"  either                {c.with_either_age_or_dob:>5}  "
         f"{_pct(c.with_either_age_or_dob, c.notes)}",
         f"  neither               {c.with_neither:>5}  {_pct(c.with_neither, c.notes)}",
+        "",
+        'claim: "this catalog holds day files in which not one encounter states',
+        '        an age" (clinical-note step 1, which is why it quotes no share)',
+        f"  day files with none   {files.with_no_stated_age:>5}  of {files.unique_files}",
         "",
         'claim: "transcription is all-or-nothing" (Filled vitals and body measurements)',
         f"  no vital at all       {c.with_no_vital:>5}  {_pct(c.with_no_vital, c.notes)}",
@@ -522,12 +532,79 @@ def format_report(
     return "\n".join(lines)
 
 
-def read_corpus(directory: Path) -> list[str]:
-    notes: list[str] = []
+@dataclass(frozen=True)
+class Corpus:
+    """The day files read from a directory, byte-identical copies already dropped.
+
+    Grouped by file rather than flattened, because two of this repo's claims are
+    about *files* and not about encounters: ``GLOSSARY.md`` counts the catalog in
+    files, and ``clinical-note`` step 1 rests on there being whole day files in
+    which no encounter states an age. A flat list of notes cannot answer either.
+
+    ``files`` and ``unique_files`` differ by design rather than by accident. One
+    day file in the catalog is on disk twice, byte for byte. ``GLOSSARY.md``
+    already said so — 49 files, 48 unique — but this script did not, and counted
+    that shift's encounters twice. Issue #16.
+
+    **This holds note text.** It is the one thing here that does, so it never
+    reaches ``format_report``; ``survey_files`` reduces it to integers first.
+    """
+
+    day_files: tuple[tuple[str, ...], ...]
+    files: int
+
+    @property
+    def notes(self) -> list[str]:
+        return [note for day in self.day_files for note in day]
+
+    @property
+    def unique_files(self) -> int:
+        return len(self.day_files)
+
+
+@dataclass(frozen=True)
+class FileCensus:
+    """Counts *of day files*, not of encounters. Integers only, so it can be printed."""
+
+    files: int
+    unique_files: int
+    with_no_stated_age: int
+
+
+def survey_files(corpus: Corpus) -> FileCensus:
+    """Reduce a ``Corpus`` to integers — the boundary note text does not cross."""
+    return FileCensus(
+        files=corpus.files,
+        unique_files=corpus.unique_files,
+        with_no_stated_age=sum(
+            1
+            for day in corpus.day_files
+            if day and not any(has_stated_age(note) for note in day)
+        ),
+    )
+
+
+def read_corpus(directory: Path) -> Corpus:
+    """Read every day file in ``directory``, dropping byte-identical copies.
+
+    Deduplication is by content, not by filename: the copy in the catalog does
+    not share a name with its original. It is also per *file* — two identical
+    encounters inside one shift are two encounters, and always were.
+    """
+    day_files: list[tuple[str, ...]] = []
+    seen: set[str] = set()
+    files = 0
     for path in sorted(directory.iterdir()):
-        if path.suffix.lower() in (".txt", ".md") and path.is_file():
-            notes.extend(split_notes(path.read_text(encoding="utf-8", errors="replace")))
-    return notes
+        if path.suffix.lower() not in (".txt", ".md") or not path.is_file():
+            continue
+        files += 1
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest in seen:
+            continue
+        seen.add(digest)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        day_files.append(tuple(split_notes(text)))
+    return Corpus(day_files=tuple(day_files), files=files)
 
 
 def main(argv: list[str]) -> int:
@@ -536,17 +613,18 @@ def main(argv: list[str]) -> int:
     if not directory.is_dir():
         print(f"no corpus at {directory}", file=sys.stderr)
         return 1
-    notes = read_corpus(directory)
-    if not notes:
+    corpus = read_corpus(directory)
+    if not corpus.notes:
         print(f"no notes found in {directory}", file=sys.stderr)
         return 1
     today = __import__("datetime").date.today().isoformat()
     print(
         format_report(
-            survey(notes),
+            survey(corpus.notes),
             source=directory.name,
             date=today,
-            bands=survey_bands(notes),
+            bands=survey_bands(corpus.notes),
+            files=survey_files(corpus),
         )
     )
     return 0
