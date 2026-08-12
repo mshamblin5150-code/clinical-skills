@@ -10,10 +10,10 @@ S:
 CC: "<the patient's own words, quoted>"
 
 HPI (OLDCARTS):
-Onset · Location · Duration · Character · Aggravating · Relieving · Timing · Severity
+Onset, Location, Duration, Character, Aggravating, Relieving, Timing, Severity
 <one line, semicolon separated; then pertinent negatives the shorthand states>
 
-Allergies (reaction): <allergen — reaction; NKDA if none>
+Allergies (reaction): <allergen - reaction; NKDA if none>
 Home meds: <drug dose route frequency (reason for taking)>
 PMH/PSH: <given>
 FH (3 generations): GP: … ; Parents: … ; Sibs: …
@@ -24,7 +24,7 @@ ROS pertinent:
 
 O:
 
-VS: BP, HR, T, RR, SpO2, Ht, Wt → BMI
+VS: BP, HR, T, RR, SpO2, Ht, Wt ∴ BMI
 Gen: <appearance, work of breathing>
 <then each system examined; state normal for the ones filled>
 Labs/Tests today: <given results only; treatments administered in clinic>
@@ -32,12 +32,12 @@ Labs/Tests today: <given results only; treatments administered in clinic>
 A:
 
 Differential:
-<Diagnosis — the findings that support it. Favored.>
-<Diagnosis — the specific findings that argue against it. Less likely.>
-<Diagnosis — same. Less likely.>
+<Diagnosis: the findings that support it. Favored.>
+<Diagnosis: the specific findings that argue against it. Less likely.>
+<Diagnosis: same. Less likely.>
 
 Preexisting diagnoses (ICD10): <condition CODE; condition CODE>
-Final diagnosis: <condition — CODE>
+Final diagnosis: <condition - CODE>
 Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
 P:
@@ -56,6 +56,8 @@ Follow up: <interval, and what would bring them back sooner>
 **Codes belong in this note.** Preexisting diagnoses and the final diagnosis both carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
 
 **Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
+
+**A Plan parenthetical, where there is one, is the trade name and nothing else.** `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Not which parts of the sig came from the shorthand and which were supplied, not why the duration was chosen, not which ear is inflamed — that reasoning goes in the Assessment and the tier accounting goes in the tier block. The trade name is permitted here, not required; `Home meds` is the one line whose parenthetical carries something else, and what it carries is the reason for taking. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
 
 **The differential is graded work.** Each entry names the findings that place it, and every rejected entry names the specific finding that rejects it — *afebrile, no focal crackles or egophony*. A bare list of diagnoses scores nothing.
 
