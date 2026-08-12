@@ -13,6 +13,10 @@ HPI (OLDCARTS):
 Onset, Location, Duration, Character, Aggravating, Relieving, Timing, Severity
 <one line, semicolon separated. All eight carry a value and severity is N/10;
  then pertinent negatives the shorthand states>
+<Onset and Duration may name more than one symptom's timeline, each written
+ duration-first as "<duration> for <symptoms>". Their clauses take a comma
+ here, never a semicolon — that is the element separator on this line.
+ See SKILL.md>
 
 Allergies (reaction): <allergen - reaction; NKDA if none>
 Home meds: <drug dose route frequency (reason for taking)>
@@ -58,7 +62,7 @@ Follow up: <interval, and what would bring them back sooner>
 
 **Severity is a numeric pain scale.** `6/10 facial pressure`, never a word and never blank. It is the one OLDCARTS element that is not ordinary filled content — it takes the filled-vital treatment, and the reasoning, the 0/10 boundary and the two forms in which the score is a *given* are all in [SKILL.md](SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate them here; do apply them.
 
-**`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `NKDA if none` is what the template above says, and it means it: `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus and every other box by the grounding rule — and drift row 16 checks it. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issue #29.
+**`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `NKDA if none` is what the template above says, and it means it: `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus and every other box by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issue #29.
 
 **Screening keys to a *given* tobacco history and never to a filled one.** The pack-year note below computes from a history the shorthand supplied. A **positive** tobacco status is never filled into the `SH:` clause in the first place, so there is no case where this note's screening line rests on a smoking history the skill invented.
 
