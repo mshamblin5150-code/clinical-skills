@@ -52,7 +52,7 @@ The rule runs one way only. The clinician charts abnormals reliably and normals 
 
 Every filled *finding* is therefore normal, absent, or not reported — and says so in those words: `no chronic illness reported`, `fever by history`, `no smoke exposure reported`, `no treatment-limiting cultural practice reported`.
 
-Charted normals and filled normals read identically in the finished note. They are separated in the tier block so only the filled ones need confirming.
+Charted normals and filled normals read identically in the finished note. They are separated in the tier block so only the filled ones need confirming — and *identically* is literal, which is why *The tier language stays out of the note* below forbids annotating them apart.
 
 #### Filled vitals and body measurements
 
@@ -149,6 +149,39 @@ Separate two acts in the tier block, because they carry different weight:
 - **Asserted** — a claim about the patient's past: a medication they already take, a condition they already carry. Ground these in the history, then be specific. An absent `meds:` line usually means no medication reconciliation was done that visit, **not** that the patient takes nothing — infer the likely regimen from the conditions listed and name actual agents. This is the tier a preceptor checks hardest, so every asserted inference is listed.
 
   **An inferred regimen never answers a conflict the givens raise.** Motrin 800 TID against a documented GERD is called out whatever the inference contains — and a given drug is never dropped from the list to make the conflict disappear. Inferring the PPI is the instruction; letting it settle the question is the defect. Drift row 11.
+
+### The tier language stays out of the note
+
+The tiers govern how the note is written. **They are never written into it.**
+
+- **No tier word appears in the note body** — not *given*, *filled*, *inferred*, *derived*, *asserted* or *proposed*. Not as a parenthetical, not as a suffix, not as an aside. In `Levothyroxine 88 mcg PO daily (hypothyroidism) (inferred)` the first parenthetical is the reason for taking and belongs there; the second is the defect in its shortest form.
+- **No commentary about this skill's own process appears in the note body.** Whether a medication reconciliation was done, what needs confirming before entry, which condition an inference rests on, why a duration was chosen: all of that is the FILLED block's job and only the FILLED block's job.
+- **A parenthetical in the Plan holds the trade name and nothing else** — `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Reason for taking stays in the medication history, where both templates put it; rationale goes in the Assessment.
+
+**This is not a style preference — it is the property the whole tier design rests on.** Charted normals and filled normals are written to read identically precisely so that the FILLED block can be the one thing in the document that tells them apart, which is the same reason a filled vital is listed carrying its value. Annotating tiers inline makes the note body a second tier record: partial, informal, and not the one [icd10-cpt](../icd10-cpt/SKILL.md) reads. Two records that disagree are worse than one.
+
+And the note goes to a preceptor under the clinician's name. **No clinician writes `(given)` in a medication list**, and a note that explains its own construction is not the document that was asked for.
+
+**What is banned is the word naming where the text came from, not the word itself.** English gives `given` two ordinary clinical senses that are nothing to do with tiers, and both are correct writing:
+
+- **Administered** — `methylprednisolone 125 mg IM given in clinic`. A drug given to the patient, not a line labeled.
+- **In view of** — `lipid panel, given hyperlipidemia and peripheral arterial disease`. Reasoning from the patient's history.
+
+`filled` behaves the same way — a prescription is filled at a pharmacy. So the check is not a word search:
+
+> **Would the word still be there if the shorthand had supplied every line in the note?**
+
+If yes it is clinical and it stays. If no it is describing this skill's own work, and it goes. **The question is asked of an occurrence of one of the six words**, not of every sentence in the note.
+
+**Reporting an absence is charting, not commentary.** `No chronic illness reported`, `fever by history`, `no smoke exposure reported`, `No new testing today` are all required phrasing elsewhere in this file, and none of them is a leak. Each is a finding about the patient, written in the words this skill asks for.
+
+**The line between them is what the sentence is doing, not what it is grammatically about.** `No medication reconciliation was performed this visit` looks like a fact about the encounter, and that is exactly why it slipped past the first reading — but it is in the note to explain why the medication list above it was inferred. So the test is not what the sentence mentions:
+
+> **Does the sentence report something about the patient, or does it defend the note?**
+
+`No chronic illness reported` and `No new testing today` report. So does `acetaminophen, dose and frequency not documented` — an unverified dose is a real thing to know about a patient taking the drug. `No medication reconciliation was performed this visit` defends: strike the inferred medications and the sentence has nothing left to do.
+
+**It fails twice over, and the second failure is the worse one.** Nothing in the shorthand says a reconciliation was not done — this file infers that from an absent `meds:` line, and inferring it is correct. Writing it into the note turns that inference into a documented claim about the visit, under the clinician's name. The inference belongs in `FILLED·asserted`, which is where a preceptor can rule on it. Drift row 12. Issue #28.
 
 ## Conventions
 
@@ -264,6 +297,11 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 9 | **Arithmetic** | Every derived value shows its working and recomputes correctly |
 | 10 | **Entry** | Every Medatrax field holds a given, a derived value, a declared value, or a GAPS entry |
 | 11 | **Conflict** | A conflict between givens — a drug against a documented condition, or a drug against a drug — is named in the Assessment or the Plan. No inferred medication resolves one, and no given medication is dropped to dissolve one |
+| 12 | **Leakage** | No tier word in the note body names where a line came from — *given*, *filled*, *inferred*, *derived*, *asserted*, *proposed* — no sentence describes this skill's own process, and every Plan parenthetical holds a trade name alone. The ordinary clinical senses pass: *given in clinic*, *given her hyperlipidemia*, *prescription filled* |
+
+**Row 12 is checked by reading the body without the block.** Every other row asks whether the note said enough; this one asks whether it said something only the tier block may say. The two failing shapes are a parenthetical that labels its own line — `(inferred)`, `(dose given; duration filled)` — and a sentence that accounts for the note's own content, such as what was not reconciled or what must be confirmed before entry. Both read as diligence, which is why they survive a reading that is looking for omissions.
+
+**A word search is the wrong instrument here** and will produce false hits on any note written well. *The tier language stays out of the note* carries a test for each half: ask of every occurrence of the six words whether it would still be there had the shorthand supplied every line, and ask of every candidate sentence whether it reports something about the patient or defends the note. Record which way each one resolved.
 
 **Row 8 is worth a second look even when the age is given.** The clinician's own record puts an 82-year-old on `Adult`, and misses the gyn/obstetric override on every opportunity it has had. A stated age is not the same as a correct band.
 
