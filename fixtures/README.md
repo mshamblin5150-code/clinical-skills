@@ -159,6 +159,16 @@ It shipped inputs-only for a while, on the argument that a filled vital was neve
 
 **An input further down the pipeline is a skill's output, and that carries one obligation.** A set built on generated material must not read as endorsing it: the note is *real input*, not *correct input*, and a row quoting it is quoting an artifact rather than a source. **`filled-anchor` names the generating run's score in its own *Still unresolved*, and it is no longer the absence of one that has to be disclosed** — day-b has since run and *failed a FILLED row*, so these twelve notes are known-real, known-incomplete, and known-wrong in at least one place. That is a stronger reason to keep the obligation than "unscored" ever was.
 
-**Reference** is what the clinician actually submitted to the portal. It is a **baseline to beat, not a target to match**: the submitted notes were written under time pressure at the end of a long shift, and the skill exists to do better than that consistently. A difference from the reference is therefore *better*, *worse*, or *neither* — and only *worse* is a regression.
+**Reference** is what the clinician actually submitted to the portal. It is a **baseline to beat, not a target to match**, and the skill exists to do better than it consistently. A difference from the reference is therefore *better*, *worse*, or *neither* — and only *worse* is a regression.
+
+**The reason it is a baseline is not the one this file used to give.** It said the submitted notes were *"written under time pressure at the end of a long shift."* **The reference reads falsified that**: day-b's twelve were typed 78 days after the shift and `peds-bp`'s five 52 days after. They were written from the day file, long after the room, and the day file is the only record of what was in it.
+
+**Two things follow, and both were stated by the clinician on 2026-08-12.**
+
+**The notes predate the corpus.** *"I put those assessments in before I started cataloging them as the corpus has, so if there is anything missing from the notes in Medatrax that is why."* The transcribed corpus these fixtures are built from is the **newest** layer — the day file came first, the portal note second, the catalog last. **A reference note is not a note written to this repo's standard and falling short; it is a note written before the standard existed.**
+
+**And whether anything is missing from one is unknowable.** Asked directly: ***"and they could be, I don't know."*** Nobody can reconstruct what did not make the trip from paper to portal, and no re-read will produce it.
+
+**So a finding absent from a reference is not evidence of a reasoning failure.** It may be one, and it may equally be a line that was never typed. **No row may rest on a reference being complete** — which is why the fourth verdict exists, why *worse* is the only regression, and why a `Reference did` cell records what the note contains rather than what the clinician knew. This is the same class of permanently-open question as the provenance of a filled vital, and it is answered the same way: word the row so it holds either way.
 
 The reference has to be read, never inferred. Inferring it from the skill's own prior output produces a set that agrees with itself forever.
