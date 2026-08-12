@@ -100,7 +100,7 @@ A code is *added* when it is not in the note's lists. A code is *upgraded* when 
 | C1 | all | Every added or upgraded ICD-10 code exists in `reference/icd10cm-2026.sqlite` | Any does not resolve |
 | C2 | all | Its descriptor is the official string, verbatim | It is paraphrased, abbreviated, or belongs to a different code |
 | C3 | all | It is billable, or is flagged `SPECIFICITY: needs: a billable child` | A header code is proposed as if submittable |
-| C4 | all | Every proposed code carries all five parts — number, descriptor, anchor, specificity, confidence | Any is missing a part |
+| C4 | all | Every code proposed **for entry** carries all five parts — number, descriptor, anchor, specificity, confidence. A **differential** code carries three — number, descriptor, confidence — and `NOT FOR ENTRY` on its own line | A five-part code is missing one of its five, a differential code is missing one of its three, or a differential code is missing its `NOT FOR ENTRY` mark |
 
 **C1 through C3 are settled by one command**, which is why this class is enforced despite being new:
 
@@ -108,7 +108,11 @@ A code is *added* when it is not in the note's lists. A code is *upgraded* when 
 python tools/icd10_lookup.py <every added or upgraded code>
 ```
 
-**C4 needs no tool and is still binary** — five parts are present or they are not. It is `icd10-cpt`'s own Completion rule, which reads *"five parts, no exceptions"*, and it had nothing holding it to that.
+**C4 needs no tool and is still binary** — the parts are present or they are not. It is `icd10-cpt`'s own Completion rule, and it had nothing holding it to that.
+
+**It grew a second shape in [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19), and the count is what tells the two apart.** That ticket put a code on every differential entry, and those codes are documentation of medical decision-making rather than candidates for entry: three parts, in their own section, each line marked `NOT FOR ENTRY`. So the row can no longer read *"every proposed code has five"* — but it did not become a judgment call, because **the part count is exactly what distinguishes a code proposed for entry from one documenting reasoning.** Five parts or three; nothing in between, and neither shape may borrow from the other.
+
+**These twelve inputs predate that rule.** Their Assessments carry differentials with no codes on them, because `clinical-note` did not require any when they were generated. A run over them today should therefore *produce* the differential section rather than pass one through, which is the harder half of the rule and the one worth watching on the first run.
 
 **What CODE does not test.** The lookup *"answers does this code exist and what governs it, never is this the right code"*, in the skill's words. A run can propose a real, billable, correctly-described code for the wrong diagnosis and pass all four rows. That is a reader's judgment and it belongs in REPORTED — except that it does not move with wording either, which makes it the one thing this set would most like to enforce and cannot. Named under *Still unresolved*.
 
