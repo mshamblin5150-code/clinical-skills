@@ -24,10 +24,14 @@ AGENTS.md                 skill index + standing rules
 **Claude Code** — junction each skill into `.claude/skills/` so they load natively:
 
 ```bash
-for s in clinical-note batch-shift icd10-cpt; do cmd //c mklink //J ".claude\\skills\\$s" "skills\\$s"; done
+python tools/skills_mirror.py --repair
 ```
 
-Per-skill rather than one junction on the whole folder, so `.claude/skills/` can also hold the maintainer's own tooling without mixing it into the deliverable. The whole directory is gitignored, so each machine makes its own. Claude Code also reads `CLAUDE.md` → `AGENTS.md` automatically.
+That links every skill under `skills/`, and re-run it any time to check. Per-skill rather than one junction on the whole folder, so `.claude/skills/` can also hold the maintainer's own tooling without mixing it into the deliverable. The whole directory is gitignored, so each machine makes its own. Claude Code also reads `CLAUDE.md` → `AGENTS.md` automatically.
+
+It used to be a hand-written `for s in clinical-note batch-shift icd10-cpt` loop, which was correct when there were three skills and silently stopped installing `setup-clinical-skills` when there were four. The script enumerates `skills/` instead.
+
+**A junction that turns into a copy is the failure mode worth knowing about**, because it looks exactly like a working install and answers with whatever the skill said the day the copy was made. `git worktree` is one way to get there: it materializes `.claude/` by copying, the copy follows the junctions rather than recreating them, and the new worktree starts out holding frozen skills. **Every worktree needs its own `--repair` run**, and the pre-commit hook prints a warning when a mirror has drifted.
 
 **Codex / Cursor / Copilot** — these read `AGENTS.md` from the repo root with no setup. The index there tells the agent which `SKILL.md` to open.
 

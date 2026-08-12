@@ -49,6 +49,16 @@ DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors: htn documented, no pressure
 DAY_B_DOCUMENTS_HTN = (2, 3, 8, 9)
 DAY_B_HTN_WITH_BP = (2, 3)
 
+# The three chest findings D2, D3 and D7 anchor on. Every one of these cases is
+# also in DAY_B_NO_VITAL, which is what leaves all three rows open to a filled
+# dismissal -- "deferred, afebrile with SpO2 97%" names the finding in the Plan
+# and passes. B9 is what closes that. Issue #27.
+DAY_B_LUNG_FINDING = {
+    1: "lungs diminished in all four fields",
+    9: "lung sounds diminished",
+    11: "inspiratory wheezing noted in all fields",
+}
+
 # The OLDCARTS severity split B5-B8 rest on, for issue #30. Every case is in
 # exactly one of the three, and which one decides whether its severity is a
 # given the run must preserve or a value the run must invent.
@@ -56,6 +66,12 @@ DAY_B_PAIN_SCORE = {1: 8, 4: 5, 5: 2, 7: 7, 8: 8, 10: 8, 11: 6}
 DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
 DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
 DAY_B_SEVERITY_NONZERO = (6, 9)  # B8's anchors. Case 3 itches rather than hurts
+
+# B9's ten: every case where *anything* in the filled-vitals license class was
+# generated. The vital-less nine plus case 3, whose vital line is complete and
+# whose severity the run has to invent. Not B1's list, which is the mistake the
+# first draft of the row made. Issue #27.
+DAY_B_B9 = (1, 3, 5, 6, 7, 8, 9, 10, 11, 12)
 NO_PAIN = r"(?i)\bno pain\b"
 
 # peds-bp keeps its source shift's numbering, so the gaps are the omitted cases.
@@ -973,6 +989,88 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
         for token in ("covid", "strep", "flu"):
             with self.subTest(token=token):
                 self.assertIn(token, day_b_plan(12))
+
+    def test_the_d7_anchor_documents_a_lung_finding_and_orders_no_imaging(self):
+        """D7 is only checkable while case 9's plan stays empty of imaging.
+
+        The same shape as D6 one row up, and asserted for the same two opposite
+        reasons. The finding is asserted because removing it would fail a
+        correct note; the absent order is asserted because writing a film into
+        the input would make it a *given* and the row would pass having tested
+        nothing -- exactly how a vital added to one of the nine would void B1.
+
+        [issue #27]: https://github.com/mshamblin5150-code/clinical-skills/issues/27
+        """
+        self.assertIn("lung sounds diminished", day_b(9).lower())
+        for token in ("cxr", "xray", "x-ray", "radiograph", "film", "imaging"):
+            with self.subTest(token=token):
+                self.assertNotIn(token, day_b_plan(9))
+
+    def test_the_film_he_did_order_is_on_the_same_shift(self):
+        """D7's prose claims imaging a diminished lung base is his own practice.
+
+        Case 7 is where this shift did it -- ``diminished in bases`` on exam and
+        ``cxr`` in the plan -- which is what makes case 9 a lapse rather than a
+        house style. It is also why case 7 cannot host the row itself: the order
+        is a given there, so a run that merely copied the input would pass. Same
+        reason case 10 is not a second D6.
+        """
+        self.assertIn("diminished in bases", day_b(7).lower())
+        self.assertIn("cxr", day_b_plan(7))
+
+    def test_the_three_lung_rows_sit_on_vital_less_cases(self):
+        """B9's ground: D2, D3 and D7 are each open to a filled dismissal.
+
+        All three cases are filled a complete vital set, so all three rows can
+        be answered by naming the finding and disposing of it on two invented
+        numbers. That is the cheat B9 closes, and it stops being the reason B9
+        exists the moment any of these three acquires a vital line.
+        """
+        for n, finding in DAY_B_LUNG_FINDING.items():
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertIn(finding, note.lower())
+                self.assertFalse(cc.has_any_vital(note))
+
+    def test_b9_reaches_every_case_with_something_generated(self):
+        """B9's list is a union, and case 3 is the member easy to lose.
+
+        The row reaches any case where something in the filled-vitals license
+        class was generated -- a vital, a body measurement, or the OLDCARTS
+        severity. That is the vital-less nine *plus* case 3, whose vital line is
+        complete and whose severity the run must invent. Derived from the inputs
+        here rather than copied from B1's list, because the first draft of the
+        row did copy B1 and dropped her.
+
+        [issue #27]: https://github.com/mshamblin5150-code/clinical-skills/issues/27
+        """
+        reached = tuple(
+            n
+            for n in range(1, 13)
+            if not cc.has_any_vital(day_b(n))
+            or not (cc.has_pain_score(day_b(n)) or re.search(NO_PAIN, day_b(n)))
+        )
+        self.assertEqual(reached, DAY_B_B9)
+
+    def test_the_two_cases_b9_does_not_reach_supply_both(self):
+        """Cases 2 and 4 are outside B9, and the row is vacuous on them.
+
+        Both carry a full vital line and both settle the severity in the
+        shorthand, so a run has nothing generated to reason from and B9 has
+        nothing to check. This is what makes the exclusion a property of the
+        inputs rather than an oversight.
+
+        **The two settle it differently**, and asserting a score on both would
+        be wrong: case 4 writes ``5``, while case 2 writes ``no pain`` -- an
+        absence, which is a given scoring 0/10 rather than a value to invent.
+        ``DAY_B_NO_PAIN`` is the split, and the first version of this test
+        failed on exactly that distinction.
+        """
+        for n in (2, 4):
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertTrue(cc.has_any_vital(note))
+                self.assertTrue(cc.has_pain_score(note) or re.search(NO_PAIN, note))
 
     def test_seven_cases_transcribe_a_severity(self):
         """B7's list, with the value each case must survive with."""

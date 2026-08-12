@@ -6,6 +6,12 @@ repo_root=$(git rev-parse --show-toplevel) || exit 0
 
 for python in python python3 py; do
     if command -v "$python" >/dev/null 2>&1; then
+        # Advisory, and deliberately not part of the exit status: a stale
+        # .claude/skills/ mirror is a wiring fault, not PHI, and standing rule 1
+        # stays the only thing that refuses a commit in this repo. Prints nothing
+        # when the mirror is linked. See tools/skills_mirror.py.
+        "$python" "$repo_root/tools/skills_mirror.py" --quiet >&2 || true
+
         exec "$python" "$repo_root/tools/phi_scan.py"
     fi
 done
