@@ -24,7 +24,7 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 **D6 arrived after that count and is not in it.** It comes from [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32) — a `clinical-note` run over case 9, not the reference read — and the read is what lets it carry a verdict at all.
 
-**The set has never been run.** `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value yet.
+**The set has never been run.** `DRIFT n/n`, `FILLED n/n`, `CODING n/n` and `REPORTED n/m` have no first value yet.
 
 ## The reference is a baseline, not a target
 
@@ -194,6 +194,29 @@ Issue #8 asked for both halves — a filled vital and a filled body measurement 
 
 **The reference is evidence the gap matters.** The clinician generated a BMI of 37.8 for case 9 unprompted — from a shorthand that documents lymphedema, arthritis in both knees and a hip fracture, none of which requires it — and then addressed it nowhere. **B3 would already have fired on it**, which is the half this set does hold.
 
+## CODING — binary, all must pass
+
+A fourth assertion class alongside DRIFT, FILLED and REPORTED, defined in [fixtures/README](../README.md). Binary, on the same terms as the other two.
+
+**It exists because [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19) put a code on every differential entry.** [SOAP.md](../../skills/clinical-note/SOAP.md) previously carried codes on the preexisting diagnoses and the final diagnosis and none on the differential; it now carries all three, and [drift row 13](../../skills/clinical-note/SKILL.md) is what checks it. That rule fires on **every output this set produces**, which makes it both the most-exercised rule the set can hold and the one that would erode most quietly — a differential with the codes missing reads perfectly well.
+
+**C1 therefore spans all twelve rather than anchoring on one case.** The ticket that opened this class described two rows on case 9, and C2 is the one that needs case 9's particular input. C1 needs nothing particular: every case produces a differential, so scoping it to a single case would test one twelfth of a rule that fires twelve times and leave the other eleven outputs unchecked for free.
+
+| # | Cases | Passes when | Fails when | Reference did |
+| --- | --- | --- | --- | --- |
+| C1 | all twelve | Every entry in the Assessment's differential carries an ICD-10-CM code | Any entry carries none. **Two counts that either match or do not** — differential entries, and codes among them | **Not read for this row.** The submitted notes were read 2026-08-11 for the DRIFT and FILLED rows and were not examined for differential codes. What to check when they are: whether any submitted Assessment carries a coded differential at all, which would make matching it *neither* rather than *better*. |
+| C2 | 9 — 44 F | The COVID-19 entry in the Assessment's differential carries a code **other than `U07.1`** | That entry's code **is** `U07.1`. The contact is documented and **no swab was taken**, so that descriptor asserts a disease nothing established | **Not read for this row**, and the reference cannot fail it in the same way: its Assessment carries no differential codes at all, so it has no code on that entry to be wrong. Producing `Z20.822 Contact with and (suspected) exposure to COVID-19` here is *better*; producing `U07.1` is *worse* than a note that coded nothing. |
+
+**C2 is scoped to the code that entry carries, not to the string appearing anywhere.** An earlier wording failed when `U07.1` appeared anywhere in the output, and that would have failed a **correct** run: [icd10-cpt](../../skills/icd10-cpt/SKILL.md) step 4 *requires* the refused code be named — `NOT CODED: U07.1  COVID-19` — precisely so the clinician who gets a positive swab back tomorrow knows what it earns. A row that punished the refusal for naming what it refused would have inverted the rule it was written to hold. **Read the differential entry; the worksheet's refusal block is not the note.**
+
+**Its pass and fail are complementary by construction**, which [fixtures/README](../README.md) asks of a binary row. The entry's code either is `U07.1` or it is not, and C1 is what guarantees there is a code to look at — without C1 an entry carrying none would resolve to neither. That is why these two rows ship together rather than C2 alone. Naming `Z20.822` as the expected shape stays commentary in the reference column, where a judgment is allowed; the row itself turns on one string.
+
+**Case 9 is the only case in this set that can host C2.** The rule needs an input documenting a specific organism the encounter never tested for. Case 9 documents a positive COVID contact and orders no swab, which is the same property D6 rests on. Cases 8 and 12 document contacts too and **order the swab** — `covid` on case 8, `covid, strep, flu` on case 12 — so a run over either has a test to hang the diagnosis on and the row would not fire. Case 10 orders testing against no contact at all. That is the same reasoning that left D6 a single row.
+
+**C2 and D6 are not the same row and neither contains the other.** D6 asks whether the Plan **orders the swab** — whether a documented given survived into an action. C2 asks what the Assessment **codes** when it has not. A run can pass D6 and fail C2 by ordering the swab and then coding `U07.1` as though the result were already in, and that is the more likely failure of the two: having written the order, the diagnosis feels established.
+
+**Neither row is testable on a hedge in the input.** Zero of this set's twelve inputs carry a hedge token — verified by `tools/test_corpus_census.py` rather than asserted here — so #19's other half, what the skill does when the *shorthand itself* says `prob viral`, has no anchor in day-b and is owed a fixture of its own. Filed as [#49](https://github.com/mshamblin5150-code/clinical-skills/issues/49), which needs an encounter picked out of `scratch/` — [fixtures/README](../README.md) forbids authoring one.
+
 ## REPORTED — counted, not enforced
 
 One row, and it exists because the reference read produced a difference of the fourth class. Counted rather than enforced on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and this one has not been run even once.
@@ -223,7 +246,8 @@ The inputs cannot test any of these: they carry no visit date, no portal entry f
 ## Still unresolved
 
 - **`clinical-note` still says what B2 stopped saying.** [SKILL.md](../../skills/clinical-note/SKILL.md) reads *"A known hypertensive seen for a productive cough gets a hypertensive pressure"* — the rule B2 was written to fixture, and the one the clinician's *"she may be compliant with her BP meds"* contradicts. The same file also tells the skill to **infer a likely regimen** where a hypertensive history carries no `meds:` line, and to propose *"lisinopril where the history carries hypertension"*. So it currently instructs the skill to put a patient on an ACE inhibitor and then hand her a hypertensive pressure anyway. **B2 was changed and the skill rule was not**, deliberately: rewriting a clinical rule is the clinician's call and it would ripple into `peds-bp` and drift row 4. Filed as [#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23).
-- **The set has never been run.** Until it is, `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
+- **The set has never been run.** Until it is, `DRIFT n/n`, `FILLED n/n`, `CODING n/n` and `REPORTED n/m` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
+- **C1 and C2's `Reference did` cells are owed.** The reference read of 2026-08-11 was scoped to the rows that existed then, so nobody has looked at what the twelve submitted notes did about differential codes. Both rows are checkable against a run *today* — they assert on the skill's output text, not on the reference — so the set is not blocked. What is missing is the verdict: whether beating the reference here is *better* or merely *neither*. Re-reading `scratch/day-b-reference/` for that one question is a smaller job than the original read was.
 - **Cases 6 and 12 are 17 and 16, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) turned out not to reach them.** That issue asked whether a filled pediatric vital should be filled at all, and pointed here for the fixture. The corpus answered the boundary question first: measured 2026-08-11, a blood pressure going missing from a vital line that was otherwise written happens **only under 6** — every band from 9 up produces not one instance, and a 16-year-old is transcribed exactly like an adult. So these two are adolescent only in the sense that their filled values must suit their age, which B1 already demands. The ruling — filled, no exception — is fixtured in [peds-bp](../peds-bp/assertions.md), whose cases are young enough to test it.
 
   What is genuinely untested here is **B2's** analogue, not B1's: B2 reaches only cases 8 and 9 because only those two document a condition making a normal value implausible, and neither of these adolescents does. (An earlier version of this bullet named B1 for that; B1's case list has covered 6 and 12 all along.)

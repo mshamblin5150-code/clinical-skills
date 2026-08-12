@@ -513,6 +513,144 @@ class DocumentedObesity(unittest.TestCase):
         self.assertEqual(c.bariatric_no_measurement, 1)
 
 
+class HedgedDiagnosis(unittest.TestCase):
+    """Guards the figure drift row 13 cites, and the decoys that inflate it.
+
+    The row is in ``skills/clinical-note/SKILL.md`` and it turns on a rate: a
+    differential is generated in every note, a hedge appears in the shorthand of
+    about one in sixteen, and the row's two halves therefore fire at very
+    different frequencies. Issue #19 published that percentage before anything
+    could recompute it. This is what recomputes it.
+
+    Every token here is a **prefix or boundary** match for the same reason
+    ``OBESITY`` is: a four-letter clinical token hides inside longer words, and
+    this corpus is where that was learned. ``prob`` is the live case --
+    ``fixtures/day-a/shorthand/case-10.md`` writes "he states he has problems
+    urinatin", and a bare ``prob`` counts that encounter as hedged.
+    """
+
+    OBESITY_BMI = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+
+    def test_prob_alone(self):
+        self.assertTrue(cc.has_hedge("dx prob viral uri"))
+
+    def test_probable_and_probably(self):
+        self.assertTrue(cc.has_hedge("probable strep"))
+        self.assertTrue(cc.has_hedge("probably viral"))
+
+    def test_a_problem_is_not_a_hedge(self):
+        """The decoy, asserted against the fixture that carries it."""
+        self.assertFalse(cc.has_hedge("he states he has problems urinatin"))
+        self.assertFalse(cc.has_hedge(fixture("case-10.md")))
+
+    def test_possible_forms(self):
+        for text in ("poss ptx", "possible cellulitis", "possibly viral"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_hedge(text))
+
+    def test_suspected_forms(self):
+        for text in ("susp fx", "suspected strep", "suspicion for pe"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_hedge(text))
+
+    def test_rule_out(self):
+        self.assertTrue(cc.has_hedge("r/o pna"))
+        self.assertTrue(cc.has_hedge("R/O fracture"))
+
+    def test_versus(self):
+        self.assertTrue(cc.has_hedge("bronchitis vs pna"))
+
+    def test_a_vital_signs_header_is_not_a_versus(self):
+        """``VS`` opens a vital line and would otherwise read as a hedge.
+
+        The colon is **not** what distinguishes them, which a first version of
+        this guard assumed: he writes ``VS 138/86`` and ``VS- 138/86`` too, and
+        both slipped through a lookahead that only rejected ``VS:``. What
+        actually separates the two is what follows -- a vital line runs into a
+        number, a differential runs into a diagnosis.
+        """
+        for text in ("VS: 138/86, hr 88, t 98.8", "vs : 138/86", "VS 138/86 hr 88",
+                     "VS- 138/86", "VS. 98.6"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_hedge(text))
+
+    def test_a_spelled_out_suspension_is_not_a_suspicion(self):
+        """Ordinary pediatric prescribing, and it would inflate the count."""
+        for text in ("amoxicillin suspension 400/5", "amox suspended"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_hedge(text))
+
+    def test_an_abbreviated_suspension_still_counts(self):
+        """The limit the guard cannot reach, pinned rather than wished away.
+
+        ``susp 250/5ml`` is a suspension and ``susp fx`` is a suspicion, and the
+        four letters are identical. HEDGE says so in prose; this is the test that
+        makes the claim checkable, and it is why the figure is a proxy.
+        """
+        self.assertTrue(cc.has_hedge("susp 250/5ml"))
+
+    def test_a_genuine_question_counts_and_that_is_deliberate(self):
+        """A known over-count, pinned so it stays a decision rather than a bug.
+
+        ``[a-z]\\?`` is the loosest alternative in HEDGE and it cannot tell
+        ``strep?`` from a question written into the prose. It is kept because
+        issue #19's published table counted the same seven tokens, so the figure
+        stays comparable to the one already on the ticket -- and because the
+        figure is quoted as a proxy rather than a bound.
+        """
+        self.assertTrue(cc.has_hedge("pt asks: is this contagious?"))
+
+    def test_the_prefixed_question_mark_is_not_matched(self):
+        """``?fx`` is the other shorthand form, and it is deliberately absent.
+
+        No committed fixture carries it and the corpus cannot be audited from
+        every clone, so an alternative matched by nothing is one nothing can
+        catch going wrong -- the reasoning ``SLEEP_APNEA`` already carries for
+        ``apnoea``. This is the line to change if the form turns up.
+        """
+        self.assertFalse(cc.has_hedge("?fx right wrist"))
+
+    def test_likely(self):
+        self.assertTrue(cc.has_hedge("likely viral"))
+
+    def test_unlikely_is_deliberately_not_counted(self):
+        """A rejection is a conclusion, not a hedge, and the count says so."""
+        self.assertFalse(cc.has_hedge("unlikely to be bacterial"))
+
+    def test_a_question_mark_suffix(self):
+        self.assertTrue(cc.has_hedge("strep? throat cx sent"))
+
+    def test_a_plain_note_carries_none(self):
+        self.assertFalse(cc.has_hedge("cc: sore throat x 3 days\ndx strep pharyngitis"))
+
+    def test_day_a_and_day_b_carry_no_hedge(self):
+        """Why no hedged-input assertion can be written against either set."""
+        for path in sorted(FIXTURES.glob("case-*.md")) + sorted(DAY_B.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertFalse(cc.has_hedge(path.read_text(encoding="utf-8")))
+
+    def test_obesity_bmi_case_1_does_carry_one(self):
+        """Issue #19 said no committed fixture carries a hedge token. One does.
+
+        ``possibly ultrasounds there`` hedges **a past test**, not a diagnosis,
+        so the ticket's substantive point survives: nothing committed can anchor
+        an assertion about a hedged *diagnosis*. The token count is what was
+        wrong, and this is the case that would have failed a blanket claim.
+        """
+        self.assertTrue(cc.has_hedge((self.OBESITY_BMI / "case-01.md").read_text(encoding="utf-8")))
+
+    def test_the_survey_counts_hedged_encounters(self):
+        c = cc.survey(
+            [
+                "dx prob viral uri",              # hedged
+                "bronchitis vs pna",              # hedged
+                "he has problems urinatin",       # the decoy
+                "cc: rash\ndx contact dermatitis",  # plain
+            ]
+        )
+        self.assertEqual(c.with_hedge, 2)
+
+
 class Age(unittest.TestCase):
     def test_years_spelled_out(self):
         self.assertTrue(cc.has_stated_age("48 year old F"))
