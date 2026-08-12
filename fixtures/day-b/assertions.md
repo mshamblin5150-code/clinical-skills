@@ -28,7 +28,27 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 **D7 arrived after it too, from [#27](https://github.com/mshamblin5150-code/clinical-skills/issues/27), and is not in it either.** Unlike D6 it carries no verdict, because the read had already happened when it was written. So *"here it changed one of five"* is a statement about D1 through D5 and stays one.
 
-**The set has never been run.** `DRIFT n/n`, `FILLED n/n`, `CODING n/n` and `REPORTED n/m` have no first value yet.
+**Run 1, 2026-08-11, on commit `d213e35`: `DRIFT 5/5` · `FILLED 3/4` · `REPORTED 0/1`. The run fails.** Output in `scratch/day-b-run-1/`, scorecard and reasoning in `SUMMARY.md` there.
+
+FILLED is binary, and **B3 misses on case 5**: a filled BMI of 28.4 — the overweight band, so the row fires — reaches the Objective, the Medatrax field and the FILLED block and is named in neither the Assessment nor the Plan.
+
+**Of B3's nine cases, seven produced an abnormal filled BMI and six of those addressed it.** Cases 6 and 12 landed normal, at 23.0 and 21.6, so the row never fired on them. Case 5 is the only case where it fired and was missed.
+
+**The note's own drift matrix reported row 4 as PASS**, on the stated ground that the BMI was addressed through weight counseling in the Plan. That Plan contains no weight counseling. [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) argues a self-report cannot grade a run because the run that misses a finding is the run that reports PASS; this is that argument happening rather than being made.
+
+**Unlike day-a's run 1, this one was not graded by the pass that produced it.** Six subagents wrote the notes without access to this file, a fresh pass graded the output text against it, and the orchestrating pass re-derived every row from the output files having authored none of them. What that leaves is narrower than what it removes: one session directed both halves, so a framing shared between them is not excluded.
+
+### Run 1 covers ten of this set's nineteen rows, and the other nine did not exist when it ran
+
+**D6, B5–B8, C1 and C2 landed on `main` while run 1 was in flight** — [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32), [#30](https://github.com/mshamblin5150-code/clinical-skills/issues/30) and [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19), the same day, one of them arriving between the run's commit and its merge. The run was made against `d213e35`, where the set held D1–D5, B1–B4 and R1, and it graded every one of them. **So `DRIFT 5/5`, `FILLED 3/4` and `REPORTED 0/1` are complete for the commit they name, `CODING n/n` has no value at all, and the scorecard is not a full pass over the set as it now stands.**
+
+**The new rows were deliberately not graded from run 1's output, and the reason is not laziness.** The output exists and the new rows are claims about note text, so scoring them would have been cheap. But B5 through B8 exist *because* `clinical-note` changed — #30 admitted the HPI severity to the filled class, #32 and #19 moved the same file — and those twelve notes were written before those changes. A score from them would measure neither the commit the notes came from nor the commit the rows came from. **A number that belongs to no commit is worse than a gap that names itself.**
+
+**D7 and B9 landed after run 1 rather than during it**, from [#27](https://github.com/mshamblin5150-code/clinical-skills/issues/27), and the same reasoning holds with one wrinkle worth stating. They are ungraded here on the argument above: `clinical-note` gained drift row 15 with them, and those twelve notes were written before it.
+
+**But run 1's output is what this ticket's evidence is drawn from, and evidence is not a verdict.** Case 9's note is quoted under *B9 is the subtractive half of the license* below, because it shows a run reaching for filled values to defer a chest film — the second such run, after the one #27 reports. That establishes the defect is real and recurring. **It does not score B9**, and reading it as `FILLED 3/5` would be the exact mistake the paragraph above refuses. What would settle both rows is run 2.
+
+What this asks for is run 2, against current `main`, over all nineteen rows. That is [fixtures/README](../README.md)'s own instruction — *re-run after every `SKILL.md` edit* — arriving immediately, and it is [#55](https://github.com/mshamblin5150-code/clinical-skills/issues/55).
 
 ## The reference is a baseline, not a target
 
@@ -200,7 +220,7 @@ B1 through B3 and B5 through B8 are all one direction: a value gets generated, a
 
 **B9's ten cases are a union, not B1's nine.** The row reaches a case where *anything* in the license class was generated, so it is the vital-less nine plus **case 3**, whose vitals are complete and whose OLDCARTS severity the run has to invent — `DAY_B_SEVERITY_FILLED` in `tools/test_corpus_census.py`. Cases 2 and 4 are the only two outside it: both carry a full vital line and both settle the severity in the shorthand — case 4 with a score of 5, case 2 by writing `no pain`, which is a given scoring 0/10 rather than a value to invent. So a run has nothing generated to reason from and the row has nothing to check. Case 3 is easy to lose here, and the first draft of this row did lose her — she is B1's counter-example and B9's member at once, which is exactly the kind of split the case lists are computed rather than eyeballed to catch.
 
-**No row above fires on it, which is worth being exact about.** On case 9 the run filled `T 98.8 F` and `SpO2 97%`, both squarely normal. B1 passes — the box has a value. B3 never fires — the value is not abnormal, so there is nothing downstream to have lost. B2 reaches the pressure and says nothing about the other four. Every FILLED row in this set is satisfied by the run that deferred a chest film on two numbers nobody measured.
+**No row above fires on it, which is worth being exact about.** Take the run [#27](https://github.com/mshamblin5150-code/clinical-skills/issues/27) reports, which filled case 9's `T 98.8 F` and `SpO2 97%`, both squarely normal. B1 passes — the box has a value. B3 never fires — the value is not abnormal, so there is nothing downstream to have lost. B2 reaches the pressure and says nothing about the other four. Every FILLED row in this set is satisfied by the run that deferred a chest film on two numbers nobody measured.
 
 **And a filled normal is the harder case, not the easier one.** An invented abnormal has to be worked up and draws attention to itself doing it. An invented normal is what makes a workup stop, and it stops it in a sentence that reads like good clinical judgment. That asymmetry is why the row is worth its own line rather than a clause bolted onto B3.
 
@@ -277,7 +297,13 @@ A fourth assertion class alongside DRIFT, FILLED and REPORTED, defined in [fixtu
 
 ## REPORTED — counted, not enforced
 
-One row, and it exists because the reference read produced a difference of the fourth class. Counted rather than enforced on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and this one has not been run even once.
+One row, and it exists because the reference read produced a difference of the fourth class. Counted rather than enforced on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and when it was written the set had not been run even once.
+
+**Run 1 scored it `0/1`, and it cost the run nothing** — which is what *counted rather than enforced* buys. Case 1 asserted an allergy status against a shorthand silent on allergies, plus an education level, a marital status and an occupational detail; case 2 asserted the allergy status again, plus an occupation and an education level. Each is declared in `FILLED·asserted`, and **declaring an assertion is not the not-reported phrasing the row asks for.** Case 2's `seasonal allergies (stated), reaction pattern not documented` is the passing form and is the one place the run got it right; case 2's inferred antihypertensive is exempt under the note below.
+
+Graded ***worse***, not *out of reach*: the reference asserted three of these having been in the room, which is what puts its version out of reach. The skill was not in the room and asserted them anyway.
+
+**A `0/1` is not an argument for enforcing the row, and no number of them would be.** [fixtures/README](../README.md) sets one criterion — *"what makes a row enforceable is that it does not move with wording"* — and R1 turns on phrasing, as the paragraph above demonstrates by scoring it on whether a declaration reads as not-reported. What a repeated `0/1` would be evidence for is that the underlying behavior is stable enough to be worth a *differently worded* binary row: one resolving to whether a named social, allergy or medication field appears at all where the shorthand supplies none. That row does not exist and writing it is not this run's business.
 
 | # | Cases | Claim | Reference did |
 | --- | --- | --- | --- |
@@ -303,7 +329,11 @@ The inputs cannot test any of these: they carry no visit date, no portal entry f
 
 ## Still unresolved
 
-- **The set has never been run.** Until it is, `DRIFT n/n`, `FILLED n/n`, `CODING n/n` and `REPORTED n/m` have no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
+- **B3 fails, and the fix is not this set's to make.** Run 1 lost case 5's filled BMI between the FILLED block and the Assessment. The row is doing exactly its job; what it surfaced is a `clinical-note` behavior — an abnormal filled BMI addressed on six of the seven cases that produced one, and dropped on the seventh, which is the case with the busiest Plan. Filed as [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47), with peds-bp's identical P5 miss, and **not resolved by editing this row.**
+- **Run 2 has not happened, and nine rows have never been scored at all.** Run 1 is a first value over ten of the nineteen, not a bar cleared: nothing exists yet to measure `DRIFT 5/5` and `FILLED 3/4` against, and `CODING n/n` has no value whatever. What run 1 does establish is that the assertions are checkable against real output by someone who did not produce it, and that they can fail a run whose own matrix says it passed. [#55](https://github.com/mshamblin5150-code/clinical-skills/issues/55).
+- **B2's second exit has still never been exercised, and run 2 is the first chance it has.** [#26](https://github.com/mshamblin5150-code/clinical-skills/issues/26) expected run 1 to fail B2, as the visible cost of `clinical-note` and this row contradicting each other. It passed, and structurally rather than luckily: **B2's first exit is an abnormal pressure, and the rule as it then stood produced exactly that** — case 8 filled at 148/92 and case 9 at 146/90, both above on both limbs — so neither case reached the second exit and the clause the two documents fought over was never tested.
+
+  **[#23](https://github.com/mshamblin5150-code/clinical-skills/issues/23) has since been settled in B2's favor**, and that is what makes this worth keeping rather than deleting. The rule no longer orders up a hypertensive pressure, so a filled pressure for cases 8 and 9 may now legitimately land normal — which routes them to the **second** exit, the one asking whether the Assessment calls the hypertension controlled or treated. Run 1's `B2 PASS` was earned on a branch the skill can no longer be relied on to take. **Read it as untested rather than as a baseline**, and expect run 2 to say something different about the same row for reasons that are not a regression.
 - **C1 and C2's `Reference did` cells are owed.** The reference read of 2026-08-11 was scoped to the rows that existed then, so nobody has looked at what the twelve submitted notes did about differential codes. Both rows are checkable against a run *today* — they assert on the skill's output text, not on the reference — so the set is not blocked. What is missing is the verdict: whether beating the reference here is *better* or merely *neither*. Re-reading `scratch/day-b-reference/` for that one question is a smaller job than the original read was.
 - **Cases 6 and 12 are 17 and 16, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) turned out not to reach them.** That issue asked whether a filled pediatric vital should be filled at all, and pointed here for the fixture. The corpus answered the boundary question first: measured 2026-08-11, a blood pressure going missing from a vital line that was otherwise written happens **only under 6** — every band from 9 up produces not one instance, and a 16-year-old is transcribed exactly like an adult. So these two are adolescent only in the sense that their filled values must suit their age, which B1 already demands. The ruling — filled, no exception — is fixtured in [peds-bp](../peds-bp/assertions.md), whose cases are young enough to test it.
 
