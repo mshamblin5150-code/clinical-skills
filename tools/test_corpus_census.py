@@ -42,6 +42,16 @@ DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 DAY_B_CONTROL = (2, 3, 4)
 DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
 
+# The three chest findings D2, D3 and D7 anchor on. Every one of these cases is
+# also in DAY_B_NO_VITAL, which is what leaves all three rows open to a filled
+# dismissal -- "deferred, afebrile with SpO2 97%" names the finding in the Plan
+# and passes. B9 is what closes that. Issue #27.
+DAY_B_LUNG_FINDING = {
+    1: "lungs diminished in all four fields",
+    9: "lung sounds diminished",
+    11: "inspiratory wheezing noted in all fields",
+}
+
 # The OLDCARTS severity split B5-B8 rest on, for issue #30. Every case is in
 # exactly one of the three, and which one decides whether its severity is a
 # given the run must preserve or a value the run must invent.
@@ -694,6 +704,47 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
         for token in ("covid", "strep", "flu"):
             with self.subTest(token=token):
                 self.assertIn(token, day_b_plan(12))
+
+    def test_the_d7_anchor_documents_a_lung_finding_and_orders_no_imaging(self):
+        """D7 is only checkable while case 9's plan stays empty of imaging.
+
+        The same shape as D6 one row up, and asserted for the same two opposite
+        reasons. The finding is asserted because removing it would fail a
+        correct note; the absent order is asserted because writing a film into
+        the input would make it a *given* and the row would pass having tested
+        nothing -- exactly how a vital added to one of the nine would void B1.
+
+        [issue #27]: https://github.com/mshamblin5150-code/clinical-skills/issues/27
+        """
+        self.assertIn("lung sounds diminished", day_b(9).lower())
+        for token in ("cxr", "xray", "x-ray", "radiograph", "film", "imaging"):
+            with self.subTest(token=token):
+                self.assertNotIn(token, day_b_plan(9))
+
+    def test_the_film_he_did_order_is_on_the_same_shift(self):
+        """D7's prose claims imaging a diminished lung base is his own practice.
+
+        Case 7 is where this shift did it -- ``diminished in bases`` on exam and
+        ``cxr`` in the plan -- which is what makes case 9 a lapse rather than a
+        house style. It is also why case 7 cannot host the row itself: the order
+        is a given there, so a run that merely copied the input would pass. Same
+        reason case 10 is not a second D6.
+        """
+        self.assertIn("diminished in bases", day_b(7).lower())
+        self.assertIn("cxr", day_b_plan(7))
+
+    def test_the_three_lung_rows_sit_on_vital_less_cases(self):
+        """B9's ground: D2, D3 and D7 are each open to a filled dismissal.
+
+        All three cases are filled a complete vital set, so all three rows can
+        be answered by naming the finding and disposing of it on two invented
+        numbers. That is the cheat B9 closes, and it stops being the reason B9
+        exists the moment any of these three acquires a vital line.
+        """
+        for n, finding in DAY_B_LUNG_FINDING.items():
+            with self.subTest(case=n):
+                self.assertIn(finding, day_b(n).lower())
+                self.assertIn(n, DAY_B_NO_VITAL)
 
     def test_seven_cases_transcribe_a_severity(self):
         """B7's list, with the value each case must survive with."""
