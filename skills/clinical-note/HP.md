@@ -12,6 +12,7 @@ Allergies (with reaction)
 <allergen — reaction; and drug allergies separately>
 
 History of Present Illness (OLDCARTS)
+<all eight carry a value; none is left blank or "not documented">
 Onset:
 Location:
 Duration:
@@ -19,7 +20,7 @@ Character:
 Aggravating:
 Relieving:
 Timing:
-Severity:
+Severity: <N/10, and what it scores>
 
 <then a short narrative paragraph: age, sex, who brought them, the course,
 prior treatment and testing, current appearance>
@@ -98,6 +99,10 @@ illness but matters for counselling and future care>
 ```
 
 ## Section notes
+
+**No OLDCARTS element is ever blank.** Eight headings, eight values — `not documented` beside any of them is a defect, not a disclosure. Where the shorthand supplies none, infer one that follows from the presenting complaint; that is the same act as the exam of a system the shorthand never mentions, which [SKILL.md](SKILL.md) lists as grounded and expected. Each filled element is declared in `FILLED·asserted` carrying its value.
+
+**Severity is a numeric pain scale.** `6/10 facial pressure`, never a word and never blank. It is the one OLDCARTS element that is not ordinary filled content — it takes the filled-vital treatment, and the reasoning, the 0/10 boundary and the two forms in which the score is a *given* are all in [SKILL.md](SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate them here; do apply them.
 
 **ROS and Physical Exam** — the rubric bans sentences and bans the words *reviewed* and *negative*. Write `No wheeze; no increased work of breathing`, never `Respiratory reviewed and negative`.
 

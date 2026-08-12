@@ -11,7 +11,8 @@ CC: "<the patient's own words, quoted>"
 
 HPI (OLDCARTS):
 Onset · Location · Duration · Character · Aggravating · Relieving · Timing · Severity
-<one line, semicolon separated; then pertinent negatives the shorthand states>
+<one line, semicolon separated. All eight carry a value and severity is N/10;
+ then pertinent negatives the shorthand states>
 
 Allergies (reaction): <allergen — reaction; NKDA if none>
 Home meds: <drug dose route frequency (reason for taking)>
@@ -52,6 +53,10 @@ Follow up: <interval, and what would bring them back sooner>
 ## Section notes
 
 **Quote the chief complaint.** The patient's words, in quotation marks.
+
+**No OLDCARTS element is ever blank.** Eight, always eight — `not documented` in any of them is a defect, not a disclosure. Where the shorthand supplies none, infer one that follows from the presenting complaint; that is the same act as the exam of a system the shorthand never mentions, which [SKILL.md](SKILL.md) lists as grounded and expected. Each filled element is declared in `FILLED·asserted` carrying its value.
+
+**Severity is a numeric pain scale.** `6/10 facial pressure`, never a word and never blank. It is the one OLDCARTS element that is not ordinary filled content — it takes the filled-vital treatment, and the reasoning, the 0/10 boundary and the two forms in which the score is a *given* are all in [SKILL.md](SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate them here; do apply them.
 
 **Codes belong in this note.** Preexisting diagnoses and the final diagnosis both carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
 

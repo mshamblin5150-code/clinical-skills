@@ -19,6 +19,7 @@ exempt it from the corpus layer: a real patient name or a real date lifted from
 file was caught using both.
 """
 
+import re
 import unittest
 from pathlib import Path
 
@@ -34,6 +35,15 @@ PEDS_BP = REPO_ROOT / "fixtures" / "peds-bp" / "shorthand"
 DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 DAY_B_CONTROL = (2, 3, 4)
 DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
+
+# The OLDCARTS severity split B5-B8 rest on, for issue #30. Every case is in
+# exactly one of the three, and which one decides whether its severity is a
+# given the run must preserve or a value the run must invent.
+DAY_B_PAIN_SCORE = {1: 8, 4: 5, 5: 2, 7: 7, 8: 8, 10: 8, 11: 6}
+DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
+DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
+DAY_B_SEVERITY_NONZERO = (6, 9)  # B8's anchors. Case 3 itches rather than hurts
+NO_PAIN = r"(?i)\bno pain\b"
 
 # peds-bp keeps its source shift's numbering, so the gaps are the omitted cases.
 PEDS_BP_CASES = (2, 3, 5, 8, 9)
@@ -208,6 +218,84 @@ class OtherVitals(unittest.TestCase):
         self.assertTrue(cc.has_any_vital("hr 130 t 97.3 rr 32 spo2 99% wt 15"))
         self.assertTrue(cc.has_any_vital("bp 170/78"))
         self.assertFalse(cc.has_any_vital("cc: cough x 2 days\nallergy nkda"))
+
+
+class PainScore(unittest.TestCase):
+    """The severity marker behind issue #30.
+
+    ``clinical-note`` now requires an OLDCARTS severity on every note, written
+    as a pain scale. What the census answers is how often the clinician writes
+    one himself -- the population the rule fills for is the remainder, and a
+    rule about it should be able to say how large it is.
+
+    The extractor lives beside ``BP_PAIR`` because they read the same shape and
+    must not read each other's: ``BloodPressure.test_ignores_a_pain_score``
+    is this class seen from the other side.
+    """
+
+    def test_a_bare_score(self):
+        self.assertEqual(cc.pain_scores("he c/o 8/10 pain"), [8])
+
+    def test_spaces_around_the_slash(self):
+        self.assertEqual(cc.pain_scores("rates his pain 2 / 10"), [2])
+
+    def test_both_ends_of_the_scale_are_in_range(self):
+        self.assertEqual(cc.pain_scores("0/10 now, was 10/10 overnight"), [0, 10])
+
+    def test_above_the_scale_is_not_a_score(self):
+        """``12/10`` is rejected, and the reason is the decoy it shares.
+
+        Patients do say "twelve out of ten", so this loses a real score now and
+        then. Above 10 the same characters are far likelier to be a written
+        date -- the false positive the module cannot otherwise exclude at all,
+        see the limit in ``corpus_census`` -- so the range check is spent where
+        it buys the most.
+        """
+        self.assertEqual(cc.pain_scores("12/10"), [])
+
+    def test_a_score_that_ends_a_sentence(self):
+        """The form BP_PAIR's trailing guard would have thrown away.
+
+        Two of day-b's seven scores are written this way, and copying that
+        guard verbatim dropped both. On a vital line a following dot is a
+        decimal point; in prose it is a full stop.
+        """
+        self.assertEqual(cc.pain_scores("rates his pain 2/10. there is swelling"), [2])
+        self.assertEqual(cc.pain_scores("exacerbated by movment 6/10."), [6])
+
+    def test_a_date_after_the_score_is_still_not_a_score(self):
+        # Loosening the trailing guard must not reach the digits: "10/10/25"
+        # is a date, and the slash and digit alternatives are what refuse it.
+        self.assertEqual(cc.pain_scores("f/u 10/10/25"), [])
+        self.assertEqual(cc.pain_scores("wbc 6/100"), [])
+
+    def test_heart_sounds_are_not_a_score(self):
+        self.assertEqual(cc.pain_scores("s1,s2 2/2"), [])
+
+    def test_a_blood_pressure_is_not_a_score(self):
+        self.assertEqual(cc.pain_scores("bp 121/61 hr 64 t 96.9"), [])
+
+    def test_a_pressure_whose_digits_end_in_ten_is_not_a_score(self):
+        # The lookaround is what does this: "10" sits inside "110", so the
+        # character before it is a digit and the match is refused. Without it
+        # every systolic in the hundreds would offer a "10" to pair with.
+        self.assertEqual(cc.pain_scores("bp 110/104"), [])
+
+    def test_a_concentration_is_not_a_score(self):
+        self.assertEqual(cc.pain_scores("zithromax 200/5ml 3/4 t x 3 days"), [])
+
+    def test_a_suture_size_is_not_a_score(self):
+        # day-b case 6 writes "5 5-0 sutures placed" and carries no pain score;
+        # a run that read one there would make the fixture's own split wrong.
+        self.assertEqual(cc.pain_scores("lidocaine 1% 5 5-0 sutures placed"), [])
+
+    def test_presence_follows_the_values(self):
+        self.assertTrue(cc.has_pain_score("c/o 8/10 body aches"))
+        self.assertFalse(cc.has_pain_score("cc: itching, can feel ince in her ears"))
+
+    def test_the_survey_counts_the_notes_not_the_scores(self):
+        c = cc.survey(["c/o 8/10 pain, later 6/10", "no score here", "2/10"])
+        self.assertEqual(c.with_pain_score, 2)
 
 
 class DocumentedObesity(unittest.TestCase):
@@ -468,6 +556,72 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
         for path in sorted(DAY_B.glob("case-*.md")):
             with self.subTest(case=path.name):
                 self.assertFalse(cc.has_dob(path.read_text(encoding="utf-8")))
+
+    def test_seven_cases_transcribe_a_severity(self):
+        """B7's list, with the value each case must survive with."""
+        for n, score in DAY_B_PAIN_SCORE.items():
+            with self.subTest(case=n):
+                self.assertEqual(cc.pain_scores(day_b(n)), [score])
+
+    def test_two_cases_write_the_absence_of_pain(self):
+        """B7's other half, and it is a given rather than a silence.
+
+        Cases 2 and 12 say "no pain" outright, so 0/10 there is transcribed and
+        not the bland fill the rule forbids. A run that scores either of them
+        above zero has invented a symptom, which standing rule 2 covers without
+        any exception -- the severity license buys a number for a complaint the
+        shorthand documents, not a complaint.
+        """
+        for n in DAY_B_NO_PAIN:
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertRegex(note, NO_PAIN)
+                self.assertFalse(cc.has_pain_score(note))
+
+    def test_three_cases_leave_the_severity_to_be_filled(self):
+        """No number written, and no absence written either.
+
+        B5 and B6 reach all twelve, but these three are the only ones where the
+        severity is *invented* rather than transcribed. Writing a score into any
+        of them, or writing "no pain" into one, would start failing correct
+        notes -- the same trap ``obesity-bmi``'s control guard exists for.
+        """
+        for n in DAY_B_SEVERITY_FILLED:
+            with self.subTest(case=n):
+                note = day_b(n)
+                self.assertFalse(cc.has_pain_score(note))
+                self.assertNotRegex(note, NO_PAIN)
+
+    def test_two_of_the_seven_scores_end_a_sentence(self):
+        """The count day-b's prose quotes, computed rather than eyeballed.
+
+        It is the count that justifies the narrowed trailing guard in
+        ``PAIN_SCORE``. Written by hand it would have been the one figure in
+        this set nothing recomputes -- and it was, until the review caught it.
+        """
+        sentence_final = [
+            n for n in sorted(DAY_B_PAIN_SCORE) if re.search(r"/\s*10\s*\.", day_b(n))
+        ]
+        self.assertEqual(sentence_final, [5, 11])
+
+    def test_b8_takes_two_of_those_three_and_leaves_the_boundary_out(self):
+        """Case 3 itches; B8 demands a score above 0/10 and she is not in it.
+
+        Asserted rather than assumed, because the two lists differing by
+        exactly one case is the whole of B8's design, and a future edit that
+        "tidied" them into agreement would enforce a ruling nobody made --
+        whether a non-painful complaint scores 0/10 or scores its own
+        intensity. day-b lists that under *Still unresolved*.
+        """
+        self.assertEqual(
+            sorted(set(DAY_B_SEVERITY_FILLED) - set(DAY_B_SEVERITY_NONZERO)), [3]
+        )
+
+    def test_the_severity_split_is_the_whole_set(self):
+        self.assertEqual(
+            sorted(tuple(DAY_B_PAIN_SCORE) + DAY_B_NO_PAIN + DAY_B_SEVERITY_FILLED),
+            list(range(1, 13)),
+        )
 
 
 class AgeInYears(unittest.TestCase):
