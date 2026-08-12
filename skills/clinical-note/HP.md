@@ -9,7 +9,7 @@ Chief Complaint
 <one line>
 
 Allergies (with reaction)
-<allergen — reaction; and drug allergies separately>
+<allergen - reaction; and drug allergies separately>
 
 History of Present Illness (OLDCARTS)
 Onset:
@@ -26,12 +26,12 @@ prior treatment and testing, current appearance>
 
 Past Medical History including Medications (with reason for taking)
 PMH:
-<condition — ICD-10 code where the rubric's examples carry one>
+<condition - ICD-10 code where the rubric's examples carry one>
 
 Surgical history:
 
 Medications:
-<drug — reason for taking>
+<drug - reason for taking>
 
 Family History (3 generations)
 Patient:
@@ -69,14 +69,14 @@ diagnosis/diagnoses with ICD-9 codes, Screenings appropriate for age, list them
 even if you did not do any.
 
 Pre-existing diagnoses with ICD-10 codes:
-<condition — code>
+<condition - code>
 
 Differential diagnoses with rationale:
-<diagnosis — code>
+<diagnosis - code>
 <Most likely because … / Less likely because …>
 
 Actual diagnosis/diagnoses with ICD-10 codes:
-<condition — code>
+<condition - code>
 
 Screenings appropriate for age:
 <list>
