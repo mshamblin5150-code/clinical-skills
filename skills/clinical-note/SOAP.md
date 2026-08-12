@@ -57,6 +57,8 @@ Follow up: <interval, and what would bring them back sooner>
 
 **Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
 
+**A Plan parenthetical, where there is one, is the trade name and nothing else.** `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Not which parts of the sig came from the shorthand and which were supplied, not why the duration was chosen, not which ear is inflamed — that reasoning goes in the Assessment and the tier accounting goes in the tier block. The trade name is permitted here, not required; `Home meds` is the one line whose parenthetical carries something else, and what it carries is the reason for taking. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
+
 **The differential is graded work.** Each entry names the findings that place it, and every rejected entry names the specific finding that rejects it — *afebrile, no focal crackles or egophony*. A bare list of diagnoses scores nothing.
 
 **Screening keys to risk, not just age.** A 0.5 PPD × 40 year history is 20 pack-years, which crosses the LDCT lung-cancer screening threshold — so the derived value earns a screening line. Compute the pack-years and say so.
