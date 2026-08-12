@@ -66,14 +66,18 @@ Read a **window** of the first few lines and take the first one shaped like a na
 
 **The demographic line takes four shapes, and only two of them state an age:**
 
-| Shape | Share | What it means |
-| --- | --- | --- |
-| `48 yo F`, `10 F`, `13 month male` | **69%** | Age given |
-| Both age and `dob` | 15% | Cross-check them; a disagreement is a question, not a rounding choice |
-| `dob <date>` and no age | 12% | Age is derived from the date of birth and the visit date, and must be computed **before** the date of birth is redacted |
-| **Neither** | **5%** | Report it — see step 4 |
+| Shape | What it means |
+| --- | --- |
+| `48 yo F`, `10 F`, `13 month male` | Age given |
+| Both age and `dob` | Cross-check them; a disagreement is a question, not a rounding choice |
+| `dob <date>` and no age | Age is derived from the date of birth and the visit date, and must be computed **before** the date of birth is redacted |
+| **Neither** | Report it — see step 4 |
 
-**The mix differs sharply between the two halves of this catalog**, so do not carry a share from one into the other: the image-only 2025 scans nearly always state an age outright, while the 2026 text files lean on `dob`. Measure the file in front of you. The derive-age-before-redacting rule matters wherever `dob` appears, whatever the share.
+**No share is quoted against any of them, and that is the finding rather than a gap.** The image-only 2025 scans nearly always state an age outright while the 2026 text files lean on `dob`, and the split is sharp enough at the file level that a catalog-wide percentage describes neither end. Measured 2026-08-11 over the 48 unique day files: **13 state an age in every encounter, 7 state one in none**, and 28 are mixed. Twenty of the 48 sit at an extreme, and a rate carried into one of those twenty predicts a mix that is not there.
+
+`tools/corpus_census.py` recomputes all three, and its encounter-level counts are there to be read as raw material, never as a share to carry into a file. **Measure the file in front of you.** The derive-age-before-redacting rule matters wherever `dob` appears, at whatever rate.
+
+This table carried four percentages until 2026-08-11 — `69% / 15% / 12% / 5%` — and they disagreed with the census by nineteen points on age and by a factor of thirteen on *both*. Which measurement is wrong is unsettled and settling it means re-reading rendered scans against the extraction, which is reading PHI. The percentages are gone rather than corrected because **this step already told the reader not to use them**; issue #36.
 
 **Match case-insensitively.** Real files carry `Note 3`, `NOte 3`, and `NOte 4` in the same document. A case-sensitive match silently merges encounters.
 

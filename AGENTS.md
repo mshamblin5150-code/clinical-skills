@@ -33,3 +33,14 @@ These bind every skill in this repo.
    **Exception — vitals, body measurements and the OLDCARTS pain score.** These are the single exception to *filled content is unremarkable*, and they qualify by a test rather than by sitting on a list: a box demands a value, and the shorthand constrains none. A missing one is filled with the value that patient most plausibly had, worked up in the note if it lands abnormal (drift row 4, which grants it no exemption for being generated), and disclosed in the FILLED block like everything else generated. **No exam finding, symptom, or result is ever filled, however plausible** — a severity scores a complaint the shorthand already documents and never supplies one, and where the shorthand documents no pain the 0/10 is a given.
 
 3. **Proposals are labeled.** Any clinical reasoning the agent contributes — a differential, a code, a plan item — appears under `PROPOSED (verify before use)`, outside the document body, for the clinician to accept or drop.
+4. **American English, always. No British spelling ever reaches the output.** `dyspnea`, `edema`, `cesarean`, `sulfate`, `nebulizer`, `liter`, `gray`, `labeled` — and drug names take the United States generic: `acetaminophen`, `epinephrine`, `albuterol`. These are notes for an American program read by American faculty, and a reader given the other drug name has to translate it before they can check a dose.
+
+   **This is the widest of the four.** Rules 1 to 3 govern the finished note; this one governs everything the repo emits and everything it contains — note bodies, tier blocks, Medatrax fields, filenames, commit messages, ticket text, and prose about the skills including this file. There is nowhere a British spelling is correct here, so there is nowhere to carve out.
+
+   **Two exemptions, both narrow, and the rule is unusable without them.**
+
+   **A mention is not a use.** Naming a wrong spelling in order to rule against it is how the rule gets written down at all — this paragraph, the table below, issue #73 and the commit that landed all of it are each full of British spellings and each correct. `tools/corpus_census.py` writes `apnoea` in a comment explaining that the spelling is deliberately *not* matched; correcting it would destroy the sentence. A sweep that greps for the strings will hit these, so the test is whether the text is **using** the spelling or **reporting** it.
+
+   **A run record is evidence.** `fixtures/filled-anchor/notes/` is a byte-for-byte copy of what one run produced and keeps the eight British spellings that run emitted, because editing it would falsify the thing it exists to prove. Issue #73.
+
+   The full table, and what was already found by it, is in [clinical-note](skills/clinical-note/SKILL.md) under *Conventions*.

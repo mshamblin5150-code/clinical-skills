@@ -43,7 +43,7 @@ Observed in real notes. Expansions confirmed against the finished versions.
 | `pna` | pneumonia |
 | `adhd` | attention-deficit hyperactivity disorder |
 | `hfa` | hydrofluoroalkane — a metered-dose inhaler propellant, so `albuterol hfa` is the inhaler |
-| `duoneb` | ipratropium-albuterol nebuliser solution |
+| `duoneb` | ipratropium-albuterol nebulizer solution |
 | `rosvig`, `rovsig` | **Rovsing's sign** — confirmed by the clinician 2026-08-10 |
 
 **`rosvig` is a peritoneal sign, so it is never a throwaway.** A positive Rovsing's recorded in a note whose abdomen is otherwise normal — as in day-a case 5 — is a contradiction the note has to resolve out loud, not a token to expand and move past.
@@ -83,7 +83,7 @@ Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 uni
 | `asa` | aspirin — expands the same way in a medication list and an allergy list |
 | `pcn` | penicillin |
 | `hctz` | hydrochlorothiazide |
-| `feso4` | ferrous sulphate |
+| `feso4` | ferrous sulfate |
 | `b12` | vitamin B12 |
 | `vits`, `prenatal vits` | vitamins, prenatal vitamins |
 | `gtt` | drops — `ciprodex 4 gtt BID` is four drops twice daily |
@@ -92,7 +92,7 @@ Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 uni
 | `qhs` | at bedtime |
 | `q4-6h`, `q6-8h` | every 4 to 6 hours, every 6 to 8 hours |
 | `mcg` | micrograms |
-| `mg/5ml` | milligrams per 5 millilitres — a suspension concentration |
+| `mg/5ml` | milligrams per 5 milliliters — a suspension concentration |
 
 ### Tests and findings
 
@@ -121,7 +121,7 @@ The catalog carries obstetric encounters, and they feed a separate hours bucket 
 | Shorthand | Expansion |
 | --- | --- |
 | `fht` | **fetal heart tones**, reported as a rate — `FHT 145 bpm` |
-| `fundus measures 39.5 cm` | fundal height in centimetres |
+| `fundus measures 39.5 cm` | fundal height in centimeters |
 | `g5p4a0`, `g3p1a1` | gravida, para, abortus — the same pattern as `g2p2a0` |
 | `iud` | intrauterine device |
 | `depo` | depot medroxyprogesterone injection |
@@ -188,7 +188,7 @@ The tell is the section. In a history, problem list or family history it is diab
 
 **`PPD` — packs per day, or purified protein derivative.** Every instance in this catalog is packs per day: `3 ppd smoker`, `smokes 0.5 ppd x 1 year`. The TB skin test meaning has not appeared here, so read it as packs per day and flag anything that reads otherwise.
 
-**`c/s` — culture and sensitivity, or caesarean section.** Every instance here is culture and sensitivity, always attached to a specimen: `urine c/s`, `pharyngeal c/s`. In an obstetric note it would mean the other thing, and this catalog contains obstetric notes.
+**`c/s` — culture and sensitivity, or cesarean section.** Every instance here is culture and sensitivity, always attached to a specimen: `urine c/s`, `pharyngeal c/s`. In an obstetric note it would mean the other thing, and this catalog contains obstetric notes.
 
 **`hs` — at bedtime, or a typo for "has".** `cetrazine 10 mg PO HS` is bedtime dosing. `states hs fever` is a mistyped "has". Position decides: attached to a dose it is bedtime, in a sentence it is not.
 

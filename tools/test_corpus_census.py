@@ -246,7 +246,24 @@ class ReadCorpusDropsDuplicateDayFiles(unittest.TestCase):
         self.assertEqual([len(day) for day in corpus.day_files], [2, 1])
 
 
-class SurveyFilesCountsFilesNotEncounters(unittest.TestCase):
+class SurveyFilesCase(unittest.TestCase):
+    """Shared day files and the one-line survey call, for the two cases below.
+
+    They are separate cases because they are separate claims by separate skills
+    — ADR 0001's reasoning — but the fixtures and the call are the same three
+    lines either way, and a second copy of them is a second thing to keep in
+    step. Nothing here asserts; both subclasses do.
+    """
+
+    AGELESS = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\ndob 5/5/55\ncc: rash\n")
+    MIXED = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\n51 f\ncc: rash\n")
+    EVERY = ("Note 1\n51 f\ncc: cough\n", "Note 2\n7 yo M\ncc: rash\n")
+
+    def survey(self, *days: tuple[str, ...]) -> cc.FileCensus:
+        return cc.survey_files(cc.Corpus(day_files=days, files=len(days)))
+
+
+class SurveyFilesCountsFilesNotEncounters(SurveyFilesCase):
     """The claim clinical-note step 1 rests on, made re-derivable. Issue #16.
 
     Step 1 quotes no share deliberately, and says instead that whole day files
@@ -255,20 +272,14 @@ class SurveyFilesCountsFilesNotEncounters(unittest.TestCase):
     replaced.
     """
 
-    AGELESS = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\ndob 5/5/55\ncc: rash\n")
-    HAS_ONE = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\n51 f\ncc: rash\n")
-
-    def survey(self, *days: tuple[str, ...]) -> cc.FileCensus:
-        return cc.survey_files(cc.Corpus(day_files=days, files=len(days)))
-
     def test_a_file_with_no_age_anywhere_counts(self):
         self.assertEqual(self.survey(self.AGELESS).with_no_stated_age, 1)
 
     def test_one_stated_age_is_enough_to_clear_a_file(self):
-        self.assertEqual(self.survey(self.HAS_ONE).with_no_stated_age, 0)
+        self.assertEqual(self.survey(self.MIXED).with_no_stated_age, 0)
 
     def test_counts_files_and_not_the_encounters_inside_them(self):
-        census = self.survey(self.AGELESS, self.AGELESS, self.HAS_ONE)
+        census = self.survey(self.AGELESS, self.AGELESS, self.MIXED)
         self.assertEqual(census.with_no_stated_age, 2)
         self.assertEqual(census.unique_files, 3)
 
@@ -280,6 +291,74 @@ class SurveyFilesCountsFilesNotEncounters(unittest.TestCase):
         corpus = cc.Corpus(day_files=(self.AGELESS,), files=2)
         self.assertEqual(cc.survey_files(corpus).files, 2)
         self.assertEqual(cc.survey_files(corpus).unique_files, 1)
+
+
+class SurveyFilesSplitsTheCatalogByAgeExtreme(SurveyFilesCase):
+    """The evidence for *measure the file in front of you*. Issue #36.
+
+    ``batch-shift`` step 3 quoted four corpus-wide shares and, in the very next
+    paragraph, told the reader not to carry a share between the two halves of
+    the catalog. The shares are gone; what replaces them is the shape of the
+    per-file distribution, which is what makes the instruction an argument
+    rather than an assertion. A corpus that really is bimodal has files piled at
+    both ends; one sitting uniformly at its own corpus-wide rate -- 65% of 551
+    encounters state an age, measured 2026-08-11 -- would have almost none.
+
+    **No threshold is invented.** "Dominant" needs a boundary, and a fourth
+    boundary in this repo is a defect waiting to happen — see the age bands. The
+    two ends are *every* and *none*, which need no boundary at all, and
+    everything else is mixed.
+
+    The three counts overlap the case above at ``with_no_stated_age`` on
+    purpose: that field is now one leg of a partition, and a change that got the
+    other two right while quietly moving it would pass every test up there.
+    """
+
+    def test_a_file_stating_an_age_throughout_counts_at_the_every_end(self):
+        self.assertEqual(self.survey(self.EVERY).with_age_in_every_note, 1)
+
+    def test_one_ageless_encounter_moves_a_file_out_of_every(self):
+        census = self.survey(self.MIXED)
+        self.assertEqual(census.with_age_in_every_note, 0)
+        self.assertEqual(census.with_mixed_age, 1)
+
+    def test_a_file_with_no_age_anywhere_is_not_mixed(self):
+        census = self.survey(self.AGELESS)
+        self.assertEqual(census.with_mixed_age, 0)
+        self.assertEqual(census.with_no_stated_age, 1)
+
+    def test_a_single_encounter_file_is_an_end_and_never_the_middle(self):
+        """One encounter cannot disagree with itself, so it is always an extreme."""
+        census = self.survey(("Note 1\n51 f\n",), ("Note 1\ndob 4/4/44\n",))
+        self.assertEqual(census.with_age_in_every_note, 1)
+        self.assertEqual(census.with_no_stated_age, 1)
+        self.assertEqual(census.with_mixed_age, 0)
+
+    def test_an_empty_file_lands_in_none_of_the_three(self):
+        """``all()`` of nothing is true, and an empty file states no ages at all.
+
+        Letting it in at the *every* end is the vacuous-truth bug, and it would
+        inflate the exact figure batch-shift now rests on. ``with_no_stated_age``
+        already excludes it; this is the same exclusion on the other end.
+        """
+        census = self.survey(())
+        self.assertEqual(census.with_age_in_every_note, 0)
+        self.assertEqual(census.with_no_stated_age, 0)
+        self.assertEqual(census.with_mixed_age, 0)
+
+    def test_the_three_partition_the_files_that_hold_encounters(self):
+        days = (self.AGELESS, self.EVERY, self.MIXED, self.EVERY)
+        census = self.survey(*days)
+        self.assertEqual(
+            census.with_age_in_every_note
+            + census.with_no_stated_age
+            + census.with_mixed_age,
+            len(days),
+        )
+
+    def test_it_counts_files_and_not_the_encounters_inside_them(self):
+        census = self.survey(self.EVERY, self.EVERY)
+        self.assertEqual(census.with_age_in_every_note, 2)
 
 
 class BloodPressure(unittest.TestCase):
@@ -1491,7 +1570,10 @@ class Bands(unittest.TestCase):
         report = cc.format_report(
             cc.survey(notes), source="fixtures", date="2026-08-11",
             bands=cc.survey_bands(notes),
-            files=cc.FileCensus(files=1, unique_files=1, with_no_stated_age=0),
+            files=cc.FileCensus(
+                files=1, unique_files=1, with_no_stated_age=0,
+                with_age_in_every_note=1, with_mixed_age=0,
+            ),
         )
         self.assertIn("line, no BP", report)  # the section really rendered
         for leak in ("cc:", "hx:", "exam:", "[PT]", "plan ", "percentile"):
@@ -1515,7 +1597,10 @@ class Survey(unittest.TestCase):
         return cc.format_report(
             cc.survey(self.notes), source="fixtures", date="2026-08-11",
             bands=cc.survey_bands(self.notes),
-            files=cc.FileCensus(files=files, unique_files=unique, with_no_stated_age=1),
+            files=cc.FileCensus(
+                files=files, unique_files=unique, with_no_stated_age=1,
+                with_age_in_every_note=4, with_mixed_age=5,
+            ),
         )
 
     def test_report_emits_no_note_text(self):
