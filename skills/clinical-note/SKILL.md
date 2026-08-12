@@ -102,13 +102,64 @@ The rule runs one way only. The clinician charts abnormals reliably and normals 
 - **A normal in the shorthand is still a given** — it means that system was examined. Keep it verbatim; do not move it to filled.
 - **Silence is undocumented, never absent.** A section the shorthand omits means it was not written down that visit — not that the patient has nothing there. This holds everywhere, and it reads two ways depending on the section:
   - **Exam and ROS** — an unmentioned system is normal, because abnormals get charted.
-  - **History, medications, surgical, family, social, allergies** — an omitted section is inferred from the rest of the encounter. A history of hypertension and no `meds:` line means a med rec was not done, so infer the likely regimen. Never write "none" where the shorthand is merely silent.
+  - **History, medications, surgical, family, social, allergies** — an omitted section is inferred from the rest of the encounter. A history of hypertension and no `meds:` line means a med rec was not done, so infer the likely regimen.
 
   Either way it gets filled, never raised as a gap.
 
+  **Which of the two readings a section takes is not always obvious, and for the social and allergy slots it is measurable.** *Which way a social or allergy slot reads* below settles those; nothing else in this file assigns a section to a reading by argument alone.
+
+  **`Never write "none" where the shorthand is merely silent` used to close that second bullet, and it was too broad.** It is right about a `meds:` line: an absent line means no reconciliation was done, so *none* would be a conclusion drawn from silence, and inferring the regimen is the instruction instead. It is wrong about `NKDA`, which is not a conclusion drawn from silence — it is the value that patient most plausibly had, and [SOAP.md](SOAP.md) has instructed it all along. So the rule is narrower than it read: **never write "none" as a conclusion from silence.** Where the slot's own evidence points at the unremarkable value, writing it is the job. Issue #29.
+
 Every filled *finding* is therefore normal, absent, or not reported — and says so in those words: `no chronic illness reported`, `fever by history`, `no smoke exposure reported`, `no treatment-limiting cultural practice reported`.
 
+**`not reported` there is a claim about the patient, not a hedge, and the difference is drift row 12's.** `no smoke exposure reported` says the patient has no smoke exposure; `tobacco status not documented this visit` says this skill was not told. The first reports and stays; the second defends the note and is banned wherever it appears — see *Which way a social or allergy slot reads*, which is what stops this sentence being read as licensing a hedge in the `SH:` line.
+
 Charted normals and filled normals read identically in the finished note. They are separated in the tier block so only the filled ones need confirming — and *identically* is literal, which is why *The tier language stays out of the note* below forbids annotating them apart.
+
+#### Which way a social or allergy slot reads
+
+**The templates enumerate these slots, so each one is a box.** [SOAP.md](SOAP.md) writes `SH: <occupation; education; marital; tobacco; alcohol; drugs; spiritual; environmental; nutrition; fitness; sleep — one clause each>` and `Allergies (reaction): <allergen - reaction; NKDA if none>`; [HP.md](HP.md) lists twelve social lines *"one line each, in that order"*. So the two-part test that licenses a filled vital holds of every one of them — a box demands a value, and the shorthand constrains none.
+
+**No slot ever reads `not documented`, and that was never new law.** `Allergies (reaction): Not documented this visit.` reports nothing about the patient: strike the inference above it and the sentence has nothing left to do. It is `No medication reconciliation was performed this visit` with the nouns changed — the sentence issue #28 banned, and **drift row 12 has forbidden it since.** The same goes for `tobacco status not documented`, `alcohol not documented`, `status unknown` and `not reported this visit`. What row 12's test permits is a claim about the patient: `Non-smoker`, `no smoke exposure reported`, `No chronic illness reported` all report, and all stay. Issue #29.
+
+**Which value the box takes depends on which reading its slot has, and the corpus decides that per slot.** *Silence is undocumented, never absent* reads two ways, and asking which way a slot goes is asking a question about this clinician's transcription rather than about clinical practice in general:
+
+- **A slot he writes even when the answer is nothing** is a habitual template field. Silence in it is a transcription gap, so the note fills the **unremarkable** value — and that value is not a bland pick from the middle, it is what the record says such patients mostly are.
+- **A slot he writes only when there is something in it** is charted the way an abnormal is. Silence in it is a real **absence**, so the note fills the **negative** — and filling a positive would be inventing an abnormal finding, which standing rule 2 forbids outright.
+
+**Two slots are measured and they land opposite ways.** The figures below are over the **31 committed fixture inputs**, and `tools/test_corpus_census.py::SocialSlotsSplitTwoWays` is what recomputes them — it pins the classification case by case, so a fixture edit fails a test rather than quietly voiding the rule. `corpus_census.py` prints the same two rows against the corpus, which is the wider measurement and the one still owed:
+
+| Slot | Written | Says nothing | So silence is | Filled value |
+| --- | --- | --- | --- | --- |
+| Allergies | 16 of 31 | `NKDA` 11 of 16 | a gap | `NKDA` |
+| Tobacco | 15 of 31 | denied 1 of 15 | an absence | `Non-smoker` |
+
+**Those figures are over the 31 committed fixture inputs, which is a floor and not the corpus.** `corpus_census.py` prints the same two rows against `scratch/`; **it has not been run against the corpus since it gained the ability to** — re-run before leaning on the numbers. What the fixture count establishes is the direction, and the direction is what the rule turns on: he writes the allergy slot to say *nothing* eleven times, and the tobacco slot to say *nothing* once.
+
+**So a positive tobacco status is never filled.** Not `vapes occasionally`, not `former smoker`, not `smokes 0.5 PPD`, however plausible the patient makes it. This is the same argument the corpus settled for blood pressure at issue #23 — *a documented condition is an anchor to reason from, never a verdict to produce* — arriving at a slot instead of a value. A tobacco history is an abnormal finding, an abnormal finding in the note must be a given, and there is no exception for a slot that happens to be enumerated. `fixtures/day-a` R14 holds this.
+
+**Every remaining slot takes the grounding rule, unchanged.** Occupation, education, marital status, spiritual, cultural, environmental, nutrition, fitness and sleep are transcribed too rarely to classify at all, and alcohol and recreational drugs are usually denied inside a shared list — `no smoke, drink, drugs` — where the negation does not sit beside the word it negates.
+
+**Age grounds more than marital status, and occupation is the one worth naming.** *Marital status* under *Conventions* already infers from age; **`Retired` follows from an age past retirement on exactly the same footing**, and a 71-year-old's occupation slot is filled rather than hedged or guessed at. What age does not ground is *which* occupation, at any age — that is the `Works manual labor` failure with the anchor changed. So the slot reads `Retired` where age supplies it, `Employed` where the encounter supplies only that the patient works, and neither is stretched into a trade.
+
+**Education, nutrition, fitness and sleep are the slots with no anchor at all**, and they are where an ungrounded assertion actually shows up in practice — `fixtures/day-b` R1 records a run asserting a diet, an exercise habit and a sleep duration on patients whose shorthand mentions none of the three. Grounded content exists for them: a documented diabetes grounds a dietary line, a documented sleep apnea grounds a sleep one. **Absent that, the slot takes the least it can say and stays there** — the rubric wants the line present, not a life story in it. (**No count is quoted, because the two branches enumerate different lists** — [SOAP.md](SOAP.md) writes eleven social clauses and [HP.md](HP.md) twelve, `cultural` being HP's alone. A number here would be wrong on one branch or the other.) For all of them, *What may be inferred* governs: **grounded in what the shorthand contains, never invented beside it.** `at work` grounds `Employed`; it does not ground `Works manual labor`, because nothing in a laceration says manual labor rather than a paper cutter. Age grounds `Married`, which *Marital status* under *Conventions* already instructs. The slot is never blank and never hedged, and the note does not write a biography it has no source for. `fixtures/day-b` R1 holds this.
+
+**An inferred allergy status may raise an obligation and may never discharge one.** This is *A filled vital may raise an obligation and may never discharge one* below, reaching the one filled value outside that section's three members that can quietly make a decision look safe. A run that fills `NKDA` and then **proposes** a drug on it has let a generated value underwrite a prescription — `#27`'s move, in a place drift row 15's class does not reach.
+
+**The note still proposes the drug.** Withholding treatment over a gap in the paperwork is the worse failure, and the givens are what the proposal rests on. What changes is the disclosure: **where a proposed drug rests on an inferred allergy status, that FILLED line says so**, in the shape *Where a filled normal pressure is what the Assessment's account rests on* uses below:
+
+```
+FILLED·asserted   ALLERGIES NKDA inferred; the Plan's amoxicillin-clavulanate
+                  rests on it, and no allergy history was taken.
+```
+
+The reason is that rule's reason. Two independent FILLED lines say an allergy status was inferred and a drug was proposed; **neither says the second is standing on the first.** One of the sixteen written statuses in the fixtures names a drug allergy, so `NKDA` is usually right — and *usually* is exactly what a prescribing decision may not rest on silently.
+
+**A given allergy status is never overwritten, and a stated allergen is never dropped.** `allergic to prednisone` is a given like any other, and it behaves like the conflict rule below: a drug proposed against a documented allergy is called out, and no inferred status dissolves it.
+
+**The allergy slot is the only one of these that needs the disclosure, and that is a fact about the slots rather than a narrowing of the rule.** The rule is general — **an inferred detail that drives a downstream clinical action discloses what leans on it** — and it comes out satisfied everywhere else by construction. The tobacco slot never reaches it, because a positive fill is forbidden outright and a negative one triggers nothing: there is no screening, no cessation counseling and no differential entry owed for a non-smoker, and [SOAP.md](SOAP.md)'s pack-year screening line keys to a **given** history. The remaining slots carry no clinical action at all — an occupation, an education level and a marital status change nothing the Plan does. **A future slot that did would take this same disclosure**, and the test for it is the one stated here: does the note do something differently because of the inferred value.
+
+**Every filled slot is declared in `FILLED·asserted` carrying its value**, on the rule the filled-vital block states for the same reason: the clinician confirms a value, not a category. Not `social history filled` — `SH tobacco Non-smoker filled`, `ALLERGIES NKDA filled`, `SH occupation Employed filled`.
 
 #### Filled vitals, body measurements and the pain score
 
@@ -248,6 +299,7 @@ Grounded, and expected:
 - Testing for a documented infectious exposure — see below.
 - Screenings appropriate to the patient's age.
 - The exam of a system the shorthand never mentions.
+- **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes, and two of them are settled by a count rather than by inference: the allergy slot fills `NKDA` and the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
 - **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
 
 **A documented infectious exposure with a congruent presentation orders testing by default.** The contact is a given; testing for what the contact had is standard care for that presentation, and it belongs in the Plan the way return precautions do. Respiratory contact plus respiratory symptoms means **COVID-19 and influenza at minimum**, and **group A streptococcus where the pharynx is involved** — a sore throat, pharyngeal erythema, tonsillar exudate. Name the agent and name the specimen: `COVID-19 and influenza A/B, nasopharyngeal swab`, never `viral testing`.
@@ -283,6 +335,8 @@ Separate two acts in the tier block, because they carry different weight:
 - **Asserted** — a claim about the patient's past: a medication they already take, a condition they already carry. Ground these in the history, then be specific. An absent `meds:` line usually means no medication reconciliation was done that visit, **not** that the patient takes nothing — infer the likely regimen from the conditions listed and name actual agents. This is the tier a preceptor checks hardest, so every asserted inference is listed.
 
   **An inferred regimen never answers a conflict the givens raise.** Motrin 800 TID against a documented GERD is called out whatever the inference contains — and a given drug is never dropped from the list to make the conflict disappear. Inferring the PPI is the instruction; letting it settle the question is the defect. Drift row 11.
+
+  **An inferred allergy status behaves the same way, and it is the asserted inference with a forward action leaning on it.** `NKDA` is a claim about the patient's past, so it is asserted; the drug the Plan proposes on it is a forward action. Neither is wrong, and the pair is only safe because the FILLED line names the dependency — see *An inferred allergy status may raise an obligation and may never discharge one*. Drift rows 11 and 17.
 
 ### The tier language stays out of the note
 
@@ -323,7 +377,9 @@ If yes it is clinical and it stays. If no it is describing this skill's own work
 
 **Marital status** is inferred from age and written into the Social History, not left as unreported.
 
-**Social history** does not blanket-fill with "not reported". Say it where it is genuinely unknown and would matter; otherwise write the inference.
+**Social history** does not blanket-fill with "not reported", and it does not hedge a single slot either. Every slot the template enumerates carries a value; which value comes from *Which way a social or allergy slot reads*.
+
+That rule used to end *"say it where it is genuinely unknown and would matter; otherwise write the inference"*, and the escape hatch is deleted rather than narrowed. **Every slot is genuinely unknown** — that is the premise the whole section starts from — so a clause excusing the hedge wherever the value is unknown excused it everywhere, and *would matter* is what a run decides for itself right before writing `tobacco status not documented this visit`. Nothing is lost: a slot whose value the encounter cannot ground is the unclassifiable case above, and it takes the grounding rule rather than a hedge. Issue #29.
 
 ### Punctuation
 
@@ -459,6 +515,7 @@ One FLAG per finding. Name the finding and name what was not done with it — `B
 - **Vitals and body measurements.** Filled by design to the value the patient most plausibly had, and declared in FILLED.
 - **Any of the eight OLDCARTS elements.** All eight are mandatory and all eight are filled where the shorthand is silent. `Aggravating - not documented` is the same defect written into the note body instead, and it fails the branch template rather than earning a GAPS line.
 - **Age.** Inferred by design where the shorthand and the entry both lack it, and flagged at the top of `FILLED·asserted`.
+- **Any social or allergy slot the branch template enumerates.** All of them are filled where the shorthand is silent, and `Allergies (reaction) - not supplied` is the same defect written into the note body instead. It fails the branch template and drift row 17 rather than earning a GAPS line, exactly as an OLDCARTS element does one bullet up.
 - **Primary Payment Method and Race/Ethnicity.** Both have declared rules and are filled, not missing.
 - **Anything the skill was instructed to generate.** Reporting your own compliance as a defect is what makes the block unreadable, and an unreadable block hides the real omissions.
 
@@ -488,6 +545,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 14 | **Control** | A **filled** value that is a documented condition's own diagnostic measure and lands **normal** is accounted for **in the Assessment**. Hypertension: called *controlled*, *treated*, *on therapy*, or with the medication named. Obesity: called resolved, improved or post-surgical, or with the weight-loss intervention named. A code in a pre-existing or problem list is not an account, and neither is a monitoring instruction. A **given** value never fails this row, and neither does a filled abnormal — row 4 already holds that one |
 | 15 | **Filled reassurance** | Every reassurance in the note traces to a given. No decision to withhold, defer or narrow the workup of a documented finding rests on a filled vital, body measurement or pain score, and any cause a filled abnormal is attributed to is a **given finding**. A filled 0/10 is not a discharge — row 4 owns that direction |
 | 16 | **Duration** | Every stated duration reaches the HPI attached to the symptoms it was written beside, written `<duration> for <symptoms>`. None is dropped, and none is applied to a symptom the shorthand did not attach it to. Two durations for the **same** symptom are written as a span containing both, never one endpoint chosen over the other and never a FLAG. **Both a span and an attribution that rested on resolving a pronoun are declared in `FILLED·asserted` carrying their value**; an attribution whose onset line named its own symptom is not |
+| 17 | **Inferred history** | Every social and allergy slot the branch template enumerates carries a value, **none of them a hedge** — no `not documented`, `not reported this visit` or `status unknown`. No **positive** tobacco or vaping status is filled. A slot the corpus cannot classify is **grounded in the shorthand**, not invented beside it. Every filled slot is declared in `FILLED·asserted` carrying its value, and where a **proposed drug** rests on an inferred allergy status, that line names the dependency. A **given** status never fails this row |
 
 **Row 14 is appended rather than slotted beside row 4**, which is where it belongs by subject. Rows 1 through 13 are cited by number across this file, three fixture sets and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md), so renumbering to put it in its natural place would silently redirect every one of those citations. Its subject is row 4's, its number is not, and that is a deliberate cost.
 
@@ -508,6 +566,16 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 **It is checked by counting, the way row 2 is.** Take each duration in step 2's expansion — every `x N days`, every `started yesterday`, every dated onset — and name the symptom it landed on in the finished HPI. A duration that landed on nothing was dropped; a duration that landed on a symptom the shorthand never attached it to was moved. Both fail, and both read perfectly well, which is why this is a count rather than an impression.
 
 **Its quiet failure is the folded timeline.** A note that reads a multi-symptom complaint, takes the chief complaint's number as the illness's duration and never notices the second onset statement produces a fluent, internally consistent HPI with one timeline in it. Nothing in the note points at the missing one. The count is what finds it.
+
+**Row 17 was written as row 16 and became 17 on merge, which is the third time this has happened here.** Rows 14, 15 and now 17 were all appended on branches in flight against each other, and the paragraphs above record the first two. **That is the convention working, not failing.** Issue #33's Duration row reached `main` first and owns 16; this one moved. Had either been *inserted* at its natural neighbor — 16's is row 11, 17's is row 4 — the collision would have silently redirected the other's citations instead of announcing itself as a conflict on one line of a table.
+
+**Row 17 is the first row whose prohibitions were already in the file.** Row 12 has banned `Allergies (reaction): Not documented this visit.` since issue #28 — a sentence that defends the note rather than reporting on the patient, which is exactly the test row 12 carries. Row 1 has banned `smokes 0.5 PPD` for longer than that, since a tobacco history is an abnormal finding and an abnormal finding must trace to a given. **Neither was ever applied to a social slot**, and two committed fixture rows spent months rewarding the hedge row 12 forbids.
+
+**That is the argument for the row rather than against it.** Row 14 states it about itself: §7 requires a verdict for each row **by name**, so a rule that is not a row never gets walked. Rows 1 and 12 are walked as questions about findings and about leakage, and a run answering them honestly still never looks at the `SH:` line. Row 17 is where it looks.
+
+**It also carries two things neither of those rows contains.** The grounding bar on the slots the corpus cannot classify is nowhere in rows 1 or 12 — `Works manual labor` is not an abnormal finding and not a sentence about this skill's process, it is simply a fact about a patient that nothing supplied. And the allergy dependency is row 15's subject reaching a value outside row 15's class, which is why it is stated here rather than by widening that row and redirecting its citations.
+
+**Check it by reading the branch template's slot list against the note, then the note against the block.** Count the enumerated slots, count the ones carrying a value, and count the ones the FILLED block declares with a value. Then take each slot the shorthand did not supply and name what grounded it. `Non-smoker` is grounded in the count; `Employed` is grounded in `at work`; `Works manual labor` is grounded in nothing and fails. Issue #29.
 
 **Row 12 is checked by reading the body without the block.** Every other row asks whether the note said enough; this one asks whether it said something only the tier block may say. The two failing shapes are a parenthetical that labels its own line — `(inferred)`, `(dose given; duration filled)` — and a sentence that accounts for the note's own content, such as what was not reconciled or what must be confirmed before entry. Both read as diligence, which is why they survive a reading that is looking for omissions.
 

@@ -9,7 +9,7 @@ Chief Complaint
 <one line>
 
 Allergies (with reaction)
-<allergen - reaction; and drug allergies separately>
+<allergen - reaction; and drug allergies separately; NKDA if none>
 
 History of Present Illness (OLDCARTS)
 <all eight carry a value; none is left blank or "not documented">
@@ -48,7 +48,8 @@ Siblings:
 Social History:
 Occupation, education, marital status, tobacco, alcohol, recreational drugs,
 spiritual, cultural, environmental, nutrition, fitness, sleep
-<one line each, in that order>
+<one line each, in that order; every line carries a value and none is left blank
+ or "not documented">
 
 Subjective:
 Review of Systems (systems pertinent to the chief complaint), Use short succinct
@@ -109,7 +110,11 @@ illness but matters for counselling and future care>
 
 **ROS and Physical Exam** — the rubric bans sentences and bans the words *reviewed* and *negative*. Write `No wheeze; no increased work of breathing`, never `Respiratory reviewed and negative`.
 
-**Family and Social History** are filled almost entirely. Phrase every one as a report of absence — `No chronic illness reported` — never as an examined finding.
+**Family History** is filled almost entirely. Phrase every one as a report of absence — `No chronic illness reported` — never as an examined finding. Nothing in the shorthand grounds a grandparent's disease, and the rubric wants three generations regardless.
+
+**Social History is no longer that**, and it used to be governed by the same sentence. Every one of the twelve lines carries a value, **and none of them is a hedge**: `tobacco not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Which value each line takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus, every other line by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled line in `FILLED·asserted` carrying its value. Issue #29.
+
+**Allergies (with reaction)** is the same class and takes the same treatment. `NKDA` where the shorthand is silent, never a hedge; a stated allergen is a given and survives unchanged; and where a drug the Plan proposes rests on an inferred `NKDA`, that FILLED line says so.
 
 **ICD-9 vs ICD-10** — the rubric headings say ICD-9. That text is stale; supply ICD-10-CM codes under the heading as written. Codes follow [icd10-cpt](../icd10-cpt/SKILL.md): anchored to documented findings, and flagged for verification. Give it the tier assignment along with the text — it declines to code off a filled value, and the note body alone cannot say which values those are.
 
