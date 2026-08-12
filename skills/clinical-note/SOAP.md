@@ -32,7 +32,8 @@ O:
 VS: BP, HR, T, RR, SpO2, Ht, Wt ∴ BMI
 Gen: <appearance, work of breathing>
 <then each system examined; state normal for the ones filled>
-Labs/Tests today: <given results only; treatments administered in clinic>
+Labs/Tests today: <given results; given orders carrying no result, marked as ordered;
+                  treatments administered in clinic>
 
 A:
 
@@ -89,6 +90,8 @@ Acute bronchitis - J20.9: cough three weeks, clear lungs, afebrile. Favored.
 **Screening keys to risk, not just age.** A 0.5 PPD × 40 year history is 20 pack-years, which crosses the LDCT lung-cancer screening threshold — so the derived value earns a screening line. Compute the pack-years and say so.
 
 **Labs/Tests today is never filled.** Only what was given, plus treatments administered in clinic. Where there is none, say so rather than leave the line to be completed by someone else.
+
+**Never filled does not mean results only, and this line used to say it did.** An order the encounter recorded belongs here as an order with no result — `Monospot, sent, no result recorded` — because a given order is a given and dropping it because it has no value to report is how one goes missing. `No new testing today` describes an encounter that ordered nothing; it is **false** of one whose plan line names a test, however few answers came back. [SKILL.md](SKILL.md)'s *A given order is a given* is the rule and drift row 18 is what counts it. Issue #66.
 
 ## Intervention and Evaluation
 

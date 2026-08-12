@@ -65,7 +65,8 @@ Use short succinct statements, do not use sentences
 <system: fragment; fragment>
 
 Lab, x-ray, other tests
-<given results only; "No new testing today" if none>
+<given results; given orders carrying no result, marked as ordered;
+ "No new testing today" only where the encounter ordered nothing>
 
 Assessment
 Give 3 differential diagnoses with rationale of how you excluded each to arrive at
@@ -115,6 +116,8 @@ illness but matters for counselling and future care>
 **Social History is no longer that**, and it used to be governed by the same sentence. Every one of the twelve lines carries a value, **and none of them is a hedge**: `tobacco not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Which value each line takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus, every other line by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled line in `FILLED·asserted` carrying its value. Issue #29.
 
 **Allergies (with reaction)** is the same class and takes the same treatment. `NKDA` where the shorthand is silent, never a hedge; a stated allergen is a given and survives unchanged; and where a drug the Plan proposes rests on an inferred `NKDA`, that FILLED line says so.
+
+**`Lab, x-ray, other tests` is not a results-only line**, and its placeholder here said it was. A test the encounter ordered goes on it as an order carrying no result, because a given order is a given and having no value to report is not a reason to drop it. `No new testing today` is reserved for an encounter that ordered nothing — writing it over a plan line that names a test is a false statement about the visit, not a cautious one. [SKILL.md](SKILL.md)'s *A given order is a given* is the rule; drift row 18 counts it. Issue #66.
 
 **ICD-9 vs ICD-10** — the rubric headings say ICD-9. That text is stale; supply ICD-10-CM codes under the heading as written. Codes follow [icd10-cpt](../icd10-cpt/SKILL.md): anchored to documented findings, and flagged for verification. Give it the tier assignment along with the text — it declines to code off a filled value, and the note body alone cannot say which values those are.
 
