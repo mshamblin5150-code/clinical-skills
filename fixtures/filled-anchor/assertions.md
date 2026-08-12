@@ -21,30 +21,42 @@ Opened for [issue #17](https://github.com/mshamblin5150-code/clinical-skills/iss
 **The reference is read.** All twelve submitted notes were opened in the portal on 2026-08-11 and are kept in `scratch/day-b-reference/`, gitignored. Their code lists were lifted on 2026-08-11 and every `Reference did` cell below rests on them. Reading it cost nothing — day-b had already paid for it.
 
 **Run 1, 2026-08-11: `ANCHOR 5/5` · `CODE 4/4` · `REPORTED 1/2`.** Output in
-`scratch/filled-anchor-run-1/`, twelve worksheets plus the two graders described below.
+`scratch/filled-anchor-run-1/` — twelve worksheets and four graders, one per enforced class plus a
+second settling of C1 through C3.
+
+**Every score here is reproducible from that directory**, which matters more than usual because the
+directory is gitignored and a reader cannot see it from the repo. `grade_anchor.py` scores A1
+through A5, `grade_c4.py` scores C4 across both code shapes, and C1 through C3 are settled *twice* —
+`verify_c1_c3.py` reads the SQLite directly for a verbatim descriptor diff, and
+`settle_c1_c3_via_lookup.py` shells `python tools/icd10_lookup.py` over all 149 distinct codes,
+which is the command [#44](https://github.com/mshamblin5150-code/clinical-skills/issues/44) names.
+**The two agree.** Each grader exits non-zero on a failure, so a stale one cannot report a pass.
 
 **It was run twice, and the second run is the one reported.** The first was scored against the
-skill as it stood before [#52](https://github.com/mshamblin5150-code/clinical-skills/pull/52)
-merged, which is what put a code on every differential entry and gave C4 its second shape. The
+skill as it stood before [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19)
+landed, which is what put a code on every differential entry and gave C4 its second shape. The
 counts are identical either way; **what the first run did not have was 114 differential codes and
 three `NOT CODED, NOTHING ESTABLISHED IT` entries**, so its `CODE 4/4` was over a class that had
 since grown. `Re-run after every SKILL.md edit` in [fixtures/README](../README.md) caught it — the
-edit landed mid-run.
+edit landed mid-run, between this branch's first commit and its second.
 
-The rows were written from the inputs and the reference, before `icd10-cpt` was run over any of
-them, and run 1 was produced and graded by a different session. That separation is
-[#17](https://github.com/mshamblin5150-code/clinical-skills/issues/17)'s whole reason for not
+**One separation held and one did not, and they are different separations.** The rows were written
+by the session that built the set; the run was produced by a later one that had not written them.
+That is [#17](https://github.com/mshamblin5150-code/clinical-skills/issues/17)'s reason for not
 building the set alongside #10 — *"a first assertion set written from this skill's own output is a
 baseline agreeing with itself forever"*, which is
-[ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md). **What it does not buy is a
-graded pass**: run 1 was scored by the pass that produced it, so on
-[fixtures/README](../README.md)'s terms it is a baseline, and its job is to give run 2 something to
-differ from.
+[ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) — and it held. **What did not
+hold is the second one: the session that produced run 1 also graded it.** On
+[fixtures/README](../README.md)'s terms that makes it a baseline rather than a pass, and its job is
+to give run 2 something to differ from.
 
-**`REPORTED 1/2` is the run failing R2, not the row failing.** One specificity flag in twelve
+**R2 did not hold, and the run is not obviously what is wrong.** One specificity flag in twelve
 worksheets — `Z98.51` on case 9 — reads a bare `complete` with no axis named, against 65 of 66 that
-carry a reason, and the same code on case 2 carries one. It was left standing rather than corrected
-to make the row pass. See *Still unresolved* for why it may be R2 that needs the edit.
+carry a reason; the same code on case 2 carries one, so the run is at least inconsistent with
+itself. It was left standing rather than corrected to make the row score. **But a bare `complete`
+is output `icd10-cpt`'s own template permits**, so the row may be asking for more than the skill
+requires — [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56) is where that gets
+settled, and *Still unresolved* has the argument.
 
 ## The classes are new, and two of them are
 
@@ -145,7 +157,9 @@ python tools/icd10_lookup.py <every added or upgraded code>
 | R1 | all | Step 4's `UNDOCUMENTED, WOULD SUPPORT A MORE SPECIFIC CODE` block names at least one thing the clinician could document at the bedside next time |
 | R2 | all | Specificity flags name the missing axis — laterality, episode, site, severity — rather than reading `complete` by default |
 
-Counted on day-a's terms: *"a bar is only worth having if it was set deliberately"*, and neither of these has been run once. Both turn on judgment about usefulness and phrasing, which [fixtures/README](../README.md) puts in REPORTED however important it is.
+Counted on day-a's terms: *"a bar is only worth having if it was set deliberately"*. Both turn on judgment about usefulness and phrasing, which [fixtures/README](../README.md) puts in REPORTED however important it is.
+
+**Run 1 held R1 and did not hold R2** — `REPORTED 1/2`. R1 held on all twelve, with 110 bedside items across the set. R2 did not, on one flag; the count and the argument are in *Status* and *Still unresolved* and are not restated here.
 
 ## Still unresolved
 
@@ -155,11 +169,13 @@ Counted on day-a's terms: *"a bar is only worth having if it was set deliberatel
 
   **Run 1 measured how large that hole is, and #19 shrank it without closing it.** Of 137 ICD-10 codes proposed **for entry** across the twelve worksheets, **134 already appeared in the input note's own lists and 3 did not** — `R20.2` on case 5, `R06.89` on cases 9 and 10. So 97% of the for-entry half is indistinguishable from a transcription, and every ANCHOR row passed anyway.
 
-  **The differential half is where the run has to produce something.** Its 114 codes are 59% absent from the input notes, because these twelve predate the rule and four of them name codes in their differentials while eight name none. That is a real discrimination the set did not have before #19 — but it is a *CODE*-class one, not an ANCHOR one: a run that invents a plausible wrong differential code passes C1 through C4 exactly as a right one does. **The copying hole is narrower and it is still open.**
+  **The differential half is where the run has to produce something.** Of its 114 codes, **68 appear nowhere in the input note** — because these twelve predate the rule, so a run has to derive the differential codes rather than lift them. That is a real discrimination the set did not have before #19, and it is why the copying figure is a for-entry figure rather than a whole-run one.
+
+  **It is a *CODE*-class discrimination, not an ANCHOR one**, and that limits what it buys: a run that invents a plausible but wrong differential code passes C1 through C4 exactly as a right one does, because the lookup answers *does this code exist* and never *is this the right code*. **The copying hole is narrower and it is still open.**
 - **A3 is not worded as a string test, and grading it as one gives a false negative.** Run 1's case-4 worksheet says in prose, inside the `NOT CODED, ANCHOR WAS FILLED` block, that `Z68.25` was proposed *rather than* routed there — so a substring search for `Z68.25` in that block reports a routing that did not happen. The row's fail condition is *routed to step 4*, and routing has a signature in `icd10-cpt`'s own step-4 format: a `NOT CODED:` line. **A grader has to test that, not the bare string.** This is the same problem A2 solved by rewording, and A3 has not had it done; the difference is that A2's *pass* condition needed to become mechanical, while A3's *fail* condition still reads as prose.
-- **R2 asks for more than `icd10-cpt`'s own template requires.** The skill's step 3 writes `SPECIFICITY: <complete | needs: laterality / episode / site / severity / a billable child>`, so a bare `complete` is compliant output. R2 grades a bare `complete` as reading complete "by default" and fails it. **A run can therefore satisfy the skill and fail the row**, which is what run 1 did once in 153 proposed codes. Either the skill should require a reason beside `complete` or R2 should ask only that the *needs* branch name an axis when it is taken. Filed as [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
+- **R2 asks for more than `icd10-cpt`'s own template requires.** The skill's step 3 writes `SPECIFICITY: <complete | needs: laterality / episode / site / severity / a billable child>`, so a bare `complete` is compliant output. R2 grades a bare `complete` as reading complete "by default" and fails it. **A run can therefore satisfy the skill and fail the row**, which is what run 1 did once in the 150 codes it proposed for entry. Either the skill should require a reason beside `complete` or R2 should ask only that the *needs* branch name an axis when it is taken. Filed as [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
 - **The `E66.-` control is owed.** A4 covers the diagnosis-survives-filled-vitals claim on `I10` only. Its obesity instance needs `obesity-bmi` cases 1 and 2 run through `clinical-note` first, at which point this set can span two sources on [fixtures/README](../README.md)'s terms.
 - **CODE cannot ask whether a code is *right*.** C1 through C3 verify existence, descriptor and billability; nothing in the database encodes the coding guidelines and there is no alphabetic index, so a plausible code for the wrong diagnosis passes. It does not move with wording, so it is not a REPORTED row by rights — it is a row this set would enforce if the reference material existed.
 - **A2's failure is a `clinical-note` defect, and this set only taxes it downstream.** Case 1 wrote `E66.3` and `Z68.26` into a Medatrax diagnosis field off a filled height, while six of its siblings held the same family back. A2 makes the launder visible in the coding worksheet; it does nothing about the note, which is submitted as it stands. Filed as [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46).
-- **The inputs are an ungraded run.** day-b's own `DRIFT n/n` and `FILLED n/n` are still unset ([#26](https://github.com/mshamblin5150-code/clinical-skills/issues/26)), so these twelve notes are known-real and not known-correct. That is sound for input material and it does mean a row must never be read as endorsing the note it quotes.
+- **The inputs are a graded run now, and it failed a row.** This bullet used to say day-b's own counts were unset. They are not: day-b run 1 scored `DRIFT 5/5` · **`FILLED 3/4`** · `REPORTED 0/1` over ten of its seventeen rows ([#26](https://github.com/mshamblin5150-code/clinical-skills/issues/26) closed it, [#55](https://github.com/mshamblin5150-code/clinical-skills/issues/55) carries the seven rows that arrived mid-flight). **So these twelve notes are known-real, known-incompletely-graded, and known-wrong in at least one place** — which is a sharper reason than "unscored" for the standing rule that a row here must never be read as endorsing the note it quotes.
 - **Nothing here tests CPT.** The skill proposes procedure codes and an E/M supporting-element list, and day-b's shift contains at least one procedure — case 1's incision and drainage. C1 through C4 are worded to cover a CPT entry if one is proposed, but no row *requires* one, so the CPT half is conditional by construction on this shift.
