@@ -79,4 +79,12 @@ Four append the clinical detail that anchored the code, which is useful reading 
 
 **One of them is wrong in a way this set exists to catch**, and it is worth naming here so nobody treats the inputs as a reference. Case 1 wrote `E66.3` and `Z68.26` into its Final diagnosis list off a filled height. Cases 7, 8, 9, 10, 11 and 12 held the same code family back explicitly — case 11 by citing `icd10-cpt` by name — and cases 5 and 6 said nothing about theirs either way. **One launder in twelve, in output that reads perfectly well.** Filed against `clinical-note` as [issue #46](https://github.com/mshamblin5150-code/clinical-skills/issues/46); row A2 is what makes it cost something downstream.
 
+**They are a second thing now, and it is a reason not to edit them.** These twelve are the only committed evidence in the repo for [issue #67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) — filled heights collapsing onto a handful of values, filled pressures tilted to one side of a line the corpus splits about evenly. **The figures live in [day-b/assertions.md](../../day-b/assertions.md) and are deliberately not restated here.** Recompute them:
+
+```bash
+python tools/filled_vitals_census.py fixtures/filled-anchor/notes
+```
+
+**day-b's run 2 shows the same pattern worse and it is gitignored**, so a reader with only this repo cannot check it. These notes are what makes the claim in `skills/clinical-note/SKILL.md` verifiable at all, and `tools/test_filled_vitals_census.py` pins the figures so an edit fails a test rather than quietly voiding an argument. **That is the same standing rule 4 already places on them** — a run record is evidence, and its eight British spellings stay for the same reason these numbers do.
+
 **They are not 484 KB of prose for its own sake.** A finished note is what the skill takes, so the whole note is the input. Excerpting the Assessment would be excerpting the thing under test — step 1 reads the tier block, step 2 reads the Assessment and the Plan, and step 4 reports against both.
