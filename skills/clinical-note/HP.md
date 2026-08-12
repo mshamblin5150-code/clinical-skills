@@ -13,6 +13,9 @@ Allergies (with reaction)
 
 History of Present Illness (OLDCARTS)
 <all eight carry a value; none is left blank or "not documented">
+<Onset and Duration take a value naming more than one symptom's timeline where
+the shorthand dates symptoms differently. Each is written duration-first as
+"<duration> for <symptoms>", clauses separated by a semicolon — see SKILL.md>
 Onset:
 Location:
 Duration:
