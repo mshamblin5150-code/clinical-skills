@@ -59,12 +59,16 @@ Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta
 | --- | --- | --- | --- | --- | --- |
 | [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | `DRIFT 10/10` · `REPORTED 14/14` |
 | [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | read | never run |
-| [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | **owed** | never run |
+| [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | read | never run |
 | [obesity-bmi](obesity-bmi/assertions.md) | `clinical-note`, SOAP branch | 4 | [extracted](obesity-bmi/shorthand/) | **owed** | never run |
 
-The reference notes themselves live in `scratch/day-a-reference/` and `scratch/day-b-reference/`, gitignored — they carry the visit date, the site, patient references and social-history detail that the committed half deliberately does not.
+The reference notes themselves live in `scratch/day-a-reference/`, `scratch/day-b-reference/` and `scratch/peds-bp-reference/`, gitignored — they carry the visit date, the site, patient references and social-history detail that the committed half deliberately does not.
 
 **A reference is not always a date search.** day-b's twelve were filed under eleven visit dates: one encounter carries the *entry* date rather than the encounter date, so a date-range search returns eleven of the set plus one stranger seen the same day. It was found by patient creation order instead, and confirmed by content. Budget for a reference read to be a reconciliation rather than a query, and record how the set was matched — `scratch/day-b-reference/README.md` is the worked example.
+
+**And when the date search does work, the reconciliation is still owed.** All ten of `peds-bp`'s source shift carry the right visit date, so the query half was trivial — and the day file's ages match the portal's on nine of ten, because one encounter's Age field disagrees with its own shorthand. Patient creation order settled it there too. **The discriminator that survived both reads is the order the patients were created in, not the date and not the age.**
+
+**A day file is sometimes a census of its shift and sometimes not.** day-b's shift held thirteen encounters against twelve notes; `peds-bp`'s source shift is ten against ten. Neither is the rule, which is why both were counted rather than assumed.
 
 **A set is not always a day.** `day-a` and `day-b` are whole shifts and are named for that. `peds-bp` is the under-6 half of one shift, named for the question instead — because calling it `day-c` would claim a completeness it does not have. Either shape is fine; what is not fine is a partial set that reads as a whole one. **A set scoped to part of its source says so in its own README, and names what it left out.**
 
@@ -76,7 +80,11 @@ It shipped inputs-only for a while, on the argument that a filled vital was neve
 
 **`obesity-bmi` tests the *other* thing day-b's inputs cannot reach.** day-b forces a height, a weight and a derived BMI onto all nine of its vital-less cases, and then covers that BMI only if it happens to land abnormal — nothing in those twelve makes it land anywhere. [Issue #15](https://github.com/mshamblin5150-code/clinical-skills/issues/15) settled 2026-08-11 that the missing row is real and is **not** contained in day-b's B3: B3 fires on an abnormal value, and the missing row fires on a *normal* one, where a patient the shorthand calls obese is handed a BMI of 24 and the note says nothing. Anchoring it needs documented obesity with no weight to compute from, and day-b has none. **The corpus has some, and every one of them is in this set** — with post-bariatric encounters as controls, since a past bypass is where a sub-30 BMI is genuinely accountable. How many, and how they were found, live in that set's own README and are deliberately not restated here. Its reference is owed on the same terms, across three day files rather than one.
 
-**`peds-bp` tests the shape day-b's inputs cannot reach.** day-b's nine vital-less cases are the corpus's dominant pattern — the line written whole or not at all. Under 6 that pattern inverts: measured 2026-08-11, 18 of the 21 under-6 encounters carry a vital line with the **blood pressure alone** missing, against 11 of 106 for encounters aged 20 and over. A selective absence is a decision rather than a transcription gap, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) settled that it is filled anyway. `peds-bp` is what holds that ruling to it. Its reference is owed on the same terms. See [peds-bp/assertions.md](peds-bp/assertions.md).
+**`peds-bp` tests the shape day-b's inputs cannot reach.** day-b's nine vital-less cases are the corpus's dominant pattern — the line written whole or not at all. Under 6 that pattern inverts: measured 2026-08-11, 18 of the 21 under-6 encounters carry a vital line with the **blood pressure alone** missing, against 11 of 106 for encounters aged 20 and over. A selective absence is a decision rather than a transcription gap, and [issue #11](https://github.com/mshamblin5150-code/clinical-skills/issues/11) settled that it is filled anyway. `peds-bp` is what holds that ruling to it.
+
+**Its reference was read 2026-08-11** ([#25](https://github.com/mshamblin5150-code/clinical-skills/issues/25)) and it confirms the ruling is the clinician's own practice: all four Medatrax vital boxes populated on all five under-6 encounters, a blood pressure generated every time, not one blank and not one gap. It also supplied the set's single DRIFT row — a documented 99.9th-percentile weight the submitted note states and never acts on — and the *out of reach* verdict class the set could not host unread.
+
+**It pushed in the other direction too, and that is recorded rather than smoothed over.** day-b's read *failed* two of the four FILLED rows that set held; peds-bp's read failed none, and two of its six passed **vacuously** — the reference generated no abnormal value, so the two rows that price a filled abnormal were never put under load. Counts and verdicts live in [peds-bp/assertions.md](peds-bp/assertions.md) and are deliberately not restated here.
 
 ## A set has two halves
 
