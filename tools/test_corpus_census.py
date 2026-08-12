@@ -40,7 +40,14 @@ PEDS_BP = REPO_ROOT / "fixtures" / "peds-bp" / "shorthand"
 # change to either one has to be made in both places on purpose.
 DAY_B_NO_VITAL = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 DAY_B_CONTROL = (2, 3, 4)
-DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors
+DAY_B_HYPERTENSIVE = (8, 9)  # the two B2 anchors: htn documented, no pressure
+# Every case documenting hypertension, which is wider than the B2 anchors. Cases
+# 2 and 3 carry a given pressure, so the run has nothing to fill and B2 does not
+# score them -- but they are what stops the extractor test being vacuous, and
+# case 2's given 121/61 is the reading day-b/assertions.md cites as the in-corpus
+# proof that a normal pressure in a hypertensive is a real patient. Issue #23.
+DAY_B_DOCUMENTS_HTN = (2, 3, 8, 9)
+DAY_B_HTN_WITH_BP = (2, 3)
 
 # The OLDCARTS severity split B5-B8 rest on, for issue #30. Every case is in
 # exactly one of the three, and which one decides whether its severity is a
@@ -407,6 +414,140 @@ class PainScore(unittest.TestCase):
         self.assertEqual(c.with_pain_score, 2)
 
 
+class DocumentedHypertension(unittest.TestCase):
+    """The marker behind the counts issue #23 turned on.
+
+    ``clinical-note`` used to instruct that a documented hypertensive gets a
+    hypertensive filled pressure. What decided that rule was how often the
+    clinician's *own* transcribed pressures agree with it, and that count is
+    only computable if the history marker is extractable. An extractor that
+    quietly stopped matching would leave the rule's stated evidence asserting a
+    number nobody could recompute -- the failure this whole module exists for.
+    """
+
+    def test_the_abbreviation(self):
+        self.assertTrue(cc.has_documented_hypertension("hx: htn, djd"))
+
+    def test_the_word_both_ways(self):
+        self.assertTrue(cc.has_documented_hypertension("hx of hypertension"))
+        self.assertTrue(cc.has_documented_hypertension("known hypertensive"))
+
+    def test_the_code(self):
+        self.assertTrue(cc.has_documented_hypertension("pre-existing: I10, E11.9"))
+
+    def test_absent(self):
+        self.assertFalse(cc.has_documented_hypertension("cc: cough x 2 days"))
+
+    def test_height_is_not_hypertension(self):
+        """``ht`` welded to its value is the shape that defeated other tokens.
+
+        ``\\bhtn\\b`` cannot match inside "ht5'7"" and must not, but the pair is
+        close enough in this corpus's shorthand to be worth pinning: three
+        encounters were misread once already over exactly this welding.
+        """
+        self.assertFalse(cc.has_documented_hypertension("bp 122/63, hr 59 ht5'7\" wt145"))
+        self.assertFalse(cc.has_documented_hypertension("ht 5'4\" wt 212 lbs"))
+
+    def test_a_negated_mention_still_counts(self):
+        """Asserted so the known over-count is visible rather than assumed away.
+
+        No negation guard is carried, on the same reasoning as ``OBESITY``: the
+        corpus holds no negated form among the 175 encounters that write the
+        token, audited 2026-08-11, so a guard would be exercised by nothing.
+        This is the line to change if one appears -- and the test that would
+        start failing when it does.
+        """
+        self.assertTrue(cc.has_documented_hypertension("denies htn"))
+
+    def test_day_b_documents_it_in_exactly_four_cases(self):
+        """Two with a pressure and two without, and the pair matters.
+
+        ``DAY_B_HYPERTENSIVE`` is narrower than this on purpose -- it is the two
+        B2 anchors, which need the pressure *absent* so the run has to fill one.
+        Cases 2 and 3 document the same history and carry a given pressure, so
+        they are hypertensives the extractor must find and B2 must not score.
+        An extractor matching everything would pass the first assertion alone.
+        """
+        matched = [n for n in range(1, 13) if cc.has_documented_hypertension(day_b(n))]
+        self.assertEqual(matched, list(DAY_B_DOCUMENTS_HTN))
+        self.assertEqual(
+            [n for n in matched if cc.has_bp(day_b(n))], list(DAY_B_HTN_WITH_BP)
+        )
+
+    def test_case_2_is_the_normal_hypertensive_the_rule_rests_on(self):
+        """day-b/assertions.md cites this reading by value; here it is checked.
+
+        A *given* 121/61 against a documented hypertension is the in-corpus
+        proof that B2's second exit describes a real patient rather than a
+        loophole -- and the single clearest refutation of the retired rule that
+        a documented hypertensive gets a hypertensive pressure. Case 3 is the
+        other way at 147/81, which is what stops the pair being one-sided.
+        """
+        self.assertEqual(cc.bp_readings(day_b(2)), [(121, 61)])
+        self.assertTrue(cc.all_bp_readings_normal(day_b(2)))
+        self.assertEqual(cc.bp_readings(day_b(3)), [(147, 81)])
+        self.assertFalse(cc.all_bp_readings_normal(day_b(3)))
+
+    def test_the_documented_false_positives_are_the_ones_documented(self):
+        """Each is audited at zero in the corpus; each would still match here.
+
+        The comment beside ``HYPERTENSION`` lists three ways it can be wrong and
+        says all three cost nothing today. That is a claim about the corpus, not
+        about the regex, and this is what stops the two being confused: the
+        regex really does behave this way, and the comment is honest only for
+        as long as the audit holds.
+        """
+        # Included wrongly: a different disease, and a non-diagnosis.
+        self.assertTrue(cc.has_documented_hypertension("hx: pulmonary hypertension"))
+        self.assertTrue(cc.has_documented_hypertension("pre-hypertensive"))
+        # Excluded wrongly: the plural defeats the closing boundary.
+        self.assertFalse(cc.has_documented_hypertension("two hypertensives seen"))
+
+    def test_the_code_is_matched_in_either_case(self):
+        """Wanted, not tolerated -- and asserted because it looks accidental.
+
+        ``I10`` is written with a capital in the pattern, under a leading
+        ``(?i)`` that a reader scanning the alternatives can easily miss.
+        """
+        self.assertTrue(cc.has_documented_hypertension("pre-existing: i10"))
+        self.assertTrue(cc.has_documented_hypertension("pre-existing: I10"))
+
+    def test_the_lenient_leg_is_counted_beside_the_strict_one(self):
+        """Both legs are printed so the day they diverge is visible.
+
+        The strict figure is the one the rule was written on. It is only safe
+        to quote while the difference is inspectable, which is what the lenient
+        counter exists to make it.
+        """
+        c = cc.survey(["hx: htn. bp 162/98, recheck 128/78", "hx: htn. bp 118/70"])
+        self.assertEqual(c.hypertension_bp_normal, 1)
+        self.assertEqual(c.hypertension_bp_normal_lenient, 2)
+
+    def test_the_survey_counts_the_population_and_its_pressures(self):
+        notes = [
+            "hx: htn. bp 117/74",  # documented, and normal
+            "hx: htn. bp 148/92",  # documented, and not
+            "hx: htn, no vitals taken",  # documented, no pressure to count
+            "cc: cough. bp 118/70",  # a pressure, but no hypertension
+        ]
+        c = cc.survey(notes)
+        self.assertEqual(c.with_hypertension, 3)
+        self.assertEqual(c.hypertension_with_bp, 2)
+        self.assertEqual(c.hypertension_bp_normal, 1)
+        self.assertEqual(c.hypertension_bp_not_normal, 1)
+
+    def test_a_note_is_normal_only_when_every_reading_is(self):
+        """Per note, not per reading, and the strict leg is the safe one.
+
+        A recheck after treatment is the case: counting the note normal on its
+        best reading would overstate how often his hypertensives sit at target,
+        which is the direction that would flatter the rule being written.
+        """
+        c = cc.survey(["hx: htn. bp 162/98, recheck 128/78"])
+        self.assertEqual(c.hypertension_with_bp, 1)
+        self.assertEqual(c.hypertension_bp_normal, 0)
+
+
 class DocumentedObesity(unittest.TestCase):
     """The markers behind the counts issue #15 turned on.
 
@@ -511,6 +652,144 @@ class DocumentedObesity(unittest.TestCase):
         self.assertEqual(c.obesity_no_measurement, 1)
         self.assertEqual(c.with_bariatric, 1)
         self.assertEqual(c.bariatric_no_measurement, 1)
+
+
+class HedgedDiagnosis(unittest.TestCase):
+    """Guards the figure drift row 13 cites, and the decoys that inflate it.
+
+    The row is in ``skills/clinical-note/SKILL.md`` and it turns on a rate: a
+    differential is generated in every note, a hedge appears in the shorthand of
+    about one in sixteen, and the row's two halves therefore fire at very
+    different frequencies. Issue #19 published that percentage before anything
+    could recompute it. This is what recomputes it.
+
+    Every token here is a **prefix or boundary** match for the same reason
+    ``OBESITY`` is: a four-letter clinical token hides inside longer words, and
+    this corpus is where that was learned. ``prob`` is the live case --
+    ``fixtures/day-a/shorthand/case-10.md`` writes "he states he has problems
+    urinatin", and a bare ``prob`` counts that encounter as hedged.
+    """
+
+    OBESITY_BMI = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+
+    def test_prob_alone(self):
+        self.assertTrue(cc.has_hedge("dx prob viral uri"))
+
+    def test_probable_and_probably(self):
+        self.assertTrue(cc.has_hedge("probable strep"))
+        self.assertTrue(cc.has_hedge("probably viral"))
+
+    def test_a_problem_is_not_a_hedge(self):
+        """The decoy, asserted against the fixture that carries it."""
+        self.assertFalse(cc.has_hedge("he states he has problems urinatin"))
+        self.assertFalse(cc.has_hedge(fixture("case-10.md")))
+
+    def test_possible_forms(self):
+        for text in ("poss ptx", "possible cellulitis", "possibly viral"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_hedge(text))
+
+    def test_suspected_forms(self):
+        for text in ("susp fx", "suspected strep", "suspicion for pe"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_hedge(text))
+
+    def test_rule_out(self):
+        self.assertTrue(cc.has_hedge("r/o pna"))
+        self.assertTrue(cc.has_hedge("R/O fracture"))
+
+    def test_versus(self):
+        self.assertTrue(cc.has_hedge("bronchitis vs pna"))
+
+    def test_a_vital_signs_header_is_not_a_versus(self):
+        """``VS`` opens a vital line and would otherwise read as a hedge.
+
+        The colon is **not** what distinguishes them, which a first version of
+        this guard assumed: he writes ``VS 138/86`` and ``VS- 138/86`` too, and
+        both slipped through a lookahead that only rejected ``VS:``. What
+        actually separates the two is what follows -- a vital line runs into a
+        number, a differential runs into a diagnosis.
+        """
+        for text in ("VS: 138/86, hr 88, t 98.8", "vs : 138/86", "VS 138/86 hr 88",
+                     "VS- 138/86", "VS. 98.6"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_hedge(text))
+
+    def test_a_spelled_out_suspension_is_not_a_suspicion(self):
+        """Ordinary pediatric prescribing, and it would inflate the count."""
+        for text in ("amoxicillin suspension 400/5", "amox suspended"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_hedge(text))
+
+    def test_an_abbreviated_suspension_still_counts(self):
+        """The limit the guard cannot reach, pinned rather than wished away.
+
+        ``susp 250/5ml`` is a suspension and ``susp fx`` is a suspicion, and the
+        four letters are identical. HEDGE says so in prose; this is the test that
+        makes the claim checkable, and it is why the figure is a proxy.
+        """
+        self.assertTrue(cc.has_hedge("susp 250/5ml"))
+
+    def test_a_genuine_question_counts_and_that_is_deliberate(self):
+        """A known over-count, pinned so it stays a decision rather than a bug.
+
+        ``[a-z]\\?`` is the loosest alternative in HEDGE and it cannot tell
+        ``strep?`` from a question written into the prose. It is kept because
+        issue #19's published table counted the same seven tokens, so the figure
+        stays comparable to the one already on the ticket -- and because the
+        figure is quoted as a proxy rather than a bound.
+        """
+        self.assertTrue(cc.has_hedge("pt asks: is this contagious?"))
+
+    def test_the_prefixed_question_mark_is_not_matched(self):
+        """``?fx`` is the other shorthand form, and it is deliberately absent.
+
+        No committed fixture carries it and the corpus cannot be audited from
+        every clone, so an alternative matched by nothing is one nothing can
+        catch going wrong -- the reasoning ``SLEEP_APNEA`` already carries for
+        ``apnoea``. This is the line to change if the form turns up.
+        """
+        self.assertFalse(cc.has_hedge("?fx right wrist"))
+
+    def test_likely(self):
+        self.assertTrue(cc.has_hedge("likely viral"))
+
+    def test_unlikely_is_deliberately_not_counted(self):
+        """A rejection is a conclusion, not a hedge, and the count says so."""
+        self.assertFalse(cc.has_hedge("unlikely to be bacterial"))
+
+    def test_a_question_mark_suffix(self):
+        self.assertTrue(cc.has_hedge("strep? throat cx sent"))
+
+    def test_a_plain_note_carries_none(self):
+        self.assertFalse(cc.has_hedge("cc: sore throat x 3 days\ndx strep pharyngitis"))
+
+    def test_day_a_and_day_b_carry_no_hedge(self):
+        """Why no hedged-input assertion can be written against either set."""
+        for path in sorted(FIXTURES.glob("case-*.md")) + sorted(DAY_B.glob("case-*.md")):
+            with self.subTest(case=path.name):
+                self.assertFalse(cc.has_hedge(path.read_text(encoding="utf-8")))
+
+    def test_obesity_bmi_case_1_does_carry_one(self):
+        """Issue #19 said no committed fixture carries a hedge token. One does.
+
+        ``possibly ultrasounds there`` hedges **a past test**, not a diagnosis,
+        so the ticket's substantive point survives: nothing committed can anchor
+        an assertion about a hedged *diagnosis*. The token count is what was
+        wrong, and this is the case that would have failed a blanket claim.
+        """
+        self.assertTrue(cc.has_hedge((self.OBESITY_BMI / "case-01.md").read_text(encoding="utf-8")))
+
+    def test_the_survey_counts_hedged_encounters(self):
+        c = cc.survey(
+            [
+                "dx prob viral uri",              # hedged
+                "bronchitis vs pna",              # hedged
+                "he has problems urinatin",       # the decoy
+                "cc: rash\ndx contact dermatitis",  # plain
+            ]
+        )
+        self.assertEqual(c.with_hedge, 2)
 
 
 class Age(unittest.TestCase):
