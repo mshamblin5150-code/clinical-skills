@@ -143,12 +143,33 @@ Notes needing attention: <number — the flag or the gap, one line each>
 --- FLAGS ACROSS THE SHIFT ---
 <note number — the finding, and what was not done with it>
 
+--- FILLED VITALS ACROSS THE SHIFT ---
+<one line per note that filled one: number, age/sex, the filled height, weight and
+ pressure, and the anchor each line names>
+Repeats: <any value two notes share, and whether the encounters gave a reason to>
+
 NEW GLOSSARY CANDIDATES: <unknown tokens seen across the shift, with frequency>
 ```
 
 Completion: every encounter appears in exactly one of the two note lists.
 
 **Read FLAGS first.** A gap is work outstanding and announces itself. A flag is a note that reads perfectly well and acted on only part of what it documented — nothing about it looks wrong. The roll-up is the only place the pattern is visible: one flag in one note looks like a hard case, five across a shift is what a twelve-hour day does to documentation.
+
+**FILLED VITALS is there for the same reason, and it is the harder case of it.** A flag at least announces itself once you read the note. A filled vital announces nothing: `5'10"` for a 36-year-old man is an ordinary patient, and `clinical-note` licenses filling it. **What no single note can show is that the next eight patients were also 5'10"** — a measured run gave nine filled heights four distinct values, and gave two patients aged 36 and 68 an identical `5'10" / 190 lb`. Issue #67, and `clinical-note`'s *Which value was chosen is the instruction* is the rule this block enforces.
+
+**Print it whether or not anything repeats.** A block that appears only on a bad shift is a block whose absence is read as a pass, and the license's instruction — *the value this patient most plausibly had* — is one every filled note owes an account of, not one that becomes relevant when something looks wrong.
+
+**A repeat is a question, not a defect.** Two patients of the same age and sex with nothing in either encounter to distinguish them may honestly get the same height, and `clinical-note` forbids inventing a difference to break the pattern. What the line asks is whether the two notes' anchors differ — a documented condition, a given pulse, the exam's description of distress — and whether the values moved with them. **Two identical values off two different sets of anchors is the finding**; two identical values off two identical blanks is the license working.
+
+**This is a check across the shift, not a carry-over between notes.** Step 5's *no carry-over* holds unchanged: encounter 4 still fills its own vitals from its own age, and nothing here lets encounter 3's numbers reach it. The roll-up reads what twelve independent passes produced; it does not coordinate them, and a note is never rewritten to make this block tidier.
+
+**Where the notes are on disk, the counting half is a command rather than a reading:**
+
+```bash
+python tools/filled_vitals_census.py <the run directory>
+```
+
+It counts declared-filled values only, prints no value unless `--show` asks, and exits non-zero when two notes share a filled body. **Its output is for you, not for the shift document** — the roll-up is working output, and [step 7](#7-offer-the-shift-document) already says which half of that leaves the machine.
 
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding to [GLOSSARY.md](../clinical-note/GLOSSARY.md) — offer to add them, and the next shift needs less input than this one.
 

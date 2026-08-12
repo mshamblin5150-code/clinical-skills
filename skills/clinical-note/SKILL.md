@@ -278,10 +278,53 @@ Height and weight follow the same rule — *the value this patient most plausibl
 
 **Every filled vital, every filled measurement and every filled OLDCARTS element is listed in the FILLED block carrying its value, written exactly as it appears in the note body.** Not `blood pressure filled` — `BP 142/88 filled`. Not `aggravating factors filled` — `AGGRAVATING bending forward, lying flat filled`, and `SEVERITY 6/10 facial pressure filled`. Two reasons, and the second is the load-bearing one:
 
-- The clinician confirms a value, not a category, and cannot confirm what the block does not state.
+- The clinician confirms a value, not a category, and cannot confirm what the block does not state. **The value is the floor and not the whole line** — *Which value was chosen is the instruction* below is what says the line names the reasoning too.
 - The note body is written so given and filled content read identically. **The FILLED block is therefore the only thing in the whole document that can tell them apart**, and [icd10-cpt](../icd10-cpt/SKILL.md) reads it to decide which numbers a code may rest on. It matches on the value. A block naming the field without its value says a pressure was filled but not which one, and the check fails open in silence.
 
 **A derived value with a filled input is listed in the FILLED block too**, naming which inputs were filled — and it stays on the `DERIVED` line as well, with its arithmetic. A BMI is the case that matters: derived is a true statement about it, since the arithmetic has one right answer, but the answer is only ever as real as the height that went in. A BMI appearing under `DERIVED` alone reads as computed from measurements, which is exactly the impression it must not give.
+
+#### Which value was chosen is the instruction, and the note says how it was chosen
+
+*The value this patient most plausibly had* is an instruction about **which number**, and it is the one half of this license nothing was holding a run to. A note is checked for whether the value exists (it does), whether an abnormal one was worked up (it was), and whether the block declares it (it does). **Nothing asks whether the number describes this patient**, and the answer turns out to be no more often than any single note can show.
+
+**Across a set the filled values collapse onto a template.** Two runs of this skill over the same twelve encounters show it, and **the earlier one is committed** — `fixtures/filled-anchor`'s inputs are day-b run 1 byte for byte — so the evidence can be recomputed rather than taken on trust:
+
+```bash
+python tools/filled_vitals_census.py fixtures/filled-anchor/notes
+```
+
+Nine filled heights over **four distinct values**, four of them `5'10"` — including the 17-year-old's, who got the adult male modal height. Every filled female height `5'4"` or `5'5"`. **Six of the nine filled pressures not normal** — systolic 130 or above, or diastolic 80 or above — against a corpus that splits about evenly at that line. `fixtures/day-b`'s run 2 is the second instance and it is worse: two patients aged 36 and 68 handed an identical `5'10" / 190 lb`, and `138/84` and `138/86` twice each. Issue #67, and that set's own file is where the figures are kept up to date.
+
+**Every one of those values is defensible in its own note**, which is why the rule cannot be *do not write 5'10"*. A 36-year-old man at 5'10" is an ordinary patient. Nine notes each choosing the ordinary patient are a set describing one patient nine times, and the set is the only place it shows.
+
+**So the note discloses the reasoning rather than the number alone.** Every filled vital, body measurement and pain score's `FILLED·asserted` line **names what the value was reasoned from** — and where the encounter supplied nothing to reason from, says that instead:
+
+```
+FILLED·asserted   BP 146/84 filled. Reasoned from age 68 with type 2 diabetes and
+                  COPD, at rest and in no distress, afebrile and pain 2/10, so no
+                  acute driver. Above goal, and worked up in the Plan by recheck.
+                  Ht 5'10" (70 in) filled. Plausible adult male height; no habitus
+                  or percentile datum in the source to move it.
+```
+
+Two reasons, and the second is the one that bites:
+
+- **The clinician confirms a value, and cannot rule on one whose reasoning he cannot see.** This is the same argument that puts the value in the block rather than the field name.
+- **An unanchored value has to stay visible, because the note acts on it.** A BMI derived from two unanchored inputs is a number about nobody, and drift row 4 will still make this note work it up. [icd10-cpt](../icd10-cpt/SKILL.md) refuses to code off it for exactly that reason, and it can only do so if the block says which inputs were filled.
+
+**An unanchored value is not a defect. Concealing that it is unanchored is.** Where the encounter genuinely supplies no anchor — and for a height it often supplies none — the ordinary value is the honest choice, and the repetition across a set is that honesty's consequence rather than a fault to engineer away. **Do not manufacture a distinguishing value to break the pattern.** Choosing `6'1"` over `5'10"` for a man nothing describes is not a better-reasoned number, it is an invented finding with a cosmetic motive, and standing rule 2 forbids it in the same words it forbids every other one.
+
+**What the pattern actually shows is anchors going unused, and the pressures are where that is unarguable.** A height is often unanchored. A blood pressure in an encounter with a documented condition, a given pulse, a given temperature, a documented pain score and an exam describing distress is not — the anchors are sitting in the note, and a run that lands the same side of 130/80 six times in nine has stopped reading them.
+
+**Do not move the value to create the disclosure either.** *Do not move the value to avoid making the disclosure* is stated below for the BMI thresholds; this is its mirror and it is the one two runs have failed. **A filled value is not chosen to give the note an abnormal to work up.** The incentive is real and it is this file's own doing: far more is written here about what an abnormal filled value obliges than about what a normal one does, so a run demonstrating its compliance produces something to be compliant about.
+
+**That prohibition is about intent, so here is the test it reduces to: an unanchored value may not land abnormal.** Where the line says the encounter supplied nothing to reason from, the value that patient most plausibly had is the ordinary one — that is what *most plausibly* means when nothing distinguishes the patient. **An abnormal chosen from nothing is an invented abnormal finding**, and it is only the box-demands-a-value argument that got filled vitals their exemption in the first place. That argument buys a number; it does not buy a raised one.
+
+**This is not the bland-normal rule coming back**, and the difference is the whole of the section above. A value with an anchor follows the anchor wherever it goes — a 373 lb patient's pressure, a COPD patient's saturation, a distressed toddler's pulse are all abnormal and all earned. What is forbidden is the abnormal with nothing behind it, which is the shape both runs produced: a pressure just over the line and a line that names no reason for it being there. **So the two halves of the row work together** — the anchor makes the abnormal legitimate, and naming it is what a reader checks.
+
+**The evidence that this is what is happening is that removing the rule changed nothing.** Until 2026-08-11 this section ordered a hypertensive pressure for a documented hypertensive; issue #23 retired it on a corpus count. **The run before that and the run after it both landed both hypertensives above the line** — 148/92 and 146/90 under the old rule, 138/86 and 138/86 under no rule at all — which is `fixtures/day-b` B2's second exit never once being reached in two runs under two different rules. A rule that is gone cannot be what is producing the number.
+
+**A run that sees more than one encounter owes the check across them**, and one does: [batch-shift](../batch-shift/SKILL.md) step 6 rolls the shift's filled values up for the same reason it rolls the FLAGs up — one note cannot see it and the shift can.
 
 #### A filled BMI near a threshold says how near
 
@@ -565,6 +608,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 16 | **Duration** | Every stated duration reaches the HPI attached to the symptoms it was written beside, written `<duration> for <symptoms>`. None is dropped, and none is applied to a symptom the shorthand did not attach it to. Two durations for the **same** symptom are written as a span containing both, never one endpoint chosen over the other and never a FLAG. **Both a span and an attribution that rested on resolving a pronoun are declared in `FILLED·asserted` carrying their value**; an attribution whose onset line named its own symptom is not |
 | 17 | **Inferred history** | Every social and allergy slot the branch template enumerates carries a value, **none of them a hedge** — no `not documented`, `not reported this visit` or `status unknown`. No **positive** tobacco or vaping status is filled. A slot the corpus cannot classify is **grounded in the shorthand**, not invented beside it. Every filled slot is declared in `FILLED·asserted` carrying its value, and where a **proposed drug** rests on an inferred allergy status, that line names the dependency. A **given** status never fails this row |
 | 18 | **Orders** | Every order the shorthand records — a test, an imaging study, a referral, a drug, an immunization — appears in the finished note as an order. **Checked by counting, the way rows 2 and 16 are:** list every order token in step 2's expansion, wherever it was written, then name where each one landed. **And no sentence anywhere in the note says a given order was not placed** — that limb is checked separately, because retaining the order does not make the denial true. An objection to a given order is written beside the retained order as a recommendation, never in its place and never as a `FILLED·proposed` line |
+| 19 | **Choice** | Every filled vital, body measurement and pain score's `FILLED·asserted` line names what the value was **reasoned from** — or states that the encounter supplied no anchor for it. No value is chosen to give the note an abnormal to work up, and none is moved to avoid a disclosure. A **given** value never fails this row, and neither does an unanchored one that says it is unanchored |
 
 **Row 14 is appended rather than slotted beside row 4**, which is where it belongs by subject. Rows 1 through 13 are cited by number across this file, three fixture sets and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md), so renumbering to put it in its natural place would silently redirect every one of those citations. Its subject is row 4's, its number is not, and that is a deliberate cost.
 
@@ -611,6 +655,12 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 **The second limb is not found by counting, and that is why it is stated apart.** An order that landed as a sentence saying it was not done has been **reversed**, and reversal does not show up as a missing string — it shows up as an extra one. Read the Assessment and the Plan for any claim that a given order was not placed, and the count will not find it for you: the note can carry the order *and* the denial, pass the count, and still tell the reader who is graded on the Assessment that the test was declined.
 
 **Its quiet failure is a paragraph of good clinical reasoning.** A note that argues mononucleosis is unlikely on a short course, prominent coryza and no posterior cervical adenopathy, and concludes that no monospot is indicated, is fluent, correct on the medicine, and describing a different visit than the one that happened. Nothing inside it points at the order it replaced — the count is what finds it, and the count is why this is a row. Issue #66.
+
+**Row 19 is the first row a single note cannot fail loudly.** Rows 1 through 18 each resolve inside the document they are walked against: a finding is in the Assessment or it is not, an order landed somewhere or it did not. Row 19's subject is a value that is individually defensible and collectively a template — `5'10"` for a 36-year-old man is an ordinary patient, and four of them are one patient written four times. **So the row does not ask whether the number is right.** It asks whether the line says how the number was arrived at, which is a question one note can answer, and it leaves the cross-note half to [batch-shift](../batch-shift/SKILL.md) step 6 and to `fixtures/day-b` B13.
+
+**Its two prohibitions are one prohibition seen from both sides.** *Do not move the value to avoid making the disclosure* was already written under *A filled BMI near a threshold says how near*, and it was written about one direction because that was the direction someone had thought of. The direction two runs actually failed is the other one: six of nine filled pressures landing not-normal, a rate the corpus refuses, in a file whose abnormal-value machinery is many times longer than its normal-value machinery. **A run demonstrating compliance produces something to be compliant about**, and issue #23 retiring the rule that used to order the abnormal changed the count not at all.
+
+**Check it by reading the FILLED block alone, one line per generated value.** Take each filled vital, measurement and severity and ask what in the encounter the line names — a documented condition, a given pulse or temperature, the exam's description of distress, the treatment given, age and sex. A line naming nothing fails unless it says so in those words. **A line saying `no habitus or percentile datum in the source to move it` passes**, and that is the point of the row rather than a loophole in it: the unanchored value is honest and the concealed one is not. Issue #67.
 
 **Row 12 is checked by reading the body without the block.** Every other row asks whether the note said enough; this one asks whether it said something only the tier block may say. The two failing shapes are a parenthetical that labels its own line — `(inferred)`, `(dose given; duration filled)` — and a sentence that accounts for the note's own content, such as what was not reconciled or what must be confirmed before entry. Both read as diligence, which is why they survive a reading that is looking for omissions.
 

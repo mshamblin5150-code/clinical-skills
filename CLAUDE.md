@@ -51,6 +51,23 @@ python -m unittest discover -s tools -t tools
 
 Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
 
+### Filled-vitals census
+
+The corpus census reads the clinician's shorthand. This one reads **a run's finished notes**, and it exists because [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) is a defect no single note contains: nine notes each filling a plausible vital set, and one patient described nine times.
+
+```bash
+python tools/filled_vitals_census.py <a run directory>
+python tools/filled_vitals_census.py fixtures/filled-anchor/notes   # the committed evidence
+```
+
+It counts only what a tier block **declares filled** — `clinical-note`'s own `BP 142/88 filled` form — so given vitals stay out of the numbers, and a run that stops writing values into the block reads as having filled nothing rather than as having passed.
+
+**Counts only by default, and that is load-bearing here rather than conventional.** A run directory lives under `scratch/` or `output/` and is a patient record. Nothing it prints without `--show` is a measured value, so its output is safe to paste into a ticket; **`--show` output is PHI on `harvest_review.py`'s terms** — read it, do not paste it.
+
+**It exits non-zero when two notes share a filled height-and-weight pair**, which is `fixtures/day-b` B13. Everything else it prints is R5, counted rather than graded, because the corpus gives a direction and not a threshold.
+
+Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve committed notes and pins the two figures #67 rests on, so editing that run record fails a test rather than quietly voiding an argument.
+
 ### Skills mirror
 
 `.claude/skills/` is how Claude Code loads these skills natively, and each entry is meant to be a **junction to `skills/<name>/`** so the mirror cannot hold a different answer than the skill does. It is gitignored, so nothing git does checks it.
