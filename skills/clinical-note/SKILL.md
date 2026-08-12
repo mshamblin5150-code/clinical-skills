@@ -121,8 +121,17 @@ Grounded, and expected:
 - Route, frequency, and duration for a drug the shorthand names — `zithromax 200/5ml 3/4 t x 3 days` becomes azithromycin 3.75 mL PO **daily** for 3 days.
 - A medication proposed in the **Plan** for a condition in the history — lisinopril where the history carries hypertension. This is the clinical reasoning being graded; make it.
 - Standard supportive care, health promotion, and return precautions for the stated diagnosis.
+- Testing for a documented infectious exposure — see below.
 - Screenings appropriate to the patient's age.
 - The exam of a system the shorthand never mentions.
+
+**A documented infectious exposure with a congruent presentation orders testing by default.** The contact is a given; testing for what the contact had is standard care for that presentation, and it belongs in the Plan the way return precautions do. Respiratory contact plus respiratory symptoms means **COVID-19 and influenza at minimum**, and **group A streptococcus where the pharynx is involved** — a sore throat, pharyngeal erythema, tonsillar exudate. Name the agent and name the specimen: `COVID-19 and influenza A/B, nasopharyngeal swab`, never `viral testing`.
+
+It is a `FILLED·proposed` line like any other order, generated from the exposure and never from noticing that the encounter omitted it. **The visit not having swabbed is not by itself a FLAG** — see *FLAG is the block that matters* in step 6. A clinician who documents a sick contact and treats empirically has made a call, and a note that flags him for it flags him on every encounter where he made the same one. It stays a FLAG only where the exposure is documented *and* testing would have changed the management the note actually recorded.
+
+**An order is not a result**, which is the paragraph below applied to the order this one generates. A swab sent today has no answer today: nothing goes in the Objective, and where the encounter itself ran no testing the results line still reads `No new testing today` — that describes what came back, not what was ordered. Ordering COVID-19 testing and then writing `COVID-19 negative` is the invention the whole tier system exists to prevent.
+
+**And its missing result is not a GAPS entry.** GAPS holds *a swab sent and never returned* — the encounter ran a test and the record lost the answer. A swab this rule orders has no answer to have lost, so it is complete as written, and reporting it as an omission is the *anything the skill was instructed to generate* case in step 6.
 
 **One thing can never be inferred: a result.** Laboratory values, imaging results, and diagnostic test results were either obtained or they were not, and no clinical reasoning yields `estrogen 729`. Where testing is absent, write `No new testing today`. Never produce a number that would read as a result. **Vitals are measurements but they are not results** — a result exists only if testing was ordered and run, while a vital set is required of the encounter record whether anything was ordered or not; see *Filled vitals and body measurements*.
 
@@ -287,6 +296,10 @@ A value can occupy two lines at once, and one routinely does: a BMI derived from
 **FLAG is the block that matters.** A flag is a finding that was documented and then abandoned — an abnormal that reached the Objective and stopped there, a vital nobody addressed, a second problem the Assessment never names. It is neither a gap (nothing is missing from the source) nor a filled line (nothing was generated). It is the note failing to act on what it was told, which is the defect this skill exists to catch.
 
 One FLAG per finding. Name the finding and name what was not done with it — `BP 151/93 undiscussed`, not `vitals not addressed`.
+
+**A default this skill generates is not an abandonment, and does not go here.** Testing from a documented exposure is the case — the visit not having swabbed is not by itself a flag. It is written as the order under `FILLED·proposed`, and the FLAG block says nothing. This is the GAPS list's *anything the skill was instructed to generate*, one block up: the two are told apart by what would fix them, and an abandoned finding is fixed by the clinician going back and addressing it where a missing default is fixed by this note carrying it. Flagging the second turns a routine standing order into a recurring accusation, and a block full of those is a block nobody reads — which costs the abandoned finding sitting next to them.
+
+**The one exception is stated where the rule is**, under *What may be inferred*: a documented exposure stays a FLAG where testing would have changed the management the note actually recorded. That is a defect in the encounter and not a default the skill supplied, so it belongs here. The order is written either way.
 
 **What never goes under GAPS:**
 

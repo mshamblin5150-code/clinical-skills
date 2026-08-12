@@ -20,6 +20,8 @@ The rule was day-a's, and it was worth keeping: four of day-a's six DRIFT rows c
 
 **Here it changed one of five.** D1 through D4 turn out to say what a careful read of the input would have said. D5 is the exception, and in the direction the rule exists to catch: the submitted note **addressed** the low magnesium, so a row asserting it was abandoned would have been false. Its `Reference did` cell reads *neither*, not *better*, and it is the set's only anti-regression row.
 
+**D6 arrived after that count and is not in it.** It comes from [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32) — a `clinical-note` run over case 9, not the reference read — and the read is what lets it carry a verdict at all.
+
 **The set has never been run.** `DRIFT n/n`, `FILLED n/n` and `REPORTED n/m` have no first value yet.
 
 ## The reference is a baseline, not a target
@@ -62,7 +64,7 @@ He is right, and it breaks the rationale. A treated, compliant hypertensive at 1
 
 Each row is a finding the shorthand documented that a note can drop between the Objective and the Assessment. A run passes the row when the finding is named in the **Assessment or the Plan** — not merely recorded in the Objective.
 
-**Four of the five are findings the submitted note did drop. D5 is not** — see below the table.
+**Five of the six are findings the submitted note did drop. D5 is not** — see below the table.
 
 | # | Case | The finding | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
@@ -71,6 +73,7 @@ Each row is a finding the shorthand documented that a note can drop between the 
 | D3 | 11 — 32 M | Inspiratory wheezing in all fields, in a documented asthmatic | Absent from the Assessment or the Plan | Recorded it on exam, then **recast it in the HPI as `inspiratory wheeze history`** — past tense — and carried asthma only in the *pre-existing* code list. No inhaler, no peak flow, no asthma plan item. Addressing it is *better*. |
 | D4 | 7 — 67 F | Elevated liver enzymes — AST 48, ALP 136 — in a patient on a statin | The elevated enzymes are absent from the Assessment or the Plan | **Dropped them.** No AST, no ALP, no statin and no hepatic follow-up anywhere in the note, and a CMP ordered without saying why. The shorthand had already written the follow-up (`f/u pcp re elevated lft`). Keeping it is *better*. |
 | D5 | 10 — 48 M | Magnesium 1.6, written in the shorthand as `labs good mg 1.6` | The low magnesium is absent from the Assessment or the Plan | **Caught it** — `Mg 1.6 → recommend OTC magnesium supplement`. Matching this is *neither*; losing it is *worse*. |
+| D6 | 9 — 44 F | A documented positive COVID contact — `daughter inall was postive for covid` — alongside a congruent respiratory presentation | The Plan does not order COVID-19 testing and influenza testing, with a specimen named. Group A strep is required too, because this input documents the pharynx — `sore throat` and `pharyngeal erythema`. **Carrying the exposure in the HPI is not acting on it** — see below | **Ordered no testing at all.** The exposure reached the note — the HPI reads `COVID exposure in family` — and the Plan carries amoxicillin-clavulanate, a steroid dose pack, otic drops and an IM steroid, with no swab of any kind. Ordering it is *better*. |
 
 **D1's fail condition is worded against a real decoy.** The submitted note's Plan contains the string `BP` — inside `Screenings: Colon CA (age), mammogram, BP, smoking cessation`, boilerplate that appears on other notes from this shift regardless of the pressure recorded and would read identically had the pressure been 118/70. A row that passed on a substring match for `BP` would score the reference as having addressed 147/81. It did not.
 
@@ -79,6 +82,22 @@ Each row is a finding the shorthand documented that a note can drop between the 
 **What it still tests is the decoy in the input.** `labs good mg 1.6` wraps a low magnesium inside a phrase that says the labs were fine. A run that reads `labs good` and moves on drops the abnormal, and the recommendation two words later is the only thing that would catch it. The row is checkable from the input alone; what the reference added was the verdict — *neither*, not *better*.
 
 **Case 2 is the counter-example that makes D1 legible.** The same `htn` history, a pressure of 121/61, and the Assessment reads `HTN, controlled (I10)`. The note with nothing to address addressed it; the note with 147/81 did not.
+
+### D6 asks for an order, because for an exposure that is what acting on it is
+
+**D6's fail condition is worded against a naming that is not an acting** — the same trap as D1, from the other end. The submitted note does carry the exposure: the HPI reads `COVID exposure in family`, so a row passing on the finding appearing *anywhere* would score the reference as having addressed it. It ordered no swab. For a documented contact the act is the order, with a named agent and a named specimen in the Plan, which is [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32)'s rule.
+
+**Two reasons it could have been a B row instead, and why it is not.** It drops out of the *Subjective* rather than the Objective, since an exposure is history and not an exam finding; and what the row checks for is a **generated** order, which is FILLED's subject rather than DRIFT's under [fixtures/README](../README.md).
+
+Both are real and neither moves it. The section it fell out of is incidental — the class is about a documented thing that never reaches the Assessment or the Plan, which is D5's ground for being kept too. And day-b's FILLED class is not generated content in general: it is the vitals license, and B1 through B3 are a chain about one value's plausibility band and what happens when it lands abnormal. An order has no band to land in and nothing to be plausible about. **What D6 tests is whether a given survived**, and the fact that surviving takes the form of an order rather than a sentence is what its fail condition spells out. That is D1's shape, not B2's.
+
+**The DRIFT verdict is not the accusation [#32](https://github.com/mshamblin5150-code/clinical-skills/issues/32) forbids.** The ticket forbids the *skill's note* carrying a FLAG at the clinician on every encounter where he treated a documented contact empirically. It does not forbid this set recording that one encounter fell short — and the standard it fell short of is his own, stated on the ticket: *"you better believe that they are getting swabbed every which way."* A fixture row is read once by him; a FLAG is written into every note.
+
+**Cases 8 and 12 are the in-corpus proof the passing form is writable.** Both document a contact — a daughter-in-law with COVID, a coach sick two days earlier — and both shorthand plans order the swab: `covid` on case 8, `covid, strep, flu` on case 12. Those are *given* orders, so D6 does not fire on them. What they establish is that swabbing a documented contact is this clinician's own practice, and case 9 is where a long shift lost it. `tools/test_corpus_census.py` asserts these two plan lines, and case 9's empty one, rather than trusting this paragraph.
+
+**Case 10 is deliberately not a second row.** Its shorthand reads `has had no sick contacts` and then orders COVID, influenza and strep anyway, so the tests are given whatever the rule does and the case cannot separate a run that reasoned from one that copied. A row needs an input where the rule's output would otherwise be absent, and only case 9 has that.
+
+**What D6 does not hold is #32's other half.** The ticket's complaint was the *route*: the run reached the order as a `FLAG` against the encounter for not swabbing, and then wrote the order to answer the flag. D6 grades the outcome and not the route, for two reasons. A submitted note carries no tier block, so the `Reference did` column has nothing to say about a FLAG that was or was not written. And the rule leaves the flag legal in a narrow case — where testing would have changed the management the encounter recorded — so a row forbidding it outright would fail a run for a judgment the rule permits. The route is a rule in [SKILL.md](../../skills/clinical-note/SKILL.md); the outcome is the bar here.
 
 ## FILLED — binary, all must pass
 
