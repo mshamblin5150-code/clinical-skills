@@ -62,7 +62,7 @@ A vital is not a finding the clinician chose to record, and two things follow th
 
 **A value is required.** The rubric wants a complete vital set, and Medatrax holds fields for blood pressure, respiratory rate, height and BMI that are filled rather than left blank. A result has no field standing empty in the same way — it exists only if testing was ordered and run. Something has to go in the box.
 
-**Nothing in the shorthand constrains which value.** Transcription is all-or-nothing: measured 2026-08-11 across 559 encounters, 47% carry no vital at all, and of the 249 blood pressures he does transcribe, half are below 130/80. He is not writing them down because they were interesting, so an absent vital carries no information about its value — and never means it was normal. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart. For a finding, silence is evidence, because abnormals get charted. For a vital, silence is evidence of nothing.
+**Nothing in the shorthand constrains which value.** Transcription is all-or-nothing: measured 2026-08-11 across 551 encounters, 46% carry no vital at all, and of the 249 blood pressures he does transcribe, half are below 130/80. He is not writing them down because they were interesting, so an absent vital carries no information about its value — and never means it was normal. That is *Silence is undocumented, never absent* applied to the one kind of value where "undocumented" and "unremarkable" come apart. For a finding, silence is evidence, because abnormals get charted. For a vital, silence is evidence of nothing.
 
 **Whether the measurement happened is beside the point**, which is what height makes obvious. In 15 encounters he transcribes a blood pressure and a weight and no height, and nothing in the record says whether that height was taken and left unwritten or never taken at all. Neither leg above asks. The license rests on the box needing a value and the shorthand constraining none, never on a tape measure having touched the wall.
 
@@ -70,7 +70,7 @@ A vital is not a finding the clinician chose to record, and two things follow th
 
 Reason it from age, body habitus, the documented conditions and the presenting complaint — not from the middle of the normal range. A known hypertensive seen for a productive cough gets a hypertensive pressure and a raised respiratory rate. A two-year-old gets a two-year-old's pressure, not a scaled-down adult's.
 
-**A small child's anchors are different, not absent.** The adult anchors — documented hypertension, body habitus — are usually missing under 6, which invites the conclusion that there is nothing to reason from and the middle of the range is all that is left. The corpus says the reverse. Measured 2026-08-11, **18 of the 21 encounters under 6 carry a transcribed vital line with the blood pressure alone missing** — 17 a structured line, one a temperature written into the exam prose — where 95 of the 106 encounters aged 20 and over with no pressure carry no vital at all. Both figures are over the 357 encounters whose age the census can read; 202 state none, so 21 is a floor on the under-6 population rather than a count of it. A young child's fill is the best-anchored one in this record, not the worst: the pulse, temperature, respiratory rate and oxygen saturation are usually sitting right there as givens.
+**A small child's anchors are different, not absent.** The adult anchors — documented hypertension, body habitus — are usually missing under 6, which invites the conclusion that there is nothing to reason from and the middle of the range is all that is left. The corpus says the reverse. Measured 2026-08-11, **18 of the 21 encounters under 6 carry a transcribed vital line with the blood pressure alone missing** — 17 a structured line, one a temperature written into the exam prose — where 95 of the 106 encounters aged 20 and over with no pressure carry no vital at all. Both figures are over the 357 encounters whose age the census can read; 194 state none, so 21 is a floor on the under-6 population rather than a count of it. A young child's fill is the best-anchored one in this record, not the worst: the pulse, temperature, respiratory rate and oxygen saturation are usually sitting right there as givens.
 
 Work it in two steps:
 
@@ -173,13 +173,15 @@ Then assign each visit **15 to 40 minutes, in 5-minute steps**, by complexity �
 
 Collect the shorthand and, if supplied, the Medatrax entry — it carries demographics and some vitals, and those are **givens** the note must match exactly.
 
-**Derive the age before you redact the date of birth.** Across the clinician's catalog — 353 encounters — the age is stated outright in 42% and a **date of birth appears instead in 47%**. Redacting `[DOB]` on the way past destroys the only thing age can be computed from, and age sets the `Patient Time` band. So: compute the age from the date of birth and the visit date, write it down as a derived value showing the arithmetic, and redact afterwards.
+**Derive the age before you redact the date of birth.** A date of birth in place of an age is not an edge case: it is the dominant form in whole day files, and this catalog holds day files in which **not one encounter states an age** — `tools/corpus_census.py` counts them. Redacting `[DOB]` on the way past destroys the only thing age can be computed from, and age sets the `Patient Time` band. So: compute the age from the date of birth and the visit date, write it down as a derived value showing the arithmetic, and redact afterwards.
+
+**No share is quoted here on purpose.** The catalog is two halves whose mixes differ sharply, so a corpus-wide percentage describes neither of them and decays as the corpus grows. [batch-shift](../batch-shift/SKILL.md) step 3 owns the demographic-shape table and says what to do instead. The rule above holds at any share, which is why it never needed one.
 
 **Read the unmarked form.** The newer shorthand runs age and sex together with no marker at all — `51 f`, `48f`, `35 f` — and it is the dominant form in the recent files. Anything scanning for `yo`, `y/o` or `dob` misses it and reports a recent encounter as ageless.
 
 Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]`, `[PRECEPTOR]`. Keep age, sex, visit date, and everything clinical.
 
-**About 7% of encounters carry neither an age nor a date of birth** — roughly one in fourteen, measured 2026-08-11 across 559 notes, of which 521 carry one or the other. Not a freak case, and not a stop: see *What may be inferred* for how the age is inferred and flagged.
+**About 7% of encounters carry neither an age nor a date of birth** — roughly one in fourteen, measured 2026-08-11 across 551 notes, of which 513 carry one or the other. Not a freak case, and not a stop: see *What may be inferred* for how the age is inferred and flagged.
 
 ### 2. Expand the shorthand
 

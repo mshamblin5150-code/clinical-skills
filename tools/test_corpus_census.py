@@ -19,6 +19,7 @@ exempt it from the corpus layer: a real patient name or a real date lifted from
 file was caught using both.
 """
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -84,6 +85,86 @@ class SplitNotes(unittest.TestCase):
             p.read_text(encoding="utf-8") for p in sorted(FIXTURES.glob("case-*.md"))
         )
         self.assertEqual(len(cc.split_notes(day)), 10)
+
+
+class ReadCorpusDropsDuplicateDayFiles(unittest.TestCase):
+    """One day file in the clinician's catalog is on disk twice, byte for byte.
+
+    ``GLOSSARY.md`` and ``batch-shift`` both describe the catalog as 48 unique
+    files; the census walked all 49 and reported a corpus eight encounters
+    larger, with nothing to reconcile the two. Issue #16.
+
+    Deduplication is by **content**, not by name: the copy does not share a
+    filename with its original, so a name-based check would not have seen it.
+    """
+
+    SHIFT = "day header\nNote 1\n51 f\ncc: cough\n\nNote 2\n7 yo M\ncc: rash\n"
+    OTHER = "day header\nNote 1\n34 f\ncc: fever\n"
+
+    def corpus_of(self, files: dict[str, str]) -> cc.Corpus:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, text in files.items():
+                (root / name).write_text(text, encoding="utf-8")
+            return cc.read_corpus(root)
+
+    def test_identical_content_under_different_names_is_read_once(self):
+        corpus = self.corpus_of({"a.txt": self.SHIFT, "scan-copy.txt": self.SHIFT})
+        self.assertEqual(len(corpus.notes), 2)
+        self.assertEqual(corpus.files, 2)
+        self.assertEqual(corpus.unique_files, 1)
+
+    def test_files_that_differ_are_all_kept(self):
+        corpus = self.corpus_of({"a.txt": self.SHIFT, "b.txt": self.OTHER})
+        self.assertEqual(len(corpus.notes), 3)
+        self.assertEqual(corpus.files, 2)
+        self.assertEqual(corpus.unique_files, 2)
+
+    def test_a_repeated_encounter_inside_one_file_is_not_deduplicated(self):
+        """Dedup is per file. A shift that saw two alike patients saw two patients."""
+        corpus = self.corpus_of({"a.txt": "hdr\nNote 1\n51 f\n\nNote 2\n51 f\n"})
+        self.assertEqual(len(corpus.notes), 2)
+        self.assertEqual(corpus.unique_files, 1)
+
+    def test_encounters_stay_grouped_by_the_file_they_came_from(self):
+        corpus = self.corpus_of({"a.txt": self.SHIFT, "b.txt": self.OTHER})
+        self.assertEqual([len(day) for day in corpus.day_files], [2, 1])
+
+
+class SurveyFilesCountsFilesNotEncounters(unittest.TestCase):
+    """The claim clinical-note step 1 rests on, made re-derivable. Issue #16.
+
+    Step 1 quotes no share deliberately, and says instead that whole day files
+    state no age at all. Nothing printed that until this existed, which left the
+    replacement claim exactly as unverifiable as the 353-encounter one it
+    replaced.
+    """
+
+    AGELESS = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\ndob 5/5/55\ncc: rash\n")
+    HAS_ONE = ("Note 1\ndob 4/4/44\ncc: cough\n", "Note 2\n51 f\ncc: rash\n")
+
+    def survey(self, *days: tuple[str, ...]) -> cc.FileCensus:
+        return cc.survey_files(cc.Corpus(day_files=days, files=len(days)))
+
+    def test_a_file_with_no_age_anywhere_counts(self):
+        self.assertEqual(self.survey(self.AGELESS).with_no_stated_age, 1)
+
+    def test_one_stated_age_is_enough_to_clear_a_file(self):
+        self.assertEqual(self.survey(self.HAS_ONE).with_no_stated_age, 0)
+
+    def test_counts_files_and_not_the_encounters_inside_them(self):
+        census = self.survey(self.AGELESS, self.AGELESS, self.HAS_ONE)
+        self.assertEqual(census.with_no_stated_age, 2)
+        self.assertEqual(census.unique_files, 3)
+
+    def test_an_empty_file_is_not_a_file_without_an_age(self):
+        """A file the delimiter found nothing in says nothing about ages."""
+        self.assertEqual(self.survey(()).with_no_stated_age, 0)
+
+    def test_the_duplicate_is_not_counted_twice(self):
+        corpus = cc.Corpus(day_files=(self.AGELESS,), files=2)
+        self.assertEqual(cc.survey_files(corpus).files, 2)
+        self.assertEqual(cc.survey_files(corpus).unique_files, 1)
 
 
 class BloodPressure(unittest.TestCase):
@@ -688,6 +769,7 @@ class Bands(unittest.TestCase):
         report = cc.format_report(
             cc.survey(notes), source="fixtures", date="2026-08-11",
             bands=cc.survey_bands(notes),
+            files=cc.FileCensus(files=1, unique_files=1, with_no_stated_age=0),
         )
         self.assertIn("line, no BP", report)  # the section really rendered
         for leak in ("cc:", "hx:", "exam:", "[PT]", "plan ", "percentile"):
@@ -707,15 +789,42 @@ class Survey(unittest.TestCase):
         self.assertEqual(c.with_bp + c.without_bp, 10)
         self.assertEqual(c.with_either_age_or_dob + c.with_neither, 10)
 
-    def test_report_emits_no_note_text(self):
-        """Standing rule 1: the census output must be safe to paste anywhere."""
-        report = cc.format_report(
+    def report(self, files: int = 11, unique: int = 10) -> str:
+        return cc.format_report(
             cc.survey(self.notes), source="fixtures", date="2026-08-11",
             bands=cc.survey_bands(self.notes),
+            files=cc.FileCensus(files=files, unique_files=unique, with_no_stated_age=1),
         )
+
+    def test_report_emits_no_note_text(self):
+        """Standing rule 1: the census output must be safe to paste anywhere."""
+        report = self.report()
         for leak in ("cc:", "hx:", "exam:", "[PT]", "plan "):
             with self.subTest(leak=leak):
                 self.assertNotIn(leak, report)
+
+    def test_format_report_is_never_handed_a_note(self):
+        """The invariant the module docstring states, asserted rather than trusted.
+
+        ``Corpus`` holds note text and ``FileCensus`` does not, which is the whole
+        reason the second type exists. A signature that took the first would put
+        note text one formatting mistake away from the console.
+        """
+        # ``from __future__ import annotations`` keeps these as strings.
+        annotations = cc.format_report.__annotations__
+        self.assertNotIn("Corpus", annotations.values())
+        self.assertEqual(annotations["files"], "FileCensus")
+        for field in cc.FileCensus.__dataclass_fields__.values():
+            with self.subTest(field=field.name):
+                self.assertEqual(field.type, "int")
+
+    def test_reports_the_duplicate_when_there_is_one(self):
+        self.assertIn("files: 11 (10 unique)", self.report())
+
+    def test_says_nothing_about_uniqueness_when_no_file_repeats(self):
+        report = self.report(files=10, unique=10)
+        files_line = next(l for l in report.splitlines() if l.startswith("files:"))
+        self.assertEqual(files_line, "files: 10")
 
 
 if __name__ == "__main__":

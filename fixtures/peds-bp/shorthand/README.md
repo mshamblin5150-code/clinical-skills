@@ -46,7 +46,7 @@ This split is the set's whole subject, so it is worth stating flatly:
 | 8 | 5 y | a temperature only — `temp this vist is 99.5`, inside the exam prose |
 | 9 | 9 mo | none |
 
-Cases 3 and 5 are the ones that matter. day-b's inputs are the corpus's dominant shape — a vital line written whole or not at all — and the ticket that opened this set assumed that shape held everywhere. **It does not hold under 6.** Measured 2026-08-11 with the extractors in `tools/corpus_census.py`, over the same 559 encounters:
+Cases 3 and 5 are the ones that matter. day-b's inputs are the corpus's dominant shape — a vital line written whole or not at all — and the ticket that opened this set assumed that shape held everywhere. **It does not hold under 6.** Measured 2026-08-11 with the extractors in `tools/corpus_census.py`, over the same 551 encounters:
 
 | band | n | no pressure | … of those, carrying **no vital at all** | … of those, carrying **a vital line without one** |
 | --- | --- | --- | --- | --- |
@@ -55,7 +55,7 @@ Cases 3 and 5 are the ones that matter. day-b's inputs are the corpus's dominant
 
 Under 6 the pressure is the *only* thing missing, six times in seven. Over 20 the whole line is missing, nine times in ten. That inversion is what case 3 and case 5 put in front of the skill.
 
-**Both denominators are floors, and the table would mislead without this.** The census reads an age from 357 of the 559 encounters; the other 202 state none in a form it recognizes. So *21 encounters under 6* is what it can see, not what exists — and 21 of those unreadable encounters do carry a vital line with no pressure, some of which are very likely small children. The **ratio** is what the argument rests on and it is untouched. The **counts** are not the corpus's pediatric population.
+**Both denominators are floors, and the table would mislead without this.** The census reads an age from 357 of the 551 encounters; the other 194 state none in a form it recognizes. So *21 encounters under 6* is what it can see, not what exists — and 20 of those unreadable encounters do carry a vital line with no pressure, some of which are very likely small children. The **ratio** is what the argument rests on and it is untouched. The **counts** are not the corpus's pediatric population.
 
 **Do not add a blood pressure to these files.** An input that already supplies the value cannot test whether the skill fills it — the same reasoning that keeps day-a case 10's age out of its input file.
 
