@@ -19,7 +19,7 @@ The third one is invisible and is the reason for *The input* below.
 
 That is a hard requirement, not a convenience. Every line of a finished note is **given**, **derived**, or **filled** ([clinical-note](../clinical-note/SKILL.md)), and the finished note is written so those three read identically. `BMI 36.4` in the Objective is the same eleven characters whether it was measured or generated. The tier block is the only place the difference is recorded, so a note arriving without one has had its source information stripped.
 
-**Where the tier block is missing, say so and treat every vital, body measurement and BMI in the note as filled.** Not as a punishment — as the accurate reading. Measured 2026-08-11 with `tools/corpus_census.py` across 559 encounters, 47% carry no vital at all and only 41% carry a height — so **59% have no height to write down**. An unmarked measurement in a note from this pipeline is more likely to have been filled than recorded. Being wrong in that direction costs a code that had to be earned by measuring; being wrong in the other direction puts a number nobody measured onto a claim.
+**Where the tier block is missing, say so and treat every vital, body measurement and BMI in the note as filled.** Not as a punishment — as the accurate reading. Measured 2026-08-11 with `tools/corpus_census.py` across 551 encounters, 46% carry no vital at all and only 41% carry a height — so **59% have no height to write down**. An unmarked measurement in a note from this pipeline is more likely to have been filled than recorded. Being wrong in that direction costs a code that had to be earned by measuring; being wrong in the other direction puts a number nobody measured onto a claim.
 
 ## The code set
 
