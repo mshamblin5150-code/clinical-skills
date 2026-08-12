@@ -107,6 +107,10 @@ illness but matters for counselling and future care>
 
 **Differential rationale** is the graded core. Each excluded diagnosis needs the specific finding that excludes it — `no facial swelling, no focal sinus tenderness` — drawn from the exam, whether that exam line is given or filled.
 
+**The code on each differential entry stays in the note.** The rubric asks for it and this template has always carried it; what it is *for* is documenting medical decision-making, so it does not travel on to Medatrax's `ICD-10-CM` category the way the preexisting and actual diagnoses do. [SOAP.md](SOAP.md) now carries the same requirement, on one line rather than two — **the codes match across the branches, the layout does not have to.** Issue #19.
+
+**No diagnosis the encounter did not establish gets a code that overstates it**, and that reaches `Actual diagnosis/diagnoses` as readily as the differential — a hedge is most often on the conclusion. [icd10-cpt](../icd10-cpt/SKILL.md) declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, not `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) checks it.
+
 **Screenings** is a filled list keyed to the patient's age. The rubric wants it present even when nothing was done.
 
 **Pharmacologic** carries doses. Concentration and volume are givens; the milligram equivalent is **derived** and its arithmetic goes in the tier block — in the block, never beside the drug. **A parenthetical on a Pharmacologic line, where there is one, holds the trade name and nothing else**: the tier of each part of the sig belongs in the tier block, and `Medications (with reason for taking)` is the heading where a reason lives. The rule itself is drift row 12 in [SKILL.md](SKILL.md).

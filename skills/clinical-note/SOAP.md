@@ -32,11 +32,11 @@ Labs/Tests today: <given results only; treatments administered in clinic>
 A:
 
 Differential:
-<Diagnosis: the findings that support it. Favored.>
-<Diagnosis: the specific findings that argue against it. Less likely.>
-<Diagnosis: same. Less likely.>
+<Diagnosis - CODE: the findings that support it. Favored.>
+<Diagnosis - CODE: the specific findings that argue against it. Less likely.>
+<Diagnosis - CODE: same. Less likely.>
 
-Preexisting diagnoses (ICD10): <condition CODE; condition CODE>
+Preexisting diagnoses (ICD10): <condition - CODE; condition - CODE>
 Final diagnosis: <condition - CODE>
 Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
@@ -53,13 +53,25 @@ Follow up: <interval, and what would bring them back sooner>
 
 **Quote the chief complaint.** The patient's words, in quotation marks.
 
-**Codes belong in this note.** Preexisting diagnoses and the final diagnosis both carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
+**Codes belong in this note, in three places.** Preexisting diagnoses, **every differential entry**, and the final diagnosis all carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
+
+**Only two of the three leave the note.** The preexisting diagnoses and the final diagnosis go on to Medatrax's `ICD-10-CM` category; the differential's codes stay on this page, because they document medical decision-making rather than record what the patient had. What that costs if it is got wrong is in [icd10-cpt](../icd10-cpt/SKILL.md), with the rule.
 
 **Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
 
 **A Plan parenthetical, where there is one, is the trade name and nothing else.** `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Not which parts of the sig came from the shorthand and which were supplied, not why the duration was chosen, not which ear is inflamed — that reasoning goes in the Assessment and the tier accounting goes in the tier block. The trade name is permitted here, not required; `Home meds` is the one line whose parenthetical carries something else, and what it carries is the reason for taking. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
 
 **The differential is graded work.** Each entry names the findings that place it, and every rejected entry names the specific finding that rejects it — *afebrile, no focal crackles or egophony*. A bare list of diagnoses scores nothing.
+
+**And every entry carries a code, on one line with the rationale.** The code is pinned to its label with a hyphen and the colon still introduces the clause, which is the punctuation rule in [SKILL.md](SKILL.md) applied unchanged:
+
+```
+Acute bronchitis - J20.9: cough three weeks, clear lungs, afebrile. Favored.
+```
+
+[HP.md](HP.md) puts the code on a line of its own because the school's template does. **What has to match across the branches is the codes, not the layout** — the same encounter codes the same way whichever branch it is written in. This template's shape was verified against submitted notes and it keeps it. Issue #19.
+
+**Every entry gets a code, and no diagnosis the encounter did not establish gets one that overstates it.** That reaches the favored entry and the `Final diagnosis` line too, not only the entries argued against — a hedge is most often on the conclusion. `icd10-cpt` declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, never `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) is what checks it.
 
 **Screening keys to risk, not just age.** A 0.5 PPD × 40 year history is 20 pack-years, which crosses the LDCT lung-cancer screening threshold — so the derived value earns a screening line. Compute the pack-years and say so.
 

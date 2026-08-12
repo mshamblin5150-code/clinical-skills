@@ -1,11 +1,12 @@
 """Recompute the measured claims this repo asserts in prose.
 
-Five of them are in skills/clinical-note/SKILL.md and a sixth is in
+Five of them are in skills/clinical-note/SKILL.md, a sixth is in
 fixtures/obesity-bmi, where the counts are what justify a fixture set existing at
-all. All are counts over the clinician's shorthand corpus, all are load-bearing —
-rulings have turned on them — and until this script existed none could be
-re-derived. Run it when a claim is about to be relied on again, or when the
-corpus grows:
+all, and a seventh is drift row 13's rate — how often a hedge reaches the
+shorthand at all, against a differential that is generated every time. All are
+counts over the clinician's shorthand corpus, all are load-bearing — rulings have
+turned on them — and until this script existed none could be re-derived. Run it
+when a claim is about to be relied on again, or when the corpus grows:
 
     python tools/corpus_census.py [path-to-day-files]
 
@@ -44,6 +45,12 @@ Extractor limits worth knowing before quoting a number:
   distribution. And the ``no age`` band is large: 202 of 559 as of 2026-08-11,
   so every other band is a **floor**, not a population. Quote the ratio within
   a band, never the count as though it were exhaustive.
+- ``HEDGE`` counts a **token**, never a hedged diagnosis. ``possibly
+  ultrasounds there`` hedges a past test and counts;
+  ``fixtures/obesity-bmi/shorthand/case-01.md`` is that case, and it is why
+  issue #19's "zero committed fixtures carry a hedge token" was wrong while its
+  point -- that none can anchor an assertion about a hedged *diagnosis* -- still
+  stands. Quote the figure as a ceiling.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -139,6 +146,66 @@ BARIATRIC = re.compile(
 # the spelling appears in it zero times, and an alternative matched by nothing
 # is one nothing can catch going wrong.
 SLEEP_APNEA = re.compile(r"(?i)\bosa\b|\bcpap\b|\bapnea")
+
+# A hedge on a diagnosis: the shorthand marks the thing as suspected rather than
+# established. Added for issue #19, whose rule for a hedged diagnosis fires on
+# whatever share of encounters this measures -- while the differential half of
+# the same ticket fires on all of them. Drift row 13 in ``clinical-note`` cites
+# the ratio, so it has to be re-derivable rather than recalled.
+#
+# Every alternative is boundary- or prefix-anchored, on the lesson OBESITY paid
+# for. Three of them carry a decoy that is live in this repo:
+#
+# - ``\bprob\b`` and not ``\bprob``, because **problem** starts the same way and
+#   this clinician writes it. ``fixtures/day-a/shorthand/case-10.md`` reads "he
+#   states he has problems urinatin"; a bare prefix counts that encounter as
+#   hedged, and ``test_corpus_census.py`` asserts against that exact file.
+# - ``\bvs\b(?![\s:.\-]*\d)`` because **VS** opens a vital line. The colon is not
+#   what separates them, which a first version of this guard assumed: he writes
+#   "VS 138/86" and "VS- 138/86" as well as "VS:", and a lookahead rejecting only
+#   the colon let every one of those read as a differential. What actually
+#   separates them is what comes next -- **a vital line runs into a number and a
+#   differential runs into a diagnosis** -- so the guard rejects a digit however
+#   it is punctuated.
+# - ``\bsusp(?!en)`` because a drug **suspension** is ordinary pediatric
+#   prescribing and would inflate the count. ``(?!ension)`` was too narrow and
+#   let "suspended" through; ``suspect``, ``suspected`` and ``suspicion`` all
+#   take "susp" + a letter other than "e"-"n", so nothing wanted is lost. Unlike
+#   the OBESITY negation guard, this one is carried without a corpus audit behind
+#   it: ``scratch/`` is not present in every clone, and a guard against a common
+#   word is the cheaper error than a figure quietly inflated by it. An
+#   abbreviated ``susp`` that really did mean suspension still counts, and
+#   nothing can tell those apart.
+#
+# ``unlikely`` is deliberately absent. A rejection is a conclusion, not a hedge,
+# and ``\blikely\b`` cannot match inside it -- so leaving it out costs nothing
+# and saying so is what stops it being "fixed" in.
+#
+# **The figure is a proxy, not a bound, and it errs in both directions.**
+#
+# It over-counts, because a token is not a hedged diagnosis:
+# ``fixtures/obesity-bmi/shorthand/case-01.md`` writes "possibly ultrasounds
+# there", hedging a *past test*, and it counts. ``[a-z]\?`` is looser still and
+# cannot tell "strep?" from a question typed into the prose.
+#
+# It under-counts, because the shorthand hedges other ways: **presumed**,
+# **concern for**, **c/f**, **query**, **cannot exclude**, **ddx** and the
+# prefixed **?fx** are all absent from the alternatives above.
+#
+# **The seven tokens are the ones issue #19 published**, and that is why the set
+# is not being extended here. The ticket's table is the only prior measurement of
+# this corpus, and a regex that counted a different set would produce a number
+# nobody could compare to it. Widen it deliberately, re-run against the corpus,
+# and update every figure that cites it -- do not widen it in passing.
+HEDGE = re.compile(
+    r"(?i)\bprob\b|\bprobabl"
+    r"|\bposs"
+    r"|\bsusp(?!en)"
+    r"|\br/o\b"
+    r"|\bvs\b(?![\s:.\-]*\d)"
+    r"|\blikely\b"
+    r"|[a-z]\?"
+)
 
 # ``y\.?/?o\.?[mf]\b`` is the run-together form -- "45yof", "45y/om" -- where the
 # sex letter is welded to the token and defeats the trailing ``\b`` after "o",
@@ -249,6 +316,15 @@ def has_sleep_apnea(note: str) -> bool:
     return bool(SLEEP_APNEA.search(note))
 
 
+def has_hedge(note: str) -> bool:
+    """A token marking something as suspected rather than established.
+
+    A ceiling on hedged diagnoses rather than a count of them -- see ``HEDGE``
+    for what it cannot separate, and for the three decoys it does reject.
+    """
+    return bool(HEDGE.search(note))
+
+
 def has_any_vital(note: str) -> bool:
     return has_bp(note) or has_height(note) or has_weight(note) or has_other_vitals(note)
 
@@ -330,6 +406,7 @@ class Census:
     bariatric_no_measurement: int = 0
     with_sleep_apnea: int = 0
     sleep_apnea_no_measurement: int = 0
+    with_hedge: int = 0
 
     @property
     def without_bp(self) -> int:
@@ -350,8 +427,10 @@ def survey(notes: list[str]) -> Census:
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
     age_n = dob_n = both_n = neither_n = 0
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
+    hedge_n = 0
 
     for note in notes:
+        hedge_n += has_hedge(note)
         measured = has_body_measurement(note)
         if has_documented_obesity(note):
             obes_n += 1
@@ -402,6 +481,7 @@ def survey(notes: list[str]) -> Census:
         bariatric_no_measurement=bar_bare_n,
         with_sleep_apnea=osa_n,
         sleep_apnea_no_measurement=osa_bare_n,
+        with_hedge=hedge_n,
     )
 
 
@@ -517,6 +597,10 @@ def format_report(
         f"  obesity written     {c.with_obesity:>5}  {c.obesity_no_measurement:>9}",
         f"  bariatric history   {c.with_bariatric:>5}  {c.bariatric_no_measurement:>9}",
         f"  sleep apnea / cpap  {c.with_sleep_apnea:>5}  {c.sleep_apnea_no_measurement:>9}",
+        "",
+        'claim: "a hedge in the shorthand is rare" (drift row 13; issue #19)',
+        "  (a ceiling on hedged diagnoses -- the tokens also hedge a history)",
+        f"  hedge token           {c.with_hedge:>5}  {_pct(c.with_hedge, c.notes)}",
     ]
     lines += ["", *format_band_report(bands)]
     return "\n".join(lines)
