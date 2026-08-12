@@ -186,7 +186,11 @@ P6 forbids a hypertension workup generated off an invented number. **No invented
 
 **That is the opposite of what day-b's read produced**, and the asymmetry is the point. day-b's reference *failed* two of its four FILLED rows — an unaccounted-for normal pressure in a hypertensive, and four abnormal filled pressures that reached the Objective and stopped. A bar the reference clears everywhere is a bar that may be set too low, and here two of them were not so much cleared as never approached.
 
-**What that does not mean is that P5 and P6 are unnecessary.** They fire on a run, not on the reference, and the run has not happened. `clinical-note` is instructed to fill *"the value this patient most plausibly had … not from the middle of the normal range"*, and case 3 hands it a documented 99.9th-percentile weight to reason from. A run that takes that instruction seriously is exactly the run that produces the elevated toddler pressure P5 and P6 were written for. **The first run is what will say whether they bite.**
+**There is also a FILLED question no reference read can ever answer, and it is worth naming here.** [fixtures/README](../README.md) states it for day-b's B9: a submitted note labels none of its values as filled, so whether a generated value became the reason a workup was *withheld* is invisible in the reference by construction. This set holds no such row. If one is written, it will carry no `Reference did` cell, and the blank will be structural rather than an omission.
+
+**What none of this means is that P5 and P6 are unnecessary.** They fire on a run, not on the reference. `clinical-note` is instructed to fill *"the value this patient most plausibly had … not from the middle of the normal range"*, and case 3 hands it a documented 99.9th-percentile weight to reason from. A run that takes that instruction seriously is exactly the run that produces the elevated value P5 and P6 were written for.
+
+**Run 1 settled it for P5.** It generated a pulse and a respiratory rate above the range its own note stated, left both in the Objective, and failed the row — on case 2, not on the anchor case. So P5 is not weak; it was unloaded. **P6 is still unloaded**, because no run has yet produced the elevated *pressure* it exists to price, and it stays in this section until one does.
 
 ## Still unresolved
 
