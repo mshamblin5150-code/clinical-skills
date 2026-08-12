@@ -44,7 +44,13 @@ It is also deliberately **not** the drift-matrix verdicts from `clinical-note` s
 
 **CODE is the only class in this repo a machine decides.** `python tools/icd10_lookup.py` answers all three of its questions against `reference/icd10cm-2026.sqlite`, so no reader is involved and two readers cannot disagree. Every other class here, binary ones included, needs someone to read the output and rule.
 
+**CODING assertions are binary**, and they belong to `clinical-note` — the codes a **note** carries, as against the codes a worksheet proposes. DRIFT asks whether a given abnormal survived, FILLED asks what happened to a value nobody supplied, and CODING asks whether the codes attached to what survived say what the encounter can support. It is a separate class because a set can hold one and not the others: its rows turn on a code string being present or absent in the note text, which needs neither a reference read nor a vital-less input.
+
+**CODING is not CODE, and the names sit close enough to be worth separating.** CODE asks whether a code number is real, correctly described and submittable, and `icd10_lookup.py` answers it. CODING asks whether the note attached a code that claims more than the encounter established, and **no lookup can decide that** — `U07.1` is a real, billable, correctly described code, which is precisely what makes it wrong on a COVID nobody swabbed. A set passing every CODE row can fail every CODING row with codes that all exist.
+
 **REPORTED assertions are counted, not enforced.** Differential depth, screening content, education phrasing. They move with the model and the wording; tracking the count catches slow erosion without failing a run over style.
+
+**CODING is binary and differential *depth* is not, which looks like a contradiction and is not.** How many entries a differential runs to moves with the model, so it is counted. Whether each of those entries carries a code does not move at all — it is two integers compared. The line is the one below: the subject can be soft while the claim about it stays hard.
 
 **What makes a row enforceable is that it does not move with wording.** A row resolving to a value or its absence — is there a pressure in the FILLED block, is it below 130 over 80, does the finding appear in the Assessment — can be binary. A row turning on how well something is phrased cannot, and belongs in REPORTED however important it is.
 
@@ -53,7 +59,7 @@ It is also deliberately **not** the drift-matrix verdicts from `clinical-note` s
 1. Feed each case's input to the named skill, on the stated branch. For most sets that is the shorthand; for a set whose skill consumes a finished note it is the note and its tier block, and the set's own `Inputs` column says which.
 2. Check the output text against that case's assertions.
 3. Report every class the set defines — the binary ones must be full, and `REPORTED n/m` alongside. A set that defines no rows of a class omits its line rather than reporting `0/0`.
-4. Any miss in a binary class names the case, the finding or the code, and where it landed instead.
+4. Any miss in a binary class names the case, the finding or the code, and where it landed instead. For a CODING miss that is the entry and the code it carried, or that it carried none.
 
 Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta instead of a judgment call.
 
@@ -80,6 +86,8 @@ The reference notes themselves live in `scratch/day-a-reference/` and `scratch/d
 **And a set is not always one source.** `obesity-bmi` is four encounters from **three different day files**, which is a third shape and the one that needs the most care: a set drawn from across the corpus can look like a curated sample chosen to make a skill pass. It is not one — those four are the entirety of a shape the corpus contains twice over, which its README states as a count rather than an assurance. **A set spanning several sources says how it was selected, and the selection has to be recomputable** — `tools/corpus_census.py` carries the markers that found these, so the population can be re-derived rather than taken on trust.
 
 **day-b exists to test the *filled* half of the vitals license,** which day-a cannot reach: all ten day-a cases carry a complete vital line, so nothing there exercises a vital the skill had to invent. Nine of day-b's twelve carry none at all.
+
+**It hosts the first CODING rows too**, which is a different thing from what it was built for and needs no reference to check: [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19) put a code on every differential entry, and case 9 documents a COVID contact that was never swabbed — the one input in the set where an organism-specific code would assert what the note denies. Both rows read the output text alone. Their `Reference did` cells are owed, and the set's own file says so.
 
 It shipped inputs-only for a while, on the argument that a filled vital was never in the shorthand and so has nothing to have drifted from — true of its FILLED rows, and it left the set unable to carry a drift row at all. **The reference was read 2026-08-11 and that half is now built.** It paid twice over: it supplied the set's DRIFT rows, and it *failed* rows day-b had written from the inputs alone — which is the outcome that makes a bar worth having, since a bar the reference clears everywhere is set too low. Counts and verdicts live in [day-b/assertions.md](day-b/assertions.md) and are deliberately not restated here.
 

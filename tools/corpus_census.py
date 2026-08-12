@@ -1,11 +1,12 @@
 """Recompute the measured claims this repo asserts in prose.
 
-Five of them are in skills/clinical-note/SKILL.md and a sixth is in
+Six of them are in skills/clinical-note/SKILL.md, a seventh is in
 fixtures/obesity-bmi, where the counts are what justify a fixture set existing at
-all. All are counts over the clinician's shorthand corpus, all are load-bearing —
-rulings have turned on them — and until this script existed none could be
-re-derived. Run it when a claim is about to be relied on again, or when the
-corpus grows:
+all, and an eighth is drift row 13's rate — how often a hedge reaches the
+shorthand at all, against a differential that is generated every time. All are
+counts over the clinician's shorthand corpus, all are load-bearing — rulings have
+turned on them — and until this script existed none could be re-derived. Run it
+when a claim is about to be relied on again, or when the corpus grows:
 
     python tools/corpus_census.py [path-to-day-files]
 
@@ -44,6 +45,14 @@ Extractor limits worth knowing before quoting a number:
   distribution. And the ``no age`` band is large: 194 of 551 as of 2026-08-11,
   so every other band is a **floor**, not a population. Quote the ratio within
   a band, never the count as though it were exhaustive.
+- ``HEDGE`` counts a **token**, never a hedged diagnosis. ``possibly
+  ultrasounds there`` hedges a past test and counts;
+  ``fixtures/obesity-bmi/shorthand/case-01.md`` is that case, and it is why
+  issue #19's "zero committed fixtures carry a hedge token" was wrong while its
+  point -- that none can anchor an assertion about a hedged *diagnosis* -- still
+  stands. **It is neither a floor nor a ceiling** either, for the same reason
+  the pain-score line below is not: it over-counts tokens that hedge a history
+  and under-counts hedges the token list never reaches. Quote it as a proxy.
 - **The pain-score line reports a figure no prose asserts yet**, which is the
   one place this script runs ahead of the repo rather than behind it. Issue #30
   made an OLDCARTS severity mandatory on every note without a count behind it,
@@ -53,6 +62,11 @@ Extractor limits worth knowing before quoting a number:
   a ceiling**: a written date has a score's exact shape and is counted as one,
   and a "12/10" is dropped as out of range. The two errors run opposite ways
   and neither is measured, so quote it as an estimate and say so.
+- ``HYPERTENSION`` carries no negation guard, so "denies htn" would count as a
+  documented history. Audited 2026-08-11: none of the 175 encounters writing the
+  token writes a negated form, so a guard would be exercised by nothing. The
+  hypertensive-pressure figures are therefore a **ceiling** on the population and
+  not a floor -- but by nothing measurable today. Issue #23.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -158,6 +172,39 @@ OTHER_VITALS = re.compile(r"(?i)\b(?:hr|pulse|rr|spo2|sao2|temp)\b|\bt\s*\d{2,3}
 # exercised by nothing. This is the line to change if one appears.
 OBESITY = re.compile(r"(?i)\bobes")
 
+# Documented hypertension, for issue #23 -- which turned on whether the rule
+# "a known hypertensive gets a hypertensive pressure" describes this clinician's
+# own charting. It does not, and the count is the whole of the argument, so the
+# marker has to stay extractable.
+#
+# Three forms, and the boundaries are load-bearing on the first. ``\bhtn\b``
+# cannot match inside "ht5'7"" -- the welded height token that defeated
+# ``\bht\b`` and cost three encounters their height -- and the leading boundary
+# is what keeps it out of longer words, the lesson OBESITY was fixed by.
+# ``hypertensi(?:on|ve)`` is closed at both ends rather than left open, and
+# ``I10`` is the code, which he writes into pre-existing lists.
+#
+# **Three ways this can be wrong, all measured to cost nothing today.** Audited
+# 2026-08-11 across the 551-encounter corpus, each occurring **zero** times: the
+# plural "hypertensives", which the closing ``\b`` wrongly excludes; and two the
+# pattern wrongly *includes* -- "pulmonary hypertension", which is I27 and a
+# different disease entirely, and "pre-hypertensive", which is not a diagnosis
+# at all. The open-ended ``\bhypertensi`` variant returns the same 175, so
+# closing it costs nothing either. Each is listed because it costs nothing *in
+# this corpus*, which is not the same as being safe, and the next corpus gets no
+# such promise.
+#
+# The leading ``(?i)`` covers ``I10`` as well, so a lowercase "i10" matches.
+# That is wanted, not tolerated -- he writes codes both ways -- and it is noted
+# because a reader scanning the alternatives sees a capital letter and can
+# reasonably assume the opposite.
+#
+# No negation guard, on OBESITY's reasoning: audited the same day, none of the
+# 175 encounters writing the token writes a negated form, so a guard would be
+# exercised by nothing. "denies htn" would count. This is the line to change if
+# one appears, and ``test_a_negated_mention_still_counts`` is what will fail.
+HYPERTENSION = re.compile(r"(?i)\bhtn\b|\bhypertensi(?:on|ve)\b|\bI10\b")
+
 # The procedures are spelled several ways and hyphenated inconsistently, so the
 # separator is ``[ -]?`` rather than ``.`` -- a dot would match any character at
 # all and let "lapXband" through, which is looser than anything the corpus needs.
@@ -177,6 +224,66 @@ BARIATRIC = re.compile(
 # the spelling appears in it zero times, and an alternative matched by nothing
 # is one nothing can catch going wrong.
 SLEEP_APNEA = re.compile(r"(?i)\bosa\b|\bcpap\b|\bapnea")
+
+# A hedge on a diagnosis: the shorthand marks the thing as suspected rather than
+# established. Added for issue #19, whose rule for a hedged diagnosis fires on
+# whatever share of encounters this measures -- while the differential half of
+# the same ticket fires on all of them. Drift row 13 in ``clinical-note`` cites
+# the ratio, so it has to be re-derivable rather than recalled.
+#
+# Every alternative is boundary- or prefix-anchored, on the lesson OBESITY paid
+# for. Three of them carry a decoy that is live in this repo:
+#
+# - ``\bprob\b`` and not ``\bprob``, because **problem** starts the same way and
+#   this clinician writes it. ``fixtures/day-a/shorthand/case-10.md`` reads "he
+#   states he has problems urinatin"; a bare prefix counts that encounter as
+#   hedged, and ``test_corpus_census.py`` asserts against that exact file.
+# - ``\bvs\b(?![\s:.\-]*\d)`` because **VS** opens a vital line. The colon is not
+#   what separates them, which a first version of this guard assumed: he writes
+#   "VS 138/86" and "VS- 138/86" as well as "VS:", and a lookahead rejecting only
+#   the colon let every one of those read as a differential. What actually
+#   separates them is what comes next -- **a vital line runs into a number and a
+#   differential runs into a diagnosis** -- so the guard rejects a digit however
+#   it is punctuated.
+# - ``\bsusp(?!en)`` because a drug **suspension** is ordinary pediatric
+#   prescribing and would inflate the count. ``(?!ension)`` was too narrow and
+#   let "suspended" through; ``suspect``, ``suspected`` and ``suspicion`` all
+#   take "susp" + a letter other than "e"-"n", so nothing wanted is lost. Unlike
+#   the OBESITY negation guard, this one is carried without a corpus audit behind
+#   it: ``scratch/`` is not present in every clone, and a guard against a common
+#   word is the cheaper error than a figure quietly inflated by it. An
+#   abbreviated ``susp`` that really did mean suspension still counts, and
+#   nothing can tell those apart.
+#
+# ``unlikely`` is deliberately absent. A rejection is a conclusion, not a hedge,
+# and ``\blikely\b`` cannot match inside it -- so leaving it out costs nothing
+# and saying so is what stops it being "fixed" in.
+#
+# **The figure is a proxy, not a bound, and it errs in both directions.**
+#
+# It over-counts, because a token is not a hedged diagnosis:
+# ``fixtures/obesity-bmi/shorthand/case-01.md`` writes "possibly ultrasounds
+# there", hedging a *past test*, and it counts. ``[a-z]\?`` is looser still and
+# cannot tell "strep?" from a question typed into the prose.
+#
+# It under-counts, because the shorthand hedges other ways: **presumed**,
+# **concern for**, **c/f**, **query**, **cannot exclude**, **ddx** and the
+# prefixed **?fx** are all absent from the alternatives above.
+#
+# **The seven tokens are the ones issue #19 published**, and that is why the set
+# is not being extended here. The ticket's table is the only prior measurement of
+# this corpus, and a regex that counted a different set would produce a number
+# nobody could compare to it. Widen it deliberately, re-run against the corpus,
+# and update every figure that cites it -- do not widen it in passing.
+HEDGE = re.compile(
+    r"(?i)\bprob\b|\bprobabl"
+    r"|\bposs"
+    r"|\bsusp(?!en)"
+    r"|\br/o\b"
+    r"|\bvs\b(?![\s:.\-]*\d)"
+    r"|\blikely\b"
+    r"|[a-z]\?"
+)
 
 # ``y\.?/?o\.?[mf]\b`` is the run-together form -- "45yof", "45y/om" -- where the
 # sex letter is welded to the token and defeats the trailing ``\b`` after "o",
@@ -291,6 +398,40 @@ def has_body_measurement(note: str) -> bool:
     return has_height(note) or has_weight(note)
 
 
+def has_documented_hypertension(note: str) -> bool:
+    return bool(HYPERTENSION.search(note))
+
+
+def all_bp_readings_normal(note: str) -> bool:
+    """True when a note has readings and **every** one of them is normal.
+
+    Nothing here is about hypertension -- the name says pressures because that
+    is all it looks at, and the hypertension filter is applied by the caller.
+
+    Per note, not per reading, and the strict leg is deliberate. A note that
+    transcribes a recheck after treatment carries two readings, and counting it
+    normal on its *best* one would overstate how often this clinician's
+    hypertensives sit at target. That is the direction that would flatter the
+    rule the figure was measured to test, so it is the direction refused.
+
+    ``any_bp_reading_normal`` is the lenient counterpart, counted beside it in
+    the report for exactly one reason: the two agree today, and a report
+    showing both is the only thing that will say so when they stop.
+    """
+    readings = bp_readings(note)
+    return bool(readings) and all(is_normal_bp(reading) for reading in readings)
+
+
+def any_bp_reading_normal(note: str) -> bool:
+    """The lenient leg of ``all_bp_readings_normal``, kept only to be compared.
+
+    Quoting a figure that depends on a definition, while the alternative
+    definition is uncomputable, is how a number outlives the reasoning behind
+    it. This makes the difference a printed integer instead of a claim.
+    """
+    return any(is_normal_bp(reading) for reading in bp_readings(note))
+
+
 def has_documented_obesity(note: str) -> bool:
     return bool(OBESITY.search(note))
 
@@ -301,6 +442,15 @@ def has_bariatric_history(note: str) -> bool:
 
 def has_sleep_apnea(note: str) -> bool:
     return bool(SLEEP_APNEA.search(note))
+
+
+def has_hedge(note: str) -> bool:
+    """A token marking something as suspected rather than established.
+
+    A ceiling on hedged diagnoses rather than a count of them -- see ``HEDGE``
+    for what it cannot separate, and for the three decoys it does reject.
+    """
+    return bool(HEDGE.search(note))
 
 
 def has_any_vital(note: str) -> bool:
@@ -384,7 +534,17 @@ class Census:
     bariatric_no_measurement: int = 0
     with_sleep_apnea: int = 0
     sleep_apnea_no_measurement: int = 0
+    with_hedge: int = 0
     with_pain_score: int = 0
+    with_hypertension: int = 0
+    hypertension_with_bp: int = 0
+    hypertension_bp_normal: int = 0
+    hypertension_bp_normal_lenient: int = 0
+
+    @property
+    def hypertension_bp_not_normal(self) -> int:
+        """The population the retired "gets a hypertensive pressure" rule fitted."""
+        return self.hypertension_with_bp - self.hypertension_bp_normal
 
     @property
     def without_pain_score(self) -> int:
@@ -410,9 +570,24 @@ def survey(notes: list[str]) -> Census:
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
     age_n = dob_n = both_n = neither_n = 0
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
-    pain_n = 0
+    hedge_n = pain_n = 0
+    htn_n = htn_bp_n = htn_normal_n = htn_lenient_n = 0
 
     for note in notes:
+        hedge_n += has_hedge(note)
+
+        # Parsed once and reused: the hypertension counters, the reading loop
+        # below and ``has_bp`` all want the same list, and three passes over the
+        # same note to build it three times is three chances to diverge.
+        readings = bp_readings(note)
+
+        if has_documented_hypertension(note):
+            htn_n += 1
+            if readings:
+                htn_bp_n += 1
+                htn_normal_n += all(is_normal_bp(r) for r in readings)
+                htn_lenient_n += any(is_normal_bp(r) for r in readings)
+
         measured = has_body_measurement(note)
         if has_documented_obesity(note):
             obes_n += 1
@@ -424,7 +599,7 @@ def survey(notes: list[str]) -> Census:
             osa_n += 1
             osa_bare_n += not measured
 
-        bp, height, weight = has_bp(note), has_height(note), has_weight(note)
+        bp, height, weight = bool(readings), has_height(note), has_weight(note)
         other, age, dob = has_other_vitals(note), has_stated_age(note), has_dob(note)
 
         bp_n += bp
@@ -435,7 +610,7 @@ def survey(notes: list[str]) -> Census:
         bp_weight_no_height_n += bp and weight and not height
         pain_n += has_pain_score(note)
 
-        for reading in bp_readings(note):
+        for reading in readings:
             readings_n += 1
             readings_normal_n += is_normal_bp(reading)
 
@@ -464,7 +639,12 @@ def survey(notes: list[str]) -> Census:
         bariatric_no_measurement=bar_bare_n,
         with_sleep_apnea=osa_n,
         sleep_apnea_no_measurement=osa_bare_n,
+        with_hedge=hedge_n,
         with_pain_score=pain_n,
+        with_hypertension=htn_n,
+        hypertension_with_bp=htn_bp_n,
+        hypertension_bp_normal=htn_normal_n,
+        hypertension_bp_normal_lenient=htn_lenient_n,
     )
 
 
@@ -584,12 +764,30 @@ def format_report(
         f"  normal                {c.readings_normal:>5}  "
         f"{_pct(c.readings_normal, c.readings)}",
         "",
+        'claim: "a documented hypertensive is not reliably hypertensive on the day"',
+        "  (Filled vitals: a documented condition never mandates an abnormal;",
+        "   issue #23. a note counts normal only when every reading of it is)",
+        f"  hypertension written  {c.with_hypertension:>5}  "
+        f"{_pct(c.with_hypertension, c.notes)}",
+        f"  ...and a BP with it   {c.hypertension_with_bp:>5}",
+        f"     normal             {c.hypertension_bp_normal:>5}  "
+        f"{_pct(c.hypertension_bp_normal, c.hypertension_with_bp)}",
+        f"     not normal         {c.hypertension_bp_not_normal:>5}  "
+        f"{_pct(c.hypertension_bp_not_normal, c.hypertension_with_bp)}",
+        f"     normal, lenient    {c.hypertension_bp_normal_lenient:>5}  "
+        "(any reading vs every reading; quote the strict one)",
+        "",
         'claim: "the corpus holds a case that can anchor a filled-BMI row"',
         "  (fixtures/obesity-bmi; issue #15. no ht and no wt is the fixturable shape)",
         "                        any  no ht/wt",
         f"  obesity written     {c.with_obesity:>5}  {c.obesity_no_measurement:>9}",
         f"  bariatric history   {c.with_bariatric:>5}  {c.bariatric_no_measurement:>9}",
         f"  sleep apnea / cpap  {c.with_sleep_apnea:>5}  {c.sleep_apnea_no_measurement:>9}",
+        "",
+        'claim: "a hedge in the shorthand is rare" (drift row 13; issue #19)',
+        "  (a proxy, not a bound - the tokens also hedge a history, and the",
+        "   shorthand hedges in ways the token list never reaches)",
+        f"  hedge token           {c.with_hedge:>5}  {_pct(c.with_hedge, c.notes)}",
         "",
         'claim: "the severity the note fills is the one he did not write"',
         "  (issue #30. an estimate, not a bound - a written date reads as a",
