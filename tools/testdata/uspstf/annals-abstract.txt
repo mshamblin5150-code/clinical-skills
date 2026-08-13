@@ -1,0 +1,92 @@
+Screening for Thyroid Dysfunction: U.S. Preventive Services Task Force
+Recommendation Statement
+[author byline removed from fixture]
+Description: Update of the 2004 U.S. Preventive Services Task
+Force (USPSTF) recommendation on screening for thyroid
+disease.
+Methods: The USPSTF reviewed the evidence on the beneﬁts
+and harms of screening for subclinical and “overt” thyroid
+dysfunction without clinically obvious symptoms, as well as the
+effects of treatment on intermediate and ﬁnal health outcomes.
+Population: This recommendation applies to nonpregnant,
+asymptomatic adults.
+Recommendation: The USPSTF concludes that the current ev-
+idence is insufﬁcient to assess the balance of beneﬁts and harms
+of screening for thyroid dysfunction in nonpregnant, asymptom-
+atic adults. (I statement)
+Ann Intern Med. 2015;162:641-650. doi:10.7326/M15-0483
+www.annals.org
+For author afﬁliation, see end of text.
+* For a list of USPSTF members, see the Appendix (available at www.annals
+.org).
+This article was published online ﬁrst at www.annals.org on 24 March 2015.
+T
+he U.S. Preventive Services Task Force (USPSTF)
+makes recommendations about the effectiveness of
+speciﬁc preventive care services for patients without re-
+lated signs or symptoms.
+It bases its recommendations on the evidence of
+both the beneﬁts and harms of the service and an as-
+sessment of the balance. The USPSTF does not consider
+the costs of providing a service in this assessment.
+The USPSTF recognizes that clinical decisions in-
+volve more considerations than evidence alone. Clini-
+cians should understand the evidence but individualize
+decision making to the speciﬁc patient or situation. Sim-
+ilarly, the USPSTF notes that policy and coverage deci-
+sions involve considerations in addition to the evidence
+of clinical beneﬁts and harms.
+SUMMARY OF RECOMMENDATION AND
+EVIDENCE
+The USPSTF concludes that the current evidence is
+insufﬁcient to assess the balance of beneﬁts and harms
+of screening for thyroid dysfunction in nonpregnant,
+asymptomatic adults. (I statement)
+See the Clinical Considerations section for sugges-
+tions for practice regarding the I statement.
+See the Figure for a summary of the recommenda-
+tion and suggestions for clinical practice.
+Appendix Table 1 describes the USPSTF grades,
+and Appendix Table 2 describes the USPSTF classiﬁca-
+tion of levels of certainty about net beneﬁt (both tables
+are available at www.annals.org).
+RATIONALE
+Importance
+Thyroid gland disorders are among the most com-
+mon endocrine conditions evaluated and treated by
+clinicians. Thyroid dysfunction represents a continuum
+from asymptomatic biochemical changes to clinically
+symptomatic disease. In rare cases, it can produce life-
+threatening complications, such as myxedema coma or
+thyroid storm (1, 2).
+Subclinical hypothyroidism is deﬁned as an asymp-
+tomatic condition in which a patient has a serum
+thyroid-stimulating hormone (TSH) level exceeding the
+upper threshold of a speciﬁed laboratory reference in-
+terval (commonly but arbitrarily deﬁned as 4.5 mIU/L)
+but a normal thyroxine (T4) level (3). Patients with sub-
+clinical hypothyroidism are often further classiﬁed as
+having TSH levels between 4.5 and 10.0 mIU/L or
+greater than 10.0 mIU/L.
+Despite its name, “overt” hypothyroidism does not
+require the presence of symptoms and has been de-
+ﬁned biochemically by an elevated TSH level and a low
+T4 level. As such, it encompasses a range of low T4
+levels that may or may not be associated with a set of
+relatively subtle and nonspeciﬁc clinical symptoms,
+such as fatigue, feeling cold, weight gain, hair loss, and
+constipation.
+Subclinical hyperthyroidism is deﬁned as an asymp-
+tomatic condition in which a patient has a serum TSH
+level below the lower threshold of a speciﬁed labora-
+See also:
+Editorial comment . . . . . . . . . . . . . . . . . . . . . . . . . 664
+Summary for Patients. . . . . . . . . . . . . . . . . . . . . . . I-32
+Related article: Ann Intern Med. 2015;162:35-45.
+Web-Only
+CME quiz
+Consumer Fact Sheet
+Annals of Internal Medicine
+CLINICAL GUIDELINE
+www.annals.org
+Annals of Internal Medicine • Vol. 162 No. 9 • 5 May 2015 641
