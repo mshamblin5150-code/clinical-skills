@@ -83,6 +83,23 @@ python tools/skills_mirror.py --repair   # relink everything
 
 It reports paths and status words, never file contents, so its output is safe to paste. `--verbose` names the differing files and still prints none of them. Covered by `tools/test_skills_mirror.py`, which builds throwaway checkouts in a temp directory and never inspects or repairs the real one.
 
+### Spelling scan
+
+Standing rule 4 — American English, always — with a command in front of it. The table lives in [clinical-note](skills/clinical-note/SKILL.md) under *Conventions*; `tools/spelling_scan.py` is that table made runnable, and `tools/test_spelling_scan.py` parses the skill's copy and asserts the two agree, so the scanner cannot start holding a different answer than the file a reader opens.
+
+```bash
+python tools/spelling_scan.py --all      # every tracked .md
+python tools/spelling_scan.py --record   # the preserved run record, form by form
+```
+
+**A form inside backticks is a mention; a form in running prose is a use.** That is the whole exemption mechanism, and it is deliberately not `phi_scan`'s: the unit is the span rather than the file, so **nothing can exempt itself by explaining the rule** — which two files once did to `phi_scan` merely by documenting its pragma near the top.
+
+**One directory is exempt by path**: `fixtures/filled-anchor/notes/case-*.md`, which is day-b run 1 byte for byte. Its eight British spellings are the evidence for [#73](https://github.com/mshamblin5150-code/clinical-skills/issues/73) and are counted rather than refused — `--record` is what the set's README cites instead of restating, and the totals are pinned by a test so a tidy fails rather than quietly voiding the argument. The set's own README is **not** exempt: it is prose about the record, so it takes the mention rule like any prose.
+
+**Advisory in the pre-commit hook**, alongside `skills_mirror.py` and on the same reasoning: standing rule 1 remains the only thing that refuses a commit here.
+
+It prints a path, a line number and its own table's entry — **never the text it matched** — so its output is safe to paste, and there is no `--show`. Two limits worth knowing: it reads **Markdown only**, so commit messages and filenames are outside it, and it holds the table rather than the language, so a clean scan means no *listed* form was used.
+
 ### ICD-10-CM code set
 
 `reference/icd10cm-2026.sqlite` is **committed**, unlike everything else generated here, and that was decided rather than drifted into: `icd10-cpt` sits on the consumer's critical path, so a database that had to be built before the skill worked would make the skill's Markdown insufficient on its own. 13.6 MB on disk, **2.68 MB as a git object** — measured 2026-08-11, one time.
