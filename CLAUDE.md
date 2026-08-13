@@ -116,6 +116,30 @@ python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
 
 Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
 
+### USPSTF recommendation table
+
+`reference/guidelines-uspstf.md` is **committed**, and for a different reason than the ICD-10 database: USPSTF recommendation statements are federal work and genuinely public domain, so unlike the other eight societies in the guideline corpus their content may be redistributed in full. 143 recommendations from all 90 USPSTF documents, one row each — topic, population, grade, interval, year, source file, page.
+
+Rebuild it when the corpus is refreshed:
+
+```bash
+python tools/uspstf_table.py "C:/codeing/guidelines-src/USPSTF"
+```
+
+**This is the one tool here that is not stdlib-only.** It needs PyMuPDF — `pip install pymupdf`, imported as `fitz` — because reading a PDF is not something the standard library does, and `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* stops being true of the directory with this file. The import is deliberately inside `read_pdf` rather than at module scope, so importing the module — which the tests do — needs nothing installed, and **nothing a consumer runs imports it at all**. The `--out` default writes into the repo regardless of the working directory, the way `icd10_build.py` anchors on `REPO_ROOT`.
+
+**The corpus lives outside this repo** at `C:\codeing\guidelines-src` — 179 PDFs, 410 MB, most of them society-copyrighted — and stays there. [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is why, and the source PDFs are closed rather than deferred: no consumer needs them, they need the derived facts.
+
+**It reads the PDFs directly rather than [#80](https://github.com/mshamblin5150-code/clinical-skills/issues/80)'s extracted text**, which #82 nominally depends on. #80 was unbuilt when this landed and its output format was not fixed, so coupling to it would have been a guess — the same reason `guidelines_catalog.py` re-extracts. `read_pdf` is the only function in the module that opens a file, and every parser takes a list of page strings, so redirecting it is a one-function change.
+
+**#80 has since landed on its branch, and the one thing that would have blocked that swap is not a problem after all.** `read_pdf` returns the PDF's *metadata* title as well as its pages, because three documents take their topic from it: a print-to-PDF web capture whose first page is browser chrome, the 2000s AHRQ layout that opens with the recommendation instead of a title, and one whose title extracts with no space glyphs. #80's manifest was specified without a `title` field — but it emits one anyway, verbatim `/Title` for 147 of 179 PDFs, **and all three of those documents are among them** (verified against `C:/codeing/guidelines-text/manifest.json`, 2026-08-13). So this is now a genuine one-function redirect rather than a claimed one, and [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) — where `guidelines_catalog.py`'s duplicate extractor gets reconciled — is where this one belongs too. **One extractor too many is now two.**
+
+**The grade marker is the anchor, not any section heading.** A USPSTF document states each recommendation two to four times and the renderings differ, so the builder scores every candidate region — structured abstract, summary section, page-1 figure — and picks the one stating the most recommendations, breaking ties on whether extraction kept the space glyphs. Two documents extract a whole paragraph as `TheUSPSTFrecommendsscreening...`; the figure states the same recommendations cleanly and wins.
+
+**`population` and `interval` are derived, not quoted.** The table says so at the top, and `not stated` means the rule found nothing rather than that the document is silent — for `interval` that is the ordinary case, since an I statement has no interval to have. Every row carries `filename` and `page`, and that jump is the check.
+
+Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in `tools/testdata/uspstf/` — one per document layout the corpus contains — and **never against the shipped table**, for `test_icd10.py`'s reason. The excerpts are public domain; author names, affiliations and correspondence addresses are stripped from them anyway.
+
 ### Guideline catalog
 
 `reference/guidelines-catalog.md` is **committed**, and lists the 179-document guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The corpus itself is 410 MB of mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` and **stays outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because at 179 documents nothing can navigate the corpus by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
