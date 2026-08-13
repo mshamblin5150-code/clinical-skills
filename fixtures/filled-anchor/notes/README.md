@@ -36,6 +36,28 @@ The generating skill reads the account profile in `scratch/` to decide a payer, 
 
 Each of the twelve also records the missing date and site under `GAPS`, in its own wording — `case-01` reads *"Visit Date — removed in de-identification"*, `case-09` *"removed from the fixture"*, `case-05` *"not in the source"*. **The absence is recorded everywhere; the phrasing is not standard**, so nothing should match on the string.
 
+## Its British spellings are deliberate
+
+**Do not correct them.** Eight forms — `dyspnoea`, `fibre`, `grey`, `behaviour`, `recognisable`, `labelled`, `programme` and `caesarean` — appear **20 times across six of the twelve notes**. [Standing rule 4](../../../AGENTS.md) says American English always and has no exceptions in the output, and these are not an exception to it: they are **a record of it being broken**, which is a different thing and is the only reason they survive. Recompute the figures rather than trusting this paragraph:
+
+```bash
+python tools/spelling_scan.py --record
+```
+
+**The rule landed after this run.** Nothing in the repo stated it until 2026-08-12; these notes are from 2026-08-11. So the run was not disobeying an instruction, and that is what makes it evidence — the skill emitted British spellings **unprompted**, from an American corpus, with no British spelling anywhere in its input.
+
+**The same run wrote both spellings of the same word**, which is the sharp end of it and is why the `--record` view puts the American count beside each form: `cesarean` eight times against `caesarean` twice, `dyspnea` seven against `dyspnoea` three, `fiber` three against `fibre` four. A note written in a British register would be a style; a note that switches inside one run is **drift**, and it is drift no reader would catch by reading one note.
+
+**A later run does not clear them, and one has now been made.** The same twelve encounters were re-run on 2026-08-12 under the rule and emitted **none of the eight** — which changes what this record is for, not whether it is kept. It is the *only* committed evidence that the skill ever emitted them, so a reader who finds the clean run first has no way to see why the rule exists. See [fixtures/README](../../README.md); two of the eight cleared **vacuously**, and the skill's own *Conventions > Spelling* says which two.
+
+**`programme` is the one to look at first.** It is not prose — it sits in the Medatrax `Course` row of `case-01` and `case-02`, which is **portal data entry**. The other seven would embarrass a note; that one would be typed into a field.
+
+**Correcting them destroys the thing the set is for**, on exactly the argument the de-identification section above makes. The one edit ever made to these twelve was the two site names, and that section exists to record it precisely because byte-for-byte is the property that makes the set worth keeping. `tools/test_spelling_scan.py` pins the three figures above, so a tidy fails a test rather than quietly voiding this page. [Issue #73](https://github.com/mshamblin5150-code/clinical-skills/issues/73).
+
+**No assertion row quotes one, and that was checked rather than assumed.** A row quoting a British-spelled span would pin the wrong spelling into a bar the sets are graded against — the one way these twelve could contaminate something. All five sets' `assertions.md` were swept 2026-08-12 against the eight forms and a wider net of 56 stems, and every one is clean. **A negative result decays**, so it is also a test: `test_spelling_scan.py` asserts that no tracked Markdown outside this directory uses a listed form, which is that sweep run again on every commit that runs the suite.
+
+**`tools/spelling_scan.py` knows about this directory and will not refuse it.** The exemption is `notes/case-*.md` by path, and it is deliberately not this file: a README is prose about the record rather than the record, so it takes the scanner's ordinary rule — **a form inside backticks is a mention, a form in running prose is a use.** Every British spelling on this page is backticked for that reason, and a sweep that finds one here that is not has found a real defect.
+
 ## How the twelve were selected
 
 The selection rule is two clauses, and it is recomputable from day-b's shorthand without consulting this file:
@@ -85,6 +107,6 @@ Four append the clinical detail that anchored the code, which is useful reading 
 python tools/filled_vitals_census.py fixtures/filled-anchor/notes
 ```
 
-**day-b's run 2 shows the same pattern worse and it is gitignored**, so a reader with only this repo cannot check it. These notes are what makes the claim in `skills/clinical-note/SKILL.md` verifiable at all, and `tools/test_filled_vitals_census.py` pins the figures so an edit fails a test rather than quietly voiding an argument. **That is the same standing rule 4 already places on them** — a run record is evidence, and its eight British spellings stay for the same reason these numbers do.
+**day-b's run 2 shows the same pattern worse and it is gitignored**, so a reader with only this repo cannot check it. These notes are what makes the claim in `skills/clinical-note/SKILL.md` verifiable at all, and `tools/test_filled_vitals_census.py` pins the figures so an edit fails a test rather than quietly voiding an argument. **That is the same standing rule 4 already places on them** — a run record is evidence, and [its eight British spellings](#its-british-spellings-are-deliberate) stay for the same reason these numbers do.
 
 **They are not 484 KB of prose for its own sake.** A finished note is what the skill takes, so the whole note is the input. Excerpting the Assessment would be excerpting the thing under test — step 1 reads the tier block, step 2 reads the Assessment and the Plan, and step 4 reports against both.
