@@ -1,0 +1,27 @@
+phi-scan: synthetic
+
+This fixture is CDC schedule-page text saved by a browser. The `8/12/26, 10:25 AM`
+lines are the capture stamps `classify` keys on to call a document a web-capture,
+so the fixture is worthless without a date in that shape. They are print
+timestamps from a public CDC page and carry nothing about any patient.
+
+Everything above the first page marker is preamble and is not read as a page. The
+marker cannot be written out here, because a fixture that names its own delimiter
+splits on the mention and grows a page nobody wrote.
+
+%%PAGE%%
+An official website of the United States government
+Recommended Vaccinations for Adults
+Vaccines by Age
+VaxView Vaccination Coverage
+8/12/26, 10:25 AM
+Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
+https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+1/7
+%%PAGE%%
+Recommended Vaccinations for Adults
+Talk with your healthcare provider about which vaccines you need.
+8/12/26, 10:25 AM
+Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
+https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+2/7

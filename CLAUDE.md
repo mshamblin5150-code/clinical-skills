@@ -116,6 +116,23 @@ python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
 
 Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
 
+### Guideline catalog
+
+`reference/guidelines-catalog.md` is **committed**, and lists the 179-document guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The corpus itself is 410 MB of mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` and **stays outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because at 179 documents nothing can navigate the corpus by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
+
+```bash
+python tools/guidelines_catalog.py                              # audit the committed catalog
+python tools/guidelines_catalog.py --draft C:/codeing/guidelines-src   # scaffold to curate from
+```
+
+**The catalog is curated and the tool audits it, which is the opposite of `icd10_build.py`.** `--draft` fills only what a machine can settle — society, filename, page count, class — and takes a run at title and year; it leaves `topic` and `population` blank on purpose, because a rule that reads those off a title page is guessing and **a guessed population is worse than a blank one**: it is the field that decides whether a threshold applies to the patient at all. So the committed Markdown is the source of truth, and the default run re-derives the mechanical columns and refuses a catalog that has drifted — a dropped row, a wrong page count, a row for a file that is gone, a `?` nobody listed in the closing comment.
+
+**43 cells are `?` today, 36 of them `population`**, and that is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
+
+It reports filenames, column names and counts, never document text, so its output is safe to paste. Covered by `tools/test_guidelines_catalog.py`, which runs against fixtures in `tools/testdata/` and **never against the corpus or the shipped catalog**, and which opens no PDF — so `pypdf`/`fitz` are needed to build a draft and not to run the suite.
+
+**It opens the PDFs itself, which is one extractor too many now that #84 has landed.** `tools/guidelines_index.py` reads #80's extracted text; this one still re-extracts. Worse, the two disagree by construction — the `year` column is derived from exactly the page-repeated lines #80 exists to strip. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where that gets reconciled, and [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100)'s boilerplate misses land on this column too.
+
 ### Guideline full-text index
 
 Candidate selection across 179 society documents needs search. `tools/guidelines_index.py` builds an SQLite FTS5 index over the extracted text, and `tools/guidelines_search.py` queries it.
