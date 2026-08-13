@@ -11,8 +11,8 @@ loudly rather than quietly. Three shapes, and the first two are absences. Nine o
 the twelve encounters carry no vital at all, which is that set's whole reason for
 existing; case 9 documents a COVID contact and orders no swab, which is what makes
 D6 checkable; and the twelve split seven / two / three on whether the shorthand
-writes a pain score, writes "no pain", or writes neither, which is what B7 and B8
-divide on. A well-meaning edit that "completes" any of them would leave every row
+writes a pain score, writes "no pain", or writes neither, which is what B7, B8 and
+B14 divide on. A well-meaning edit that "completes" any of them would leave every row
 above it passing with nothing tested.
 
 phi-scan: synthetic
@@ -66,7 +66,15 @@ DAY_B_LUNG_FINDING = {
 DAY_B_PAIN_SCORE = {1: 8, 4: 5, 5: 2, 7: 7, 8: 8, 10: 8, 11: 6}
 DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
 DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
-DAY_B_SEVERITY_NONZERO = (6, 9)  # B8's anchors. Case 3 itches rather than hurts
+DAY_B_SEVERITY_PAINFUL = (6, 9)  # B8's anchors: the complaint itself is painful
+DAY_B_B14 = (3,)  # B14's anchor, for issue #42. The complaint does not hurt
+
+# The exam findings B14's "reasoned from a pain source" limb rests on. Case 3's
+# shorthand never says pain and never says its absence, so the only thing that
+# can carry her score above 0/10 is broken skin in the exam. Remove either
+# string and B14 becomes a row demanding a number with nothing to derive it
+# from -- which is the invented abnormal *Which value was chosen* forbids.
+DAY_B_B14_PAIN_SOURCE = ("abrasions", "scratch marks")
 
 # B9's ten: every case where *anything* in the filled-vitals license class was
 # generated. The vital-less nine plus case 3, whose vital line is complete and
@@ -1281,18 +1289,38 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
         ]
         self.assertEqual(sentence_final, [5, 11])
 
-    def test_b8_takes_two_of_those_three_and_leaves_the_boundary_out(self):
-        """Case 3 itches; B8 demands a score above 0/10 and she is not in it.
+    def test_b8_and_b14_partition_the_three_filled_severities(self):
+        """Every invented severity is claimed by exactly one row, and by a row.
 
-        Asserted rather than assumed, because the two lists differing by
-        exactly one case is the whole of B8's design, and a future edit that
-        "tidied" them into agreement would enforce a ruling nobody made --
-        whether a non-painful complaint scores 0/10 or scores its own
-        intensity. day-b lists that under *Still unresolved*.
+        This used to assert that B8 left case 3 out and that *nothing* picked
+        her up, because whether a non-painful complaint scores 0/10 was a
+        ruling nobody had made. Issue #42 made it -- she scores above zero and
+        B14 is hers -- so the assertion changes shape rather than going away.
+        The three cases still split two-and-one, and the split still has to be
+        deliberate: B8's two are painful complaints where the run merely has to
+        not write zero, and B14's one is a complaint that does not hurt, whose
+        anchor sits in the exam. A future edit that folded them together would
+        stop testing the difference the ruling turns on.
         """
+        self.assertEqual(sorted(set(DAY_B_SEVERITY_PAINFUL) & set(DAY_B_B14)), [])
         self.assertEqual(
-            sorted(set(DAY_B_SEVERITY_FILLED) - set(DAY_B_SEVERITY_NONZERO)), [3]
+            sorted(set(DAY_B_SEVERITY_PAINFUL) | set(DAY_B_B14)),
+            sorted(DAY_B_SEVERITY_FILLED),
         )
+
+    def test_b14s_case_carries_a_pain_source_in_its_exam(self):
+        """B14 demands a score above 0/10 from a complaint that does not hurt.
+
+        What licenses that number is broken skin in the exam, so the strings
+        are pinned here for the reason every other input in this file is: a
+        tidy that dropped them would leave B14 demanding an abnormal with
+        nothing behind it, and the row would go on passing.
+        """
+        for case in DAY_B_B14:
+            exam = day_b_exam(case)
+            for source in DAY_B_B14_PAIN_SOURCE:
+                with self.subTest(case=case, source=source):
+                    self.assertIn(source, exam)
 
     def test_the_severity_split_is_the_whole_set(self):
         self.assertEqual(
