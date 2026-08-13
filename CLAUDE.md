@@ -51,6 +51,10 @@ python -m unittest discover -s tools -t tools
 
 Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
 
+**Three tools are now exceptions, and they are the three that open a PDF.** `tools/guidelines_extract.py` needs `pypdf`; `tools/uspstf_table.py` needs PyMuPDF; `tools/guidelines_catalog.py` prefers PyMuPDF and falls back to `pypdf`. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
+
+**That there are three is the finding, not the arrangement.** All three extract text from the same 179 files, and two of them exist only because #80 had not landed when they were written. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where that gets reconciled down to one. Each import sits inside the function that opens the file rather than at module scope, so the test suite needs nothing installed — and **nothing a consumer runs imports any of them.**
+
 ### Filled-vitals census
 
 The corpus census reads the clinician's shorthand. This one reads **a run's finished notes**, and it exists because [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) is a defect no single note contains: nine notes each filling a plausible vital set, and one patient described nine times.
@@ -116,6 +120,37 @@ python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
 
 Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
 
+### Guideline text extraction
+
+The 179 society guideline PDFs are the source for everything in the #80 series, and nothing downstream reads a PDF — they read the `.txt` this produces.
+
+```bash
+python tools/guidelines_extract.py "C:/codeing/guidelines-src"
+```
+
+**The corpus stays outside the repo, and so does the output.** Source is 410 MB and mostly society-copyrighted ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)); output defaults to a sibling of it, `guidelines-text`. The script **refuses to write inside any git checkout**, walking up from the output directory for a `.git` entry rather than only comparing against its own repo root — run from a worktree, that root is the worktree and says nothing about the main clone's `reference/`.
+
+**One of the three tools here that is not stdlib** — see *Corpus census* above for why there are three and where that gets reconciled:
+
+```bash
+python -m pip install pypdf
+```
+
+That is affordable because it is maintainer-only and runs once per corpus refresh, and the script checks for it up front rather than recording 179 identical failures. `fitz` is roughly six times faster and loses the spaces between words on the USPSTF files — whole sentences come back as `primarycarebecauseofitshighsensitivity`, and 90 of the 179 documents are USPSTF.
+
+179 documents, 7,733 pages, 39.5 M characters, no failures — measured 2026-08-12. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed.
+
+**`manifest.json` is also [#84](https://github.com/mshamblin5150-code/clinical-skills/issues/84)'s input, and its shape is a contract.** `tools/guidelines_index.py` reads four fields per entry — `doc_id`, `society`, `title`, `document_class` — and matches documents by `doc_id`, which is the source path with the suffix dropped. **Top-level `documents` must be the list of entries.** The first version of this writer emitted `"documents": 179` as a count, which `read_manifest` refuses outright rather than reading as empty; the run totals now live under `totals`. That refusal is the contract working, and `TheIndexerCanReadWhatThisWrites` in `tools/test_guidelines_extract.py` pins the handoff on this side, where the shape is owned.
+
+`title` is the PDF's own `/Title`, verbatim and unfiltered — 147 of the 179 carry one and they are real guideline titles, measured 2026-08-12. The rest include the usual `Microsoft Word - ...` debris; curating that is the catalog's job (#81), and a junk heuristic invented here would be an unreviewable rule sitting between the PDF and the record.
+
+**What it strips and what it cannot.** A line on 75% or more of a document's sampled pages goes, which catches `Downloaded from http://ahajournals.org by on August 12, 2026` on every AHA/ACC file. It finds a repeated line in **150 of the 179** — measured 2026-08-12 — not the 168 #80 estimated: a running head with the page number folded into it differs on every page, and a head that alternates recto and verso splits its votes. Masking digits would catch both and would also make `130-139 mm Hg` and `140-159 mm Hg` the same line — [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100) holds that decision open and it is not to be fixed in passing.
+
+**The rule is narrowed in exactly one place, and it is not #100's question.** A line must also appear on at least 3 pages, because every line of a one-page document appears on 100% of its pages and the percentage alone would strip such a document to nothing and record it as clean. That floor is arithmetically inert above 3 sampled pages.
+
+**A re-run overwrites and never deletes.** Rename a source and its old `.txt` stays behind, claimed by no manifest entry; the summary names orphans and leaves them, because #84 will index the directory rather than the manifest and would otherwise pick a stale copy up.
+
+Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. **Those excerpts have to match what `pypdf` actually emits.** The ACIP fixture originally put the browser print timestamp on a line of its own, which is what `fitz` does and what no real file does; the document classifier passed against it while finding zero print-captures in the corpus.
 ### USPSTF recommendation table
 
 `reference/guidelines-uspstf.md` is **committed**, and for a different reason than the ICD-10 database: USPSTF recommendation statements are federal work and genuinely public domain, so unlike the other eight societies in the guideline corpus their content may be redistributed in full. 143 recommendations from all 90 USPSTF documents, one row each — topic, population, grade, interval, year, source file, page.
@@ -126,7 +161,7 @@ Rebuild it when the corpus is refreshed:
 python tools/uspstf_table.py "C:/codeing/guidelines-src/USPSTF"
 ```
 
-**This is the one tool here that is not stdlib-only.** It needs PyMuPDF — `pip install pymupdf`, imported as `fitz` — because reading a PDF is not something the standard library does, and `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* stops being true of the directory with this file. The import is deliberately inside `read_pdf` rather than at module scope, so importing the module — which the tests do — needs nothing installed, and **nothing a consumer runs imports it at all**. The `--out` default writes into the repo regardless of the working directory, the way `icd10_build.py` anchors on `REPO_ROOT`.
+**One of the three tools here that is not stdlib-only** — see *Corpus census* above. It needs PyMuPDF — `pip install pymupdf`, imported as `fitz`. The import is deliberately inside `read_pdf` rather than at module scope, so importing the module — which the tests do — needs nothing installed, and **nothing a consumer runs imports it at all**. The `--out` default writes into the repo regardless of the working directory, the way `icd10_build.py` anchors on `REPO_ROOT`.
 
 **The corpus lives outside this repo** at `C:\codeing\guidelines-src` — 179 PDFs, 410 MB, most of them society-copyrighted — and stays there. [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is why, and the source PDFs are closed rather than deferred: no consumer needs them, they need the derived facts.
 
@@ -166,19 +201,32 @@ python tools/guidelines_index.py <text-dir> [<db-path>]
 python tools/guidelines_search.py "urine culture" "urine cultures"
 ```
 
-Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the `sqlite3` that ships with Python, so querying costs no dependency, and the PDF library stays entirely on the extraction side (#80).
+Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the `sqlite3` that ships with Python, so querying costs no dependency. This pair is the only part of the guideline tooling that reads #80's extracted text rather than re-extracting; the catalog and the USPSTF table both still open PDFs, which is [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108).
 
 **Keyword search rather than embeddings, and that was decided rather than defaulted into.** A full-text hit is a literal string on a literal page, checkable in one jump. An embedding hit is a similarity score, and in a repo where `ANCHOR` means *quote the text or it is not a code*, similarity is the wrong currency. Nine societies with overlapping scope spanning 2009 to 2026 means a fuzzy match can return the right concept from the wrong society, wrong year or wrong population **with a citation attached**, and more documents makes that likelier rather than less.
 
 **What that costs, measured rather than argued.** `130-139 mmHg` returns nothing. `130-139 mm Hg` returns the AHA/ACC 2025 hypertension guideline and KDIGO 2021, because the page writes the unit with a space. The tool cannot bridge that and does not pretend to — the agent knows the synonyms and fires both, which is why `guidelines_search.py` takes several queries in one run. A query is a **phrase** by default; `--fts` opts into FTS5's own `OR`, `NEAR` and `term*`.
 
-**The text-directory contract is written down in the builder's docstring, and #80 has to meet it or change it.** Per-page files at `<text-dir>/<doc-id>/page-0007.txt`, or one `.txt` per document with form feeds between pages; `manifest.json` optional, keyed by `doc_id`. **A bare `0007.txt` is deliberately not read as a page** — `USPSTF/2021.txt` and `USPSTF/2022.txt` would otherwise collapse into one document called `USPSTF` carrying pages 2021 and 2022, which is two documents lost and two citations invented with nothing downstream able to tell. When #80 lands, delete whichever layout it does not emit.
+**The text-directory contract is written down in the builder's docstring, and #80 met it.** One layout: one `.txt` per document, form feeds between pages, `manifest.json` keyed by `doc_id`. It used to read a second layout — per-page files at `<text-dir>/<doc-id>/page-0007.txt` — which existed only because no producer had landed. **Deleting it removed a whole class of ambiguity along with the branch:** an all-digit stem read as a page number collapses `USPSTF/2021.txt` and `USPSTF/2022.txt` into one document called `USPSTF` carrying pages 2021 and 2022, two documents lost and two citations invented with nothing downstream able to tell. That was a live bug, fixed by requiring a `page` prefix; with one layout there are no page files and the question cannot be asked.
 
 **The database is written outside every checkout, and there is a guard rather than a convention.** It defaults to `<parent of the main checkout>/guidelines-index/guidelines.sqlite` — `C:\codeing\guidelines-index\` here, beside the sources — overridable with `CLINICAL_GUIDELINES_INDEX` or a positional argument. `ensure_outside_repo` refuses any target inside the main checkout **or inside the worktree you are standing in**, and those are two different tests: `Path(__file__).parent.parent` is the *worktree*, so defaulting relative to it would drop 65 MB under `.claude/worktrees/` while reading as outside the repo. The tools are committed and the index is not. This is deliberately **not** the `icd10cm-2026.sqlite` arrangement, and [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) — blocked — is where that gets revisited.
 
-179 documents, 7,733 pages, 40.7 M characters, **64.7 MB on disk**, built in 2.7 s warm and answering a query in under 0.3 s.
+179 documents, 7,733 pages, 39.8 M characters, **60.8 MB on disk**, built in 1.7 s warm and answering a query in about 0.14 s — measured 2026-08-13, and **re-derivable**, which the previous set was not.
 
-**Those figures are provisional and nobody can re-derive them yet**, which is the opposite of how every other number in this file works. They were measured 2026-08-12 against a throwaway extraction written to exercise this tool, because #80 had not landed — so there is no committed extractor to reproduce them with. Re-measure the whole set when #80 does land: boilerplate stripping removes a line from nearly every page of 168 documents, so the character count and the file size both move.
+**The earlier figures were provisional and are now retired.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written to exercise this tool because #80 had not landed. #80 has landed, so the whole set was re-measured against the committed extractor. Boilerplate stripping is most of the 3.9 MB the index lost.
+
+**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,562,745 and this reports 39,780,017. They measure different stages of the same corpus, and the gap reconciles exactly:
+
+| | |
+| --- | --- |
+| extractor `chars` — line contents, **before** stripping | 39,562,745 |
+| less `chars_stripped` | −554,372 |
+| plus the newline written between every line | +771,644 |
+| **= characters in the `.txt` files, less the form feeds the indexer splits on** (7,733 pages − 179 documents = 7,554) | **39,780,017** |
+
+**The obvious explanation for the 217,272 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — the figure above is derived from the manifest and the index meta, and the last row is checkable against the files on disk.
+
+**The four manifest fields arrive intact**, checked against the built index rather than assumed: 176 `guideline` and 3 `print-capture`, 147 of 179 with a title, and no document missing a society. `--class print-capture shingles` returns only the ACIP captures, which is the entire reason that column exists.
 
 **A missing index is not zero hits, and the exit status says which.** 0 for hits, 1 for a genuine zero, and 2 for every way of not having searched — no index, a file that is not one, one built by another schema version, or a query that would not parse. An index that had quietly failed to build would otherwise answer every clinical question with silence and look like a settled negative.
 

@@ -25,24 +25,20 @@ inside this worktree, which is what keeps `git status` clean after a build. Whet
 the index should ever *ship* is #87, and it is blocked; nothing here presumes an
 answer.
 
-**The text-directory contract.** Two layouts are read, because "emit per-page text"
-admits both and #80 has not landed:
+**The text-directory contract.** One layout: ``<text-dir>/<doc-id>.txt``, pages
+separated by form feed. That is what ``tools/guidelines_extract.py`` emits and what
+``pdftotext`` emits.
 
-- **Per-page files** -- ``<text-dir>/<doc-id>/page-0007.txt``. The page number comes
-  from the filename, never from the sort order, so ``page-0002`` and ``page-0010`` do
-  not become pages 2 and 3.
-- **One file per document** -- ``<text-dir>/<doc-id>.txt``, pages separated by form
-  feed, which is what ``pdftotext`` emits.
-
-**The ``page`` prefix is required, and a bare ``0007.txt`` is deliberately not a page.**
-Reading any all-digit stem as a page number is ambiguous with a real naming scheme:
-``USPSTF/2021.txt`` and ``USPSTF/2022.txt`` would collapse into one document called
-``USPSTF`` carrying pages 2021 and 2022. That is two documents lost and two page
-citations invented, and nothing downstream could tell.
-
-**When #80 lands, delete the layout it does not emit.** Both branches exist only
-because the producer does not, and a branch no producer feeds is a branch no reader
-checks.
+This used to read a second layout as well -- per-page files at
+``<text-dir>/<doc-id>/page-0007.txt`` -- because "emit per-page text" admits both and
+#80 had not landed. #80 landed emitting form feeds, so that branch is gone: a branch
+no producer feeds is a branch no reader checks. **It also took a whole class of
+ambiguity with it.** Reading an all-digit stem as a page number collides with a real
+naming scheme -- ``USPSTF/2021.txt`` and ``USPSTF/2022.txt`` would collapse into one
+document called ``USPSTF`` carrying pages 2021 and 2022, two documents lost and two
+page citations invented with nothing downstream able to tell. That was a live bug
+here, fixed by requiring a ``page`` prefix. With one layout there are no page files
+at all, so the question cannot be asked.
 
 ``<doc-id>`` is the path relative to the text directory, so the society is its first
 segment and a hit names a file that can be opened beside the PDF of the same name. A
@@ -64,7 +60,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -76,10 +71,6 @@ SCHEMA_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 UNCLASSIFIED = "unclassified"
 DATABASE_ENVIRONMENT_VARIABLE = "CLINICAL_GUIDELINES_INDEX"
-
-# Per-page filenames: page-0007.txt, page_7.txt, page7.txt. The `page` prefix is
-# required -- see the docstring on why a bare 0007.txt is not read as a page.
-PAGE_FILE = re.compile(r"^page[-_ ]?(\d+)$", re.IGNORECASE)
 
 # A page break inside a single-file document. pdftotext writes form feed and so does
 # every other extractor that keeps page boundaries at all.
@@ -99,16 +90,6 @@ class InsideRepo(ValueError):
 class Page:
     number: int
     text: str
-
-
-@dataclass(frozen=True)
-class _PageFiles:
-    """One document held as ``page-0007.txt`` files."""
-
-    numbered: tuple[tuple[int, Path], ...]
-
-    def pages(self) -> list[Page]:
-        return [Page(number, _read(path)) for number, path in sorted(self.numbered)]
 
 
 @dataclass(frozen=True)
@@ -252,31 +233,17 @@ def _describe(doc_id: str, entry: dict) -> tuple[str | None, str | None, str]:
     return society, title, str(document_class)
 
 
-def _sources(text_dir: Path) -> dict[str, _PageFiles | _FormFeedFile]:
-    """Group ``*.txt`` under the text directory into documents, by the two layouts."""
-    numbered: dict[str, list[tuple[int, Path]]] = {}
-    whole: dict[str, _FormFeedFile] = {}
-    for path in sorted(text_dir.rglob("*.txt")):
-        relative = path.relative_to(text_dir)
-        page = PAGE_FILE.match(path.stem)
-        if page and relative.parent != Path("."):
-            numbered.setdefault(relative.parent.as_posix(), []).append(
-                (int(page.group(1)), path)
-            )
-        else:
-            whole[relative.with_suffix("").as_posix()] = _FormFeedFile(path)
+def _sources(text_dir: Path) -> dict[str, _FormFeedFile]:
+    """Every ``*.txt`` under the text directory, keyed by document id.
 
-    contested = sorted(set(whole) & set(numbered))
-    if contested:
-        raise ValueError(
-            "both layouts claim " + ", ".join(contested) + " -- there is a <doc>.txt "
-            "and a <doc>/ of page files for the same document. One of them would be "
-            "dropped, and a dropped document is a query that comes back short while "
-            "looking settled. Remove whichever is stale."
-        )
-    sources: dict[str, _PageFiles | _FormFeedFile] = dict(whole)
-    sources.update((doc_id, _PageFiles(tuple(pages))) for doc_id, pages in numbered.items())
-    return sources
+    One ``.txt`` is one document, whatever it is called. There is no filename that
+    means anything other than a document id, which is what removing the per-page
+    layout bought.
+    """
+    return {
+        path.relative_to(text_dir).with_suffix("").as_posix(): _FormFeedFile(path)
+        for path in sorted(text_dir.rglob("*.txt"))
+    }
 
 
 def discover(text_dir: Path | str) -> Iterator[Document]:

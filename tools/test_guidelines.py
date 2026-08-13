@@ -42,15 +42,6 @@ Obtain a urine culture in every patient before the first dose.
 """
 
 
-def write_pages(text_dir: Path, doc_id: str, pages):
-    """Per-page layout: <text-dir>/<doc_id>/page-0001.txt, one file per page."""
-    d = text_dir / doc_id
-    d.mkdir(parents=True, exist_ok=True)
-    for number, text in enumerate(pages, start=1):
-        (d / f"page-{number:04d}.txt").write_text(text, encoding="utf-8")
-    return d
-
-
 def write_single(text_dir: Path, doc_id: str, pages):
     """Whole-document layout: <text-dir>/<doc_id>.txt, pages split on form feed."""
     path = text_dir / f"{doc_id}.txt"
@@ -80,28 +71,12 @@ class TempCorpus(unittest.TestCase):
         self.db = self.root / "guidelines-index" / "guidelines.sqlite"
 
     def build_default_corpus(self):
-        write_pages(self.text_dir, "AHA ACC/2017-hypertension", ["cover page", HYPERTENSION_PAGE])
+        write_single(self.text_dir, "AHA ACC/2017-hypertension", ["cover page", HYPERTENSION_PAGE])
         write_single(self.text_dir, "IDSA/2010-uti", ["cover page", PYELONEPHRITIS_PAGE])
         return gi.build(self.text_dir, self.db)
 
 
 class DiscoveryTests(TempCorpus):
-    def test_per_page_files_become_one_document(self):
-        write_pages(self.text_dir, "AHA ACC/2017-hypertension", ["one", "two", "three"])
-        documents = list(gi.discover(self.text_dir))
-        self.assertEqual([d.doc_id for d in documents], ["AHA ACC/2017-hypertension"])
-        self.assertEqual([p.number for p in documents[0].pages], [1, 2, 3])
-        self.assertEqual([p.text for p in documents[0].pages], ["one", "two", "three"])
-
-    def test_page_number_comes_from_the_filename_not_the_sort_order(self):
-        """page-0002 and page-0010 must not be read as pages 2 and 3."""
-        d = self.text_dir / "KDIGO/2024-ckd"
-        d.mkdir(parents=True)
-        for number in (2, 10):
-            (d / f"page-{number:04d}.txt").write_text(f"page {number}", encoding="utf-8")
-        pages = list(gi.discover(self.text_dir))[0].pages
-        self.assertEqual([p.number for p in pages], [2, 10])
-
     def test_a_single_txt_is_one_document_split_on_form_feed(self):
         write_single(self.text_dir, "GOLD/2026-copd", ["one", "two"])
         documents = list(gi.discover(self.text_dir))
@@ -109,7 +84,7 @@ class DiscoveryTests(TempCorpus):
         self.assertEqual([p.number for p in documents[0].pages], [1, 2])
 
     def test_society_is_the_top_directory_segment(self):
-        write_pages(self.text_dir, "AHA ACC/2017-hypertension", ["one"])
+        write_single(self.text_dir, "AHA ACC/2017-hypertension", ["one"])
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         self.assertEqual(
             sorted(d.society for d in gi.discover(self.text_dir)), ["AHA ACC", "IDSA"]
@@ -122,13 +97,13 @@ class DiscoveryTests(TempCorpus):
     def test_blank_pages_are_kept_so_page_numbers_stay_true(self):
         """A page that extracted to nothing still occupies its page number. Dropping
         it would slide every later page's citation by one."""
-        write_pages(self.text_dir, "USPSTF/screening", ["one", "   \n", "three"])
+        write_single(self.text_dir, "USPSTF/screening", ["one", "   \n", "three"])
         pages = list(gi.discover(self.text_dir))[0].pages
         self.assertEqual([p.number for p in pages], [1, 2, 3])
 
     def test_non_txt_files_are_ignored(self):
-        write_pages(self.text_dir, "USPSTF/screening", ["one"])
-        (self.text_dir / "USPSTF" / "screening" / "notes.md").write_text("x", encoding="utf-8")
+        write_single(self.text_dir, "USPSTF/screening", ["one"])
+        (self.text_dir / "USPSTF" / "notes.md").write_text("x", encoding="utf-8")
         write_manifest(self.text_dir, [{"doc_id": "USPSTF/screening"}])
         documents = list(gi.discover(self.text_dir))
         self.assertEqual([d.doc_id for d in documents], ["USPSTF/screening"])
@@ -152,14 +127,6 @@ class DiscoveryTests(TempCorpus):
             ["AHA ACC/c", "IDSA/a", "USPSTF/b"],
         )
 
-    def test_a_document_id_claimed_by_both_layouts_is_loud(self):
-        """A dropped document is a query that comes back short while looking settled."""
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one"])
-        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
-        with self.assertRaises(ValueError) as refused:
-            list(gi.discover(self.text_dir))
-        self.assertIn("IDSA/2010-uti", str(refused.exception))
-
     def test_a_missing_text_directory_is_loud(self):
         with self.assertRaises(FileNotFoundError):
             list(gi.discover(self.root / "nowhere"))
@@ -167,7 +134,7 @@ class DiscoveryTests(TempCorpus):
 
 class ManifestTests(TempCorpus):
     def test_manifest_supplies_title_and_class(self):
-        write_pages(self.text_dir, "ACIP/2026-schedule", ["one"])
+        write_single(self.text_dir, "ACIP/2026-schedule", ["one"])
         write_manifest(
             self.text_dir,
             [
@@ -185,7 +152,7 @@ class ManifestTests(TempCorpus):
         self.assertEqual(document.society, "CDC")
 
     def test_no_manifest_is_not_an_error(self):
-        write_pages(self.text_dir, "ACIP/2026-schedule", ["one"])
+        write_single(self.text_dir, "ACIP/2026-schedule", ["one"])
         document = list(gi.discover(self.text_dir))[0]
         self.assertIsNone(document.title)
         self.assertEqual(document.document_class, gi.UNCLASSIFIED)
@@ -193,13 +160,13 @@ class ManifestTests(TempCorpus):
     def test_a_manifest_entry_for_a_document_with_no_text_is_reported(self):
         """#80 records an extraction failure rather than skipping silently. The index
         has nothing to index for it, and must say so rather than swallow it."""
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}, {"doc_id": "IDSA/2014-ssti"}])
         report = gi.build(self.text_dir, self.db)
         self.assertEqual(report.manifest_only, ["IDSA/2014-ssti"])
 
     def test_an_unreadable_manifest_is_loud(self):
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         (self.text_dir / "manifest.json").write_text("{not json", encoding="utf-8")
         with self.assertRaises(ValueError):
             gi.read_manifest(self.text_dir)
@@ -208,13 +175,13 @@ class ManifestTests(TempCorpus):
         """Read as empty, it would blank every title and document class while looking
         exactly like a corpus that never had them. #80 owns this file's shape, so a
         mismatch has to arrive as a failure rather than as missing metadata."""
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         (self.text_dir / "manifest.json").write_text('{"files": {}}', encoding="utf-8")
         with self.assertRaises(ValueError):
             gi.read_manifest(self.text_dir)
 
     def test_a_manifest_keyed_by_something_else_is_loud_not_empty(self):
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         write_manifest(self.text_dir, [{"document": "IDSA/2010-uti", "title": "UTI"}])
         with self.assertRaises(ValueError):
             gi.read_manifest(self.text_dir)
@@ -250,7 +217,7 @@ class RepoContainmentTests(TempCorpus):
         gi.ensure_outside_repo(self.root / "clinical_skills-notes" / "g.sqlite", repo_roots=[repo])
 
     def test_build_refuses_a_database_inside_the_repo(self):
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         repo = self.root / "clinical_skills"
         repo.mkdir()
         with self.assertRaises(gi.InsideRepo):
@@ -390,7 +357,7 @@ class LineAttributionTests(TempCorpus):
         """`near syncope` is a complaint, not a NEAR operator. Dropping `near` from
         attribution would score the hit on `syncope` alone and print whichever line
         happened to mention it -- a real line from the right page, and the wrong one."""
-        write_pages(
+        write_single(
             self.text_dir,
             "AHA ACC/syncope",
             [
@@ -486,7 +453,7 @@ class BuildCommandLineTests(TempCorpus):
         return status, out.getvalue(), err.getvalue()
 
     def test_a_build_reports_its_counts(self):
-        write_pages(self.text_dir, "IDSA/2010-uti", ["one", PYELONEPHRITIS_PAGE])
+        write_single(self.text_dir, "IDSA/2010-uti", ["one", PYELONEPHRITIS_PAGE])
         status, out, _ = self.run_build([str(self.text_dir), str(self.db)])
         self.assertEqual(status, 0)
         self.assertIn("1 document", out)
