@@ -83,6 +83,23 @@ python tools/skills_mirror.py --repair   # relink everything
 
 It reports paths and status words, never file contents, so its output is safe to paste. `--verbose` names the differing files and still prints none of them. Covered by `tools/test_skills_mirror.py`, which builds throwaway checkouts in a temp directory and never inspects or repairs the real one.
 
+### Spelling scan
+
+Standing rule 4 — American English, always — with a command in front of it. The table lives in [clinical-note](skills/clinical-note/SKILL.md) under *Conventions*; `tools/spelling_scan.py` is that table made runnable, and `tools/test_spelling_scan.py` parses the skill's copy and asserts the two agree, so the scanner cannot start holding a different answer than the file a reader opens.
+
+```bash
+python tools/spelling_scan.py --all      # every tracked .md
+python tools/spelling_scan.py --record   # the preserved run record, form by form
+```
+
+**A form inside backticks is a mention; a form in running prose is a use.** That is the whole exemption mechanism, and it is deliberately not `phi_scan`'s: the unit is the span rather than the file, so **nothing can exempt itself by explaining the rule** — which two files once did to `phi_scan` merely by documenting its pragma near the top.
+
+**One directory is exempt by path**: `fixtures/filled-anchor/notes/case-*.md`, which is day-b run 1 byte for byte. Its eight British spellings are the evidence for [#73](https://github.com/mshamblin5150-code/clinical-skills/issues/73) and are counted rather than refused — `--record` is what the set's README cites instead of restating, and the totals are pinned by a test so a tidy fails rather than quietly voiding the argument. The set's own README is **not** exempt: it is prose about the record, so it takes the mention rule like any prose.
+
+**Advisory in the pre-commit hook**, alongside `skills_mirror.py` and on the same reasoning: standing rule 1 remains the only thing that refuses a commit here.
+
+It prints a path, a line number and its own table's entry — **never the text it matched** — so its output is safe to paste, and there is no `--show`. Two limits worth knowing: it reads **Markdown only**, so commit messages and filenames are outside it, and it holds the table rather than the language, so a clean scan means no *listed* form was used.
+
 ### ICD-10-CM code set
 
 `reference/icd10cm-2026.sqlite` is **committed**, unlike everything else generated here, and that was decided rather than drifted into: `icd10-cpt` sits on the consumer's critical path, so a database that had to be built before the skill worked would make the skill's Markdown insufficient on its own. 13.6 MB on disk, **2.68 MB as a git object** — measured 2026-08-11, one time.
@@ -101,7 +118,7 @@ Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpt
 
 ### Guideline catalog
 
-`reference/guidelines-catalog.md` is **committed**, and lists the 179-document guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The corpus itself is 410 MB of mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` and **stays outside this repo** — [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is where that was decided and it is closed, not deferred. The catalog exists because at 179 documents nothing can navigate the corpus by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
+`reference/guidelines-catalog.md` is **committed**, and lists the 179-document guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The corpus itself is 410 MB of mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` and **stays outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because at 179 documents nothing can navigate the corpus by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
 
 ```bash
 python tools/guidelines_catalog.py                              # audit the committed catalog
@@ -113,6 +130,37 @@ python tools/guidelines_catalog.py --draft C:/codeing/guidelines-src   # scaffol
 **43 cells are `?` today, 36 of them `population`**, and that is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
 
 It reports filenames, column names and counts, never document text, so its output is safe to paste. Covered by `tools/test_guidelines_catalog.py`, which runs against fixtures in `tools/testdata/` and **never against the corpus or the shipped catalog**, and which opens no PDF — so `pypdf`/`fitz` are needed to build a draft and not to run the suite.
+
+**It opens the PDFs itself, which is one extractor too many now that #84 has landed.** `tools/guidelines_index.py` reads #80's extracted text; this one still re-extracts. Worse, the two disagree by construction — the `year` column is derived from exactly the page-repeated lines #80 exists to strip. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where that gets reconciled, and [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100)'s boilerplate misses land on this column too.
+
+### Guideline full-text index
+
+Candidate selection across 179 society documents needs search. `tools/guidelines_index.py` builds an SQLite FTS5 index over the extracted text, and `tools/guidelines_search.py` queries it.
+
+```bash
+python tools/guidelines_index.py <text-dir> [<db-path>]
+python tools/guidelines_search.py "urine culture" "urine cultures"
+```
+
+Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the `sqlite3` that ships with Python, so querying costs no dependency, and the PDF library stays entirely on the extraction side (#80).
+
+**Keyword search rather than embeddings, and that was decided rather than defaulted into.** A full-text hit is a literal string on a literal page, checkable in one jump. An embedding hit is a similarity score, and in a repo where `ANCHOR` means *quote the text or it is not a code*, similarity is the wrong currency. Nine societies with overlapping scope spanning 2009 to 2026 means a fuzzy match can return the right concept from the wrong society, wrong year or wrong population **with a citation attached**, and more documents makes that likelier rather than less.
+
+**What that costs, measured rather than argued.** `130-139 mmHg` returns nothing. `130-139 mm Hg` returns the AHA/ACC 2025 hypertension guideline and KDIGO 2021, because the page writes the unit with a space. The tool cannot bridge that and does not pretend to — the agent knows the synonyms and fires both, which is why `guidelines_search.py` takes several queries in one run. A query is a **phrase** by default; `--fts` opts into FTS5's own `OR`, `NEAR` and `term*`.
+
+**The text-directory contract is written down in the builder's docstring, and #80 has to meet it or change it.** Per-page files at `<text-dir>/<doc-id>/page-0007.txt`, or one `.txt` per document with form feeds between pages; `manifest.json` optional, keyed by `doc_id`. **A bare `0007.txt` is deliberately not read as a page** — `USPSTF/2021.txt` and `USPSTF/2022.txt` would otherwise collapse into one document called `USPSTF` carrying pages 2021 and 2022, which is two documents lost and two citations invented with nothing downstream able to tell. When #80 lands, delete whichever layout it does not emit.
+
+**The database is written outside every checkout, and there is a guard rather than a convention.** It defaults to `<parent of the main checkout>/guidelines-index/guidelines.sqlite` — `C:\codeing\guidelines-index\` here, beside the sources — overridable with `CLINICAL_GUIDELINES_INDEX` or a positional argument. `ensure_outside_repo` refuses any target inside the main checkout **or inside the worktree you are standing in**, and those are two different tests: `Path(__file__).parent.parent` is the *worktree*, so defaulting relative to it would drop 65 MB under `.claude/worktrees/` while reading as outside the repo. The tools are committed and the index is not. This is deliberately **not** the `icd10cm-2026.sqlite` arrangement, and [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) — blocked — is where that gets revisited.
+
+179 documents, 7,733 pages, 40.7 M characters, **64.7 MB on disk**, built in 2.7 s warm and answering a query in under 0.3 s.
+
+**Those figures are provisional and nobody can re-derive them yet**, which is the opposite of how every other number in this file works. They were measured 2026-08-12 against a throwaway extraction written to exercise this tool, because #80 had not landed — so there is no committed extractor to reproduce them with. Re-measure the whole set when #80 does land: boilerplate stripping removes a line from nearly every page of 168 documents, so the character count and the file size both move.
+
+**A missing index is not zero hits, and the exit status says which.** 0 for hits, 1 for a genuine zero, and 2 for every way of not having searched — no index, a file that is not one, one built by another schema version, or a query that would not parse. An index that had quietly failed to build would otherwise answer every clinical question with silence and look like a settled negative.
+
+Its output is guideline text, so nothing here is PHI and standing rule 1 is not in play — but it *is* a society's copyrighted expression. Paste a line into a ticket, never a page.
+
+Covered by `tools/test_guidelines.py` — one file for the pair, the way `tools/test_icd10.py` covers its builder and reader together — which builds a throwaway text directory and a throwaway index in a temp directory the way `tools/test_skills_mirror.py` builds throwaway checkouts. It never reads the real corpus or the real index: one is 179 copyrighted PDFs outside the repo, the other is a build artifact that may not exist on the machine running the tests.
 
 ### PHI pre-commit hook
 
