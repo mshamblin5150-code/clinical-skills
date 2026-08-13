@@ -49,7 +49,11 @@ Its extractors are covered by `tools/test_corpus_census.py`, which runs against 
 python -m unittest discover -s tools -t tools
 ```
 
-Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any. **One tool is now the exception**, and deliberately: `tools/guidelines_extract.py` reads PDFs and needs `pypdf`. Nothing else does, and nothing a consumer runs does.
+Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
+
+**Three tools are now exceptions, and they are the three that open a PDF.** `tools/guidelines_extract.py` needs `pypdf`; `tools/uspstf_table.py` needs PyMuPDF; `tools/guidelines_catalog.py` prefers PyMuPDF and falls back to `pypdf`. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
+
+**That there are three is the finding, not the arrangement.** All three extract text from the same 179 files, and two of them exist only because #80 had not landed when they were written. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where that gets reconciled down to one. Each import sits inside the function that opens the file rather than at module scope, so the test suite needs nothing installed — and **nothing a consumer runs imports any of them.**
 
 ### Filled-vitals census
 
@@ -126,7 +130,7 @@ python tools/guidelines_extract.py "C:/codeing/guidelines-src"
 
 **The corpus stays outside the repo, and so does the output.** Source is 410 MB and mostly society-copyrighted ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)); output defaults to a sibling of it, `guidelines-text`. The script **refuses to write inside any git checkout**, walking up from the output directory for a `.git` entry rather than only comparing against its own repo root — run from a worktree, that root is the worktree and says nothing about the main clone's `reference/`.
 
-**The only tool here that is not stdlib**, so it is the only one that has to be installed:
+**One of the three tools here that is not stdlib** — see *Corpus census* above for why there are three and where that gets reconciled:
 
 ```bash
 python -m pip install pypdf
@@ -147,6 +151,30 @@ That is affordable because it is maintainer-only and runs once per corpus refres
 **A re-run overwrites and never deletes.** Rename a source and its old `.txt` stays behind, claimed by no manifest entry; the summary names orphans and leaves them, because #84 will index the directory rather than the manifest and would otherwise pick a stale copy up.
 
 Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. **Those excerpts have to match what `pypdf` actually emits.** The ACIP fixture originally put the browser print timestamp on a line of its own, which is what `fitz` does and what no real file does; the document classifier passed against it while finding zero print-captures in the corpus.
+### USPSTF recommendation table
+
+`reference/guidelines-uspstf.md` is **committed**, and for a different reason than the ICD-10 database: USPSTF recommendation statements are federal work and genuinely public domain, so unlike the other eight societies in the guideline corpus their content may be redistributed in full. 143 recommendations from all 90 USPSTF documents, one row each — topic, population, grade, interval, year, source file, page.
+
+Rebuild it when the corpus is refreshed:
+
+```bash
+python tools/uspstf_table.py "C:/codeing/guidelines-src/USPSTF"
+```
+
+**One of the three tools here that is not stdlib-only** — see *Corpus census* above. It needs PyMuPDF — `pip install pymupdf`, imported as `fitz`. The import is deliberately inside `read_pdf` rather than at module scope, so importing the module — which the tests do — needs nothing installed, and **nothing a consumer runs imports it at all**. The `--out` default writes into the repo regardless of the working directory, the way `icd10_build.py` anchors on `REPO_ROOT`.
+
+**The corpus lives outside this repo** at `C:\codeing\guidelines-src` — 179 PDFs, 410 MB, most of them society-copyrighted — and stays there. [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is why, and the source PDFs are closed rather than deferred: no consumer needs them, they need the derived facts.
+
+**It reads the PDFs directly rather than [#80](https://github.com/mshamblin5150-code/clinical-skills/issues/80)'s extracted text**, which #82 nominally depends on. #80 was unbuilt when this landed and its output format was not fixed, so coupling to it would have been a guess — the same reason `guidelines_catalog.py` re-extracts. `read_pdf` is the only function in the module that opens a file, and every parser takes a list of page strings, so redirecting it is a one-function change.
+
+**#80 has since landed on its branch, and the one thing that would have blocked that swap is not a problem after all.** `read_pdf` returns the PDF's *metadata* title as well as its pages, because three documents take their topic from it: a print-to-PDF web capture whose first page is browser chrome, the 2000s AHRQ layout that opens with the recommendation instead of a title, and one whose title extracts with no space glyphs. #80's manifest was specified without a `title` field — but it emits one anyway, verbatim `/Title` for 147 of 179 PDFs, **and all three of those documents are among them** (verified against `C:/codeing/guidelines-text/manifest.json`, 2026-08-13). So this is now a genuine one-function redirect rather than a claimed one, and [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) — where `guidelines_catalog.py`'s duplicate extractor gets reconciled — is where this one belongs too. **One extractor too many is now two.**
+
+**The grade marker is the anchor, not any section heading.** A USPSTF document states each recommendation two to four times and the renderings differ, so the builder scores every candidate region — structured abstract, summary section, page-1 figure — and picks the one stating the most recommendations, breaking ties on whether extraction kept the space glyphs. Two documents extract a whole paragraph as `TheUSPSTFrecommendsscreening...`; the figure states the same recommendations cleanly and wins.
+
+**`population` and `interval` are derived, not quoted.** The table says so at the top, and `not stated` means the rule found nothing rather than that the document is silent — for `interval` that is the ordinary case, since an I statement has no interval to have. Every row carries `filename` and `page`, and that jump is the check.
+
+Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in `tools/testdata/uspstf/` — one per document layout the corpus contains — and **never against the shipped table**, for `test_icd10.py`'s reason. The excerpts are public domain; author names, affiliations and correspondence addresses are stripped from them anyway.
+
 ### Guideline catalog
 
 `reference/guidelines-catalog.md` is **committed**, and lists the 179-document guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The corpus itself is 410 MB of mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` and **stays outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because at 179 documents nothing can navigate the corpus by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
@@ -173,7 +201,7 @@ python tools/guidelines_index.py <text-dir> [<db-path>]
 python tools/guidelines_search.py "urine culture" "urine cultures"
 ```
 
-Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the `sqlite3` that ships with Python, so querying costs no dependency, and the PDF library stays entirely on the extraction side (#80).
+Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the `sqlite3` that ships with Python, so querying costs no dependency. This pair is the only part of the guideline tooling that reads #80's extracted text rather than re-extracting; the catalog and the USPSTF table both still open PDFs, which is [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108).
 
 **Keyword search rather than embeddings, and that was decided rather than defaulted into.** A full-text hit is a literal string on a literal page, checkable in one jump. An embedding hit is a similarity score, and in a repo where `ANCHOR` means *quote the text or it is not a code*, similarity is the wrong currency. Nine societies with overlapping scope spanning 2009 to 2026 means a fuzzy match can return the right concept from the wrong society, wrong year or wrong population **with a citation attached**, and more documents makes that likelier rather than less.
 

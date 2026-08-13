@@ -1,0 +1,79 @@
+Screening for Breast Cancer
+US Preventive Services Task Force Recommendation Statement
+US Preventive Services Task Force
+Summary of Recommendations
+See the Summary of Recommendations figure.
+IMPORTANCE Among all US women, breast cancer is the second most common cancer and
+the second most common cause of cancer death. In 2023, an estimated 43 170 women died
+of breast cancer. Non-Hispanic White women have the highest incidence of breast cancer and
+non-Hispanic Black women have the highest mortality rate.
+OBJECTIVE The USPSTF commissioned a systematic review to evaluate the comparative
+effectiveness of different mammography-based breast cancer screening strategies by age to
+start and stop screening, screening interval, modality, use of supplemental imaging, or
+personalization of screening for breast cancer on the incidence of and progression to
+advanced breast cancer, breast cancer morbidity, and breast cancer–specific or all-cause
+mortality, and collaborative modeling studies to complement the evidence from the review.
+POPULATION Cisgender women and all other persons assigned female at birth aged 40 years
+or older at average risk of breast cancer.
+EVIDENCE ASSESSMENT The USPSTF concludes with moderate certainty that biennial
+screening mammography in women aged 40 to 74 years has a moderate net benefit. The
+USPSTF concludes that the evidence is insufficient to determine the balance of benefits and
+harms of screening mammography in women 75 years or older and the balance of benefits
+and harms of supplemental screening for breast cancer with breast ultrasound or magnetic
+resonance imaging (MRI), regardless of breast density.
+RECOMMENDATION The USPSTF recommends biennial screening mammography for women
+aged 40 to 74 years. (B recommendation) The USPSTF concludes that the current evidence is
+insufficient to assess the balance of benefits and harms of screening mammography in
+women 75 years or older. (I statement) The USPSTF concludes that the current evidence is
+insufficient to assess the balance of benefits and harms of supplemental screening for breast
+cancer using breast ultrasonography or MRI in women identified to have dense breasts on an
+otherwise negative screening mammogram. (I statement)
+JAMA. 2024;331(22):1918-1930. doi:10.1001/jama.2024.5534
+Published online April 30, 2024. Last corrected on April 15, 2026.
+Editorial page 1896
+Multimedia
+Related articles pages 1931,
+1947, and 1877 and JAMA
+Patient Page page 1973
+Supplemental content
+CME at jamacmelookup.com
+Related articles at
+jamanetworkopen.com
+jamaoncology.com
+[author and correspondence block removed from fixture]
+Women aged 40 to 74 years
+B
+The USPSTF recommends biennial screening mammography
+for women aged 40 to 74 years.
+Women 75 years or older
+I
+The USPSTF concludes that the current evidence is
+insufficient to assess the balance of benefits and harms
+of screening mammography in women 75 years or older.
+Women with dense breasts
+I
+The USPSTF concludes that the current evidence is
+insufficient to assess the balance of benefits and harms
+of supplemental screening for breast cancer using breast
+ultrasonography or magnetic resonance imaging (MRI)
+in women identified to have dense breasts on an otherwise
+negative screening mammogram.
+Population
+Recommendation
+Grade
+See the “Practice Considerations”
+section for more information on the
+patient population to whom this
+recommendation applies and on
+screening mammography modalities.
+USPSTF indicates US Preventive
+Services Task Force.
+Clinical Review & Education
+JAMA | US Preventive Services Task Force | RECOMMENDATION STATEMENT
+1918
+JAMA
+June 11, 2024
+Volume 331, Number 22
+(Reprinted)
+jama.com
+© 2024 American Medical Association. All rights reserved, including those for text and data mining, AI training, and similar technologies.
