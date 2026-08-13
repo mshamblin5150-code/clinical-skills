@@ -11,8 +11,9 @@ CC: "<the patient's own words, quoted>"
 
 HPI (OLDCARTS):
 Onset, Location, Duration, Character, Aggravating, Relieving, Timing, Severity
-<one line, semicolon separated. All eight carry a value and severity is N/10;
- then pertinent negatives the shorthand states>
+<one line, semicolon separated. All eight carry a value; severity is N/10
+ followed by the complaint it belongs to; then pertinent negatives the
+ shorthand states>
 <Onset and Duration may name more than one symptom's timeline, each written
  duration-first as "<duration> for <symptoms>". Their clauses take a comma
  here, never a semicolon — that is the element separator on this line.

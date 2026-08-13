@@ -23,7 +23,7 @@ Character:
 Aggravating:
 Relieving:
 Timing:
-Severity: <N/10, and what it scores>
+Severity: <N/10, and the complaint it belongs to>
 
 <then a short narrative paragraph: age, sex, who brought them, the course,
 prior treatment and testing, current appearance>
