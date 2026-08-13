@@ -26,7 +26,7 @@ Day files name preceptors by first name; Medatrax wants `Last,First` exactly.
 
 **The mapping is per-clinician and lives in `scratch/medatrax-profile.md`**, written by [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Read it there rather than from this file — a preceptor list belongs to one account and does not travel.
 
-**A day file names who the clinician worked alongside. The `Preceptor` field names who supervises them for the programme.** Those are two different questions, and a filename answers only the first. The person in the filename may be a physician the clinician rounded with who is not on the picklist at all — in which case nothing is missing from the record and nothing needs mapping.
+**A day file names who the clinician worked alongside. The `Preceptor` field names who supervises them for the program.** Those are two different questions, and a filename answers only the first. The person in the filename may be a physician the clinician rounded with who is not on the picklist at all — in which case nothing is missing from the record and nothing needs mapping.
 
 **So a name that maps to nobody is a question, not a defect.** Look it up before treating it as one:
 
