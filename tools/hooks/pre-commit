@@ -12,6 +12,11 @@ for python in python python3 py; do
         # when the mirror is linked. See tools/skills_mirror.py.
         "$python" "$repo_root/tools/skills_mirror.py" --quiet >&2 || true
 
+        # Advisory on the same terms, and for the same reason: a British
+        # spelling is standing rule 4, not PHI. Prints nothing when the staged
+        # Markdown is clean. See tools/spelling_scan.py.
+        "$python" "$repo_root/tools/spelling_scan.py" --quiet >&2 || true
+
         exec "$python" "$repo_root/tools/phi_scan.py"
     fi
 done

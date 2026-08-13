@@ -39,6 +39,7 @@ import unittest
 from pathlib import Path
 
 import guidelines_extract as extract
+import guidelines_index as index
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
 
@@ -445,6 +446,27 @@ class WritingADocument(unittest.TestCase):
         self.assertTrue(written.is_file())
         self.assertEqual(record.output, "AHA ACC/paper.txt")
 
+    def test_the_doc_id_is_the_relative_path_with_the_suffix_dropped(self):
+        # The key #84 matches a document by, and the reason the output file sits
+        # at the source stem: a hit has to name a file openable beside its PDF.
+        record = self.record()
+        self.assertEqual(record.doc_id, "AHA ACC/paper")
+        self.assertEqual(record.society, "AHA ACC")
+
+    def test_a_document_at_the_root_has_no_society(self):
+        # The society is the first path segment, so a file with no directory has
+        # none. Reporting the stem as a society would invent one.
+        self.assertIsNone(extract.society_of(extract.document_id(Path("loose.pdf"))))
+
+    def test_the_title_is_carried_through_when_the_pdf_has_one(self):
+        record = extract.build_document(
+            Path("AHA ACC/paper.pdf"), AHA, self.out, "2026 Guideline on Blood Cholesterol"
+        )
+        self.assertEqual(record.title, "2026 Guideline on Blood Cholesterol")
+
+    def test_a_document_with_no_embedded_title_records_none(self):
+        self.assertIsNone(self.record().title)
+
     def test_the_written_file_reads_back_as_the_same_pages(self):
         self.record()
         text = (self.out / "AHA ACC" / "paper.txt").read_text(encoding="utf-8")
@@ -512,11 +534,23 @@ class WritingADocument(unittest.TestCase):
         records = [self.record(), extract.failed_document(Path("IDSA/b.pdf"), "boom")]
         extract.write_manifest(self.out, records, Path("C:/codeing/guidelines-src"))
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["documents"], 2)
-        self.assertEqual(manifest["failures"], 1)
-        self.assertEqual(len(manifest["records"]), 2)
+        self.assertEqual(len(manifest["documents"]), 2)
+        self.assertEqual(manifest["totals"]["documents"], 2)
+        self.assertEqual(manifest["totals"]["failures"], 1)
         self.assertEqual(manifest["codec"], "utf-8")
-        self.assertIn(DOWNLOADED, manifest["records"][0]["boilerplate"])
+        self.assertIn(DOWNLOADED, manifest["documents"][0]["boilerplate"])
+
+    def test_a_failed_document_still_carries_a_doc_id(self):
+        # #84 reports a manifest entry it found no text for on stderr and stays
+        # green. That is this tool's recorded failure surfacing over there, and it
+        # only works if the entry can be matched to a document at all.
+        extract.write_manifest(
+            self.out,
+            [extract.failed_document(Path("IDSA/b.pdf"), "boom")],
+            Path("C:/codeing/guidelines-src"),
+        )
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["documents"][0]["doc_id"], "IDSA/b")
 
     def test_the_manifest_names_the_corpus_it_was_built_from(self):
         # Same reasoning as the ICD-10 database's release string. A derived
@@ -524,6 +558,68 @@ class WritingADocument(unittest.TestCase):
         extract.write_manifest(self.out, [self.record()], Path("C:/codeing/guidelines-src"))
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertIn("guidelines-src", manifest["source"])
+
+
+class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
+    """#84 landed first and reads this output, so the contract is executable here.
+
+    It is asserted on this side rather than only in ``test_guidelines.py`` because
+    #80 owns the manifest's shape. Change it and these go red, which is the whole
+    point: the first version of this writer emitted ``"documents": 179`` as a count,
+    ``read_manifest`` does ``data.get("documents")`` and raises unless that is a
+    list, and nothing in either test suite noticed.
+
+    Deliberately not a full index build -- that needs a database and is
+    ``test_guidelines.py``'s job. What is pinned here is the handoff.
+    """
+
+    def setUp(self):
+        self.out = Path(tempfile.mkdtemp())
+        self.records = [
+            extract.build_document(Path("AHA ACC/paper.pdf"), AHA, self.out, "A Guideline"),
+            extract.build_document(Path("ACIP/adult.pdf"), ACIP, self.out),
+            extract.failed_document(Path("IDSA/broken.pdf"), "PdfReadError: x"),
+        ]
+        extract.write_manifest(self.out, self.records, Path("C:/codeing/guidelines-src"))
+        self.documents = {doc.doc_id: doc for doc in index.discover(self.out)}
+
+    def test_the_manifest_is_a_shape_the_indexer_accepts(self):
+        self.assertIn("AHA ACC/paper", index.read_manifest(self.out))
+
+    def test_every_document_written_is_a_document_found(self):
+        written = {r.doc_id for r in self.records if r.output}
+        self.assertEqual(set(self.documents), written)
+
+    def test_the_society_the_title_and_the_class_survive_the_handoff(self):
+        paper = self.documents["AHA ACC/paper"]
+        self.assertEqual(paper.society, "AHA ACC")
+        self.assertEqual(paper.title, "A Guideline")
+        self.assertEqual(paper.document_class, extract.CLASS_GUIDELINE)
+
+    def test_the_print_capture_stays_separable_on_the_other_side(self):
+        # The single reason document_class is in the manifest at all: it is a
+        # column on `document` and guidelines_search.py --class filters on it.
+        self.assertEqual(
+            self.documents["ACIP/adult"].document_class, extract.CLASS_PRINT_CAPTURE
+        )
+
+    def test_the_page_count_survives_the_form_feeds(self):
+        self.assertEqual(len(self.documents["AHA ACC/paper"].pages), len(AHA))
+
+    def test_a_page_that_extracted_to_nothing_keeps_its_number(self):
+        # Dropping it would slide every later citation by one, and a citation off
+        # by a page is worse than no citation.
+        extract.build_document(Path("KDIGO/gappy.pdf"), ["one", "", "three"], self.out)
+        extract.write_manifest(self.out, self.records, Path("C:/codeing/guidelines-src"))
+        pages = {d.doc_id: d for d in index.discover(self.out)}["KDIGO/gappy"].pages
+        self.assertEqual([page.number for page in pages], [1, 2, 3])
+        self.assertIn("three", pages[2].text)
+
+    def test_a_failure_is_named_by_the_manifest_and_has_no_text(self):
+        # The indexer reports this on stderr and still exits 0 -- a build that
+        # went red for one unextractable PDF would be red every run.
+        self.assertIn("IDSA/broken", index.read_manifest(self.out))
+        self.assertNotIn("IDSA/broken", self.documents)
 
 
 if __name__ == "__main__":

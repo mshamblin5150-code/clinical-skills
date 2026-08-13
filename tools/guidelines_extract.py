@@ -274,12 +274,22 @@ def classify(pages: list[list[str]]) -> str:
 class Record:
     """One document's manifest entry. ``output`` is None exactly when it failed.
 
-    Everything but ``source`` defaults to the nothing-was-read state, so a failure
-    is ``Record(source=..., error=...)`` and a field added later does not have to
+    Everything but ``doc_id`` defaults to the nothing-was-read state, so a failure
+    is ``Record(doc_id=..., error=...)`` and a field added later does not have to
     be spelled out twice in two constructors that must not disagree.
+
+    ``doc_id``, ``society``, ``title`` and ``document_class`` are the four fields
+    #84's indexer reads (`tools/guidelines_index.py`), and ``doc_id`` is the key it
+    matches a document by. The rest is this tool's own audit trail. A failed
+    document still gets an entry with a ``doc_id``: the indexer reports a manifest
+    entry it found no text for on stderr, which is exactly this tool's recorded
+    extraction failure surfacing rather than a silent skip on either side.
     """
 
-    source: str
+    doc_id: str
+    society: str | None = None
+    title: str | None = None
+    source: str = ""
     output: str | None = None
     document_class: str = CLASS_UNKNOWN
     pages: int = 0
@@ -292,7 +302,22 @@ class Record:
     error: str | None = None
 
 
-def build_document(relative: Path, raw_pages: list[str], out_root: Path) -> Record:
+def document_id(relative: Path) -> str:
+    """The key #84 matches a document by: the relative path, no suffix, posix.
+
+    Its first segment is the society, which is how a hit names a file that can be
+    opened beside the PDF of the same name.
+    """
+    return relative.with_suffix("").as_posix()
+
+
+def society_of(doc_id: str) -> str | None:
+    return doc_id.split("/")[0] if "/" in doc_id else None
+
+
+def build_document(
+    relative: Path, raw_pages: list[str], out_root: Path, title: str | None = None
+) -> Record:
     """Normalize, strip, write one text file, and describe what was done to it."""
     pages = clean_pages(raw_pages)
     boilerplate = find_boilerplate(pages)
@@ -306,7 +331,11 @@ def build_document(relative: Path, raw_pages: list[str], out_root: Path) -> Reco
     body = ("\n" + PAGE_SEPARATOR + "\n").join("\n".join(page) for page in kept)
     destination.write_text(body + "\n", encoding=OUTPUT_CODEC, newline="\n")
 
+    doc_id = document_id(relative)
     return Record(
+        doc_id=doc_id,
+        society=society_of(doc_id),
+        title=title,
         source=relative.as_posix(),
         output=relative.with_suffix(".txt").as_posix(),
         document_class=classify(pages),
@@ -323,15 +352,27 @@ def build_document(relative: Path, raw_pages: list[str], out_root: Path) -> Reco
 
 def failed_document(relative: Path, error: str) -> Record:
     """A document that could not be read. Recorded, never skipped."""
-    return Record(source=relative.as_posix(), error=error)
+    doc_id = document_id(relative)
+    return Record(
+        doc_id=doc_id,
+        society=society_of(doc_id),
+        source=relative.as_posix(),
+        error=error,
+    )
 
 
-def extract_pages(path: Path) -> list[str]:
-    """Every page of a PDF as raw text, in the order the page reads.
+def extract_pages(path: Path) -> tuple[list[str], str | None]:
+    """Every page of a PDF as raw text in reading order, and its embedded title.
 
     A page that raises comes back as an empty string rather than taking the
     document down with it -- the manifest counts it, and one unreadable page in a
     250-page report is not a failed extraction.
+
+    The title is ``/Title`` verbatim, or None. **Verbatim and unfiltered**: 147 of
+    the 179 carry one and they are real guideline titles, measured 2026-08-12, but
+    the rest include the usual ``Microsoft Word - ...`` debris. Inventing a
+    junk-detection heuristic here would put an unreviewable rule between the PDF
+    and the record; curating them is the catalog's job (#81).
     """
     import pypdf  # imported here so the pure functions above stay importable without it
 
@@ -342,7 +383,12 @@ def extract_pages(path: Path) -> list[str]:
             pages.append(page.extract_text() or "")
         except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
             pages.append("")
-    return pages
+
+    try:
+        title = ((reader.metadata or {}).get("/Title") or "").strip() or None
+    except Exception:  # noqa: BLE001 - a broken metadata dictionary is not a failed read
+        title = None
+    return pages, title
 
 
 def _engine_version() -> str:
@@ -384,18 +430,28 @@ def orphaned_outputs(out_root: Path, records: list[Record]) -> list[Path]:
 
 
 def write_manifest(out_root: Path, records: list[Record], source_root: Path) -> Path:
-    """The audit trail. One entry per document, in source order."""
+    """The audit trail, and #84's input. One entry per document, in source order.
+
+    ``documents`` is the **list of entries**, which is the shape
+    ``guidelines_index.read_manifest`` requires -- it does ``data.get("documents")``
+    and raises unless what comes back is a list. The run totals live under
+    ``totals`` for that reason: ``"documents": 179`` as a count read as a manifest
+    of the wrong shape, and the indexer raised rather than indexing 179 documents
+    with no title, society or class. That refusal is the contract working.
+    """
     manifest = {
         "source": str(source_root),
         "codec": OUTPUT_CODEC,
         "engine": _engine_version(),
         "boilerplate_threshold": BOILERPLATE_THRESHOLD,
         "minimum_occurrences": MINIMUM_OCCURRENCES,
-        "documents": len(records),
-        "failures": sum(1 for record in records if record.error),
-        "pages": sum(record.pages for record in records),
-        "chars": sum(record.chars for record in records),
-        "records": [asdict(record) for record in records],
+        "totals": {
+            "documents": len(records),
+            "failures": sum(1 for record in records if record.error),
+            "pages": sum(record.pages for record in records),
+            "chars": sum(record.chars for record in records),
+        },
+        "documents": [asdict(record) for record in records],
     }
     path = out_root / MANIFEST_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -465,7 +521,8 @@ def main(argv: list[str]) -> int:
     for path in pdfs:
         relative = path.relative_to(source_root)
         try:
-            records.append(build_document(relative, extract_pages(path), out_root))
+            raw_pages, title = extract_pages(path)
+            records.append(build_document(relative, raw_pages, out_root, title))
         except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
             records.append(failed_document(relative, f"{type(error).__name__}: {error}"))
         if not args.quiet:
