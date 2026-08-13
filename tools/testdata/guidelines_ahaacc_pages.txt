@@ -1,0 +1,41 @@
+# Page excerpts in the shape PyMuPDF-free extraction produces for the AHA/ACC
+# journal PDFs. Four pages, form-feed separated, header lines stripped by the
+# loader in test_guidelines_extract.py.
+#
+# Derived, not copied. The boilerplate strings, the running head and the control
+# characters are verbatim artifacts of the real files -- they have to be, they are
+# what the parsers are tested against. The body prose around them is written for
+# this fixture. Issue #87 rules the source corpus non-redistributable, and a page
+# of AHA body text is the copyrighted expression rather than the artifact.
+#
+# The quirks each page carries are deliberate:
+#   page 1  U+0008 backspace after the issue date; no running head (cover page)
+#   page 2  em space inside a threshold row; en dash in 130-139; U+2265
+#   page 3  soft hyphen mid-word; fi ligature; a private-use icon glyph
+#   page 4  narrow no-break space
+
+Circulation
+April 28, 2026
+Circulation. 2026;153:e1154–e1276. DOI: 10.1161/CIR.0000000000001423
+e1154
+2026 Guideline on the Management of Blood Cholesterol
+Downloaded from http://ahajournals.org by on August 12, 2026
+
+CLINICAL STATEMENTS AND GUIDELINES
+April 28, 2026 Circulation. 2026;153:e1154–e1276. DOI: 10.1161/CIR.0000000000001423e1155
+Table 1. Blood pressure thresholds used throughout this guideline
+Stage 1 hypertension 130–139 mm Hg systolic
+Stage 2 hypertension ≥140 mm Hg systolic
+Downloaded from http://ahajournals.org by on August 12, 2026
+
+CLINICAL STATEMENTS AND GUIDELINES
+April 28, 2026 Circulation. 2026;153:e1154–e1276. DOI: 10.1161/CIR.0000000000001423e1156
+Treatment of hyper­tension in adults with conﬁrmed elevated readings
+An LDL-C goal of <100 mg/dL and a non–HDL-C goal of <130 mg/dL
+Downloaded from http://ahajournals.org by on August 12, 2026
+
+CLINICAL STATEMENTS AND GUIDELINES
+April 28, 2026 Circulation. 2026;153:e1154–e1276. DOI: 10.1161/CIR.0000000000001423e1157
+Recommendation-specific supportive text 1.
+Statin therapy is recommended for adults 40 to 75 years of age.
+Downloaded from http://ahajournals.org by on August 12, 2026

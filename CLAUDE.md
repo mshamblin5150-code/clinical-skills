@@ -49,7 +49,7 @@ Its extractors are covered by `tools/test_corpus_census.py`, which runs against 
 python -m unittest discover -s tools -t tools
 ```
 
-Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
+Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any. **One tool is now the exception**, and deliberately: `tools/guidelines_extract.py` reads PDFs and needs `pypdf`. Nothing else does, and nothing a consumer runs does.
 
 ### Filled-vitals census
 
@@ -98,6 +98,34 @@ python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
 **It holds the tabular, not the index.** So it verifies a code and never finds one: `tools/icd10_lookup.py --find` is a substring match over descriptors, which is a weaker thing than the alphabetic index and must not be read as one. The index, the neoplasm table and the drug table are all deliberately out — see the module docstring for what that costs.
 
 Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
+
+### Guideline text extraction
+
+The 179 society guideline PDFs are the source for everything in the #80 series, and nothing downstream reads a PDF — they read the `.txt` this produces.
+
+```bash
+python tools/guidelines_extract.py "C:/codeing/guidelines-src"
+```
+
+**The corpus stays outside the repo, and so does the output.** Source is 410 MB and mostly society-copyrighted ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)); output defaults to a sibling of it, `guidelines-text`. The script **refuses to write inside any git checkout**, walking up from the output directory for a `.git` entry rather than only comparing against its own repo root — run from a worktree, that root is the worktree and says nothing about the main clone's `reference/`.
+
+**The only tool here that is not stdlib**, so it is the only one that has to be installed:
+
+```bash
+python -m pip install pypdf
+```
+
+That is affordable because it is maintainer-only and runs once per corpus refresh, and the script checks for it up front rather than recording 179 identical failures. `fitz` is roughly six times faster and loses the spaces between words on the USPSTF files — whole sentences come back as `primarycarebecauseofitshighsensitivity`, and 90 of the 179 documents are USPSTF.
+
+179 documents, 7,733 pages, 39.5 M characters, no failures — measured 2026-08-12. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed.
+
+**What it strips and what it cannot.** A line on 75% or more of a document's sampled pages goes, which catches `Downloaded from http://ahajournals.org by on August 12, 2026` on every AHA/ACC file. It finds a repeated line in **150 of the 179** — measured 2026-08-12 — not the 168 #80 estimated: a running head with the page number folded into it differs on every page, and a head that alternates recto and verso splits its votes. Masking digits would catch both and would also make `130-139 mm Hg` and `140-159 mm Hg` the same line — [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100) holds that decision open and it is not to be fixed in passing.
+
+**The rule is narrowed in exactly one place, and it is not #100's question.** A line must also appear on at least 3 pages, because every line of a one-page document appears on 100% of its pages and the percentage alone would strip such a document to nothing and record it as clean. That floor is arithmetically inert above 3 sampled pages.
+
+**A re-run overwrites and never deletes.** Rename a source and its old `.txt` stays behind, claimed by no manifest entry; the summary names orphans and leaves them, because #84 will index the directory rather than the manifest and would otherwise pick a stale copy up.
+
+Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. **Those excerpts have to match what `pypdf` actually emits.** The ACIP fixture originally put the browser print timestamp on a line of its own, which is what `fitz` does and what no real file does; the document classifier passed against it while finding zero print-captures in the corpus.
 
 ### PHI pre-commit hook
 
