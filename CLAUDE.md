@@ -170,7 +170,16 @@ Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the 
 
 **The earlier figures were provisional and are now retired.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written to exercise this tool because #80 had not landed. #80 has landed, so the whole set was re-measured against the committed extractor. Boilerplate stripping is most of the 3.9 MB the index lost.
 
-**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,562,745 and this reports 39,780,017. The extractor counts the characters in its lines; the indexer counts the page text it is handed, newlines included. The 217,272 between them is line separators.
+**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,562,745 and this reports 39,780,017. They measure different stages of the same corpus, and the gap reconciles exactly:
+
+| | |
+| --- | --- |
+| extractor `chars` — line contents, **before** stripping | 39,562,745 |
+| less `chars_stripped` | −554,372 |
+| plus the newline written between every line | +771,644 |
+| **= characters in the `.txt` files, less the form feeds the indexer splits on** (7,733 pages − 179 documents = 7,554) | **39,780,017** |
+
+**The obvious explanation for the 217,272 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — the figure above is derived from the manifest and the index meta, and the last row is checkable against the files on disk.
 
 **The four manifest fields arrive intact**, checked against the built index rather than assumed: 176 `guideline` and 3 `print-capture`, 147 of 179 with a title, and no document missing a society. `--class print-capture shingles` returns only the ACIP captures, which is the entire reason that column exists.
 
