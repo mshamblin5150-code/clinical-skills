@@ -9,9 +9,11 @@ Three disciplines make that verification fast:
 
 - **Anchor** — every code quotes the note text that documents it. A code with no anchor is not a code, it is a guess about the patient.
 - **Descriptor** — every code carries its official descriptor next to its number. When the number and the descriptor disagree, the clinician sees it instantly. This is the defense against a fluent, plausible, wrong code number, and it is the reason the descriptor is never omitted to save space.
-- **Source** — the anchor has to be something the encounter *recorded*. A note carries filled content by design, and filled content reads exactly like recorded content. Codes are proposed from what was recorded, never from what was supplied to satisfy a rubric.
+- **Source** — every code says whether its anchor was **recorded** or **filled**. A note carries filled content by design, and filled content reads exactly like recorded content, so a worksheet that does not say which is which has destroyed the distinction rather than merely omitted it. A code resting on filled content is still proposed. It is proposed **marked**.
 
 The third one is invisible and is the reason for *The input* below.
+
+**Source used to refuse rather than mark, and the change is [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46).** [#10](https://github.com/mshamblin5150-code/clinical-skills/issues/10)'s rule sent a filled-anchored code to step 4 uncoded. That left this skill and [clinical-note](../clinical-note/SKILL.md) applying **different rules to the same value** — the note writing `E66.3` into a submitted diagnosis field while this worksheet refused it — and the clinician holding two documents that disagreed with nothing saying which was right. Two skills disagreeing about one number is a defect whichever of them is correct, so the disagreement was removed rather than adjudicated: both code it, and this skill marks it.
 
 ## The input
 
@@ -49,7 +51,7 @@ Before reading the note body, list every value the tier block gives as filled �
 
 **Then read `DERIVED` as well, because that is where the BMI lives.** A BMI computed from a filled height is *derived* under [clinical-note](../clinical-note/SKILL.md)'s tiers — the arithmetic has one right answer — so it is written on the `DERIVED` line, not a `FILLED` one. A step that read only the FILLED lines would miss the single value this whole rule was written for. **A derived value is treated as filled here whenever any input to it was filled**, and its FILLED line names those inputs.
 
-That combined list is the set of numbers **no code may rest on**. Hold it while doing step 2.
+That combined list is the set of numbers whose codes carry a **`SOURCE: filled`** line in step 3 and are listed again in step 4. Hold it while doing step 2.
 
 Completion: every entry under `DERIVED`, `FILLED·asserted` and `FILLED·proposed` has been read; every filled vital and measurement is written down with its value; and every derived value has been checked for a filled input.
 
@@ -60,7 +62,7 @@ Read the note and list what is documented — not what is implied. For each, cap
 - **Diagnoses** — from the Assessment. A symptom is codable as a symptom; it does not become a disease.
 - **Procedures** — from the Plan and Objective: laceration repair, splinting, incision and drainage, ECG interpretation, foreign body removal, and so on.
 
-Then strike out every element whose only support is a value from step 1. Those are not codable here — they go to step 4.
+Then mark every element whose only support is a value from step 1. Those are coded like any other — they carry their mark into step 3 and are listed **again** in step 4.
 
 Completion: every Assessment problem and every Plan procedure appears in the list, marked codable or filled-anchored.
 
@@ -71,9 +73,12 @@ For each codable element:
 ```
 ICD-10  <code>  <official descriptor>
   ANCHOR: "<verbatim note text>"
+  SOURCE: filled — <which inputs were filled>; confirm before submitting
   SPECIFICITY: <complete | needs: laterality / episode / site / severity / a billable child>
   CONFIDENCE: <verified against ICD-10-CM FY2026 | verify this number>
 ```
+
+**`SOURCE` appears only where the anchor was filled**, so an ordinary code keeps its five parts and a filled-anchored one carries six. It is a line on the code itself and not only a step-4 heading, for the reason step 4 gives about `NOT CODED`: **a block heading does not survive being copied one line at a time**, and the proposed-code list is exactly the block a clinician scans for things to enter.
 
 CPT entries take the same shape, plus the note text documenting anything the code's requirements hinge on — repair length, wound complexity, time.
 
@@ -82,13 +87,17 @@ Rules:
 - Code to the specificity the documentation supports and no further. If the note says "wrist fracture" with no side, the laterality is `needs: laterality`, not a coin flip between left and right.
 - Say `verify this number` whenever you are working from recall rather than the code set. An honest flag costs the clinician ten seconds; a confident wrong code costs a rejected claim or a bad log entry.
 - Never invent a documented finding to justify a code. If a code needs an element the note lacks, that goes in step 4.
-- **Never propose a code whose only anchor is a filled value.** The rule and its reasoning are below.
+- **A code whose only anchor is a filled value is proposed, and carries `SOURCE: filled`.** The rule and its reasoning are below.
 - **A hedged diagnosis is coded, and the documented symptoms are coded with it** — with one limit, on the code rather than the hedge. Below.
 - **Every differential entry carries a code, and none of those codes is for entry.** Below.
 
-#### A filled value is not documentation
+#### A filled value is coded, and it is marked
 
-**A code whose only anchor is a filled value is not proposed at all.** It goes to step 4, naming the code it would unlock and the measurement that would earn it.
+**A code whose only anchor is a filled value is proposed like any other, carries `SOURCE: filled`, and is listed again in step 4.** The code is derived from the note's own stated value and looked up, not withheld and not recalled.
+
+**Withholding it was the previous rule and it was wrong for a reason that has nothing to do with whether the code is earned.** [clinical-note](../clinical-note/SKILL.md) writes codes into the Medatrax `Preexisting diagnoses` and `Final diagnosis` fields, because those are fields and something goes in them. So a rule that refused those same codes here produced two documents, from one pipeline, disagreeing about one number — with nothing in either saying which was right. **The clinician cannot adjudicate that and should not be asked to.** Marking gives the same protection without the contradiction: the code is present, so the two agree, and the mark says what the note alone cannot.
+
+**The mark is not a formality, and this is what it buys.** The note is written so given and filled content read identically — that is deliberate, and it is why the tier block exists at all. Once a code leaves this worksheet, nothing downstream can recover whether anybody measured the patient. `SOURCE: filled` is the last point in the pipeline where that fact is still knowable.
 
 The rule is general. It is not a rule about `Z68`, which is only its sharpest instance.
 
@@ -111,7 +120,9 @@ and `R03.0` carries
 
 > This category is to be used to record an episode of elevated blood pressure
 
-**`if known`** and **`an episode`** are the tabular's own language. A filled BMI is not known — it is the value the patient most plausibly had. A filled blood pressure records no episode. Neither code was meant to be assigned from a number nobody measured, and declining to do so is following the tabular rather than overriding it.
+**`if known`** and **`an episode`** are the tabular's own language. A filled BMI is not known — it is the value the patient most plausibly had. A filled blood pressure records no episode; read `R03.0`'s descriptor and the noun is *reading*, which is an act somebody performed.
+
+**So the tabular's own conditions are unmet, and the code is still proposed.** That is not the tabular being overridden — it is the division of labor this skill opens with. Codes here are **proposed, never asserted**; the worksheet is a document the clinician verifies, not a coding decision. `SOURCE: filled` is how an unmet condition reaches the person who can settle it, and *"confirm before submitting"* is the instruction the tabular's `if known` becomes when the answer is *not yet*.
 
 **`Z68` and `R06.82` carry no such instruction, and the rule still covers them.** Check for yourself — `Z68`'s only notes are its age boundaries and the growth-chart provenance, and `R06.82` carries an inclusion term and a list of exclusions. So the rule is not *derived* from the tabular; it is **confirmed** by it where the tabular happens to speak. What the rule actually rests on is the structural test in the paragraph above: does this code turn on a number the encounter recorded? Citing `E66` where it helps is not the same as claiming the code set decides every case, and a rule that needed a supporting note per family would fail on two of its own four examples.
 
@@ -124,15 +135,21 @@ and `R03.0` carries
 
 One invented inch, a different code. Nothing in the finished note distinguishes the two, and nothing downstream can tell that an inch was chosen rather than measured.
 
-**Age matters here too.** `Z68` adult codes are for persons 20 years and older; ages 2–19 take `Z68.5-`, which is a **CDC growth-chart percentile**. A filled height and weight for an adolescent produces a percentile that is invented twice over.
+**And the skill does not choose that inch freshly each time.** `tools/filled_vitals_census.py` over `fixtures/filled-anchor/notes` finds **nine filled heights across four distinct values, four of them `5'10"`**. So a `Z68` off a filled body is substantially a readout of the skill's modal height. That is [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) rather than this skill's defect to fix — but it is why the mark is not decoration.
 
-**What is still codable, and this is most of it.** The rule reaches the value, not the patient.
+**The band code and the diagnosis code are not equally exposed to that, and the difference is checkable.** At a filled weight of 185 lb, *every* height from 5'6" to 6'0" lands in the overweight band, so `E66.3` holds across the whole plausible range and the invented inch is not what produced it. Those same seven heights produce **five different `Z68` codes**. A diagnosis code names a state that survives the invention; a band code encodes the invention to one decimal place. Both are proposed and both are marked — the mark simply matters more on one than the other, and a clinician confirming the pair should know which one the inch decided.
 
-- A **documented** diagnosis of obesity, hypertension or asthma is codable from the Assessment however the vitals got there — **where the source documented it.** `E66.9` off a charted diagnosis is a given anchored to given text.
+**Age matters here too, and it is the one place the code cannot be derived at all.** `Z68` adult codes are for persons 20 years and older; ages 2–19 take `Z68.5-`, which is a **CDC growth-chart percentile**, not a BMI band. The database holds the codes and not the charts, so for an adolescent the band is **recalled** rather than looked up — `CONFIDENCE: verify this number`, on the rule above about working from recall. A filled height and weight for an adolescent is therefore invented twice over, and the `SOURCE` line says both. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123) ships the charts and removes the second one; until it lands, the double disclosure is the honest state.
 
-  **"Charted" means charted by the clinician, not written into the Assessment by the upstream skill.** The note arriving here is generated, so its Assessment can name a diagnosis that rests on nothing but a filled measurement — `clinical-note` is permitted to write one there, provided the FILLED block declares what it rests on. That entry is the measurement wearing a diagnosis, and step 2 strikes it: its only support is a value from step 1. Reading this bullet as blanket permission to code any `E66` sitting in an Assessment launders a filled height into a code in two moves, and the output reads perfectly well.
-- A **given** vital codes normally. Only the filled ones are struck.
-- A **derived** value whose inputs were all given is given for this purpose — a BMI computed from a recorded height and a recorded weight is a measurement, not an invention.
+**What codes without a mark, and this is most of it.** The mark reaches the value, not the patient.
+
+- A **documented** diagnosis of obesity, hypertension or asthma codes from the Assessment however the vitals got there, and codes **unmarked** where the source documented it. `E66.9` off a charted diagnosis is a given anchored to given text.
+
+  **"Charted" means charted by the clinician, not written into the Assessment by the upstream skill.** The note arriving here is generated, so its Assessment can name a diagnosis resting on nothing but a filled measurement. That entry is the measurement wearing a diagnosis — it still codes, and it carries `SOURCE: filled` naming the measurement underneath. **Reading this bullet as license to code such an entry *unmarked* launders a filled height in two moves, and the output reads perfectly well.** The mark is the whole of the difference between the two bullets.
+- A **given** vital codes unmarked. Only the filled ones carry `SOURCE`.
+- A **derived** value whose inputs were all given is given for this purpose — a BMI computed from a recorded height and a recorded weight is a measurement, not an invention, and it codes unmarked.
+
+**One limit is clinical rather than provenance, and it is not lifted by any of the above.** `I10` requires hypertension the clinician documented, because **no single reading diagnoses hypertension** — real or filled. That limit holds against a *given* 138/86 exactly as it holds against a filled one, so it is not a `SOURCE` question at all and marking does not reach it. What a filled pressure supports is `R03.0`, marked. What it never supports is `I10`. `fixtures/filled-anchor` **A4** pins the diagnosis half of this on all four of its cases.
 
 #### A hedged diagnosis is a given, and it is coded
 
@@ -140,7 +157,7 @@ One invented inch, a different code. Nothing in the finished note distinguishes 
 
 **So it is coded, and the documented symptoms are coded alongside it.** Both, not one instead of the other. A suspected diagnosis is usually the reason the encounter happened and the reason codes were asked for at all; a worksheet that refused it would be missing the thing it was opened for.
 
-**That is the opposite of the rule above it, and the difference is what each one rests on.** A filled BMI is a number *nobody recorded* — the note reads identically whether it was measured or generated, and a code resting on it rests on an invention. `probable viral URI` was recorded, hedge and all. The uncertainty there is **documented rather than manufactured**, and a code proposed from it rests on something the encounter actually says. Uncertainty is not the same defect as invention, and the rule for one does not reach the other.
+**Both rules now code, and the difference is which one carries a mark.** A filled BMI is a number *nobody recorded* — the note reads identically whether it was measured or generated — so its code carries `SOURCE: filled`. `probable viral URI` was recorded, hedge and all. The uncertainty there is **documented rather than manufactured**, so `J06.9` is anchored to something the encounter actually says and takes no `SOURCE` line. Uncertainty is not the same defect as invention, and the mark is reserved for the second.
 
 **The limit is on the code, not on the hedge.** Where the code's own descriptor names a **confirmed organism or a confirmed disease** and the encounter established neither, that code is not proposed. Propose what the encounter does document, and send the specific code to step 4 naming what would earn it:
 
@@ -188,10 +205,9 @@ ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
 <element the code set wants — laterality, wound length, time spent, episode of care>
   affects: <which proposed code>
 
---- NOT CODED, ANCHOR WAS FILLED ---
-<the value, and that it was filled>
-  NOT CODED: <code and official descriptor>
-  needs: <the measurement that would earn it>
+--- CODED, ANCHOR WAS FILLED — CONFIRM BEFORE SUBMITTING ---
+<code> — <the value, and which inputs were filled>
+  needs: <the measurement that would settle it>
 
 --- NOT CODED, NOTHING ESTABLISHED IT ---
 <the suspected diagnosis, and what documents the suspicion>
@@ -202,12 +218,11 @@ ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
 
 This is the section with the most value in it. It tells the clinician what to document *at the bedside next time* so the encounter codes cleanly, which is worth more over a rotation than any single code proposal.
 
-The second and third blocks are the same statement about different causes. `laterality not documented`, `height not measured` and `nobody swabbed` are all *this encounter did not record the thing the code needs*, and all three are fixed the same way — at the bedside, next time. Write them so the clinician can act on them:
+The three blocks are the same statement about different causes. `laterality not documented`, `height not measured` and `nobody swabbed` are all *this encounter did not record the thing the code needs*, and all three are fixed the same way — at the bedside, next time. **The second differs from the other two in outcome only**: its code was proposed rather than withheld, and what it needs is confirmation rather than a first measurement. Write them so the clinician can act on them:
 
 ```
---- NOT CODED, ANCHOR WAS FILLED ---
-BMI 36.4 — derived from a filled height (5'4") and a given weight (212 lb)
-  NOT CODED: Z68.36  Body mass index [BMI] 36.0-36.9, adult
+--- CODED, ANCHOR WAS FILLED — CONFIRM BEFORE SUBMITTING ---
+Z68.36 — BMI 36.4 derived from a filled height (5'4") and a given weight (212 lb)
   needs: a measured height. One inch moves this to Z68.35
 
 --- NOT CODED, NOTHING ESTABLISHED IT ---
@@ -219,7 +234,9 @@ COVID-19, suspected from a documented household contact and a congruent presenta
 
 **The third block is not the hedge rule refusing a diagnosis.** A hedged diagnosis is coded — that is settled above. What lands here is the narrower thing: a code whose **descriptor** asserts a confirmed organism or disease that the encounter never established. The diagnosis is still coded, by the code the encounter does support, and this block records what the specific one was waiting on.
 
-**Every line in all three carries `NOT CODED` inline, on the same line as the number.** The code has to be named — the clinician who does know the true height, or who gets the swab back tomorrow, needs to know what it would have earned — so the defense cannot be hiding it. It is that the number never appears without its refusal attached, and never in the proposed-codes list where a reader is scanning for things to enter. A block heading alone does not survive being copied one line at a time.
+**Every line that withholds a code carries `NOT CODED` inline, on the same line as the number** — the first and third blocks. The code has to be named, because the clinician who gets the swab back tomorrow needs to know what it would have earned, so the defense cannot be hiding it. It is that the number never appears without its refusal attached, and never in the proposed-codes list where a reader is scanning for things to enter.
+
+**The second block works the same way and cannot use the same device**, because its code *is* proposed and *does* belong in that list. The equivalent is `SOURCE: filled` on the code itself in step 3 — the mark travels with the line rather than living in a heading. **The principle is identical in both: a block heading does not survive being copied one line at a time.** A worksheet that named the filled anchor only here, and left the proposed code bare, would lose the disclosure to a copy-paste — which is exactly the silent failure [#10](https://github.com/mshamblin5150-code/clinical-skills/issues/10) opened for, arriving by a different route.
 
 ### 5. E/M level — only if asked
 
@@ -233,10 +250,10 @@ So the codes on the differential are required, and none of them is for entry. Th
 
 ## Completion
 
-Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. A code missing any of the five is not ready to hand over.
+Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
 
-**A differential code is the one shape with fewer, and it is not an exception to that sentence** — it is a different thing being written down. Number, descriptor, confidence, three parts, plus `NOT FOR ENTRY` on the line. Anything with five parts is a code proposed for entry; anything with three is documentation of reasoning. **The count is how the two are told apart**, which is why neither shape may borrow from the other.
+**A differential code is the one shape with fewer, and it is not an exception to that sentence** — it is a different thing being written down. Number, descriptor, confidence, three parts, plus `NOT FOR ENTRY` on the line. Anything with five parts or six is a code proposed for entry; anything with three is documentation of reasoning. **The count is still how the two are told apart** — the gap is five-or-six against three, and nothing lands between — which is why neither shape may borrow from the other.
 
-And every value the FILLED block declared has been accounted for: either it supports no code, or it appears under `NOT CODED, ANCHOR WAS FILLED`. A filled value that quietly supports a proposed code is the defect this skill was rewritten to catch.
+And every value the FILLED block declared has been accounted for: either it supports no code, or every code it supports carries `SOURCE: filled` **and** appears under `CODED, ANCHOR WAS FILLED`. **Both, not one instead of the other** — the block is the summary a clinician reads once, the `SOURCE` line is what survives the code being copied out of the list. A filled value that quietly supports an unmarked proposed code is the defect this skill was rewritten to catch, and marking rather than refusing did not retire it.
 
 Every hedged diagnosis in the Assessment has been accounted for the same way: coded, or sent to `NOT CODED, NOTHING ESTABLISHED IT` with the code the encounter does support proposed in its place. A hedge that produced no code and no refusal is a diagnosis this worksheet silently dropped.
