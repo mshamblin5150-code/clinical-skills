@@ -68,7 +68,7 @@ Follow up: <interval, and what would bring them back sooner>
 
 **Screening keys to a *given* tobacco history and never to a filled one.** The pack-year note below computes from a history the shorthand supplied. A **positive** tobacco status is never filled into the `SH:` clause in the first place, so there is no case where this note's screening line rests on a smoking history the skill invented.
 
-**Codes belong in this note, in three places.** Preexisting diagnoses, **every differential entry**, and the final diagnosis all carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it declines to code off a filled value, and it cannot see which values those are from the note body alone.
+**Codes belong in this note, in three places.** Preexisting diagnoses, **every differential entry**, and the final diagnosis all carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it marks a code resting on a filled value `SOURCE: filled`, and it cannot see which values those are from the note body alone.
 
 **Only two of the three leave the note.** The preexisting diagnoses and the final diagnosis go on to Medatrax's `ICD-10-CM` category; the differential's codes stay on this page, because they document medical decision-making rather than record what the patient had. What that costs if it is got wrong is in [icd10-cpt](../icd10-cpt/SKILL.md), with the rule.
 

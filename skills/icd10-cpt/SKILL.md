@@ -218,7 +218,7 @@ ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
 
 This is the section with the most value in it. It tells the clinician what to document *at the bedside next time* so the encounter codes cleanly, which is worth more over a rotation than any single code proposal.
 
-The three blocks are the same statement about different causes. `laterality not documented`, `height not measured` and `nobody swabbed` are all *this encounter did not record the thing the code needs*, and all three are fixed the same way — at the bedside, next time. **The second differs from the other two in outcome only**: its code was proposed rather than withheld, and what it needs is confirmation rather than a first measurement. Write them so the clinician can act on them:
+The three blocks are the same statement about different causes. `laterality not documented`, `height not measured` and `nobody swabbed` are all *this encounter did not record the thing the code needs*, and all three are fixed the same way — at the bedside, next time. **The second differs from the other two in outcome only**: its code was proposed rather than withheld. What it needs is the same as theirs — the measurement nobody took — and the difference is that a code is already sitting on the guess in the meantime. Write them so the clinician can act on them:
 
 ```
 --- CODED, ANCHOR WAS FILLED — CONFIRM BEFORE SUBMITTING ---
