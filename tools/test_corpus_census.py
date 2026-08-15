@@ -336,12 +336,28 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
     #:
     #: - ``docs/`` -- an ADR records what was true when it was written and is not
     #:   brought into line afterwards.
-    #: - ``reference/`` -- generated, and holds no encounter figure today.
+    #: - ``reference/`` -- holds no encounter figure today. **Not because it is
+    #:   generated**, which was this comment's first reason and is only half
+    #:   true: ``guidelines-catalog.md`` is curated with the tool auditing it,
+    #:   and #106 is open on exactly that. The honest reason is the narrow one.
     #: - ``tools/`` -- a figure there is as likely to be a *test input* as a
     #:   claim. ``test_phi_scan.py`` feeds the scanner the literal string
     #:   ``measured 2026-08-11 across 559 encounters`` to prove ISO dates are not
     #:   flagged; sweeping it would refuse a string that asserts nothing.
     SEARCHED = ("skills", "fixtures")
+
+    #: **A preserved run record is evidence, not prose, and may not be edited to
+    #: satisfy a scanner.** ``fixtures/filled-anchor/notes/case-*.md`` is day-b
+    #: run 1 byte for byte; ADR 0001 and issue #73 are why it stays that way, and
+    #: ``spelling_scan.py`` carries the same exemption at ``EVIDENCE_PREFIXES``.
+    #:
+    #: ``FIGURE`` cannot reach those notes -- a finished note does not write "551
+    #: encounters" -- but ``RETIRED_ANYWHERE`` is a **bare** three-digit match and
+    #: reaches anything. Those notes already carry bare 5xx literals as doses and
+    #: values (a 500, a 561, a 582), so a future run whose record happened to
+    #: contain 548 or 559 would fail this test in a file nobody is allowed to fix.
+    #: Found sweeping #137, which is open on what that tree costs.
+    EVIDENCE_PREFIX = Path("fixtures") / "filled-anchor" / "notes" / "case-"
 
     #: The two files #63 named. **A sweep passes when a figure is deleted as
     #: happily as when it is corrected**, so each is pinned to state the current
@@ -374,6 +390,8 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
         for tree in self.SEARCHED:
             for path in sorted((REPO_ROOT / tree).rglob("*.md")):
                 relative = path.relative_to(REPO_ROOT)
+                if str(relative).startswith(str(self.EVIDENCE_PREFIX)):
+                    continue
                 lines = path.read_text(encoding="utf-8").splitlines()
                 for number, text in enumerate(lines, 1):
                     for match in pattern.finditer(text):
@@ -389,6 +407,34 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
         """A regex that has stopped matching would pass every assertion below."""
         self.assertGreater(len(self.figures()), 5)
         self.assertGreater(len(self.scan(self.RETIRED_ANYWHERE)), 0)
+
+    def test_the_preserved_run_record_is_out_of_reach(self):
+        """The exemption is asserted, because the trap it avoids is not here yet.
+
+        No note under ``filled-anchor/notes/`` carries a 548 or a 559 today, so
+        deleting the exemption breaks nothing and the sweep would look fine. What
+        would break is a *later* run record, in a file ADR 0001 forbids editing.
+        So the property pinned is that the tree is not read at all, checked
+        against a bare digit sweep that every note matches.
+
+        **The expected path is written out here rather than taken from
+        ``EVIDENCE_PREFIX``.** Checking the constant against itself passes for
+        any value it holds -- point it at a directory that does not exist and the
+        sweep reads the notes while this test still goes green. That is how the
+        first version of this was written and it is why the literal is repeated.
+        """
+        swept = {str(figure.path) for figure in self.scan(re.compile(r"(\d)"))}
+        self.assertTrue(swept, "the sweep read nothing at all")
+        leaked = sorted(
+            path
+            for path in swept
+            if path.replace("\\", "/").startswith("fixtures/filled-anchor/notes/case-")
+        )
+        self.assertEqual(leaked, [])
+
+        # And the tree really is there, so the assertion above is not vacuous.
+        notes = sorted((REPO_ROOT / "fixtures" / "filled-anchor" / "notes").glob("case-*.md"))
+        self.assertGreater(len(notes), 5)
 
     def test_no_file_states_a_second_catalog_size(self):
         wrong = [
