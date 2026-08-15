@@ -355,7 +355,22 @@ def _load_json(path: Path, fallback):
 
 
 def harvest_entries() -> list[dict]:
-    """The raw name-index records, or [] where there is no corpus."""
+    """The raw name-index records, or [] where there is no corpus.
+
+    **The index does not cover the corpus, and this is where that starts.** It
+    carries one entry per encounter and holds 548 of the 551 the census counts;
+    the three with no entry each put something other than the patient's name on
+    the line after ``Note N``, which is the shape ``batch-shift`` step 3 warns a
+    one-line parser loses. So a patient named *only* in one of those three is in
+    no entry, no name of theirs is harvested, and the corpus layer never scans
+    for it. Measured 2026-08-15, issue #63.
+
+    Narrower than the hole the README states -- there the name is nowhere in the
+    corpus, here it is in the corpus and the harvest did not reach it -- and it
+    closes the same way, by rebuilding the index with a window rather than a
+    line. **No generator for it is committed**, only this consumer and
+    ``harvest_review.py``, so nothing here can rebuild it.
+    """
     return _load_json(REPO_ROOT / "scratch" / "name-index.json", [])
 
 
@@ -390,6 +405,12 @@ def name_position_names(entries: Sequence[dict]) -> set[str]:
     case-variant duplicates before #12 pruned them. Everything at ``win[1..3]``
     is the shorthand that follows, and a string appearing only there has no
     positional evidence that it is a name at all.
+
+    **548 is a count of entries, not of encounters.** The corpus holds 551, and
+    ``batch-shift`` step 3 carries the reconciliation and what the gap costs;
+    ``harvest_entries`` above says what it costs *here*. Both are worth the
+    reminder because the same 548 sat in two skill files as the catalog's size
+    until 2026-08-15. Issue #63.
     """
     found: set[str] = set()
     for entry in entries:
