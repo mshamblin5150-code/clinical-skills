@@ -51,9 +51,14 @@ Extractor limits worth knowing before quoting a number:
   as having flagged nothing, which is a floor on every count and **not** on the
   exit status -- the bare-flag test still fires on an unpaired flag, because it
   needs no descriptor.
-- A **differential** entry carries three parts and no ``SPECIFICITY`` line, so it
-  is parsed and then graded on nothing. That is correct rather than a gap: the
-  skill drops specificity from that shape on purpose.
+- A **differential** entry is graded on nothing, and that is enforced rather than
+  assumed. It is *supposed* to carry three parts and no ``SPECIFICITY`` line --
+  but a run that writes one anyway would be graded against a descriptor reading
+  ``..., unspecified`` **by design**, because the skill codes a differential at
+  the unspecified level on purpose. So a flag on a ``NOT FOR ENTRY`` line is
+  parsed, counted, and exempt from both tests; writing one is a C4 failure, which
+  counts parts, and C5 firing as well would name the wrong row. The count is
+  printed rather than dropped, because a non-zero there is worth going to look at.
 - ``Other ...`` is not ``unspecified``. ``R06.89 Other abnormalities of breathing``
   says the finding fits no named code, not that the documentation is thin, and it
   reads ``complete`` with a reason like anything else. ``Other specified ...`` is
@@ -100,6 +105,7 @@ class Flag:
     keyword: str
     remainder: str
     value: str
+    for_entry: bool = True
 
     @property
     def has_substance(self) -> bool:
@@ -125,6 +131,10 @@ class Scan:
     complete_flags: int
     needs_flags: int
     unrecognized_flags: int
+    # A flag on a ``NOT FOR ENTRY`` line. C5 grades none of these, and the count is
+    # reported rather than dropped: a differential is not supposed to carry one at
+    # all, so a non-zero here is a C4 matter the reader should go looking at.
+    not_for_entry_flags: int
     bare_flags: int
     unspecified_complete: int
     # One flag can fail both tests, so the two counters above sum higher than the
@@ -155,10 +165,12 @@ def read_flags(text: str) -> list[Flag]:
     entries = [(m.start(), m.group(1), m.group(2)) for m in ENTRY.finditer(text)]
     flags: list[Flag] = []
     for match in SPECIFICITY.finditer(text):
-        code, descriptor = "", ""
+        code, descriptor, for_entry = "", "", True
         for start, found_code, found_descriptor in entries:
             if start < match.start():
-                code, descriptor = found_code, NOT_FOR_ENTRY.sub("", found_descriptor)
+                code = found_code
+                for_entry = not NOT_FOR_ENTRY.search(found_descriptor)
+                descriptor = NOT_FOR_ENTRY.sub("", found_descriptor)
             else:
                 break
         keyword, remainder = _keyword(match.group(1))
@@ -169,14 +181,26 @@ def read_flags(text: str) -> list[Flag]:
                 keyword=keyword,
                 remainder=remainder,
                 value=match.group(1),
+                for_entry=for_entry,
             )
         )
     return flags
 
 
 def flag_findings(flag: Flag) -> list[Finding]:
-    """C5's two tests, applied to one flag. A flag can fail both."""
+    """C5's two tests, applied to one flag. A flag can fail both.
+
+    **A flag on a ``NOT FOR ENTRY`` line is graded on neither.** A differential is
+    coded at the unspecified level *on purpose* -- ``icd10-cpt`` says so and drops
+    the specificity part from that shape entirely -- so an entry whose descriptor
+    reads ``..., unspecified`` by design is not evidence that anybody failed to
+    look. A run that writes a ``SPECIFICITY`` line there has already broken C4,
+    which counts parts; firing C5 as well would name the wrong row and point at a
+    descriptor the skill asked for.
+    """
     found: list[Finding] = []
+    if not flag.for_entry:
+        return found
     if flag.keyword and not flag.has_substance:
         found.append(Finding(BARE, flag.code, flag.descriptor, flag.value))
     if flag.keyword == "complete" and UNSPECIFIED.search(flag.descriptor):
@@ -200,6 +224,7 @@ def survey(per_worksheet: list[list[Flag]]) -> Scan:
         complete_flags=sum(1 for f in flags if f.keyword == "complete"),
         needs_flags=sum(1 for f in flags if f.keyword == "needs"),
         unrecognized_flags=sum(1 for f in flags if not f.keyword),
+        not_for_entry_flags=sum(1 for f in flags if not f.for_entry),
         bare_flags=sum(1 for f in found if f.kind == BARE),
         unspecified_complete=sum(1 for f in found if f.kind == UNSPECIFIED_COMPLETE),
         failing_flags=sum(1 for flag in flags if flag_findings(flag)),
@@ -220,6 +245,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    complete                       {scan.complete_flags}",
         f"    needs                          {scan.needs_flags}",
         f"    neither keyword                {scan.unrecognized_flags}",
+        f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}",
         "",
         f"  C5 - flag carries no reason      {scan.bare_flags}",
         f"  C5 - complete on unspecified     {scan.unspecified_complete}",
