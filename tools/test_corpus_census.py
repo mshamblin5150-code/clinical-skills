@@ -24,6 +24,7 @@ exempt it from the corpus layer: a real patient name or a real date lifted from
 file was caught using both.
 """
 
+import ast
 import re
 import tempfile
 import unittest
@@ -1346,6 +1347,241 @@ class Age(unittest.TestCase):
     def test_fixtures(self):
         self.assertTrue(cc.has_stated_age(fixture("case-01.md")))
         self.assertTrue(cc.has_stated_age(fixture("case-03.md")))
+
+
+class TheAnchorReportsWhatItCouldCost(unittest.TestCase):
+    """Issue #64. The line anchor's cost, measured rather than asserted.
+
+    ``AGE_AND_SEX_LINE`` carried a dated prose audit claiming its anchors cost
+    no encounter its age. The audit was right -- read by hand 2026-08-15, all
+    three were decoys -- and **it was also unreproducible**, which is ADR 0001's
+    objection landing the other way: four readings of "a digit+sex match" gave
+    38, 36, 36 and 2, and the number the comment stated was none of them. A
+    correct claim nobody can re-derive is indistinguishable from a wrong one.
+
+    So the number is printed now instead of remembered. These tests pin what it
+    counts, because a ceiling that quietly stopped counting something would look
+    exactly like a corpus that had stopped containing it -- issue #56's failure,
+    which is what put this ticket's priority up.
+    """
+
+    def test_a_decoy_still_counts_toward_the_ceiling(self):
+        """The whole point of a ceiling: it over-reports and never misses.
+
+        Every one of these is a decoy and every one is counted. Reading them is
+        what says so, and reading them is PHI -- so the printed figure has to be
+        the thing a human can *check*, not the thing that has already been
+        judged.
+
+        **These are not an inventory of the corpus's three.** That inventory is
+        stated once, in ``AGE_AND_SEX_OFF_LINE``'s comment, and restating it
+        here is how a first draft of this change ended up shipping three
+        descriptions of the same three encounters that disagreed with each
+        other. Two of the shapes below are shapes the read found; the
+        Fahrenheit temperature is **synthetic**, carried because it is the form
+        the anchor most has to reject, and because the class above already pins
+        the other side of that same question.
+
+        **Every value below is invented**, per this file's pragma.
+        """
+        for decoy in (
+            "plan augmentin 875 f/u prn",
+            "bp 120/86 hr 97 t 98 F rr 20",
+            "was here 6-22 f/u pulmonary",
+        ):
+            with self.subTest(decoy=decoy):
+                self.assertTrue(cc.could_have_lost_an_age_to_the_anchor(decoy))
+
+    def test_an_ordinary_mg_dose_is_not_even_a_candidate(self):
+        """And the corpus's one dose decoy is only a candidate by a typo.
+
+        ``\\b`` after the sex letter cannot match against the "g" of "mg", so a
+        correctly written dose never reaches the ceiling at all. The corpus's
+        two dose candidates are a mistyped milligram abbreviation and an
+        antibiotic strength written bare before an ``f/u``.
+
+        Worth pinning because it cuts the other way from everything else here:
+        the ceiling over-reports on temperatures and follow-ups and **under**-
+        reports on doses, so it is a bound on ages rather than a tally of
+        digit+sex shapes. A future edit widening the letter class to catch "mg"
+        would raise the printed figure without a single age having moved.
+        """
+        self.assertFalse(cc.could_have_lost_an_age_to_the_anchor("plan toradol 10 mg IM"))
+        self.assertTrue(cc.could_have_lost_an_age_to_the_anchor("plan toradol 10 m, IM"))
+
+    def test_a_real_off_line_age_counts(self):
+        # The failure the ceiling exists to make visible: the corpus's own
+        # "51 f" form, written into a sentence instead of onto a line of its
+        # own. ``has_stated_age`` cannot see it, and this can.
+        note = "[PT] presents, 51 f c/o dysuria x 2 days"
+        self.assertFalse(cc.has_stated_age(note))
+        self.assertTrue(cc.could_have_lost_an_age_to_the_anchor(note))
+
+    def test_a_note_that_states_an_age_is_never_counted(self):
+        """Nothing was lost, so nothing is at risk -- however many decoys follow.
+
+        This is what keeps the ceiling from drifting into a count of ``f/u``
+        tokens. 24 encounters carry an off-line digit+sex form; 3 of them state
+        no age. Only the second number bounds anything.
+        """
+        note = "[PT]\n51 f\nplan augmentin 875 f/u prn, toradol 10 mg IM"
+        self.assertTrue(cc.has_stated_age(note))
+        self.assertFalse(cc.could_have_lost_an_age_to_the_anchor(note))
+
+    def test_the_digit_and_the_sex_letter_must_share_a_line(self):
+        """Ruled by the clinician 2026-08-15, and it is not a tidy.
+
+        A date of birth in this corpus is always a month, a day and a year, so
+        the trailing two-digit year is a date component and can never be an age
+        -- and the "f" that follows it across the line break belongs to
+        ``f/u``. Allowing whitespace to span the newline pairs them and prints
+        a fourth encounter that lost nothing, because its age was never on a
+        line for the anchor to reject in the first place.
+
+        Refusing it is also what makes the 2026-08-11 audit reproduce exactly:
+        three, and the same three it described.
+
+        **The date below is invented**, per this file's pragma. One real
+        encounter has this shape and its value is not reproduced here or in
+        ``corpus_census.py`` -- ``phi_scan`` refused the first draft of this
+        test for carrying the real one, which is the corpus layer doing its job
+        against the very session that read the note.
+        """
+        note = "dob 3-04-88\nf/u for being in the hospital"
+        self.assertFalse(cc.has_stated_age(note))
+        self.assertFalse(cc.could_have_lost_an_age_to_the_anchor(note))
+
+    def test_a_spelled_sex_word_is_the_ceiling_s_own_blind_spot(self):
+        """Pinned as a known gap, because a ceiling has to say what it cannot see.
+
+        ``[mf]\\b`` cannot match "female" -- the boundary fails against the "e"
+        -- so ``51 female`` is invisible to ``has_stated_age`` **and** to the
+        ceiling published as bounding what ``has_stated_age`` costs. It is zero
+        in the corpus today in all three orderings, measured 2026-08-15, and
+        zero is not the same as covered.
+
+        Asserted rather than left implicit so that widening ``[mf]`` fails here
+        and sends whoever does it to ``AGE_AND_SEX_OFF_LINE``'s comment, where
+        the rule is ``HEDGE``'s: widen deliberately, re-run against the corpus,
+        update every figure that cites it. The gap is narrow because
+        ``AGE_IN_YEARS`` rescues ``51 yo female`` and ``AGE_UNDER_ONE`` rescues
+        ``13 month female``; it is the bare number-plus-spelled-word that falls
+        through.
+        """
+        for form in ("51 female", "48 male", "51female"):
+            with self.subTest(form=form):
+                self.assertFalse(cc.has_stated_age(form))
+                self.assertFalse(cc.could_have_lost_an_age_to_the_anchor(form))
+        for rescued in ("51 yo female", "13 month female"):
+            with self.subTest(rescued=rescued):
+                self.assertTrue(cc.has_stated_age(rescued))
+
+    def test_no_digit_sex_form_at_all_is_not_a_ceiling(self):
+        self.assertFalse(cc.could_have_lost_an_age_to_the_anchor("cc: cough x 3 days"))
+
+    def test_the_ceiling_counts_through_survey_and_not_only_in_isolation(self):
+        """The coverage assertion, in the form issue #64's own comment asked for.
+
+        **Built from synthetic notes rather than run over the fixtures**, and
+        that is the whole point. Every committed set gives
+        ``no_age_with_off_line_form = 0`` -- day-a lands 0 of 1, and day-b,
+        peds-bp, hedged-dx and obesity-bmi all land 0 of 0 -- so a fixture-based
+        assertion is ``0 <= 1`` and passes identically with the function
+        hardwired to return False. That is ADR 0001's failure exactly, and the
+        first draft of this test shipped it.
+
+        The four notes below are one of each kind, so the counter has to
+        discriminate rather than merely stay small: an age stated plainly, an
+        age stated plainly *beside* a decoy, no age and a decoy, and no age and
+        nothing.
+        """
+        notes = [
+            "Note 1\n44 f\ncc: dysuria",                          # age, no decoy
+            "Note 2\n44 f\nplan augmentin 875 f/u prn",           # age *and* a decoy
+            "Note 3\ndob 3-04-88\nplan augmentin 875 f/u prn",    # no age, a decoy
+            "Note 4\ndob 3-04-88\ncc: cough",                     # no age, no decoy
+        ]
+        c = cc.survey(notes)
+        self.assertEqual(c.notes, 4)
+        self.assertEqual(c.with_stated_age, 2)
+        self.assertEqual(c.without_stated_age, 2)
+        # Note 3 only. Note 2 carries the same decoy and states its age, so it
+        # is not at risk; note 4 states no age and has no candidate.
+        self.assertEqual(c.no_age_with_off_line_form, 1)
+        self.assertLessEqual(c.no_age_with_off_line_form, c.without_stated_age)
+
+    def test_the_report_prints_the_ceiling_over_the_population_it_bounds(self):
+        """#56's ``matched 6 of 12`` shape, which is what the comment asked for.
+
+        A bare count of what an extractor *found* is uncheckable; a count
+        against the population it was looking through is not. So the ratio has
+        to reach the printed report, not merely exist on the dataclass.
+        """
+        notes = [
+            "Note 1\n44 f\ncc: dysuria",
+            "Note 2\ndob 3-04-88\nplan augmentin 875 f/u prn",
+        ]
+        report = cc.format_report(
+            cc.survey(notes), source="synthetic", date="2026-08-15",
+            bands=cc.survey_bands(notes),
+            files=cc.FileCensus(
+                files=1, unique_files=1, with_no_stated_age=0,
+                with_age_in_every_note=0, with_mixed_age=1,
+            ),
+        )
+        self.assertIn("no age stated             1", report)
+        self.assertIn("off-line form in       1", report)
+
+    def test_the_ceiling_matches_every_shape_the_anchor_does(self):
+        """The two patterns are hand-copied, so something has to pin them.
+
+        ``AGE_AND_SEX_OFF_LINE`` is ``AGE_AND_SEX_LINE``'s body with the anchors
+        removed and ``\\s`` narrowed to ``[ \\t]``. Nothing in the language ties
+        them together, so widening the anchored form -- a welded ``45yof``
+        alternative, say -- would leave the ceiling silently no longer bounding
+        it, and the printed figure would stay plausible while measuring the
+        wrong pattern.
+
+        Asserted as an implication rather than string equality, because the two
+        bodies are deliberately not identical: anything the anchor accepts on a
+        line of its own, the ceiling must accept inline.
+        """
+        for form in ("51 f", "48f", "61F", "45 yo m", "7 y/o F", "103 M"):
+            with self.subTest(form=form):
+                self.assertTrue(cc.AGE_AND_SEX_LINE.search(f"cc: cough\n{form}\nhx: none"))
+                self.assertTrue(cc.AGE_AND_SEX_OFF_LINE.search(f"pt is {form} and here"))
+
+    def test_the_ceiling_is_not_wired_into_the_age_extractors(self):
+        """A ceiling that changed the figures would be a fix, not a measurement.
+
+        ``AGE_AND_SEX_OFF_LINE`` exists to measure ``AGE_AND_SEX_LINE``, and the
+        moment ``has_stated_age`` consults it the two stop being independent --
+        which is the exact self-audit ADR 0001 refuses. Asserted here because
+        wiring it in is a one-line change that no other test would fail on.
+
+        **Both directions are pinned.** The second is what
+        ``could_have_lost_an_age_to_the_anchor`` silently depends on: it does no
+        span bookkeeping, and it is entitled not to only because a false
+        ``has_stated_age`` guarantees ``AGE_AND_SEX_LINE`` matched nothing in
+        that note. Drop that alternative from ``has_stated_age`` and the ceiling
+        starts counting forms the anchor accepted, while still printing a
+        plausible number.
+
+        Read with ``ast`` rather than by slicing to the next ``def``, which the
+        first draft did and which would have broken the moment either function
+        became the last in the file.
+        """
+        bodies = {
+            node.name: ast.unparse(node)
+            for node in ast.parse(Path(cc.__file__).read_text(encoding="utf-8")).body
+            if isinstance(node, ast.FunctionDef)
+        }
+        for name in ("has_stated_age", "age_in_years"):
+            self.assertIn(name, bodies)
+            with self.subTest(function=name, direction="the ceiling stays out"):
+                self.assertNotIn("AGE_AND_SEX_OFF_LINE", bodies[name])
+            with self.subTest(function=name, direction="the anchor stays in"):
+                self.assertIn("AGE_AND_SEX_LINE", bodies[name])
 
 
 class DateOfBirth(unittest.TestCase):

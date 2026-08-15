@@ -42,6 +42,18 @@ Extractor limits worth knowing before quoting a number:
   inside the exam narrative. Audited 2026-08-11. The claim survives either
   reading, and ``fixtures/peds-bp`` preserves that one case rather than hiding
   it. Every other band's figure is structured throughout.
+- ``AGE_AND_SEX_LINE`` is line-anchored, and what that costs is **printed
+  rather than promised**. The report's ``off-line form`` line is a ceiling on
+  it: encounters stating no age at all which nonetheless carry a digit+sex
+  form on a line with something else. It over-counts on purpose -- a
+  Fahrenheit temperature and a bare antibiotic strength are both in it -- and
+  it under-counts a correctly written ``10 mg``, so read it as a bound on ages
+  and never as a tally of shapes. Turning it into a finding means reading the
+  encounters, which is PHI; 3 of 551 on 2026-08-15, read with the clinician's
+  authorization, all three decoys. Issue #64, which was filed because the
+  claim this replaces was a dated comment produced by the pass that wrote it
+  -- and which was **correct**, and still unreproducible until the reading it
+  used was written down. See ``AGE_AND_SEX_OFF_LINE``.
 - A band count is only as good as ``age_in_years``, which takes the **first**
   age in the note and cannot tell a patient's from a parent's or a sibling's.
   Ages sit at the top of these notes, so it is usually the patient's — but no
@@ -503,11 +515,103 @@ AGE_UNDER_ONE = re.compile(
 )
 # "51 f" / "48f" / "61F" — always alone on its own line in this corpus. Anchoring
 # to the line is what stops "t 98 F" reading as a 98-year-old and "toradol 10 m"
-# as a ten-year-old. Audited 2026-08-11: exactly three digit+sex matches in the
-# corpus sit anywhere other than alone on a line, and all three are decoys — two
-# doses, and the "f/u" follow-up token taking the "f", which is the form the
-# anchor most has to reject. No encounter loses an age to it.
+# as a ten-year-old. Nobody is proposing to remove the anchors; what the anchors
+# *cost* is the question, and it is now printed rather than asserted -- see
+# ``AGE_AND_SEX_OFF_LINE`` below and the ``off-line form`` line of the report.
 AGE_AND_SEX_LINE = re.compile(r"(?im)^\s*(\d{1,3})\s*(?:yo|y/o)?\s*[mf]\b\.?\s*$")
+
+# The same body with the anchors taken off, and **the only pattern in this file
+# that measures the extractor instead of the corpus**. Issue #64.
+#
+# It exists because the claim it replaces was true and uncheckable at once. The
+# comment above used to read: *"Audited 2026-08-11: exactly three digit+sex
+# matches in the corpus sit anywhere other than alone on a line, and all three
+# are decoys -- two doses, and the 'f/u' follow-up token taking the 'f'. No
+# encounter loses an age to it."* That audit was produced by the census auditing
+# itself, which is ADR 0001's objection, and #64 was filed on it.
+#
+# **The audit was right and the ticket was still right to distrust it.** Four
+# readings of "a digit+sex match" over the same corpus gave 38, 36, 36 and 2, and
+# the stated three was none of them; the number only reproduces once you know it
+# meant *same line, in encounters stating no age at all*. That reading is what is
+# coded here, and the figure now comes out of a run. A claim that happens to be
+# correct but that nobody can re-derive looks exactly like #56's -- 52 codes and
+# 11 unspecified, published against real figures of 106 and 23, because a
+# line-shape assumption matched half a set and reported a plausible number.
+#
+# **It is a ceiling and it is meant to over-report.** ``t 98 F`` is a Fahrenheit
+# temperature and is counted; so is a dose. Padding a ceiling with decoys keeps
+# it a true bound, and a tighter figure that excluded them would be an estimate
+# wearing a count's clothes. Read the encounters to convert it into a finding --
+# that is PHI and it is the clinician's, which is exactly why the *count* has to
+# be runnable by someone who cannot.
+#
+# **``[ \t]`` rather than ``\s``, ruled 2026-08-15, and it is not a tidy.** A
+# date of birth in this corpus is always a month, a day and a year, so the final
+# component of a ``dob`` line is a two-digit year and can never be an age -- and
+# under ``\s`` that year pairs with the "f" of an ``f/u`` beginning the *next
+# line* and prints a fourth encounter that lost nothing, its age having never
+# been on a line for the anchor to reject. The anchored form cannot span a line
+# by construction, so neither may the thing measuring it. One encounter in the
+# corpus has exactly this shape; ``test_corpus_census.py`` carries an invented
+# date of the same shape rather than that one.
+#
+# **Nothing may wire this into ``has_stated_age`` or ``age_in_years``.** The
+# moment it feeds a figure it stops being independent of the extractor it
+# measures, and the self-audit is back;
+# ``test_the_ceiling_is_not_wired_into_the_age_extractors`` is what fails.
+#
+# **The three, read by hand 2026-08-15 with the clinician's authorization.** All
+# decoys; no encounter loses an age. Two are drug doses -- one a mistyped
+# milligram abbreviation, one a bare antibiotic strength -- and the third is a
+# written visit date. In two of the three the "f" belongs to a follow-up token,
+# which is the form the anchor most has to reject. Only the verdict was
+# published: no note text, name or date literal was written anywhere from that
+# read, which is the standing rule and also why this description names shapes
+# rather than quoting them.
+#
+# That inventory is stated once and repeated nowhere. A first draft of this
+# change carried three descriptions of the same three encounters across two
+# files and they disagreed on how many were doses and on whether a temperature
+# was among them -- a change whose whole purpose is re-derivability, shipping
+# three readings of its own headline figure. ``test_corpus_census.py`` cites
+# this comment rather than restating it.
+#
+# **#36's hand count is the wrong measurement, and this is what settles it.**
+# That ticket read the demographic line as stating an age in 84% of encounters
+# against this census's 65%, and as writing *both* an age and a birth date in
+# 15% -- about 82 encounters -- against a census figure of 6. It named the line
+# anchor as one of the two things that could explain the gap, and #64 is the
+# half that was split out to test it. It cannot: a 19-point gap is roughly 105
+# encounters and the ceiling above is **3**, so the anchor is two orders of
+# magnitude too small to be the cause. The remainder is not hiding in another
+# shape either -- measured 2026-08-15 across the 194 encounters stating no age:
+# a sex-first ``F 45`` returns 1, a bare number alone on a line returns 2, and
+# ``age: 45`` returns 0. **The spelled sex word returns 0 in all three of its
+# orderings** -- ``female 45``, ``45 female`` and a welded ``45female`` -- and
+# all three were run, because naming only one of them is how a sweep reports
+# coverage it does not have. This whole ticket is what an unstated reading
+# costs.
+#
+# **The spelled form is nonetheless this ceiling's blind spot, and the count
+# being zero is not the same as the ceiling covering it.** ``[mf]\b`` cannot
+# match "female" -- the boundary fails against the "e" -- so ``51 female`` is
+# invisible to ``has_stated_age`` *and* to the ceiling that is published as
+# bounding what ``has_stated_age`` costs. Should such a form ever appear, the
+# report would go on printing a small number and nothing would say otherwise.
+# It is left uncarried rather than fixed in passing, on ``HEDGE``'s rule: widen
+# deliberately, re-run, and update every figure that cites it. That the
+# clinician spells the word somewhere is not hypothetical -- ``AGE_UNDER_ONE``
+# accepts ``male``/``female`` and was written against the corpus.
+#
+# And the clinician ruled it directly the same day: a date of birth here is
+# always a month, a day and a year, and he writes **a birth date or an age and
+# a sex letter, not both**. A corpus charted that way has almost no "both",
+# which is the census's 6 and not the hand count's 82. The hand count was a
+# human reading 130 rendered pages and it miscounted the *split*; its total for
+# birth dates corroborates the census, which is exactly what that error looks
+# like. #36 is closed and this is recorded here rather than reopened.
+AGE_AND_SEX_OFF_LINE = re.compile(r"(?i)(\d{1,3})[ \t]*(?:yo|y/o)?[ \t]*[mf]\b\.?")
 
 # Age bands. Both boundaries are borrowed rather than invented, because a fourth
 # age line in this repo is a defect waiting to happen:
@@ -701,6 +805,33 @@ def has_stated_age(note: str) -> bool:
     )
 
 
+def could_have_lost_an_age_to_the_anchor(note: str) -> bool:
+    """A ceiling on what ``AGE_AND_SEX_LINE``'s anchors cost this encounter.
+
+    True where the note states no age by any of the three readings **and**
+    carries a digit-plus-sex form somewhere on a line with something else. Both
+    halves are load-bearing:
+
+    - Without the first, this counts ``f/u`` tokens rather than lost ages. Most
+      encounters carrying an off-line digit+sex form state their age plainly
+      somewhere else, so nothing was lost and nothing is at risk. **No figure
+      is quoted for that here on purpose**: it would be an undated prose count
+      the report does not print, which is the defect issue #64 was filed on and
+      would be a poor thing to reintroduce in its fix.
+    - Without the second there is no candidate at all.
+
+    Because ``has_stated_age`` is false here, ``AGE_AND_SEX_LINE`` matched
+    nothing in this note, so every ``AGE_AND_SEX_OFF_LINE`` hit is necessarily
+    off-line and no span bookkeeping is needed to say so.
+
+    **It over-reports on purpose** -- see ``AGE_AND_SEX_OFF_LINE``. Converting
+    the ceiling into a finding means reading the encounters, which is PHI; the
+    count is here so that the part which does not require reading can be run by
+    anyone, on any corpus, without a dated promise in a comment.
+    """
+    return not has_stated_age(note) and bool(AGE_AND_SEX_OFF_LINE.search(note))
+
+
 def has_dob(note: str) -> bool:
     return bool(DOB_TOKEN.search(note) or DOB_BARE_LINE.search(note))
 
@@ -764,6 +895,7 @@ class Census:
     with_dob: int = 0
     with_both_age_and_dob: int = 0
     with_neither: int = 0
+    no_age_with_off_line_form: int = 0
     with_obesity: int = 0
     obesity_no_measurement: int = 0
     with_bariatric: int = 0
@@ -811,6 +943,17 @@ class Census:
         return self.notes - self.with_neither
 
     @property
+    def without_stated_age(self) -> int:
+        """The population ``no_age_with_off_line_form`` bounds. Issue #64.
+
+        Named rather than inlined so the report prints a ratio whose denominator
+        is a field of this class -- the coverage assertion #64's own comment
+        asked for, and the shape that would have failed #56 loudly at
+        ``matched 6 of 12``.
+        """
+        return self.notes - self.with_stated_age
+
+    @property
     def with_dob_instead_of_age(self) -> int:
         """A date of birth where no age is stated -- the "instead" in the claim."""
         return self.with_dob - self.with_both_age_and_dob
@@ -819,7 +962,7 @@ class Census:
 def survey(notes: list[str]) -> Census:
     bp_n = height_n = weight_n = other_n = no_vital_n = 0
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
-    age_n = dob_n = both_n = neither_n = 0
+    age_n = dob_n = both_n = neither_n = off_line_n = 0
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
     hedge_n = hedge_org_n = pain_n = 0
     htn_n = htn_bp_n = htn_normal_n = htn_lenient_n = 0
@@ -879,6 +1022,7 @@ def survey(notes: list[str]) -> Census:
         dob_n += dob
         both_n += age and dob
         neither_n += not (age or dob)
+        off_line_n += could_have_lost_an_age_to_the_anchor(note)
 
     return Census(
         notes=len(notes),
@@ -894,6 +1038,7 @@ def survey(notes: list[str]) -> Census:
         with_dob=dob_n,
         with_both_age_and_dob=both_n,
         with_neither=neither_n,
+        no_age_with_off_line_form=off_line_n,
         with_obesity=obes_n,
         obesity_no_measurement=obes_bare_n,
         with_bariatric=bar_n,
@@ -1011,6 +1156,19 @@ def format_report(
         f"  either                {c.with_either_age_or_dob:>5}  "
         f"{_pct(c.with_either_age_or_dob, c.notes)}",
         f"  neither               {c.with_neither:>5}  {_pct(c.with_neither, c.notes)}",
+        "",
+        'claim: "the line anchor on the bare \'51 f\' form costs no encounter',
+        '        its age" (issue #64, replacing a dated prose audit that was',
+        "   correct and unreproducible at once. a CEILING, not a count: every",
+        "   digit+sex form on a line with something else, in an encounter that",
+        "   states no age at all. a temperature and a dose are both counted, and",
+        "   that padding is what makes it a true bound. reading them is what",
+        "   turns it into a finding, and reading them is PHI)",
+        f"  no age stated         {c.without_stated_age:>5}  "
+        f"{_pct(c.without_stated_age, c.notes)}",
+        f"  ...off-line form in   {c.no_age_with_off_line_form:>5}  "
+        f"{_pct(c.no_age_with_off_line_form, c.without_stated_age)}"
+        "  <- the most the anchor can be costing",
         "",
         'claim: "this catalog holds day files in which not one encounter states',
         '        an age" (clinical-note step 1, which is why it quotes no share)',
