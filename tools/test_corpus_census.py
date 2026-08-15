@@ -1451,6 +1451,31 @@ class TheAnchorReportsWhatItCouldCost(unittest.TestCase):
         self.assertFalse(cc.has_stated_age(note))
         self.assertFalse(cc.could_have_lost_an_age_to_the_anchor(note))
 
+    def test_a_spelled_sex_word_is_the_ceiling_s_own_blind_spot(self):
+        """Pinned as a known gap, because a ceiling has to say what it cannot see.
+
+        ``[mf]\\b`` cannot match "female" -- the boundary fails against the "e"
+        -- so ``51 female`` is invisible to ``has_stated_age`` **and** to the
+        ceiling published as bounding what ``has_stated_age`` costs. It is zero
+        in the corpus today in all three orderings, measured 2026-08-15, and
+        zero is not the same as covered.
+
+        Asserted rather than left implicit so that widening ``[mf]`` fails here
+        and sends whoever does it to ``AGE_AND_SEX_OFF_LINE``'s comment, where
+        the rule is ``HEDGE``'s: widen deliberately, re-run against the corpus,
+        update every figure that cites it. The gap is narrow because
+        ``AGE_IN_YEARS`` rescues ``51 yo female`` and ``AGE_UNDER_ONE`` rescues
+        ``13 month female``; it is the bare number-plus-spelled-word that falls
+        through.
+        """
+        for form in ("51 female", "48 male", "51female"):
+            with self.subTest(form=form):
+                self.assertFalse(cc.has_stated_age(form))
+                self.assertFalse(cc.could_have_lost_an_age_to_the_anchor(form))
+        for rescued in ("51 yo female", "13 month female"):
+            with self.subTest(rescued=rescued):
+                self.assertTrue(cc.has_stated_age(rescued))
+
     def test_no_digit_sex_form_at_all_is_not_a_ceiling(self):
         self.assertFalse(cc.could_have_lost_an_age_to_the_anchor("cc: cough x 3 days"))
 

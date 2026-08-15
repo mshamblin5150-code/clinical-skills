@@ -585,9 +585,24 @@ AGE_AND_SEX_LINE = re.compile(r"(?im)^\s*(\d{1,3})\s*(?:yo|y/o)?\s*[mf]\b\.?\s*$
 # half that was split out to test it. It cannot: a 19-point gap is roughly 105
 # encounters and the ceiling above is **3**, so the anchor is two orders of
 # magnitude too small to be the cause. The remainder is not hiding in another
-# shape either -- measured 2026-08-15 across the 194 encounters stating no age,
-# a sex-first ``F 45``, a spelled ``female 45``, an ``age: 45`` and a bare
-# number alone on a line return 0, 0, 0 and 2.
+# shape either -- measured 2026-08-15 across the 194 encounters stating no age:
+# a sex-first ``F 45`` returns 1, a bare number alone on a line returns 2, and
+# ``age: 45`` returns 0. **The spelled sex word returns 0 in all three of its
+# orderings** -- ``female 45``, ``45 female`` and a welded ``45female`` -- and
+# all three were run, because naming only one of them is how a sweep reports
+# coverage it does not have. This whole ticket is what an unstated reading
+# costs.
+#
+# **The spelled form is nonetheless this ceiling's blind spot, and the count
+# being zero is not the same as the ceiling covering it.** ``[mf]\b`` cannot
+# match "female" -- the boundary fails against the "e" -- so ``51 female`` is
+# invisible to ``has_stated_age`` *and* to the ceiling that is published as
+# bounding what ``has_stated_age`` costs. Should such a form ever appear, the
+# report would go on printing a small number and nothing would say otherwise.
+# It is left uncarried rather than fixed in passing, on ``HEDGE``'s rule: widen
+# deliberately, re-run, and update every figure that cites it. That the
+# clinician spells the word somewhere is not hypothetical -- ``AGE_UNDER_ONE``
+# accepts ``male``/``female`` and was written against the corpus.
 #
 # And the clinician ruled it directly the same day: a date of birth here is
 # always a month, a day and a year, and he writes **a birth date or an age and
