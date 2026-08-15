@@ -496,7 +496,9 @@ A fourth assertion class alongside DRIFT, FILLED and REPORTED, defined in [fixtu
 
 **C2 and D6 are not the same row and neither contains the other.** D6 asks whether the Plan **orders the swab** — whether a documented given survived into an action. C2 asks what the Assessment **codes** when it has not. A run can pass D6 and fail C2 by ordering the swab and then coding `U07.1` as though the result were already in, and that is the more likely failure of the two: having written the order, the diagnosis feels established.
 
-**Neither row is testable on a hedge in the input.** Zero of this set's twelve inputs carry a hedge token — verified by `tools/test_corpus_census.py` rather than asserted here — so #19's other half, what the skill does when the *shorthand itself* says `prob viral`, has no anchor in day-b and is owed a fixture of its own. Filed as [#49](https://github.com/mshamblin5150-code/clinical-skills/issues/49), which needs an encounter picked out of `scratch/` — [fixtures/README](../README.md) forbids authoring one.
+**Neither row is testable on a hedge in the input.** Zero of this set's twelve inputs carry a hedge token — verified by `tools/test_corpus_census.py` rather than asserted here — so #19's other half, what the skill does when the *shorthand itself* says `prob viral`, has no anchor in day-b and needed a fixture of its own.
+
+**That fixture is [`hedged-dx`](../hedged-dx/assertions.md), landed 2026-08-15 for [#49](https://github.com/mshamblin5150-code/clinical-skills/issues/49).** Three encounters picked out of `scratch/` — [fixtures/README](../README.md) forbids authoring one — hedging a pneumonia's organism, an osteomyelitis and a mycoplasma against a negative film. **The gap is closed and this set is unchanged**: C1 and C2 still read the output of a differential the *skill* generated, which is a different question from what it does with a hedge the clinician wrote, and neither row moves. What the new set cannot reach either is the `icd10-cpt` half — a note has no `NOT CODED` block — and it says so in its own *Still unresolved*.
 
 ## GIVEN — binary, all must pass
 

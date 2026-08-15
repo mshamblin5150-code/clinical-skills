@@ -5,7 +5,9 @@ fixtures/obesity-bmi, where the counts are what justify a fixture set existing a
 all, an eighth is drift row 13's rate — how often a hedge reaches the shorthand at
 all, against a differential that is generated every time — and a ninth is the
 social-slot split, which decides whether silence about a slot is a transcription
-gap or a real absence and so which value the note fills into it. All are
+gap or a real absence and so which value the note fills into it, and a tenth is
+the organism-specific pool in fixtures/hedged-dx, which is that set's whole
+defense of a three-of-seventeen pick. All are
 counts over the clinician's shorthand corpus, all are load-bearing — rulings have
 turned on them — and until this script existed none could be re-derived. Run it
 when a claim is about to be relied on again, or when the corpus grows:
@@ -55,6 +57,13 @@ Extractor limits worth knowing before quoting a number:
   stands. **It is neither a floor nor a ceiling** either, for the same reason
   the pain-score line below is not: it over-counts tokens that hedge a history
   and under-counts hedges the token list never reaches. Quote it as a proxy.
+- ``ORGANISM_SPECIFIC`` narrows that count to encounters also writing an
+  organism or a named disease, and it is **a candidate pool rather than a
+  population**: the token may sit anywhere in the encounter, so a hedge on
+  something else entirely still counts. ``fixtures/hedged-dx`` is three
+  encounters picked out of the seventeen this reports, by reading them, and the
+  set says so -- what is re-derivable is the pool, never the pick. It errs both
+  ways and the comment above names the missing tokens.
 - **The pain-score line reports a figure no prose asserts yet**, which is the
   one place this script runs ahead of the repo rather than behind it. Issue #30
   made an OLDCARTS severity mandatory on every note without a count behind it,
@@ -306,6 +315,90 @@ HEDGE = re.compile(
     r"|\bvs\b(?![\s:.\-]*\d)"
     r"|\blikely\b"
     r"|[a-z]\?"
+)
+
+# An organism or a named disease entity: the thing whose ICD-10-CM descriptor
+# would assert what a hedge says is not established. Added for issue #49, which
+# needed a *candidate pool* rather than a claim -- ``fixtures/hedged-dx`` takes
+# three encounters, and the set is a pick rather than a population, so the honest
+# defense is that anyone can re-derive what it picked from.
+#
+# **It counts a co-occurrence, not a hedged organism.** The token may sit
+# anywhere in the encounter: a history line, a resolved illness, a negative
+# result. So it narrows ``HEDGE``'s 33 to something readable and settles nothing
+# about any one of them -- reading the seventeen is what chose the three, and
+# nothing here reproduces that judgment.
+#
+# **The list is deliberately short and deliberately frozen.** Every entry names
+# a thing an ICD-10-CM descriptor can *confirm* -- an organism, or a disease no
+# code calls "unspecified" -- because that is the only class drift row 13's
+# second half fires on. Widening it changes the 17 that ``fixtures/hedged-dx``
+# publishes, and the same rule ``HEDGE`` carries applies here: widen it
+# deliberately, re-run, and update the figure the set cites. Do not widen it in
+# passing.
+#
+# Four rejections worth recording, because each was in a draft:
+#
+# - ``\bpe\b`` for pulmonary embolism. "pe" hides in nothing useful at a word
+#   boundary, but the corpus writes ``PE`` for *physical exam* and for *peak
+#   expiratory*, and neither is a disease. The cost of keeping it was a pool
+#   nobody could trust; the cost of dropping it is a missed candidate.
+# - ``\bbv\b`` for bacterial vaginosis, on the same reasoning inverted -- it is
+#   unambiguous and it is also in a history line in half its appearances, so it
+#   inflated the pool with encounters whose hedge was somewhere else entirely.
+# - ``\bca\b`` for cancer. It is this clinician's abbreviation for *cancer* in a
+#   family history and also the chemical symbol he writes for calcium in a lab
+#   panel. Nothing separates them.
+# - ``c diff``. The space makes it a two-token match that ``\b`` handles badly
+#   next to ``c/diff`` and ``cdiff``, and the corpus holds no hedged instance.
+#
+# **Two entries shipped broken and a code review caught both**, which is worth
+# recording because each was broken in a way the paragraph above had already
+# named and neither changed the count:
+#
+# - ``h pylori`` was carried as a bare two-token match -- the exact shape
+#   ``c diff`` was **rejected** for one bullet up. ``H. pylori`` is the dominant
+#   written form and it did not match, so the alternative was inert against the
+#   form it exists for. Now ``h\.?\s*pylori``, which takes all four spellings.
+# - ``factor v`` had no trailing ``\b``, so it matched ``factor vii`` and
+#   ``factor viii`` -- ordinary coagulation panel entries and not the hereditary
+#   thrombophilia meant. This is ``OBESITY``'s lesson exactly, in the one
+#   alternative that was written without it.
+#
+# **The pool read 17 before both repairs and 17 after**, measured 2026-08-15, so
+# ``fixtures/hedged-dx``'s published figure is unaffected. **That is luck rather
+# than vindication** and it is the reason to write the repairs down: an
+# alternative that matches nothing and an alternative that matches too much both
+# look identical from a count that did not move.
+#
+# **It is neither a floor nor a ceiling**, on ``HEDGE``'s terms. It over-counts,
+# because a token anywhere in the encounter counts and the hedge may be
+# somewhere else entirely -- a resolved illness in a history line, a negative
+# result, a family member's diagnosis. It under-counts, because the list is
+# short by construction: **abscess**, **sepsis**, **tick-borne**, **fungal**,
+# **parasit**, **viral** and every organism nobody in this corpus has written
+# yet are all absent. Quote it as a candidate pool, never as a population.
+#
+# **``mycoplasma`` was missing from the first version of this list and the pool
+# was published without it**, which is worth recording rather than quietly
+# fixing. It is the organism ``fixtures/hedged-dx`` is built on: two of that
+# set's three cases hedge it by name. Both were still in the pool, because case
+# 1 carries a sibling's ``strep`` and case 3 lists ``strep, flu and COVID`` as
+# negatives -- so **the omission was invisible from the set's own membership**
+# and only showed up when a unit test asserted the bare diagnosis line
+# ``dx CAP likely mycoplasma`` against it. A pool that admits the right cases
+# for the wrong reason looks exactly like one that works.
+#
+# **Adding it moved the figure not at all -- 17 before and 17 after**, measured
+# 2026-08-15, because every encounter in this corpus that hedges mycoplasma also
+# writes another organism somewhere. So ``fixtures/hedged-dx``'s published pool
+# stands as written. That the count is unchanged is the reason to record the
+# repair here rather than to leave it implied by a regex nobody rereads.
+ORGANISM_SPECIFIC = re.compile(
+    r"(?i)\b(strep|flu\b|influenza|covid|mono\b|monospot|pneumon|mycoplasma"
+    r"|uti\b|pyelo|cellulit|shingle|zoster|herpes|hsv|rsv|pertussis|lyme"
+    r"|h\.?\s*pylori|gono|chlam|trich|staph|mrsa|scabies|impetigo|osteomyel"
+    r"|appendic|divertic|dvt|von will|factor v\b)"
 )
 
 # Issue #29. ``clinical-note`` reads silence about a section two ways -- an
@@ -585,6 +678,17 @@ def has_hedge(note: str) -> bool:
     return bool(HEDGE.search(note))
 
 
+def has_organism_specific(note: str) -> bool:
+    """An organism or named disease anywhere in the encounter.
+
+    Not "the hedge is on an organism" -- see ``ORGANISM_SPECIFIC``. Paired with
+    ``has_hedge`` it prints the candidate pool ``fixtures/hedged-dx`` drew from,
+    and it is that pool rather than that set's three cases which is meant to be
+    re-derivable.
+    """
+    return bool(ORGANISM_SPECIFIC.search(note))
+
+
 def has_any_vital(note: str) -> bool:
     return has_bp(note) or has_height(note) or has_weight(note) or has_other_vitals(note)
 
@@ -667,6 +771,7 @@ class Census:
     with_sleep_apnea: int = 0
     sleep_apnea_no_measurement: int = 0
     with_hedge: int = 0
+    hedge_with_organism: int = 0
     with_pain_score: int = 0
     with_hypertension: int = 0
     hypertension_with_bp: int = 0
@@ -716,12 +821,14 @@ def survey(notes: list[str]) -> Census:
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
     age_n = dob_n = both_n = neither_n = 0
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
-    hedge_n = pain_n = 0
+    hedge_n = hedge_org_n = pain_n = 0
     htn_n = htn_bp_n = htn_normal_n = htn_lenient_n = 0
     allergy_n = allergy_none_n = tobacco_n = tobacco_pos_n = 0
 
     for note in notes:
-        hedge_n += has_hedge(note)
+        if has_hedge(note):
+            hedge_n += 1
+            hedge_org_n += has_organism_specific(note)
 
         if has_allergy_status(note):
             allergy_n += 1
@@ -794,6 +901,7 @@ def survey(notes: list[str]) -> Census:
         with_sleep_apnea=osa_n,
         sleep_apnea_no_measurement=osa_bare_n,
         with_hedge=hedge_n,
+        hedge_with_organism=hedge_org_n,
         with_pain_score=pain_n,
         with_hypertension=htn_n,
         hypertension_with_bp=htn_bp_n,
@@ -954,6 +1062,12 @@ def format_report(
         "  (a proxy, not a bound - the tokens also hedge a history, and the",
         "   shorthand hedges in ways the token list never reaches)",
         f"  hedge token           {c.with_hedge:>5}  {_pct(c.with_hedge, c.notes)}",
+        f"  beside an organism    {c.hedge_with_organism:>5}  "
+        f"{_pct(c.hedge_with_organism, c.notes)}"
+        "  <- fixtures/hedged-dx drew from here",
+        "  (a co-occurrence, not a hedged organism - the pool issue #49 picked",
+        "   three encounters out of, by reading them. the pool is re-derivable;",
+        "   the pick is a judgment and the set's README says so)",
         "",
         'claim: "the severity the note fills is the one he did not write"',
         "  (issue #30. an estimate, not a bound - a written date reads as a",

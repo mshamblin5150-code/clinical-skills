@@ -978,6 +978,120 @@ class HedgedDiagnosis(unittest.TestCase):
         self.assertEqual(c.with_hedge, 2)
 
 
+class OrganismSpecificPool(unittest.TestCase):
+    """Guards the pool ``fixtures/hedged-dx`` says it drew from.
+
+    That set is a **pick, not a population** -- three encounters out of
+    seventeen, chosen by reading them -- so the only thing it can offer instead
+    of recomputability is a re-derivable pool. Its README publishes 17 and the
+    census prints it. This is what stops the two drifting apart.
+
+    Nothing here runs against ``scratch/``: the three committed inputs are the
+    worked examples, and the decoys are literals. Issue #49.
+    """
+
+    HEDGED_DX = REPO_ROOT / "fixtures" / "hedged-dx" / "shorthand"
+
+    def test_every_hedged_dx_case_is_in_the_pool(self):
+        """All three carry a hedge token *and* an organism-specific term."""
+        for number in (1, 2, 3):
+            with self.subTest(case=number):
+                text = case(self.HEDGED_DX, number)
+                self.assertTrue(cc.has_hedge(text))
+                self.assertTrue(cc.has_organism_specific(text))
+
+    def test_the_three_hedges_the_set_was_built_on(self):
+        self.assertTrue(cc.has_hedge("dx CAP likely mycoplasma"))
+        self.assertTrue(cc.has_hedge("right tib/fib r/o osteomyelitis"))
+        self.assertTrue(cc.has_hedge("dx: URI vs mycoplasma"))
+
+    def test_a_bare_mycoplasma_line_is_in_the_pool(self):
+        """The regression. ``mycoplasma`` was absent from the first list.
+
+        Every other spelling in this suite carries a second matching token --
+        ``mycoplasma pneumonia`` matches on ``pneumon``, and both real cases
+        match on a ``strep`` elsewhere in the encounter -- so the omission was
+        invisible from the set's own membership. This line has neither.
+        """
+        self.assertTrue(cc.has_organism_specific("dx CAP likely mycoplasma"))
+        self.assertTrue(cc.has_organism_specific("URI vs mycoplasma"))
+
+    def test_organisms_and_named_diseases(self):
+        for text in ("likely mycoplasma pneumonia", "r/o osteomyelitis",
+                     "poss strep", "flu a+", "influenza b", "covid contact",
+                     "r/o dvt", "susp cellulitis", "monospot sent"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_organism_specific(text))
+
+    def test_flu_does_not_hide_inside_ordinary_words(self):
+        """``\\bflu\\b`` and not ``\\bflu``, on OBESITY's lesson.
+
+        ``fluid``, ``flush`` and ``fluticasone`` are all live in this corpus and
+        none of them is an organism.
+        """
+        for text in ("po fluids", "flush the line", "fluticasone 50 mcg"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_organism_specific(text))
+
+    def test_mono_does_not_match_monotherapy(self):
+        self.assertFalse(cc.has_organism_specific("continue monotherapy"))
+        self.assertTrue(cc.has_organism_specific("r/o mono"))
+
+    def test_h_pylori_takes_the_form_it_is_actually_written_in(self):
+        """The repair. It shipped as a bare ``h pylori`` and matched nothing real.
+
+        ``c diff`` was rejected one bullet above for exactly this shape, and this
+        alternative was carried with it anyway. ``H. pylori`` is the dominant
+        written form; before the fix it did not match, so the entry was inert
+        against the only spelling that matters.
+        """
+        for text in ("H. pylori", "h. pylori", "h pylori", "hpylori"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_organism_specific(text))
+
+    def test_factor_v_does_not_swallow_the_other_clotting_factors(self):
+        """The second repair, and it is OBESITY's lesson in one alternative.
+
+        ``factor v`` without a trailing boundary matches ``factor vii`` and
+        ``factor viii`` -- ordinary coagulation panel entries, not the
+        hereditary thrombophilia the entry is for.
+        """
+        self.assertTrue(cc.has_organism_specific("r/o factor v leiden"))
+        self.assertFalse(cc.has_organism_specific("factor vii deficiency"))
+        self.assertFalse(cc.has_organism_specific("factor viii 82%"))
+
+    def test_the_four_rejected_tokens_stay_rejected(self):
+        """Each was in a draft and each was dropped for an ambiguity.
+
+        ``PE`` is physical exam here as often as pulmonary embolism, ``CA`` is
+        calcium on a lab panel as well as cancer in a family history, ``BV``
+        appears in a history line more than in a hedge, and ``c diff`` spells
+        three ways the boundary handles badly. ``ORGANISM_SPECIFIC`` records the
+        reasoning; this pins the behavior.
+        """
+        for text in ("PE: lungs clear", "CA 9.1, Mg 1.8", "hx: bv",
+                     "c diff negative"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_organism_specific(text))
+
+    def test_a_plain_encounter_is_not_in_the_pool(self):
+        self.assertFalse(cc.has_organism_specific("cc: rash\ndx contact dermatitis"))
+
+    def test_the_survey_counts_the_pool_as_a_subset_of_the_hedges(self):
+        """The pool can never exceed the hedge count, and it is not equal to it."""
+        c = cc.survey(
+            [
+                "dx CAP likely mycoplasma",              # hedged, organism
+                "r/o osteomyelitis",                     # hedged, named disease
+                "likely due to being out of alignment",  # hedged, neither
+                "dx strep pharyngitis",                  # organism, not hedged
+                "cc: rash\ndx contact dermatitis",       # neither
+            ]
+        )
+        self.assertEqual(c.with_hedge, 3)
+        self.assertEqual(c.hedge_with_organism, 2)
+
+
 class Age(unittest.TestCase):
     def test_years_spelled_out(self):
         self.assertTrue(cc.has_stated_age("48 year old F"))
