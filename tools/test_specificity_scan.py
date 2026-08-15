@@ -79,6 +79,35 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
         )
         self.assertEqual(scan.read_flags(differential), [])
 
+    def test_a_cpt_entry_after_the_differential_pairs_with_its_own_header(self):
+        """`CPT` opens an entry, so the differential above it never claims the flag."""
+        text = (
+            "--- DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY ---\n"
+            "ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY\n"
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n"
+            "\n"
+            "CPT  10060  Incision and drainage of abscess; simple or single\n"
+            "  SPECIFICITY: complete — simple single abscess, documented\n"
+        )
+        flags = scan.read_flags(text)
+        self.assertEqual([f.code for f in flags], ["10060"])
+        self.assertEqual(scan.findings(flags), [])
+
+    def test_a_differential_flag_is_exempt_from_both_tests(self):
+        """A differential is coded at the unspecified level on purpose.
+
+        Writing a `SPECIFICITY` line there is a C4 failure — the part count — and
+        grading it under C5 would fail a descriptor the skill itself asked for.
+        """
+        text = (
+            "ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY\n"
+            "  SPECIFICITY: complete\n"
+        )
+        flags = scan.read_flags(text)
+        self.assertFalse(flags[0].for_entry)
+        self.assertEqual(scan.findings(flags), [])
+        self.assertEqual(scan.survey([flags]).not_for_entry_flags, 1)
+
     def test_a_cpt_entry_is_read_the_same_way(self):
         text = (
             "CPT  10060  Incision and drainage of abscess\n"
