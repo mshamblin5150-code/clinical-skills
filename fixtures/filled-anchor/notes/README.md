@@ -14,7 +14,7 @@ This is the first set in the repo whose inputs are not shorthand, and the reason
 
 This section used to say that a note generated from de-identified shorthand cannot reintroduce what its input did not carry, and that the twelve were therefore byte-for-byte copies needing nothing.
 
-**That is false, and it was caught in review rather than by a tool.** Nine of the twelve named both of the clinician's practicum sites, in the Medatrax `Primary Payment Method` row:
+**That is false, and it was caught in review rather than by a tool.** Nine of the twelve named a practicum site in the Medatrax `Primary Payment Method` row, and **seven of those nine named both**:
 
 ```
 The site pattern ([SITE-A] -> Self-pay/other; [SITE-B] -> Medicaid / ...)
@@ -24,6 +24,21 @@ could not be keyed, because Site is a GAP.
 The generating skill reads the account profile in `scratch/` to decide a payer, so it had the site names whether or not its *encounter* input did. **A generated note's provenance is its whole context, not its prompt.** Both names are now `[SITE-A]` and `[SITE-B]`, and that is the one edit made to the run's output — the notes are otherwise byte-for-byte.
 
 **Nothing in the repo would have caught this.** `phi_scan`'s corpus layer harvests patient names from `scratch/name-index.json`; a site name is not a patient name and no shape rule matches one. The claim in this file was the only control, and it was wrong. Filed as [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50), which carries the general form: **a fixture derived from generated output inherits the generator's whole context, not its input's.** Every set before this one derived from shorthand, so the reasoning never had to be right.
+
+**Recompute those two figures rather than trusting this paragraph** — the first of them was wrong here for four days, and [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50) propagated *both* into three more files before anyone counted:
+
+```bash
+grep -l '\[SITE-A\]' fixtures/filled-anchor/notes/case-*.md | wc -l   # 9 -- name a site
+grep -l '\[SITE-B\]' fixtures/filled-anchor/notes/case-*.md | wc -l   # 7 -- name both
+```
+
+The second line counts *both* only because no note carries `[SITE-B]` without `[SITE-A]`; `case-05` and `case-06` are the two that name one site, and each writes it as a *counterfactual* — `case-05` says the payer would be Self-pay/other **if** the site were that one. **This is the figure the other three files deliberately do not restate.**
+
+**#50 closed `wontfix`, and it closed on the string rather than on the reasoning.** No site layer was built: the site names are portal mechanics — which placements the clinician works, a fact about him and not about any patient — in a private repo, in a fixture the visit date had already left. `phi_scan` still has no concept of an account profile, which is now listed among its known limits rather than absent from them. **The general form was kept and is [fixtures/README](../../README.md)'s**, where it binds the next set built from a skill's output.
+
+**The redaction here stands, and so does the rule behind it.** [Standing rule 1](../../../AGENTS.md) defines a fixture as one with the visit date **and site** removed, and #50 changed nothing about that — it ruled only that the gap is not worth a scanner layer. The edit cost nothing, no assertion in this set ever touched it, and `[SITE-A]`/`[SITE-B]` is what the table below records.
+
+**Do not match on how a note words the absence.** The nine phrase it every way — `Site is a GAP`, `Site is a GAPS entry`, `Site is unknown` — and only three of the nine use the first form. That is the same warning this file already gives about the `GAPS` date entries below, arrived at a second time from the other direction: #50's first draft rested its argument on that exact string and was wrong about six notes.
 
 **What travels, and on whose authority:**
 

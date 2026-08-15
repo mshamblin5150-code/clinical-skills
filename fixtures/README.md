@@ -16,11 +16,19 @@ Two artifacts, same encounters, opposite lifecycles. The repo used to have one w
 A fixture is **derived from** a working file, never a copy of one. Two things are removed on the way across:
 
 - **The visit date.** Dates finer than a year are the identifier that matters here.
-- **The site name.** Date plus site plus age narrows the population sharply in a small county.
+- **The site name.** Date plus site plus age narrows the population sharply in a small county — **and the line above has already removed the date, so what a fixture can actually leak is site plus age.** [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50) ruled that too little to justify a scanner layer and more than enough to keep removing. **The removal binds; only the reason is weaker than this sentence sounds.**
 
 Names are already `[PT]` under standing rule 1. Ages and findings stay, because they are what the assertions test.
 
 **Compute the age before removing either.** Nearly half this clinician's encounters give a date of birth and no age. Removing the visit date and redacting the date of birth in the same pass leaves a case whose age cannot be recovered by anyone — including the fixture, which needs it. Derive first, then strip both. A fixture that has lost its age is testing the missing-age rule whether it meant to or not.
+
+**A fixture derived from a skill's *output* inherits that skill's whole context, not its input's.** Everything above assumes the source is a working file, where the two removals are the whole story: what crosses is what the working file carried, minus what was struck. `filled-anchor` is the first set whose inputs are a skill's output rather than shorthand, and the assumption failed on it immediately. `clinical-note` reads the account profile in `scratch/` to decide a payer, so most of its twelve notes named a practicum site — generated from shorthand that named none. **That set's own README had argued in writing that this could not happen**, and it is the argument to distrust: a note cannot reintroduce what its *prompt* did not carry, and its prompt is not its context.
+
+**So when the source is generated, the list above is a floor rather than a list.** Read what the generating skill reads, and check the output against *that* — never against the input, which is precisely the artifact that cannot tell you. Nothing enforces this. `phi_scan` knows patient names, corpus dates and PHI shapes, and an account profile is none of the three.
+
+**[#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50) ruled the site names themselves acceptable and built no scanner layer**, on the site bullet above losing its date term, on the exposure being portal mechanics — which placements the clinician works, a fact about him rather than about any patient — and on the repo being private. **The removal rule is untouched**: [standing rule 1](../AGENTS.md) still defines a fixture as one with the visit date and site removed, and *ruled not worth tooling* is not *ruled not worth doing*.
+
+**What the ruling actually preserved is this section rather than the site names**, and the difference is the whole reason it is written here instead of in that set's own file. A site list would have caught two strings in one set. The next set built from generated output inherits a **different** file — whichever one its generator happens to read — and the thing to refuse is reasoning from what the input carried. **How many notes leaked what, and in whose wording, is counted once** in [filled-anchor/notes/README.md](filled-anchor/notes/README.md) with the command that recomputes it, and is deliberately not restated here: #50's own first draft restated a count and a quoted phrase into three files and got both wrong.
 
 ## What an assertion is
 
