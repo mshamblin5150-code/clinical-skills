@@ -50,7 +50,9 @@ Observed in real notes. Expansions confirmed against the finished versions.
 
 ### Conditions and history
 
-Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 unique; one is duplicated on disk), 340 pages, **548 encounters**. The 32 text-layer files were extracted; the 17 image-only scans were rendered and read. **Every count below is a total, not a floor.**
+Drawn from a sweep of the clinician's full day-file catalog — 49 files (48 unique; one is duplicated on disk), 340 pages, **551 encounters**. The 32 text-layer files were extracted; the 17 image-only scans were rendered and read. **Every count below is a total, not a floor.**
+
+This said **548 encounters** until 2026-08-15, which was three short: the pages were all read and three encounters were not counted. [batch-shift](../batch-shift/SKILL.md) step 3 carries the reconciliation and is the only place it is written down; issue [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63). **Nothing in this file is a share of that figure** — every number below is an occurrence tally over whatever set its own section names, never a rate over encounters, so the correction moves none of them.
 
 | Shorthand | Expansion |
 | --- | --- |

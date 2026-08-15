@@ -283,6 +283,148 @@ class ReadCorpusDropsDuplicateDayFiles(unittest.TestCase):
         self.assertEqual([len(day) for day in corpus.day_files], [2, 1])
 
 
+class EveryFileQuotesOneCatalogSize(unittest.TestCase):
+    """One catalog, one denominator. Issue #63.
+
+    This repo carried three at once: ``batch-shift`` step 3 and ``GLOSSARY.md``
+    said 548 encounters, the census said 551, and drift row 13 said 559. Each was
+    right about something and no file said which, so a reader picked whichever one
+    they opened first. #129 retired the 559 and 2026-08-15 settled the rest --
+    ``scratch/name-index.json`` holds one entry per encounter *that yielded a
+    name*, three encounters put something other than the name on the line after
+    ``Note N``, and 548 was that harvest's total rather than the catalog's.
+
+    **Nothing in the repo noticed, which is the defect one level up.** The figure
+    is prose in a dozen files and no two of them are read together. This is the
+    check that reads them together, and it is deliberately a sweep rather than a
+    list of the three files #63 named: the next disagreement will be in a file
+    nobody thought to name.
+
+    ``test_spelling_scan.py``'s reasoning, applied to a number instead of a
+    table -- a figure that has drifted from the file beside it is worse than an
+    absent one, because it reads as agreement.
+    """
+
+    #: What ``corpus_census.py`` reports over ``scratch/day-file-text``, and the
+    #: only encounter total any file may state as current. Re-derive it with
+    #: ``python tools/corpus_census.py`` -- this constant is not the measurement.
+    CATALOG_SIZE = 551
+
+    #: The figures this repo has retired, each mapped to the token its line must
+    #: carry. A retired number stays quotable, and only where it is being put
+    #: down: quoting one bare is how the disagreement started.
+    #:
+    #: - 548 is the tally the page read came away with, three short. Where it
+    #:   appears, ``#63`` has to appear too, because that is where the
+    #:   reconciliation lives and a bare 548 is indistinguishable from a relapse.
+    #: - 559 is the pre-dedup reading, quoted twice by drift row 13 to say *why*
+    #:   the denominator moved -- reading the directory without ``read_corpus``'s
+    #:   byte-identical drop still returns it. Issue #16 moved it, issue #19
+    #:   published it.
+    RETIRED = {548: "#63", 559: "dedup"}
+
+    #: Three digits opening with a 5, followed by the word: a *stated catalog
+    #: size*. Narrow on purpose -- a bare ``\b5\d\d\b`` sweep over these trees
+    #: also collects a 570 and a 500 out of two filled-anchor notes, a 513
+    #: subtotal in clinical-note step 1, and two ICD-10 codes in
+    #: setup-clinical-skills. The retired figures are checked bare as well, by
+    #: ``RETIRED_ANYWHERE`` below, which is where that looseness is affordable.
+    FIGURE = re.compile(r"\b(5\d\d)\s+(?:encounters|notes)\b")
+    RETIRED_ANYWHERE = re.compile(r"\b(548|559)\b")
+
+    #: Where a catalog size is prose, and the three trees deliberately left out:
+    #:
+    #: - ``docs/`` -- an ADR records what was true when it was written and is not
+    #:   brought into line afterwards.
+    #: - ``reference/`` -- generated, and holds no encounter figure today.
+    #: - ``tools/`` -- a figure there is as likely to be a *test input* as a
+    #:   claim. ``test_phi_scan.py`` feeds the scanner the literal string
+    #:   ``measured 2026-08-11 across 559 encounters`` to prove ISO dates are not
+    #:   flagged; sweeping it would refuse a string that asserts nothing.
+    SEARCHED = ("skills", "fixtures")
+
+    #: The two files #63 named. **A sweep passes when a figure is deleted as
+    #: happily as when it is corrected**, so each is pinned to state the current
+    #: size *and* to keep pointing at the reconciliation. Without the second
+    #: half, dropping the whole #63 paragraph from ``GLOSSARY.md`` still passes.
+    MUST_QUOTE_IT = (
+        Path("skills") / "batch-shift" / "SKILL.md",
+        Path("skills") / "clinical-note" / "GLOSSARY.md",
+    )
+
+    class Figure(NamedTuple):
+        """One stated figure, and the line it was stated on.
+
+        The line text travels with it because every check below wants it. The
+        first version returned a bare ``(path, line, value)`` and then reopened
+        the file to recover the text it had already read.
+        """
+
+        path: Path
+        line: int
+        value: int
+        text: str
+
+        def __str__(self) -> str:
+            return f"{self.path}:{self.line}"
+
+    def scan(self, pattern: re.Pattern[str]) -> list["EveryFileQuotesOneCatalogSize.Figure"]:
+        """Every match of ``pattern`` in the searched trees, in file order."""
+        found = []
+        for tree in self.SEARCHED:
+            for path in sorted((REPO_ROOT / tree).rglob("*.md")):
+                relative = path.relative_to(REPO_ROOT)
+                lines = path.read_text(encoding="utf-8").splitlines()
+                for number, text in enumerate(lines, 1):
+                    for match in pattern.finditer(text):
+                        found.append(
+                            self.Figure(relative, number, int(match.group(1)), text)
+                        )
+        return found
+
+    def figures(self):
+        return self.scan(self.FIGURE)
+
+    def test_the_sweep_finds_something(self):
+        """A regex that has stopped matching would pass every assertion below."""
+        self.assertGreater(len(self.figures()), 5)
+        self.assertGreater(len(self.scan(self.RETIRED_ANYWHERE)), 0)
+
+    def test_no_file_states_a_second_catalog_size(self):
+        wrong = [
+            str(figure)
+            for figure in self.figures()
+            if figure.value != self.CATALOG_SIZE and figure.value not in self.RETIRED
+        ]
+        self.assertEqual(wrong, [], f"a catalog size other than {self.CATALOG_SIZE}")
+
+    def test_a_retired_figure_appears_only_where_it_is_retired(self):
+        """548 and 559 stay quotable, and only beside the reason they moved.
+
+        Checked bare rather than only as ``N encounters``, because the sentence
+        putting a figure down rarely repeats the noun -- *this step said 548
+        until 2026-08-15* would otherwise sail straight through.
+        """
+        for figure in self.scan(self.RETIRED_ANYWHERE):
+            marker = self.RETIRED[figure.value]
+            self.assertIn(
+                marker,
+                figure.text,
+                f"{figure} quotes {figure.value} without '{marker}' on the line",
+            )
+
+    def test_the_two_provenance_sentences_still_state_it(self):
+        for relative in self.MUST_QUOTE_IT:
+            stated = [f.value for f in self.figures() if f.path == relative]
+            self.assertIn(
+                self.CATALOG_SIZE, stated, f"{relative} states no catalog size"
+            )
+            text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn(
+                "#63", text, f"{relative} states the size and drops the reconciliation"
+            )
+
+
 class SurveyFilesCase(unittest.TestCase):
     """Shared day files and the one-line survey call, for the two cases below.
 

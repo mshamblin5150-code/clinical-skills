@@ -59,7 +59,15 @@ if not "".join(p.get_text() for p in d).strip():
 
 `Note N` is the delimiter. Each encounter opens with `Note 1`, `Note 2`, … followed by the patient name, then the demographic line, then some order of `hx:`, `meds:`, `cc:`, and a narrative.
 
-**It held for all 548 encounters in the clinician's catalog** — 48 unique day files, both halves. No encounter opened any other way, so the fallback below is genuinely a fallback.
+**It held everywhere a human looked** — 48 unique day files, both halves, all 340 rendered pages. No encounter opened any other way, so the fallback below is genuinely a fallback.
+
+**That page read is the warrant, and the census cannot be.** `tools/corpus_census.py` counts `Note N`-shaped lines, so quoting its total here would make the sentence true by construction: the delimiter can only ever agree that the delimiter matched. What a human reading rendered pages adds is the negative — 340 pages, and nothing starting an encounter any other way. Keep the two apart when you re-measure.
+
+**The catalog holds 551 encounters, and this step said 548 until 2026-08-15.** The pass reached the right pages and came away three short, which is why the sentence above still stands: it was the tally that was wrong, not the coverage. `scratch/name-index.json` carries one entry per encounter and holds exactly 548 of the 551 — **whether the skill copied its figure from that index or arrived at 548 independently is not recoverable**, because no generator for the index is committed, only the two consumers in `tools/`. Issue [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63).
+
+The three blocks with no entry were read on 2026-08-15. Each is a full encounter — a name, an age and sex, a chief complaint, an exam with findings, a diagnosis and a plan, six hundred to a thousand characters — and each opens with `Note N` like the rest. **Each also puts something other than the name on the line after `Note N`**: one a stray punctuation character and a blank line, two a parenthetical annotation. That is exactly the shape the next paragraph warns about, and it is the one property all three share.
+
+**A count of the notes you could name is not a count of the notes.** That is the error worth carrying forward rather than the number — nothing here measured the wrong thing, and something read a measurement as answering a question it was never pointed at.
 
 **The name is not reliably the line after `Note N`.** It can sit below the vitals, or below a remark the clinician wrote to themselves. Both of these are real:
 
