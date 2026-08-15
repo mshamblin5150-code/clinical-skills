@@ -99,9 +99,22 @@ Label at creation time. Coming back to label later is the step that gets skipped
 
 **The reason is the one #59 was filed about, arriving one level up.** That ticket exists because a decision got resolved inside an implementation and shipped, discoverable only by reading a merged diff. A finding that stays in the diff is the same defect in a cheaper form: the next session re-derives it, or does not, and nothing says which.
 
+### Every open ticket, not the ones that look relevant
+
+**The sweep is exhaustive. Read every open ticket, one at a time, and record a verdict for each.** Not the ones whose titles look related — *all* of them. Ruled 2026-08-15.
+
+This is the rule most likely to be quietly narrowed, because narrowing it feels like judgment rather than like skipping. A session settling [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63) swept 9 of 39 open tickets, picked by which titles sounded connected, and reported that as the sweep. Everything it picked was genuinely connected — and the two findings that mattered most were both outside the selection:
+
+- **A latent defect in the code that session had just merged.** Its new guard sweeps `fixtures/` with a bare three-digit match and had no exemption for `fixtures/filled-anchor/notes/`, the preserved run record [ADR 0001](../adr/0001-fixture-asserts-on-named-findings.md) forbids editing. Surfaced only by reading [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137), which is about that directory and has nothing to do with catalog denominators.
+- **A stale figure in ten places across four files.** "The 31 committed fixture inputs" became 34 when `hedged-dx` landed, and `test_thirty_one_committed_cases` still passes because `all_cases()` enumerates four fixture directories and not the fifth. Surfaced by reading [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94) and [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96), which are about the allergy box.
+
+**Neither would ever be reached by asking "which tickets does my work move."** The connection runs the other way: the ticket knows something about the repo that your work does not know it needed. A relevance filter can only select on what you already understand, which is exactly the wrong instrument for finding what you have missed.
+
+**The expected verdict is "untouched", and most of them will be.** Of the 38 swept afterwards, 26 were untouched and saying so plainly is the correct output — a sweep that finds something in every ticket is not being skeptical enough. Fan the reading out across subagents if the tracker is long; that is what they are for, and this repo already authorizes them. Take each verdict as a claim and re-derive any figure before writing it anywhere.
+
 ### What a sweep looks for
 
-Not "is there a ticket about this file." **Take what the work actually established and ask which tickets it moves.** Four shapes recur, and the last two are the ones that get missed:
+Not "is there a ticket about this file." **Take what the work actually established and ask which tickets it moves — then read the rest anyway.** Four shapes recur, and the last two are the ones that get missed:
 
 1. **A new gap** — a rule shipped with nothing scoring it, a limb no fixture reaches. File it.
 2. **Live evidence for an open ticket** — you hit the thing it describes. Comment with the date, the command, and what it cost you. A `grilling` ticket with dated instances is easier to rule on than one with an argument.
@@ -115,7 +128,7 @@ gh issue list --state open --limit 100 --json number,title,labels \
   --jq '.[] | "\(.number)\t[\(.labels|map(.name)|join(","))]\t\(.title)"'
 ```
 
-Read the titles against what you just learned, then open the few that could have moved. **Search the artifact for anything you are about to file** — that section is above and it is not weakened by this one; a sweep files *more* tickets, so it is exactly when duplicates get written.
+That list is the **work list**, not a menu — every number on it gets read and gets a verdict. Reading the titles first is fine for deciding what order to go in, and it is not a filter. **Search the artifact for anything you are about to file** — that section is above and it is not weakened by this one; a sweep files *more* tickets, so it is exactly when duplicates get written.
 
 **When a ticket names a fixture row or a skill passage, grep the repo for its number before believing it is unrecoverable:**
 
