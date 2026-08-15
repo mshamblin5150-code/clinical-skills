@@ -34,6 +34,18 @@ Known limits, stated so nobody mistakes this for a guarantee:
 - A patient name that appears nowhere in the corpus and is not date-shaped is
   caught by neither layer. All PHI here originates in the corpus, so this is a
   narrow hole, but it is a real one.
+- **It has no concept of the account profile**, and that hole is wider than the
+  one above. A site name, a preceptor, a payer mapping -- none of them is a
+  patient name, a corpus date or a PHI shape, so nothing here matches one.
+  Committed fixture notes have carried the clinician's practicum site names
+  straight through this scanner; a reviewer who thought to grep is what found
+  them, on every commit they survived. #50 ruled that **acceptable rather than
+  unnoticed** and built no fourth layer, so do not refile it. What the ruling
+  kept instead is the reasoning rather than the string, and it lives in
+  ``fixtures/README.md`` as prose -- a fixture built from another skill's
+  *output* inherits that skill's whole context, which is wider than any site
+  list and is why the list was not written. The counts and the ruling's grounds
+  are stated once each over there, not here.
 - **Binary files are skipped entirely**, so nothing inside ``reference/
   icd10cm-2026.sqlite`` is scanned. Its contents are the public ICD-10-CM
   release and carry no patient data. If a binary that could carry PHI is ever
