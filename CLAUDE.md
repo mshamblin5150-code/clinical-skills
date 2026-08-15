@@ -19,6 +19,8 @@ GitHub issues on `mshamblin5150-code/clinical-skills`, via the `gh` CLI. See `do
 
 **Search before you file** — `gh issue list --state all --search "..."`, on the command or file or symbol rather than your own framing. #20 and #21 are one bug filed 25 minutes apart by two sessions that never saw each other, both labeled correctly: labeling makes a ticket findable once it exists, and only searching stops the second copy being written.
 
+**Finishing a ticket means sweeping the tracker, and that is authorized without asking.** A merged PR is half of finishing; the work found things, and those belong on the tracker before the session ends. Update the tickets your findings move and file the ones they raise — **changing a ruling needs the clinician, recording what you found does not.** The reason is #59's own defect one level up: a finding left in a merged diff is discoverable only by reading that diff, so the next session re-derives it or does not. The shape most often missed is **a claim in an open ticket your work proved wrong** — #130 said #69 and #97 had no recoverable anchor and both had one, in the fixture prose that filed them. See `docs/agents/issue-tracker.md` for what a sweep looks for and what not to file.
+
 ### Triage labels
 
 The five canonical roles, kept at their default strings, plus a local `grilling`. See `docs/agents/triage-labels.md`.

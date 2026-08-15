@@ -92,3 +92,52 @@ The vocabulary and how to choose between the labels is in [triage-labels.md](tri
 - **Record dependencies rather than describing them in prose.** `gh issue edit <n> --add-blocked-by <m>` and `--add-blocking <m>` are supported, and they show up in `gh issue view`.
 
 Label at creation time. Coming back to label later is the step that gets skipped.
+
+## Finishing a ticket means sweeping the tracker, and you are authorized to do it
+
+**A merged PR is half of finishing.** The other half is that the work found things, and those things belong on the tracker before the session ends. **Do it without asking** — updating an existing ticket and filing a new one are both standing authorization here, on the same footing as spawning subagents. What needs permission is changing a *ruling*; recording what you found does not.
+
+**The reason is the one #59 was filed about, arriving one level up.** That ticket exists because a decision got resolved inside an implementation and shipped, discoverable only by reading a merged diff. A finding that stays in the diff is the same defect in a cheaper form: the next session re-derives it, or does not, and nothing says which.
+
+### What a sweep looks for
+
+Not "is there a ticket about this file." **Take what the work actually established and ask which tickets it moves.** Four shapes recur, and the last two are the ones that get missed:
+
+1. **A new gap** — a rule shipped with nothing scoring it, a limb no fixture reaches. File it.
+2. **Live evidence for an open ticket** — you hit the thing it describes. Comment with the date, the command, and what it cost you. A `grilling` ticket with dated instances is easier to rule on than one with an argument.
+3. **A claim in an open ticket that your work proved wrong.** This is the highest-value shape and the least likely to be looked for, because it means reading tickets you were not working on. #130 said #69 and #97 had no recoverable anchor; both had one, in the fixture prose that filed them, and finding that turned two dead tickets into two answerable ones.
+4. **A cross-reference that has gone stale** — a ticket pointing at a sibling that has since closed, a paragraph naming a case that a later ruling removed. #65 pointed at #49 as the other encounter to search for in one pass; #49 closed, and the pairing sat there reading as live.
+
+### The commands
+
+```bash
+gh issue list --state open --limit 100 --json number,title,labels \
+  --jq '.[] | "\(.number)\t[\(.labels|map(.name)|join(","))]\t\(.title)"'
+```
+
+Read the titles against what you just learned, then open the few that could have moved. **Search the artifact for anything you are about to file** — that section is above and it is not weakened by this one; a sweep files *more* tickets, so it is exactly when duplicates get written.
+
+**When a ticket names a fixture row or a skill passage, grep the repo for its number before believing it is unrecoverable:**
+
+```bash
+grep -rn "issues/69)" --include="*.md" fixtures/ skills/ docs/
+```
+
+The paragraph that filed a ticket usually cites it, and that paragraph is a specification the ticket body may no longer hold.
+
+### What not to do
+
+- **Do not file a ticket for every observation.** A finding earns one when someone could act on it — a decision to make, a gap to close, a claim to check. An observation with no such handle belongs in a comment on the ticket it bears on, or nowhere.
+- **Do not re-file something already ruled acceptable.** #50 ruled the account-profile hole out of scope deliberately; `CLAUDE.md` says so by name precisely so it does not come back. `--state all` in the search is what catches this.
+- **Do not close a ticket your work did not settle.** Narrowing one is a comment, not a closure.
+- **Do not restate a ruling you made up.** A reconstructed body says it is a reconstruction, names the lines it was rebuilt from, and marks which parts are inference — #69 and #97 both carry that header.
+
+### Ticket text takes standing rule 4
+
+**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Nothing checks any of them — `tools/spelling_scan.py` reads tracked Markdown, and an issue body is neither — so this one is on you, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) is where the gap is tracked. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is 28 entries wide: `judgement` and `neighbouring` are both British, both absent from it, and both shipped in ticket text on 2026-08-15 before being caught by hand.
+
+**Read the body back after posting**, which the `@-` trap section already asks for and which costs one command:
+
+```bash
+gh issue view <number> --json body --jq '.body | length'
+```
