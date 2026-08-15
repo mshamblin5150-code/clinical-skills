@@ -72,6 +72,24 @@ It counts only what a tier block **declares filled** — `clinical-note`'s own `
 
 Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve committed notes and pins the two figures #67 rests on, so editing that run record fails a test rather than quietly voiding an argument.
 
+### Specificity scan
+
+The filled-vitals census reads a `clinical-note` run. This one reads an **`icd10-cpt` run**, and it is `fixtures/filled-anchor` **C5** made runnable — [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
+
+```bash
+python tools/specificity_scan.py <a run directory>
+```
+
+**Two tests, neither of which needs a reader.** A `SPECIFICITY` flag must carry substance beyond its keyword — a bare `complete` and a bare `needs:` both fail — and a code whose **official descriptor** says `unspecified` or `not specified` may not read `complete` at all. The first is there because *the reason is the evidence the check happened*: nobody writes `Z98.51 has no further axis` without having looked at `Z98.51`'s axes, and anybody can write `complete`.
+
+**The second test rests on C2 and is worth knowing about before trusting a clean scan.** It reads the descriptor sitting beside the flag, which is only meaningful because C2 requires that string be the **verbatim official** one. Against a paraphrase it is a question about the run's wording rather than about the code set, so a run that failed C2 and passed C5 has not been graded on anything.
+
+**Counts only by default**, on `filled_vitals_census.py`'s terms and for its reason — a run directory under `scratch/` or `output/` is a patient record, and a code with its descriptor is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a C5 failure, **2 for every way of not having scanned**: no directory, no worksheets in it, no argument. That is `guidelines_search.py`'s arrangement rather than `filled_vitals_census.py`'s, because a run whose output landed elsewhere would otherwise report a clean set of flags.
+
+Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets in this file and a temp directory — **there is no committed `icd10-cpt` run to test against.** One test reads `skills/icd10-cpt/SKILL.md` and asserts the template says what the scanner checks, on `test_spelling_scan.py`'s reasoning: a scanner that has drifted from the file a reader opens is worse than none, because it reads as agreement.
+
 ### Skills mirror
 
 `.claude/skills/` is how Claude Code loads these skills natively, and each entry is meant to be a **junction to `skills/<name>/`** so the mirror cannot hold a different answer than the skill does. It is gitignored, so nothing git does checks it.
