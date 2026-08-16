@@ -214,6 +214,8 @@ COVID-19 — documented household contact, congruent symptoms, no test obtained
 
 **Submission coding for a claim is generally taught the other way, and this differs from it deliberately.** Outpatient claim coding is taught to code the signs and symptoms rather than a `probable`, `suspected` or `rule out` diagnosis. **That is recalled, and nothing in this repo verifies it** — the official guidelines are prose in a PDF, they are not shipped here, and `reference/icd10cm-2026.sqlite` holds the tabular alone. Say it as recall if it comes up; do not cite a section number this repo cannot check. The difference stands either way, because this worksheet feeds an academic clinical-hours record rather than a claim, and the differential codes below are documentation of reasoning rather than candidates for submission.
 
+**Guideline sheets now ship and this is not one of the things they cover, which is a stronger statement than the one it replaces.** Two do — `reference/guidelines-uspstf.md` and `reference/thresholds/` — and neither reaches coding. The ICD-10-CM Official Guidelines for Coding and Reporting are a CMS and NCHS document, and **no CMS or NCHS coding document is among the nine societies in the corpus** those sheets are distilled from. So the absence is now checkable rather than taken: open `reference/guidelines-catalog.md` and there is nothing to find. The ruling is unchanged and the reason got better. [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
+
 **`Z03.-` is not proposed here**: it carries `excludes1: signs or symptoms under study- code to signs or symptoms`, every encounter in this corpus arrives with a complaint, and coding the symptoms is what the rule above already does.
 
 #### The differential is coded, and none of it is for entry
@@ -304,7 +306,9 @@ Offer the supporting elements (problems addressed, data reviewed, risk) and let 
 
 So the codes on the differential are required, and none of them is for entry. They are not a claim in miniature; they are the written form of the reasoning, and the reasoning is the element.
 
-**The MDM phrasing here is recalled, and nothing in this repo verifies it** — the same posture as the outpatient rule in step 3, and for the same reason: no guidelines ship here. Offer the elements, name that they are recalled, and let the clinician map them to a level.
+**The MDM phrasing here is recalled, and nothing in this repo verifies it** — the same posture as the outpatient rule in step 3, and now for its corrected reason rather than the one both paragraphs used to give. Guideline sheets ship and neither covers this: the medical decision making table is an **AMA CPT** document, and no AMA document is among the nine societies the corpus holds. Offer the elements, name that they are recalled, and let the clinician map them to a level.
+
+**No lookup is added to this skill by [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85), and that is a ruling rather than an omission.** [clinical-note](../clinical-note/SKILL.md) is obliged to consult a sheet where one covers what a Plan item asserts; this worksheet is not, on any encounter. **A code is anchored to what the note documents, never to whether the number should have met a target** — a coder who declined `I10` because a pressure sat under a threshold sheet's cutoff, or who withheld a screening `Z` code because the patient fell outside a USPSTF population, would be re-deciding the clinical question from the worksheet with the note as its only input. That is the anchor rule running backwards, and step 3's *filled value is coded, and it is marked* already settled the general form of it: mark what a code rests on, never withhold on a ground the note does not carry.
 
 ## Completion
 
