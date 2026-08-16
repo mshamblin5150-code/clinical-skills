@@ -281,19 +281,21 @@ So `rebuild_text` walks the per-character boxes and inserts a space where the ga
 
 | class | n | % | verdict |
 | --- | ---: | ---: | --- |
-| glued run fixed | 9,630 | 69.9% | correct, the point |
-| punctuation, tab or bullet | 3,197 | 23.2% | harmless separation |
-| digit-break | 413 | 3.0% | damage, all in citations |
-| letter-spaced word | **349** | 2.5% | **the real cost** |
-| word broken, pieces not all single | 181 | 1.3% | mostly a footnote marker |
+| glued run fixed | 9,622 | 70.3% | correct, the point |
+| punctuation, tab or bullet | 3,179 | 23.2% | harmless separation |
+| digit-break | 390 | 2.8% | damage, all in citations |
+| letter-spaced word | **306** | 2.2% | **the real cost** |
+| word broken, pieces not all single | 188 | 1.4% | mostly a footnote marker |
 
-13,770 occurrences over 10,768 distinct shapes, all 179 documents, 2026-08-16.
+13,685 occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
 
-**The number that matters here is zero.** Of the 413 digit-breaks, all **141** distinct runs are citation apparatus — a year (`2009;`, 158 of them), supplement page ranges (`S131–S155`), a superscript reference marker welded to its word (`al,23`). **Not one carries a clinical unit**, so no threshold value is broken anywhere in the corpus. That was the risk worth measuring: a repo whose subject is numbers cannot afford a reader that splits them.
+**The number that matters here is zero.** Of the 390 digit-breaks, every distinct run is citation apparatus — a year (`2009;`, 158 of them), supplement page ranges (`S131–S155`), a superscript reference marker welded to its word (`al,23`). **Not one carries a clinical unit**, so no threshold value is broken anywhere in the corpus. That was the risk worth measuring: a repo whose subject is numbers cannot afford a reader that splits them.
 
-So the true cost is **349** letter-spaced words in readable text — 158 of them the single string `(Suppl` — or 762 counting the citation digit-breaks, against 6,881 by set difference. The trade favors the body over the front matter, which is the right way round: what splits is display type in headings and reference lists, what is repaired is running prose, and a threshold lives in the prose.
+So the true cost is **306** letter-spaced words in readable text, or 696 counting the citation digit-breaks, against 6,881 by set difference. The trade favors the body over the front matter, which is the right way round: what splits is display type in headings and reference lists, what is repaired is running prose, and a threshold lives in the prose.
 
-179 documents, 7,733 pages, **39,398,065 characters**, 1 page with no text layer, no failures — measured 2026-08-16. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed. **The four fields #84 reads all survived the switch, checked rather than assumed**: 179 documents, 147 with a title, 0 missing a society, 176 `guideline` and 3 `print-capture`.
+**284 of those 696 are one running footer in one document, and finishing it is [#178](https://github.com/mshamblin5150-code/clinical-skills/issues/178).** `span_baselines` exists because a rendered page showed that footer being split character by character — a line of three spans, one tracked tightly and one normally, where a single median across both made every normal gap look like a word break. It fixed the 16 pages where the footer is three spans and not the 142 where it is one. **Rendering the page is how that was found, and no text metric had reached it in three rounds of tuning**: `page.get_pixmap(dpi=140)`, then actually open the image. The same four renders showed that `c o n t e n t s` really is letter-spaced on the page, so the extractor had been faithful and the question was semantic rather than a defect.
+
+179 documents, 7,733 pages, **39,397,589 characters**, 1 page with no text layer, no failures — measured 2026-08-16. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed. **The four fields #84 reads all survived the switch, checked rather than assumed**: 179 documents, 147 with a title, 0 missing a society, 176 `guideline` and 3 `print-capture`.
 
 **Parallel since #83, and `--jobs 1` still runs in this process.** A pool of one is all of the overhead and none of the benefit, and serial is the mode a traceback is readable in. `map` yields in submission order so the manifest stays in source order and a rebuild diffs clean.
 
@@ -372,20 +374,20 @@ Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the 
 
 **The database is written outside every checkout, and there is a guard rather than a convention.** It defaults to `<parent of the main checkout>/guidelines-index/guidelines.sqlite` — `C:\codeing\guidelines-index\` here, beside the sources — overridable with `CLINICAL_GUIDELINES_INDEX` or a positional argument. `ensure_outside_repo` refuses any target inside the main checkout **or inside the worktree you are standing in**, and those are two different tests: `Path(__file__).parent.parent` is the *worktree*, so defaulting relative to it would drop 65 MB under `.claude/worktrees/` while reading as outside the repo. The tools are committed and the index is not. This is deliberately **not** the `icd10cm-2026.sqlite` arrangement, and [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) — blocked — is where that gets revisited.
 
-179 documents, 7,733 pages, **39,306,353 characters**, **58.6 MB on disk** — measured 2026-08-16 against the PyMuPDF extraction, and **re-derivable**.
+179 documents, 7,733 pages, **39,305,877 characters**, **58.6 MB on disk** — measured 2026-08-16 against the PyMuPDF extraction, and **re-derivable**.
 
 **Two earlier figure sets are retired, and the reasons differ.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written because #80 had not landed — provisional, and retired when #80 landed. Then 39.8 M and 60.8 MB, measured 2026-08-13 against the `pypdf` extractor — **correct when taken and retired because the reader changed**, not because it was wrong. #83 moved the extractor to PyMuPDF and stripped 921,093 characters of boilerplate where `pypdf` stripped 554,372, which is most of the 2.2 MB the index lost this time.
 
-**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,398,065 and this reports 39,306,353. They measure different stages of the same corpus, and the gap reconciles exactly:
+**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,397,589 and this reports 39,305,877. They measure different stages of the same corpus, and the gap reconciles exactly:
 
 | | |
 | --- | --- |
-| extractor `chars` — line contents, **before** stripping | 39,398,065 |
+| extractor `chars` — line contents, **before** stripping | 39,397,589 |
 | less `chars_stripped` | −921,093 |
 | plus the newline written between every line | +829,381 |
-| = characters in the `.txt` files on disk | 39,313,907 |
+| = characters in the `.txt` files on disk | 39,313,431 |
 | less the form feeds the indexer splits on (7,733 pages − 179 documents) | −7,554 |
-| **= what the indexer counts** | **39,306,353** |
+| **= what the indexer counts** | **39,305,877** |
 
 **The obvious explanation for the 91,712 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate *minus* the form feeds, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — every row above is derived from the manifest and the files on disk, and the whole chain was re-run rather than adjusted when the reader changed.
 

@@ -222,6 +222,74 @@ class RebuildText(unittest.TestCase):
         self.assertEqual(extract.rebuild_text({}), "")
 
 
+class SpansDoNotShareMetrics(unittest.TestCase):
+    """The bug a rendered page found and no text metric did.
+
+    KDIGO-2009-Transplant-Recipient-Guideline-English.pdf's running footer is one
+    line of three spans, all Univers-Light 9 pt. The first is set with negative
+    tracking and measures -1.38 pt between glyphs; the last is set normally and
+    measures 0.00. Taking one median across the line gives -1.38, so every 0.00 gap
+    in the last span reads as an excess of +1.38 against a 0.90 threshold, and the
+    rebuild split every character of it:
+
+        American Journal of Transplantation 2 0 0 9 ; 9 ( S u p p l 3 ) : S i - S i
+
+    That one footer repeats on 158 pages and was the single largest source of
+    damage in the corpus. The geometry below is the real line's.
+    """
+
+    TIGHT, NORMAL, SIZE = -1.38, 0.0, 9.0
+
+    def line(self, first: str, second: str) -> dict:
+        def chars(text, gap, start):
+            advance = self.SIZE * 0.5
+            out, cursor = [], start
+            for glyph in text:
+                out.append({"c": glyph, "bbox": (cursor, 0.0, cursor + advance, self.SIZE)})
+                cursor += advance + gap
+            return out, cursor
+
+        left, cursor = chars(first, self.TIGHT, 0.0)
+        right, _ = chars(second, self.NORMAL, cursor)
+        return {
+            "blocks": [{"type": 0, "lines": [{"spans": [
+                {"size": self.SIZE, "chars": left},
+                {"size": self.SIZE, "chars": right},
+            ]}]}]
+        }
+
+    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbour(self):
+        page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
+        self.assertEqual(
+            extract.rebuild_text(page), "AmericanJournalofTransplantation2009;9(Suppl3)"
+        )
+
+    def test_the_line_median_alone_would_have_split_it(self):
+        """The counterfactual, so the test fails for the right reason. Against the
+        whole line the baseline is the tight span's, and the normal span's every gap
+        clears the bar."""
+        page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
+        glyphs = [
+            (char, self.SIZE)
+            for span in page["blocks"][0]["lines"][0]["spans"]
+            for char in span["chars"]
+        ]
+        whole_line = extract.line_baseline(glyphs)
+        self.assertAlmostEqual(whole_line, self.TIGHT, places=6)
+        self.assertGreater(
+            self.NORMAL - whole_line,
+            max(extract.SPACE_GAP_FRACTION * self.SIZE, extract.SPACE_GAP_FLOOR),
+        )
+
+    def test_a_span_too_short_for_its_own_median_borrows_the_line(self):
+        """Right where a line is one typeface broken into spans by a bold word: the
+        short span has no distribution of its own to measure."""
+        page = self.line("aaaaaaaaaa", "bb")
+        baselines = extract.span_baselines(page["blocks"][0]["lines"][0])
+        self.assertAlmostEqual(baselines[0], self.TIGHT, places=6)
+        self.assertAlmostEqual(baselines[1], baselines[0], places=6)
+
+
 class LineBaseline(unittest.TestCase):
     def test_it_is_the_median_gap(self):
         page = rawline("abcdef", 10.0, [1.0, 1.0, 5.0, 1.0, 1.0])

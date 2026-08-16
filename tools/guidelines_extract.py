@@ -73,14 +73,14 @@ dictionary and cannot be defined by the inference under test:
 =================================  ======  =====  ==========================
 class                                   n      %  verdict
 =================================  ======  =====  ==========================
-glued run fixed                     9,630  69.9%  correct, the point
-punctuation, tab or bullet          3,197  23.2%  harmless separation
-digit-break                           413   3.0%  damage, all in citations
-letter-spaced word                    349   2.5%  **the real cost**
-word broken, pieces not all single    181   1.3%  mostly a footnote marker
+glued run fixed                     9,622  70.3%  correct, the point
+punctuation, tab or bullet          3,179  23.2%  harmless separation
+digit-break                           390   2.8%  damage, all in citations
+letter-spaced word                    306   2.2%  **the real cost**
+word broken, pieces not all single    188   1.4%  mostly a footnote marker
 =================================  ======  =====  ==========================
 
-13,770 split occurrences over 10,768 distinct shapes, all 179 documents, 2026-08-16.
+13,685 split occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
 
 **The number that matters for this repo is zero.** Of the 413 digit-breaks, all
 **141** distinct runs are citation apparatus -- a year (``2009;``, 158 of them),
@@ -89,12 +89,34 @@ its word (``al,23``). **Not one carries a clinical unit**, so no threshold value
 broken anywhere in the corpus. That was the risk worth measuring: a repo whose
 subject is numbers cannot afford a reader that splits them, and this one does not.
 
-So the true cost is **349 letter-spaced words** in readable text, or 762 counting
-the citation digit-breaks -- against 6,881 by set difference. 158 of the 349 are one
-string, ``(Suppl``. The remainder is tracked display type: ``Scr``, ``Scys``,
-``contents``, a running head. The ``word broken`` row is mostly ``bThe -> b|The``,
-which is the rebuild correctly separating a footnote marker from the word after it
-and is miscounted as damage here rather than credited.
+So the true cost is **306 letter-spaced words** in readable text, or 696 counting
+the citation digit-breaks -- against 6,881 by set difference. The ``word broken`` row
+is mostly ``bThe -> b|The``, which is the rebuild correctly separating a footnote
+marker from the word after it and is miscounted as damage here rather than credited.
+
+**284 of those 696 are one running footer in one document, and it is unfinished
+work.** ``KDIGO-2009-Transplant-Recipient-Guideline-English.pdf`` carries
+
+    American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9
+
+on every page, and it accounts for 142 of the 306 letter-spaced splits and 142 of
+the 390 digit-breaks. ``span_baselines`` fixed the 16 pages where that footer is set
+as three spans and **not the 142 where it is one**: there the whole footer is a
+single Univers-Light span whose per-glyph gaps run from -2.35 to 0.00 around a
+median of -1.36, so the top of its own spread clears any fixed offset from that
+median. It is a font with heavy and highly variable negative bearings, not tracked
+type, and the median-plus-offset rule cannot separate the two.
+
+**The line already carries real space glyphs**, which is the lead worth following:
+the PDF has already said where its words are, and nothing on that line needed
+inferring at all. A rule that measured a candidate gap against the width of an
+actual space on the same line -- rather than against the median -- would leave it
+alone. That is not built here, because the same rule must not undo the USPSTF case,
+where a line has a space after its bullet and its words are glued anyway. See #178.
+
+**And the footer is boilerplate that should never have reached a reader**: its page
+range varies per page, so the 75% rule never strips it. That is #100's cause 1, and
+fixing #100 would remove this damage without touching the space rule at all.
 
 The trade favors the body over the front matter, which is the right way round: what
 splits is display type in headings and reference lists, and what is repaired is
@@ -521,6 +543,44 @@ def line_baseline(glyphs: list[tuple[dict, float]]) -> float:
     return statistics.median(gaps)
 
 
+def span_baselines(line: dict) -> list[float]:
+    """One baseline per span, falling back to the line's and then to nothing.
+
+    **Per span, because a line's spans do not share metrics, and taking the median
+    across them measures nothing.** Found by rendering a page and looking at it
+    rather than by any text metric. The running footer of
+    KDIGO-2009-Transplant-Recipient-Guideline-English.pdf --
+
+        American Journal of Transplantation 2009; 9 (Suppl 3): Si-Si
+
+    -- is a single line of three spans, all Univers-Light 9 pt. The first 35
+    characters are set with negative tracking and measure -1.38 between glyphs; the
+    last 24 are set normally and measure 0.00. The line median is -1.38, so every
+    0.00 gap in the third span reads as an excess of +1.38 against a threshold of
+    0.90, and the rebuild split **every character of it**:
+
+        American Journal of Transplantation 2 0 0 9 ; 9 ( S u p p l 3 ) : S i - S i
+
+    That one footer, repeated on 158 pages, produced 158 of the 349 letter-spaced
+    splits and all 158 `2009;` digit-breaks -- 316 of the 762 damaged tokens in the
+    whole corpus, from one line in one document.
+
+    The fallback order matters. A span too short for its own median borrows the
+    line's, which is right where a line is one typeface broken into spans by a bold
+    word; and a line too short for that gets 0.0, which is the absolute rule.
+    """
+    glyphs_by_span = [
+        [(char, span.get("size", 0.0)) for char in span.get("chars", ())]
+        for span in line.get("spans", ())
+    ]
+    whole_line = [pair for span in glyphs_by_span for pair in span]
+    fallback = line_baseline(whole_line)
+    return [
+        line_baseline(span) if len(span) > MINIMUM_GAPS_FOR_BASELINE else fallback
+        for span in glyphs_by_span
+    ]
+
+
 def rebuild_text(raw: dict) -> str:
     """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
 
@@ -544,34 +604,33 @@ def rebuild_text(raw: dict) -> str:
         if block.get("type") != 0:
             continue
         for line in block.get("lines", ()):
-            glyphs = [
-                (char, span.get("size", 0.0))
-                for span in line.get("spans", ())
-                for char in span.get("chars", ())
-            ]
-            if not glyphs:
+            baselines = span_baselines(line)
+            if not baselines:
                 continue
-            baseline = line_baseline(glyphs)
             buffer: list[str] = []
             previous_right: float | None = None
-            for char, size in glyphs:
-                glyph = char["c"]
-                left, _, right, _ = char["bbox"]
+            for index, span in enumerate(line.get("spans", ())):
+                size = span.get("size", 0.0)
+                baseline = baselines[index]
                 threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
-                gap_is_wide = (
-                    previous_right is not None
-                    and (left - previous_right) - baseline > threshold
-                )
-                # Never two spaces, and never a space before one the PDF set
-                # itself: `buffer[-1] != " "` covers the first and `glyph != " "`
-                # the second. Without them a document with real space glyphs
-                # AND wide inter-word gaps -- which is most of AHA/ACC -- comes
-                # back double-spaced, and `normalize` collapsing runs of spaces
-                # would hide that rather than make it correct.
-                if gap_is_wide and glyph != " " and buffer and buffer[-1] != " ":
-                    buffer.append(" ")
-                buffer.append(glyph)
-                previous_right = right
+                for char in span.get("chars", ()):
+                    glyph = char["c"]
+                    left, _, right, _ = char["bbox"]
+                    gap_is_wide = (
+                        previous_right is not None
+                        and (left - previous_right) - baseline > threshold
+                    )
+                    # Never two spaces, and never a space before one the PDF set
+                    # itself: `buffer[-1] != " "` covers the first and
+                    # `glyph != " "` the second. Without them a document with real
+                    # space glyphs AND wide inter-word gaps -- which is most of
+                    # AHA/ACC -- comes back double-spaced, and `normalize`
+                    # collapsing runs of spaces would hide that rather than make
+                    # it correct.
+                    if gap_is_wide and glyph != " " and buffer and buffer[-1] != " ":
+                        buffer.append(" ")
+                    buffer.append(glyph)
+                    previous_right = right
             lines.append("".join(buffer))
     return "\n".join(lines)
 
