@@ -118,6 +118,28 @@ python tools/differential_scan.py <a run directory>
 
 Covered by `tools/test_differential_scan.py`, which builds synthetic notes in that file and a temp directory — **there is no committed `clinical-note` run whose differential this could be tested against**, for the reason in the paragraph above. One test pins the parser against the shape that breaks a naive one: a compliant entry carries its own slot code and its refusals on a single line, so anything treating every code on a `NOT CODED` line as refused flags the slot and fails the skill's own worked example.
 
+### Block scan
+
+The differential scan reads a `clinical-note` run's differential. This one reads the same run's **tier block**, and it is `fixtures/day-a`'s **F1, F2 and F3** made runnable — [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120), whose own comment asks for it by name: *put any grader in `tools/`*, because the four graders that scored `filled-anchor` run 1 were written into the run directory and went with it when the worktree was removed.
+
+```bash
+python tools/block_scan.py <a run directory>
+```
+
+**Three tests, none of which needs a reader.** `Primary Payment Method` and start-and-end times never open a `GAPS` entry — both are filled or estimated by design, and a GAPS line for either is the block teaching the clinician to skim. `Race/Ethnicity` appears under `FILLED·asserted` and never opens a GAPS entry; **that row has two limbs**, and the second is why it is not the first row's twin: a declared administrative value is a claim about the patient, so a block naming it nowhere has dropped it rather than passed by omission.
+
+**A row fires on what opens an entry, never on a mention inside one, and that is what makes it safe to run unattended.** A GAPS entry reading *"Site and preceptor. Not in the source. The site also decides the payment method above."* is **compliant** — its subject is the site, and the sentence explains a dependency. The first version of this scanner matched any mention and called three such sentences failures on day-a run 2; every one was prose about the rule. **Every violation these rows describe opens an entry, and nothing that opens an entry is prose about the rule.**
+
+**What it cannot reach is F4, and that is permanent rather than pending.** Deciding whether a `FLAG` names both the finding and the omitted action is reading a sentence, not matching a string — `BP 151/93 undiscussed` passes and `vitals not addressed` fails. F5, F6 and F7 turn on one case's age and sex and are questions about an **input** this never sees. All four stay counted by a reader.
+
+**The entry boundary is a reading, and [#127](https://github.com/mshamblin5150-code/clinical-skills/issues/127) is why it has to be.** An entry opens at a label line or a bullet; every other indented line is a **wrap**. That is right for a run repeating the label per entry, which is what day-a run 2 does, and a **floor** on the canonical aligned-continuation form where several entries share one label. So the wrap count is printed beside the findings, and an aligned line that *would* have opened a matching entry is reported as a **candidate** rather than a failure — counted, `--show`-able, and outside the exit status, on the arrangement `specificity_scan.py` uses for a flag on a `NOT FOR ENTRY` line.
+
+**Counts only by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a GAPS entry names what an encounter did not supply about a person. **`--show` output is PHI**: read it, do not paste it.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for an F1 to F3 violation, **2 for every way of not having scanned**, including **no tier block in any note read**. That last limb is the one that matters, and it is the limb `differential_scan.py` was given for the same reason.
+
+Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that file and a temp directory — **there is no committed `clinical-note` run whose tier block this could be tested against, and there will not be one.** Two shapes are pinned deliberately, because the whole reading rests on telling them apart: an entry that **opens** with a field name, and a wrapped line that merely mentions one. One class reads `skills/clinical-note/SKILL.md` and asserts the rules it checks are still written there, on `test_spelling_scan.py`'s reasoning.
+
 ### Skills mirror
 
 `.claude/skills/` is how Claude Code loads these skills natively, and each entry is meant to be a **junction to `skills/<name>/`** so the mirror cannot hold a different answer than the skill does. It is gitignored, so nothing git does checks it.

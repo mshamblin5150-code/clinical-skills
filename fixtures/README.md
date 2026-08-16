@@ -123,7 +123,7 @@ So the separation is not just for catching failures. **A self-report can be wron
 
 | Set | Skill | Cases | Inputs | Reference | Last run |
 | --- | --- | --- | --- | --- | --- |
-| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | `DRIFT 10/10` · `REPORTED 14/14` — R14 rewritten since, see below |
+| [day-a](day-a/assertions.md) | `clinical-note`, SOAP branch | 10 | [extracted](day-a/shorthand/) | read | **`DRIFT 10/10` · `REPORTED 13/14` · `block 6/7`** — **31 of 31 rows**, run 2 separated, **the bar clean** and two counted rows short, see below |
 | [day-b](day-b/assertions.md) | `clinical-note`, SOAP branch | 12 | [extracted](day-b/shorthand/) | read | **`DRIFT 7/7` · `FILLED 10/11` · `CODING 2/2` · `REPORTED 1/4`** — **24 of 31 rows**, and it **fails**, see below |
 | [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | read | **`FILLED 5/6`** — **6 of 11 rows**, see below |
 | [obesity-bmi](obesity-bmi/assertions.md) | `clinical-note`, SOAP branch | 4 | [extracted](obesity-bmi/shorthand/) | **owed** | never run |
