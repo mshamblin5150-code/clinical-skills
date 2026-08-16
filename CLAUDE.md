@@ -116,7 +116,7 @@ python tools/specificity_scan.py <a run directory>
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a C5 failure, **2 for every way of not having scanned**: no directory, no worksheets in it, no argument. That is `guidelines_search.py`'s arrangement rather than `filled_vitals_census.py`'s, because a run whose output landed elsewhere would otherwise report a clean set of flags.
 
-Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets in this file and a temp directory — **there is no committed `icd10-cpt` run to test against.** One test reads `skills/icd10-cpt/SKILL.md` and asserts the template says what the scanner checks, on `test_spelling_scan.py`'s reasoning: a scanner that has drifted from the file a reader opens is worse than none, because it reads as agreement.
+Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets in this file and a temp directory. **That used to be because there was no committed `icd10-cpt` run to test against, and since [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124) there is** — `fixtures/filled-anchor/run-2/`, twelve worksheets. The tests stay synthetic anyway, on `test_icd10.py`'s reasoning: a test reading the run its own row graded would pass for two reasons, one of them being that the run and the scanner are wrong together. What the committed run buys is that **C5's figure is re-derivable rather than cited** — one command over a directory a reader can open. One test reads `skills/icd10-cpt/SKILL.md` and asserts the template says what the scanner checks, on `test_spelling_scan.py`'s reasoning: a scanner that has drifted from the file a reader opens is worse than none, because it reads as agreement.
 
 ### Differential scan
 
@@ -141,6 +141,28 @@ python tools/differential_scan.py <a run directory>
 **The obvious explanation for that is wrong, and it was published wrong here first.** This paragraph originally said the twelve carry *no ICD-10 code at all* on a differential entry. **Four of them do** — case 7 carries 13 in its differential block and case 8 nine, in the form `**COVID-19 (U07.1) — FAVORED.**`, with the code in **parentheses** rather than pinned by a hyphen. Six of the twelve carry no `Differential` heading at all; cases 1, 2, 9 and 10 head one and write entries carrying almost no codes. **So the set is not uniformly pre-#19 and it is not uniform at all** — which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s subject, and a third split for it. What is uniform is only the thing measured above: **nobody uses the hyphen**. A sweep by one reader produced the wrong generalization from two notes; a second reader caught it, and the figure was re-derived before this sentence was rewritten.
 
 Covered by `tools/test_differential_scan.py`, which builds synthetic notes in that file and a temp directory — **there is no committed `clinical-note` run whose differential this could be tested against**, for the reason in the paragraph above. One test pins the parser against the shape that breaks a naive one: a compliant entry carries its own slot code and its refusals on a single line, so anything treating every code on a `NOT CODED` line as refused flags the slot and fails the skill's own worked example.
+
+### Anchor scan
+
+The differential scan reads a `clinical-note` run. This one reads an **`icd10-cpt`** run again, and it is `fixtures/filled-anchor`'s **ANCHOR** class reduced to the part a machine can settle — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
+
+```bash
+python tools/anchor_scan.py <a run directory>
+```
+
+**Two tests, neither of which needs a reader.** The mark and the listing must agree — every code carrying `SOURCE: filled` appears under `CODED, ANCHOR WAS FILLED`, and every code that block lists carries `SOURCE: filled` on its own entry. **Either direction alone is the failure**, which is `skills/icd10-cpt/SKILL.md`'s *"Both, not one instead of the other"* made runnable. And a pediatric `Z68.5-` may not read `verified against ICD-10-CM FY2026`: the repo ships the codes without the CDC growth charts, so the band is recalled however carefully the number was checked. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123) retires that second test by shipping the charts.
+
+**A listing is a line format, not a substring** — `<code> - <value>`, the code pinned at the start of its line by a dash. That is deliberate and it is `fixtures/filled-anchor`'s own *Still unresolved* bullet: a run can write *"`Z68.25` needs no `SOURCE` line, the inputs were given"* **inside** the block, which puts the string exactly where a substring search looks.
+
+**The pre-#46 heading is not this block, and the lookbehind that says so is the load-bearing line in the parser.** Run 1 refused every filled anchor and wrote them under `NOT CODED, ANCHOR WAS FILLED`. A scanner reading that as the new block would report a clean pass for the exact behavior #46 reversed; this one reads a run reproducing run 1 as having **marked nothing** and exits 2.
+
+**A clean scan is not a walked row, and what it cannot reach is most of ANCHOR.** Whether a note's BMI had a filled input, whether `I10` was rightly absent on a filled pressure, whether case 4's `Z68.25` rests on two given values — each compares a worksheet to a note, and **the note is not in the run directory**. A3 in particular is invisible: a run that stopped coding the family altogether marks nothing and reads as unscanned.
+
+**Counts only by default**, on `specificity_scan.py`'s and `differential_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a code with the value it rests on is a measurement attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for an ANCHOR violation, **2 for every way of not having scanned**, including **no marked code, no listed code and no pediatric band in any worksheet read**.
+
+Covered by `tools/test_anchor_scan.py`, which builds synthetic worksheets in that file and a temp directory. **Unlike its two siblings it now has a committed run to point at as well** — `fixtures/filled-anchor/run-2/`, the first `icd10-cpt` run this repo has kept — but the tests stay synthetic on `test_icd10.py`'s reasoning: a test reading the run it graded would pass for two reasons, one of them being that the run and the grader are wrong together.
 
 ### Skills mirror
 

@@ -1,9 +1,13 @@
 """Cover ``specificity_scan``'s parser against synthetic worksheets.
 
-Every worksheet here is written in this file. There is no committed run of
-``icd10-cpt`` to test against -- a run directory is a patient record under
-``scratch/`` -- so the fixtures are invented, the way ``test_skills_mirror``
+Every worksheet here is written in this file, the way ``test_skills_mirror``
 builds throwaway checkouts rather than touching the real one.
+
+**That used to be because no committed run of ``icd10-cpt`` existed. One does
+now** -- ``fixtures/filled-anchor/run-2/``, from [#124] -- and the fixtures stay
+invented anyway, on ``test_icd10.py``'s reasoning: a test reading the run this
+scanner's own row graded would pass for two reasons, one of them being that the
+run and the scanner are wrong together.
 
 ``TheSkillSaysWhatThisChecks`` is the one test that reads a committed file, and
 it is there for ``test_spelling_scan``'s reason: a scanner that drifts from the
@@ -70,6 +74,23 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
         self.assertEqual(flags[0].code, "R12")
         self.assertEqual(flags[0].descriptor, "Heartburn")
         self.assertEqual(flags[0].keyword, "complete")
+
+    def test_a_wrapped_descriptor_keeps_its_not_for_entry_exemption(self):
+        # The mark lands on the continuation line when the official descriptor runs
+        # past one. Reading only the code's own line calls this for-entry and then
+        # fails it on ``unspecified``-plus-``complete`` -- a false C5 finding on the
+        # exact shape the exemption exists to protect, since a differential is coded
+        # at the unspecified level on purpose.
+        wrapped = (
+            "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic,"
+            " without\n"
+            "               hemorrhage or perforation   NOT FOR ENTRY\n"
+            "  SPECIFICITY: complete — nothing further\n"
+        )
+        flags = scan.read_flags(wrapped)
+        self.assertEqual(len(flags), 1)
+        self.assertFalse(flags[0].for_entry)
+        self.assertEqual(scan.findings(flags), [])
 
     def test_a_differential_entry_carries_no_flag_and_is_not_graded(self):
         differential = (
