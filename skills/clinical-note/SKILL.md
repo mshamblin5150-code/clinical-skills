@@ -535,31 +535,51 @@ It binds both branches, which is why it lives here rather than in either templat
 **An entry is named for the code it carries.** Label and code always agree — `Acute bronchitis - J20.9` names what `J20.9` says — and that is unremarkable until the two can come apart. [icd10-cpt](../icd10-cpt/SKILL.md) refuses a code whose descriptor names a confirmed organism or disease the encounter never established, and the entry still has to be called something. **It is called what the surviving code says**, with the refused disease named in the rationale:
 
 ```
-Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. M86.9 Osteomyelitis, unspecified NOT CODED, nothing established it. Less likely.
+Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
 ```
 
 **That leaves a symptom on the left-hand side, and it is the ruling rather than a side effect.** Put to the clinician on 2026-08-15 against a whole differential rendered this way — `Pain in right leg`, `Chills` and `Shortness of breath` standing where a grader reading the school's *"3 differential diagnoses"* expects diagnoses — and answered: the disease belongs in the rationale, which is where the differential is graded. Nothing is lost, because every disease considered is still named there with the specific finding that rejects it.
 
 **What the convention buys is that a label cannot assert.** Issue #68 was filed because one run produced three renderings of a single rule — the entry named for the refused disease, two entries collapsed under one refusal, and the entry renamed to the suspicion with the organism demoted into an adjectival clause. All three happened to keep the refused code out of the code slot and **nothing required them to.** A fourth rendering putting `M86.9` on the label with the refusal in a footnote would have read as compliant while asserting a disease nobody established. Pin the label to the code and there is no slot left to hide one in.
 
+**A refusal is written `NOT CODED: <code> <official descriptor>, <reason>` — the mark first, the code welded to it by the colon.** Never the other way round, and never with the descriptor between them. This is `icd10-cpt` step 4's own form, and it is the form all twelve worksheets in [fixtures/filled-anchor/run-2](../../fixtures/filled-anchor/run-2/) use; until 2026-08-16 this file wrote the code first and the two skills rendered the same thing two ways.
+
+**The reason is that the mark has to be findable without guessing.** `tools/differential_scan.py` used to pair a mark with the last code before it on the same line, and that guess broke in both directions. Hard-wrap a rationale so `NOT CODED` starts a line and the refusal became **invisible** — the scan reported nothing refused and passed. Write a drift-row-22 verdict saying *"the slot after the hyphen carries `M79.604`, never a code marked `NOT CODED`"* and the note was read as refusing its own final diagnosis. **Describing the rule was what broke it.** With the pair welded, a wrap cannot separate them and a sentence writing the mark without a colon is not a refusal. [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+
+**Two refusals on one entry are joined by a semicolon, and the mark is repeated:**
+
+```
+NOT CODED: A41.9 Sepsis, unspecified organism, the vitals do not support it; NOT CODED: R78.81 Bacteremia, no blood culture drawn.
+```
+
+The semicolon is what bounds a refusal and its reason, so the second mark is not optional shorthand — `NOT CODED: A41.9 …; R78.81 Bacteremia, no blood culture drawn` reads as one refusal with a long reason, and `R78.81` is then a code the note names and never accounts for.
+
 **Two refusals resting on one documented finding are one entry, not two.** The supported code is written once and the rationale names both:
 
 ```
-Chills - R68.83: chills over a chronic infected wound growing a resistant Klebsiella, but afebrile at 97.3, heart rate 77 and respiratory rate 18, so no SIRS criteria are met. CBC and lactate ordered today with no result. A41.9 Sepsis, unspecified organism NOT CODED, the vitals do not support it; R78.81 Bacteremia NOT CODED, no blood culture drawn. Less likely.
+Chills - R68.83: chills over a chronic infected wound growing a resistant Klebsiella, but afebrile at 97.3, heart rate 77 and respiratory rate 18, so no SIRS criteria are met. CBC and lactate ordered today with no result. NOT CODED: A41.9 Sepsis, unspecified organism, the vitals do not support it; NOT CODED: R78.81 Bacteremia, no blood culture drawn. Less likely.
 ```
 
 **Those two refusals do not share a reason, and one reason covering both would be wrong.** `R78.81 Bacteremia` is bacteria demonstrated in blood, so a pending culture is genuinely what it waits on. **Sepsis is not a culture finding** — it is diagnosed at the bedside from vitals, white count and lactate, and `A41.9`'s descriptor names no organism a culture could supply. So sepsis is rejected on *this patient's* vitals, never on the pending culture. The clinician's ruling, 2026-08-15; [#149](https://github.com/mshamblin5150-code/clinical-skills/issues/149) carries the general form, and until it lands this example is the only place the distinction is written down.
 
-**The favored entry and the conclusion line are the exception, and they keep the hedge.** Those are the clinician's own conclusion rather than the skill's reasoning, so *never soften a hedge* wins there and the label keeps his words. `Final diagnosis` on this branch, `Actual diagnosis/diagnoses` on the other:
+**The favored entry and the conclusion line are the exception, and they keep the hedge.** Those are the clinician's own conclusion rather than the skill's reasoning, so *never soften a hedge* wins there and the label keeps his words. **`Final diagnosis` on both branches** since 2026-08-16 — see [HP.md](HP.md) on what that replaced and what it cost:
 
 ```
 Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
-Pneumonia, unspecified organism. Nothing tested for the organism, so J15.7 Pneumonia due to Mycoplasma pneumoniae is NOT CODED; a positive titer would earn it.
+Pneumonia, unspecified organism. Nothing tested for the organism, so NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae; a positive titer would earn it.
 ```
+
+**The conclusion is the one place a code is read by position rather than by punctuation**, and it is worth knowing before writing one. Every code in the `Final diagnosis` block that is not inside a `NOT CODED:` clause is read as asserted, whatever pins it — so a code floated there as an alternative, or pinned with a colon instead of the hyphen, is an assertion. `day-a` run 2's case 7 wrote `Final diagnosis: Streptococcal pharyngitis, suspected: J02.0` beside a refusal of `J02.0`, and the colon alone is what hid it from a scanner reading only hyphens. **Nothing pinned in a conclusion escapes on punctuation.**
 
 The code is still only what the encounter supports, and **the refusal goes on the line beneath rather than into the label** — the second line above is what that looks like, and a conclusion line carrying a hedge and no refusal beneath it has dropped half the rule. **So one note calls one thing two names three lines apart** — the hedge on the favored entry and on the final, the strict code-name form on every entry argued against. That was put to the clinician as an inconsistency and kept deliberately: the entries argued against are this skill's contribution and take the discipline, the conclusion is his and keeps his wording.
 
-It binds both branches, which is why it lives here rather than in either template — [SOAP.md](SOAP.md) and [HP.md](HP.md) carry only the rendering, which differs between them. Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the one limb that is mechanical: **no code marked `NOT CODED` anywhere in a note may appear in any entry's code slot.** Issue #68.
+It binds both branches, which is why it lives here rather than in either template — [SOAP.md](SOAP.md) and [HP.md](HP.md) carry only the rendering, which differs between them. Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the one limb that is mechanical: **no code marked `NOT CODED` anywhere in a note may appear in any entry's code slot.** Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+
+**A run written in the retired form exits 2, not 0**, and that is the scanner refusing to grade rather than breakage. It reads only the welded pair, so a note writing `M86.9 Osteomyelitis, unspecified NOT CODED, …` has refusals it cannot pair with a code — and *nothing refused* is the same output as *row 22 satisfied by construction*. **One bare mark anywhere in a run is enough**, because a run part-written in each form is the worst of the two: the welded refusals are graded, the bare ones are invisible, and the clean verdict line covers both. Rewriting a run into the welded form is what makes it gradable, and the `unwelded NOT CODED marks` count printed above the verdict says how much is owed.
+
+**So when a note talks *about* the mark rather than making one, put it in backticks.** That is standing rule 4's own mention-versus-use distinction — the one `tools/spelling_scan.py` runs on — reused here because the problem is identical. A row-22 verdict written `no code marked `NOT CODED` sits in a slot` is a mention and costs nothing; the same sentence with the mark bare is indistinguishable from a refusal the parser could not pair, and takes the whole run to exit 2. **A drift matrix row is already safe** without the backticks, because a pipe table is skipped outright — it is the loose sentence, in a `FLAG` or a `GAPS` entry or a discussion paragraph, that needs them.
+
+**And a violation outranks an incomplete scan.** A run with a genuine row-22 failure *and* a bare mark exits **1**, not 2, because the failure is the strongest thing known about it. The exit-1 message then says the finding is a floor rather than the whole count.
 
 ### Spelling
 
@@ -571,7 +591,7 @@ It binds both branches, which is why it lives here rather than in either templat
 | `caesarean` | `cesarean` |
 | `sulphate`, `nebuliser`, `catheterise` | `sulfate`, `nebulizer`, `catheterize` |
 | `millilitre`, `centimetre`, `litre`, `fibre` | `milliliter`, `centimeter`, `liter`, `fiber` |
-| `grey`, `behaviour`, `colour`, `tumour` | `gray`, `behavior`, `color`, `tumor` |
+| `grey`, `behaviour`, `colour`, `tumour`, `favour` | `gray`, `behavior`, `color`, `tumor`, `favor` |
 | `labelled`, `recognisable`, `programme`, `licence` | `labeled`, `recognizable`, `program`, `license` |
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not `paracetamol`, `epinephrine` not `adrenaline`, `albuterol` not `salbutamol`, `ferrous sulfate` not `ferrous sulphate`. A clinician reading the other name has to translate it before they can check the dose.
@@ -646,6 +666,8 @@ Load only the branch's template.
 ### 4. Tier every element, then draft
 
 Assign each element a tier before writing, then draft into the branch template. Obey the rubric's own formatting instructions inside that template exactly — they are the school's, not yours. Where it says short succinct statements and no sentences, write fragments.
+
+**One heading departs from the rubric, and it is the only one.** The H&P's conclusion is written `Final diagnosis:` rather than the rubric's `Actual diagnosis/diagnoses with ICD-10 codes:` — the clinician's ruling on 2026-08-16, so that both branches name the conclusion the same way. [HP.md](HP.md) carries the reasoning and what it costs. **The authorization is named here because the instruction above is here**: a pass reading this step and then finding a template that does not match the rubric quoted inside it would otherwise have to guess which of the two was stale, and guessing against a rubric is how a graded heading gets silently restored.
 
 ### 5. Emit the Medatrax entry
 
@@ -731,7 +753,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 19 | **Choice** | Every filled vital, body measurement and pain score's `FILLED·asserted` line names what the value was **reasoned from** — or states that the encounter supplied no anchor for it, **which every value but one may say**. No value is chosen to give the note an abnormal to work up, and none is moved to avoid a disclosure. A **given** value never fails this row, and neither does an unanchored one that says it is unanchored. **The one exception is a filled `0/10` pain score, which may not say it had no anchor and names the search instead** — what in the complaint and the exam was read, and that no pain source was in either |
 | 20 | **Filled-anchored codes** | Every ICD-10-CM code in `Preexisting diagnoses` or `Final diagnosis` is derived from the note's own stated value and **verified against `reference/icd10cm-2026.sqlite`** — **except a pediatric `Z68.5-`**, which is a growth-chart percentile the database cannot settle and which carries `verify this number` instead. Where a code's supporting value was filled — or derived from any filled input — the note **names which inputs were filled**, beside the field. **No code is withheld *for resting on a filled value*, and none is written as if measured**: both halves fail. Withholding on a **coding-guidelines** ground is outside this row, and a code resting only on **given** values never fails it |
 | 21 | **Proposals** | Every `FILLED·proposed` item appears in the note body. **Checked by counting, the way rows 2, 16 and 18 are:** list every item the block proposes, then name where each one landed — the Plan order, the education point, the follow-up interval, the results line. **An item that landed nowhere was dropped**, and the block is describing a note that was not written. Fixed by writing the item or by striking it from the block, **never by a verdict saying it is there**. An `UNKNOWN`, a `FLAG` or a `GAPS` line is not a landing |
-| 22 | **Entry name** | Three limbs. **Naming** — every differential entry is named for the code it carries. **Slot** — no code marked `NOT CODED` anywhere in the note appears in any entry's code slot. **Collapse** — two refusals resting on one documented finding are **one** entry naming both, not two entries sharing a label. **The favored entry and the conclusion line are exempt from the naming limb and from neither of the others** — `Final diagnosis` on the SOAP branch, **`Actual diagnosis/diagnoses` on the H&P branch** — because those keep the clinician's hedge, with a code beside it that is still only what the encounter supports. Where nothing was refused this row is satisfied by construction; it is failed by a label asserting a disease its code does not |
+| 22 | **Entry name** | Three limbs. **Naming** — every differential entry is named for the code it carries. **Slot** — no code marked `NOT CODED` anywhere in the note appears in any entry's code slot; the mark is the welded `NOT CODED: <code>` and a bare one is not read as a refusal at all. **Collapse** — two refusals resting on one documented finding are **one** entry naming both, not two entries sharing a label. **The favored entry and the conclusion line are exempt from the naming limb and from neither of the others** — `Final diagnosis` on **both branches** since 2026-08-16, and inside it every code not in a `NOT CODED:` clause is slot-held whatever pins it — because those keep the clinician's hedge, with a code beside it that is still only what the encounter supports. Where nothing was refused this row is satisfied by construction; it is failed by a label asserting a disease its code does not |
 
 **Row 14 is appended rather than slotted beside row 4**, which is where it belongs by subject. Rows 1 through 13 are cited by number across this file, three fixture sets and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md), so renumbering to put it in its natural place would silently redirect every one of those citations. Its subject is row 4's, its number is not, and that is a deliberate cost.
 
