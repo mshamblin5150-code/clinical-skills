@@ -617,7 +617,16 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
                 f"                  {rendered_rows} row(s) declared {RENDERED_MARKER} "
                 "and were read off the rendered page, so tier 2 skipped them"
             )
-    report(f"  COVERAGE        {len(coverage_refusals)} refusing, {len(coverage_warnings)} warning")
+    # **The report body has to carry this, not only stderr and the exit status.** A
+    # gate that did not run printed `0 refusing, 0 warning` here, which is byte for
+    # byte what a clean coverage pass prints. The notice went to stderr, so redirecting
+    # stdout -- the only reason to print a report at all -- kept the reassuring line
+    # and dropped the one that withdrew it. `CITATION tier 2` above already says
+    # SKIPPED in the body for the same situation; this is that, for its reason.
+    if recs_missing or ungraded_sources:
+        report("  COVERAGE        NOT RUN -- omission was not checked")
+    else:
+        report(f"  COVERAGE        {len(coverage_refusals)} refusing, {len(coverage_warnings)} warning")
     report(f"  RANGE           {len(ranges)}  ({ungraded_rows} numbers carried no unit this grades)")
 
     if sheet.resolved_date:

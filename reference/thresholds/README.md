@@ -153,6 +153,22 @@ not left to be discovered:
 - **The population key is a judgment.** The grader checks it is declared, never that it
   is right. A mis-keyed row hides a real conflict by making two rows look like
   different patients.
+- **On a machine without the recommendation records, the hook refuses every edit to a
+  sheet — including a prose typo fix.** `--all` resolves `recs-<stem>.json` under
+  `--recs-root`, which defaults outside the repo and is **not committed**, because it
+  holds the society's recommendation text in full. Absent, COVERAGE cannot run, `grade`
+  returns 2, and `tools/hooks/pre-commit` turns any non-zero into a refusal. So a fresh
+  clone, a new worktree and CI can all stage a sheet and be told no, with the recovery
+  being to rebuild the record with `tools/guidelines_recs.py` as shown at the top of
+  this file, or `--no-verify`.
+
+  **This is deliberate and it is the opposite of what tier 2 does two bullets down**,
+  which skips loudly and passes. The asymmetry is the point: tier 2 not running leaves
+  every value still checked against its own snippet, whereas COVERAGE not running
+  leaves **omission** unchecked, and omission is the one failure no other gate in this
+  directory can see. A sheet that cannot be checked for what it left out is not a sheet
+  anyone should be able to commit by accident. **Named here rather than smoothed over**,
+  because the cost lands on someone editing prose who has done nothing wrong.
 - **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
 - **A `bound` source is warned about and never refused**, so most of the corpus can
   only ever be warned about. `tools/guidelines_recs.py --json` reports which mode a

@@ -453,6 +453,86 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             self.assertIn("no such file", err.getvalue())
 
 
+class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
+    """The sibling of the class above, and it survived that fix because every test
+    there passes ``quiet=True`` and so never reads the report.
+
+    The exit status was right and the stderr notice was right; the **report body**
+    still printed ``COVERAGE  0 refusing, 0 warning``, which is what a clean coverage
+    pass prints. Redirect stdout to keep the report -- which is the only reason to
+    print one -- and the notice is on the stream you dropped, leaving an artifact
+    that reads as a full pass over a gate that never ran.
+
+    That is this ticket's comment 3 exactly, *"a count printed beside a green verdict
+    is read as a footnote to a pass"*, one turn sharper: a **zero** printed beside a
+    gate that did not run. ``CITATION tier 2`` already prints ``SKIPPED`` in the body
+    for the same situation, so the fix is to make COVERAGE symmetric with the gate
+    standing next to it rather than to invent a convention.
+    """
+
+    def report_for(self, recs_path: Path | None) -> str:
+        import contextlib
+        import io
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                gate.grade(path, recs_path, Path("C:/nowhere-at-all"), quiet=False)
+            return out.getvalue()
+
+    def coverage_line(self, report: str) -> str:
+        lines = [line for line in report.splitlines() if "COVERAGE" in line]
+        self.assertEqual(len(lines), 1, f"expected one COVERAGE line, got {lines}")
+        return lines[0]
+
+    def test_a_missing_recs_file_does_not_print_a_zero_count(self):
+        line = self.coverage_line(self.report_for(Path("C:/nowhere/recs.json")))
+        self.assertIn("NOT RUN", line)
+        self.assertNotIn("0 refusing", line)
+
+    def test_no_recs_at_all_does_not_print_a_zero_count_either(self):
+        line = self.coverage_line(self.report_for(None))
+        self.assertIn("NOT RUN", line)
+        self.assertNotIn("0 refusing", line)
+
+    def test_a_graded_sheet_still_prints_its_counts(self):
+        """The fix must not swallow the ordinary line: a run that did check omission
+        and found nothing has to keep saying so, or this trades one silence for
+        another."""
+        import contextlib
+        import io
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            recs = Path(directory) / "recs.json"
+            recs.write_text(
+                json.dumps(
+                    {
+                        "doc_id": "d",
+                        "source": "d.pdf",
+                        "mode": "exact",
+                        "totals": {"recommendations": 1, "tables": 1},
+                        "recommendations": [
+                            {"rec_id": "p1/topic/1", "page": 1, "cor": "1", "text": "t"}
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            path = Path(directory) / "sheet.md"
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                gate.grade(path, recs, Path("C:/nowhere-at-all"), quiet=False)
+            line = self.coverage_line(out.getvalue())
+            self.assertIn("refusing", line)
+            self.assertNotIn("NOT RUN", line)
+
+
 class TheRenderedPageEscapeHatch(unittest.TestCase):
     """#83: *"a per-row annotation meaning read off the rendered page, extraction
     garbles this table. Declaring it is a deliberate act that leaves a trace."*"""
