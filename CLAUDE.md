@@ -277,7 +277,21 @@ So `rebuild_text` walks the per-character boxes and inserts a space where the ga
 
 **These figures replace a 14-document, 4-page-each sample, and the sample was wrong in the direction that matters.** It reported 117 glued words for `pypdf` against a real 4,168, and put the splitting cost at *"11 out of 11,522"* when the corpus figure is three orders of magnitude larger. Worse, **the tuning table it produced named 0.14 as the value that splits nothing — over the whole corpus 0.14 leaves 5,094 glued runs, which is worse than the library it replaced.** A reader trusting that table would have picked the one setting that loses to `pypdf`. It was published here and caught by being asked to read every document rather than a selection, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s shape one more time.
 
-**What it costs is concentrated, not spread.** `split` counts words of 4 to 25 characters that `get_text` produced and the rebuild did not, per page, distinct — and it is an over-count by construction, because a short glued run the rebuild correctly breaks apart also leaves that set. **69 of 179 documents have none at all**; the worst 20 hold half, led by the contents-heavy KDIGO guidelines and ADA's 377-page standards. The trade favors the body over the front matter: what splits is display type in tables of contents and headings, what is repaired is running prose, and a threshold lives in the prose.
+**What it costs was isolated rather than left as a bound, and the isolating matters more than the number.** The 6,881 is a set difference and counts every short glued run the rebuild correctly broke apart as damage — `seethe` → `see the` is in it. So every split was recorded as `run -> pieces` and classified against a lexicon built from tokens **the PDF itself delimited with real space glyphs**: no outside dictionary, and the inference under test cannot define its own ground truth.
+
+| class | n | % | verdict |
+| --- | ---: | ---: | --- |
+| glued run fixed | 9,630 | 69.9% | correct, the point |
+| punctuation, tab or bullet | 3,197 | 23.2% | harmless separation |
+| digit-break | 413 | 3.0% | damage, all in citations |
+| letter-spaced word | **349** | 2.5% | **the real cost** |
+| word broken, pieces not all single | 181 | 1.3% | mostly a footnote marker |
+
+13,770 occurrences over 10,768 distinct shapes, all 179 documents, 2026-08-16.
+
+**The number that matters here is zero.** Of the 413 digit-breaks, all **141** distinct runs are citation apparatus — a year (`2009;`, 158 of them), supplement page ranges (`S131–S155`), a superscript reference marker welded to its word (`al,23`). **Not one carries a clinical unit**, so no threshold value is broken anywhere in the corpus. That was the risk worth measuring: a repo whose subject is numbers cannot afford a reader that splits them.
+
+So the true cost is **349** letter-spaced words in readable text — 158 of them the single string `(Suppl` — or 762 counting the citation digit-breaks, against 6,881 by set difference. The trade favors the body over the front matter, which is the right way round: what splits is display type in headings and reference lists, what is repaired is running prose, and a threshold lives in the prose.
 
 179 documents, 7,733 pages, **39,398,065 characters**, 1 page with no text layer, no failures — measured 2026-08-16. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed. **The four fields #84 reads all survived the switch, checked rather than assumed**: 179 documents, 147 with a title, 0 missing a society, 176 `guideline` and 3 `print-capture`.
 

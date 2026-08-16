@@ -62,19 +62,43 @@ glued runs, which is **worse than the library it replaced**. A reader trusting t
 table would have picked the one value that loses to pypdf. #83 published it, and it
 was caught by being asked to read every document rather than a selection.
 
-**What the rebuild costs, measured rather than assumed.** It splits letter-spaced
-display type -- a tracked section header, a running head, a table-of-contents
-entry. ``split`` counts words of 4 to 25 characters present in ``get_text``'s output
-and absent after the rebuild, per page, distinct: **6,881** across the corpus. It is
-an over-count by construction, because a short glued run that the rebuild correctly
-breaks apart also disappears from that set -- ``Formoredetailson`` and ``seethe``
-are both in it. It is concentrated rather than spread: **69 of 179 documents have
-none at all**, and the worst 20 hold half of it, led by the contents-heavy KDIGO
-guidelines and ADA's 377-page standards.
+**What the rebuild costs, isolated rather than bounded.** ``split`` above is a set
+difference -- words present in ``get_text``'s output and absent after the rebuild --
+and it counts every short glued run the rebuild correctly broke apart as though it
+were damage. ``seethe`` -> ``see the`` is in it. So every split the rebuild makes
+was recorded as ``run -> pieces`` and classified against a lexicon built from tokens
+**the PDF itself delimited with real space glyphs**, which needs no outside
+dictionary and cannot be defined by the inference under test:
 
-The trade is deliberate and it favors the body over the front matter: what gets
-split is display type in tables of contents and headings, and what gets repaired is
-running prose, which is where a threshold lives.
+=================================  ======  =====  ==========================
+class                                   n      %  verdict
+=================================  ======  =====  ==========================
+glued run fixed                     9,630  69.9%  correct, the point
+punctuation, tab or bullet          3,197  23.2%  harmless separation
+digit-break                           413   3.0%  damage, all in citations
+letter-spaced word                    349   2.5%  **the real cost**
+word broken, pieces not all single    181   1.3%  mostly a footnote marker
+=================================  ======  =====  ==========================
+
+13,770 split occurrences over 10,768 distinct shapes, all 179 documents, 2026-08-16.
+
+**The number that matters for this repo is zero.** Of the 413 digit-breaks, all
+**141** distinct runs are citation apparatus -- a year (``2009;``, 158 of them),
+supplement page ranges (``S131-S155``), a superscript reference marker welded to
+its word (``al,23``). **Not one carries a clinical unit**, so no threshold value is
+broken anywhere in the corpus. That was the risk worth measuring: a repo whose
+subject is numbers cannot afford a reader that splits them, and this one does not.
+
+So the true cost is **349 letter-spaced words** in readable text, or 762 counting
+the citation digit-breaks -- against 6,881 by set difference. 158 of the 349 are one
+string, ``(Suppl``. The remainder is tracked display type: ``Scr``, ``Scys``,
+``contents``, a running head. The ``word broken`` row is mostly ``bThe -> b|The``,
+which is the rebuild correctly separating a footnote marker from the word after it
+and is miscounted as damage here rather than credited.
+
+The trade favors the body over the front matter, which is the right way round: what
+splits is display type in headings and reference lists, and what is repaired is
+running prose, where a threshold lives.
 
 **The boilerplate rule.** A line appearing on 75% or more of a document's sampled
 pages is boilerplate, is stripped from every page, and is recorded per document so
