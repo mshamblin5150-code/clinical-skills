@@ -127,6 +127,29 @@ illness but matters for counselling and future care>
 
 **No diagnosis the encounter did not establish gets a code that overstates it**, and that reaches `Actual diagnosis/diagnoses` as readily as the differential — a hedge is most often on the conclusion. [icd10-cpt](../icd10-cpt/SKILL.md) declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, not `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) checks it.
 
+**Once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry*; what this template decides is where the refusal goes, and on this branch it is **line two**. The rubric's shape puts the code on its own line, so line one stays `<diagnosis - code>` and carries nothing else, and the rationale line absorbs the refusal along with everything else it already carries:
+
+```
+Pain in right leg - M79.604
+Less likely because the 4/10 pain sits over a chronic wound and the tib/fib film ordered today has no result. M86.9 Osteomyelitis, unspecified NOT CODED, nothing established it.
+```
+
+**`Actual diagnosis/diagnoses` keeps the hedge instead**, the way [SOAP.md](SOAP.md)'s `Final diagnosis` does — **and so does the most-likely entry**, which on this branch means the hedge lands on line one and the refusal on line two exactly as it does for an entry argued against:
+
+```
+Differential diagnoses with rationale:
+Community-acquired pneumonia, mycoplasma suspected - J18.9
+Most likely because three weeks of cough, decreased air movement and a documented sick contact fit; the film ordered today has no result. J15.7 Pneumonia due to Mycoplasma pneumoniae NOT CODED, nothing tested for the organism.
+
+Actual diagnosis/diagnoses with ICD-10 codes:
+Community-acquired pneumonia, mycoplasma suspected - J18.9
+Nothing tested for the organism, so J15.7 is NOT CODED; a positive titer would earn it.
+```
+
+**Drift row 22 names this branch's conclusion line by its own heading**, `Actual diagnosis/diagnoses`, rather than only [SOAP.md](SOAP.md)'s `Final diagnosis` — a grader who walked the row against the other branch's wording would fail the compliant note above for keeping the hedge the rule requires it to keep.
+
+**That is the two-line layout absorbing a rule written for a one-line one, and it is the same rule.** What has to match across the branches is the codes and the naming, not the layout — the same encounter names the same entries whichever branch it is written in, and only the line breaks move. `python tools/differential_scan.py <a run directory>` reads this branch's shape as well as the other's, and checks the one limb of row 22 that is mechanical. Issue #68.
+
 **Screenings** is a filled list keyed to the patient's age. The rubric wants it present even when nothing was done.
 
 **Pharmacologic** carries doses. Concentration and volume are givens; the milligram equivalent is **derived** and its arithmetic goes in the tier block — in the block, never beside the drug. **A parenthetical on a Pharmacologic line, where there is one, holds the trade name and nothing else**: the tier of each part of the sig belongs in the tier block, and `Medications (with reason for taking)` is the heading where a reason lives. The rule itself is drift row 12 in [SKILL.md](SKILL.md).

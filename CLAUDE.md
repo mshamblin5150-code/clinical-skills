@@ -94,6 +94,28 @@ python tools/specificity_scan.py <a run directory>
 
 Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets in this file and a temp directory — **there is no committed `icd10-cpt` run to test against.** One test reads `skills/icd10-cpt/SKILL.md` and asserts the template says what the scanner checks, on `test_spelling_scan.py`'s reasoning: a scanner that has drifted from the file a reader opens is worse than none, because it reads as agreement.
 
+### Differential scan
+
+The specificity scan reads an `icd10-cpt` run. This one reads a **`clinical-note`** run, and it is drift row 22's mechanical limb made runnable — [#68](https://github.com/mshamblin5150-code/clinical-skills/issues/68).
+
+```bash
+python tools/differential_scan.py <a run directory>
+```
+
+**One test, and it needs no reader.** No code marked `NOT CODED` anywhere in a note may sit in an entry's **code slot** — the position after the hyphen that pins a code to its label. #68 was filed over a naming question and closed a hole that was not about naming: one run produced three renderings of one rule, **all three kept the refused code out of the slot, and nothing required them to.** A fourth putting `M86.9` after the hyphen with the refusal in a footnote would have satisfied every row this repo had while asserting a disease nobody established.
+
+**What it cannot reach is row 22 itself, and that is permanent rather than pending.** Deciding whether `Pain in right leg` is what `M79.604` says is a comparison of a label to a descriptor, and paraphrase is permitted — `Mild dyspnea - R06.02` and `Shortness of breath - R06.02` are both correct. **A clean scan is not a walked row**, `skills/clinical-note/SKILL.md` says so beside the command, and a test asserts that sentence is still there.
+
+**It fails `fixtures/hedged-dx` run 1's case 2**, which is the rule being new rather than the run being newly wrong — that note was compliant with everything written down when it was generated.
+
+**Counts only by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and an entry label is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a row 22 violation, **2 for every way of not having scanned**, including **no differential entry in any note read**. That last limb is the one that matters: a run whose differential was written in a shape the parser does not read would otherwise report zero violations and look like a pass.
+
+**Run it against `fixtures/filled-anchor/notes` and it exits 2, which is correct and worth knowing before reading it as breakage.** Those twelve notes are `day-b` run 1 and their differential entries carry **no ICD-10 code at all** — case 1 runs seven entries in the form `*Cutaneous abscess of the left foot* — rationale` with the codes appearing only under `Preexisting diagnoses` and `Final diagnosis` below. Measured 2026-08-15. They predate issue #19, which is what put a code on every entry, so there is nothing here for a slot test to read and the tool says so rather than reporting a clean run.
+
+Covered by `tools/test_differential_scan.py`, which builds synthetic notes in that file and a temp directory — **there is no committed `clinical-note` run whose differential this could be tested against**, for the reason in the paragraph above. One test pins the parser against the shape that breaks a naive one: a compliant entry carries its own slot code and its refusals on a single line, so anything treating every code on a `NOT CODED` line as refused flags the slot and fails the skill's own worked example.
+
 ### Skills mirror
 
 `.claude/skills/` is how Claude Code loads these skills natively, and each entry is meant to be a **junction to `skills/<name>/`** so the mirror cannot hold a different answer than the skill does. It is gitignored, so nothing git does checks it.
