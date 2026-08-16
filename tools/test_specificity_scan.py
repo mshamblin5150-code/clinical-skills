@@ -75,6 +75,23 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
         self.assertEqual(flags[0].descriptor, "Heartburn")
         self.assertEqual(flags[0].keyword, "complete")
 
+    def test_a_wrapped_descriptor_keeps_its_not_for_entry_exemption(self):
+        # The mark lands on the continuation line when the official descriptor runs
+        # past one. Reading only the code's own line calls this for-entry and then
+        # fails it on ``unspecified``-plus-``complete`` -- a false C5 finding on the
+        # exact shape the exemption exists to protect, since a differential is coded
+        # at the unspecified level on purpose.
+        wrapped = (
+            "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic,"
+            " without\n"
+            "               hemorrhage or perforation   NOT FOR ENTRY\n"
+            "  SPECIFICITY: complete — nothing further\n"
+        )
+        flags = scan.read_flags(wrapped)
+        self.assertEqual(len(flags), 1)
+        self.assertFalse(flags[0].for_entry)
+        self.assertEqual(scan.findings(flags), [])
+
     def test_a_differential_entry_carries_no_flag_and_is_not_graded(self):
         differential = (
             "--- DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY ---\n"

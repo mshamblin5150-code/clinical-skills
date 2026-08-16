@@ -82,7 +82,22 @@ ENTRY = re.compile(
     r"([A-Z0-9][A-Z0-9.]*)[ \t]+(.+?)[ \t]*$"
 )
 SPECIFICITY = re.compile(r"(?mi)^[ \t]*SPECIFICITY[ \t]*:[ \t]*(.*?)[ \t]*$")
-NOT_FOR_ENTRY = re.compile(r"(?i)[ \t]*NOT FOR ENTRY[ \t]*$")
+
+# A code's own parts. These close an entry's header, so ``NOT FOR ENTRY`` is
+# looked for above the first of them and never in the prose below.
+FIELD = re.compile(r"(?mi)^[ \t]*(?:ANCHOR|SOURCE|SPECIFICITY|CONFIDENCE|NOTE)[ \t]*:")
+
+# ``NOT FOR ENTRY`` at the end of any line of the entry's header, not only the
+# code's own. **An official descriptor can run past a line** -- ``K27.9 Peptic
+# ulcer, site unspecified, unspecified as acute or chronic, without hemorrhage or
+# perforation`` is 96 characters -- and the mark then lands on the continuation. A
+# single-line reading calls such an entry for-entry and then grades it on the
+# descriptor test, which fires on ``..., unspecified`` **by design** in a
+# differential. So the wrap produced a false C5 finding on exactly the shape the
+# exemption below exists to protect. Found by a reader, in the run [#124]
+# committed; no flag in that run was affected, because none of its wrapped
+# differential entries carries a ``SPECIFICITY`` line at all.
+NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
 
 # The code set's own words for *an axis exists and this code does not name it*.
 # ``Other specified ...`` is deliberately outside it -- see the module docstring.
@@ -162,14 +177,31 @@ def read_flags(text: str) -> list[Flag]:
     the skill's template puts the two three lines apart and nothing else in the
     output carries a code and its official descriptor on one line.
     """
-    entries = [(m.start(), m.group(1), m.group(2)) for m in ENTRY.finditer(text)]
+    found = list(ENTRY.finditer(text))
+
+    def header(index: int) -> str:
+        """One entry's lines up to its first field line or the next entry.
+
+        The span rather than the line, because a descriptor that wraps puts
+        ``NOT FOR ENTRY`` on the continuation. Bounded on both sides so the mark
+        cannot be borrowed from the entry below or from prose beneath the code.
+        """
+        start = found[index].start()
+        end = found[index + 1].start() if index + 1 < len(found) else len(text)
+        field = FIELD.search(text, start, end)
+        return text[start : field.start() if field else end]
+
+    entries = [
+        (m.start(), m.group(1), m.group(2), not NOT_FOR_ENTRY.search(header(i)))
+        for i, m in enumerate(found)
+    ]
     flags: list[Flag] = []
     for match in SPECIFICITY.finditer(text):
         code, descriptor, for_entry = "", "", True
-        for start, found_code, found_descriptor in entries:
+        for start, found_code, found_descriptor, entry_is_for_entry in entries:
             if start < match.start():
                 code = found_code
-                for_entry = not NOT_FOR_ENTRY.search(found_descriptor)
+                for_entry = entry_is_for_entry
                 descriptor = NOT_FOR_ENTRY.sub("", found_descriptor)
             else:
                 break

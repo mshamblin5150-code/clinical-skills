@@ -238,6 +238,18 @@ class ThePediatricBandIsRecalled(unittest.TestCase):
         )
         self.assertEqual(scan.worksheet_findings(sheet), [])
 
+    def test_a_compliant_band_alone_counts_as_something_scanned(self):
+        # The counter holds every pediatric band, not only the failing ones. Holding
+        # the failures would make a worksheet carrying one correctly-disclosed band
+        # and nothing else report "no pediatric band" and exit 2 -- the tool saying
+        # it did not scan the one thing it did scan.
+        sheet = scan.read_worksheet(
+            worksheet(entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
+                            " 85th percentile for age", confidence="verify this number"))
+        )
+        self.assertEqual(sheet.pediatric, frozenset({"Z68.52"}))
+        self.assertEqual(scan.survey([sheet]).subjects, 1)
+
     def test_an_adult_band_may_claim_the_lookup(self):
         sheet = scan.read_worksheet(
             worksheet(

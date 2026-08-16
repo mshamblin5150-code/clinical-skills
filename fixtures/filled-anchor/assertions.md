@@ -339,9 +339,9 @@ Counted on day-a's terms: *"a bar is only worth having if it was set deliberatel
 across 90 distinct codes, and **24 of those codes carry a flag in more than one worksheet — 62
 flags, of which 61 reasons are distinct.** The one collision is `I10 has no further axis` on cases
 2 and 9. `E66.3` appears in six worksheets with six different reasons; `R20.2` in two, each naming
-the inclusion term matching its own note. **Twelve passes that could not see each other did not
-converge on a sentence**, which is the strongest evidence available that the reasons were arrived
-at by looking — and it is only visible across a run, exactly the way
+the inclusion term matching its own note. **Twelve passes that could not see each other's text did
+not converge on a sentence**, which is the strongest evidence available that the reasons were
+arrived at by looking — and it is only visible across a run, exactly the way
 [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67)'s defect was.
 
 **Four flags in 132 were graded stock, and all four are wordings this repo publishes as

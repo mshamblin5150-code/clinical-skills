@@ -138,7 +138,10 @@ LISTING = re.compile(
     rf"({CODE})\b\*{{0,2}}[ \t]+(?:--?|[–—])[ \t]+\S"
 )
 
-# ``Z68.51`` through ``Z68.54`` -- the pediatric growth-chart percentiles.
+# The ``Z68.5-`` pediatric growth-chart percentiles. Deliberately the whole
+# subcategory rather than an enumeration of the codes that exist today: the point
+# is that the repo ships no chart to place a patient in any of them, which is true
+# of a band FY2027 adds as much as of one FY2026 has.
 PEDIATRIC_BAND = re.compile(r"(?i)^Z68\.5")
 
 UNLISTED_MARK = "marked-not-listed"
@@ -163,6 +166,11 @@ class Worksheet:
     marked: frozenset[str]
     listed: frozenset[str]
     has_block: bool
+    #: Every ``Z68.5-`` proposed for entry, compliant or not. This is what makes a
+    #: worksheet **scanned**; the set below is what makes it fail. Holding only the
+    #: failures here would make the exit-2 message say *no pediatric band* of a
+    #: worksheet that carries a correctly-disclosed one.
+    pediatric: frozenset[str]
     pediatric_claiming_lookup: frozenset[str]
 
 
@@ -243,11 +251,15 @@ def read_worksheet(text: str) -> Worksheet:
         if held and held[1] and FILLED.search(match.group(1)):
             marked.add(held[0])
 
-    pediatric: set[str] = set()
+    bands = {
+        code for _start, code, for_entry in entries
+        if for_entry and PEDIATRIC_BAND.match(code)
+    }
+    claiming: set[str] = set()
     for match in CONFIDENCE.finditer(text):
         held = owner(match.start())
         if held and held[1] and PEDIATRIC_BAND.match(held[0]) and VERIFIED.search(match.group(1)):
-            pediatric.add(held[0])
+            claiming.add(held[0])
 
     block, has_block = _block_lines(text)
     listed = {m.group(1) for line in block for m in [LISTING.match(line)] if m}
@@ -257,7 +269,8 @@ def read_worksheet(text: str) -> Worksheet:
         marked=frozenset(marked),
         listed=frozenset(listed),
         has_block=has_block,
-        pediatric_claiming_lookup=frozenset(pediatric),
+        pediatric=frozenset(bands),
+        pediatric_claiming_lookup=frozenset(claiming),
     )
 
 
@@ -288,7 +301,7 @@ def survey(sheets: list[Worksheet]) -> Scan:
         marked=sum(len(sheet.marked) for sheet in sheets),
         listed=sum(len(sheet.listed) for sheet in sheets),
         with_block=sum(1 for sheet in sheets if sheet.has_block),
-        pediatric_bands=sum(len(sheet.pediatric_claiming_lookup) for sheet in sheets),
+        pediatric_bands=sum(len(sheet.pediatric) for sheet in sheets),
         unlisted_marks=sum(1 for f in found if f.kind == UNLISTED_MARK),
         unmarked_listings=sum(1 for f in found if f.kind == UNMARKED_LISTING),
         pediatric_claiming_lookup=sum(1 for f in found if f.kind == PEDIATRIC_VERIFIED),
@@ -309,6 +322,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  codes proposed for entry         {scan.proposed}",
         f"    carrying SOURCE: filled        {scan.marked}",
         f"  codes listed in the block        {scan.listed}",
+        f"  pediatric Z68.5- bands           {scan.pediatric_bands}",
         "",
         f"  A1/A2/A5 - marked, not listed    {scan.unlisted_marks}",
         f"  A1/A2/A5 - listed, not marked    {scan.unmarked_listings}",

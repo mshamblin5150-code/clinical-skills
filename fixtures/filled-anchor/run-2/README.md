@@ -36,6 +36,8 @@ Twelve independent generating passes, one per case, each given `skills/icd10-cpt
 - One pass grepped `tools/specificity_scan.py` — six lines of a committed tool, not a fixture.
 - One pass ran `tools/spelling_scan.py` over its own worksheet.
 
+**None of the three touches the withholding rule and the first one narrows a claim elsewhere.** A few passes saw aggregate totals covering worksheets they never opened, so *twelve passes that could not see each other* is too strong; the accurate form is *could not see each other's **text***, which is what [assertions.md](../assertions.md) says beside the R2 verdict that rests on it.
+
 **That audit is a self-report and cannot be made anything better**, which [fixtures/README](../../README.md) says in as many words. Nothing in the output distinguishes a contaminated run from a clean one; the audit is an admission against interest, and the defense is the withholding rather than the asking.
 
 ## Figures, and the commands that recompute them
