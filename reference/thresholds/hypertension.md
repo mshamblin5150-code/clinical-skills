@@ -16,10 +16,17 @@ what that grader cannot see is written out in [README.md](README.md).
 
 ## Scope
 
-**Read:** all 33 `Recommendations for ...` tables in the source, which is every
-ruled recommendation table it contains — 103 numbered recommendations, extracted by
-`tools/guidelines_recs.py` and each one either a row below or listed under
-[Coverage](#coverage).
+**Read:** every `Recommendations for ...` table in the source — **103 numbered
+recommendations**, extracted by `tools/guidelines_recs.py`, each one either a row
+below or listed under [Coverage](#coverage). That 103 is the load-bearing figure
+here and it is exact: 103 unique identifiers, none unparsed.
+
+The tool groups those 103 under **27** table headings, which is what it prints and
+the only table figure re-derivable from it. **It is not the count of tables**: two
+headings are `(Continued)` continuations of tables it also lists separately, so the
+guideline presents **25**. This line said `33` until it was re-derived, which is the
+count of `Recommendations for` heading *occurrences* in the extracted text and so
+counts a header reprinted after a page break as another table.
 
 **Not read:** the narrative sections, the evidence tables, the appendices and the
 reference list. A number stated only in the prose around a recommendation is not
