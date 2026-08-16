@@ -225,11 +225,21 @@ not left to be discovered:
 - **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
   stripped by #80 appears inside an extracted table row, that row is suspect and must
   be read off the rendered page."* **This ticket widened the exposure rather than
-  narrowing it** — boilerplate stripping went from 554,372 characters to **954,088**
-  under the new reader, so there is more stripped text that could have been interleaved,
-  not less. The `RENDERED:` marker gives a row a way to *declare* it was read off the
-  page; nothing yet *detects* that it should have been. ([#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)
-  holds this and gate 5.)
+  narrowing it** — boilerplate stripping went from 554,372 characters to **921,093**
+  under the new reader, across 167 of 179 documents, so there is more stripped text
+  that could have been interleaved, not less. **#100 widened it again**, by 32,995
+  characters and 2,649 lines across a further 27 documents, for 954,088 together. The
+  `RENDERED:` marker gives a row a way to *declare* it was read off the page; nothing
+  yet *detects* that it should have been.
+  ([#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174) holds this
+  and gate 5.)
+- **Gate 4's input is two fields now, not one.** #83 says the manifest "records the
+  exact strings stripped per document, so this is a comparison against a recorded
+  list". Still true, and the list is split: `boilerplate` holds what the literal rule
+  took and `margin_stripped` holds what #100's margin rule took. A detector reading
+  only `boilerplate` misses 2,649 lines across 27 documents and reports a clean gate.
+  The two documents that matter most lose a **welded running head** rather than a
+  folio — `GOLD/GOLD-REPORT-2026` and `IDSA/ciw670` — and prose is what interleaves.
 - **Gate 5, the second independent read, was not built.** #83 describes it as the only
   mechanism that catches *misreading* rather than *miscitation*, and says in the same
   breath that its weakness is correlated error — same model, same PDF, same mangling,
