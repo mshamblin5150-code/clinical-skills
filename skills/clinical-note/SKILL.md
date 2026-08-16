@@ -591,7 +591,7 @@ It binds both branches, which is why it lives here rather than in either templat
 | `caesarean` | `cesarean` |
 | `sulphate`, `nebuliser`, `catheterise` | `sulfate`, `nebulizer`, `catheterize` |
 | `millilitre`, `centimetre`, `litre`, `fibre` | `milliliter`, `centimeter`, `liter`, `fiber` |
-| `grey`, `behaviour`, `colour`, `tumour` | `gray`, `behavior`, `color`, `tumor` |
+| `grey`, `behaviour`, `colour`, `tumour`, `favour` | `gray`, `behavior`, `color`, `tumor`, `favor` |
 | `labelled`, `recognisable`, `programme`, `licence` | `labeled`, `recognizable`, `program`, `license` |
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not `paracetamol`, `epinephrine` not `adrenaline`, `albuterol` not `salbutamol`, `ferrous sulfate` not `ferrous sulphate`. A clinician reading the other name has to translate it before they can check the dose.
@@ -666,6 +666,8 @@ Load only the branch's template.
 ### 4. Tier every element, then draft
 
 Assign each element a tier before writing, then draft into the branch template. Obey the rubric's own formatting instructions inside that template exactly — they are the school's, not yours. Where it says short succinct statements and no sentences, write fragments.
+
+**One heading departs from the rubric, and it is the only one.** The H&P's conclusion is written `Final diagnosis:` rather than the rubric's `Actual diagnosis/diagnoses with ICD-10 codes:` — the clinician's ruling on 2026-08-16, so that both branches name the conclusion the same way. [HP.md](HP.md) carries the reasoning and what it costs. **The authorization is named here because the instruction above is here**: a pass reading this step and then finding a template that does not match the rubric quoted inside it would otherwise have to guess which of the two was stale, and guessing against a rubric is how a graded heading gets silently restored.
 
 ### 5. Emit the Medatrax entry
 

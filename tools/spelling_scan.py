@@ -96,6 +96,7 @@ TABLE = {
     "fibre": "fiber",
     "grey": "gray",
     "behaviour": "behavior",
+    "favour": "favor",
     "colour": "color",
     "tumour": "tumor",
     "labelled": "labeled",
