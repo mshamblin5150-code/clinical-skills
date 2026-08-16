@@ -143,14 +143,18 @@ Charted normals and filled normals read identically in the finished note. They a
 - **A slot he writes even when the answer is nothing** is a habitual template field. Silence in it is a transcription gap, so the note fills the **unremarkable** value — and that value is not a bland pick from the middle, it is what the record says such patients mostly are.
 - **A slot he writes only when there is something in it** is charted the way an abnormal is. Silence in it is a real **absence**, so the note fills the **negative** — and filling a positive would be inventing an abnormal finding, which standing rule 2 forbids outright.
 
-**Two slots are measured and they land opposite ways.** The figures below are over the **31 committed fixture inputs**, and `tools/test_corpus_census.py::SocialSlotsSplitTwoWays` is what recomputes them — it pins the classification case by case, so a fixture edit fails a test rather than quietly voiding the rule. `corpus_census.py` prints the same two rows against the corpus, which is the wider measurement and the one still owed:
+**Two slots are measured and they land opposite ways.** The figures below are over **the corpus — 551 encounters**, re-derived 2026-08-16 by `python tools/corpus_census.py`. `tools/test_corpus_census.py` pins the committed-fixture classification case by case, so a fixture edit fails a test rather than quietly voiding the rule:
 
-| Slot | Written | Says nothing | So silence is | Filled value |
+| Slot | Written | Says the unremarkable thing | So silence is | Filled value |
 | --- | --- | --- | --- | --- |
-| Allergies | 16 of 31 | `NKDA` 11 of 16 | a gap | `NKDA` |
-| Tobacco | 15 of 31 | denied 1 of 15 | an absence | `Non-smoker` |
+| Allergies | 284 of 551 | **no drug allergen, 195 of 284 — 69%** | a gap | `NKDA` |
+| Tobacco | 197 of 551 | denied, 25 of 197 — 13% | an absence | `Non-smoker` |
 
-**Those figures are over the 31 committed fixture inputs, which is a floor and not the corpus.** `corpus_census.py` prints the same two rows against `scratch/`; **it has not been run against the corpus since it gained the ability to** — re-run before leaning on the numbers. What the fixture count establishes is the direction, and the direction is what the rule turns on: he writes the allergy slot to say *nothing* eleven times, and the tobacco slot to say *nothing* once.
+**The allergy row counts *no drug allergen* and not *says nothing*, and that distinction is the whole of issue #78.** `NKDA` is *no known **drug** allergy*, so a patient with hay fever is NKDA and a note naming a seasonal allergy is no evidence against filling it. Counted undivided the corpus says only 111 of 284 written statuses say nothing — 39%, a minority, and the reverse of the fixture floor. That was #78's own trigger for reopening the ruling, and it fired on a column measuring the wrong thing: three of the five fixture cases in it name nothing but a seasonal allergy. **Split on the kind `NKDA` is a claim about, the two slots land as far apart as they ever did — 69% against 13%** — and the clinician confirmed the reading on 2026-08-16: *silence about drug allergies takes `NKDA`; seasonal allergies fall under environmental, which is a separate category, as is food.*
+
+**The corpus corroborates that reading directly rather than only permitting it.** 18 of the 111 encounters writing a denial name an allergen anyway, and **17 of the 18 name an environmental one** — this clinician writes the drug-allergy denial beside a seasonal allergy seventeen times, in the same slot, himself.
+
+**69% is a floor, and the worst case is published rather than promised.** Three errors bear on it and their directions are measured, not assumed. The drug column is a token list matched near an allergy mention and cannot tell an allergen from a medication written beside it, so it over-counts drugs. 16 of the 173 name something the lists do not carry and are reported as `unclassified` rather than assigned; charge **every** one of them as a drug allergy and the share falls only to 63%. Running the other way — the one shape that could hide a real drug allergy on the *no drug* side — is a denial that names a drug anyway, and there is **exactly one** in 551 encounters. The ruling does not turn on the estimate being tight.
 
 **So a positive tobacco status is never filled.** Not `vapes occasionally`, not `former smoker`, not `smokes 0.5 PPD`, however plausible the patient makes it. This is the same argument the corpus settled for blood pressure at issue #23 — *a documented condition is an anchor to reason from, never a verdict to produce* — arriving at a slot instead of a value. A tobacco history is an abnormal finding, an abnormal finding in the note must be a given, and there is no exception for a slot that happens to be enumerated. `fixtures/day-a` R14 holds this.
 
@@ -169,7 +173,7 @@ FILLED·asserted   ALLERGIES NKDA inferred; the Plan's amoxicillin-clavulanate
                   rests on it, and no allergy history was taken.
 ```
 
-The reason is that rule's reason. Two independent FILLED lines say an allergy status was inferred and a drug was proposed; **neither says the second is standing on the first.** One of the sixteen written statuses in the fixtures names a drug allergy, so `NKDA` is usually right — and *usually* is exactly what a prescribing decision may not rest on silently.
+The reason is that rule's reason. Two independent FILLED lines say an allergy status was inferred and a drug was proposed; **neither says the second is standing on the first.** Eighty-nine of the 284 written statuses in the corpus name a drug allergy, so `NKDA` is usually right — and *usually* is exactly what a prescribing decision may not rest on silently. **That is roughly one written status in three, which is a good deal less comfortable than the figure this sentence used to quote** — *one of the sixteen written statuses in the fixtures*, which was an undercount of the fixtures as well as the wrong population to quote. Corrected 2026-08-16 on #78; the fixture figure and which case moved it are recorded in `fixtures/day-b/assertions.md`, which is withheld from a generating pass and is where an input belongs.
 
 **A given allergy status is never overwritten, and a stated allergen is never dropped.** `allergic to prednisone` is a given like any other, and it behaves like the conflict rule below: a drug proposed against a documented allergy is called out, and no inferred status dissolves it.
 
