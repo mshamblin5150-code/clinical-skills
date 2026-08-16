@@ -87,6 +87,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from console_codec import use_utf8
+
 # ``ICD-10  Z68.36  Body mass index [BMI] 36.0-36.9, adult``. Shared with
 # ``specificity_scan.py`` by shape rather than by import: the two read the same
 # worksheet and each states its own pairing, so neither silently inherits the
@@ -386,4 +388,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))
