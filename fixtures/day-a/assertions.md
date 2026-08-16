@@ -16,6 +16,22 @@ That number carries a caveat worth more than the number. **The run and the gradi
 
 **Eight of the twenty-four rows came back *neither*, not *better*** — D3, D5, R6 and R8 among them. Before the reference was read the set implied every row was a catch.
 
+**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 31 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120).
+
+**Output is in the main checkout's `scratch/day-a-run-2/`, not a worktree's**, which is what [#122](https://github.com/mshamblin5150-code/clinical-skills/issues/122) cost two earlier runs and what this ticket's fifth comment asked for before the run was graded. It was generated in a worktree and copied across, verified identical. `notes/` holds the eleven scored notes; `notes-branch-unstated/` holds four discarded drafts, kept because they are the evidence for the branch paragraph below.
+
+**Twelve notes, eleven scored.** `notes/` contains the ten cases plus the F7 demographics variant. **F1 through F4 are reported over all eleven**, the variant included, because they are block-structure rows that every note answers. **F5 and F6 are scored on `case-10.md` alone** and F7 on the variant alone, which is the separation the ticket required — the two are different runs of one encounter and neither may answer for the other.
+
+**The bar is clean and the two short rows are in counted classes**, which is a distinction this file has to keep making. DRIFT is the only binary class here, and it is 10 of 10. R10 and F5 are counted rather than enforced, so **this run does not fail its bar** — and neither row is worth less for that, because a counted row is where a defect gets seen before anybody decides whether to enforce it.
+
+**Separated, which is the whole reason it exists.** Eleven generating passes with `assertions.md`, `fixtures/README.md` and `shorthand/README.md` withheld and the shorthand pasted inline; eight grading passes split by class, none of which saw a generation; and an orchestrating pass that authored no note and re-derived every row from the output text. `fixtures/` was closed to every generating pass for any purpose.
+
+**The two rows that did not come back clean are R10 and F5, and neither is the skill regressing.** R10 is half-met on the case it names, and **F5 fails because the row and the skill now contradict each other** — see *What run 2 found* below. **No DRIFT row regressed**, which was the most consequential thing this run could have found: D7 through D10 are one repeating defect and all four pass.
+
+**The run had to state the branch, and that is worth knowing before the next one.** This set is `clinical-note` on the comprehensive SOAP branch, and the first eleven passes were given the shorthand without being told which branch to take. **Four of them chose the FNP H&P**, reasoning from the program's first-six-encounters rule with no course context to check it against. Those four were discarded and regenerated on SOAP; the run scored here is eleven SOAP notes. Nothing was wrong with the four — the skill routed sensibly on what it had — but **a mixed-branch run cannot be scored against D6, which names the SOAP branch's `Final diagnosis` field.** *Running a set* step 1 already says *on the stated branch*; this is what happens when the runner does not pass it on.
+
+**Four of the twenty-four came back *neither*** — D3, D5, R6 and R8, which are four of the ones run 1 named. Nineteen are *better* and R14 is *out of reach*. Run 1 recorded eight; it never enumerated which eight, so the two figures cannot be reconciled and the difference is not evidence of movement.
+
 The scan is the single PDF in `scratch/day-files/`, gitignored, **7 pages**, image-only — no text layer, so it is rendered at 140 DPI and read visually. Its filename carries the visit date and the preceptor, so it is named here by location rather than quoted. An earlier note in this file said 19 pages; that was the count of *day files* in the clinician's Drive folder, not pages in this one.
 
 **Case 1's shorthand exists.** The working file carried only a schedule row for it, which left open whether the encounter had ever been written down. The scan answers it: `Note 1`, 60 F, complete vitals, exam and plan. The hole was in the working file, not the source.
@@ -124,6 +140,157 @@ Deterministic checks on the shape of the output rather than its clinical content
 
 F5 replaced a row that asserted the band outright. That row was written before the shorthand had been read, on the assumption the age was in it. It is not, so asserting the band would have graded the skill on filling a value it has no source for.
 
+## What run 2 found
+
+Every verdict below was re-derived from the output text by a pass that authored no note. Run 1's tables above are left as they are: they record what the **reference** did, which is fixed, and widening them would redate a reading nobody took again.
+
+| Row | Run 2 | Class | Where it landed |
+| --- | --- | --- | --- |
+| D1 | PASS | better | Chest film **recommended and explicitly not ordered** — the row fails only on *no imaging ordered **or** discussed*, so the discussed limb carries it |
+| D2 | PASS | better | Own differential entry `Right lower quadrant pain - R10.31`, labs and imaging in the Plan, same-day surgical evaluation on a trigger |
+| D3 | PASS | neither | `Essential (primary) hypertension - I10` in the Assessment, home log and recheck in the Plan |
+| D4 | PASS | better | PE reasoned in the differential against the named risk factors, refused as `I26.99 ... NOT CODED`, D-dimer and ECG ordered |
+| D5 | PASS | neither | Scaphoid refused by name inside the wrist-pain entry, thumb spica recommended, repeat films at 10 to 14 days |
+| D6 | PASS | better | `Dysuria - R30.0` reaches the **Final diagnosis**, urinalysis with microscopy ordered |
+| D7 | PASS | better | `Tachycardia, unspecified - R00.0` entry, ECG, D-dimer, return precaution on the rate |
+| D8 | PASS | better | Named in the Assessment and attributed to a fever the Plan treats. **Weakest of the four**: attribution only, no recheck order and not named in the Plan |
+| D9 | PASS | better | Assessment names it, Plan orders an ECG and orthostatic vitals, named again as a drug-conflict ground |
+| D10 | PASS | better | Differential, Final diagnosis, home monitoring, counseling and a recheck |
+| R1 | MET | better | `R03.0` as its own Assessment problem, home log, repeat reading, threshold for converting to a hypertension evaluation |
+| R2 | MET | better | Testing **ordered**, not merely considered: gonorrhea and chlamydia NAAT, HIV Ag/Ab, syphilis RPR. **Trichomonas is absent.** Pelvic exam converted from a recorded omission to a scheduled one |
+| R3 | MET | better | Pack-years computed in three places, LDCT named with its eligibility arithmetic and deferred to age 50 with the reason stated |
+| R4 | MET | better | PPI inferred **and the conflict still fires** — the prescription is left standing with the recommendation beside it, which is the row's exact demand |
+| R5 | MET | better | All three findings reach the Objective, two differential entries and a 12 to 24 hour re-examination |
+| R6 | MET | neither | Recheck in the vitals line and the HPI, `Fever, unspecified - R50.9`, treated in the Plan |
+| R7 | MET | better | `Lower abdominal pain, unspecified - R10.30` with appendicitis and UTI refused by name, urinalysis ordered for it. **Does not reach the Final diagnosis** |
+| R8 | MET | neither | Both excluded with reasoning; monospot with EBV serology ordered |
+| R9 | MET | better | Amoxicillin **kept** in the list, stop instruction in the Assessment, the Plan and the education line |
+| R10 | **PARTIAL** | better | **BP 133/86 questioned** — cuff size, single reading, repeat once pain is controlled. **BMI 37.9 is not.** It is reasoned from and coded, never doubted as a measurement |
+| R11 | MET | better | Both findings carry their own differential entries with refused codes, urine studies and an NSAID caution in the Plan |
+| R12 | MET | better | PCOS in the PMH, in the home meds as metformin's indication, coded `E28.2`, and driving a glycemic screening line |
+| R13 | MET | better | `She fainted on Saturday` in the HPI, `syncope +` in the ROS, `Syncope and collapse - R55` in the differential and the Final diagnosis |
+| R14 | **MET** | out of reach | Four for four. Per-case readings below, and the qualification beside them |
+| F1 | PASS | — | 11 of 11. `Primary Payment Method` opens no GAPS entry anywhere |
+| F2 | PASS | — | 11 of 11 |
+| F3 | PASS | — | 11 of 11, both limbs |
+| F4 | PASS | — | **44 of 45 FLAG entries** name both halves. The one is a judgment call, recorded below |
+| F5 | **FAIL** | — | Age is **filled at 55 and the band filled with it**, not reported under GAPS. **The row and the skill contradict each other**, recorded below |
+| F6 | PASS | — | `Gender: Male`, read from the narrative pronouns, absent from GAPS |
+| F7 | PASS | — | `Patient Time: Adult (18 – 60) Hours`, exact match including the en dash |
+
+### R14, the row this run was owed for
+
+**All four cases fill `Non-smoker`. None fills a positive status, none hedges, none is blank, and all four declare the value under `FILLED·asserted`.**
+
+| Case | Shorthand history line | Slot text, verbatim | Class | Declared |
+| --- | --- | --- | --- | --- |
+| 3 | `no pmh, surgical hx` | `single; non-smoker; no alcohol use reported` | `Non-smoker` | yes, `SH tobacco "Non-smoker" filled, the negative` |
+| 6 | `hx: htn, gerd, dm, ...` | `married; non-smoker; no alcohol use reported;` | `Non-smoker` | yes, `tobacco Non-smoker` |
+| 8 | `hx: gastritis, hypothryroid, hashimotos, endometriosis,` | `single; non-smoker; no alcohol use reported;` | `Non-smoker` | yes, `SH tobacco - Non-smoker.` |
+| 10 | `hx: none` | `married; non-smoker; no alcohol use reported;` | `Non-smoker` | yes, `SH tobacco Non-smoker.` |
+
+**Case 10 went the way this file predicted.** Its `hx: none` was read as a past-history silence rather than a denial, and the slot still carries the negative claim. That prediction was written down before the run and is now measured rather than assumed.
+
+**Second-hand smoke is kept distinct in all four**, in a separate environmental clause with its own `FILLED·asserted` line, never folded into the patient's own status. That distinction is not something any row asks for and all four made it.
+
+**One cosmetic split worth knowing before quoting the slot:** every note writes `non-smoker` lowercase in the body and `Non-smoker` capitalized in the tier block. Nothing turns on it, and a string test written against one form would miss the other.
+
+**So R14 has a value against its current text for the first time, and it is a pass on all four cases.** That is what [#79](https://github.com/mshamblin5150-code/clinical-skills/issues/79) was waiting for. **It does not by itself settle #79**, which asks whether to promote this row and day-b's four together, and that decision is the clinician's.
+
+#### The 4/4 is not a blind measurement, and #79 has to know that before it leans on it
+
+**`skills/clinical-note/SKILL.md` line 155 names this row and prints its answer key**, and it is a file every generating pass is required to read:
+
+> **So a positive tobacco status is never filled.** Not `vapes occasionally`, not `former smoker`, not `smokes 0.5 PPD`, however plausible the patient makes it. … `fixtures/day-a` R14 holds this.
+
+**Three of those four strings are verbatim from R14's own Reference column** — the sentences the submitted notes actually wrote. So the file names the set, names the row by ID, states the verdict the row scores, and prints most of the defect it scores. **Eleven of eleven generating passes read it at base `184462d`**, and the withholding this run did was of `assertions.md`, `fixtures/README.md` and `shorthand/README.md` — not of the skill, which cannot be withheld because it is the thing under test.
+
+**A second required file does the same on another row.** `skills/clinical-note/GLOSSARY.md` line 49 names *day-a case 5* — D2's case — beside the correct handling of a positive Rovsing's sign, and `SKILL.md` requires every token be classified against the glossary.
+
+**This does not make the pass wrong, and it is not a run-procedure failure.** A skill is supposed to instruct, and a rule stated in the skill is a rule the run is entitled to follow. What it means is narrower and worth stating plainly: **R14's 4/4 measures that the skill follows a rule written into the skill, not that the skill reaches the right answer without the fixture's text in front of it.** For a row whose whole subject is whether a model invents an abnormal where the source is silent, those are different claims, and the second is the one a promotion to binary would be asserting.
+
+Found by the tracker sweep after this run, and filed as part of [#147](https://github.com/mshamblin5150-code/clinical-skills/issues/147), whose body records two instances and whose real count is four across two files.
+
+### F7, run as its own pass
+
+**Run separately, as the ticket required**, from the same shorthand plus the portal demographics `25, male`, into `scratch/day-a-run-2/notes/case-10-with-demographics.md`. The ordinary pass was not touched, so F5 and F6 read off an input that still lacks both values.
+
+`Patient Time: Adult (18 – 60) Hours` — **exact match on the band string, en dash included.** `Age + unit: 25 Years`, `Gender: Male`, no inference. **F7 has a value for the first time**; run 1 tested `block 6/6` and never ran the variant.
+
+One thing recorded rather than judged: the same file's `DERIVED` line writes the band with an ASCII hyphen, `Adult (18 - 60)`, while the Medatrax field uses the en dash. The field is what F7 names, and it matches.
+
+### F5 fails, and the row is what moved
+
+The note **filled** an age of 55 and set `Patient Time: Adult (18 - 60) Hours` from it, marking the guess in three places — the tier line, the Medatrax field's `*** INFERRED, CONFIRM BEFORE ENTRY ***`, and a sentence naming the band it would move to if the confirmation went the other way. Age appears nowhere under GAPS.
+
+F5 asks for the opposite: *reports age under GAPS and leaves `Patient Time` unfilled — it never guesses a band.*
+
+**`SKILL.md` now instructs exactly what the note did.** *What never goes under GAPS* names **Age** outright — *inferred by design where the shorthand and the entry both lack it, and flagged at the top of `FILLED·asserted`* — and step 5 says the same. **The two cannot both be satisfied by one file**, and the note is compliant with the skill and non-compliant with the row.
+
+**The row is not edited here.** Editing an assertion to make a run pass is out of scope for [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120) and is the move this whole directory exists to prevent. What is recorded is that **F5 was written against a skill that has since changed under it**, which is a decision for the clinician and not for the pass that tripped it.
+
+**The substance is worse than the bookkeeping, and no row scores it.** The inferred 55 is **thirty years off** the 25 the portal records, and it is load-bearing: it drives a nine-item screening list keyed to that number, including prostate-specific antigen at 55 to 69 and zoster from 50, none of which a 25-year-old is owed. The value is marked as a guess everywhere it appears, so nothing is asserted as measured — but a marked guess that generates a screening list is a different thing from a marked guess that sits in a field, and F5 in its current form catches neither.
+
+### R10 is half-met, and the half it misses is the one nobody remarks on
+
+**BP 133/86 is questioned as a measurement** — the note names the cuff size, the single reading and the 8/10 pain, and orders a repeat once the pain is controlled. That is the row's demand met.
+
+**BMI 37.9 in an 11-year-old is not questioned at all.** It is computed, compared against a percentile, coded `E66.9` with `Z68.56`, and carried into the Final diagnosis. Nowhere does the note ask whether 228 lb at 65 inches for an 11-year-old is a transcription error. It is *addressed*, thoroughly, and never *doubted* — and the row asks for the second.
+
+Both values are **given**, not filled, so no filled-vitals row reaches this. `tools/filled_vitals_census.py` over the run reports **zero filled heights, weights or pressures across all eleven notes**, which is correct and is why nothing mechanical caught it.
+
+### Reported because they bear on a row, though no row catches them
+
+**Drift row 21 — every proposed item landed, in all eleven notes.** 221 `FILLED·proposed` items counted, 221 landings. **No note dropped one**, which is a genuine negative on the defect day-b produced three runs running, and it is [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47)'s shape not recurring here.
+
+**And it produced the observation [#127](https://github.com/mshamblin5150-code/clinical-skills/issues/127) asked for.** Ten of the eleven make the count mechanical, one tag per item; **case 9 alone drops the per-item tag** and hangs fourteen items under one as indented prose, where the only boundary marker is a recurring `Lands in <section>` sentence. Counting by that gives 15; counting bundled clauses gives up to 26. **A rule reading *one `FILLED·proposed` tag is one item* settles ten notes outright and refuses the eleventh's shape**, which is a cleaner outcome than a reading that silently picks.
+
+**A second ambiguity #127 does not currently name.** Even where the tag count is exact, **one tag can hold four drug sigs, eight nonpharmacologic actions or nine education points.** Tag-level counting gives 15, 22, 24 and 27 on cases 2 to 5; action-level counting gives roughly 30, 35, 45 and 40. Every bundle was expanded by hand here and nothing was dropped — but **the rule as written does not require anyone to expand them**, so a dropped sub-item would be invisible to a compliant count.
+
+**Five items across three notes land only in the Assessment**, all of them *preceptor to rule* recommendations. Row 21 enumerates the Plan order, the education point, the follow-up interval and the results line as landings, and excludes `FLAG`, `GAPS` and `UNKNOWN` — **it never says whether a self-contained Assessment recommendation is one.** All three notes assumed it is. That is the same silence as the paragraph above, on the other side of the count.
+
+**Drift row 22 — clean on all three limbs, in all eleven notes.** And **eleven of eleven pin the code to the label with a hyphen**, which is the form `tools/differential_scan.py` reads. That is worth recording against [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137): the twelve committed day-b run-1 notes use the hyphen **zero** times, and this run uses it everywhere. **The two sets differ on rendering, not just on vintage.**
+
+**`differential_scan.py` exits 1 on this run and all three findings are false.** Two come from case 3's own row-22 verdict prose and one from case 7's: each puts a legitimate slot code immediately before the literal `NOT CODED`, so the scanner reads the note as having refused its own diagnosis and then flags the compliant entry carrying it. Ruled by re-reading the lines. **Row 22 is clean; the tool is not.** [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+
+**One near-miss on the slot limb, in case 7.** Its `Final diagnosis` writes `Streptococcal pharyngitis, suspected: J02.0 NOT CODED, ...` with a **colon** where every other line in the same list uses a hyphen. The limb is written about the position after the hyphen, so it is not violated — **the pairing escapes on punctuation alone**, and the same content rendered with a hyphen would be a straight failure that the scanner would catch. Worth knowing before reading a clean slot scan as a walked limb.
+
+**One cross-note disagreement, on row 13 rather than 22.** `J18.9` is refused `NOT CODED` in case 6 and given a code slot in case 7 on comparable evidence — rhonchi or diminished sounds, a chest film ordered and unresulted, in both. Neither note fails row 22 on it.
+
+### Case 6 wrote `NKDA` over a documented allergy, and no row in this set scores it
+
+**The shorthand says `seasonal allergies`**, inside case 6's `hx:` line. The note's `Allergies (reaction):` box reads **`NKDA`**, and its tier block declares `ALLERGIES NKDA filled. No allergy history was taken this visit.`
+
+**An allergy history was taken.** It is in the line the note itself read, and the note read it correctly everywhere else: `Seasonal allergies` is in the PMH, `Other seasonal allergic rhinitis - J30.2` is in the preexisting diagnoses, and cetirizine is prescribed for it. The allergen was routed to the history and the box was then filled with a negative that contradicts it.
+
+**This is worse than the hedge drift row 12 bans**, and that is the point worth keeping: `tobacco status not documented` is evasive, and `NKDA` beside a documented allergy is a **false statement about the record**. The note's own drift row 17 reads *twelve boxes, twelve values, no hedge among them* and is correct on every limb it checks — the row asks whether a slot is filled and not hedged, and this slot is both.
+
+**No day-a row reaches it**, and neither does `block_scan.py`, which grades where a value sits and not whether it is true. It belongs to [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96), which asks whether an environmental allergy belongs in a box where `NKDA` conventionally means no known **drug** allergy, and to [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94), whose scope paragraph sets the three seasonal-only inputs aside as already settled by #29. **Case 6 is one of those three, and the settled ruling did not produce the settled behavior** — so *settled* there should be read as *untested* until this is decided.
+
+Found by grepping the run rather than by any assertion, which is the same way the practicum site names in two tier blocks were found. Two independent sweep passes reached it separately.
+
+### The self-reports were wrong again, on four notes
+
+**This is the fifth consecutive separated run to find it, and it is the entire argument for separating.** Every one of these was reported as a pass by the note that carries it, and re-reading the body contradicts it:
+
+- **Case 6, drift row 4** claims BP 132/85 is *addressed in the Plan by a recheck once well plus continued lisinopril*. **The Plan carries no lisinopril line** — only a blanket `Continue all home medications.` Re-derived by counting: lisinopril appears three times in the file and **zero times in the Plan**. This is [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47)'s exact shape, a verdict citing Plan text the Plan does not contain, on a row that passes anyway.
+- **Case 2, drift row 15** claims *the film is ordered rather than deferred*. The Plan says `None of these was ordered at this encounter; each is put forward for the preceptor to rule on.`
+- **Case 2, row 22** enumerates *the eight refused codes*. There are **nine**; `F17.210` sits in the Assessment and the limb's own wording is *anywhere in the note*. The verdict holds, its enumeration does not.
+- **Case 4, row 22** says *the two entries whose refusals sit inside them*. There are **four**. Both unnamed entries pass, so again the verdict survives and the count behind it does not.
+- **Case 1, row 20** names seven codes and calls them five in the same sentence.
+
+**A run graded by itself would have recorded every one of these as clean**, which is what [fixtures/README](../README.md) says about day-b run 2 and is now true of a fifth set.
+
+### FLAG entries that read as denying the note's own Plan
+
+**A pattern this set has no row for, and it is not F4.** F4 asks only whether both halves are named, and **44 of 45 entries do.** The one exception is case 3's third entry, which names an exam that was never charted rather than a documented finding that was abandoned — a judgment call the grader flagged as reversible on the other reading, and it is recorded as the single F4 miss rather than argued away.
+
+The pattern is different: **most FLAG entries in this run assert an omission the note's own Plan performs.** Case 5 flags BP 151/93 as carrying *no antihypertensive action, no recheck interval, no medication reconciliation and no counseling* in a note whose Plan carries all four, `Continue lisinopril 10 mg PO daily` included. Case 5's third entry says *no otitis media diagnosis and no antibiotic* in a note whose Final diagnosis carries `H66.93` and whose Pharm carries amoxicillin-clavulanate.
+
+**Each is correct about the encounter and false about the note**, and the two readings are told apart only by a clarifier some entries carry and others do not. Across the eleven notes the split is roughly **a third with an explicit *this note addresses it; the encounter as documented did not*, a third with encounter-scoped wording alone, and a third with no scoping marker at all.**
+
+`SKILL.md` defines a FLAG as *the note failing to act on what it was told* — which reads as a claim about **this note**, while every entry here is a claim about the **encounter**. Whether that is a skill defect, a wording convention or nothing is not this run's to rule on, and no row scores it.
+
 ## Resolved against the portal, 2026-08-09
 
 **Case 10 is 25, male, African American/Black.** Matched on every recorded field — BP 141/93, height 66, BMI 37.1, RR 20, Case Type Musculoskeletal, marital single. Not a judgment call; the portal record and the note agree on all six.
@@ -138,8 +305,10 @@ F5 replaced a row that asserted the band outright. That row was written before t
 
 ## Still unresolved
 
-- **Run 2 has not happened.** Run 1 is a baseline, not a bar cleared, for the reason recorded above it. Until a second run graded by a pass that did not produce it, there is nothing to measure drift *from*. This bullet said the set had never been run until 2026-08-11; the commit that recorded run 1 left it standing.
+- **Run 2 has happened, and F5 is what it left open.** 2026-08-16, separated, `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7`. Run 1 is still a baseline rather than a bar cleared, but there is now something to measure drift from. **The open question is not a score.** F5 and `SKILL.md` contradict each other on where an inferred age goes, and the row was deliberately not edited to resolve it — see *F5 fails, and the row is what moved*. **R10's BMI limb is the other**, and it is a genuine half-miss rather than a rule conflict. This bullet read *"Run 2 has not happened"* from 2026-08-11 until run 2 landed.
 - **Case 10's opener.** The shorthand states no age and no sex. This is a defect in the source, kept in the input file deliberately rather than patched, and it is what F5–F7 test. The portal supplies 25, male.
 - **Whether R11–R14 should be binary.** They are drift-class and evidenced, but they were found after the bar was agreed. Promote them deliberately or not at all.
+
+  **Run 2 gave all four a value, which is what this bullet was waiting on.** R11, R12 and R13 are all *met* and all *better*; R14 passes on all four cases. So the four are no longer unscored against their current text, and #79 has the readings it needs. **What run 2 does not supply is the decision**, which is the clinician's.
 
   **R14 is now the most promotable of the four and is deliberately still counted.** Since [#29](https://github.com/mshamblin5150-code/clinical-skills/issues/29) it resolves to two things a reader can check without a taste — is a positive tobacco status present in a slot the shorthand left silent, and does that slot read as a hedge — which is [fixtures/README](../README.md)'s own criterion for an enforceable row. It stays counted because day-b's three new rows on the same ruling were kept counted too, and promoting one of the pair while the other waits would make the two sets disagree about the same rule. Promote them together or not at all. This bullet read R11–R17 until 2026-08-11; the three rows that range has lost were **promoted, not dropped** — HR 115, HR 114 and BP 141/93 became D7, D9 and D10, and the rows below them renumbered down by three. Nothing was written in that table and then lost.
