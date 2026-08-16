@@ -231,6 +231,38 @@ class TheParserFindsEntries(unittest.TestCase):
         note = ds.read_note(FINAL_DIAGNOSIS_CLEAN)
         self.assertIn("J18.9", [e.code for e in note.entries])
 
+    def test_a_numbered_soap_entry_still_yields_one_slot(self):
+        # [#70] made the differential a numbered list, so every entry this
+        # scanner will meet from now on opens with `1.`, `2.`, `10.`. Nothing in
+        # the parser was changed for it and nothing had to be -- but the skill
+        # files it reads were rewritten into the numbered form, so a regression
+        # here would show up as a real run exiting 2 rather than as a red test.
+        note = "Differential:\n1. Acute bronchitis - J20.9: cough three weeks. Favored.\n"
+        entries = ds.read_note(note).entries
+        self.assertEqual([e.code for e in entries], ["J20.9"])
+
+    def test_a_double_digit_numeral_does_not_read_as_a_code(self):
+        # The label runs back to the start of the line, so the numeral is inside
+        # it. `10` is not code-shaped -- CODE needs a letter first -- and this
+        # pins that rather than trusting it.
+        note = "10. Acute bronchitis - J20.9: cough three weeks. Less likely.\n"
+        entries = ds.read_note(note).entries
+        self.assertEqual([e.code for e in entries], ["J20.9"])
+
+    def test_a_numbered_hp_entry_with_an_indented_rationale_yields_one_slot(self):
+        # The H&P's numbered item is two lines. The second is a continuation and
+        # must not open an entry of its own -- it carries no pinned pair, so it
+        # does not, and that is what this asserts.
+        note = (
+            "Differential diagnoses with rationale:\n"
+            "1. Pain in right leg - M79.604\n"
+            "   Less likely because the film ordered today has no result."
+            " NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it.\n"
+        )
+        note_read = ds.read_note(note)
+        self.assertEqual([e.code for e in note_read.entries], ["M79.604"])
+        self.assertEqual(note_read.refused, frozenset({"M86.9"}))
+
     def test_a_second_pinned_code_on_one_line_is_also_a_slot(self):
         # ``; coded as pain in right leg - M79.604`` is a second pinned label.
         note = ds.read_note(SLOT_VIOLATION)
