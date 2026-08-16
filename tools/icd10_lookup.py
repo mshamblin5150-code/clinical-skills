@@ -25,6 +25,21 @@ verifies a candidate code rather than finding one from a diagnosis phrase.
 finds "obesity" in a descriptor, where the index would map the *term* obesity to
 its codes through lead terms and sub-terms. Do not read a ``--find`` miss as
 evidence that no code exists.
+
+**What it prints is not all ASCII, which issue #150 assumed it was.** Measured
+against the shipped FY2026 database, 2026-08-16: the 98,186 descriptors carry
+**zero** non-ASCII characters, so the assumption held for the half of the output
+the ticket was looking at — but the 22,988 tabular notes carry **65**, nine
+distinct code points, every one an accented Latin letter out of an eponym.
+cp1252 encodes all nine, so this tool was never the one that crashed. It was safe
+by the accident of which accents CMS happens to use rather than by being ASCII,
+and a console on cp437 or a plain ASCII stream would have taken the same
+traceback ``guidelines_search.py`` did. ``use_utf8`` in ``__main__`` settles it
+for every console.
+
+Those figures are a measurement and not a test: nothing in ``tools/`` tests
+against the shipped database, because a test that read it would pass for two
+reasons and one of them is the builder and the test being wrong together.
 """
 
 from __future__ import annotations
@@ -34,6 +49,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from console_codec import use_utf8
 from icd10_build import Code, Note
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -158,4 +174,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

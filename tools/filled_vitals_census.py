@@ -74,6 +74,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from console_codec import use_utf8
 from corpus_census import Reading, is_normal_bp
 
 # A tier key at column 0 opens the block; the next key at column 0 closes it.
@@ -300,4 +301,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

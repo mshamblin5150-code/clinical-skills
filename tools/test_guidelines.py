@@ -17,7 +17,10 @@ fixtures are invented sentences shaped like guideline prose, not excerpts.
 
 import io
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -25,6 +28,8 @@ from tempfile import TemporaryDirectory
 
 import guidelines_index as gi
 import guidelines_search as gs
+
+TOOLS = Path(__file__).resolve().parent
 
 # Invented prose, shaped like a threshold table so the line-attribution tests
 # have something with a number in it to find.
@@ -39,6 +44,16 @@ PYELONEPHRITIS_PAGE = """\
 Acute uncomplicated pyelonephritis in an outpatient adult
 An oral fluoroquinolone remains an option where local resistance is below ten percent.
 Obtain a urine culture in every patient before the first dose.
+"""
+
+# Issue #150. Invented prose like the rest, but carrying the characters cp1252 has
+# no code point for -- the greater-or-equal sign a threshold is written with, an en
+# dash, a typographic apostrophe and a mu. `>=` is the one that found the defect,
+# because it is how every guideline writes a cut point.
+THRESHOLD_PAGE = """\
+Grading systemic inflammation at the first assessment
+Classify the foot as grade 3 with fewer than two SIRS criteria, or grade 4 if ≥2.
+The 2019–2024 cohort’s median clearance was 40 μmol/L.
 """
 
 
@@ -443,6 +458,72 @@ class CommandLineTests(TempCorpus):
         self.build_default_corpus()
         status, _, _ = self.run_search(["--db", str(self.db), "aortic dissection", "urine culture"])
         self.assertEqual(status, 0)
+
+
+class Cp1252ConsoleTests(TempCorpus):
+    """Issue #150, end to end and in a real process.
+
+    The defect lives at the ``__main__`` seam, which no in-process test reaches:
+    ``redirect_stdout(StringIO())`` has no codec to be wrong about, so every test in
+    ``CommandLineTests`` passed throughout. So these run the script the way a person
+    does, with ``PYTHONIOENCODING`` forcing the console Windows hands you by default.
+
+    **The assertion that matters is the exit status, not the glyph.** An uncaught
+    ``UnicodeEncodeError`` exits 1, and this tool's contract reads 1 as *a genuine
+    zero* -- so before the fix, a query that matched a page with a threshold on it
+    was indistinguishable from one that matched nothing.
+    """
+
+    def run_script(self, argv, encoding="cp1252"):
+        environment = {**os.environ, "PYTHONIOENCODING": encoding}
+        finished = subprocess.run(
+            [sys.executable, str(TOOLS / "guidelines_search.py"), *argv],
+            capture_output=True,
+            env=environment,
+        )
+        return (
+            finished.returncode,
+            finished.stdout.decode("utf-8", "replace"),
+            finished.stderr.decode("utf-8", "replace"),
+        )
+
+    def build_threshold_corpus(self):
+        write_single(self.text_dir, "IDSA/2023-foot", ["cover page", THRESHOLD_PAGE])
+        return gi.build(self.text_dir, self.db)
+
+    def test_a_hit_carrying_a_non_cp1252_character_exits_zero(self):
+        self.build_threshold_corpus()
+        status, out, err = self.run_script(["--db", str(self.db), "SIRS criteria"])
+        self.assertEqual(status, 0, f"stderr was: {err}")
+        self.assertNotIn("UnicodeEncodeError", err)
+        self.assertIn("IDSA/2023-foot", out)
+
+    def test_the_line_arrives_whole_rather_than_truncated_at_the_character(self):
+        """Partial output that looks complete is the half a reader cannot see: the
+        header prints, some hits print, then it dies mid-list."""
+        self.build_threshold_corpus()
+        _, out, _ = self.run_script(["--db", str(self.db), "SIRS criteria"])
+        self.assertIn("≥2", out)
+        self.assertIn("match(es)", out)  # the closing tally, so nothing died mid-list
+
+    def test_a_genuine_zero_still_exits_one_on_the_same_console(self):
+        """The other side of the contract. The fix must not make everything exit 0."""
+        self.build_threshold_corpus()
+        status, out, _ = self.run_script(["--db", str(self.db), "aortic dissection"])
+        self.assertEqual(status, 1)
+        self.assertIn("0 match(es)", out)
+
+    def test_a_missing_index_still_exits_two_on_the_same_console(self):
+        status, _, err = self.run_script(["--db", str(self.db), "SIRS criteria"])
+        self.assertEqual(status, 2)
+        self.assertIn("guidelines_index.py", err)
+
+    # There is deliberately no test here for the `errors="replace"` fallback -- the
+    # limb that runs when a stream will not take UTF-8 at all. `PYTHONIOENCODING`
+    # cannot produce that stream: whatever codec it names, `reconfigure` moves off it
+    # and the run passes with or without the fix. A test like that reads as pinning
+    # the fallback while pinning nothing, so the fallback is tested against a stub in
+    # `test_console_codec.py`, where being a stub is visible.
 
 
 class BuildCommandLineTests(TempCorpus):

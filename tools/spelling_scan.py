@@ -69,6 +69,8 @@ import sys
 from pathlib import Path
 from typing import Callable, Iterable, NamedTuple
 
+from console_codec import use_utf8
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # The run record. Its README is not included -- see the module docstring.
@@ -505,4 +507,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     sys.exit(main())

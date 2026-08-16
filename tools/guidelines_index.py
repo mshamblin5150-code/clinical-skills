@@ -67,6 +67,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
+from console_codec import use_utf8
+
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 UNCLASSIFIED = "unclassified"
@@ -409,4 +411,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

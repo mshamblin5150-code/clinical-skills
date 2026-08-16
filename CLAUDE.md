@@ -37,6 +37,28 @@ Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
 
+### Console codec
+
+`tools/console_codec.py` is the only shared module in `tools/`, and it holds one line of policy: **every command line here puts stdout and stderr on UTF-8 with `errors="replace"` before it prints anything.**
+
+```python
+from console_codec import use_utf8
+
+if __name__ == "__main__":
+    use_utf8()
+    raise SystemExit(main(sys.argv[1:]))
+```
+
+**The defect it exists for is an exit status, not a mangled character** — [#150](https://github.com/mshamblin5150-code/clinical-skills/issues/150). On Windows the default stdout codec is cp1252, and guideline text is full of characters it has no code point for: the greater-or-equal sign a threshold is written with, an en dash, a typographic quote, a mu. The `print` raised `UnicodeEncodeError`, the traceback escaped `main`, and the process exited **1** — which `guidelines_search.py`'s own contract reads as *a genuine zero*. So the one failure those statuses exist to make visible was reachable by accident, and **the queries likeliest to hit it were the clinical-threshold ones**, because a cut point is written with exactly the character that dies. Output was partial and looked complete: the `== query` header printed, some hits printed, then it stopped mid-list.
+
+**`errors="replace"` carries as much of the fix as the encoding does.** A console that genuinely will not move off its codec still has to print a legible line with a `?` in it rather than raise, because the thing being protected is the exit status and not the glyph.
+
+**Called from `__main__`, never at import, and that is the shape rather than a habit.** Reconfiguring `sys.stdout` is a decision about a process; a module that made it on import would make it for every test importing it and for every tool importing another. `tools/test_console_codec.py` **parses every module in `tools/` and asserts the ones with a command line call it** — 15 of them today. The check is an AST walk and not a substring search, because the first version was a substring search and `console_codec.py` passed it on the usage example in its own docstring: a module with no command line at all, graded as having one. That is `spelling_scan`'s mention-versus-use distinction arriving uninvited, and it is why a fifteenth tool cannot quietly skip the line.
+
+**The one thing it does not reach is a tool that prints before `main`.** Nothing here does, and an `argparse` error message is written by `argparse` to a stream this has already reconfigured — but a module-level `print` would run first and is outside it.
+
+**`icd10_lookup.py` was safe, and not for the reason #150 assumed.** Measured against the shipped FY2026 database, 2026-08-16: the **98,186 descriptors carry zero non-ASCII characters**, but the **22,988 tabular notes carry 65** — nine distinct code points, every one an accented Latin letter out of an eponym (Sjögren, Ménière). cp1252 encodes all nine, so it never crashed; it was safe by the accident of which accents CMS happens to use, and a cp437 or ASCII console would have taken the same traceback. Those figures are a measurement, not a test — nothing in `tools/` tests against the shipped database.
+
 ### Corpus census
 
 Several claims in [clinical-note](skills/clinical-note/SKILL.md) are counts over the clinician's shorthand corpus, and rulings have turned on them. `tools/corpus_census.py` recomputes all of them:
