@@ -7,9 +7,11 @@ input, so this file declares itself synthetic -- and, like every file, remains
 subject to the corpus layer regardless.
 """
 
+import io
 import re
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from random import Random
 
@@ -702,6 +704,128 @@ class StagedDiffParsing(unittest.TestCase):
             "+second\n"
         )
         self.assertEqual(ps.parse_diff(diff), {"notes.md": [(5, "first"), (6, "second")]})
+
+
+class LayerReport(unittest.TestCase):
+    """#86 decision 2: a run has to say which layers it actually ran.
+
+    The ticket's trap is that *a green check on a PHI scan that cannot see the
+    corpus is worse than no check, because it reads as coverage*. In CI that is
+    permanent -- ``scratch/`` is gitignored PHI and must never reach a runner --
+    so the CI job prints this report beside its checkmark.
+
+    **Derived, never typed.** The obvious implementation is a banner written
+    into the workflow YAML, which is a claim about the scanner that the scanner
+    does not make and nothing re-derives. #143 is what that becomes. So the
+    report is computed from the scanner's own inputs, and the workflow only
+    prints it.
+    """
+
+    def report(self, names=frozenset(), dates=frozenset(), scan_all=True):
+        return "\n".join(ps.layer_report(set(names), set(dates), scan_all))
+
+    def test_every_layer_is_named_whether_or_not_it_ran(self):
+        """A layer omitted because it did not run is the omission that reads as
+        coverage. All three are named in every configuration."""
+        for scan_all in (True, False):
+            with self.subTest(scan_all=scan_all):
+                text = self.report(NAMES, DATES, scan_all).lower()
+                for layer in ("path", "corpus", "shape"):
+                    self.assertIn(layer, text)
+
+    def test_a_dead_corpus_layer_says_not_run(self):
+        line = self.corpus_line(self.report())
+        self.assertIn("NOT RUN", line)
+
+    def test_a_live_corpus_layer_says_active(self):
+        line = self.corpus_line(self.report(NAMES, DATES, scan_all=False))
+        self.assertIn("ACTIVE", line)
+
+    def test_all_mode_reports_the_path_layer_as_not_run(self):
+        """``--all`` walks tracked files, and every guarded directory is
+        gitignored -- so there is no staged path for that layer to test. It is
+        inapplicable rather than clean, which is the distinction this whole
+        report exists to draw."""
+        self.assertIn("NOT RUN", self.path_line(self.report(NAMES, DATES, scan_all=True)))
+        self.assertIn("ACTIVE", self.path_line(self.report(NAMES, DATES, scan_all=False)))
+
+    def test_the_shape_layer_is_always_active(self):
+        """It needs nothing but the file, so it is the one layer a runner has."""
+        for scan_all in (True, False):
+            with self.subTest(scan_all=scan_all):
+                self.assertIn("ACTIVE", self.shape_line(self.report(scan_all=scan_all)))
+
+    def test_a_live_corpus_reports_counts_and_never_an_identifier(self):
+        """`corpus_census.py`'s rule, and the reason this output is safe to paste
+        into a ticket at all: counts only, never the matched string."""
+        text = self.report(NAMES, DATES, scan_all=False)
+        self.assertIn("2", self.corpus_line(text))
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, text)
+
+    def test_a_report_with_a_dead_layer_warns_that_clean_is_not_coverage(self):
+        """The checkmark is the thing being defended against, so the warning has
+        to be in the report rather than left to whoever reads it."""
+        text = self.report()
+        self.assertIn("NOT", text)
+        self.assertRegex(text, r"(?i)clean")
+
+    def test_a_report_with_every_layer_live_carries_no_warning(self):
+        text = self.report(NAMES, DATES, scan_all=False)
+        self.assertNotRegex(text, r"(?i)a clean result")
+
+    def _line(self, text, word):
+        """The layer's own row, not the warning beneath it -- which names the
+        dead layers and so contains their words too."""
+        label = f"{word} layer "
+        matches = [ln for ln in text.splitlines() if ln.strip().lower().startswith(label)]
+        self.assertEqual(len(matches), 1, f"expected one {word!r} row in:\n{text}")
+        return matches[0]
+
+    def corpus_line(self, text):
+        return self._line(text, "corpus")
+
+    def path_line(self, text):
+        return self._line(text, "path")
+
+    def shape_line(self, text):
+        return self._line(text, "shape")
+
+
+class LayersCommandLine(unittest.TestCase):
+    """``--layers`` reports and does not scan.
+
+    Kept apart from a scanning run deliberately: the CI job prints the report as
+    its own step, so a reader can see which layers ran even when the scan itself
+    found nothing and printed nothing.
+    """
+
+    def run_main(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = ps.main(argv)
+        return status, out.getvalue(), err.getvalue()
+
+    def test_layers_prints_the_report_and_exits_zero(self):
+        status, out, _ = self.run_main(["--layers"])
+        self.assertEqual(status, 0)
+        for layer in ("path", "corpus", "shape"):
+            self.assertIn(layer, out.lower())
+
+    def test_the_report_goes_to_stdout(self):
+        """So the CI job can pipe it into the step summary beside the checkmark,
+        rather than leaving it in a log nobody opens."""
+        _, out, err = self.run_main(["--layers"])
+        self.assertTrue(out.strip())
+        self.assertNotIn("path layer", err)
+
+    def test_layers_names_the_mode_it_is_reporting_on(self):
+        """``--layers`` alone answers for a staged run; with ``--all`` it answers
+        for the whole tree, and the path layer differs between them."""
+        _, staged, _ = self.run_main(["--layers"])
+        _, everything, _ = self.run_main(["--layers", "--all"])
+        self.assertNotEqual(staged, everything)
 
 
 if __name__ == "__main__":

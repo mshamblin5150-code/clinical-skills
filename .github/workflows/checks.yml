@@ -1,0 +1,82 @@
+# The suite, run somewhere the committer cannot opt out of. Issue #86, ADR 0002.
+#
+# The subject is the merge. `tools/hooks/pre-commit` does not fire on an
+# automatic merge commit at all, and where a merge is hand-resolved the result
+# is a tree neither parent ever had -- so `main` can hold a combination nobody
+# ran the suite against. Two branches have already broken it exactly that way:
+# `anchor_scan.py` and `block_scan.py` against the `console_codec` rule, both
+# green on their own branch and red once merged.
+#
+# **Advisory by ruling, not by omission.** Nothing here is a required status
+# check. A red run reports; it blocks nothing, and `git merge --no-ff` followed
+# by `git push origin main` stays the way changes land. What this buys is the
+# guarantee that the detection ran -- see ADR 0002 for why that was judged to be
+# the whole of the value.
+#
+# `tools/test_ci_workflow.py` pins this file against CLAUDE.md, so the runner,
+# the Python version and the test command cannot drift apart from the prose a
+# reader opens. It is not a YAML parser and cannot tell you this file is valid.
+
+name: checks
+
+on:
+  # The route a locally-merged branch takes. `03f5adf` merged #142 with
+  # `git merge --no-ff` and pushed, so the GitHub merge button was never in the
+  # path -- a `pull_request` trigger alone would have watched the wrong door.
+  push:
+    branches: [main]
+  # Checks out the *merge result* rather than the branch head, which is the
+  # tree the ticket is about. GitHub recomputes that only when the branch
+  # moves, so a PR opened before another one lands can still go green on a
+  # stale merge; the `push` trigger above is what catches that on the way in.
+  pull_request:
+  # A merge that has already landed is the one moment somebody wants to re-run
+  # a check against a tree neither parent had.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    name: suite + PHI shape layer
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          # Quoted deliberately: unquoted `3.10` is the float 3.1. Matches the
+          # machine this repo is actually worked on, so a red run here means a
+          # red run there -- ADR 0002 decision 3.
+          python-version: '3.14'
+
+      - name: Interpreter
+        run: python -VV
+
+      # Before the suite, so it is on the page even when the suite dies. The
+      # report is computed by the scanner from its own inputs rather than
+      # written out here: a banner typed into YAML is a claim about `phi_scan`
+      # that `phi_scan` does not make and nothing re-derives.
+      - name: What this job can and cannot check for PHI
+        run: |
+          $report = python tools/phi_scan.py --layers --all
+          $report
+          @('### PHI scan coverage', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # Stdlib only -- nothing to install, no package manager, no lockfile.
+      # Every PyMuPDF import in `tools/` sits inside the function that opens the
+      # file, so this resolves nothing at 1093 tests as it did at 344.
+      - name: Test suite
+        run: python -m unittest discover -s tools -t tools
+
+      # `scratch/` is gitignored PHI and must never reach a runner, so the
+      # corpus layer is dead here on every run that will ever happen. The step
+      # is named for what it is: a green check beside these words is "no
+      # PHI-shaped strings", never "no PHI". #86's trap, answered rather than
+      # walked into.
+      - name: PHI shape layer only, corpus layer cannot run in CI
+        if: always()
+        run: python tools/phi_scan.py --all

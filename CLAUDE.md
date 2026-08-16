@@ -81,7 +81,9 @@ Its extractors are covered by `tools/test_corpus_census.py`, which runs against 
 python -m unittest discover -s tools -t tools
 ```
 
-Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
+Stdlib only — no package manager and no lockfile, and the census is not worth introducing either.
+
+**That sentence used to bundle a third thing, and the three were never coupled.** It read *"no package manager, no lockfile, no CI in this repo"*, and the reason written down was about dependency machinery — which CI here carries none of. [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86) reversed the CI clause and left the other two standing; see *Continuous integration* below and [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md).
 
 **Five tools are now exceptions, and they are the five that open a PDF.** `tools/guidelines_extract.py`, `tools/uspstf_table.py`, `tools/guidelines_recs.py` and `tools/threshold_sheet.py`'s citation tier 2 all need PyMuPDF; `tools/guidelines_catalog.py` prefers PyMuPDF and falls back to `pypdf`. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
 
@@ -468,6 +470,28 @@ python tools/threshold_sheet.py --all
 **Gate 3 was wrong first, and it was found by pointing it at the real sheet.** It matched a sanity bound by substring against the row's *quantity name* and graded every number in the value against it; on the first real sheet that produced ten failures and **all ten were correct rows** — the `2` in `kg/m2`, `>=7 days` in a row whose name contains `bp`, `15% in 24 h`, `within 30 to 60 min`. Bounds are keyed on the **unit** now. Both of `block_scan.py`'s parser bugs were found the same way, and the synthetic tests came afterwards.
 
 **What no gate here reaches is written in the README and in the module docstring, the same day they were built.** The largest: **a sheet whose numbers are all real and all filed under the wrong heading passes every gate in the directory.**
+
+### Continuous integration
+
+`.github/workflows/checks.yml`, one job, on `windows-latest` at Python `3.14` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md). It runs the suite and `phi_scan --all`, and it installs nothing.
+
+**The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way and a third nearly did**, all three recorded under *Console codec* above: `anchor_scan.py` against #150's rule, `block_scan.py` one merge later against the mechanism built to stop it, and #179, where 66 tests neither side ran came out green because somebody chose to look.
+
+**What it buys is the guarantee that the detection ran, and not detection.** Every defect this repo has caught was caught by a discretionary pass — `/code-review`, a tracker sweep, somebody running the suite after merging because they had been told to align a checkout. Those keep working. What none of them is, is obligatory.
+
+**Advisory, ruled rather than defaulted into.** Nothing here is a required status check, so a red run reports and blocks nothing, and `git merge --no-ff` followed by `git push origin main` stays the way changes land — which is how #142 landed, and a required check would have made that push impossible. Escalating is a repository setting rather than a rewrite; ADR 0002 names *require branches to be up to date* as the first thing to turn on if it ever is.
+
+**Both triggers, because `main` is reached two ways.** `pull_request` checks out the **merge result** rather than the branch head, which is the tree the whole ticket is about. `push` to `main` catches the local-merge-and-push route the merge button is never in. Neither alone is a guard, and even together there is a hole: GitHub recomputes a PR's merge commit when the **branch** moves, not when `main` moves, so a PR opened before another lands and merged after it can go green about a merge that no longer exists — which is the `anchor_scan` shape exactly. The `push` trigger catches that on the way in rather than before.
+
+**The PHI step states its own coverage, and the statement is derived rather than typed.** `python tools/phi_scan.py --layers` prints which of the path, corpus and shape layers actually ran, computed from the scanner's own inputs, and adds `A clean result here is NOT "no PHI"` whenever one did not. The job prints it into the step summary, so it sits on the page the checkmark is attached to. **A banner written into the YAML would have been a claim about `phi_scan` that `phi_scan` does not make and nothing re-derives**, which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
+
+That was the sharpest risk in the ticket and it is answered rather than closed: `scratch/` is gitignored PHI that must never reach a runner, so **in CI the corpus layer is dead on every run that will ever happen**, and the `--all` mode leaves the path layer inapplicable too. Two of three layers dark, on the rule that matters most. It is scanned anyway because the shape layer caught a real date of birth on #64, and because **CI is not the weak configuration — it is the ordinary one**: agents commit from worktrees, where the corpus layer is already dead ([#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)).
+
+**`windows-latest` because a red run has to mean the maintainer's machine would go red.** The platform-shaped code here is Windows-shaped — #150's cp1252 console, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo executes. A Linux runner would exercise the `os.symlink` branch nobody uses. Python 3.14 for the same reason: no consumer runs these tools, so the 3.11 floor #86 assumed has nobody behind it, and **the floor is 3.10 in any case** — `int | None` is PEP 604 and there is no 3.11-or-later syntax anywhere in `tools/`, checked rather than assumed.
+
+Covered by `tools/test_ci_workflow.py`, in **two tiers, and the split is a dependency decision rather than a taste one** — `tools/` is stdlib only and the cost argument above depends on that, so nothing there may require PyYAML. The floor reads the workflow as text and runs everywhere: it pins the runner, the Python version, the test command and the PHI step's honesty against this file, so the workflow and the prose cannot drift apart, and it catches tab characters. Above it, `TheFileIsValidYaml` parses the file and checks the job's shape **when PyYAML happens to be importable, and skips when it is not**.
+
+**That tier is the one that matters, and it deliberately runs where CI does not.** A syntax error means GitHub declines to run the workflow, so the PR page shows **no failing check at all** rather than a red one — this ticket's own failure mode arriving through the mechanism built to fix it, and something no test inside the job could ever report, because the job would not exist. Validating on the machine the commit is made from is the only place the check is not circular. **On a machine without PyYAML the tab test is the whole guard**, and neither tier can tell you the job passed. **The first push is still the only end-to-end check.**
 
 ### PHI pre-commit hook
 
