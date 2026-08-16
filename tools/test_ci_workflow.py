@@ -75,7 +75,7 @@ class TheJobRunsWhatTheDocsRun(unittest.TestCase):
         none of them at module scope, so a suite-only job resolves nothing --
         no package manager and no lockfile, exactly as CLAUDE.md claims. A
         ``pip install`` line here would falsify that sentence silently."""
-        self.assertNotRegex(workflow_text(), r"(?m)^\s*.*pip install")
+        self.assertNotIn("pip install", workflow_text())
 
 
 class TheJobMatchesWhatIsWrittenDown(unittest.TestCase):
@@ -145,10 +145,24 @@ class ThePhiStepCannotReadAsCoverage(unittest.TestCase):
         the corpus layer was already dead."""
         self.assertRegex(workflow_text(), r"phi_scan\.py --all")
 
-    def test_the_step_name_says_which_layer_it_is(self):
-        """So the check's own name on the PR page carries the caveat, for a
-        reader who never opens the summary."""
-        self.assertRegex(workflow_text(), r"(?i)name:.*shape layer")
+    def test_the_job_name_carries_the_caveat(self):
+        """The **job** name is the string on the PR check list. It is the only
+        part of this a reader who never opens the run will ever see, so the
+        caveat has to survive there and not only in the step.
+
+        Asserted as its own line rather than by a pattern over the file: the
+        first version matched ``name:.*shape layer`` anywhere, which the step
+        name below satisfies on its own -- so deleting the job name left the
+        test green on the one string the whole trap ruling rests on."""
+        self.assertRegex(workflow_text(), r"(?m)^\s*name:\s*suite \+ PHI shape layer\s*$")
+
+    def test_the_step_name_says_the_corpus_layer_could_not_run(self):
+        """The step name is what sits beside the scan in the log, so it carries
+        the reason the job name has no room for."""
+        self.assertRegex(
+            workflow_text(),
+            r"(?m)^\s*- name:\s*PHI shape layer only, corpus layer cannot run in CI\s*$",
+        )
 
 
 class TheFileIsValidYaml(unittest.TestCase):
@@ -216,8 +230,19 @@ class TheWorkflowIsAdvisory(unittest.TestCase):
     """
 
     def test_claude_md_records_the_advisory_ruling(self):
-        text = CLAUDE_MD.read_text(encoding="utf-8").lower()
-        self.assertIn("advisory", text)
+        """Anchored on the CI section rather than on the word.
+
+        The first version asserted only ``"advisory" in CLAUDE.md.lower()``,
+        and that word is already in this file three times over -- the mirror
+        scanner, the spelling scanner and the hook. It passed with the whole
+        *Continuous integration* section deleted, which is #86's own recorded
+        defect: *a test asserted that "one" and "finding" appear in the row,
+        satisfied by the word "none"*."""
+        text = CLAUDE_MD.read_text(encoding="utf-8")
+        section = text.partition("### Continuous integration")[2].partition("\n### ")[0]
+        self.assertTrue(section.strip(), "no Continuous integration section in CLAUDE.md")
+        self.assertIn("Advisory", section)
+        self.assertIn("required status check", section)
 
     def test_the_adr_exists(self):
         adrs = list((REPO_ROOT / "docs" / "adr").glob("*.md"))

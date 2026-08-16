@@ -822,10 +822,23 @@ class LayersCommandLine(unittest.TestCase):
 
     def test_layers_names_the_mode_it_is_reporting_on(self):
         """``--layers`` alone answers for a staged run; with ``--all`` it answers
-        for the whole tree, and the path layer differs between them."""
+        for the whole tree, and the path layer differs between them.
+
+        **The header is asserted by name, and the first version was not.** It
+        only checked that the two outputs differ, which the path-layer line
+        satisfies on its own -- so it stayed green while the header said
+        ``(--all)`` for both. That was a live bug: renaming the parameter off
+        ``scan_all`` left this one reference resolving to the module-level
+        *function* of that name, which is always truthy. A test that passes
+        because some other line moved is `test_icd10.py`'s two-reasons
+        objection, and this is what it looks like from the inside.
+        """
         _, staged, _ = self.run_main(["--layers"])
         _, everything, _ = self.run_main(["--layers", "--all"])
         self.assertNotEqual(staged, everything)
+        self.assertIn("(staged)", staged.splitlines()[0])
+        self.assertNotIn("--all", staged.splitlines()[0])
+        self.assertIn("(--all)", everything.splitlines()[0])
 
 
 if __name__ == "__main__":

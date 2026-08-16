@@ -68,7 +68,10 @@ jobs:
 
       # Stdlib only -- nothing to install, no package manager, no lockfile.
       # Every PyMuPDF import in `tools/` sits inside the function that opens the
-      # file, so this resolves nothing at 1093 tests as it did at 344.
+      # file, so this resolves nothing however far the suite grows. Deliberately
+      # no test count here: `test_nothing_is_installed` carries the claim, and a
+      # figure in a comment is #143 waiting to happen -- the first draft of this
+      # line said 1093 and was stale inside its own branch.
       - name: Test suite
         run: python -m unittest discover -s tools -t tools
 

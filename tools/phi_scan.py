@@ -683,7 +683,7 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     return findings
 
 
-def layer_report(names: set[str], dates: set[str], scan_all: bool) -> list[str]:
+def layer_report(names: set[str], dates: set[str], all_mode: bool) -> list[str]:
     """What ran and what did not, one line per layer. #86 decision 2.
 
     **A layer that did not run is named as not having run, never omitted.** The
@@ -701,13 +701,16 @@ def layer_report(names: set[str], dates: set[str], scan_all: bool) -> list[str]:
     Takes the harvested sets rather than reading the corpus itself, so the
     caller's single ``corpus_identifiers()`` call answers for both the scan and
     the report. A second read could disagree with the first.
+
+    ``all_mode`` rather than ``scan_all``, which is the name of a function in
+    this module -- a parameter shadowing it reads as a call at a glance.
     """
     dead: list[str] = []
 
     # `--all` walks `git ls-files`, and every guarded directory is gitignored,
     # so no tracked path can ever be under one. The layer is inapplicable there
     # rather than clean -- the distinction this whole report exists to draw.
-    if scan_all:
+    if all_mode:
         path = "NOT RUN  -- --all walks tracked files; nothing can be staged from a gitignored directory"
         dead.append("path")
     else:
@@ -720,7 +723,7 @@ def layer_report(names: set[str], dates: set[str], scan_all: bool) -> list[str]:
         dead.append("corpus")
 
     lines = [
-        f"phi-scan layers ({'--all' if scan_all else 'staged'}):",
+        f"phi-scan layers ({'--all' if all_mode else 'staged'}):",
         f"  path layer     {path}",
         f"  corpus layer   {corpus}",
         "  shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date",
