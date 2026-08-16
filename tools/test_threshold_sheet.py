@@ -23,6 +23,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet as gate  # noqa: E402
 
+def header(mode: str = "exact") -> str:
+    """The sheet preamble, with the source's declared mode parameterized.
+
+    Parameterized because gate_coverage now cross-checks the sheet's declared mode
+    against the recommendation record's, so a fixture hard-coding `exact` cannot be
+    used to test the `bound` path -- it would fail on the disagreement rather than on
+    the thing under test. That mismatch is itself a finding now, and it has its own
+    test below.
+    """
+    return HEADER.replace("| 2025 | 2025 | https://example.invalid | exact |",
+                          f"| 2025 | 2025 | https://example.invalid | {mode} |")
+
+
 HEADER = f"""# Test sheet
 
 {gate.SCHEMA_MARKER}
@@ -46,9 +59,9 @@ citations resolved against C:/nowhere on 2026-08-16
 """
 
 
-def sheet(rows: str, conflicts: str = "", coverage: str = "") -> gate.Sheet:
+def sheet(rows: str, conflicts: str = "", coverage: str = "", mode: str = "exact") -> gate.Sheet:
     text = (
-        HEADER
+        header(mode)
         + "\n## Thresholds\n\n"
         + "| quantity | population | value | snippet | source | page | rec | class |\n"
         + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
@@ -177,9 +190,12 @@ class CitationTier1(unittest.TestCase):
     def test_it_runs_with_no_pdfs_anywhere(self):
         """The whole reason tier 1 exists. Decision 2: there must be no machine on
         which citation checking drops to zero."""
-        failures, skipped = gate.gate_citation_tier2(sheet(row()), Path("C:/nowhere-at-all"))
+        failures, skipped, rendered = gate.gate_citation_tier2(
+            sheet(row()), Path("C:/nowhere-at-all")
+        )
         self.assertEqual(failures, [])
         self.assertIsNotNone(skipped)
+        self.assertEqual(rendered, 0)
         self.assertEqual(gate.gate_citation_tier1(sheet(row())), [])
 
 
@@ -205,11 +221,50 @@ class CoverageGate(unittest.TestCase):
         """Gate 2's two behaviors, and the mode is read off the recommendation record
         rather than decided here. A marker count over-reports, so enforcing it would
         refuse a correct sheet for recommendations that do not exist."""
-        parsed = sheet(row(rec="p41/goal/1"), coverage="- `p41/goal/2` - no number stated\n")
+        parsed = sheet(
+            row(rec="p41/goal/1"),
+            coverage="- `p41/goal/2` - no number stated\n",
+            mode="bound",
+        )
         refusals, warnings, _ = gate.gate_coverage(parsed, {**self.RECS, "mode": "bound"})
         self.assertEqual(refusals, [])
         self.assertEqual(len(warnings), 1)
         self.assertIn("over-reports", warnings[0])
+
+    def test_a_sheet_declaring_a_mode_its_record_disagrees_with_is_refused(self):
+        """Found in review: the `mode` column was decorative.
+
+        `gate_coverage` read the mode off the recommendation record and never off the
+        sheet, so a sheet could declare `exact` over a `bound` record and pass — while
+        README.md tells a reader that column is what decides refuse-versus-warn.
+        Neither value is trusted over the other, because only the disagreement is
+        knowable; what produced it is not.
+        """
+        parsed = sheet(row(rec="p41/goal/1"), mode="exact")
+        refusals, _, _ = gate.gate_coverage(parsed, {**self.RECS, "mode": "bound"})
+        self.assertTrue(any("declares mode" in message for message in refusals))
+
+    def test_a_row_carrying_the_wrong_class_for_its_recommendation_is_refused(self):
+        """The one check here that catches a row pinned to the WRONG recommendation.
+
+        Every other gate passes such a row: its number is real, its snippet is on the
+        page it names, and its rec_id exists. Only the class disagrees.
+        """
+        recs = {**self.RECS, "recommendations": [{"rec_id": "p41/goal/1", "cor": "2a"}]}
+        refusals, _, _ = gate.gate_coverage(sheet(row(rec="p41/goal/1", klass="1")), recs)
+        self.assertTrue(any("does not match" in message for message in refusals))
+
+    def test_a_bound_source_carries_no_class_so_the_class_check_stays_quiet(self):
+        """Running text does not put the class in a cell, so `cor` is None on every
+        marker hit and there is nothing to compare. The check declines rather than
+        inventing a disagreement."""
+        recs = {
+            "doc_id": "Society/doc",
+            "mode": "bound",
+            "recommendations": [{"rec_id": "p41/goal/1", "cor": None}],
+        }
+        refusals, _, _ = gate.gate_coverage(sheet(row(rec="p41/goal/1"), mode="bound"), recs)
+        self.assertEqual(refusals, [])
 
     def test_it_fires_on_one_unread_item_not_only_on_total_absence(self):
         """#153's lesson, from this ticket's own comment: fire on ANY unread item.
@@ -345,6 +400,89 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
         be readable as a pass, and the hook runs quiet."""
         _, out, _ = self.run_grade(True, self.BROKEN)
         self.assertIn("CITATION TIER 2 DID NOT RUN", out)
+
+
+class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
+    """Found in review, and it is this ticket's own lesson failing on its own gate.
+
+    ``grade`` tested ``recs_path is None`` to decide whether to report that omission
+    went unchecked. A ``--recs`` pointing at a file that does not exist is not None,
+    so COVERAGE silently did not run, nothing printed, and the sheet exited **0**.
+    That is exactly *"a test that goes green because its input vanished"*, and the
+    pre-commit hook was one typo away from it.
+    """
+
+    CLEAN = (
+        header()
+        + "\n## Thresholds\n\n"
+        + "| quantity | population | value | snippet | source | page | rec | class |\n"
+        + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        + row()
+    )
+
+    def grade_with(self, recs_path: Path | None) -> int:
+        import contextlib
+        import io
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(self.CLEAN, encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                return gate.grade(path, recs_path, Path("C:/nowhere-at-all"), quiet=True)
+
+    def test_a_recs_path_that_does_not_exist_is_2_and_not_0(self):
+        self.assertEqual(self.grade_with(Path("C:/nowhere-at-all/recs.json")), 2)
+
+    def test_no_recs_at_all_is_also_2(self):
+        self.assertEqual(self.grade_with(None), 2)
+
+    def test_a_missing_recs_file_says_so_by_name(self):
+        """The two 2s are not the same event and the message has to distinguish them:
+        one is a run that never meant to check omission, the other is a typo."""
+        import contextlib
+        import io
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(self.CLEAN, encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                gate.grade(path, Path("C:/nowhere/recs.json"), Path("C:/nowhere"), quiet=True)
+            self.assertIn("no such file", err.getvalue())
+
+
+class TheRenderedPageEscapeHatch(unittest.TestCase):
+    """#83: *"a per-row annotation meaning read off the rendered page, extraction
+    garbles this table. Declaring it is a deliberate act that leaves a trace."*"""
+
+    def test_a_declared_row_is_skipped_by_tier_two_and_counted(self):
+        marked = row(snippet=f"{gate.RENDERED_MARKER} an SBP goal of <130 mm Hg")
+        failures, skipped, rendered = gate.gate_citation_tier2(
+            sheet(marked), Path(__file__).parent
+        )
+        self.assertIsNone(skipped)
+        self.assertEqual(rendered, 1)
+        self.assertEqual(failures, [])
+
+    def test_an_undeclared_row_is_not_skipped(self):
+        _, _, rendered = gate.gate_citation_tier2(sheet(row()), Path(__file__).parent)
+        self.assertEqual(rendered, 0)
+
+    def test_the_marker_must_start_the_snippet_not_merely_appear_in_it(self):
+        """`phi-scan: synthetic`'s own-line rule, adopted for the reason it was added
+        there: a bare substring test let two files exempt themselves just by
+        explaining the pragma."""
+        mentioned = row(snippet=f"a row may declare {gate.RENDERED_MARKER} to opt out, <130")
+        _, _, rendered = gate.gate_citation_tier2(sheet(mentioned), Path(__file__).parent)
+        self.assertEqual(rendered, 0)
+
+    def test_tier_one_still_grades_a_declared_row(self):
+        """The hatch buys out of tier 2 only. A value whose number is absent from its
+        own snippet is still a refusal, because that check needs no page at all."""
+        marked = row(value="<140 mm Hg", snippet=f"{gate.RENDERED_MARKER} a goal of <130 mm Hg")
+        self.assertEqual(len(gate.gate_citation_tier1(sheet(marked))), 1)
 
 
 class TheGraderMatchesTheFormatItDocuments(unittest.TestCase):

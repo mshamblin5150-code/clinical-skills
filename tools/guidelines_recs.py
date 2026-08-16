@@ -55,8 +55,6 @@ from pathlib import Path
 
 from console_codec import use_utf8
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
 MODE_EXACT = "exact"
 MODE_BOUND = "bound"
 

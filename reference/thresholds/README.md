@@ -18,8 +18,20 @@ consumer runs needs them — they need the derived facts.
 ## Grading a sheet
 
 ```bash
+# Build the recommendation record first, OUTSIDE the repo -- always. It holds the
+# society's recommendation text in full, which is the copyrighted expression this
+# whole format exists to avoid committing, and guidelines_recs.py refuses to write
+# it inside any git checkout.
+python tools/guidelines_recs.py \
+    "C:/codeing/guidelines-src/AHA ACC/jones-et-al-2025-....pdf" \
+    --doc-id "AHA ACC/jones-et-al-2025" \
+    --json C:/codeing/guidelines-index/recs-hypertension.json
+
 python tools/threshold_sheet.py reference/thresholds/hypertension.md \
-    --recs reference/thresholds/hypertension.recs.json
+    --recs C:/codeing/guidelines-index/recs-hypertension.json
+
+# --all resolves recs-<sheet stem>.json from --recs-root, which defaults outside the
+# repo for the same reason. A sheet whose record it cannot find exits 2, never 0.
 python tools/threshold_sheet.py --all
 ```
 
@@ -83,7 +95,17 @@ Eight columns: `quantity | population | value | snippet | source | page | rec | 
   It is not decoration; it is what makes the citation checkable on a machine that does
   not have the PDFs.
 - `rec` is the `rec_id` from `guidelines_recs.py`, which is what ties a row to the
-  recommendation it came from and lets the omission gate work.
+  recommendation it came from and lets the omission gate work. **The `class` column is
+  checked against it**: a row carrying Class 1 while its recommendation is Class 2a is
+  refused, and that is the only check here that catches a row pinned to the *wrong*
+  recommendation — every other gate passes such a row, because its number is real and
+  its snippet is on the page it names.
+- A snippet may begin `RENDERED:` to declare that the value was **read off the page as
+  typeset** because extraction garbles that table. Tier 2 then skips the row and the
+  run prints how many rows did this. It is the escape hatch #83 asks for, modeled on
+  `phi-scan: synthetic` and narrowed the same way: the marker must *start* the cell, so
+  a row that merely mentions the hatch cannot claim it. Tier 1 still grades the row —
+  the hatch buys out of the page check, not out of the sheet being self-consistent.
 
 ### `## Conflicts`
 
@@ -138,3 +160,27 @@ not left to be discovered:
 - **One topic has a sheet.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
+- **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
+  stripped by #80 appears inside an extracted table row, that row is suspect and must
+  be read off the rendered page."* **This ticket widened the exposure rather than
+  narrowing it** — boilerplate stripping went from 554,372 characters to 921,168 under
+  the new reader, so there is more stripped text that could have been interleaved, not
+  less. The `RENDERED:` marker gives a row a way to *declare* it was read off the page;
+  nothing yet *detects* that it should have been.
+- **Gate 5, the second independent read, was not built.** #83 describes it as the only
+  mechanism that catches *misreading* rather than *miscitation*, and says in the same
+  breath that its weakness is correlated error — same model, same PDF, same mangling,
+  same wrong answer — so it *"must be documented as a strong smoke test, never as
+  proof."* Not built here; recorded so that the absence is visible rather than
+  inferred.
+- **Gate 1's "different path" is different-function, not different-library.** #83 asks
+  that the citation gate *"pulls that page's text through a different path than the
+  writer used"*. The writer reads `find_tables()`; tier 2 reads `get_text()`. Those are
+  genuinely different code paths over different structures, and they did catch a
+  planted defect. But both are PyMuPDF, so **a mis-extraction at the library level is
+  invisible to tier 2** — it would corrupt the snippet and the page identically.
+- **COVERAGE reads one recommendation record per sheet.** A sheet citing two societies
+  gets omission checked against whichever record `--recs` names and silently not
+  against the other. The one sheet that exists has one source; a second source is the
+  point at which this has to change, and the count printed as "source(s) had no
+  recommendation record" cannot currently exceed 1.

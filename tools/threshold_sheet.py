@@ -18,8 +18,8 @@ Four gates, and what each one can and cannot see
 
 ``SCHEMA``  refuses
     Structural. Every row has all eight columns, a population key drawn from the
-    sheet's own declared vocabulary, an ASCII comparison operator, and a source key
-    that the Sources table defines. **And the conflict rule**: two rows sharing a
+    sheet's own declared vocabulary, no non-ASCII comparison character in its value,
+    and a source key that the Sources table defines. **And the conflict rule**: two rows sharing a
     quantity key AND a population key with different values must be covered by a
     ``CONFLICT`` block naming both. Needs nothing but the sheet, so it runs
     everywhere and always.
@@ -102,6 +102,23 @@ SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 
 SCHEMA_MARKER = "<!-- schema: threshold-sheet/1 -->"
 
+# The escape hatch #83 asks for by name: *"Table-derived values need an escape hatch
+# on the `phi-scan: synthetic` pattern: a per-row annotation meaning read off the
+# rendered page, extraction garbles this table. Declaring it is a deliberate act that
+# leaves a trace."*
+#
+# A snippet beginning with this marker means the value was read off the PAGE AS
+# TYPESET and not out of the text layer, so tier 2 cannot resolve it -- the string on
+# the rendered page is not the string extraction produces, which is the whole reason
+# the row needs the hatch. Those rows are counted and printed rather than passed
+# silently, which is the "leaves a trace" half.
+#
+# **Modeled on `phi-scan: synthetic` and narrowed the same way it was.** That pragma
+# has to sit alone on its own line because a bare substring test let two files exempt
+# themselves merely by explaining the rule. Here the marker must START the snippet
+# cell, so a row discussing the hatch in its own text cannot claim it.
+RENDERED_MARKER = "RENDERED:"
+
 # The eight columns of a threshold row, in order. Named here rather than positionally
 # in the parser so a column added later fails loudly in one place.
 ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "rec", "class")
@@ -112,7 +129,13 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 # documents, measured 2026-08-16. A sheet is allowed to hold the fact and must not
 # hold the mis-encoding, because `<=` and `\u00a3` sort and compare differently and only
 # one of them is readable back to a clinician.
-ALLOWED_OPERATORS = ("<=", ">=", "<", ">", "~", "+/-")
+# A blocklist and deliberately not an allowlist. An allowlist of operators was
+# written here first and never referenced by any gate, while the docstring claimed
+# it was enforced -- which is `test_spelling_scan.py`'s failure mode exactly: a rule
+# that has drifted from the file a reader opens reads as agreement. It was removed
+# rather than wired up, because a value legitimately carries no operator at all
+# (`81 mg/day`, `monthly`, `3-6 months`) and an allowlist would have to permit the
+# empty case, at which point it permits everything.
 FORBIDDEN_IN_VALUE = {
     "\u00a3": "a Symbol-font mis-encoding of <= (73 in this corpus); write <=",
     "\u2264": "a Unicode <=; write the ASCII <=",
@@ -355,24 +378,35 @@ def gate_citation_tier1(sheet: Sheet) -> list[str]:
     return failures
 
 
-def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> tuple[list[str], str | None]:
-    """Every snippet must appear on the page it cites. Returns (failures, skip reason).
+def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> tuple[list[str], str | None, int]:
+    """Every snippet must appear on the page it cites.
+
+    Returns ``(failures, skip reason, rows declared RENDERED)``. The third value is
+    separate from the skip reason on purpose: "tier 2 did not run at all" and "tier 2
+    ran and 3 rows opted out of it" are different events, and a sentinel smuggled
+    through the skip channel would have made a sheet that declared every row rendered
+    indistinguishable from one graded cleanly.
 
     A skip is returned rather than raised, and the caller prints it as a banner. The
     whole design of decision 2 is that this **must not be readable as passing**.
     """
     if pdf_root is None or not pdf_root.is_dir():
-        return [], f"source PDFs not found at {pdf_root}"
+        return [], f"source PDFs not found at {pdf_root}", 0
     try:
-        import pymupdf  # noqa: F401
+        import pymupdf
     except ImportError:
-        return [], "pymupdf is not installed"
-
-    import pymupdf
+        return [], "pymupdf is not installed", 0
 
     failures: list[str] = []
+    rendered = 0
     cache: dict[tuple[str, int], str] = {}
     for row in sheet.rows:
+        if row.snippet.startswith(RENDERED_MARKER):
+            # Declared as read off the page as typeset. Tier 2 genuinely cannot check
+            # it, and saying so beats resolving a string the page does not contain and
+            # reporting a citation failure that is really an extraction failure.
+            rendered += 1
+            continue
         source = sheet.sources.get(row.source)
         if not source or row.page is None:
             continue  # already a SCHEMA failure; not counted twice
@@ -397,7 +431,7 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> tuple[list[str],
             failures.append(
                 f"{sheet.path.name}:{row.line}  snippet not on {relative} p.{row.page}"
             )
-    return failures, None
+    return failures, None, rendered
 
 
 def _normalize(text: str) -> str:
@@ -428,11 +462,49 @@ def gate_coverage(sheet: Sheet, recs: dict | None) -> tuple[list[str], list[str]
     cited = {row.rec for row in sheet.rows}
     unaccounted = sorted(known - cited - set(sheet.scoped_out))
 
+    # **Structural findings, and they refuse whatever the mode is.** The refuse-or-warn
+    # split exists because a marker COUNT over-reports; it says nothing about whether a
+    # sheet's own declarations are self-consistent. Routing these through it would let
+    # a bound source declare itself exact and carry a mis-pinned class unremarked.
+    structural: list[str] = []
+
+    # **The sheet's declared mode must agree with the record's, and a disagreement is
+    # a refusal rather than a preference for one of them.** README.md tells a reader
+    # that `mode` is what decides whether omissions are refused or warned about; a
+    # sheet declaring `exact` over a `bound` record would make that sentence false
+    # while every gate passed. Neither value is trusted over the other because only
+    # the disagreement is knowable -- what produced it is not.
+    for key, source in sorted(sheet.sources.items()):
+        declared = source.get("mode", "").strip().lower()
+        if declared and mode and declared != mode:
+            structural.append(
+                f"{sheet.path.name}  source '{key}' declares mode '{declared}' but its "
+                f"recommendation record is '{mode}'. README.md says mode decides whether "
+                f"omission refuses or warns, so these cannot disagree."
+            )
+
+    # A row's class must be the class of the recommendation it cites. This is the one
+    # thing here that catches a row pinned to the WRONG recommendation -- every other
+    # gate would pass such a row, because its number is real and its snippet is on the
+    # page it names. It is not a substitute for reading: a row can cite the right
+    # recommendation and still describe it wrongly, which stays in the holes list.
+    classes = {
+        record["rec_id"]: str(record.get("cor") or "").lower()
+        for record in recs.get("recommendations", ())
+    }
+    for row in sheet.rows:
+        expected = classes.get(row.rec)
+        if expected and row.klass.strip().lower() != expected:
+            structural.append(
+                f"{sheet.path.name}:{row.line}  class '{row.klass}' does not match "
+                f"{row.rec}, which is class '{expected}'"
+            )
+
     # The #153 lesson, from this ticket's own comment: count the unread and put it in
     # the exit status, and fire on ANY unread item rather than on total absence. A
     # gate that only fires when nothing was covered reads green over 2.4% coverage.
     if not unaccounted:
-        return [], [], 0
+        return structural, [], 0
 
     message = (
         f"{sheet.path.name}  {len(unaccounted)} of {len(known)} recommendations in "
@@ -441,8 +513,8 @@ def gate_coverage(sheet: Sheet, recs: dict | None) -> tuple[list[str], list[str]
         + (f", and {len(unaccounted) - 6} more" if len(unaccounted) > 6 else "")
     )
     if mode == "exact":
-        return [message], [], 0
-    return [], [message + "  (source mode is 'bound', so this over-reports)"], 0
+        return structural + [message], [], 0
+    return structural, [message + "  (source mode is 'bound', so this over-reports)"], 0
 
 
 def gate_range(sheet: Sheet) -> tuple[list[str], int]:
@@ -505,13 +577,25 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
         print("  Nothing was checked. This is not a clean sheet.", file=sys.stderr)
         return 2
 
+    # **Why the missing-file case is separated from the not-asked-for case.** They
+    # produce the same `recs is None` and they are not the same event: one is a run
+    # that never intended to check omission, the other is a run that meant to and
+    # silently did not. The first version collapsed them by testing `recs_path is
+    # None` at the bottom, so `--recs <a path that does not exist>` graded four gates,
+    # printed nothing about the fifth, and exited 0. That is this ticket's own #153
+    # lesson failing on this ticket's own gate, and it was found by review rather than
+    # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
     recs = None
-    if recs_path and recs_path.is_file():
-        recs = json.loads(recs_path.read_text(encoding="utf-8"))
+    recs_missing = False
+    if recs_path is not None:
+        if recs_path.is_file():
+            recs = json.loads(recs_path.read_text(encoding="utf-8"))
+        else:
+            recs_missing = True
 
     schema = gate_schema(sheet)
     tier1 = gate_citation_tier1(sheet)
-    tier2, tier2_skip = gate_citation_tier2(sheet, pdf_root)
+    tier2, tier2_skip, rendered_rows = gate_citation_tier2(sheet, pdf_root)
     coverage_refusals, coverage_warnings, ungraded_sources = gate_coverage(sheet, recs)
     ranges, ungraded_rows = gate_range(sheet)
 
@@ -526,6 +610,13 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
         report(f"  CITATION tier 2 SKIPPED -- {tier2_skip}")
     else:
         report(f"  CITATION tier 2 {len(tier2)}")
+        if rendered_rows:
+            # Printed rather than only counted: the trace the escape hatch exists to
+            # leave is worth nothing if the run that honors it stays silent about it.
+            report(
+                f"                  {rendered_rows} row(s) declared {RENDERED_MARKER} "
+                "and were read off the rendered page, so tier 2 skipped them"
+            )
     report(f"  COVERAGE        {len(coverage_refusals)} refusing, {len(coverage_warnings)} warning")
     report(f"  RANGE           {len(ranges)}  ({ungraded_rows} numbers carried no unit this grades)")
 
@@ -548,16 +639,25 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
     for message in coverage_warnings:
         print(f"  WARN  {message}", file=sys.stderr)
 
+    if recs_missing:
+        print(f"  COVERAGE        NOT RUN -- no such file: {recs_path}", file=sys.stderr)
+        print("  Omission was not checked. A recs path that does not resolve is a", file=sys.stderr)
+        print("  typo, not a decision, and must not be graded as one.", file=sys.stderr)
+    elif ungraded_sources:
+        print("  COVERAGE        NOT RUN -- no --recs given, so omission was not checked", file=sys.stderr)
+
     if refusals:
-        if ungraded_sources:
+        # 1 wins over 2 where both hold, and the message names the ungraded part so
+        # the finding reads as a floor rather than the whole. Returning 2 would file
+        # the strongest thing known about the sheet under the weakest heading --
+        # `differential_scan.py`'s ordering, for its reason.
+        if recs_missing or ungraded_sources:
             print(
-                f"  note: {ungraded_sources} source(s) had no recommendation record, so "
-                "COVERAGE did not run on them. The count above is a floor.",
+                "  note: COVERAGE did not run, so the count above is a floor.",
                 file=sys.stderr,
             )
         return 1
-    if ungraded_sources and recs_path is None:
-        print("  COVERAGE        SKIPPED -- no --recs given, so omission was not checked", file=sys.stderr)
+    if recs_missing or ungraded_sources:
         return 2
     return 0
 
@@ -575,8 +675,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--recs-root",
         type=Path,
-        default=Path(os.environ.get("CLINICAL_GUIDELINES_INDEX_DIR", "C:/codeing/guidelines-index")),
+        default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", "C:/codeing/guidelines-index")),
         help="where --all looks for recs-<sheet>.json (outside the repo, always)",
+        # Deliberately NOT a spelling of guidelines_index.py's
+        # CLINICAL_GUIDELINES_INDEX, which names a database file. This names a
+        # directory of recommendation records, and two env vars one word apart that
+        # mean different kinds of thing is how the wrong one gets set.
     )
     parser.add_argument(
         "--pdf-root",
