@@ -175,6 +175,20 @@ def case(directory: Path, number: int) -> str:
 OBESITY_BMI_SHORTHAND = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
 
 
+def all_fixture_shorthand():
+    """Every committed shorthand input, all six sets -- 37 as of 2026-08-16.
+
+    Separate from ``all_committed_cases`` on purpose. That helper reads the four
+    sets the social-slot figures were measured over and is pinned at 31; this one
+    reads the tree. The gap between them is
+    `#143 <https://github.com/mshamblin5150-code/clinical-skills/issues/143>`_,
+    which holds the decision about which is *the* denominator. Nothing here
+    re-aims an existing figure.
+    """
+    for path in sorted((REPO_ROOT / "fixtures").glob("*/shorthand/case-*.md")):
+        yield path, path.read_text(encoding="utf-8")
+
+
 def all_committed_cases():
     """The 31 inputs both social-slot classes count against.
 
@@ -2934,6 +2948,151 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
             c.allergy_drug + c.allergy_food + c.allergy_environmental,
             c.allergy_status_stated,
         )
+
+
+class PpdIsPacksPerDayByShape(unittest.TestCase):
+    """Issue #78's last residual, settled by form rather than by reading.
+
+    ``ppd`` is packs per day and is also a purified protein derivative, and the
+    census counts the first as a positive tobacco history. #78 asked for a hand
+    audit of the corpus and called it *"the first thing to check"* if the tobacco
+    figure looked high.
+
+    **It was closed without one, on the clinician's ruling of 2026-08-16, because
+    the two senses are not the same shape.** A pack count is a small number in
+    front of the token and usually a span behind it. A skin test has no quantity
+    in front at all: it is placed, it is read, and its result is millimetres of
+    induration. Nobody writes a tuberculin test as a number of packs followed by
+    years.
+
+    Measured over 551 encounters the same day, counts only: **102 write a bare
+    ``ppd``, 13 carry no independent tobacco token** -- the only ones at risk,
+    since the rest are named smokers whatever ``ppd`` means -- and of those 13,
+    **13 are a pack quantity and 0 are a skin test**. The census prints those
+    four numbers now, so the audit is re-derivable rather than quoted.
+
+    **This is inference from form and not a reading, and the class name says so.**
+    What it does not establish is that no encounter anywhere writes a tuberculin
+    test in a shape both patterns miss. What makes that survivable is the bound
+    #78 already had: charge all 13 as skin tests anyway and tobacco is still 159
+    of 197 positive, 81%, so no reading of them can move #29's ruling.
+    """
+
+    def bare_ppd_cases(self):
+        for path, note in all_fixture_shorthand():
+            if cc.writes_bare_ppd(note):
+                yield path, note
+
+    def test_the_committed_inputs_writing_a_bare_ppd(self):
+        """Twelve of them, over **all six** sets rather than the usual four.
+
+        ``all_committed_cases`` reads day-a, day-b, peds-bp and obesity-bmi, and
+        that omission is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143):
+        the denominator those figures are quoted against is 31 while the tree
+        holds 37. This class reads all six deliberately, because the audit's
+        claim is about *every* committed input writing the token and leaving two
+        sets out would make it arbitrary. It costs two real cases --
+        ``duration-span`` and ``hedged-dx`` each write one.
+
+        **The existing figures are not re-aimed here.** #143 holds that decision,
+        and changing a published denominator sideways inside a new test class is
+        how a figure ends up meaning two things.
+        """
+        self.assertEqual(len(list(self.bare_ppd_cases())), 12)
+
+    def test_every_committed_bare_ppd_is_a_pack_quantity(self):
+        for path, note in self.bare_ppd_cases():
+            with self.subTest(case=str(path.relative_to(REPO_ROOT))):
+                self.assertTrue(cc.ppd_written_as_quantity(note))
+                self.assertFalse(cc.ppd_written_as_skin_test(note))
+
+    def test_two_committed_inputs_have_the_corpus_shortlist_shape(self):
+        """A bare ``ppd`` and no other tobacco word -- the at-risk shape.
+
+        These two are why the discriminator is not tested only against strings
+        this file invented. day-b case 8 writes the pack count with no smoking
+        word anywhere near it, which is exactly the shape the 13 corpus
+        encounters have, and it still reads as a quantity on both limbs -- a
+        number in front and a span behind.
+        """
+        shortlist = [(d, n) for d, n in ((DAY_B, 7), (DAY_B, 8))]
+        for directory, number in shortlist:
+            with self.subTest(case=number):
+                note = case(directory, number)
+                self.assertTrue(cc.writes_bare_ppd(note))
+                self.assertFalse(cc.has_independent_tobacco(note))
+                self.assertTrue(cc.ppd_written_as_quantity(note))
+                self.assertFalse(cc.ppd_written_as_skin_test(note))
+        found = {(p.parent, int(p.stem.split("-")[1]))
+                 for p, n in self.bare_ppd_cases() if not cc.has_independent_tobacco(n)}
+        self.assertEqual(found, set(shortlist))
+
+    def test_a_tuberculin_test_reads_as_one(self):
+        """The other sense, which no committed input writes."""
+        for text in ("PPD placed today", "ppd read at 48 hrs", "PPD 12mm",
+                     "ppd 0 mm", "induration 15mm", "quantiferon negative",
+                     "mantoux placed", "ppd for tb screening"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.ppd_written_as_skin_test(text))
+
+    def test_the_two_shapes_do_not_both_fire_on_a_pack_count(self):
+        """A quantity form must never read as a skin test, or the audit is noise."""
+        for text in ("1 ppd x 20 yrs", "0.5 ppd smoker for 40 years",
+                     "<0.25 ppd x 3 yrs", "3 ppd for 30 yrs",
+                     "1 ppd since 18 yrs of age", "1.5 ppd 34 years"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.ppd_written_as_quantity(text))
+                self.assertFalse(cc.ppd_written_as_skin_test(text))
+
+    def test_the_audit_population_is_the_one_the_tobacco_patterns_see(self):
+        """A welded ``1ppd`` is outside it, and that is issue #146 and not this.
+
+        ``\\bppd\\b`` cannot match a digit-welded quantity -- the leading boundary
+        needs a non-word character and a digit is a word character. So the audit
+        counts what ``TOBACCO_SLOT`` counts and is silent about what it misses.
+        Counting the welded form here would make this class quietly answer a
+        different ticket.
+        """
+        self.assertFalse(cc.writes_bare_ppd("1ppd x 24 yrs"))
+        self.assertTrue(cc.writes_bare_ppd("1 ppd x 24 yrs"))
+
+    def test_the_slot_is_the_bare_token_or_an_independent_one(self):
+        """The composition the audit's exclusion rests on, asserted not assumed.
+
+        ``TOBACCO_SLOT`` and ``TOBACCO_INDEPENDENT`` are built from one shared
+        string so they cannot drift, and this is the test that says what the
+        relationship is meant to be: every slot match is either a bare ``ppd`` or
+        an independent token, and nothing else.
+        """
+        for text in ("1 ppd x 20 yrs", "smoker", "chews tobacco", "non-smoker",
+                     "2 packs a day", "vapes", "nicotine", "cigarettes",
+                     "exposed to second hand smoke", "dips now"):
+            with self.subTest(text=text):
+                if cc.has_tobacco_status(text):
+                    self.assertTrue(cc.writes_bare_ppd(text)
+                                    or cc.has_independent_tobacco(text))
+
+    def test_survey_counts_the_audit(self):
+        """Over all six sets, matching the class's own denominator."""
+        c = cc.survey([note for _, note in all_fixture_shorthand()])
+        self.assertEqual(c.with_bare_ppd, 12)
+        self.assertEqual(c.bare_ppd_no_other_token, 2)
+        self.assertEqual(c.bare_ppd_alone_as_quantity, 2)
+        self.assertEqual(c.bare_ppd_alone_as_skin_test, 0)
+
+    def test_the_two_denominators_differ_and_the_gap_is_named(self):
+        """37 against 31, and the two sets it is.
+
+        Asserted rather than left in prose, so #143's gap fails a test the day
+        somebody closes it instead of going quietly stale like the figure it is
+        about.
+        """
+        wide = {p for p, _ in all_fixture_shorthand()}
+        narrow = {p for p, _ in all_committed_cases()}
+        self.assertEqual(len(wide), 37)
+        self.assertEqual(len(narrow), 31)
+        self.assertEqual({p.parent.parent.name for p in wide - narrow},
+                         {"duration-span", "hedged-dx"})
 
 
 class Bands(unittest.TestCase):
