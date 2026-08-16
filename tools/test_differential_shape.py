@@ -40,9 +40,15 @@ DAY_B = REPO_ROOT / "fixtures" / "day-b" / "assertions.md"
 
 
 def _row(text: str, number: int) -> str:
-    """The drift matrix row numbered ``number``, as one line."""
+    """The drift matrix row numbered ``number``, as one line.
+
+    Returns ``""`` rather than raising when the row is gone, so a deleted row
+    reads as a **failed assertion naming the row** instead of a ``StopIteration``
+    error in every test that touches it. A test that errors says the suite is
+    broken; a test that fails says the rule is.
+    """
     prefix = f"| {number} | "
-    return next(line for line in text.splitlines() if line.startswith(prefix))
+    return next((line for line in text.splitlines() if line.startswith(prefix)), "")
 
 
 class TheSkillCarriesTheShapeRule(unittest.TestCase):
@@ -111,6 +117,13 @@ class TheSkillCarriesTheShapeRule(unittest.TestCase):
     def test_the_ruling_is_dated_and_attributed(self):
         self.assertIn("The clinician ruled all four of these on 2026-08-16", self.text)
 
+    def test_the_form_is_required_rather_than_permitted(self):
+        self.assertIn(
+            "The `Name - CODE: rationale` form stopped being permitted"
+            " and started being required",
+            self.text,
+        )
+
     def test_the_section_says_no_tool_checks_it(self):
         # If this goes, a later pass writes a scanner over the labeled block and
         # a clean run starts reading as a walked row -- on the narrow reading the
@@ -154,6 +167,21 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         row = _row(self.text, 23)
         self.assertIn("wrapped line belongs to the item that opened it", row)
 
+    def test_row_23_mandates_the_hyphen_pin(self):
+        # The half a numeral does not carry, and #70's fourth bullet. Without it
+        # `1. COVID-19 (U07.1): ...` clears both rows while pinning nothing --
+        # which is the form question the ticket asked, left half-answered.
+        row = _row(self.text, 23)
+        self.assertIn("the form is required rather than permitted", row)
+        self.assertIn("`Name - CODE: rationale`", row)
+        self.assertIn("a code in parentheses or pinned with a colon fails this row", row)
+
+    def test_row_23_exempts_the_conclusion_line(self):
+        # Row 22 reads a conclusion by position, so a colon there is already
+        # governed. Two rows disagreeing about one line is worse than either.
+        row = _row(self.text, 23)
+        self.assertIn("The conclusion line is exempt and row 22 says why", row)
+
     def test_a_row_23_failure_leaves_row_13_ungraded(self):
         # The ordering when both are walked. Without it a run can report a clean
         # row 13 over a denominator it chose itself, which is #70's own defect
@@ -170,7 +198,12 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
 
     def test_no_row_was_renumbered(self):
         # The cheap guard on the convention: 23 rows, numbered 1 to 23 in order.
-        numbers = [int(m) for m in re.findall(r"^\| (\d+) \| ", self.text, re.M)]
+        # Scoped to rows whose second cell is a bolded test name, which is the
+        # drift matrix's own shape -- an unrelated numbered table added to this
+        # file later must not fail this test for a reason that is not about it.
+        numbers = [
+            int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
+        ]
         self.assertEqual(numbers, list(range(1, 24)))
 
 
@@ -217,7 +250,11 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
         # If this ever becomes a departure it needs naming the way the
         # `Final diagnosis` heading's does, not asserting in passing.
         text = HP.read_text(encoding="utf-8")
-        self.assertIn("not a departure from it", text)
+        self.assertIn(
+            "numbering them is its own instruction read plainly,"
+            " not a departure from it",
+            text,
+        )
 
     def test_both_templates_cite_the_ticket(self):
         for path in (SOAP, HP):
@@ -249,7 +286,19 @@ class TheFixtureRowSaysWhatItCounts(unittest.TestCase):
         self.assertIn("Two counts that either match or do not", self.row)
 
     def test_c1_says_a_prose_differential_leaves_it_ungraded(self):
-        self.assertIn("leaves this row ungraded", self.row)
+        self.assertIn(
+            "A differential written as prose fails drift row 23"
+            " and leaves this row ungraded",
+            self.row,
+        )
+
+    def test_c1_names_the_row_it_cites_as_a_rule_not_a_verdict(self):
+        # ADR 0001 rejects the skill's self-reported drift verdicts as fixture
+        # signal. C1 cites row 23's *rule*, and this paragraph is what stops the
+        # citation being read as the other thing.
+        self.assertIn(
+            "that is a reference to the rule rather than to a verdict", self.text
+        )
 
     def test_neither_recorded_digit_is_restated(self):
         # #70 put re-running day-b and re-scoring either run out of scope. This
