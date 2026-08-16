@@ -120,6 +120,7 @@ Extractor limits worth knowing before quoting a number:
 from __future__ import annotations
 
 import hashlib
+import itertools
 import re
 import sys
 from dataclasses import dataclass
@@ -412,6 +413,89 @@ ORGANISM_SPECIFIC = re.compile(
     r"|h\.?\s*pylori|gono|chlam|trich|staph|mrsa|scabies|impetigo|osteomyel"
     r"|appendic|divertic|dvt|von will|factor v\b)"
 )
+
+# A duration expression, and a symptom vocabulary to read one *beside*. Added for
+# issue #65, which needed a **candidate pool** rather than a claim, the way #49
+# did -- ``fixtures/duration-span`` takes three encounters out of what this
+# prints, and the set is a pick rather than a population.
+#
+# **The distinction drift row 16 turns on is not in here and cannot be.** That
+# row separates two durations written about *different* symptoms -- which is not
+# a conflict and is fixtured as day-b's B10 -- from two written about the
+# **same** symptom, which is the conflict a span resolves. Deciding which is
+# reading, not matching: the second statement may name its symptom, may use a
+# pronoun, and may or may not carry the new-or-worse marker that redirects the
+# pronoun to a newer complaint. So what this prints is a pool to read, and every
+# figure quoted from it says so.
+#
+# **It over-counts in two ways, each with a worked example in the test file.**
+# day-b's cases 8 and 9 are the attribution limb -- two durations about two
+# symptoms, no conflict and no span -- and both are in the pool. And a treatment
+# sig lands inside the window of the symptom it treats, so ``zithromax ... x 3
+# days`` beside a cough counts. **Both are kept rather than filtered.** A filter
+# that excluded them would need row 16's own judgment, and one tuned until it
+# returned exactly the three cases picked would read as recomputable while
+# proving nothing -- which ``fixtures/README.md`` refuses by name.
+#
+# **A restatement that agrees is excluded, and only by its value.** Two mentions
+# of one interval are one timeline, so day-b's case 4 -- ``x 5 days`` written
+# three times -- is out. **day-b's case 12 is out by luck**: it writes ``started
+# saturday`` and then ``started saturdy``, which are two different strings, and
+# what excludes it is that no symptom sits within the window of the typo. Put
+# one there and the pool admits an encounter agreeing with itself. This cannot
+# spell-normalize, and normalizing would be guessing which spelling was meant.
+#
+# **It under-counts in two ways, and both are deliberate rather than missed.**
+#
+# A timeline anchored to a weekday or a holiday -- ``started saturday``, ``since
+# christmas eve`` -- is matched here, but an encounter whose two statements are
+# *both* anchors resolves only against the visit date, which a fixture removes,
+# so nothing downstream can use one. The pool holds them and the set's README
+# records why none was picked.
+#
+# **The year scale is outside this entirely**: no ``year``, ``yr`` or ``yrs``
+# unit appears above. Nothing in this corpus writes an acute onset in years, and
+# a year-scale interval here is a smoking history, a surgery or a chronic
+# condition -- so admitting the unit would widen the figure to buy those. **What
+# it costs is real**: a chronic pain dated two ways in years is a same-symptom
+# conflict this pool cannot see, and ``clinical-note``'s own corroboration for
+# the span form -- the clinician's ``11-12 yrs ago`` -- is a string this regex
+# does not match. ``test_corpus_census.py`` pins both.
+#
+# The window is 45 characters either side, chosen against this corpus's line
+# lengths and not derived from anything.
+#
+# **43 of 551 encounters, 8%, measured 2026-08-15** -- the figure
+# ``fixtures/duration-span`` publishes, and all 43 were read one at a time to
+# pick its three. Widen the window, the duration units or the symptom list
+# deliberately, re-run, and update that figure -- do not widen any of them in
+# passing. ``HEDGE`` carries the same rule for the same reason.
+#
+# **Re-deriving it needs the main checkout.** ``scratch/`` is gitignored and a
+# worktree does not get one, so running this from a worktree finds no corpus.
+# That is issue #93's subject on ``phi_scan``'s side and it bites here too.
+DURATION = re.compile(
+    r"(?i)\b("
+    r"x\s*\d+\s*(?:-\s*\d+\s*)?(?:day|days|d|week|weeks|wk|wks|month|months|mo)\b"
+    r"|\d+\s*(?:-\s*\d+\s*)?\s*(?:day|days|week|weeks|wk|wks|month|months|mo)\b"
+    r"|yesterday|last night|overnight|this morning"
+    r"|start(?:ed|ing)\s+(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)\w*"
+    r"|since\s+(?:mon|tues|wednes|thurs|fri|satur|sun)\w*"
+    r")"
+)
+
+# The complaints a duration in this corpus is written beside. Short and frozen,
+# on ``ORGANISM_SPECIFIC``'s rule: it decides the pool's size, so widening it
+# changes a published figure.
+DURATION_SYMPTOM = re.compile(
+    r"(?i)\b(cough|fever|congestion|sneez\w*|sore throat|throat|headache|ha\b"
+    r"|earache|ear pain|rash|pain|nausea|vomit\w*|diarrhea|dizz\w*|weakness"
+    r"|swelling|drainage|discharge|sinus|chest|abd\w*|back|knee|shoulder"
+    r"|wheez\w*|sob\b|itch\w*|burn\w*)\b"
+)
+
+DURATION_WINDOW = 45
+
 
 # Issue #29. ``clinical-note`` reads silence about a section two ways -- an
 # unmentioned exam system is normal because abnormals get charted, while an
@@ -793,6 +877,40 @@ def has_organism_specific(note: str) -> bool:
     return bool(ORGANISM_SPECIFIC.search(note))
 
 
+def duration_mentions(note: str) -> list[tuple[str, frozenset[str]]]:
+    """Every duration in a note, with the symptoms written within the window.
+
+    Returns the duration text normalized to lowercase single spaces, so two
+    spellings of one interval do not read as two values, paired with the
+    symptom vocabulary found either side of it. Emits no note text beyond the
+    duration itself and the fixed vocabulary in ``DURATION_SYMPTOM``.
+    """
+    mentions: list[tuple[str, frozenset[str]]] = []
+    for match in DURATION.finditer(note):
+        low = max(0, match.start() - DURATION_WINDOW)
+        high = min(len(note), match.end() + DURATION_WINDOW)
+        nearby = {m.group(1).lower() for m in DURATION_SYMPTOM.finditer(note[low:high])}
+        text = re.sub(r"\s+", " ", match.group(1).strip().lower())
+        mentions.append((text, frozenset(nearby)))
+    return mentions
+
+
+def restates_a_duration(note: str) -> bool:
+    """Two **different** durations written beside a symptom they share.
+
+    The candidate pool ``fixtures/duration-span`` drew from, and a pool rather
+    than a count -- ``DURATION`` says at length what it cannot separate. Two
+    mentions of the *same* interval are one timeline however often it is
+    written, so the durations must differ; and they must share a symptom, which
+    is what keeps a tobacco history and a surgical date out.
+    """
+    pairs = itertools.combinations(duration_mentions(note), 2)
+    return any(
+        text != other_text and symptoms & other_symptoms
+        for (text, symptoms), (other_text, other_symptoms) in pairs
+    )
+
+
 def has_any_vital(note: str) -> bool:
     return has_bp(note) or has_height(note) or has_weight(note) or has_other_vitals(note)
 
@@ -904,6 +1022,7 @@ class Census:
     sleep_apnea_no_measurement: int = 0
     with_hedge: int = 0
     hedge_with_organism: int = 0
+    restating_a_duration: int = 0
     with_pain_score: int = 0
     with_hypertension: int = 0
     hypertension_with_bp: int = 0
@@ -964,7 +1083,7 @@ def survey(notes: list[str]) -> Census:
     bp_weight_no_height_n = readings_n = readings_normal_n = 0
     age_n = dob_n = both_n = neither_n = off_line_n = 0
     obes_n = obes_bare_n = bar_n = bar_bare_n = osa_n = osa_bare_n = 0
-    hedge_n = hedge_org_n = pain_n = 0
+    hedge_n = hedge_org_n = pain_n = restated_n = 0
     htn_n = htn_bp_n = htn_normal_n = htn_lenient_n = 0
     allergy_n = allergy_none_n = tobacco_n = tobacco_pos_n = 0
 
@@ -972,6 +1091,8 @@ def survey(notes: list[str]) -> Census:
         if has_hedge(note):
             hedge_n += 1
             hedge_org_n += has_organism_specific(note)
+
+        restated_n += restates_a_duration(note)
 
         if has_allergy_status(note):
             allergy_n += 1
@@ -1047,6 +1168,7 @@ def survey(notes: list[str]) -> Census:
         sleep_apnea_no_measurement=osa_bare_n,
         with_hedge=hedge_n,
         hedge_with_organism=hedge_org_n,
+        restating_a_duration=restated_n,
         with_pain_score=pain_n,
         with_hypertension=htn_n,
         hypertension_with_bp=htn_bp_n,
@@ -1226,6 +1348,15 @@ def format_report(
         "  (a co-occurrence, not a hedged organism - the pool issue #49 picked",
         "   three encounters out of, by reading them. the pool is re-derivable;",
         "   the pick is a judgment and the set's README says so)",
+        "",
+        'claim: "the corpus dates one symptom two ways" (drift row 16; issue #65)',
+        f"  restated duration     {c.restating_a_duration:>5}  "
+        f"{_pct(c.restating_a_duration, c.notes)}"
+        "  <- fixtures/duration-span drew from here",
+        "  (two different durations sharing a symptom - NOT the same-symptom",
+        "   conflict row 16 turns on, which no regex decides. it counts day-b's",
+        "   two attribution cases, and a treatment sig beside the symptom it",
+        "   treats. read the pool, and see DURATION for what it misses)",
         "",
         'claim: "the severity the note fills is the one he did not write"',
         "  (issue #30. an estimate, not a bound - a written date reads as a",
