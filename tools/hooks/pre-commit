@@ -17,7 +17,29 @@ for python in python python3 py; do
         # Markdown is clean. See tools/spelling_scan.py.
         "$python" "$repo_root/tools/spelling_scan.py" --quiet >&2 || true
 
-        exec "$python" "$repo_root/tools/phi_scan.py"
+        status=0
+
+        # **The second thing in this repo that can refuse a commit, and the first
+        # since standing rule 1.** That is a deliberate change in posture, ruled on
+        # in #83 decision 1 rather than drifted into. The reasoning: a fabricated
+        # citation in a threshold sheet is a number a clinician may act on, and the
+        # checks that catch one are deterministic and unambiguous. A warning in a
+        # hook is read past.
+        #
+        # **Only when a sheet is actually staged.** Every other commit pays nothing,
+        # which is what keeps this from being the check people learn to --no-verify
+        # around. `--all` rather than the staged paths: a sheet's conflict rule is a
+        # statement about the whole directory, and grading one file in isolation
+        # would miss a disagreement introduced between two of them.
+        if git diff --cached --name-only --diff-filter=ACM \
+            | grep -q '^reference/thresholds/.*\.md$'; then
+            "$python" "$repo_root/tools/threshold_sheet.py" --all --quiet >&2 || status=1
+        fi
+
+        # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
+        # and nothing above can suppress it -- the status is OR-ed, never replaced.
+        "$python" "$repo_root/tools/phi_scan.py" || status=1
+        exit "$status"
     fi
 done
 

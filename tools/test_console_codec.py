@@ -138,7 +138,10 @@ def calls_helper(node: ast.AST) -> bool:
 
 class EveryToolTakesIt(unittest.TestCase):
     """Parity, mechanically. Parses the files rather than importing them, because
-    three of them need ``pypdf`` or ``fitz`` to import and none needs it to be read.
+    five of them open a PDF and none needs a PDF library to be *read*. (Those five
+    all import it inside the function that opens the file, so importing them would in
+    fact work -- parsing is the stronger guarantee, and it is the one that survives a
+    sixth tool putting its import at module scope.)
 
     **By AST and not by substring, which is not fastidiousness.** The first version
     of this searched the file text, and ``console_codec.py`` passed it on the usage
@@ -161,13 +164,17 @@ class EveryToolTakesIt(unittest.TestCase):
 
     def test_the_repo_still_has_command_line_tools_to_check(self):
         """A glob that quietly matched nothing would pass the next test for the wrong
-        reason. 16 of them as of 2026-08-16; the floor is the assertion.
+        reason. **19** of them as of 2026-08-16; the floor is the assertion.
 
-        **It was 15 for about an hour.** ``anchor_scan.py`` was written on #124's
-        branch while this rule was written on #150's, and the merged tree failed
-        this class where neither branch did -- the floor held, the per-tool subtest
-        did not."""
-        self.assertGreaterEqual(len(self.command_line_tools()), 15)
+        **It was 15 for about an hour**, then 16, then 17. ``anchor_scan.py`` was
+        written on #124's branch while this rule was written on #150's, and the merged
+        tree failed this class where neither branch did -- the floor held, the per-tool
+        subtest did not. ``block_scan.py`` repeated it one merge later.
+
+        The floor stays deliberately below the count. It is here to catch the glob
+        breaking, not to be a second place the tool count has to be kept true -- #143
+        is what one figure copied into ten places becomes."""
+        self.assertGreaterEqual(len(self.command_line_tools()), 17)
 
     def test_the_helper_itself_is_not_counted_as_a_command_line_tool(self):
         """It has no command line, and it says `if __name__ == "__main__":` twice in
