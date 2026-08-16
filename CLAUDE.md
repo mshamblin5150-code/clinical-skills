@@ -265,16 +265,21 @@ That is affordable because it is maintainer-only and runs once per corpus refres
 
 **It read the corpus with `pypdf` until #83, and this paragraph used to argue for that.** The argument was: *`fitz` is roughly six times faster and loses the spaces between words on the USPSTF files — whole sentences come back as `primarycarebecauseofitshighsensitivity`, and 90 of the 179 documents are USPSTF.* **The observation was true and the conclusion drawn from it was wrong**, which is worth keeping visible rather than quietly deleting. It was measured against `page.get_text()`, one of several things PyMuPDF will do, and the glued words are not lost information — the *geometry* still carries the boundary. On a glued USPSTF line the gap inside a word measures −0.036 pt and the gap at a word boundary measures 1.145 pt, at an 8.48 pt font.
 
-So `rebuild_text` walks the per-character boxes and inserts a space where the gap clears a fraction of the font size. Measured on a mixed sample — 8 USPSTF, 3 AHA/ACC, 3 IDSA, first 4 pages each, 2026-08-16:
+So `rebuild_text` walks the per-character boxes and inserts a space where the gap **stands out against its own line's spacing**. Measured over **all 179 documents and all 7,733 pages**, 2026-08-16, zero read errors from either library:
 
-| reader | words | glued >25 chars | time |
-| --- | --- | --- | --- |
-| `pypdf` | 37,875 | 117 | 2.7 s |
-| `fitz` + `rebuild_text` | 38,778 | **12** | **1.2 s** |
+| reader | words | glued >25 chars | wrongly split | time |
+| --- | --- | --- | --- | --- |
+| `pypdf` | 5,340,439 | 4,168 | — | 342 s |
+| `fitz` `get_text` (default) | 5,319,299 | 6,568 | — | — |
+| `fitz` + `rebuild_text` | **5,369,614** | **719** | 6,881 | **195 s** |
 
-More words recovered, an order of magnitude fewer glued, and faster. **The threshold is tuned rather than picked, and the tuning table lives beside the constant** — at 0.14 nothing is wrongly split and 221 words stay glued; at 0.06 the gluing is best and 19 words split. 0.10 is the knee. What it costs is letter-spaced display type: `VOLUME`, `JANUARY`, a tracked running head, 11 words out of 11,522 distinct.
+**Against the line and not against the font size, and that is the whole algorithm.** A typesetter who tracks a heading out widens *every* gap on it, so an absolute threshold reads each one as a word break: KDIGO's section header `contents` came back as `c o n t e n t s`. Measured on that line every gap is 1.475 pt with a spread of **zero**; on a genuinely glued USPSTF line the median is −0.036 and the maximum 1.145, a spread of 1.181. **Tracking shifts the whole distribution and a word break is an outlier within it**, so the rule compares a gap to its line's median. It is better on every axis than the absolute rule — 4,285 more words, 130 fewer glued, 1,694 fewer wrongly split.
 
-179 documents, 7,733 pages, **39,415,629 characters**, 1 page with no text layer, no failures — measured 2026-08-16. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed. **The four fields #84 reads all survived the switch, checked rather than assumed**: 179 documents, 147 with a title, 0 missing a society, 176 `guideline` and 3 `print-capture`.
+**These figures replace a 14-document, 4-page-each sample, and the sample was wrong in the direction that matters.** It reported 117 glued words for `pypdf` against a real 4,168, and put the splitting cost at *"11 out of 11,522"* when the corpus figure is three orders of magnitude larger. Worse, **the tuning table it produced named 0.14 as the value that splits nothing — over the whole corpus 0.14 leaves 5,094 glued runs, which is worse than the library it replaced.** A reader trusting that table would have picked the one setting that loses to `pypdf`. It was published here and caught by being asked to read every document rather than a selection, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s shape one more time.
+
+**What it costs is concentrated, not spread.** `split` counts words of 4 to 25 characters that `get_text` produced and the rebuild did not, per page, distinct — and it is an over-count by construction, because a short glued run the rebuild correctly breaks apart also leaves that set. **69 of 179 documents have none at all**; the worst 20 hold half, led by the contents-heavy KDIGO guidelines and ADA's 377-page standards. The trade favors the body over the front matter: what splits is display type in tables of contents and headings, what is repaired is running prose, and a threshold lives in the prose.
+
+179 documents, 7,733 pages, **39,398,065 characters**, 1 page with no text layer, no failures — measured 2026-08-16. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed. **The four fields #84 reads all survived the switch, checked rather than assumed**: 179 documents, 147 with a title, 0 missing a society, 176 `guideline` and 3 `print-capture`.
 
 **Parallel since #83, and `--jobs 1` still runs in this process.** A pool of one is all of the overhead and none of the benefit, and serial is the mode a traceback is readable in. `map` yields in submission order so the manifest stays in source order and a rebuild diffs clean.
 
@@ -282,7 +287,7 @@ More words recovered, an order of magnitude fewer glued, and faster. **The thres
 
 `title` is the PDF's own `/Title`, verbatim and unfiltered — 147 of the 179 carry one and they are real guideline titles, measured 2026-08-12. The rest include the usual `Microsoft Word - ...` debris; curating that is the catalog's job (#81), and a junk heuristic invented here would be an unreviewable rule sitting between the PDF and the record.
 
-**What it strips and what it cannot.** A line on 75% or more of a document's sampled pages goes, which catches `Downloaded from http://ahajournals.org by on August 12, 2026` on every AHA/ACC file. It finds a repeated line in **167 of the 179**, stripping **921,168 characters** — measured 2026-08-16.
+**What it strips and what it cannot.** A line on 75% or more of a document's sampled pages goes, which catches `Downloaded from http://ahajournals.org by on August 12, 2026` on every AHA/ACC file. It finds a repeated line in **167 of the 179**, stripping **921,093 characters** — measured 2026-08-16.
 
 **That was 150 of 179 and 554,372 characters under `pypdf`, and the 17 documents it gained are the reader change showing up where it was predicted.** The old note said a running head with the page number folded into it differs on every page and is therefore invisible to the rule. `pypdf` did the folding; PyMuPDF keeps the folio on its own line wherever the typesetter set it there, so the head repeats verbatim and the rule sees it. **The ACIP captures are the worked case** — a capture contributed one page-repeated line and now contributes three, the stamp and the title and the URL each on their own. Where a folio really is set inside the head the old limit holds exactly, and masking digits would catch that residue and would also make `130-139 mm Hg` and `140-159 mm Hg` the same line — [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100) holds that decision open and it is not to be fixed in passing.
 
@@ -353,22 +358,22 @@ Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the 
 
 **The database is written outside every checkout, and there is a guard rather than a convention.** It defaults to `<parent of the main checkout>/guidelines-index/guidelines.sqlite` — `C:\codeing\guidelines-index\` here, beside the sources — overridable with `CLINICAL_GUIDELINES_INDEX` or a positional argument. `ensure_outside_repo` refuses any target inside the main checkout **or inside the worktree you are standing in**, and those are two different tests: `Path(__file__).parent.parent` is the *worktree*, so defaulting relative to it would drop 65 MB under `.claude/worktrees/` while reading as outside the repo. The tools are committed and the index is not. This is deliberately **not** the `icd10cm-2026.sqlite` arrangement, and [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) — blocked — is where that gets revisited.
 
-179 documents, 7,733 pages, **39,323,841 characters**, **58.6 MB on disk** — measured 2026-08-16 against the PyMuPDF extraction, and **re-derivable**.
+179 documents, 7,733 pages, **39,306,353 characters**, **58.6 MB on disk** — measured 2026-08-16 against the PyMuPDF extraction, and **re-derivable**.
 
-**Two earlier figure sets are retired, and the reasons differ.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written because #80 had not landed — provisional, and retired when #80 landed. Then 39.8 M and 60.8 MB, measured 2026-08-13 against the `pypdf` extractor — **correct when taken and retired because the reader changed**, not because it was wrong. #83 moved the extractor to PyMuPDF and stripped 921,168 characters of boilerplate where `pypdf` stripped 554,372, which is most of the 2.2 MB the index lost this time.
+**Two earlier figure sets are retired, and the reasons differ.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written because #80 had not landed — provisional, and retired when #80 landed. Then 39.8 M and 60.8 MB, measured 2026-08-13 against the `pypdf` extractor — **correct when taken and retired because the reader changed**, not because it was wrong. #83 moved the extractor to PyMuPDF and stripped 921,093 characters of boilerplate where `pypdf` stripped 554,372, which is most of the 2.2 MB the index lost this time.
 
-**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,415,629 and this reports 39,323,841. They measure different stages of the same corpus, and the gap reconciles exactly:
+**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,398,065 and this reports 39,306,353. They measure different stages of the same corpus, and the gap reconciles exactly:
 
 | | |
 | --- | --- |
-| extractor `chars` — line contents, **before** stripping | 39,415,629 |
-| less `chars_stripped` | −921,168 |
-| plus the newline written between every line | +829,380 |
-| = characters in the `.txt` files on disk | 39,331,395 |
+| extractor `chars` — line contents, **before** stripping | 39,398,065 |
+| less `chars_stripped` | −921,093 |
+| plus the newline written between every line | +829,381 |
+| = characters in the `.txt` files on disk | 39,313,907 |
 | less the form feeds the indexer splits on (7,733 pages − 179 documents) | −7,554 |
-| **= what the indexer counts** | **39,323,841** |
+| **= what the indexer counts** | **39,306,353** |
 
-**The obvious explanation for the 91,788 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate *minus* the form feeds, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — every row above is derived from the manifest and the files on disk, and the whole chain was re-run rather than adjusted when the reader changed.
+**The obvious explanation for the 91,712 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate *minus* the form feeds, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — every row above is derived from the manifest and the files on disk, and the whole chain was re-run rather than adjusted when the reader changed.
 
 **The four manifest fields arrive intact**, checked against the built index rather than assumed: 176 `guideline` and 3 `print-capture`, 147 of 179 with a title, and no document missing a society. `--class print-capture shingles` returns only the ACIP captures, which is the entire reason that column exists.
 

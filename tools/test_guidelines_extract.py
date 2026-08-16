@@ -119,6 +119,127 @@ class ExcerptsAreWhatTheTestsThinkTheyAre(unittest.TestCase):
         self.assertIn("\ufb01", joined)  # fi ligature
 
 
+def rawline(text: str, size: float, gaps: list[float]) -> dict:
+    """A PyMuPDF ``rawdict`` page holding one line, laid out to a gap pattern.
+
+    ``gaps[i]`` is the horizontal space between character ``i`` and ``i+1``, in
+    points, which is the only geometry ``rebuild_text`` reads. Every glyph is given
+    the same advance, so the gaps are the whole variable.
+
+    Built as a literal rather than read from a PDF, on this file's standing rule:
+    ``*.pdf`` is globally gitignored and the corpus is 179 copyrighted documents
+    outside the repo, so a test that opened one could not run on a fresh clone.
+    """
+    advance = size * 0.5
+    chars, cursor = [], 0.0
+    for index, glyph in enumerate(text):
+        chars.append({"c": glyph, "bbox": (cursor, 0.0, cursor + advance, size)})
+        cursor += advance + (gaps[index] if index < len(gaps) else 0.0)
+    return {"blocks": [{"type": 0, "lines": [{"spans": [{"size": size, "chars": chars}]}]}]}
+
+
+class RebuildText(unittest.TestCase):
+    """The space reconstruction #83 rests on, and the reason the reader changed.
+
+    Both cases below are **real geometry**, measured off the corpus on 2026-08-16
+    and written down here so the rule cannot drift away from what it was built for.
+    They are the two lines the algorithm has to tell apart, and an absolute
+    threshold cannot: in tracked type every gap is wide, so the word break is an
+    outlier *within the line's own distribution* rather than a large number.
+    """
+
+    # USPSTF/hypertension-screening-adults-final-rec-statement.pdf p.4, 8.48 pt:
+    # gaps inside a word measure -0.036 and the word boundary measures 1.145.
+    GLUED_SIZE = 8.48
+    GLUED_INSIDE = -0.036
+    GLUED_BOUNDARY = 1.145
+
+    # KDIGO/KDIGO-2024-CKD-Guideline.pdf p.3, 10.959 pt: the section header
+    # `contents`, letter-spaced, every gap 1.475 and a spread of exactly zero.
+    TRACKED_SIZE = 10.959
+    TRACKED_GAP = 1.475
+
+    def test_a_glued_run_is_split_at_its_word_boundary(self):
+        text = "Behavioralcounseling"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        gaps[len("Behavioral") - 1] = self.GLUED_BOUNDARY
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.GLUED_SIZE, gaps)),
+            "Behavioral counseling",
+        )
+
+    def test_letter_spaced_display_type_is_left_alone(self):
+        """`contents` must not become `c o n t e n t s`.
+
+        This is the case the absolute threshold got wrong, and it is why the rule
+        measures a gap against its line rather than against the font size: 1.475 pt
+        clears 0.10 x 10.959 outright, so every gap in the word was a word break.
+        """
+        text = "contents"
+        gaps = [self.TRACKED_GAP] * len(text)
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.TRACKED_SIZE, gaps)),
+            "contents",
+        )
+
+    def test_a_tracked_line_still_splits_where_it_is_tracked_wider_still(self):
+        """The baseline shifts the bar, it does not remove it. A tracked heading of
+        two words has a gap wider than its own tracking, and that is still a space
+        -- otherwise the rule would trade one failure for the other."""
+        text = "contentshere"
+        gaps = [self.TRACKED_GAP] * len(text)
+        gaps[len("contents") - 1] = self.TRACKED_GAP + self.TRACKED_SIZE * 0.5
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.TRACKED_SIZE, gaps)),
+            "contents here",
+        )
+
+    def test_a_short_line_falls_back_to_the_absolute_rule(self):
+        """Below MINIMUM_GAPS_FOR_BASELINE a median is the gap itself, which would
+        make every excess zero and suppress every split. A two-word line is exactly
+        where a lost space cannot be recovered from context, so the rule degrades to
+        the absolute one rather than to silence."""
+        self.assertLess(3, extract.MINIMUM_GAPS_FOR_BASELINE + 1)
+        self.assertEqual(
+            extract.rebuild_text(rawline("ab", self.GLUED_SIZE, [self.GLUED_BOUNDARY])),
+            "a b",
+        )
+
+    def test_a_space_the_pdf_already_set_is_not_doubled(self):
+        """Most of AHA/ACC sets real space glyphs AND wide inter-word gaps. Without
+        the guard the output is double-spaced, and `normalize` collapsing runs of
+        spaces would hide that rather than make it correct."""
+        text = "one two"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        gaps[len("one") - 1] = self.GLUED_BOUNDARY
+        gaps[len("one")] = self.GLUED_BOUNDARY
+        self.assertEqual(extract.rebuild_text(rawline(text, self.GLUED_SIZE, gaps)), "one two")
+
+    def test_an_image_block_contributes_no_line(self):
+        self.assertEqual(extract.rebuild_text({"blocks": [{"type": 1}]}), "")
+
+    def test_an_empty_dictionary_is_not_an_error(self):
+        self.assertEqual(extract.rebuild_text({}), "")
+
+
+class LineBaseline(unittest.TestCase):
+    def test_it_is_the_median_gap(self):
+        page = rawline("abcdef", 10.0, [1.0, 1.0, 5.0, 1.0, 1.0])
+        glyphs = [
+            (char, 10.0)
+            for char in page["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        ]
+        self.assertAlmostEqual(extract.line_baseline(glyphs), 1.0, places=6)
+
+    def test_too_few_gaps_returns_zero_rather_than_a_guess(self):
+        page = rawline("ab", 10.0, [1.0])
+        glyphs = [
+            (char, 10.0)
+            for char in page["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        ]
+        self.assertEqual(extract.line_baseline(glyphs), 0.0)
+
+
 class NormalizeText(unittest.TestCase):
     def test_an_en_dash_range_becomes_an_ascii_range(self):
         # The reason this ticket exists. A DOI with a mangled dash is cosmetic;

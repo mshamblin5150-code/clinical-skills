@@ -36,24 +36,45 @@ word measures -0.036 pt and the gap at a word boundary measures 1.145 pt, at an 
 pt font. A twelve-fold separation is not a hard call.
 
 So ``rebuild_text`` walks ``rawdict``'s per-character boxes and inserts a space
-wherever the horizontal gap clears ``SPACE_GAP_FRACTION`` of the span's font size.
-Measured on a mixed sample -- 8 USPSTF, 3 AHA/ACC, 3 IDSA, first 4 pages each,
-2026-08-16:
+wherever the horizontal gap stands out against the line's own spacing -- see
+``line_baseline`` for why *against the line* and not against the font size.
 
-===================  =====  =============  =====
-reader               words  glued >25 chr  time
-===================  =====  =============  =====
-pypdf                37875            117  2.7 s
-fitz + rebuild_text  38778             12  1.2 s
-===================  =====  =============  =====
+**Measured over all 179 documents and all 7,733 pages, 2026-08-16.** Zero read
+errors from either library:
 
-More words recovered, an order of magnitude fewer glued, and faster. The extra 903
-words are the ones the missing spaces were hiding inside their neighbors.
+=========================  =========  =====  ======  =====
+reader                         words  glued   split   time
+=========================  =========  =====  ======  =====
+pypdf                      5,340,439   4168      --  342 s
+fitz get_text (default)    5,319,299   6568      --     --
+fitz + rebuild_text        5,369,614    719   6,881  195 s
+=========================  =========  =====  ======  =====
+
+``glued`` is words longer than 25 characters -- a run whose spaces were lost.
+``split`` is the reverse and is defined under *What the rebuild costs*.
+
+**These figures replace a 14-document, 4-page-each sample, and the sample was
+wrong in a way worth recording.** It reported 117 glued for pypdf against 4,168,
+and it reported the splitting cost as *"11 words out of 11,522 distinct"* when the
+corpus figure is three orders of magnitude larger. Worse, the tuning table it
+produced said 0.14 wrongly split nothing; over the whole corpus 0.14 leaves 5,094
+glued runs, which is **worse than the library it replaced**. A reader trusting that
+table would have picked the one value that loses to pypdf. #83 published it, and it
+was caught by being asked to read every document rather than a selection.
 
 **What the rebuild costs, measured rather than assumed.** It splits letter-spaced
-display type: ``VOLUME``, ``JANUARY``, a tracked running head. On a 10-document
-mixed sample at ``SPACE_GAP_FRACTION`` it split 11 words out of 11,522 distinct.
-That is the trade the constant is tuned on, and the tuning is recorded there.
+display type -- a tracked section header, a running head, a table-of-contents
+entry. ``split`` counts words of 4 to 25 characters present in ``get_text``'s output
+and absent after the rebuild, per page, distinct: **6,881** across the corpus. It is
+an over-count by construction, because a short glued run that the rebuild correctly
+breaks apart also disappears from that set -- ``Formoredetailson`` and ``seethe``
+are both in it. It is concentrated rather than spread: **69 of 179 documents have
+none at all**, and the worst 20 hold half of it, led by the contents-heavy KDIGO
+guidelines and ADA's 377-page standards.
+
+The trade is deliberate and it favors the body over the front matter: what gets
+split is display type in tables of contents and headings, and what gets repaired is
+running prose, which is where a threshold lives.
 
 **The boilerplate rule.** A line appearing on 75% or more of a document's sampled
 pages is boilerplate, is stripped from every page, and is recorded per document so
@@ -95,6 +116,7 @@ import argparse
 import json
 import os
 import re
+import statistics
 import sys
 import unicodedata
 from collections.abc import Iterable
@@ -137,27 +159,39 @@ MINIMUM_OCCURRENCES = 3
 SAMPLE_SIZE = 32
 MINIMUM_SAMPLE = 8
 
-# How far apart two characters have to be before ``rebuild_text`` calls the gap a
-# space, as a fraction of the span's font size. Tuned rather than picked, on a
-# mixed 10-document sample against 8 USPSTF documents, 2026-08-16:
+# How far a gap has to EXCEED its line's baseline before ``rebuild_text`` calls it
+# a space, as a fraction of the span's font size.
 #
-#     fraction   words wrongly split   words still glued
-#     0.06                       19                  12
-#     0.10                       11                  19
-#     0.12                        9                  80
-#     0.14                        0                 221
+# **Tuned over all 179 documents and all 7,733 pages, 2026-08-16** -- the previous
+# table here was a 10-document sample and it was wrong at the top end:
 #
-# 0.10 is the knee. Past it the splitting barely improves and the gluing -- the
-# failure that destroys a threshold rather than a heading -- goes up an order of
-# magnitude. The words it still splits are letter-spaced display type, where the
-# typesetter really did put a space-sized gap between two letters and no rule
-# reading geometry alone can know otherwise.
+#     fraction   words still glued
+#     0.06                     717
+#     0.08                     722
+#     0.10                     849
+#     0.12                   1,977
+#     0.14                   5,094
+#
+# The sample reported 0.14 as the value that split nothing; over the corpus it
+# leaves more glued runs than pypdf's 4,168, so it is the one setting that would
+# have been worse than not making this change at all. Gluing is the failure that
+# destroys a threshold -- a heading that loses its spaces is a heading, a
+# `130-139 mm Hg` welded to its neighbor is a number nobody can search for.
+#
+# 0.10 is kept rather than 0.06. The 132 additional glued runs are the price of a
+# threshold that is not tuned to the last measurement, and the three values from
+# 0.06 to 0.10 are within a rounding error of each other on a 5.37-million-word
+# corpus while 0.12 is already more than double.
 SPACE_GAP_FRACTION = 0.10
 
 # An absolute floor in points, for a span whose recorded size is 0 or absurdly
 # small. Without it such a span makes the threshold 0 and every character boundary
 # becomes a space, which turns one bad span into a page of single letters.
 SPACE_GAP_FLOOR = 0.25
+
+# How many inter-character gaps a line needs before its median is trusted as a
+# baseline. See `line_baseline` for why a low floor would be worse than none.
+MINIMUM_GAPS_FOR_BASELINE = 4
 
 CLASS_GUIDELINE = "guideline"
 CLASS_PRINT_CAPTURE = "print-capture"
@@ -426,6 +460,43 @@ def failed_document(relative: Path, error: str) -> Record:
     )
 
 
+def line_baseline(glyphs: list[tuple[dict, float]]) -> float:
+    """The gap this line calls "no gap at all" -- its median inter-character gap.
+
+    **This is what tells letter-spaced type from a word break, and nothing else
+    can.** A typesetter who tracks a heading out widens *every* gap on the line, so
+    an absolute threshold sees them all as word breaks. Measured on
+    KDIGO-2024-CKD-Guideline p.3, the section header ``contents``:
+
+        gaps 1.48 1.48 1.48 1.48 1.48 1.48 1.48   median 1.475   spread 0.00
+
+    against a genuinely glued USPSTF line on the same rule:
+
+        median -0.036   max 1.145   spread 1.181
+
+    Tracking shifts the whole distribution; a word break is an **outlier within**
+    it. So the gap that matters is the excess over the line's own median, and
+    ``contents`` stops becoming ``c o n t e n t s``.
+
+    Measured over all 179 documents and all 7,733 pages, 2026-08-16 -- against the
+    absolute rule it recovers 4,285 more words, leaves 130 fewer glued runs, and
+    wrongly splits 1,694 fewer words. It is better on every axis, which is why it
+    replaced the absolute rule outright rather than being offered as an option.
+
+    **The floor of 4 gaps is not decoration.** A median over one or two gaps is the
+    gap itself, which would make the excess 0 and suppress every split on short
+    lines -- and a two-word line is exactly where a lost space is unrecoverable
+    from context. Below the floor the rule degrades to the absolute one.
+    """
+    gaps = [
+        glyphs[index][0]["bbox"][0] - glyphs[index - 1][0]["bbox"][2]
+        for index in range(1, len(glyphs))
+    ]
+    if len(gaps) < MINIMUM_GAPS_FOR_BASELINE:
+        return 0.0
+    return statistics.median(gaps)
+
+
 def rebuild_text(raw: dict) -> str:
     """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
 
@@ -449,24 +520,34 @@ def rebuild_text(raw: dict) -> str:
         if block.get("type") != 0:
             continue
         for line in block.get("lines", ()):
+            glyphs = [
+                (char, span.get("size", 0.0))
+                for span in line.get("spans", ())
+                for char in span.get("chars", ())
+            ]
+            if not glyphs:
+                continue
+            baseline = line_baseline(glyphs)
             buffer: list[str] = []
             previous_right: float | None = None
-            for span in line.get("spans", ()):
-                threshold = max(SPACE_GAP_FRACTION * span.get("size", 0.0), SPACE_GAP_FLOOR)
-                for char in span.get("chars", ()):
-                    glyph = char["c"]
-                    left, _, right, _ = char["bbox"]
-                    gap_is_wide = previous_right is not None and left - previous_right > threshold
-                    # Never two spaces, and never a space before one the PDF set
-                    # itself: `buffer[-1] != " "` covers the first and `glyph != " "`
-                    # the second. Without them a document with real space glyphs
-                    # AND wide inter-word gaps -- which is most of AHA/ACC -- comes
-                    # back double-spaced, and `normalize` collapsing runs of spaces
-                    # would hide that rather than make it correct.
-                    if gap_is_wide and glyph != " " and buffer and buffer[-1] != " ":
-                        buffer.append(" ")
-                    buffer.append(glyph)
-                    previous_right = right
+            for char, size in glyphs:
+                glyph = char["c"]
+                left, _, right, _ = char["bbox"]
+                threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
+                gap_is_wide = (
+                    previous_right is not None
+                    and (left - previous_right) - baseline > threshold
+                )
+                # Never two spaces, and never a space before one the PDF set
+                # itself: `buffer[-1] != " "` covers the first and `glyph != " "`
+                # the second. Without them a document with real space glyphs
+                # AND wide inter-word gaps -- which is most of AHA/ACC -- comes
+                # back double-spaced, and `normalize` collapsing runs of spaces
+                # would hide that rather than make it correct.
+                if gap_is_wide and glyph != " " and buffer and buffer[-1] != " ":
+                    buffer.append(" ")
+                buffer.append(glyph)
+                previous_right = right
             lines.append("".join(buffer))
     return "\n".join(lines)
 
