@@ -277,6 +277,19 @@ COVID-19, suspected from a documented household contact and a congruent presenta
 
 **The third block is not the hedge rule refusing a diagnosis.** A hedged diagnosis is coded — that is settled above. What lands here is the narrower thing: a code whose **descriptor** asserts a confirmed organism or disease that the encounter never established. The diagnosis is still coded, by the code the encounter does support, and this block records what the specific one was waiting on.
 
+**Its first line names the suspicion, and that is now visibly not what the note's own entry is called.** Nothing here changed — the `COVID-19, suspected from a documented household contact` line above has always named the suspicion, and this paragraph records a contrast rather than deciding one. What changed is on the other side: [clinical-note](../clinical-note/SKILL.md) ruled in #68 that a differential entry is named **for the code it carries**, so the entry now reads `Pain in right leg - M79.604` with the disease in the rationale beside it. **The two documents therefore name one refusal two ways, and a reader moving between them should know it is intended:**
+
+```
+--- NOT CODED, NOTHING ESTABLISHED IT ---
+Contiguous osteomyelitis of the right tibia or fibula, suspected on a chronic wound with
+overlying pain; tib/fib film ordered, no result
+  NOT CODED: M86.9  Osteomyelitis, unspecified
+  needs: a film that resulted, or a bone biopsy
+  proposed instead: M79.604  Pain in right leg
+```
+
+**The reason the two differ is what each document is for.** A note is read by a grader and by whoever treats the patient next, so a label that names an unestablished disease is a claim sitting where a claim is not earned. **This worksheet is read by the clinician looking for what to chase**, and *"the film that would settle the osteomyelitis"* is the whole content of the entry — filing it under `Pain in right leg` would bury the one thing the block exists to surface. `proposed instead` is where the two documents meet, and it holds the note's label. Issue #68.
+
 **Every line that withholds a code carries `NOT CODED` inline, on the same line as the number** — the first and third blocks. The code has to be named, because the clinician who gets the swab back tomorrow needs to know what it would have earned, so the defense cannot be hiding it. It is that the number never appears without its refusal attached, and never in the proposed-codes list where a reader is scanning for things to enter.
 
 **The second block works the same way and cannot use the same device**, because its code *is* proposed and *does* belong in that list. The equivalent is `SOURCE: filled` on the code itself in step 3 — the mark travels with the line rather than living in a heading. **The principle is identical in both: a block heading does not survive being copied one line at a time.** A worksheet that named the filled anchor only here, and left the proposed code bare, would lose the disclosure to a copy-paste — which is exactly the silent failure [#10](https://github.com/mshamblin5150-code/clinical-skills/issues/10) opened for, arriving by a different route.
