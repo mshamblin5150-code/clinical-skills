@@ -76,19 +76,39 @@ class ExcerptsAreWhatTheTestsThinkTheyAre(unittest.TestCase):
         self.assertEqual(len(AHA), 4)
         self.assertEqual(len(ACIP), 4)
 
-    def test_the_acip_excerpt_keeps_the_stamp_folded_into_the_title_line(self):
-        # The shape is the test. With the stamp on a line of its own -- what fitz
-        # produces and no real file here does -- the classifier passed this fixture
-        # and found zero print-captures in all 179 documents.
-        stamps = [
-            line
-            for page in ACIP
-            for line in page.split("\n")
-            if line.startswith("8/12/26,")
-        ]
+    def test_the_acip_excerpt_keeps_the_stamp_on_a_line_of_its_own(self):
+        # The shape is the test, and this assertion has now been written both ways.
+        #
+        # It required the stamp welded to the title, because pypdf produces that and
+        # a fixture with the stamp alone let the classifier pass while finding zero
+        # print-captures in all 179 documents. #83 moved the extractor to PyMuPDF,
+        # which puts the four header parts on four lines, so the welded form is now
+        # the one no real file produces and the shapes have swapped places.
+        #
+        # Checked against ACIP/Recommended Vaccinations for Adults ... CDC.pdf on
+        # 2026-08-16. The lesson from the first round is that reasoning about what an
+        # extractor emits is not a substitute for running it, so the fixture was
+        # rebuilt from the real file rather than edited into the shape expected.
+        lines = [line for page in ACIP for line in page.split("\n")]
+        stamps = [line for line in lines if line.startswith("8/12/26,")]
         self.assertEqual(len(stamps), len(ACIP))
         for line in stamps:
-            self.assertIn("| CDC", line)
+            # Exactly the stamp, nothing welded on. The title is its own line, and
+            # that is the whole difference this test exists to hold.
+            self.assertEqual(line, "8/12/26, 10:25 AM")
+        self.assertEqual(sum(1 for line in lines if line.endswith("| CDC")), len(ACIP))
+
+    def test_the_acip_excerpt_repeats_three_header_lines_not_one(self):
+        # The corpus consequence of the shape change, pinned so it cannot regress
+        # quietly: under pypdf a capture contributed one page-repeated line, under
+        # PyMuPDF it contributes three. The folio is deliberately not among them --
+        # it differs per page, which is #100's subject rather than this fixture's.
+        boilerplate = extract.find_boilerplate(extract.clean_pages(ACIP))
+        self.assertEqual(len(boilerplate), 3)
+        self.assertIn("8/12/26, 10:25 AM", boilerplate)
+        self.assertTrue(any(line.endswith("| CDC") for line in boilerplate))
+        self.assertTrue(any(line.startswith("https://") for line in boilerplate))
+        self.assertFalse(any(line.strip().endswith("/4") for line in boilerplate))
 
     def test_the_aha_excerpt_still_carries_the_raw_quirks(self):
         joined = "\n".join(AHA)

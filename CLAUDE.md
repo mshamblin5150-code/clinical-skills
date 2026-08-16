@@ -83,9 +83,9 @@ python -m unittest discover -s tools -t tools
 
 Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any.
 
-**Three tools are now exceptions, and they are the three that open a PDF.** `tools/guidelines_extract.py` needs `pypdf`; `tools/uspstf_table.py` needs PyMuPDF; `tools/guidelines_catalog.py` prefers PyMuPDF and falls back to `pypdf`. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
+**Five tools are now exceptions, and they are the five that open a PDF.** `tools/guidelines_extract.py`, `tools/uspstf_table.py`, `tools/guidelines_recs.py` and `tools/threshold_sheet.py`'s citation tier 2 all need PyMuPDF; `tools/guidelines_catalog.py` prefers PyMuPDF and falls back to `pypdf`. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
 
-**That there are three is the finding, not the arrangement.** All three extract text from the same 179 files, and two of them exist only because #80 had not landed when they were written. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where that gets reconciled down to one. Each import sits inside the function that opens the file rather than at module scope, so the test suite needs nothing installed — and **nothing a consumer runs imports any of them.**
+**It read three, and #83 changed both halves of that sentence.** It added two tools, and it moved `guidelines_extract.py` off `pypdf` — so `pypdf` is now a fallback in exactly one place and no tool requires it. The count going up is not the finding; **the finding is still that three of the five extract text from the same 179 files**, and two of those exist only because #80 had not landed when they were written. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where that gets reconciled down to one, and it is now cheaper than it was: they no longer disagree about which library reads a page. Each import sits inside the function that opens the file rather than at module scope, so the test suite needs nothing installed — and **nothing a consumer runs imports any of them.**
 
 ### Filled-vitals census
 
@@ -255,27 +255,44 @@ python tools/guidelines_extract.py "C:/codeing/guidelines-src"
 
 **The corpus stays outside the repo, and so does the output.** Source is 410 MB and mostly society-copyrighted ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)); output defaults to a sibling of it, `guidelines-text`. The script **refuses to write inside any git checkout**, walking up from the output directory for a `.git` entry rather than only comparing against its own repo root — run from a worktree, that root is the worktree and says nothing about the main clone's `reference/`.
 
-**One of the three tools here that is not stdlib** — see *Corpus census* above for why there are three and where that gets reconciled:
+**One of the five tools here that is not stdlib** — see *Corpus census* above for why there are five and where that gets reconciled:
 
 ```bash
-python -m pip install pypdf
+python -m pip install pymupdf
 ```
 
-That is affordable because it is maintainer-only and runs once per corpus refresh, and the script checks for it up front rather than recording 179 identical failures. `fitz` is roughly six times faster and loses the spaces between words on the USPSTF files — whole sentences come back as `primarycarebecauseofitshighsensitivity`, and 90 of the 179 documents are USPSTF.
+That is affordable because it is maintainer-only and runs once per corpus refresh, and the script checks for it up front rather than recording 179 identical failures.
 
-179 documents, 7,733 pages, 39.5 M characters, no failures — measured 2026-08-12. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed.
+**It read the corpus with `pypdf` until #83, and this paragraph used to argue for that.** The argument was: *`fitz` is roughly six times faster and loses the spaces between words on the USPSTF files — whole sentences come back as `primarycarebecauseofitshighsensitivity`, and 90 of the 179 documents are USPSTF.* **The observation was true and the conclusion drawn from it was wrong**, which is worth keeping visible rather than quietly deleting. It was measured against `page.get_text()`, one of several things PyMuPDF will do, and the glued words are not lost information — the *geometry* still carries the boundary. On a glued USPSTF line the gap inside a word measures −0.036 pt and the gap at a word boundary measures 1.145 pt, at an 8.48 pt font.
+
+So `rebuild_text` walks the per-character boxes and inserts a space where the gap clears a fraction of the font size. Measured on a mixed sample — 8 USPSTF, 3 AHA/ACC, 3 IDSA, first 4 pages each, 2026-08-16:
+
+| reader | words | glued >25 chars | time |
+| --- | --- | --- | --- |
+| `pypdf` | 37,875 | 117 | 2.7 s |
+| `fitz` + `rebuild_text` | 38,778 | **12** | **1.2 s** |
+
+More words recovered, an order of magnitude fewer glued, and faster. **The threshold is tuned rather than picked, and the tuning table lives beside the constant** — at 0.14 nothing is wrongly split and 221 words stay glued; at 0.06 the gluing is best and 19 words split. 0.10 is the knee. What it costs is letter-spaced display type: `VOLUME`, `JANUARY`, a tracked running head, 11 words out of 11,522 distinct.
+
+179 documents, 7,733 pages, **39,415,629 characters**, 1 page with no text layer, no failures — measured 2026-08-16. `manifest.json` carries a per-document entry: page count, characters, codec, document class, and **the exact strings stripped from it**, so a removal can be read back rather than believed. **The four fields #84 reads all survived the switch, checked rather than assumed**: 179 documents, 147 with a title, 0 missing a society, 176 `guideline` and 3 `print-capture`.
+
+**Parallel since #83, and `--jobs 1` still runs in this process.** A pool of one is all of the overhead and none of the benefit, and serial is the mode a traceback is readable in. `map` yields in submission order so the manifest stays in source order and a rebuild diffs clean.
 
 **`manifest.json` is also [#84](https://github.com/mshamblin5150-code/clinical-skills/issues/84)'s input, and its shape is a contract.** `tools/guidelines_index.py` reads four fields per entry — `doc_id`, `society`, `title`, `document_class` — and matches documents by `doc_id`, which is the source path with the suffix dropped. **Top-level `documents` must be the list of entries.** The first version of this writer emitted `"documents": 179` as a count, which `read_manifest` refuses outright rather than reading as empty; the run totals now live under `totals`. That refusal is the contract working, and `TheIndexerCanReadWhatThisWrites` in `tools/test_guidelines_extract.py` pins the handoff on this side, where the shape is owned.
 
 `title` is the PDF's own `/Title`, verbatim and unfiltered — 147 of the 179 carry one and they are real guideline titles, measured 2026-08-12. The rest include the usual `Microsoft Word - ...` debris; curating that is the catalog's job (#81), and a junk heuristic invented here would be an unreviewable rule sitting between the PDF and the record.
 
-**What it strips and what it cannot.** A line on 75% or more of a document's sampled pages goes, which catches `Downloaded from http://ahajournals.org by on August 12, 2026` on every AHA/ACC file. It finds a repeated line in **150 of the 179** — measured 2026-08-12 — not the 168 #80 estimated: a running head with the page number folded into it differs on every page, and a head that alternates recto and verso splits its votes. Masking digits would catch both and would also make `130-139 mm Hg` and `140-159 mm Hg` the same line — [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100) holds that decision open and it is not to be fixed in passing.
+**What it strips and what it cannot.** A line on 75% or more of a document's sampled pages goes, which catches `Downloaded from http://ahajournals.org by on August 12, 2026` on every AHA/ACC file. It finds a repeated line in **167 of the 179**, stripping **921,168 characters** — measured 2026-08-16.
+
+**That was 150 of 179 and 554,372 characters under `pypdf`, and the 17 documents it gained are the reader change showing up where it was predicted.** The old note said a running head with the page number folded into it differs on every page and is therefore invisible to the rule. `pypdf` did the folding; PyMuPDF keeps the folio on its own line wherever the typesetter set it there, so the head repeats verbatim and the rule sees it. **The ACIP captures are the worked case** — a capture contributed one page-repeated line and now contributes three, the stamp and the title and the URL each on their own. Where a folio really is set inside the head the old limit holds exactly, and masking digits would catch that residue and would also make `130-139 mm Hg` and `140-159 mm Hg` the same line — [#100](https://github.com/mshamblin5150-code/clinical-skills/issues/100) holds that decision open and it is not to be fixed in passing.
 
 **The rule is narrowed in exactly one place, and it is not #100's question.** A line must also appear on at least 3 pages, because every line of a one-page document appears on 100% of its pages and the percentage alone would strip such a document to nothing and record it as clean. That floor is arithmetically inert above 3 sampled pages.
 
 **A re-run overwrites and never deletes.** Rename a source and its old `.txt` stays behind, claimed by no manifest entry; the summary names orphans and leaves them, because #84 will index the directory rather than the manifest and would otherwise pick a stale copy up.
 
-Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. **Those excerpts have to match what `pypdf` actually emits.** The ACIP fixture originally put the browser print timestamp on a line of its own, which is what `fitz` does and what no real file does; the document classifier passed against it while finding zero print-captures in the corpus.
+Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. `rebuild_text` is testable there too because it takes PyMuPDF's `rawdict` **dictionary** rather than a page, so the suite still opens nothing.
+
+**The ACIP excerpt has now been wrong in both directions, and the reason is the same one both times: the shape is the test.** It first put the browser print timestamp on a line of its own; that was corrected to the folded form because `pypdf` welds the page title in after the stamp, and the classifier had been passing the fixture while finding zero print-captures in the corpus. #83 moved the extractor to PyMuPDF, the four header parts land on four lines again, and the fixture was corrected back — **rebuilt from the real file on 2026-08-16 rather than edited into the shape expected**, which is precisely what the previous round failed to do. All three ACIP files re-checked as `print-capture` afterwards.
 ### USPSTF recommendation table
 
 `reference/guidelines-uspstf.md` is **committed**, and for a different reason than the ICD-10 database: USPSTF recommendation statements are federal work and genuinely public domain, so unlike the other eight societies in the guideline corpus their content may be redistributed in full. 143 recommendations from all 90 USPSTF documents, one row each — topic, population, grade, interval, year, source file, page.
@@ -336,20 +353,22 @@ Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the 
 
 **The database is written outside every checkout, and there is a guard rather than a convention.** It defaults to `<parent of the main checkout>/guidelines-index/guidelines.sqlite` — `C:\codeing\guidelines-index\` here, beside the sources — overridable with `CLINICAL_GUIDELINES_INDEX` or a positional argument. `ensure_outside_repo` refuses any target inside the main checkout **or inside the worktree you are standing in**, and those are two different tests: `Path(__file__).parent.parent` is the *worktree*, so defaulting relative to it would drop 65 MB under `.claude/worktrees/` while reading as outside the repo. The tools are committed and the index is not. This is deliberately **not** the `icd10cm-2026.sqlite` arrangement, and [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) — blocked — is where that gets revisited.
 
-179 documents, 7,733 pages, 39.8 M characters, **60.8 MB on disk**, built in 1.7 s warm and answering a query in about 0.14 s — measured 2026-08-13, and **re-derivable**, which the previous set was not.
+179 documents, 7,733 pages, **39,323,841 characters**, **58.6 MB on disk** — measured 2026-08-16 against the PyMuPDF extraction, and **re-derivable**.
 
-**The earlier figures were provisional and are now retired.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written to exercise this tool because #80 had not landed. #80 has landed, so the whole set was re-measured against the committed extractor. Boilerplate stripping is most of the 3.9 MB the index lost.
+**Two earlier figure sets are retired, and the reasons differ.** 40.7 M characters and 64.7 MB, measured 2026-08-12 against a throwaway extraction written because #80 had not landed — provisional, and retired when #80 landed. Then 39.8 M and 60.8 MB, measured 2026-08-13 against the `pypdf` extractor — **correct when taken and retired because the reader changed**, not because it was wrong. #83 moved the extractor to PyMuPDF and stripped 921,168 characters of boilerplate where `pypdf` stripped 554,372, which is most of the 2.2 MB the index lost this time.
 
-**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,562,745 and this reports 39,780,017. They measure different stages of the same corpus, and the gap reconciles exactly:
+**Two character counts in this file disagree on purpose, and neither is wrong.** `guidelines_extract.py` reports 39,415,629 and this reports 39,323,841. They measure different stages of the same corpus, and the gap reconciles exactly:
 
 | | |
 | --- | --- |
-| extractor `chars` — line contents, **before** stripping | 39,562,745 |
-| less `chars_stripped` | −554,372 |
-| plus the newline written between every line | +771,644 |
-| **= characters in the `.txt` files, less the form feeds the indexer splits on** (7,733 pages − 179 documents = 7,554) | **39,780,017** |
+| extractor `chars` — line contents, **before** stripping | 39,415,629 |
+| less `chars_stripped` | −921,168 |
+| plus the newline written between every line | +829,380 |
+| = characters in the `.txt` files on disk | 39,331,395 |
+| less the form feeds the indexer splits on (7,733 pages − 179 documents) | −7,554 |
+| **= what the indexer counts** | **39,323,841** |
 
-**The obvious explanation for the 217,272 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — the figure above is derived from the manifest and the index meta, and the last row is checkable against the files on disk.
+**The obvious explanation for the 91,788 between the two is wrong, and it is wrong in a way that looks right.** It is not line separators: it is the newlines *minus* the stripped boilerplate *minus* the form feeds, because the extractor's figure is pre-strip and the indexer's is post-strip. Subtracting one from the other and naming the remainder is exactly the move this repo does not accept — every row above is derived from the manifest and the files on disk, and the whole chain was re-run rather than adjusted when the reader changed.
 
 **The four manifest fields arrive intact**, checked against the built index rather than assumed: 176 `guideline` and 3 `print-capture`, 147 of 179 with a title, and no document missing a society. `--class print-capture shingles` returns only the ACIP captures, which is the entire reason that column exists.
 
@@ -358,6 +377,40 @@ Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the 
 Its output is guideline text, so nothing here is PHI and standing rule 1 is not in play — but it *is* a society's copyrighted expression. Paste a line into a ticket, never a page.
 
 Covered by `tools/test_guidelines.py` — one file for the pair, the way `tools/test_icd10.py` covers its builder and reader together — which builds a throwaway text directory and a throwaway index in a temp directory the way `tools/test_skills_mirror.py` builds throwaway checkouts. It never reads the real corpus or the real index: one is 179 copyrighted PDFs outside the repo, the other is a build artifact that may not exist on the machine running the tests.
+
+### Recommendation extraction
+
+The index finds a page. This reads a guideline's **recommendations** into machine-readable records, and it is [#83](https://github.com/mshamblin5150-code/clinical-skills/issues/83) gate 2's input.
+
+```bash
+python tools/guidelines_recs.py <pdf> [--json <path>] [--show]
+```
+
+**It exists because one measurement falsified the ticket's own premise.** #83 ruled that a recommendation count could only ever be a bound — *"it over-counts by nature, the way `HEDGE` does in `corpus_census.py`"* — and that was reasoned from a flattened text stream, where the `COR` token appears 68 times in a document with 33 recommendation tables. Read the **ruled tables** instead and the AHA/ACC 2025 hypertension guideline yields **103 numbered recommendations in 33 tables, with zero rows whose Class-of-Recommendation cell fails to parse**, and 103 unique identifiers. Measured 2026-08-16. **An exact count can be enforced and a bound cannot**, so this distinction is what decides whether a gate may refuse a commit.
+
+**Two modes, and the whole honesty of the module is telling them apart.** `exact` is a table whose header row is `COR | LOE`, where every row is one recommendation and the class is a cell rather than a guess. `bound` is a marker matched in running text — KDIGO's `Recommendation 3.1.1` and `Practice Point` — which also hits tables of contents and cross references, so it **over-reports** and is labeled as one. **No source is silently promoted**: a document with no ruled table comes back `bound` even when the marker count looks tidy, because what makes a count exact is the table structure and not the tidiness of the answer.
+
+**Both the caption and the header are required**, and neither alone is enough. The caption alone matches a continuation table's repeated heading; the header alone appears in the front-matter legend explaining what the classes mean. And the caption is read **only to the end of its first rendered line** — AHA/ACC sets a sentence under it inside the same merged cell, which the first version welded into every identifier a reader has to type.
+
+Its output is guideline text, so standing rule 1 is not in play — but a recommendation is the society's own **expression**. Stdout prints counts and identifiers only, `--show` prints the text, and the JSON is refused anywhere inside a git checkout on `guidelines_index.py`'s terms. Covered by `tools/test_guidelines_recs.py`, which builds synthetic tables in that file and **opens no PDF**.
+
+### Threshold sheets
+
+The distilled artifact the whole #80 series is for, and the gates that keep it honest — [#83](https://github.com/mshamblin5150-code/clinical-skills/issues/83). Per topic, the decision points only. `reference/thresholds/` holds the sheets and [its README](reference/thresholds/README.md) holds the format; `tools/threshold_sheet.py` grades them.
+
+```bash
+python tools/threshold_sheet.py --all
+```
+
+**`reference/thresholds/hypertension.md` is the first, and it is one topic out of a 179-document corpus.** 74 rows from the AHA/ACC 2025 hypertension guideline, citing 53 of its 103 recommendations, with the other 50 scoped out by identifier — 103 accounted for exactly. An empty directory entry is not a negative finding about a guideline.
+
+**The population column is load-bearing and it came from the clinician rather than from the corpus.** A draft of this called KDIGO's `SBP <120` and AHA/ACC's `<130/80` a cross-society contradiction; they are not, because KDIGO's is CKD-only. So a conflict is keyed on **quantity and population together**, the key is drawn from a fixed vocabulary the sheet declares, and the guideline's own wording sits beside it — a machine can only compare strings, and a mis-keyed row is a wrong *word* a reader can see rather than a silent miss. Checking ADA 2026 afterwards found it **agrees** with AHA/ACC at `<130/80`: once population is respected the contradiction the ticket predicted mostly evaporates.
+
+**Citation resolution is two tiers, which is the whole answer to what happens when the sources are absent.** Tier 1 needs nothing and runs everywhere: the number in a row's value must appear in that row's snippet. Tier 2 needs the 410 MB of PDFs and checks the snippet is on the cited page. **There is no machine on which citation checking drops to zero**, tier 2 skipping prints a banner that survives `--quiet`, and the sheet itself records the date tier 2 last really ran — so the artifact says so and not only the console. That is `phi_scan.py`'s corpus-layer hole, answered rather than repeated.
+
+**Gate 3 was wrong first, and it was found by pointing it at the real sheet.** It matched a sanity bound by substring against the row's *quantity name* and graded every number in the value against it; on the first real sheet that produced ten failures and **all ten were correct rows** — the `2` in `kg/m2`, `>=7 days` in a row whose name contains `bp`, `15% in 24 h`, `within 30 to 60 min`. Bounds are keyed on the **unit** now. Both of `block_scan.py`'s parser bugs were found the same way, and the synthetic tests came afterwards.
+
+**What no gate here reaches is written in the README and in the module docstring, the same day they were built.** The largest: **a sheet whose numbers are all real and all filed under the wrong heading passes every gate in the directory.**
 
 ### PHI pre-commit hook
 
@@ -368,6 +421,8 @@ git config core.hooksPath tools/hooks
 ```
 
 After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py` on every commit in that clone — yours, an agent's, anything.
+
+**Standing rule 1 is no longer the only thing that can refuse a commit here, and that changed deliberately.** Since #83 a staged `reference/thresholds/*.md` also runs `tools/threshold_sheet.py --all --quiet`, and a failing gate refuses. The reasoning is narrow: a fabricated citation in a threshold sheet is a number a clinician may act on, the checks that catch one are deterministic, and a warning in a hook is read past. **It costs nothing on any commit that does not touch a sheet** — which is what keeps it from becoming the check people learn to `--no-verify` around — and `phi_scan.py` is no longer `exec`ed but has its status OR-ed in, so nothing above can suppress it. `skills_mirror.py` and `spelling_scan.py` stay advisory.
 
 **Two layers, and the asymmetry between them is the design.**
 

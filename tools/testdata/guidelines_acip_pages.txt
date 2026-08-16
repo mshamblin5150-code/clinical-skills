@@ -1,15 +1,22 @@
 # phi-scan: synthetic
 #
-# Page excerpts in the shape pypdf produces for the three ACIP/ files. Those
+# Page excerpts in the shape PyMuPDF produces for the three ACIP/ files. Those
 # are not guideline documents at all, they are browser print-to-PDF captures of
 # CDC schedule pages, and the header they carry is what says so: a print
 # timestamp, the page title, the source URL and an "n of m" folio.
 #
-# pypdf folds the title in after the timestamp and the folio in after the URL,
-# so the capture contributes exactly one page-repeated line -- the stamp and
-# title together. This fixture used to put the stamp on a line of its own, which
-# is what fitz does and what no real file here does, and the classifier passed
-# against it while finding zero captures in the corpus. The shape is the test.
+# **This file has now been wrong in both directions, and the reason is the same
+# one both times: the shape is the test.** It first put the stamp on a line of
+# its own, was corrected to the folded form because pypdf welds the title in
+# after the timestamp, and is corrected back here because #83 moved the extractor
+# to PyMuPDF and the four parts land on four lines again. Verified against
+# ACIP/Recommended Vaccinations for Adults ... CDC.pdf on 2026-08-16 rather than
+# reasoned about -- which is what the previous round of this failed to do.
+#
+# The consequence for the corpus is visible and worth knowing: a capture now
+# contributes three page-repeated lines rather than one, because the stamp, the
+# title and the URL each repeat on their own. The folio does not; it differs per
+# page, which is #100's subject and not this file's.
 #
 # The timestamp is date-shaped, which is why this file declares the pragma above.
 # It is a browser artifact from a public CDC page and no patient is anywhere near
@@ -21,26 +28,34 @@
 Recommended Vaccinations for Adults
 For Everyone
 JULY 2, 2025
- An official website of the United States government
+An official website of the United States government
 Here's how you know
-8/12/26, 10:25 AM Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
-1/4 https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+8/12/26, 10:25 AM
+Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
+https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+1/4
 
 Key
 ALL adults in age group should get the vaccine.
 Vaccine 19-26 years 27-49 years 50-64 years ≥65 years
-8/12/26, 10:25 AM Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
-2/4 https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+8/12/26, 10:25 AM
+Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
+https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+2/4
 
 Pneumococcal
 Bacterial infections of ears, sinuses, lungs, or bloodstream
 1 or 2 doses
-8/12/26, 10:25 AM Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
-3/4 https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+8/12/26, 10:25 AM
+Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
+https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+3/4
 
 Hepatitis B
 Liver infection
 2, 3, or 4 doses
 READ NEXT
-8/12/26, 10:25 AM Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
-4/4 https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+8/12/26, 10:25 AM
+Recommended Vaccinations for Adults | Vaccines & Immunizations | CDC
+https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html
+4/4
