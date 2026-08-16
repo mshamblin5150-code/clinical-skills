@@ -133,26 +133,31 @@ Extractor limits worth knowing before quoting a number:
   misfiling. 16 of 173 against the corpus on 2026-08-16, and 0 of 5 against the
   committed inputs -- so the lists are audited on the fixtures and measured, not
   audited, on the corpus.
-- ``\bppd\b``'s purified-protein-derivative reading is **narrowed rather than
-  audited, and the narrowing is mechanical**. Issue #78 asked for the audit and
-  it needs a reader, because nothing separates the two senses. What a machine
-  can say, measured 2026-08-16 over 551 encounters: **102 encounters write a
-  bare ``ppd``, 13 of them carry no independent tobacco token** -- no "smok",
-  no "cigarette", no spelled-out pack-per-day -- and **none of those 13 writes a
-  TB-test word anywhere** ("tb", "tuberculosis", "quantiferon", "induration",
-  "skin test", "mantoux"). So 13 is a ceiling on what a PPD-skin-test reading
-  could cost the positive column, and charging all 13 as skin tests still leaves
-  159 of 197 positive -- 81%. **The ruling survives its worst case here too**,
-  and what stays with a reader is only whether any of those 13 is genuinely a
-  skin test. Do not confuse this 13 with issue #146's, which is a different set:
-  encounters writing a *welded* ``1ppd`` that ``\bppd\b`` cannot match at all.
 - ``\bppd\b`` is packs per day throughout this corpus and is also the standard
-  abbreviation for a **purified protein derivative**. Nothing here can tell them
-  apart, so a TB skin test written that way counts as a positive tobacco history
-  and inflates that column. Audited against the 31 committed inputs, where every
-  instance is a pack-per-day quantity; against ``scratch/`` it is **bounded
-  rather than audited** -- see the ``allergy_no_drug`` bullet's neighbour below
-  for the 102/13/0 measurement and what it does and does not settle.
+  abbreviation for a **purified protein derivative**, and a TB skin test written
+  that way would count as a positive tobacco history. **Issue #78's audit is
+  closed, and it was closed by shape rather than by reading** -- ruled by the
+  clinician 2026-08-16. The premise everything here used to rest on, *"nothing
+  can tell them apart"*, is false as written: the two senses are not the same
+  shape. A pack count is a small number in front of the token and usually a span
+  behind it. A skin test has no quantity in front at all -- it is placed, it is
+  read, and its result is millimetres of induration. Nobody writes a tuberculin
+  test as a number of packs followed by years.
+- **The audit is printed rather than quoted**, so it is re-derivable by anyone
+  with the corpus: ``with_bare_ppd``, ``bare_ppd_no_other_token`` and the two
+  shape counters. 2026-08-16 over 551 encounters: **102 write a bare ``ppd``, 13
+  carry no independent tobacco token** -- the only ones at risk, since the rest
+  name a smoker whatever ``ppd`` means -- and of those 13, **13 read as a pack
+  quantity and 0 as a skin test**. Four independent checks agree and none is the
+  one the audit started from.
+- **What that does not establish**, stated because the class name says so and the
+  prose should too: nobody has read the encounters. It does not rule out a
+  tuberculin test written in a shape both patterns miss. What makes that
+  survivable is the bound rather than the discriminator -- charge all 13 as skin
+  tests anyway and tobacco is still 159 of 197 positive, **81%**, so no reading
+  of them can move issue #29's ruling. Do not confuse this 13 with issue #146's:
+  that is the opposite condition on the same token, encounters writing a
+  **welded** ``1ppd`` that ``\bppd\b`` cannot match at all.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -732,11 +737,50 @@ ALLERGY_DRUG = re.compile(
 # which is what caught this alternative missing here.
 PACK_PER_DAY = r"\d+\s*(?:pack|pk)s?\s*(?:per|/|a)\s*day"
 
-TOBACCO_SLOT = re.compile(
-    r"(?i)\btobacco\b|\bsmok|\bnon-?smok|\bppd\b"
+# Every way this corpus names tobacco **except** a bare ``ppd``. Written once and
+# composed into both patterns rather than spelled twice, because the ``ppd``
+# audit below needs exactly "the slot, minus the ambiguous token" and a second
+# copy of the list is a second thing to keep in step.
+TOBACCO_NOT_PPD = (
+    r"\btobacco\b|\bsmok|\bnon-?smok"
     r"|" + PACK_PER_DAY +
     r"|\bvap(?:e|es|er|ing)\b|\bnicotine\b|\bcigarette"
     r"|\bchew(?:s|ing)?\s+tobacco|\bdips?\s+now\b|\bsnuff\b(?!\s*box)"
+)
+
+TOBACCO_SLOT = re.compile(r"(?i)\bppd\b|" + TOBACCO_NOT_PPD)
+
+TOBACCO_INDEPENDENT = re.compile(r"(?i)" + TOBACCO_NOT_PPD)
+
+PPD_TOKEN = re.compile(r"(?i)\bppd\b")
+
+# Issue #78's audit, and the pair that settles it. A packs-per-day quantity and a
+# purified protein derivative are the same three letters, but they are **not the
+# same shape**, and the shape is decidable without reading an encounter.
+#
+# A pack count is a small number in front of the token and usually a span behind
+# it -- "0.5 ppd x 15 yrs". A skin test has no quantity in front: it is placed,
+# it is read, and its result is millimetres of induration. **Nobody writes a
+# tuberculin test as a number of packs followed by years**, which is what makes
+# this a discriminator rather than a guess.
+PPD_AS_QUANTITY = re.compile(
+    r"(?i)(?:\d|\.\d|<|>|half|quarter|one|two|three)\s*-?\s*ppd\b"
+    r"|\bppd\b\s*(?:x|for|since|@)\s*\d"
+)
+
+# ``(?<![a-z])mm\b`` rather than ``\bmm\b``, and it is this module's own named
+# failure class arriving again. ``\bmm\b`` cannot match inside "12mm" -- the
+# leading boundary needs a non-word character and a digit is a word character,
+# which is exactly what defeated ``\bht\b`` for "ht5'7"" and what defeats
+# ``\bppd\b`` for "1ppd" (issue #146). **An induration is written welded to its
+# number more often than not**, so the plain boundary would have missed the
+# commonest form of the very thing this pattern exists to find, and the audit
+# would have reported zero skin tests for the wrong reason. Caught by a test.
+PPD_AS_SKIN_TEST = re.compile(
+    r"(?i)\bppd\b[^.\n]{0,25}(?<![a-z])mm\b|(?<![a-z])mm\b[^.\n]{0,25}\bppd\b"
+    r"|\bindurat"
+    r"|\bppd\b[^.\n]{0,15}\b(?:placed|planted|read|applied)\b"
+    r"|\btuberculosis\b|\bquantiferon\b|\bmantoux\b|\bppd\b[^.\n]{0,15}\btb\b"
 )
 
 # Positive is matched explicitly and the denial is the complement, which is the
@@ -1106,6 +1150,31 @@ def has_positive_tobacco(note: str) -> bool:
     return bool(TOBACCO_POSITIVE.search(note))
 
 
+def writes_bare_ppd(note: str) -> bool:
+    """A ``ppd`` the token boundary can see. Issue #78's audit population.
+
+    Deliberately the same ``\\bppd\\b`` the tobacco patterns use, welded forms and
+    all -- so it counts what those patterns count and not what they miss, which
+    is issue #146's separate finding.
+    """
+    return bool(PPD_TOKEN.search(note))
+
+
+def has_independent_tobacco(note: str) -> bool:
+    """Names tobacco without using ``ppd``. The audit's exclusion."""
+    return bool(TOBACCO_INDEPENDENT.search(note))
+
+
+def ppd_written_as_quantity(note: str) -> bool:
+    """A pack count -- a small number in front, usually a span behind."""
+    return bool(PPD_AS_QUANTITY.search(note))
+
+
+def ppd_written_as_skin_test(note: str) -> bool:
+    """A tuberculin test -- placed, read, and measured in millimetres."""
+    return bool(PPD_AS_SKIN_TEST.search(note))
+
+
 def has_hedge(note: str) -> bool:
     """A token marking something as suspected rather than established.
 
@@ -1284,6 +1353,10 @@ class Census:
     allergy_environmental: int = 0
     allergy_unclassified: int = 0
     allergy_denied_but_drug: int = 0
+    with_bare_ppd: int = 0
+    bare_ppd_no_other_token: int = 0
+    bare_ppd_alone_as_quantity: int = 0
+    bare_ppd_alone_as_skin_test: int = 0
     with_tobacco_status: int = 0
     tobacco_positive: int = 0
 
@@ -1368,6 +1441,7 @@ def survey(notes: list[str]) -> Census:
     allergy_n = allergy_none_n = tobacco_n = tobacco_pos_n = 0
     allergy_drug_n = allergy_food_n = allergy_env_n = allergy_unclassified_n = 0
     allergy_denied_drug_n = 0
+    ppd_n = ppd_alone_n = ppd_qty_n = ppd_skin_n = 0
 
     for note in notes:
         if has_hedge(note):
@@ -1386,6 +1460,13 @@ def survey(notes: list[str]) -> Census:
             allergy_env_n += has_environmental_allergy(note)
             allergy_unclassified_n += has_unclassified_allergy(note)
             allergy_denied_drug_n += denies_allergies_but_names_a_drug(note)
+        if writes_bare_ppd(note):
+            ppd_n += 1
+            if not has_independent_tobacco(note):
+                ppd_alone_n += 1
+                ppd_qty_n += ppd_written_as_quantity(note)
+                ppd_skin_n += ppd_written_as_skin_test(note)
+
         if has_tobacco_status(note):
             tobacco_n += 1
             tobacco_pos_n += has_positive_tobacco(note)
@@ -1470,6 +1551,10 @@ def survey(notes: list[str]) -> Census:
         allergy_environmental=allergy_env_n,
         allergy_unclassified=allergy_unclassified_n,
         allergy_denied_but_drug=allergy_denied_drug_n,
+        with_bare_ppd=ppd_n,
+        bare_ppd_no_other_token=ppd_alone_n,
+        bare_ppd_alone_as_quantity=ppd_qty_n,
+        bare_ppd_alone_as_skin_test=ppd_skin_n,
         with_tobacco_status=tobacco_n,
         tobacco_positive=tobacco_pos_n,
     )
@@ -1673,6 +1758,17 @@ def format_report(
         f"     tobacco denying it  "
         f"{_pct(c.tobacco_negated, c.with_tobacco_status):>4}",
         "  the two slots must land opposite ways or the ruling has no basis",
+        "",
+        "  the ppd audit (issue #78. ppd is packs per day and is also a",
+        "   purified protein derivative, and the two are told apart by SHAPE:",
+        "   a pack count has a small number in front and a span behind; a skin",
+        "   test is placed, read, and measured in mm of induration)",
+        f"    writes a bare ppd                {c.with_bare_ppd:>5}",
+        f"    ...and no other tobacco token    {c.bare_ppd_no_other_token:>5}"
+        f"  <- the only ones at risk",
+        f"       of those, a pack quantity     {c.bare_ppd_alone_as_quantity:>5}",
+        f"       of those, a skin test         {c.bare_ppd_alone_as_skin_test:>5}",
+        "    established by form, not by reading an encounter",
         "",
         "  of those naming an allergy, which kind (issue #78. NKDA is no known",
         "   DRUG allergy, so only the first row is evidence against filling it.",
