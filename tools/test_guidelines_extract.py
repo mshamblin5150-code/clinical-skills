@@ -471,10 +471,11 @@ class BoilerplateIsFoundAndRecorded(unittest.TestCase):
         # none. 75% is the rule's boundary and it is inclusive.
         self.assertIn(RUNNING_HEAD, self.boilerplate)
 
-    def test_a_running_head_carrying_its_page_number_is_left_alone(self):
-        # These differ page to page, so the rule does not reach them. Stated as
-        # a test because it is a known limit, not an oversight: the alternative
-        # is masking digits, which would also reach a repeated table row.
+    def test_a_running_head_carrying_its_page_number_is_not_a_literal_repeat(self):
+        # These differ page to page, so the *literal* rule does not reach them.
+        # That was a known limit until #100 ruled; `MarginPatterns` below is
+        # where the same lines are now caught, and this stays as the statement
+        # that the two rules are separate and that this one did not widen.
         self.assertFalse([line for line in self.boilerplate if "DOI:" in line])
 
     def test_a_line_appearing_once_is_not_boilerplate(self):
@@ -529,6 +530,258 @@ class BoilerplateDegenerateCases(unittest.TestCase):
         # pages' worth of evidence for stripping them.
         pages = extract.clean_pages(["x\nx\nx\n1", "2", "3", "4"])
         self.assertEqual(extract.find_boilerplate(pages), [])
+
+
+class MarginPatterns(unittest.TestCase):
+    """Issue #100's ruled rule: mask digits, but only in the page margins.
+
+    The ruling and the measurement it rests on are in ``guidelines_extract``'s
+    docstring. What is pinned here is the pair of behaviors that make the rule
+    safe, because either one alone is worse than not having the rule:
+
+    - a line whose only page-to-page difference is a number, sitting in a
+      margin, is stripped;
+    - the same masked pattern **mid-page is not touched**, which is what keeps a
+      contents-page entry and a table cell out of it.
+    """
+
+    @staticmethod
+    def folioed(pages, folio_at="end", start=37):
+        """Pages carrying a bare folio in a margin, one number higher each page."""
+        built = []
+        for offset, body in enumerate(pages):
+            folio = f"S{start + offset}"
+            built.append([folio] + body if folio_at == "start" else body + [folio])
+        return built
+
+    def test_a_welded_running_head_in_a_margin_is_caught(self):
+        # The AHA excerpt's own head, and the reason this rule exists: it reads
+        # "April 28, 2026 Circulation. 2026;153:e1154-e1276. DOI: ...e1155" and
+        # the trailing folio differs on every page, so no literal repeats.
+        patterns = extract.find_margin_patterns(extract.clean_pages(AHA))
+        self.assertTrue([p for p in patterns if "DOI:" in p])
+
+    def test_the_caught_pattern_is_recorded_with_its_digits_masked(self):
+        # The manifest has to say what rule removed a line, and a masked pattern
+        # is the only honest way to name a family whose members all differ.
+        patterns = extract.find_margin_patterns(extract.clean_pages(AHA))
+        head = next(p for p in patterns if "DOI:" in p)
+        self.assertIn("#", head)
+        self.assertNotIn("2026", head)
+
+    def test_the_head_is_gone_from_the_pages_that_carried_it_in_a_margin(self):
+        pages = extract.clean_pages(AHA)
+        kept = extract.strip(pages, extract.find_boilerplate(pages),
+                             extract.find_margin_patterns(pages))
+        # Pages 1 to 3 carry it at index 1, inside the top margin.
+        self.assertFalse([line for line in kept[1] + kept[2] + kept[3] if "DOI:" in line])
+
+    def test_the_same_head_sitting_mid_page_is_left_where_it_is(self):
+        # Page 0 of the excerpt is a cover: the same string sits at index 2 of 6,
+        # outside both margins. It survives, and that residue is the price of the
+        # restriction rather than a bug -- see the module docstring. Stripping the
+        # pattern page-wide instead is what eats the table cells below.
+        pages = extract.clean_pages(AHA)
+        kept = extract.strip(pages, extract.find_boilerplate(pages),
+                             extract.find_margin_patterns(pages))
+        self.assertTrue([line for line in kept[0] if "DOI:" in line])
+
+    @staticmethod
+    def threshold_document():
+        """Eight pages of a threshold table, a bare folio at the foot of each.
+
+        Every line is unique to its page on purpose. A line repeated verbatim is
+        the *literal* rule's business and would be stripped before this rule ran,
+        which would make the assertions below pass for the wrong reason.
+        """
+        return [
+            [f"opening remarks {letter}",
+             f"table {letter}. blood pressure",
+             f"Stage 1 hypertension {130 + n}-139 mm Hg",
+             f"Stage 2 hypertension {140 + n}-159 mm Hg",
+             f"closing remarks {letter}",
+             f"S{40 + n}"]
+            for n, letter in enumerate("abcdefgh")
+        ]
+
+    def test_a_threshold_row_repeated_mid_page_is_not_strippable(self):
+        # Issue #100's explicit done-when, and the trade #80 refused. These rows
+        # differ only in their numbers, so unrestricted masking folds all eight
+        # onto "Stage # hypertension #-# mm Hg" and takes the table out. The
+        # margin restriction is the only thing standing between the two, which is
+        # why the rows sit at index 2 and 3 of a six-line page.
+        pages = self.threshold_document()
+        kept = extract.strip(pages, extract.find_boilerplate(pages),
+                             extract.find_margin_patterns(pages))
+        for n, page in enumerate(kept):
+            self.assertIn(f"Stage 1 hypertension {130 + n}-139 mm Hg", page)
+            self.assertIn(f"Stage 2 hypertension {140 + n}-159 mm Hg", page)
+
+    def test_the_bare_folio_beside_that_table_is_still_taken(self):
+        # The same document: the rule has to earn its keep on the page it is
+        # being trusted not to damage, or "nothing was stripped" would pass it.
+        pages = self.threshold_document()
+        kept = extract.strip(pages, extract.find_boilerplate(pages),
+                             extract.find_margin_patterns(pages))
+        self.assertFalse([line for page in kept for line in page if line.startswith("S4")])
+
+    def test_a_contents_entry_survives_a_folio_of_its_own_shape(self):
+        # KDIGO-2021-Blood-Pressure made small. Its folio is "S37" at the foot of
+        # 87 pages, and its contents page lists "S3" and "S7" mid-page. The two
+        # mask identically, so page-wide stripping would clear the contents page
+        # and record it as boilerplate removal. This is the single test the
+        # margin restriction exists for.
+        contents = ["Contents", "Chapter one", "S3", "Tables and figures", "S7",
+                    "Executive Committee"]
+        body = [[f"opening {a}", f"prose {a}", f"more {a}", f"further {a}",
+                 f"closing {a}", f"end {a}"] for a in "bcdefgh"]
+        pages = self.folioed([contents] + body)
+        kept = extract.strip(pages, extract.find_boilerplate(pages),
+                             extract.find_margin_patterns(pages))
+        self.assertIn("S3", kept[0])
+        self.assertIn("S7", kept[0])
+        self.assertFalse([line for page in kept for line in page if line.startswith("S37")])
+        self.assertFalse([line for page in kept for line in page if line.startswith("S4")])
+
+    def test_a_number_that_only_ever_appears_mid_page_never_becomes_a_pattern(self):
+        # KDIGO-2024-CKD's shape: 466 bare-number lines, every one a cell in a
+        # risk table, none of them in a margin. Nothing here should clear.
+        pages = [["head", "prose", "0.95", "1.4", "4", "0.96", "prose", "foot"]
+                 for _ in range(8)]
+        self.assertEqual(extract.find_margin_patterns(pages), [])
+
+    def test_a_line_carrying_no_digit_is_not_this_rule_s_business(self):
+        # It masks to itself, so a margin-only tally could strip it on evidence
+        # the literal rule never saw. Left to `find_boilerplate`, which counts
+        # the whole page.
+        pages = [["RUNNING HEAD", "body", "more", "foot"] for _ in range(8)]
+        self.assertEqual(extract.find_margin_patterns(pages), [])
+
+    def test_a_literal_hash_is_not_swept_up_by_the_mask(self):
+        # "Table #" masks to itself and so joins the family "Table 5" makes.
+        # Requiring a digit in the line keeps a typeset number sign out of it.
+        # It sits on 4 of 8 pages so the literal rule leaves it alone too --
+        # otherwise this would pass without the guard existing.
+        pages = [[f"Table {n}", f"body {a}", f"more {a}",
+                  "Table #" if n < 4 else f"foot {a}"]
+                 for n, a in enumerate("abcdefgh")]
+        kept = extract.strip(pages, extract.find_boilerplate(pages),
+                             extract.find_margin_patterns(pages))
+        self.assertEqual(extract.find_margin_patterns(pages), ["Table #"])
+        for page in kept[:4]:
+            self.assertIn("Table #", page)
+        self.assertFalse([line for page in kept for line in page if line == "Table 0"])
+
+    def test_both_ends_of_the_page_are_margins(self):
+        top = extract.find_margin_patterns(self.folioed(
+            [["a", "b", "c", "d", "e", "f"] for _ in range(8)], folio_at="start"))
+        foot = extract.find_margin_patterns(self.folioed(
+            [["a", "b", "c", "d", "e", "f"] for _ in range(8)], folio_at="end"))
+        self.assertEqual(top, ["S#"])
+        self.assertEqual(foot, ["S#"])
+
+    def test_the_second_line_in_is_still_a_margin(self):
+        # KDIGO-2009 and idachildrenfinal set the folio one line in from the
+        # foot. N=1 leaves both unstripped; this is the whole reason N is 2.
+        pages = [["a", "b", "c", "d", f"S{40 + n}", "colophon"] for n in range(8)]
+        self.assertEqual(extract.find_margin_patterns(pages), ["S#"])
+
+    def test_the_third_line_in_is_not(self):
+        # N=2 is a measured choice, not a taste: at N=3 the rule flips
+        # KDIGO-2013-Lipids from stripping nothing to stripping its own figure
+        # axis -- page 23 opens "20 / 10 / 5 / 2" and N=3 takes the first two.
+        # The boundary has to be a test or the next reader widens it for free.
+        pages = [["a", "b", "c", f"S{40 + n}", "d", "e", "colophon"] for n in range(8)]
+        self.assertEqual(extract.find_margin_patterns(pages), [])
+
+    def test_a_short_page_is_all_margin_and_still_votes_once(self):
+        # Four lines with N=2 makes every line a margin line, and the top and
+        # bottom halves overlap on a three-line page. A page votes once per
+        # pattern either way.
+        pages = [["head", f"S{40 + n}", "foot"] for n in range(8)]
+        self.assertEqual(extract.find_margin_patterns(pages), ["S#"])
+
+    def test_the_threshold_and_the_floor_are_the_ones_the_literal_rule_uses(self):
+        # 3 of 8 clears the occurrence floor and fails the percentage.
+        pages = [["a", "b", "c", f"S{40 + n}"] if n < 3 else ["a", "b", "c", "d"]
+                 for n in range(8)]
+        self.assertEqual(extract.find_margin_patterns(pages), [])
+
+    def test_a_one_page_document_has_no_margin_pattern(self):
+        self.assertEqual(extract.find_margin_patterns([["a", "1", "b"]]), [])
+
+    def test_a_document_with_no_pages_has_no_margin_pattern(self):
+        self.assertEqual(extract.find_margin_patterns([]), [])
+
+    def test_the_recorded_set_is_ordered_so_two_runs_agree(self):
+        pages = self.folioed([["a", "b", "c", "d", f"Page {n} of 8"] for n in range(8)])
+        patterns = extract.find_margin_patterns(pages)
+        self.assertEqual(patterns, sorted(patterns))
+
+    def test_stripping_leaves_the_pages_in_place(self):
+        pages = self.folioed([["a", "b", "c", "d"] for _ in range(8)])
+        kept = extract.strip(pages, [], extract.find_margin_patterns(pages))
+        self.assertEqual(len(kept), len(pages))
+
+    def test_it_reports_the_exact_strings_it_took(self):
+        # The manifest contract: a removal can be read back rather than believed.
+        # A masked pattern alone cannot be read back -- it names a family, not a
+        # line -- so the literals go in beside it.
+        pages = self.folioed([["a", "b", "c", "d"] for _ in range(8)])
+        taken = extract.margin_removals(pages, [], extract.find_margin_patterns(pages))
+        self.assertEqual(taken, [f"S{37 + n}" for n in range(8)])
+
+    def test_what_it_reports_taking_is_what_stripping_takes(self):
+        pages = extract.clean_pages(AHA)
+        literal = extract.find_boilerplate(pages)
+        patterns = extract.find_margin_patterns(pages)
+        kept = {line for page in extract.strip(pages, literal, patterns) for line in page}
+        for line in extract.margin_removals(pages, literal, patterns):
+            self.assertNotIn(line, kept)
+
+    def test_a_pattern_that_removed_nothing_is_not_recorded_against_the_document(self):
+        # "(c) 2021 American Medical Association" clears the margin rule on 68
+        # USPSTF files, and the literal rule has already taken every member --
+        # within one document the year does not vary. Recording it anyway put
+        # 168 of 195 manifest entries against no removal at all, which reads as
+        # a rule doing seven times the work it does.
+        pages = [["© 2021 American Medical Association", f"body {a}", f"more {a}",
+                  f"foot {a}"] for a in "abcdefgh"]
+        with tempfile.TemporaryDirectory() as tmp:
+            record = extract.build_document(
+                Path("USPSTF/x.pdf"), ["\n".join(page) for page in pages], Path(tmp))
+        self.assertIn("© 2021 American Medical Association", record.boilerplate)
+        self.assertEqual(record.margin_patterns, [])
+        self.assertEqual(record.margin_stripped, [])
+
+    def test_the_recorded_patterns_are_the_masks_of_the_recorded_lines(self):
+        pages = self.folioed([[f"opening {a}", f"body {a}", f"more {a}", f"foot {a}"]
+                              for a in "abcdefgh"])
+        with tempfile.TemporaryDirectory() as tmp:
+            record = extract.build_document(
+                Path("KDIGO/y.pdf"), ["\n".join(page) for page in pages], Path(tmp))
+        self.assertEqual(record.margin_patterns, ["S#"])
+        self.assertEqual(record.margin_stripped, [f"S{37 + n}" for n in range(8)])
+
+    def test_the_stripped_lines_are_gone_from_the_file_that_was_written(self):
+        pages = self.folioed([[f"opening {a}", f"body {a}", f"more {a}", f"foot {a}"]
+                              for a in "abcdefgh"])
+        with tempfile.TemporaryDirectory() as tmp:
+            record = extract.build_document(
+                Path("KDIGO/y.pdf"), ["\n".join(page) for page in pages], Path(tmp))
+            written = (Path(tmp) / record.output).read_text(encoding="utf-8")
+        for line in record.margin_stripped:
+            self.assertNotIn(line, written)
+        self.assertIn("opening a", written)
+
+    def test_a_line_the_literal_rule_already_took_is_not_reported_twice(self):
+        # "Downloaded from ... August 12, 2026" carries digits and sits at the
+        # foot of every AHA page, so both rules see it. It belongs to the one
+        # that ran first, or chars_stripped is counted against two owners.
+        pages = extract.clean_pages(AHA)
+        literal = extract.find_boilerplate(pages)
+        taken = extract.margin_removals(pages, literal, extract.find_margin_patterns(pages))
+        self.assertNotIn(DOWNLOADED, taken)
 
 
 class DocumentClass(unittest.TestCase):

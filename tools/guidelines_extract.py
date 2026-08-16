@@ -115,8 +115,17 @@ alone. That is not built here, because the same rule must not undo the USPSTF ca
 where a line has a space after its bullet and its words are glued anyway. See #178.
 
 **And the footer is boilerplate that should never have reached a reader**: its page
-range varies per page, so the 75% rule never strips it. That is #100's cause 1, and
-fixing #100 would remove this damage without touching the space rule at all.
+range varies per page, so the 75% rule never strips it. #178 reads that as #100's
+cause 1 and expects #100 to remove the damage without touching the space rule.
+
+**#100 has landed and it does not, and the reason is #178's own subject.** The
+letter-spacing damage sets every digit as its own run, so the page range masks to a
+different pattern depending on how many digits it has: ``S # - S #`` on one page and
+``S # # - S # #`` on the next. The footer produces **8 distinct masked patterns**
+across 32 sampled pages, the largest reaching 16, against a floor of 24 -- so
+nothing clears and all 166 lines stay. Measured 2026-08-16. The dependency runs the
+other way round from the one #178 states: the space rule has to be fixed first, or
+the two have to meet.
 
 The trade favors the body over the front matter, which is the right way round: what
 splits is display type in headings and reference lists, and what is repaired is
@@ -130,17 +139,74 @@ August 12, 2026``, and strings like it sit in the page's reading order -- they c
 land between a table row's label and its number, which is the one thing a threshold
 sheet cannot survive.
 
+**The margin rule, and #100's ruling.** Inside ``MARGIN_LINES`` of either end of a
+page, a line's digits are masked before it is counted, so a running head with its
+folio welded into it repeats and is seen. Outside the margins nothing is masked and
+nothing is compared, on the way in or on the way out.
+
+**The restriction is the whole safety property, and it is not a tuning knob.**
+Unrestricted masking is the trade #80 refused: ``130-139 mm Hg`` and
+``140-159 mm Hg`` become the same line, and the failure is silent -- the manifest
+records a masked pattern, the number is gone, and nothing says which it was. That
+is not hypothetical here. Masked corpus-wide, the rule takes 466 lines out of
+``KDIGO-2024-CKD-Guideline``, every one a cell in a risk table; it clears the
+contents page of ``KDIGO-2021-Blood-Pressure-in-CKD``, whose ``S3`` and ``S7``
+entries mask exactly like the ``S37`` folio at the foot of 87 pages; and it takes
+the axis labels off Figure 2 of the USPSTF colorectal statement. Restricted to the
+margins it takes none of them, because a running head lives at a page edge and a
+table row does not.
+
+**Two is measured, not chosen.** Against the 179-document corpus, N=1 and N=2 remove
+bare folios and two welded running heads **and nothing else at all** -- 2,382 folios
+and 267 head lines at N=2. N=3 removes a further 574 lines across 11 documents, and
+most are genuine folios, but it also flips ``KDIGO-2013-Lipids-Guideline`` from
+stripping nothing to stripping its own **figure axis**: page 23 opens ``20 / 10 / 5
+/ 2`` and N=3 takes the ``20`` and the ``10``. That is the same damage class the
+restriction exists to avoid, arriving at the third line in. N=2 over N=1 because
+``KDIGO-2009-Transplant-Recipient`` and ``USPSTF/idachildrenfinal`` set the folio one
+line in from the foot. ``test_guidelines_extract.py`` pins the boundary at N=2 and at
+N=3 in both directions, because widening it by one line is exactly the change that
+looks free.
+
+**The figure above was published wrong once and the error is worth keeping.** This
+paragraph first said N=3 takes ``0000000000001122``, a DOI, out of the colorectal
+references. It does not. That measurement was taken over the **already-stripped**
+``.txt`` corpus rather than over the PDFs, so it was answering a different question
+than the one it was quoted for, and it came out both wrong and plausible. Every
+figure here is now re-derived by running this module's own functions over
+``guidelines-src``. Measured 2026-08-16.
+
+**#100's cause 2 gets no code here, because it stopped existing before the ruling.**
+The ticket describes a running head alternating recto and verso -- two strings, each
+below the threshold, together above it -- and names
+``USPSTF/Screening for Thyroid Dysfunction`` as the case. Under PyMuPDF that document
+strips ``CLINICAL GUIDELINE``, ``Screening for Thyroid Dysfunction`` and
+``www.annals.org`` as three separate literal lines: the reader sets them on separate
+lines instead of concatenating them, so each clears 75% on its own and there is no
+alternation left to catch. Swept across all 179 documents, no surviving case has the
+shape. Like cause 1, it was a property of ``pypdf`` rather than of the documents --
+which #100's own comment says of cause 1 and explicitly denies of cause 2. Recorded
+because a rule that was never needed is invisible afterwards, and the next reader
+would otherwise find option 1 implemented and option 2 apparently forgotten.
+
+**What the run does.** 27 of 179 documents gain something the literal rule missed,
+2,649 distinct lines, of which 2,382 are bare folios and 267 are the two welded
+heads. Documents with nothing stripped by either rule fall from 12 to 5. The two
+#100 names as true negatives that must stay true negatives -- the CDC opioid MMWR,
+a web-page print with no running head, and the 2-page ``IDSA/ciab275`` erratum --
+still report nothing stripped.
+
 **Known limits, stated so nobody reads more into the output than is there.**
 
-- **A running head carrying its own page number may or may not be caught, and
-  which one changed under #83.** ``pypdf`` folded the folio into the head line, so
-  the string differed page to page and the rule never saw it. PyMuPDF keeps them on
-  separate lines wherever the typesetter set them separately -- the ACIP captures
-  are the worked case, where the stamp, title and URL now repeat as three lines and
-  only the folio varies. Where a folio really is set inside the head, the old limit
-  still holds exactly. Masking digits would catch that residue and would also reach
-  a repeated table row, which is the trade this still refuses to make; #100 holds
-  the question open.
+- **A folio set in roman numerals is not masked, and will not be.** ``GOLD-REPORT-2026``
+  loses its disclaimer head on 236 pages and keeps it on the 10 front-matter pages
+  foliated ``i`` to ``x``, plus one page carrying no folio at all. Masking roman
+  numerals means masking the letters i, v, x, l, c, d and m, which are letters in
+  words; the residue is 11 lines of 247 in one document and the cure is worse.
+- **A line the margin rule catches survives where it sits mid-page.** The AHA
+  excerpt's cover page carries the same running head at line 3 of 6, outside both
+  margins, and it stays. That is the price of the restriction rather than a bug --
+  the alternative is the contents page above.
 - **Hyphenation at a line break is left alone.** ``speci-`` / ``ficity`` stays two
   lines. Rejoining it needs a lexicon to avoid welding real compounds together, and
   the indexer (#84) is a better place to decide that than the extractor.
@@ -183,17 +249,26 @@ OUTPUT_CODEC = "utf-8"
 PAGE_SEPARATOR = "\f"
 MANIFEST_NAME = "manifest.json"
 
-# A line has to clear both bars. The percentage is #80's rule verbatim.
+# A line has to clear both bars. The percentage is #80's rule verbatim, and both
+# bars are shared with the margin rule below rather than restated by it.
 #
-# **The occurrence floor is a deliberate departure from that rule, and the only
-# one.** Every line of a one-page document appears on 100% of its pages, so the
-# percentage alone strips such a document to nothing and records it as clean. The
-# floor binds only where 75% of the sampled pages is fewer than 3 -- documents of
-# 1, 2 or 3 pages -- and is arithmetically inert above that. Corpus impact at the
-# time of writing is one 2-page file. #100 holds the question of widening the rule;
-# this narrows it, in the one place where not narrowing it destroys a document.
+# **The occurrence floor narrows #80's rule; #100's margin rule widens it, and
+# they are the only two departures.** Every line of a one-page document appears on
+# 100% of its pages, so the percentage alone strips such a document to nothing and
+# records it as clean. The floor binds only where 75% of the sampled pages is fewer
+# than 3 -- documents of 1, 2 or 3 pages -- and is arithmetically inert above that.
+# Corpus impact at the time of writing is one 2-page file.
 BOILERPLATE_THRESHOLD = 0.75
 MINIMUM_OCCURRENCES = 3
+
+# #100's ruling. How far in from either end of a page a line's digits are masked
+# before it is counted. Why the rule exists, why it is restricted, and why 2
+# rather than 1 or 3 are in this module's docstring under "The margin rule" --
+# stated there once rather than twice here, on `icd10_lookup.py`'s terms.
+MARGIN_LINES = 2
+
+_DIGIT_RUN = re.compile(r"\d+")
+DIGIT_MASK = "#"
 
 # Sample evenly across the document rather than off the front: covers, contents
 # and reference pages carry no running head, so a front-loaded sample of a
@@ -367,8 +442,17 @@ def sample_indexes(page_count: int) -> list[int]:
     return sorted({int(index * step) for index in range(size)})
 
 
-def find_boilerplate(pages: list[list[str]]) -> list[str]:
-    """The lines this document repeats on 75% or more of its sampled pages.
+def repeated_keys(pages: list[list[str]], key_of) -> list[str]:
+    """Whatever ``key_of`` yields on 75% or more of this document's sampled pages.
+
+    Both rules are this function; only the key differs. ``find_boilerplate`` keys a
+    line by itself and ``find_margin_patterns`` keys it by its masked form, and
+    keeping the tally in one place is what stops the two bars drifting apart --
+    there is one ``floor`` expression rather than a copy per rule.
+
+    ``key_of(position, line, page_length)`` returns the key to count, or None to
+    ignore the line. It is passed the position because #100's rule is about where
+    on the page a line sits, which a line alone cannot answer.
 
     Sorted, because the result is recorded in a manifest that gets diffed across
     rebuilds and set iteration order would make every rebuild look like a change.
@@ -378,18 +462,133 @@ def find_boilerplate(pages: list[list[str]]) -> list[str]:
         return []
     counts: dict[str, int] = {}
     for index in sampled:
-        # A page votes once per distinct line. Otherwise a two-column page whose
-        # column headers repeat reads as two pages' worth of evidence.
-        for line in set(pages[index]):
-            counts[line] = counts.get(line, 0) + 1
+        page = pages[index]
+        # A page votes once per distinct key. Otherwise a two-column page whose
+        # column headers repeat reads as two pages' worth of evidence, and a folio
+        # set at both the head and the foot of one page reads as two.
+        seen: set[str] = set()
+        for position, line in enumerate(page):
+            key = key_of(position, line, len(page))
+            if key is None or key in seen:
+                continue
+            seen.add(key)
+            counts[key] = counts.get(key, 0) + 1
     floor = max(MINIMUM_OCCURRENCES, BOILERPLATE_THRESHOLD * len(sampled))
-    return sorted(line for line, count in counts.items() if count >= floor)
+    return sorted(key for key, count in counts.items() if count >= floor)
 
 
-def strip(pages: list[list[str]], boilerplate: list[str]) -> list[list[str]]:
-    """Every page with the boilerplate lines removed, and no page removed."""
+def find_boilerplate(pages: list[list[str]]) -> list[str]:
+    """The lines this document repeats on 75% or more of its sampled pages."""
+    return repeated_keys(pages, lambda _position, line, _length: line)
+
+
+def mask_digits(line: str) -> str:
+    """A line with each run of digits replaced by a single mask character.
+
+    Runs rather than digits, so ``S37`` and ``S8`` land on the same pattern.
+    """
+    return _DIGIT_RUN.sub(DIGIT_MASK, line)
+
+
+def in_margin(position: int, page_length: int) -> bool:
+    """Whether a line sits within ``MARGIN_LINES`` of either end of its page.
+
+    On a page short enough for the two margins to overlap, every line is a
+    margin line. That is the right answer rather than an edge case: a page with
+    four lines on it has no middle for a table to sit in.
+    """
+    return position < MARGIN_LINES or position >= page_length - MARGIN_LINES
+
+
+def find_margin_patterns(pages: list[list[str]]) -> list[str]:
+    """The masked line patterns this document repeats in its page margins.
+
+    #100's rule. A line is counted only if it **carries a digit**: without that,
+    a line that masks to itself would be tallied on margin-only evidence the
+    literal rule never saw, and a typeset ``Table #`` would join the family
+    ``Table 5`` makes.
+
+    Same threshold and same floor as the literal rule, because it is the same
+    function underneath -- see ``repeated_keys``.
+    """
+    return repeated_keys(
+        pages,
+        lambda position, line, length: (
+            mask_digits(line)
+            if in_margin(position, length) and _DIGIT_RUN.search(line)
+            else None
+        ),
+    )
+
+
+def _matches_margin_pattern(line: str, position: int, page_length: int,
+                            patterns: set[str]) -> bool:
+    """Whether this line, *here on this page*, is one the margin rule takes.
+
+    The position test is repeated on the way out and that is the safety property
+    rather than belt-and-braces: a pattern that cleared from a folio in a margin
+    would otherwise match the same digits mid-page, where they are a table cell.
+    The digit test is repeated for ``find_margin_patterns``' reason -- a typeset
+    ``Table #`` masks to itself and must not be taken by the family ``Table 5``
+    makes.
+    """
+    return (
+        bool(patterns)
+        and in_margin(position, page_length)
+        and bool(_DIGIT_RUN.search(line))
+        and mask_digits(line) in patterns
+    )
+
+
+def strip(
+    pages: list[list[str]],
+    boilerplate: list[str],
+    margin_patterns: list[str] | tuple[str, ...] = (),
+) -> list[list[str]]:
+    """Every page with the boilerplate lines removed, and no page removed.
+
+    Two rules, and the second one is **restricted to the margins on the way out
+    as well as on the way in.** That restriction is the whole safety property:
+    ``KDIGO-2021-Blood-Pressure`` sets ``S37`` at the foot of 87 pages and lists
+    ``S3`` and ``S7`` mid-page on its contents page, and the two mask to the same
+    pattern. Stripping the pattern page-wide would clear the contents page and
+    record it as boilerplate removal.
+    """
     removed = set(boilerplate)
-    return [[line for line in page if line not in removed] for page in pages]
+    patterns = set(margin_patterns)
+    kept = []
+    for page in pages:
+        length = len(page)
+        kept.append([
+            line
+            for position, line in enumerate(page)
+            if line not in removed
+            and not _matches_margin_pattern(line, position, length, patterns)
+        ])
+    return kept
+
+
+def margin_removals(
+    pages: list[list[str]],
+    boilerplate: list[str],
+    margin_patterns: list[str] | tuple[str, ...],
+) -> list[str]:
+    """The exact lines the margin rule takes, sorted and deduplicated.
+
+    The manifest's contract is that a removal can be read back rather than
+    believed, and a masked pattern cannot be read back -- it names a family, not
+    a line. A line the literal rule already claimed is left out, so the two
+    records do not both bill for it.
+    """
+    already = set(boilerplate)
+    patterns = set(margin_patterns)
+    taken: set[str] = set()
+    for page in pages:
+        length = len(page)
+        for position, line in enumerate(page):
+            if line not in already and _matches_margin_pattern(line, position, length, patterns):
+                taken.add(line)
+    return sorted(taken)
 
 
 def classify(pages: list[list[str]]) -> str:
@@ -444,6 +643,14 @@ class Record:
     sampled_pages: int = 0
     codec: str = OUTPUT_CODEC
     boilerplate: list[str] = field(default_factory=list)
+    # #100's rule, recorded as two fields rather than folded into ``boilerplate``.
+    # The pattern says which rule fired; the literals say what actually left the
+    # page. Neither alone can be read back: a pattern names a family, and a list
+    # of 140 folios does not say why they went. ``boilerplate`` keeps its meaning
+    # so a manifest diff across the change shows the new rule rather than a
+    # reshuffle of the old one.
+    margin_patterns: list[str] = field(default_factory=list)
+    margin_stripped: list[str] = field(default_factory=list)
     error: str | None = None
 
 
@@ -466,7 +673,16 @@ def build_document(
     """Normalize, strip, write one text file, and describe what was done to it."""
     pages = clean_pages(raw_pages)
     boilerplate = find_boilerplate(pages)
-    kept = strip(pages, boilerplate)
+    margin_patterns = find_margin_patterns(pages)
+    kept = strip(pages, boilerplate, margin_patterns)
+    margin_stripped = margin_removals(pages, boilerplate, margin_patterns)
+    # Only the patterns that actually took a line are recorded. Most of them do
+    # not: `(c) 2021 American Medical Association` clears the margin rule on 68
+    # USPSTF files and the literal rule has already removed every one of its
+    # members, because within one document the year does not vary. Recording the
+    # pattern anyway put 168 of 195 entries in the manifest against no removal at
+    # all, which reads as a rule doing seven times the work it does.
+    fired = sorted({mask_digits(line) for line in margin_stripped})
 
     chars = sum(len(line) for page in pages for line in page)
     chars_kept = sum(len(line) for page in kept for line in page)
@@ -491,6 +707,8 @@ def build_document(
         sampled_pages=len(sample_indexes(len(pages))),
         codec=OUTPUT_CODEC,
         boilerplate=boilerplate,
+        margin_patterns=fired,
+        margin_stripped=margin_stripped,
         error=None,
     )
 
@@ -741,6 +959,7 @@ def write_manifest(out_root: Path, records: list[Record], source_root: Path) -> 
         "engine": _engine_version(),
         "boilerplate_threshold": BOILERPLATE_THRESHOLD,
         "minimum_occurrences": MINIMUM_OCCURRENCES,
+        "margin_lines": MARGIN_LINES,
         "totals": {
             "documents": len(records),
             "failures": sum(1 for record in records if record.error),
@@ -882,6 +1101,20 @@ def main(argv: list[str]) -> int:
         f"boilerplate {sum(1 for r in records if r.boilerplate):,} of {len(records):,} "
         "documents carry a page-repeated line"
     )
+    # Reported separately rather than folded into the line above. The two rules
+    # overlap on most documents, so one combined count would say nothing about
+    # what #100's rule adds -- and what it adds is the whole reason it exists.
+    print(
+        f"margins     {sum(1 for r in records if r.margin_patterns):,} of {len(records):,} "
+        f"documents carry a page-repeated line once its digits are masked, within "
+        f"{MARGIN_LINES} line(s) of a page edge"
+    )
+    print(
+        f"            {sum(len(r.margin_stripped) for r in records):,} distinct line(s) "
+        "removed by that rule and not by the one above"
+    )
+    unstripped = [r for r in records if r.output and not r.boilerplate and not r.margin_patterns]
+    print(f"            {len(unstripped):,} document(s) had nothing stripped by either rule")
     print(f"manifest    {manifest}")
 
     orphans = orphaned_outputs(out_root, records)
