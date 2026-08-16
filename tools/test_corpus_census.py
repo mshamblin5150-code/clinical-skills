@@ -1281,6 +1281,216 @@ class OrganismSpecificPool(unittest.TestCase):
         self.assertEqual(c.hedge_with_organism, 2)
 
 
+class RestatedDurationPool(unittest.TestCase):
+    """Guards the pool ``fixtures/duration-span`` says it drew from.
+
+    Same arrangement as ``OrganismSpecificPool`` and for the same reason. That
+    set is a **pick, not a population** -- three encounters out of the pool this
+    prints, chosen by reading them -- because the distinction drift row 16 turns
+    on is *whether two durations are about the same symptom*, and no regex makes
+    it. So the pool over-counts by construction and the honest defense is that
+    anyone can re-derive what it picked from.
+
+    The over-counting is not a caveat here, it is a property with a worked
+    example: day-b's cases 8 and 9 are the **attribution** limb, where the two
+    durations belong to two different symptoms and there is no conflict at all.
+    Both are in this pool and neither is what ``fixtures/duration-span`` was
+    built on. A filter that excluded them would be one reverse-engineered to
+    return the pick, which ``fixtures/README.md`` refuses outright.
+
+    Nothing here runs against ``scratch/``: the committed inputs are the worked
+    examples and the decoys are literals. Issue #65.
+    """
+
+    DURATION_SPAN = REPO_ROOT / "fixtures" / "duration-span" / "shorthand"
+
+    def test_every_duration_span_case_is_in_the_pool(self):
+        for number in (1, 2, 3):
+            with self.subTest(case=number):
+                self.assertTrue(
+                    cc.restates_a_duration(case(self.DURATION_SPAN, number))
+                )
+
+    def test_day_b_s_attribution_cases_are_in_the_pool_too(self):
+        """The pool cannot tell the span limb from the attribution limb.
+
+        Cases 8 and 9 date a *different* symptom -- day-b's B10 -- so there is
+        no conflict in either and no span to write. This is the over-count
+        stated as a test rather than as a sentence.
+        """
+        for number in (8, 9):
+            with self.subTest(case=number):
+                self.assertTrue(cc.restates_a_duration(case(DAY_B, number)))
+
+    def test_day_b_s_two_agreeing_cases_are_out_of_the_pool_for_different_reasons(self):
+        """Both are correctly out, and only one of them is out by design.
+
+        Case 4 writes ``x 5 days`` three times, so there are no two *different*
+        durations and the value rule excludes it. **Case 12 writes ``started
+        saturday`` and then ``states started saturdy``** -- one timeline and a
+        typo -- and those are two different strings, so the value rule does not
+        exclude it. It is out because no symptom sits within the window of the
+        second one. Move a symptom word next to that typo and the pool admits an
+        encounter that agrees with itself.
+
+        The filter cannot spell-normalize, and this is the one place in the
+        corpus where that shows. Recorded rather than repaired: normalizing
+        would be guessing which of two spellings was meant, and
+        ``fixtures/duration-span`` reads its pool anyway.
+        """
+        for number in (4, 12):
+            with self.subTest(case=number):
+                self.assertFalse(cc.restates_a_duration(case(DAY_B, number)))
+
+        values = {text for text, _ in cc.duration_mentions(case(DAY_B, 4))}
+        self.assertEqual(values, {"x 5 days"})
+
+        twelve = cc.duration_mentions(case(DAY_B, 12))
+        self.assertEqual(len({text for text, _ in twelve}), 2)
+        self.assertEqual(twelve[1][1], frozenset())
+
+    def test_one_duration_is_not_a_restatement(self):
+        self.assertFalse(
+            cc.restates_a_duration("cc: cough, congestion x 3 days\nexam: TMs wnl")
+        )
+
+    def test_a_duration_with_no_symptom_near_it_does_not_pair(self):
+        """The window is what makes this a *symptom* pool rather than a date one.
+
+        **The precondition is asserted rather than assumed**, and the first
+        version of this test is why. It used ``smokes 1 ppd x 20 years`` against
+        ``chole 3 years ago``, and ``DURATION`` matches no year-scale unit at
+        all -- so the note yielded **zero** duration mentions and the assertion
+        held because the regex had seen nothing. A test that passes for want of
+        input is the failure ``tools/test_icd10.py`` refuses by never running
+        against the shipped database, one layer down.
+        """
+        note = (
+            "cc: cough x 2 days\n"
+            "hx: tonsillectomy, appendectomy, cholecystectomy, hysterectomy 3 months ago"
+        )
+        mentions = cc.duration_mentions(note)
+        self.assertEqual(
+            mentions, [("x 2 days", frozenset({"cough"})), ("3 months", frozenset())]
+        )
+        self.assertFalse(cc.restates_a_duration(note))
+
+    def test_the_year_scale_is_outside_the_pool_entirely(self):
+        """A deliberate scope, and the cost is named in ``DURATION``.
+
+        Nothing in the corpus writes an acute onset in years, and a year-scale
+        interval there is a smoking history, a surgery or a chronic condition.
+        Admitting the unit would widen the published figure to buy those. What
+        it costs is real and is not nothing: a chronic pain dated two ways in
+        years is a same-symptom conflict this pool cannot see.
+        """
+        self.assertEqual(cc.duration_mentions("chronic back pain x 15 years"), [])
+        self.assertEqual(cc.duration_mentions("11-12 yrs ago"), [])
+
+    def test_the_same_duration_written_twice_is_not_a_restatement(self):
+        """Two mentions of one value are one timeline, however often it is written."""
+        self.assertFalse(
+            cc.restates_a_duration("cc: cough x 2 days\nexam: cough x 2 days")
+        )
+
+    def test_a_treatment_sig_beside_the_symptom_it_treats_counts(self):
+        """A named over-count, kept rather than filtered.
+
+        ``zithromax ... x 3 days`` sits within the window of the cough it
+        treats, so an encounter whose only second duration is a sig lands in the
+        pool. Excluding it would need the filter to know a sig from a history,
+        which is the same judgment row 16 itself needs and the same one this
+        pool does not claim to make.
+        """
+        self.assertTrue(
+            cc.restates_a_duration(
+                "cc: fever, cough, congestion starting 5 days ago\n"
+                "plan zithromax 7.5 mL qd x 3 days albuterol q4h cough"
+            )
+        )
+
+    def test_the_survey_counts_the_pool(self):
+        c = cc.survey(
+            [
+                "cc: cough x 2 days\nexam: cough started yesterday",   # in
+                "cc: cough, congestion x 3 days\nexam: TMs wnl",       # one duration
+                "hx: smokes 1 ppd x 20 years. chole 3 years ago",      # no symptom
+            ]
+        )
+        self.assertEqual(c.restating_a_duration, 1)
+
+
+class DurationSpanIsTheSameSymptomSet(unittest.TestCase):
+    """Guards the properties of the *inputs* ``fixtures/duration-span`` rests on.
+
+    ``DayBIsTheAbsenceSet``'s job, on a set whose whole subject is four strings.
+    S1 asks that both stated values reach the note as the endpoints of a span,
+    and S3 asks that the one restatement which **agrees** is not spanned. Repair
+    any of these in the inputs and every row above it passes with nothing tested.
+
+    Issue #65.
+    """
+
+    DURATION_SPAN = REPO_ROOT / "fixtures" / "duration-span" / "shorthand"
+
+    # The two durations each case states for one symptom, and for case 3 the
+    # pair that agrees. fixtures/duration-span/assertions.md states these in
+    # prose; they are here so a change has to be made in both places on purpose.
+    CONFLICTS = {
+        1: ("x 2 days", "started yesterday"),
+        2: ("x 2 days", "started yesterday"),
+        3: ("x 3 days", "started 2 days ago"),
+    }
+    AGREES = ("x 4 days", "started 4 days ago")
+
+    def test_the_set_has_three_cases(self):
+        self.assertEqual(len(sorted(self.DURATION_SPAN.glob("case-*.md"))), 3)
+
+    def test_every_case_is_exactly_one_note(self):
+        for number in (1, 2, 3):
+            with self.subTest(case=number):
+                text = case(self.DURATION_SPAN, number)
+                self.assertEqual(len(cc.split_notes(text)), 1)
+
+    def test_every_case_states_both_durations_it_is_scored_on(self):
+        for number, (first, second) in self.CONFLICTS.items():
+            with self.subTest(case=number):
+                text = case(self.DURATION_SPAN, number).lower()
+                self.assertIn(first, text)
+                self.assertIn(second, text)
+
+    def test_case_three_also_carries_the_pair_that_agrees(self):
+        """S3's whole subject. Lose it and a run that spans everything passes."""
+        text = case(self.DURATION_SPAN, 3).lower()
+        for token in self.AGREES:
+            with self.subTest(token=token):
+                self.assertIn(token, text)
+
+    def test_every_case_states_an_age(self):
+        """No case may quietly become a missing-age test. fixtures/README."""
+        for number in (1, 2, 3):
+            with self.subTest(case=number):
+                self.assertTrue(cc.has_stated_age(case(self.DURATION_SPAN, number)))
+
+    def test_no_case_carries_a_date_of_birth(self):
+        for number in (1, 2, 3):
+            with self.subTest(case=number):
+                self.assertFalse(cc.has_dob(case(self.DURATION_SPAN, number)))
+
+    def test_case_two_s_onset_statement_is_a_bare_pronoun(self):
+        """S1's inference limb. ``this all started yesterday`` names no symptom.
+
+        Drift row 16 routes a pronoun with no new-or-worse marker to the whole
+        illness, which is what makes case 2 a conflict rather than an
+        attribution. Rewrite it to name the symptom and the case becomes case 1.
+        """
+        text = case(self.DURATION_SPAN, 2).lower()
+        self.assertIn("this all started yesterday", text)
+        for marker in ("now also", "new", "worsening", "worse today"):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, text.split("this all started")[0])
+
+
 class Age(unittest.TestCase):
     def test_years_spelled_out(self):
         self.assertTrue(cc.has_stated_age("48 year old F"))
