@@ -161,7 +161,12 @@ class EveryToolTakesIt(unittest.TestCase):
 
     def test_the_repo_still_has_command_line_tools_to_check(self):
         """A glob that quietly matched nothing would pass the next test for the wrong
-        reason. 15 of them as of 2026-08-16; the floor is the assertion."""
+        reason. 16 of them as of 2026-08-16; the floor is the assertion.
+
+        **It was 15 for about an hour.** ``anchor_scan.py`` was written on #124's
+        branch while this rule was written on #150's, and the merged tree failed
+        this class where neither branch did -- the floor held, the per-tool subtest
+        did not."""
         self.assertGreaterEqual(len(self.command_line_tools()), 15)
 
     def test_the_helper_itself_is_not_counted_as_a_command_line_tool(self):
