@@ -78,8 +78,10 @@ Pre-existing diagnoses with ICD-10 codes:
 <condition - code>
 
 Differential diagnoses with rationale:
-<diagnosis - code>
-<Most likely because … / Less likely because …>
+1. <diagnosis - code>
+   <Most likely because …>
+2. <diagnosis - code>
+   <Less likely because …>
 
 Final diagnosis: <condition - code; condition - code where the encounter
 established more than one>
@@ -123,6 +125,10 @@ illness but matters for counselling and future care>
 
 **Differential rationale** is the graded core. Each excluded diagnosis needs the specific finding that excludes it — `no facial swelling, no focal sinus tenderness` — drawn from the exam, whether that exam line is given or filled.
 
+**The list is numbered and ranked most likely first, and `1.` is the most-likely entry.** The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; what this template decides is the rendering, and on this branch **the numbered item is two lines** — the code line the rubric's shape requires, and the rationale line beneath it. The second line is a continuation of the item that opened above it and never opens one of its own. **A diagnosis argued down inside a paragraph is a defect rather than an entry**, so three diagnoses rejected in prose are three numbered items here. The rubric asks for *"3 differential diagnoses with rationale"* and numbering them is its own instruction read plainly, not a departure from it. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
+
+**And the count does not stop at this heading.** A diagnosis-shaped line written anywhere else in the Assessment — under a `problems addressed today` block or any heading a run invents — is an entry and carries a code, because a rule escapable by moving a line one heading down is not a rule. A **measurement of the patient's own body** is a diagnosis here and carries its code; a **line of reasoning** is not, and belongs in the rationale of the entry it concerns. Drift row 13 counts it.
+
 **The code on each differential entry stays in the note.** The rubric asks for it and this template has always carried it; what it is *for* is documenting medical decision-making, so it does not travel on to Medatrax's `ICD-10-CM` category the way the preexisting and actual diagnoses do. [SOAP.md](SOAP.md) now carries the same requirement, on one line rather than two — **the codes match across the branches, the layout does not have to.** Issue #19.
 
 **No diagnosis the encounter did not establish gets a code that overstates it**, and that reaches the `Final diagnosis` line as readily as the differential — a hedge is most often on the conclusion. [icd10-cpt](../icd10-cpt/SKILL.md) declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, not `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) checks it.
@@ -130,16 +136,16 @@ illness but matters for counselling and future care>
 **Once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry*; what this template decides is where the refusal goes, and on this branch it is **line two**. The rubric's shape puts the code on its own line, so line one stays `<diagnosis - code>` and carries nothing else, and the rationale line absorbs the refusal along with everything else it already carries — written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
-Pain in right leg - M79.604
-Less likely because the 4/10 pain sits over a chronic wound and the tib/fib film ordered today has no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it.
+2. Pain in right leg - M79.604
+   Less likely because the 4/10 pain sits over a chronic wound and the tib/fib film ordered today has no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it.
 ```
 
 **The `Final diagnosis` line keeps the hedge instead**, the way [SOAP.md](SOAP.md)'s does — **and so does the most-likely entry**, which on this branch means the hedge lands on line one and the refusal on line two exactly as it does for an entry argued against:
 
 ```
 Differential diagnoses with rationale:
-Community-acquired pneumonia, mycoplasma suspected - J18.9
-Most likely because three weeks of cough, decreased air movement and a documented sick contact fit; the film ordered today has no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism.
+1. Community-acquired pneumonia, mycoplasma suspected - J18.9
+   Most likely because three weeks of cough, decreased air movement and a documented sick contact fit; the film ordered today has no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism.
 
 Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
 Nothing tested for the organism, so NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae; a positive titer would earn it.

@@ -39,9 +39,9 @@ Labs/Tests today: <given results; given orders carrying no result, marked as ord
 A:
 
 Differential:
-<Diagnosis - CODE: the findings that support it. Favored.>
-<Diagnosis - CODE: the specific findings that argue against it. Less likely.>
-<Diagnosis - CODE: same. Less likely.>
+1. <Diagnosis - CODE: the findings that support it. Favored.>
+2. <Diagnosis - CODE: the specific findings that argue against it. Less likely.>
+3. <Diagnosis - CODE: same. Less likely.>
 
 Preexisting diagnoses (ICD10): <condition - CODE; condition - CODE>
 Final diagnosis: <condition - CODE>
@@ -78,27 +78,31 @@ Follow up: <interval, and what would bring them back sooner>
 
 **The differential is graded work.** Each entry names the findings that place it, and every rejected entry names the specific finding that rejects it — *afebrile, no focal crackles or egophony*. A bare list of diagnoses scores nothing.
 
+**It is a numbered list, ranked most likely first, and one entry per line.** `1.` is the favored entry. The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; what this template adds is the rendering, which on this branch puts the whole item on one line. **A diagnosis argued down inside a paragraph is a defect rather than an entry** — three diagnoses rejected in prose are three numbered items here, each with its own code and its own rejecting finding. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
+
 **And every entry carries a code, on one line with the rationale.** The code is pinned to its label with a hyphen and the colon still introduces the clause, which is the punctuation rule in [SKILL.md](SKILL.md) applied unchanged:
 
 ```
-Acute bronchitis - J20.9: cough three weeks, clear lungs, afebrile. Favored.
+1. Acute bronchitis - J20.9: cough three weeks, clear lungs, afebrile. Favored.
 ```
 
 [HP.md](HP.md) puts the code on a line of its own because the school's template does. **What has to match across the branches is the codes, not the layout** — the same encounter codes the same way whichever branch it is written in. This template's shape was verified against submitted notes and it keeps it. Issue #19.
+
+**The `Differential:` heading is where the list starts and not where the count stops.** A second block written after the conclusion — `Also addressed this visit`, `Additional problems addressed today`, `Reasoning carried forward` — is inside the count if its lines are diagnosis-shaped, because a rule a run can escape by moving a line one heading down is not a rule. **A measurement of the patient's own body is a diagnosis here** and carries its code, `Body mass index 28.6, in the overweight range - Z68.28`. **A line of reasoning is not**, and does not get a line of its own: a drug-against-condition conflict goes in the rationale of the entry it concerns, where drift row 11 is still satisfied by its being named in the Assessment. [SKILL.md](SKILL.md)'s *The shape of the differential* carries the ruling; drift row 13 counts it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 
 **Every entry gets a code, and no diagnosis the encounter did not establish gets one that overstates it.** That reaches the favored entry and the `Final diagnosis` line too, not only the entries argued against — a hedge is most often on the conclusion. `icd10-cpt` declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, never `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) is what checks it.
 
 **And once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry* and is not restated here; what this template adds is where it lands, which is inside the one-line form above — the label before the hyphen, the surviving code after it, and the refusal inside the rationale the colon opens, written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
-Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
+2. Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
 ```
 
 **The `Favored.` entry and the `Final diagnosis` line keep the hedge instead**, so on this template the two forms sit four lines apart and are meant to:
 
 ```
-Community-acquired pneumonia, mycoplasma suspected - J18.9: three weeks of cough, decreased air movement, documented sick contact; film ordered today with no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism. Favored.
-Acute bronchitis - J20.9: cough is productive, but the decreased air movement argues for consolidation. Less likely.
+1. Community-acquired pneumonia, mycoplasma suspected - J18.9: three weeks of cough, decreased air movement, documented sick contact; film ordered today with no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism. Favored.
+2. Acute bronchitis - J20.9: cough is productive, but the decreased air movement argues for consolidation. Less likely.
 
 Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
 ```

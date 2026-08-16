@@ -59,6 +59,25 @@ that is the whole point of retiring it. See the exit-status paragraph below.
   Non-hyphen pins are counted as ``malformed slot pins`` as well as read, because
   the punctuation rule is a separate rule and a reader should see it slipped.
 
+**It reads no ``Differential`` heading, and since [#70] that is ruled rather than
+incidental.** A slot is a ``<label> - <CODE>`` pin anywhere in the note outside a
+conclusion region and outside a pipe table, which was true here before anyone had
+decided it should be -- the ticket's own complaint was that *nothing but the
+parser said so*. The clinician ruled on 2026-08-16 that the count runs to **every
+diagnosis-shaped line in the Assessment**, whatever heading sits above it, because
+the narrow reading is escapable by moving an uncoded diagnosis one heading down.
+So this parser's omission is now the rule, written in ``SKILL.md`` under *The
+shape of the differential* and in both templates.
+
+**What the same ruling puts out of reach is C1's own count**, and that is a
+consequence rather than a gap. Telling ``Body mass index 28.6, in the overweight
+range`` -- a diagnosis, which takes a ``Z68`` -- from ``Drug and condition
+conflict: ...`` -- reasoning, which takes no code and no line of its own -- is a
+reader's judgment, and so is finding a diagnosis-shaped line under a heading a run
+invented. **A scanner reading the labeled block would be checking the narrow
+reading the ruling rejected**, reporting clean on precisely the note that moved a
+line down one heading. [#164] holds what a partial one could still be worth.
+
 **What it cannot reach is row 22 itself.** Deciding whether ``Pain in right leg``
 is what ``M79.604`` says takes a reader, and paraphrase is permitted:
 ``Shortness of breath - R06.02`` and ``Mild dyspnea - R06.02`` are both correct.

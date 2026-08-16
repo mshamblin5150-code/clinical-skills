@@ -2220,6 +2220,136 @@ class DayBIsTheAbsenceSet(unittest.TestCase):
                 self.assertIn(span, note)
 
 
+class Row15AndB9StateOneRule(unittest.TestCase):
+    """Drift row 15 and ``fixtures/day-b`` B9 are one rule written twice.
+
+    [#69](https://github.com/mshamblin5150-code/clinical-skills/issues/69) is what
+    made this worth a test. The row shipped with an opening sentence -- *every
+    reassurance in the note traces to a given* -- **broader than the method the
+    row then gave for checking it**, which reaches only a decision not to act. Two
+    clauses in day-b run 2 and one in run 3 sat in that gap, and which reading
+    governed decided two recorded scores. **Ruled 2026-08-16: the method
+    governs**, and the broad sentence is retired from both files.
+
+    So the failure this guards is not a typo. It is one file being narrowed and
+    the other left broad, which reads as agreement until someone grades a run
+    against the wrong copy -- and the two copies live in different trees, cited by
+    different readers, moved by different tickets.
+
+    **A quotation is not a statement of the rule**, which is why this reads the
+    table cell rather than the file. Both files argue about the retired sentence
+    in prose below their tables, and must go on being able to: that is the record
+    of what the ruling cost. ``spelling_scan``'s mention-versus-use distinction,
+    arriving here for the same reason.
+
+    Neither file is read for the *pain-score* limb or row 4's boundary -- those
+    are #59's and settled separately, and a test that pinned the whole cell would
+    fail on any later ruling rather than on a disagreement between the two.
+    """
+
+    #: Both tables head their rule column identically, which is what makes one
+    #: extractor serve both -- ``| # | Test | Passes when |`` in the skill and
+    #: ``| # | Cases | Passes when | Fails when | Reference did |`` here.
+    #:
+    #: **Resolved off the header rather than hard-coded**, and the difference is
+    #: not stylistic. Two of the three tests below assert a string is *absent*,
+    #: and a position that has quietly stopped pointing at the rule column makes
+    #: an absence test pass by reading the wrong cell. Inserting a column ahead
+    #: of *Passes when* in either table is an ordinary edit; it must fail here
+    #: rather than turn the guard off.
+    RULE_HEADING = "Passes when"
+
+    #: The reading #69 retired. Kept as a string rather than described, because a
+    #: test that looked for *some* broad sentence would pass against a reworded
+    #: one.
+    RETIRED = "Every reassurance in the note traces to a given"
+
+    #: What both cells must now carry. The first is the method, promoted to being
+    #: the rule; the second is the boundary the ruling bought, and without it the
+    #: cells agree on what fails and say nothing about what passes.
+    SHARED = (
+        "No decision to withhold, defer or narrow the workup of a documented "
+        "finding rests on a filled vital, body measurement or pain score",
+        "A reassuring clause that changes no action is not a discharge",
+    )
+
+    def rule_cell(self, path: Path, row_label: str) -> str:
+        """Return the *Passes when* cell of the table row labeled ``row_label``.
+
+        The label is matched against the first cell whole, not by substring:
+        ``B9`` would otherwise match nothing here, but ``1`` in the drift table
+        would match rows 1, 10 through 19 and 21 and silently grade the wrong
+        one.
+
+        The column is taken from the nearest preceding header rather than by
+        position, and the header is re-read at every table -- both files carry
+        several, and one shared index across all of them is the same guess in a
+        cheaper disguise.
+        """
+        column = None
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("|"):
+                continue
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if self.RULE_HEADING in cells:
+                column = cells.index(self.RULE_HEADING)
+                continue
+            if cells and cells[0] == row_label:
+                self.assertIsNotNone(
+                    column,
+                    f"{path.name} row {row_label} sits under no "
+                    f"{self.RULE_HEADING!r} header",
+                )
+                self.assertGreater(
+                    len(cells),
+                    column,
+                    f"{path.name} row {row_label} has no rule column",
+                )
+                return cells[column]
+        self.fail(f"{path.name} carries no table row labeled {row_label}")
+
+    def rows(self):
+        return (
+            ("drift row 15", REPO_ROOT / "skills" / "clinical-note" / "SKILL.md", "15"),
+            ("day-b B9", REPO_ROOT / "fixtures" / "day-b" / "assertions.md", "B9"),
+        )
+
+    def test_neither_row_still_states_the_retired_reading(self):
+        """The sentence #69 was filed over is gone from both rule cells.
+
+        Failing this from one side is the whole point: a pass that narrowed the
+        skill and left the fixture broad would leave the set grading runs by a
+        rule the skill no longer states.
+        """
+        for name, path, label in self.rows():
+            with self.subTest(row=name):
+                self.assertNotIn(self.RETIRED, self.rule_cell(path, label))
+
+    def test_both_rows_state_the_ruling(self):
+        """Both cells carry the method and the boundary, word for word.
+
+        Word for word rather than in substance, because *in substance* is what
+        two files drifting apart always look like on the day they part.
+        """
+        for name, path, label in self.rows():
+            cell = self.rule_cell(path, label)
+            for clause in self.SHARED:
+                with self.subTest(row=name, clause=clause[:40]):
+                    self.assertIn(clause, cell)
+
+    def test_the_retired_reading_survives_as_prose_in_both_files(self):
+        """The record of what was retired is not deleted along with the rule.
+
+        This runs the other way from the two above and is the reason they read a
+        cell rather than a file. #69 turned on a real ambiguity that produced
+        real findings across two runs; a later reader who cannot see the sentence
+        that was rejected cannot tell a settled question from one nobody asked.
+        """
+        for name, path, _ in self.rows():
+            with self.subTest(row=name):
+                self.assertIn(self.RETIRED, path.read_text(encoding="utf-8"))
+
+
 class AgeInYears(unittest.TestCase):
     """The value extractor, as opposed to ``has_stated_age``'s presence check.
 
