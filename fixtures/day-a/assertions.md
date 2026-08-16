@@ -251,9 +251,25 @@ Both values are **given**, not filled, so no filled-vitals row reaches this. `to
 
 **Drift row 22 — clean on all three limbs, in all eleven notes.** And **eleven of eleven pin the code to the label with a hyphen**, which is the form `tools/differential_scan.py` reads. That is worth recording against [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137): the twelve committed day-b run-1 notes use the hyphen **zero** times, and this run uses it everywhere. **The two sets differ on rendering, not just on vintage.**
 
-**`differential_scan.py` exits 1 on this run and all three findings are false.** Two come from case 3's own row-22 verdict prose and one from case 7's: each puts a legitimate slot code immediately before the literal `NOT CODED`, so the scanner reads the note as having refused its own diagnosis and then flags the compliant entry carrying it. Ruled by re-reading the lines. **Row 22 is clean; the tool is not.** [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+**`differential_scan.py` used to exit 1 on this run with three false findings, and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) fixed that by retiring the form the run is written in.** The three came from case 3's and case 7's own row-22 verdict prose: each put a legitimate slot code immediately before the literal `NOT CODED`, so the scanner read the note as having refused its own diagnosis. Ruled by re-reading the lines. **Row 22 was clean; the tool was not.**
 
-**One near-miss on the slot limb, in case 7.** Its `Final diagnosis` writes `Streptococcal pharyngitis, suspected: J02.0 NOT CODED, ...` with a **colon** where every other line in the same list uses a hyphen. The limb is written about the position after the hyphen, so it is not violated — **the pairing escapes on punctuation alone**, and the same content rendered with a hyphen would be a straight failure that the scanner would catch. Worth knowing before reading a clean slot scan as a walked limb.
+**It now exits 2 over this run, and that is a stronger report than the old exit 1 rather than a weaker one.** Row 22 requires the welded `NOT CODED: <code>` pair as of 2026-08-16 and this run predates it, so nothing here is graded. Measured the same day:
+
+| | |
+| --- | --- |
+| notes read | 11 |
+| differential entries | 129 |
+| conclusion entries | 74 |
+| codes marked `NOT CODED` — welded, and read | **2** |
+| bare `NOT CODED` marks — unread | **90** |
+| of those, sitting after a code, so retired-form refusals rather than prose | **81** |
+| malformed slot pins in a conclusion | 6 |
+
+**The two welded refusals are why the guard had to fire on any bare mark rather than on a run with none welded at all.** The first version of the limb did the latter, and this run cleared it: 2 read out of 83, a clean `row 22 - refused code in a slot  0` printed underneath, and 81 refusals never examined. That is the partial-coverage-reading-as-complete shape, caught here and not by a fixture.
+
+**Case 7's `Final diagnosis` is a real slot violation that no rule reached, and #153 is what reaches it.** It writes `Streptococcal pharyngitis, suspected: J02.0 NOT CODED, ...` with a **colon** where every other line in the same list uses a hyphen, so a limb written about the position after the hyphen never saw it — **the pairing escaped on punctuation alone** while the note asserted a strep the encounter did not establish. Row 22 now reads a conclusion by **position**: every code there that is not inside a `NOT CODED:` clause is slot-held, whatever pins it.
+
+**It is still not caught in this run as written, and the reason is worth keeping straight.** The refusal is in the retired form, so the run exits 2 and nothing in it is graded — the fix is conditional on rewriting. Rendered welded, the identical content is a straight failure: exit 1, one finding, one malformed pin. Verified 2026-08-16 against a reconstruction of that line built outside this run, so the figure does not rest on a `scratch/` directory.
 
 **One cross-note disagreement, on row 13 rather than 22.** `J18.9` is refused `NOT CODED` in case 6 and given a code slot in case 7 on comparable evidence — rhonchi or diminished sounds, a chest film ordered and unresulted, in both. Neither note fails row 22 on it.
 

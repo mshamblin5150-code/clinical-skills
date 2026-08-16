@@ -15,17 +15,64 @@ nobody established.
 note may appear in any entry's code slot -- the position after the hyphen that
 ``SKILL.md``'s punctuation rule reserves for the code pinned to a label.
 
+**A refusal is the welded pair ``NOT CODED: <code> <descriptor>, <reason>``, and
+nothing else.** [#153] is why. The first version of this scanner paired a mark
+with *the last code before it on the same physical line*, which is a guess, and
+it failed in both directions at once: hard-wrapping a rationale so the mark
+landed on its own line made the refusal **invisible** and the scan exited 0,
+while a note's own drift-row-22 verdict -- *"the slot after the hyphen carries
+M79.604, never a code marked NOT CODED"* -- was read as refusing the note's final
+diagnosis and exited 1. **Describing the rule is what broke it**, which is
+``phi_scan``'s self-exemption problem inverted. Both are gone because the pairing
+is now a match rather than an inference: the code follows the mark, welded to it
+by a colon, and a sentence writing ``NOT CODED`` without one is not a refusal.
+
+**The form was not invented here.** ``icd10-cpt`` step 4 has always written
+``NOT CODED: <code>  <descriptor>``, and all twelve worksheets in
+``fixtures/filled-anchor/run-2/`` use it and nothing else. ``clinical-note`` was
+the outlier; the clinician's ruling on 2026-08-16 made the two agree.
+
+**A run written in the retired form is reported as unscanned, not as clean**, and
+that is the whole point of retiring it. See the exit-status paragraph below.
+
+**Four things carry the fix, and dropping any one of them reopens a symptom:**
+
+- **The welded pair**, above.
+- **A pipe table is skipped outright.** In a note a Markdown table is the drift
+  matrix or a Medatrax field block, never a differential entry. This is what
+  makes a verdict *about* row 22 unreadable as a violation of it, rather than
+  merely unlikely to be one.
+- **A form inside backticks is a mention, a form in running prose is a use.**
+  ``spelling_scan.py``'s rule, adopted whole. The table limb covers a drift
+  matrix; #153 also asks that **a README sentence** not read as an entry, and a
+  sentence is not a table. Without this limb the verdict prose that filed #153
+  stops being a false *finding* and becomes a false *exit 2* -- a quieter way to
+  be wrong rather than a fix, and the review that caught it said so. It cuts both
+  ways, which is what keeps it a rule: a refusal quoted inside backticks is prose
+  about one and is not read either.
+- **The conclusion is read by position, not by punctuation.** Inside a
+  ``Final diagnosis`` region every code not sitting in a refusal clause is
+  slot-held, whatever pins it. ``day-a`` run 2's case 7 wrote
+  ``Final diagnosis: Streptococcal pharyngitis, suspected: J02.0`` with a colon
+  where every sibling line used a hyphen, and the slot escaped **on punctuation
+  alone** -- a real assertion of strep that the hyphen-only rule could not see.
+  Non-hyphen pins are counted as ``malformed slot pins`` as well as read, because
+  the punctuation rule is a separate rule and a reader should see it slipped.
+
 **What it cannot reach is row 22 itself.** Deciding whether ``Pain in right leg``
 is what ``M79.604`` says takes a reader, and paraphrase is permitted:
 ``Shortness of breath - R06.02`` and ``Mild dyspnea - R06.02`` are both correct.
 So a clean scan is **not** a walked row, and row 22 says so beside the command.
 This is ``filled-anchor``'s R2 residue arriving on a different rule.
 
-**It fails ``fixtures/hedged-dx`` run 1's case 2, and that is the rule being new
-rather than the run being newly wrong.** That note wrote
+**It no longer grades ``fixtures/hedged-dx`` run 1's case 2, and that is a
+reclassification rather than a lost finding.** That note wrote
 ``Contiguous osteomyelitis of the right tibia or fibula - M86.9 NOT CODED, ...;
-coded as pain in right leg - M79.604``, which was compliant with everything
-written down at the time and is the exact shape #68 was filed over.
+coded as pain in right leg - M79.604``, which is the exact shape #68 was filed
+over and which this scanner used to catch. Its refusal is in the retired form, so
+the run now reads as **unscanned** -- one bare mark, no refusal read. **N1 is
+still failed by that run**; it is failed by a reader now, and
+``fixtures/hedged-dx/assertions.md`` records which.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record; an
@@ -36,10 +83,29 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 **Exit status distinguishes not having scanned from having found nothing**, on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when every slot is clean, 1 on a violation, and **2 for every way of not having
-scanned** -- no argument, no directory, no notes in it, **and no differential
-entry in any note read.** That last one matters most: a run whose differential was
-written in some shape this parser does not read would otherwise report zero
+scanned** -- no argument, no directory, no notes in it, **no differential entry in
+any note read, and any bare ``NOT CODED`` mark.** The last two matter most: a run
+whose differential was written in some shape this parser does not read, or whose
+refusals are written in the form row 22 retired, would otherwise report zero
 violations and look like a pass.
+
+**Where a violation and an incomplete scan both hold, 1 wins, and that ordering
+is a decision.** A run carrying a real row-22 failure *and* a bare mark is
+definitely not clean, so returning 2 would file the strongest thing known about
+it under the weakest heading. Nothing is hidden by the choice: the unwelded count
+prints above either message, and the exit-1 message names it, so a 1 still says
+the finding is a floor rather than the whole count.
+
+**The bare-mark limb is *any* bare mark, and the weaker version of it was wrong.**
+It first fired only where a run had no welded refusal at all, and a real run
+cleared that guard while leaving almost every refusal in it unread -- a handful
+welded, the rest bare, and a clean row-22 line printed beneath them. That is the
+partial-coverage-reading-as-complete shape, not a partial success. **The counts
+are in ``fixtures/day-a/assertions.md`` and deliberately not repeated here**: they
+were measured against a run under ``scratch/``, so nothing committed can
+re-derive them, and a figure like that is kept in one place or it goes stale in
+several. What is pinned instead is the behavior --
+``test_differential_scan.py`` asserts a run mixing the two forms exits 2.
 
 Extractor limits worth knowing before quoting a number:
 
@@ -47,23 +113,34 @@ Extractor limits worth knowing before quoting a number:
   *Punctuation* -- the hyphen pins a value to its label. Both branches are read:
   [SOAP.md](../skills/clinical-note/SOAP.md) puts the pair and the rationale on
   one line, [HP.md](../skills/clinical-note/HP.md) puts the pair on its own line
-  with the rationale beneath. **The ``Final diagnosis`` and
-  ``Actual diagnosis/diagnoses`` lines are slots too**, deliberately: row 22
-  exempts them from the naming limb and not from this one.
-- **A refusal is a code adjacent to the literal ``NOT CODED``** -- the last code
-  before the mark on that line, and the first code after it where the mark is
-  followed by a colon, which is ``icd10-cpt`` step 4's own
-  ``NOT CODED: <code>  <descriptor>`` form. A run that withholds a code some other
-  way reads here as having refused nothing, which is a floor on the count and on
-  the exit status both. ``icd10-cpt`` requires the literal mark inline, so this is
-  a limit on non-compliant output rather than on compliant output.
-- **The last code before the mark, not every code on the line.** A compliant entry
-  puts its own slot code and its refusals on one line, so a parser treating every
-  code on a ``NOT CODED`` line as refused would flag the slot and fail the skill's
-  own worked example. ``test_differential_scan.py`` pins that case.
+  with the rationale beneath. **Inside the conclusion region the hyphen is not
+  required**, per the positional rule above.
+- **The conclusion region** opens on a ``Final diagnosis`` line and runs to the
+  next blank one, which covers the value written on the heading's own line and a
+  list written beneath it. ``Actual diagnosis/diagnoses`` opens one too: #153
+  retired that heading from ``HP.md`` in favor of ``Final diagnosis`` on both
+  branches, and **every H&P run written before then opens its conclusion that
+  way**, so a scanner that stopped reading it would report exit 2 on a real run.
+- **A refusal clause runs from the mark to the next ``;`` or the end of its
+  line**, and the first code in it is the refused one. The semicolon bound is the
+  collapse rule's separator, which is what lets one entry carry two refusals. The
+  end-of-line bound is load-bearing in the other direction: a clause running to
+  the end of the *paragraph* would swallow the entry written on the line below
+  and hide a violation on it. ``test_differential_scan.py`` pins that case.
+- **The clause continues onto the next line only where its own line yields no
+  code**, which is the one split welding cannot prevent -- a wrap falling between
+  ``NOT CODED:`` and the code.
+- **The refused occurrence is not the slot occurrence.** A conclusion pinning
+  ``J02.0`` with ``NOT CODED: J02.0`` on the line beneath is the same string
+  twice, and only the one outside the clause is an assertion. Codes are excluded
+  from slots **by position**, never by having been refused somewhere -- excluding
+  by identity would make that note read as clean, which is precisely the case
+  #153 filed.
 - A code is ``[A-Z][0-9][0-9A-Z]`` with an optional dotted extension, so ``97.3``,
   ``4/10`` and ``s1,s2`` are not codes. ``B12`` is code-shaped and would be read as
-  one; it fails nothing unless it sits in a slot and carries the mark.
+  one; it fails nothing unless it sits in a slot and carries the mark. Inside a
+  conclusion region it would read as a slot, which is the one place the positional
+  rule costs something.
 """
 
 from __future__ import annotations
@@ -86,28 +163,80 @@ CODE_TOKEN = re.compile(rf"\b{CODE}\b")
 # second pinned pair rather than swallowing the first.
 SLOT = re.compile(rf"([^;:\n]{{2,120}}?)[ \t]+-[ \t]+({CODE})\b")
 
-# ``icd10-cpt`` step 4 requires this literal, inline, on the same line as the
-# number. Case-sensitive on purpose: the skill specifies the uppercase form, and
-# matching ``not coded`` in prose would sweep up sentences discussing the rule.
-MARK = re.compile(r"NOT CODED")
-MARK_WITH_COLON = re.compile(r"NOT CODED[ \t]*:")
+# The welded pair row 22 requires, and the only thing read as a refusal.
+# Case-sensitive on purpose: the skill specifies the uppercase form, and matching
+# ``not coded`` in prose would sweep up sentences discussing the rule.
+MARK = re.compile(r"NOT CODED[ \t]*:")
+
+# The retired form, and any other bare mention of the mark. Counted rather than
+# read -- see the docstring on why silence would be the wrong report.
+BARE_MARK = re.compile(r"NOT CODED(?![ \t]*:)")
+
+# ``icd10-cpt`` step 4's block heading, which is a bare mark and is not a refusal.
+# Removed before the bare marks are counted, so a worksheet's own scaffolding does
+# not read as a note written in the retired form.
+BLOCK_HEADING = re.compile(r"NOT CODED, NOTHING ESTABLISHED IT")
+
+# A pipe table in a note is the drift matrix or a Medatrax field block, never a
+# differential entry. Skipping the row outright is what makes a verdict *about*
+# row 22 unreadable as a violation of it rather than merely unlikely to be one.
+TABLE_ROW = re.compile(r"^[ \t]*\|")
+
+# An inline code span. ``spelling_scan.py``'s distinction, adopted here for its
+# reason: **a form inside backticks is a mention, a form in running prose is a
+# use.** A table covers a drift matrix and not a sentence, and #153 asks for both
+# -- *"a drift matrix row, a verdict table and a README sentence are not
+# differential entries."* This is the limb that reaches the sentence.
+CODE_SPAN = re.compile(r"`[^`\n]*`")
+
+# Both conclusion openers, built from one alternation. ``Final diagnosis`` is what
+# both templates write since #153; ``Actual diagnosis/diagnoses`` is the H&P
+# heading it replaced, still read because every H&P run written before then opens
+# its conclusion that way. Two literals holding one list is how a heading gets
+# added to the reader and not to the labeller.
+_HEADINGS = r"(?:Final diagnosis|Actual diagnosis/diagnoses)"
+_OPENER = rf"^[ \t]*(?:\*\*|__)?{_HEADINGS}"
+CONCLUSION = re.compile(_OPENER)
+CONCLUSION_PREFIX = re.compile(rf"{_OPENER}[^:]*:")
+
+# A conclusion code pinned the way the punctuation rule requires.
+HYPHEN_PIN = re.compile(r"[ \t]-[ \t]+$")
 
 
 @dataclass(frozen=True)
 class Entry:
-    """One ``<label> - <CODE>`` pair, and the line it came from."""
+    """One code held in a slot, and the line it came from.
+
+    ``conclusion`` marks the ones found inside a ``Final diagnosis`` region,
+    which are located by position rather than by punctuation and are counted
+    apart from the differential for the reason ``survey`` gives.
+    """
 
     label: str
     code: str
     line: int
+    conclusion: bool = False
+    pinned: bool = True
+
+
+@dataclass(frozen=True)
+class Span:
+    """Half-open ``[start, end)`` over one line: the text of a refusal clause."""
+
+    start: int
+    end: int
+
+    def holds(self, position: int) -> bool:
+        return self.start <= position < self.end
 
 
 @dataclass(frozen=True)
 class Note:
-    """One note's slots and the set of codes it marked ``NOT CODED``."""
+    """One note's slots, its refusals, and its bare marks."""
 
     entries: tuple[Entry, ...]
     refused: frozenset[str]
+    unwelded_marks: int = 0
 
 
 @dataclass(frozen=True)
@@ -124,48 +253,152 @@ class Scan:
     """Counts over a run, plus the findings ``--show`` prints."""
 
     notes: int
-    entries: int
+    differential_entries: int
+    conclusion_entries: int
     refused_codes: int
+    unwelded_marks: int
+    malformed_pins: int
     findings: tuple[Finding, ...] = ()
 
 
-def _refused_on_line(line: str) -> set[str]:
-    """Every code the marks on one line refuse.
+def _clause_end(line: str, start: int) -> int:
+    """Where a refusal clause opened at ``start`` stops.
 
-    The last code **before** each mark, which is the inline form
-    ``M86.9 Osteomyelitis, unspecified NOT CODED, nothing established it``, plus
-    the first code **after** a mark that carries a colon, which is step 4's
-    ``NOT CODED: M86.9  Osteomyelitis, unspecified``.
+    At the next ``;`` -- the collapse rule's separator, which is what lets one
+    entry carry two refusals -- or at the end of the line. **Never past the end
+    of the line**, because a clause running to the end of the paragraph would
+    swallow the entry written on the line below and hide a violation on it.
+    """
+    semicolon = line.find(";", start)
+    return len(line) if semicolon == -1 else semicolon
+
+
+def _refusals(lines: list[str]) -> tuple[set[str], dict[int, list[Span]]]:
+    """Every welded refusal in a note, and the clause spans, keyed by line.
+
+    The spans are what keep a refused code from also reading as an assertion:
+    ``NOT CODED: J02.0 ...`` beneath a conclusion pinning ``J02.0`` is the same
+    string twice, and only the occurrence outside the clause is the slot.
     """
     refused: set[str] = set()
-    for mark in MARK.finditer(line):
-        before = CODE_TOKEN.findall(line[: mark.start()])
-        if before:
-            refused.add(before[-1])
-        if MARK_WITH_COLON.match(line, mark.start()):
-            after = CODE_TOKEN.search(line, mark.end())
-            if after:
-                refused.add(after.group(0))
-    return refused
+    spans: dict[int, list[Span]] = {}
+
+    def record(index: int, start: int, end: int, code: str) -> None:
+        refused.add(code)
+        spans.setdefault(index, []).append(Span(start, end))
+
+    for index, line in enumerate(lines):
+        for mark in MARK.finditer(line):
+            end = _clause_end(line, mark.end())
+            code = CODE_TOKEN.search(line, mark.end(), end)
+            if code is not None:
+                record(index, mark.end(), end, code.group(0))
+                continue
+            # The one split welding cannot prevent: a wrap between the mark and
+            # its code. The clause continues onto the next line, and only when
+            # its own line yielded nothing.
+            if index + 1 < len(lines):
+                following = lines[index + 1]
+                end = _clause_end(following, 0)
+                code = CODE_TOKEN.search(following, 0, end)
+                if code is not None:
+                    record(index + 1, 0, end, code.group(0))
+    return refused, spans
+
+
+def _conclusion_lines(lines: list[str]) -> set[int]:
+    """The indices inside a conclusion region.
+
+    A region opens on a ``Final diagnosis`` or ``Actual diagnosis/diagnoses``
+    line and runs to the next blank one, which covers both layouts: the value on
+    the heading's own line, and the list written beneath it.
+    """
+    inside: set[int] = set()
+    index = 0
+    while index < len(lines):
+        if CONCLUSION.match(lines[index]):
+            while index < len(lines) and lines[index].strip():
+                inside.add(index)
+                index += 1
+        else:
+            index += 1
+    return inside
+
+
+def _readable(line: str) -> str:
+    """One line with everything that is *about* the rule masked out.
+
+    **Blanked rather than dropped, and masked rather than deleted**, so every
+    index below still matches the line and column a reader would count to -- and
+    so a table following a conclusion closes the region the way a blank line does.
+
+    Two things go. A **pipe table row** is the drift matrix or a Medatrax field
+    block. An **inline code span** is a mention rather than a use, which is
+    ``spelling_scan.py``'s rule and is what lets a note discuss row 22 in a
+    sentence: ``never a code marked `NOT CODED``` is prose about the rule, and
+    ``NOT CODED: M86.9 ...`` is a refusal. Without this limb the verdict sentence
+    #153 filed over stops being a false *finding* and becomes a false *exit 2*,
+    which is a quieter way to be wrong rather than a fix.
+    """
+    if TABLE_ROW.match(line):
+        return ""
+    return CODE_SPAN.sub(lambda m: " " * len(m.group(0)), line)
+
+
+def _label_before(line: str, position: int) -> str:
+    """The label a conclusion code is pinned to, for ``--show`` only."""
+    segment = line[:position].rsplit(";", 1)[-1]
+    segment = CONCLUSION_PREFIX.sub("", segment)
+    return segment.strip(" \t-:.*_—–")
 
 
 def read_note(text: str) -> Note:
-    """Parse one note into its slots and its refusals.
+    """Parse one note into its slots, its refusals and its bare marks.
 
     Refusals are collected **note-wide** rather than per entry, because the H&P
     branch puts the code on one line and the refusal on the next -- so an entry
     line frequently carries no mark at all and the two cannot be paired
     positionally the way ``specificity_scan.py`` pairs a flag to its code.
     """
+    lines = [_readable(line) for line in text.splitlines()]
+    refused, spans = _refusals(lines)
+    conclusion = _conclusion_lines(lines)
+    unwelded = sum(
+        len(BARE_MARK.findall(BLOCK_HEADING.sub("", line))) for line in lines
+    )
+
+    def in_a_clause(index: int, position: int) -> bool:
+        return any(span.holds(position) for span in spans.get(index, ()))
+
     entries: list[Entry] = []
-    refused: set[str] = set()
-    for number, line in enumerate(text.splitlines(), start=1):
+    for index, line in enumerate(lines):
+        number = index + 1
+        if index in conclusion:
+            # Position, not punctuation. Inside the conclusion every code that is
+            # not being refused is being asserted, whatever pins it -- which is
+            # what closes the hole a colon opened in day-a run 2's case 7.
+            for match in CODE_TOKEN.finditer(line):
+                if in_a_clause(index, match.start()):
+                    continue
+                entries.append(
+                    Entry(
+                        label=_label_before(line, match.start()),
+                        code=match.group(0),
+                        line=number,
+                        conclusion=True,
+                        pinned=bool(HYPHEN_PIN.search(line[: match.start()])),
+                    )
+                )
+            continue
         for match in SLOT.finditer(line):
+            if in_a_clause(index, match.start(2)):
+                continue
             entries.append(
                 Entry(label=match.group(1).strip(), code=match.group(2), line=number)
             )
-        refused |= _refused_on_line(line)
-    return Note(entries=tuple(entries), refused=frozenset(refused))
+    return Note(
+        entries=tuple(entries), refused=frozenset(refused), unwelded_marks=unwelded
+    )
 
 
 def note_findings(note: Note) -> list[Finding]:
@@ -179,12 +412,23 @@ def note_findings(note: Note) -> list[Finding]:
 
 def survey(notes: list[Note]) -> Scan:
     """Count across a run. Takes parsed notes rather than paths, so a ``Scan``
-    never learns a filename -- a run directory's paths name the shift."""
+    never learns a filename -- a run directory's paths name the shift.
+
+    **Differential and conclusion entries are counted apart**, because the
+    exit-2 limb hangs on the differential alone. Every note in
+    ``fixtures/filled-anchor/notes`` carries a ``Final diagnosis`` list and none
+    of them pins a differential code, so a single total would rescue that set
+    into looking scanned on the strength of a conclusion nobody graded.
+    """
     found = [finding for note in notes for finding in note_findings(note)]
+    entries = [entry for note in notes for entry in note.entries]
     return Scan(
         notes=len(notes),
-        entries=sum(len(note.entries) for note in notes),
+        differential_entries=sum(1 for entry in entries if not entry.conclusion),
+        conclusion_entries=sum(1 for entry in entries if entry.conclusion),
         refused_codes=sum(len(note.refused) for note in notes),
+        unwelded_marks=sum(note.unwelded_marks for note in notes),
+        malformed_pins=sum(1 for entry in entries if entry.conclusion and not entry.pinned),
         findings=tuple(found),
     )
 
@@ -198,8 +442,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"differential scan over {source}",
         "",
         f"  notes read                       {scan.notes}",
-        f"  differential entries             {scan.entries}",
+        f"  differential entries             {scan.differential_entries}",
+        f"  conclusion entries               {scan.conclusion_entries}",
         f"  codes marked NOT CODED           {scan.refused_codes}",
+        f"  unwelded NOT CODED marks         {scan.unwelded_marks}",
+        f"  malformed slot pins              {scan.malformed_pins}",
         "",
         f"  row 22 - refused code in a slot  {len(scan.findings)}",
     ]
@@ -241,7 +488,7 @@ def main(argv: list[str]) -> int:
         print(f"no notes found in {directory.name}", file=sys.stderr)
         return 2
     scan = survey([read_note(text) for text in texts])
-    if not scan.entries:
+    if not scan.differential_entries:
         print(
             f"no differential entry found in {scan.notes} note(s) in {directory.name}."
             " Nothing was scanned -- this is not a clean run.",
@@ -249,14 +496,41 @@ def main(argv: list[str]) -> int:
         )
         return 2
     print(format_report(scan, source=directory.name, show=show))
+    # **A confirmed violation outranks an incomplete scan, and the ordering is a
+    # decision rather than an accident.** Both conditions can hold at once, and a
+    # status can carry one. A run holding a real row-22 failure *and* a bare mark
+    # is definitely not clean, so reporting it as *not scanned* would file the
+    # strongest thing known about it under the weakest heading. Nothing is hidden
+    # either way -- ``unwelded NOT CODED marks`` is printed above both messages,
+    # so an exit 1 still shows how much went unread.
     if scan.findings:
         print(
             f"\n{len(scan.findings)} entry/entries hold a code the note refused,"
             " failing clinical-note drift row 22."
-            " Re-run with --show to see which, and do not paste that output.",
+            " Re-run with --show to see which, and do not paste that output."
+            + (
+                f" {scan.unwelded_marks} further mark(s) are unwelded and were not"
+                " read, so this is a floor rather than the whole count."
+                if scan.unwelded_marks
+                else ""
+            ),
             file=sys.stderr,
         )
         return 1
+    if scan.unwelded_marks:
+        # **Any** bare mark, not only a run with no welded refusal at all. The
+        # weaker test was written first and a real run refuted it, clearing the
+        # guard on a handful of welded refusals while the rest went unread. A run
+        # is either written in the form row 22 reads or it is not scanned, and
+        # there is no useful middle. Counts in fixtures/day-a/assertions.md.
+        print(
+            f"\n{scan.unwelded_marks} NOT CODED mark(s) in {directory.name} are not"
+            " welded to a code, so no rule could pair them with one."
+            " Refusals here are written in the form row 22 retired."
+            " The slot limb was not evaluated -- this is not a clean run.",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 

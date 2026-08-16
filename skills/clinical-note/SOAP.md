@@ -88,22 +88,24 @@ Acute bronchitis - J20.9: cough three weeks, clear lungs, afebrile. Favored.
 
 **Every entry gets a code, and no diagnosis the encounter did not establish gets one that overstates it.** That reaches the favored entry and the `Final diagnosis` line too, not only the entries argued against — a hedge is most often on the conclusion. `icd10-cpt` declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, never `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) is what checks it.
 
-**And once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry* and is not restated here; what this template adds is where it lands, which is inside the one-line form above — the label before the hyphen, the surviving code after it, and the refusal inside the rationale the colon opens:
+**And once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry* and is not restated here; what this template adds is where it lands, which is inside the one-line form above — the label before the hyphen, the surviving code after it, and the refusal inside the rationale the colon opens, written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
-Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. M86.9 Osteomyelitis, unspecified NOT CODED, nothing established it. Less likely.
+Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
 ```
 
 **The `Favored.` entry and the `Final diagnosis` line keep the hedge instead**, so on this template the two forms sit four lines apart and are meant to:
 
 ```
-Community-acquired pneumonia, mycoplasma suspected - J18.9: three weeks of cough, decreased air movement, documented sick contact; film ordered today with no result. J15.7 Pneumonia due to Mycoplasma pneumoniae NOT CODED, nothing tested for the organism. Favored.
+Community-acquired pneumonia, mycoplasma suspected - J18.9: three weeks of cough, decreased air movement, documented sick contact; film ordered today with no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism. Favored.
 Acute bronchitis - J20.9: cough is productive, but the decreased air movement argues for consolidation. Less likely.
 
 Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
 ```
 
-Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the limb that is mechanical. Issue #68.
+Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the limb that is mechanical. Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+
+**The `Final diagnosis` line is read by position and not by punctuation**, which is the one thing this template's own hyphen rule does not govern: every code on it that is not inside a `NOT CODED:` clause is read as asserted, so a code pinned there with a colon, or floated as an alternative, is a diagnosis this note claims. [SKILL.md](SKILL.md) carries the case that produced the rule.
 
 **Screening keys to risk, not just age.** A 0.5 PPD × 40 year history is 20 pack-years, which crosses the LDCT lung-cancer screening threshold — so the derived value earns a screening line. Compute the pack-years and say so.
 
