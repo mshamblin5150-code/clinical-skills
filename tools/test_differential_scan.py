@@ -1,11 +1,22 @@
 """Cover ``differential_scan``'s parser against synthetic notes built in this file.
 
 **There is no committed ``clinical-note`` run to test against.** The one candidate
-is ``fixtures/filled-anchor/notes/``, and its differential entries carry **no
-ICD-10 code at all** -- twelve notes, zero coded entries, measured 2026-08-15;
-they are ``day-b`` run 1 and predate issue #19, which is what put a code on every
-entry. So the scanner exits 2 on them, correctly, and they are no use here. The
-notes below are built in a temp directory instead, on
+is ``fixtures/filled-anchor/notes/``, and **zero of its twelve notes use the
+``label - CODE`` slot form** -- measured 2026-08-15 and pinned below by
+``TheOnlyCommittedRunHasNothingToScan``, because every limit claimed in the module
+docstring rests on it. So the scanner exits 2 there, correctly, and the set is no
+use for exercising the slot test.
+
+**Do not restate that as *those notes carry no codes*.** Four of them do: case 7's
+differential block carries 13 and case 8's nine, in the form
+``**COVID-19 (U07.1) -- FAVORED.**`` with the code in parentheses. Six of the
+twelve head no ``Differential`` at all. That heterogeneity is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s subject
+and not this file's; what matters here is only that nobody pins a code with a
+hyphen. **The wrong generalization was published in ``CLAUDE.md`` first and caught
+by a second reader**, which is why the narrow claim is now the tested one.
+
+The notes below are built in a temp directory instead, on
 ``test_specificity_scan.py``'s reasoning and for its reason: a scanner tested only
 against a passing run learns nothing about what it does to a failing one.
 
@@ -244,6 +255,30 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         self.write("case-01.md", CLEAN_SOAP)
         scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
         self.assertEqual(scan.notes, 1)
+
+
+class TheOnlyCommittedRunHasNothingToScan(unittest.TestCase):
+    """Pin the measurement the module docstring's limits rest on.
+
+    This is the one place the suite reads a real committed note set, and it reads
+    it to assert a **negative** -- that the slot form is absent -- rather than to
+    exercise the parser. If someone regenerates these notes in the current skill's
+    shape, this test fails and the docstring gets rewritten, which is the point.
+    """
+
+    NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
+
+    def test_twelve_notes_are_read(self):
+        self.assertEqual(len(ds.read_notes(self.NOTES)), 12)
+
+    def test_no_note_uses_the_slot_form(self):
+        scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.NOTES)])
+        self.assertEqual(scan.entries, 0)
+
+    def test_the_scanner_reports_not_having_scanned(self):
+        # Exit 2, not 0. A run whose differential the parser cannot locate must
+        # not read as a clean one -- this is the limb #137 asks tools to have.
+        self.assertEqual(ds.main([str(self.NOTES)]), 2)
 
 
 class TheSkillSaysWhatThisChecks(unittest.TestCase):
