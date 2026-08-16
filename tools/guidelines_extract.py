@@ -20,15 +20,107 @@ same reason: tracked files are materialized in every worktree and gitignored one
 are copied into every worktree, and there are six live.
 
 **Maintainer-only, and that is what buys the dependency.** Everything else in
-``tools/`` is stdlib. This reads PDFs, so it needs ``pypdf``, and it runs once per
+``tools/`` is stdlib. This reads PDFs, so it needs ``pymupdf``, and it runs once per
 corpus refresh rather than on anything a consumer does. The dependency must not
 leak: the artifacts downstream tickets read are the ``.txt`` files this emits.
 
-**Why pypdf and not PyMuPDF.** Both are importable here and ``fitz`` is roughly six
-times faster. It also loses the spaces between words on the USPSTF files -- whole
-sentences come back as ``primarycarebecauseofitshighsensitivity`` -- and 90 of the
-179 documents are USPSTF. Reading order and word spacing decide whether a threshold
-survives; six minutes against four does not.
+**Why PyMuPDF, and why that reverses what this file used to say.** This module read
+the corpus with ``pypdf`` until #83, on a recorded reason: ``fitz`` loses the spaces
+between words on the USPSTF files -- whole sentences come back as
+``primarycarebecauseofitshighsensitivity`` -- and 90 of the 179 documents are
+USPSTF. **That observation was true and the conclusion drawn from it was wrong.** It
+was measured against ``page.get_text()``, which is one of several things PyMuPDF
+will do, and the glued words are not lost information: the *geometry* still carries
+the word boundary. On a glued USPSTF line, the gap between two characters inside a
+word measures -0.036 pt and the gap at a word boundary measures 1.145 pt, at an 8.48
+pt font. A twelve-fold separation is not a hard call.
+
+So ``rebuild_text`` walks ``rawdict``'s per-character boxes and inserts a space
+wherever the horizontal gap stands out against the line's own spacing -- see
+``line_baseline`` for why *against the line* and not against the font size.
+
+**Measured over all 179 documents and all 7,733 pages, 2026-08-16.** Zero read
+errors from either library:
+
+=========================  =========  =====  ======  =====
+reader                         words  glued   split   time
+=========================  =========  =====  ======  =====
+pypdf                      5,340,439   4168      --  342 s
+fitz get_text (default)    5,319,299   6568      --     --
+fitz + rebuild_text        5,369,614    719   6,881  195 s
+=========================  =========  =====  ======  =====
+
+``glued`` is words longer than 25 characters -- a run whose spaces were lost.
+``split`` is the reverse and is defined under *What the rebuild costs*.
+
+**These figures replace a 14-document, 4-page-each sample, and the sample was
+wrong in a way worth recording.** It reported 117 glued for pypdf against 4,168,
+and it reported the splitting cost as *"11 words out of 11,522 distinct"* when the
+corpus figure is three orders of magnitude larger. Worse, the tuning table it
+produced said 0.14 wrongly split nothing; over the whole corpus 0.14 leaves 5,094
+glued runs, which is **worse than the library it replaced**. A reader trusting that
+table would have picked the one value that loses to pypdf. #83 published it, and it
+was caught by being asked to read every document rather than a selection.
+
+**What the rebuild costs, isolated rather than bounded.** ``split`` above is a set
+difference -- words present in ``get_text``'s output and absent after the rebuild --
+and it counts every short glued run the rebuild correctly broke apart as though it
+were damage. ``seethe`` -> ``see the`` is in it. So every split the rebuild makes
+was recorded as ``run -> pieces`` and classified against a lexicon built from tokens
+**the PDF itself delimited with real space glyphs**, which needs no outside
+dictionary and cannot be defined by the inference under test:
+
+=================================  ======  =====  ==========================
+class                                   n      %  verdict
+=================================  ======  =====  ==========================
+glued run fixed                     9,622  70.3%  correct, the point
+punctuation, tab or bullet          3,179  23.2%  harmless separation
+digit-break                           390   2.8%  damage, all in citations
+letter-spaced word                    306   2.2%  **the real cost**
+word broken, pieces not all single    188   1.4%  mostly a footnote marker
+=================================  ======  =====  ==========================
+
+13,685 split occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
+
+**The number that matters for this repo is zero.** Of the 413 digit-breaks, all
+**141** distinct runs are citation apparatus -- a year (``2009;``, 158 of them),
+supplement page ranges (``S131-S155``), a superscript reference marker welded to
+its word (``al,23``). **Not one carries a clinical unit**, so no threshold value is
+broken anywhere in the corpus. That was the risk worth measuring: a repo whose
+subject is numbers cannot afford a reader that splits them, and this one does not.
+
+So the true cost is **306 letter-spaced words** in readable text, or 696 counting
+the citation digit-breaks -- against 6,881 by set difference. The ``word broken`` row
+is mostly ``bThe -> b|The``, which is the rebuild correctly separating a footnote
+marker from the word after it and is miscounted as damage here rather than credited.
+
+**284 of those 696 are one running footer in one document, and it is unfinished
+work.** ``KDIGO-2009-Transplant-Recipient-Guideline-English.pdf`` carries
+
+    American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9
+
+on every page, and it accounts for 142 of the 306 letter-spaced splits and 142 of
+the 390 digit-breaks. ``span_baselines`` fixed the 16 pages where that footer is set
+as three spans and **not the 142 where it is one**: there the whole footer is a
+single Univers-Light span whose per-glyph gaps run from -2.35 to 0.00 around a
+median of -1.36, so the top of its own spread clears any fixed offset from that
+median. It is a font with heavy and highly variable negative bearings, not tracked
+type, and the median-plus-offset rule cannot separate the two.
+
+**The line already carries real space glyphs**, which is the lead worth following:
+the PDF has already said where its words are, and nothing on that line needed
+inferring at all. A rule that measured a candidate gap against the width of an
+actual space on the same line -- rather than against the median -- would leave it
+alone. That is not built here, because the same rule must not undo the USPSTF case,
+where a line has a space after its bullet and its words are glued anyway. See #178.
+
+**And the footer is boilerplate that should never have reached a reader**: its page
+range varies per page, so the 75% rule never strips it. That is #100's cause 1, and
+fixing #100 would remove this damage without touching the space rule at all.
+
+The trade favors the body over the front matter, which is the right way round: what
+splits is display type in headings and reference lists, and what is repaired is
+running prose, where a threshold lives.
 
 **The boilerplate rule.** A line appearing on 75% or more of a document's sampled
 pages is boilerplate, is stripped from every page, and is recorded per document so
@@ -40,10 +132,15 @@ sheet cannot survive.
 
 **Known limits, stated so nobody reads more into the output than is there.**
 
-- **A running head carrying its own page number is not caught.** ``pypdf`` folds
-  the folio into the head line, so the string differs page to page. Masking digits
-  would catch it and would also reach a repeated table row, which is the trade this
-  refuses to make.
+- **A running head carrying its own page number may or may not be caught, and
+  which one changed under #83.** ``pypdf`` folded the folio into the head line, so
+  the string differed page to page and the rule never saw it. PyMuPDF keeps them on
+  separate lines wherever the typesetter set them separately -- the ACIP captures
+  are the worked case, where the stamp, title and URL now repeat as three lines and
+  only the folio varies. Where a folio really is set inside the head, the old limit
+  still holds exactly. Masking digits would catch that residue and would also reach
+  a repeated table row, which is the trade this still refuses to make; #100 holds
+  the question open.
 - **Hyphenation at a line break is left alone.** ``speci-`` / ``ficity`` stays two
   lines. Rejoining it needs a lexicon to avoid welding real compounds together, and
   the indexer (#84) is a better place to decide that than the extractor.
@@ -63,9 +160,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import statistics
 import sys
 import unicodedata
+from collections.abc import Iterable
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -104,6 +205,40 @@ MINIMUM_OCCURRENCES = 3
 SAMPLE_SIZE = 32
 MINIMUM_SAMPLE = 8
 
+# How far a gap has to EXCEED its line's baseline before ``rebuild_text`` calls it
+# a space, as a fraction of the span's font size.
+#
+# **Tuned over all 179 documents and all 7,733 pages, 2026-08-16** -- the previous
+# table here was a 10-document sample and it was wrong at the top end:
+#
+#     fraction   words still glued
+#     0.06                     717
+#     0.08                     722
+#     0.10                     849
+#     0.12                   1,977
+#     0.14                   5,094
+#
+# The sample reported 0.14 as the value that split nothing; over the corpus it
+# leaves more glued runs than pypdf's 4,168, so it is the one setting that would
+# have been worse than not making this change at all. Gluing is the failure that
+# destroys a threshold -- a heading that loses its spaces is a heading, a
+# `130-139 mm Hg` welded to its neighbor is a number nobody can search for.
+#
+# 0.10 is kept rather than 0.06. The 132 additional glued runs are the price of a
+# threshold that is not tuned to the last measurement, and the three values from
+# 0.06 to 0.10 are within a rounding error of each other on a 5.37-million-word
+# corpus while 0.12 is already more than double.
+SPACE_GAP_FRACTION = 0.10
+
+# An absolute floor in points, for a span whose recorded size is 0 or absurdly
+# small. Without it such a span makes the threshold 0 and every character boundary
+# becomes a space, which turns one bad span into a page of single letters.
+SPACE_GAP_FLOOR = 0.25
+
+# How many inter-character gaps a line needs before its median is trusted as a
+# baseline. See `line_baseline` for why a low floor would be worse than none.
+MINIMUM_GAPS_FOR_BASELINE = 4
+
 CLASS_GUIDELINE = "guideline"
 CLASS_PRINT_CAPTURE = "print-capture"
 # For a document that was never read. It is not a guideline; nobody knows what it
@@ -115,12 +250,20 @@ CLASS_UNKNOWN = "unknown"
 # the "n of m" folio come with it, but a guideline PDF can carry a repeated URL
 # footer -- KDIGO does -- so only the timestamp is allowed to decide.
 #
-# Anchored at the start of the line and not at both ends. pypdf folds the page
-# title in after the stamp, so the real line reads "8/12/26, 10:25 AM Recommended
-# Vaccinations for Adults | ... | CDC". Requiring the whole line matched the
-# fixture and none of the three real files, which is what the fixture now looks
-# like. Still anchored at the front: a date and time part way through a sentence
-# is prose, and this must not read a guideline as a browser capture.
+# Anchored at the start of the line and not at both ends, and that survived #83
+# for a different reason than it was written for. Under pypdf the page title was
+# welded in after the stamp -- "8/12/26, 10:25 AM Recommended Vaccinations for
+# Adults | ... | CDC" -- so a whole-line match found none of the three real files.
+# Under PyMuPDF the stamp is the entire line, so a whole-line match would now work
+# and the front anchor is doing nothing on this corpus.
+#
+# It stays anyway: a front anchor is the weaker claim, it costs nothing, and the
+# next capture whose header the typesetter runs together is not hypothetical --
+# this corpus has already produced both layouts from the same three files. What it
+# must never become is unanchored: a date and time part way through a sentence is
+# prose, and this must not read a guideline as a browser capture.
+#
+# All three ACIP files re-checked as print-capture under PyMuPDF on 2026-08-16.
 PRINT_CAPTURE_STAMP = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}\s*[AP]M\b")
 
 # Characters that are noise or that render as something else, replaced explicitly
@@ -363,6 +506,135 @@ def failed_document(relative: Path, error: str) -> Record:
     )
 
 
+def line_baseline(glyphs: list[tuple[dict, float]]) -> float:
+    """The gap this line calls "no gap at all" -- its median inter-character gap.
+
+    **This is what tells letter-spaced type from a word break, and nothing else
+    can.** A typesetter who tracks a heading out widens *every* gap on the line, so
+    an absolute threshold sees them all as word breaks. Measured on
+    KDIGO-2024-CKD-Guideline p.3, the section header ``contents``:
+
+        gaps 1.48 1.48 1.48 1.48 1.48 1.48 1.48   median 1.475   spread 0.00
+
+    against a genuinely glued USPSTF line on the same rule:
+
+        median -0.036   max 1.145   spread 1.181
+
+    Tracking shifts the whole distribution; a word break is an **outlier within**
+    it. So the gap that matters is the excess over the line's own median, and
+    ``contents`` stops becoming ``c o n t e n t s``.
+
+    Measured over all 179 documents and all 7,733 pages, 2026-08-16 -- against the
+    absolute rule it recovers 4,285 more words, leaves 130 fewer glued runs, and
+    wrongly splits 1,694 fewer words. It is better on every axis, which is why it
+    replaced the absolute rule outright rather than being offered as an option.
+
+    **The floor of 4 gaps is not decoration.** A median over one or two gaps is the
+    gap itself, which would make the excess 0 and suppress every split on short
+    lines -- and a two-word line is exactly where a lost space is unrecoverable
+    from context. Below the floor the rule degrades to the absolute one.
+    """
+    gaps = [
+        glyphs[index][0]["bbox"][0] - glyphs[index - 1][0]["bbox"][2]
+        for index in range(1, len(glyphs))
+    ]
+    if len(gaps) < MINIMUM_GAPS_FOR_BASELINE:
+        return 0.0
+    return statistics.median(gaps)
+
+
+def span_baselines(line: dict) -> list[float]:
+    """One baseline per span, falling back to the line's and then to nothing.
+
+    **Per span, because a line's spans do not share metrics, and taking the median
+    across them measures nothing.** Found by rendering a page and looking at it
+    rather than by any text metric. The running footer of
+    KDIGO-2009-Transplant-Recipient-Guideline-English.pdf --
+
+        American Journal of Transplantation 2009; 9 (Suppl 3): Si-Si
+
+    -- is a single line of three spans, all Univers-Light 9 pt. The first 35
+    characters are set with negative tracking and measure -1.38 between glyphs; the
+    last 24 are set normally and measure 0.00. The line median is -1.38, so every
+    0.00 gap in the third span reads as an excess of +1.38 against a threshold of
+    0.90, and the rebuild split **every character of it**:
+
+        American Journal of Transplantation 2 0 0 9 ; 9 ( S u p p l 3 ) : S i - S i
+
+    That one footer, repeated on 158 pages, produced 158 of the 349 letter-spaced
+    splits and all 158 `2009;` digit-breaks -- 316 of the 762 damaged tokens in the
+    whole corpus, from one line in one document.
+
+    The fallback order matters. A span too short for its own median borrows the
+    line's, which is right where a line is one typeface broken into spans by a bold
+    word; and a line too short for that gets 0.0, which is the absolute rule.
+    """
+    glyphs_by_span = [
+        [(char, span.get("size", 0.0)) for char in span.get("chars", ())]
+        for span in line.get("spans", ())
+    ]
+    whole_line = [pair for span in glyphs_by_span for pair in span]
+    fallback = line_baseline(whole_line)
+    return [
+        line_baseline(span) if len(span) > MINIMUM_GAPS_FOR_BASELINE else fallback
+        for span in glyphs_by_span
+    ]
+
+
+def rebuild_text(raw: dict) -> str:
+    """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
+
+    **Takes the dictionary rather than the page**, so every rule in here is
+    exercisable from a literal in a test file and the suite still never opens a
+    PDF. That is the same line ``test_guidelines_extract.py`` already draws around
+    the ``.txt`` excerpts in ``tools/testdata/``.
+
+    The rule is one comparison: a horizontal gap wider than ``SPACE_GAP_FRACTION``
+    of the span's font size is a word boundary. Everything around it is guarding
+    against inserting a space next to one that is already there -- a PDF that sets
+    real space glyphs and one that positions glyphs with no spaces at all are both
+    common, and a document may do both on the same page.
+
+    Blocks whose ``type`` is not 0 are images and carry no characters. Lines come
+    back in PyMuPDF's reading order and are joined with newlines, because
+    ``page_lines`` splits on them and the boilerplate rule counts whole lines.
+    """
+    lines: list[str] = []
+    for block in raw.get("blocks", ()):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", ()):
+            baselines = span_baselines(line)
+            if not baselines:
+                continue
+            buffer: list[str] = []
+            previous_right: float | None = None
+            for index, span in enumerate(line.get("spans", ())):
+                size = span.get("size", 0.0)
+                baseline = baselines[index]
+                threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
+                for char in span.get("chars", ()):
+                    glyph = char["c"]
+                    left, _, right, _ = char["bbox"]
+                    gap_is_wide = (
+                        previous_right is not None
+                        and (left - previous_right) - baseline > threshold
+                    )
+                    # Never two spaces, and never a space before one the PDF set
+                    # itself: `buffer[-1] != " "` covers the first and
+                    # `glyph != " "` the second. Without them a document with real
+                    # space glyphs AND wide inter-word gaps -- which is most of
+                    # AHA/ACC -- comes back double-spaced, and `normalize`
+                    # collapsing runs of spaces would hide that rather than make
+                    # it correct.
+                    if gap_is_wide and glyph != " " and buffer and buffer[-1] != " ":
+                        buffer.append(" ")
+                    buffer.append(glyph)
+                    previous_right = right
+            lines.append("".join(buffer))
+    return "\n".join(lines)
+
+
 def extract_pages(path: Path) -> tuple[list[str], str | None]:
     """Every page of a PDF as raw text in reading order, and its embedded title.
 
@@ -376,48 +648,66 @@ def extract_pages(path: Path) -> tuple[list[str], str | None]:
     junk-detection heuristic here would put an unreviewable rule between the PDF
     and the record; curating them is the catalog's job (#81).
     """
-    import pypdf  # imported here so the pure functions above stay importable without it
+    import pymupdf  # imported here so the pure functions above stay importable without it
 
-    reader = pypdf.PdfReader(str(path))
+    document = pymupdf.open(str(path))
     pages = []
-    for page in reader.pages:
+    for page in document:
         try:
-            pages.append(page.extract_text() or "")
+            pages.append(rebuild_text(page.get_text("rawdict")))
         except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
             pages.append("")
 
     try:
-        title = ((reader.metadata or {}).get("/Title") or "").strip() or None
+        title = ((document.metadata or {}).get("title") or "").strip() or None
     except Exception:  # noqa: BLE001 - a broken metadata dictionary is not a failed read
         title = None
+    document.close()
     return pages, title
 
 
 def _engine_version() -> str:
     try:
-        import pypdf
+        import pymupdf
 
-        return f"pypdf {pypdf.__version__}"
+        return f"pymupdf {pymupdf.__version__}"
     except ImportError:
-        return "pypdf (not installed)"
+        return "pymupdf (not installed)"
 
 
-def require_pypdf() -> None:
+def require_pymupdf() -> None:
     """Fail once, up front, rather than 179 times.
 
     Every per-document failure is caught and recorded, which is what #80 asks for
-    -- so without this an uninstalled ``pypdf`` reads as 179 unreadable PDFs and a
+    -- so without this an uninstalled ``pymupdf`` reads as 179 unreadable PDFs and a
     manifest full of identical ImportErrors, next to a summary line cheerfully
     reporting the engine as not installed.
     """
     try:
-        import pypdf  # noqa: F401
+        import pymupdf  # noqa: F401
     except ImportError:
         raise SystemExit(
-            "pypdf is not installed. This is the one tool in tools/ that is not "
-            "stdlib, because it is the only one that reads a PDF:\n"
-            "    python -m pip install pypdf"
+            "pymupdf is not installed. This is one of the tools in tools/ that is "
+            "not stdlib, because it reads a PDF:\n"
+            "    python -m pip install pymupdf"
         ) from None
+
+
+def _extract_one(job: tuple[Path, Path, Path]) -> Record:
+    """One document, end to end. Top level because a pool has to pickle it.
+
+    The whole per-document pipeline runs in the worker, writing its own ``.txt``,
+    so nothing but the finished ``Record`` crosses back. Documents never share an
+    output path -- it is derived from the source path -- so there is no ordering
+    hazard in the writes, and the manifest is assembled in source order by the
+    parent from results the pool returns in order.
+    """
+    source_root, relative, out_root = job
+    try:
+        raw_pages, title = extract_pages(source_root / relative)
+        return build_document(relative, raw_pages, out_root, title)
+    except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
+        return failed_document(relative, f"{type(error).__name__}: {error}")
 
 
 def orphaned_outputs(out_root: Path, records: list[Record]) -> list[Path]:
@@ -505,11 +795,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--quiet", action="store_true", help="summary only, no per-document line"
     )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help="worker processes (default: one per CPU; 1 runs in this process)",
+    )
     args = parser.parse_args(argv)
 
     if not args.source.is_dir():
         raise SystemExit(f"not a directory: {args.source}")
-    require_pypdf()
+    require_pymupdf()
 
     source_root = args.source.resolve()
     out_root = (args.out or default_output(source_root)).resolve()
@@ -519,30 +815,46 @@ def main(argv: list[str]) -> int:
     if not pdfs:
         raise SystemExit(f"no PDFs under {source_root}")
 
+    jobs = [(source_root, path.relative_to(source_root), out_root) for path in pdfs]
+    workers = args.jobs if args.jobs > 0 else (os.cpu_count() or 1)
+    workers = max(1, min(workers, len(jobs)))
+
     records: list[Record] = []
-    for path in pdfs:
-        relative = path.relative_to(source_root)
-        try:
-            raw_pages, title = extract_pages(path)
-            records.append(build_document(relative, raw_pages, out_root, title))
-        except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
-            records.append(failed_document(relative, f"{type(error).__name__}: {error}"))
-        if not args.quiet:
-            # `use_utf8` in `__main__` is what keeps a society directory or a file
-            # name outside cp1252 from taking the run down at the print, having
-            # already done the work. This used to encode by hand through
-            # `sys.stdout.buffer`, which did the same job for this one line and left
-            # every other print in the file exposed -- including `record.error` on
-            # the failure path, where the reporting is what dies. Issue #150.
-            #
-            # The trade is real and worth naming: that hand-rolled line protected
-            # itself wherever it ran, and this one is protected by the entry point,
-            # so an in-process caller of `main` no longer gets it. There is no such
-            # caller, `sys.stdout.buffer` does not exist on the `StringIO` a test
-            # would redirect into, and one mechanism for the whole file beats one
-            # line that was safe alone. `flush` stays: that is progress output over
-            # 179 documents, and nothing to do with encoding.
-            print(f"  {records[-1].source}", flush=True)
+
+    def collect(results: Iterable[Record]) -> None:
+        for record in results:
+            records.append(record)
+            if not args.quiet:
+                # `use_utf8` in `__main__` is what keeps a society directory or a
+                # file name outside cp1252 from taking the run down at the print,
+                # having already done the work. This used to encode by hand through
+                # `sys.stdout.buffer`, which did the same job for this one line and
+                # left every other print in the file exposed -- including
+                # `record.error` on the failure path, where the reporting is what
+                # dies. Issue #150.
+                #
+                # The trade is real and worth naming: that hand-rolled line protected
+                # itself wherever it ran, and this one is protected by the entry
+                # point, so an in-process caller of `main` no longer gets it. There
+                # is no such caller, `sys.stdout.buffer` does not exist on the
+                # `StringIO` a test would redirect into, and one mechanism for the
+                # whole file beats one line that was safe alone. `flush` stays: that
+                # is progress output over 179 documents, and nothing to do with
+                # encoding -- and it matters more now, because with a pool the lines
+                # arrive in bursts as the in-order `map` releases completed work.
+                print(f"  {record.source}", flush=True)
+
+    # `map` yields in submission order, so the manifest stays in source order and a
+    # rebuild diffs clean against the last one rather than reordering on every run.
+    #
+    # Serial when workers == 1, and that is a real branch rather than a pool of one:
+    # a single-worker pool is all of the overhead and none of the benefit, and it is
+    # the mode a traceback out of `extract_pages` is readable in.
+    if workers == 1:
+        collect(_extract_one(job) for job in jobs)
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            collect(pool.map(_extract_one, jobs))
 
     manifest = write_manifest(out_root, records, source_root)
 

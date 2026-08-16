@@ -76,19 +76,39 @@ class ExcerptsAreWhatTheTestsThinkTheyAre(unittest.TestCase):
         self.assertEqual(len(AHA), 4)
         self.assertEqual(len(ACIP), 4)
 
-    def test_the_acip_excerpt_keeps_the_stamp_folded_into_the_title_line(self):
-        # The shape is the test. With the stamp on a line of its own -- what fitz
-        # produces and no real file here does -- the classifier passed this fixture
-        # and found zero print-captures in all 179 documents.
-        stamps = [
-            line
-            for page in ACIP
-            for line in page.split("\n")
-            if line.startswith("8/12/26,")
-        ]
+    def test_the_acip_excerpt_keeps_the_stamp_on_a_line_of_its_own(self):
+        # The shape is the test, and this assertion has now been written both ways.
+        #
+        # It required the stamp welded to the title, because pypdf produces that and
+        # a fixture with the stamp alone let the classifier pass while finding zero
+        # print-captures in all 179 documents. #83 moved the extractor to PyMuPDF,
+        # which puts the four header parts on four lines, so the welded form is now
+        # the one no real file produces and the shapes have swapped places.
+        #
+        # Checked against ACIP/Recommended Vaccinations for Adults ... CDC.pdf on
+        # 2026-08-16. The lesson from the first round is that reasoning about what an
+        # extractor emits is not a substitute for running it, so the fixture was
+        # rebuilt from the real file rather than edited into the shape expected.
+        lines = [line for page in ACIP for line in page.split("\n")]
+        stamps = [line for line in lines if line.startswith("8/12/26,")]
         self.assertEqual(len(stamps), len(ACIP))
         for line in stamps:
-            self.assertIn("| CDC", line)
+            # Exactly the stamp, nothing welded on. The title is its own line, and
+            # that is the whole difference this test exists to hold.
+            self.assertEqual(line, "8/12/26, 10:25 AM")
+        self.assertEqual(sum(1 for line in lines if line.endswith("| CDC")), len(ACIP))
+
+    def test_the_acip_excerpt_repeats_three_header_lines_not_one(self):
+        # The corpus consequence of the shape change, pinned so it cannot regress
+        # quietly: under pypdf a capture contributed one page-repeated line, under
+        # PyMuPDF it contributes three. The folio is deliberately not among them --
+        # it differs per page, which is #100's subject rather than this fixture's.
+        boilerplate = extract.find_boilerplate(extract.clean_pages(ACIP))
+        self.assertEqual(len(boilerplate), 3)
+        self.assertIn("8/12/26, 10:25 AM", boilerplate)
+        self.assertTrue(any(line.endswith("| CDC") for line in boilerplate))
+        self.assertTrue(any(line.startswith("https://") for line in boilerplate))
+        self.assertFalse(any(line.strip().endswith("/4") for line in boilerplate))
 
     def test_the_aha_excerpt_still_carries_the_raw_quirks(self):
         joined = "\n".join(AHA)
@@ -97,6 +117,195 @@ class ExcerptsAreWhatTheTestsThinkTheyAre(unittest.TestCase):
         self.assertIn("\u2013", joined)  # en dash, in a threshold range
         self.assertIn("\uf17b", joined)  # private-use icon glyph
         self.assertIn("\ufb01", joined)  # fi ligature
+
+
+def rawline(text: str, size: float, gaps: list[float]) -> dict:
+    """A PyMuPDF ``rawdict`` page holding one line, laid out to a gap pattern.
+
+    ``gaps[i]`` is the horizontal space between character ``i`` and ``i+1``, in
+    points, which is the only geometry ``rebuild_text`` reads. Every glyph is given
+    the same advance, so the gaps are the whole variable.
+
+    Built as a literal rather than read from a PDF, on this file's standing rule:
+    ``*.pdf`` is globally gitignored and the corpus is 179 copyrighted documents
+    outside the repo, so a test that opened one could not run on a fresh clone.
+    """
+    advance = size * 0.5
+    chars, cursor = [], 0.0
+    for index, glyph in enumerate(text):
+        chars.append({"c": glyph, "bbox": (cursor, 0.0, cursor + advance, size)})
+        cursor += advance + (gaps[index] if index < len(gaps) else 0.0)
+    return {"blocks": [{"type": 0, "lines": [{"spans": [{"size": size, "chars": chars}]}]}]}
+
+
+class RebuildText(unittest.TestCase):
+    """The space reconstruction #83 rests on, and the reason the reader changed.
+
+    Both cases below are **real geometry**, measured off the corpus on 2026-08-16
+    and written down here so the rule cannot drift away from what it was built for.
+    They are the two lines the algorithm has to tell apart, and an absolute
+    threshold cannot: in tracked type every gap is wide, so the word break is an
+    outlier *within the line's own distribution* rather than a large number.
+    """
+
+    # USPSTF/hypertension-screening-adults-final-rec-statement.pdf p.4, 8.48 pt:
+    # gaps inside a word measure -0.036 and the word boundary measures 1.145.
+    GLUED_SIZE = 8.48
+    GLUED_INSIDE = -0.036
+    GLUED_BOUNDARY = 1.145
+
+    # KDIGO/KDIGO-2024-CKD-Guideline.pdf p.3, 10.959 pt: the section header
+    # `contents`, letter-spaced, every gap 1.475 and a spread of exactly zero.
+    TRACKED_SIZE = 10.959
+    TRACKED_GAP = 1.475
+
+    def test_a_glued_run_is_split_at_its_word_boundary(self):
+        text = "Behavioralcounseling"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        gaps[len("Behavioral") - 1] = self.GLUED_BOUNDARY
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.GLUED_SIZE, gaps)),
+            "Behavioral counseling",
+        )
+
+    def test_letter_spaced_display_type_is_left_alone(self):
+        """`contents` must not become `c o n t e n t s`.
+
+        This is the case the absolute threshold got wrong, and it is why the rule
+        measures a gap against its line rather than against the font size: 1.475 pt
+        clears 0.10 x 10.959 outright, so every gap in the word was a word break.
+        """
+        text = "contents"
+        gaps = [self.TRACKED_GAP] * len(text)
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.TRACKED_SIZE, gaps)),
+            "contents",
+        )
+
+    def test_a_tracked_line_still_splits_where_it_is_tracked_wider_still(self):
+        """The baseline shifts the bar, it does not remove it. A tracked heading of
+        two words has a gap wider than its own tracking, and that is still a space
+        -- otherwise the rule would trade one failure for the other."""
+        text = "contentshere"
+        gaps = [self.TRACKED_GAP] * len(text)
+        gaps[len("contents") - 1] = self.TRACKED_GAP + self.TRACKED_SIZE * 0.5
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.TRACKED_SIZE, gaps)),
+            "contents here",
+        )
+
+    def test_a_short_line_falls_back_to_the_absolute_rule(self):
+        """Below MINIMUM_GAPS_FOR_BASELINE a median is the gap itself, which would
+        make every excess zero and suppress every split. A two-word line is exactly
+        where a lost space cannot be recovered from context, so the rule degrades to
+        the absolute one rather than to silence."""
+        self.assertLess(3, extract.MINIMUM_GAPS_FOR_BASELINE + 1)
+        self.assertEqual(
+            extract.rebuild_text(rawline("ab", self.GLUED_SIZE, [self.GLUED_BOUNDARY])),
+            "a b",
+        )
+
+    def test_a_space_the_pdf_already_set_is_not_doubled(self):
+        """Most of AHA/ACC sets real space glyphs AND wide inter-word gaps. Without
+        the guard the output is double-spaced, and `normalize` collapsing runs of
+        spaces would hide that rather than make it correct."""
+        text = "one two"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        gaps[len("one") - 1] = self.GLUED_BOUNDARY
+        gaps[len("one")] = self.GLUED_BOUNDARY
+        self.assertEqual(extract.rebuild_text(rawline(text, self.GLUED_SIZE, gaps)), "one two")
+
+    def test_an_image_block_contributes_no_line(self):
+        self.assertEqual(extract.rebuild_text({"blocks": [{"type": 1}]}), "")
+
+    def test_an_empty_dictionary_is_not_an_error(self):
+        self.assertEqual(extract.rebuild_text({}), "")
+
+
+class SpansDoNotShareMetrics(unittest.TestCase):
+    """The bug a rendered page found and no text metric did.
+
+    KDIGO-2009-Transplant-Recipient-Guideline-English.pdf's running footer is one
+    line of three spans, all Univers-Light 9 pt. The first is set with negative
+    tracking and measures -1.38 pt between glyphs; the last is set normally and
+    measures 0.00. Taking one median across the line gives -1.38, so every 0.00 gap
+    in the last span reads as an excess of +1.38 against a 0.90 threshold, and the
+    rebuild split every character of it:
+
+        American Journal of Transplantation 2 0 0 9 ; 9 ( S u p p l 3 ) : S i - S i
+
+    That one footer repeats on 158 pages and was the single largest source of
+    damage in the corpus. The geometry below is the real line's.
+    """
+
+    TIGHT, NORMAL, SIZE = -1.38, 0.0, 9.0
+
+    def line(self, first: str, second: str) -> dict:
+        def chars(text, gap, start):
+            advance = self.SIZE * 0.5
+            out, cursor = [], start
+            for glyph in text:
+                out.append({"c": glyph, "bbox": (cursor, 0.0, cursor + advance, self.SIZE)})
+                cursor += advance + gap
+            return out, cursor
+
+        left, cursor = chars(first, self.TIGHT, 0.0)
+        right, _ = chars(second, self.NORMAL, cursor)
+        return {
+            "blocks": [{"type": 0, "lines": [{"spans": [
+                {"size": self.SIZE, "chars": left},
+                {"size": self.SIZE, "chars": right},
+            ]}]}]
+        }
+
+    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbour(self):
+        page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
+        self.assertEqual(
+            extract.rebuild_text(page), "AmericanJournalofTransplantation2009;9(Suppl3)"
+        )
+
+    def test_the_line_median_alone_would_have_split_it(self):
+        """The counterfactual, so the test fails for the right reason. Against the
+        whole line the baseline is the tight span's, and the normal span's every gap
+        clears the bar."""
+        page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
+        glyphs = [
+            (char, self.SIZE)
+            for span in page["blocks"][0]["lines"][0]["spans"]
+            for char in span["chars"]
+        ]
+        whole_line = extract.line_baseline(glyphs)
+        self.assertAlmostEqual(whole_line, self.TIGHT, places=6)
+        self.assertGreater(
+            self.NORMAL - whole_line,
+            max(extract.SPACE_GAP_FRACTION * self.SIZE, extract.SPACE_GAP_FLOOR),
+        )
+
+    def test_a_span_too_short_for_its_own_median_borrows_the_line(self):
+        """Right where a line is one typeface broken into spans by a bold word: the
+        short span has no distribution of its own to measure."""
+        page = self.line("aaaaaaaaaa", "bb")
+        baselines = extract.span_baselines(page["blocks"][0]["lines"][0])
+        self.assertAlmostEqual(baselines[0], self.TIGHT, places=6)
+        self.assertAlmostEqual(baselines[1], baselines[0], places=6)
+
+
+class LineBaseline(unittest.TestCase):
+    def test_it_is_the_median_gap(self):
+        page = rawline("abcdef", 10.0, [1.0, 1.0, 5.0, 1.0, 1.0])
+        glyphs = [
+            (char, 10.0)
+            for char in page["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        ]
+        self.assertAlmostEqual(extract.line_baseline(glyphs), 1.0, places=6)
+
+    def test_too_few_gaps_returns_zero_rather_than_a_guess(self):
+        page = rawline("ab", 10.0, [1.0])
+        glyphs = [
+            (char, 10.0)
+            for char in page["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        ]
+        self.assertEqual(extract.line_baseline(glyphs), 0.0)
 
 
 class NormalizeText(unittest.TestCase):
