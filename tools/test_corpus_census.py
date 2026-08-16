@@ -138,9 +138,25 @@ PEDS_BP_ANY_VITAL = (3, 5, 8)
 DAY_A_ALLERGY_NONE = (2, 3, 7, 8, 9, 10)
 DAY_A_ALLERGY_STATED = (6,)  # "seasonal allergies"
 DAY_B_ALLERGY_NONE = (3, 10, 12)
-DAY_B_ALLERGY_STATED = (2, 7, 11)  # 7's "allergic to prednisone" is the only drug one
+DAY_B_ALLERGY_STATED = (2, 7, 11)
 PEDS_BP_ALLERGY_NONE = (2, 9)
 PEDS_BP_ALLERGY_STATED = (5,)
+
+# Issue #78's split of that "names something" column, and it is the column the
+# ruling actually turns on: ``NKDA`` is *no known drug allergy*, so a patient with
+# hay fever is NKDA and a note naming one is no evidence against filling it.
+#
+# **Three of the five name nothing but an environmental allergy**, and only two
+# name a drug. The constant above carried the comment *"7's 'allergic to
+# prednisone' is the only drug one"* until 2026-08-16 and it was wrong: case 11
+# writes ``allergies: seasonal allergies, levaquin``, and levaquin is a drug. The
+# same undercount was published in ``skills/clinical-note/SKILL.md``, which said
+# one of the sixteen written statuses named a drug allergy. Two do.
+ALLERGY_DRUG_CASES = ((DAY_B, 7), (DAY_B, 11))
+ALLERGY_FOOD_CASES = ()  # no committed input names a food allergen; untested, not wrong
+ALLERGY_ENVIRONMENTAL_CASES = (
+    (FIXTURES, 6), (DAY_B, 2), (DAY_B, 7), (DAY_B, 11), (PEDS_BP, 5),
+)
 
 DAY_A_TOBACCO_POSITIVE = (1, 2, 4, 7, 9)
 DAY_B_TOBACCO_POSITIVE = (1, 2, 3, 4, 5, 7, 8, 11, 12)
@@ -154,6 +170,21 @@ def fixture(name: str) -> str:
 def case(directory: Path, number: int) -> str:
     """One committed input, by set directory and case number."""
     return (directory / f"case-{number:02d}.md").read_text(encoding="utf-8")
+
+
+OBESITY_BMI_SHORTHAND = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+
+
+def all_committed_cases():
+    """The 31 inputs both social-slot classes count against.
+
+    Module-level rather than a method, because ``AllergyKindSplitsThreeWays``
+    reads the same denominator and instantiating a ``TestCase`` to borrow one is
+    a trick that breaks quietly across Python versions.
+    """
+    for directory in (FIXTURES, DAY_B, PEDS_BP, OBESITY_BMI_SHORTHAND):
+        for path in sorted(directory.glob("case-*.md")):
+            yield path, path.read_text(encoding="utf-8")
 
 
 def day_b(number: int) -> str:
@@ -2383,15 +2414,21 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
     nothing.
 
     **These are 31 committed fixture cases, a floor on the corpus and not the
-    corpus** -- and they are also, as of issue #29, the figures ``SKILL.md`` and
-    both assertion files quote, each of them marked there as a fixture floor with
-    the corpus run owed. ``corpus_census.py`` prints the same two rows against
-    ``scratch/`` and **has not been run against it since these extractors
-    landed**, so nothing here should be read as a corpus measurement. What is
-    pinned is the direction, which is what the ruling turns on.
+    corpus.** They were also the figures ``SKILL.md`` and both assertion files
+    quoted until 2026-08-16; those three now quote the corpus, which issue #78
+    ran. Nothing here should be read as a corpus measurement -- what is pinned is
+    the direction, which is what the ruling turns on.
+
+    **The allergy figure this class pins is not the one the ruling rests on, and
+    that is deliberate rather than an oversight.** ``NKDA`` is *no known drug
+    allergy*, so ``allergy_status_none`` is the wrong denominator for it;
+    ``AllergyKindSplitsThreeWays`` below carries the right one. This class is
+    kept counting the undivided column because the undivided column is what
+    ``ALLERGY_NONE`` measures, and a test that quietly re-aimed at a different
+    population would stop guarding the extractor it was written for.
     """
 
-    OBESITY_BMI = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+    OBESITY_BMI = OBESITY_BMI_SHORTHAND
 
     ALLERGY_SPLIT = (
         (FIXTURES, DAY_A_ALLERGY_NONE, DAY_A_ALLERGY_STATED),
@@ -2404,9 +2441,7 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
     )
 
     def all_cases(self):
-        for directory in (FIXTURES, DAY_B, PEDS_BP, self.OBESITY_BMI):
-            for path in sorted(directory.glob("case-*.md")):
-                yield path, path.read_text(encoding="utf-8")
+        return all_committed_cases()
 
     def test_thirty_one_committed_cases(self):
         """The denominator every figure below is quoted against."""
@@ -2466,6 +2501,15 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         A slot written to say nothing is a transcription gap when silent; a slot
         written only when positive is a real absence. Stated as a ratio so it
         survives the corpus growing, which the raw counts above do not.
+
+        **The allergy limb of that promise was not kept, and issue #78 is where
+        it broke.** Over the corpus the undivided allergy ratio is 38%, so this
+        assertion holds on the fixtures and is false of the population they are a
+        floor on. It is left as it is because it guards ``ALLERGY_NONE`` against
+        a fixture edit, which is a real job; what it is not is a statement about
+        the clinician. ``AllergyKindSplitsThreeWays::test_the_row_the_nkda_fill_rests_on``
+        makes the claim this docstring thought it was making, on the drug-allergy
+        reading, where the fixtures give 14 of 16 and the corpus 195 of 284.
         """
         allergy_none = sum(
             1 for _, note in self.all_cases()
@@ -2553,6 +2597,213 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         self.assertEqual(c.with_tobacco_status, 15)
         self.assertEqual(c.tobacco_positive, 14)
         self.assertEqual(c.tobacco_negated, 1)
+
+
+class AllergyKindSplitsThreeWays(unittest.TestCase):
+    """Issue #78. Which *kind* of allergy the "names something" column named.
+
+    ``SocialSlotsSplitTwoWays`` above measures whether the allergy slot was
+    written to say nothing. This class measures the other half, and it is the
+    half the ruling turns on: ``NKDA`` is *no known drug allergy*, so a note
+    naming a seasonal one is fully compatible with filling ``NKDA`` and is no
+    evidence at all against the gap reading. The corpus run owed by #78 came back
+    with **173 of 284 written allergy statuses naming something**, which fires
+    that ticket's own reopen trigger -- and three of the five committed cases in
+    that column name nothing but an environmental allergy, so the trigger fires
+    on a column that cannot tell the two apart. The clinician ruled on
+    2026-08-16 that a note naming only environmental allergies still takes
+    ``NKDA``, and named **food** as the third category to separate.
+
+    Drug, food and environmental are the three ``DAVID`` checks, per the
+    clinician, and they are what these three token sets carry. A stated allergy
+    matching none of them is counted **unclassified** rather than assigned, so a
+    name the lists miss is a printed number instead of a silent misfiling.
+    """
+
+    def kinds(self, note):
+        return (cc.has_drug_allergy(note),
+                cc.has_food_allergy(note),
+                cc.has_environmental_allergy(note))
+
+    def test_the_two_drug_allergy_cases(self):
+        """day-b 7 names six drugs; day-b 11 names levaquin. Nothing else does."""
+        for directory, number in ALLERGY_DRUG_CASES:
+            with self.subTest(set=directory.parent.name, case=number):
+                self.assertTrue(cc.has_drug_allergy(case(directory, number)))
+
+    def test_case_eleven_is_a_drug_case_and_was_recorded_as_not_one(self):
+        """The correction this class exists to pin, on its own line.
+
+        ``allergies: seasonal allergies, levaquin`` -- both kinds in one clause.
+        Both the constant above and ``SKILL.md`` counted one drug case where
+        there are two, and the undercount is the sort a wider sweep never sees
+        because it reads as agreement between a file and a comment.
+        """
+        note = case(DAY_B, 11)
+        self.assertEqual(self.kinds(note), (True, False, True))
+
+    def test_the_environmental_only_cases(self):
+        """The three that fired the reopen trigger while meaning nothing by it."""
+        for directory, number in ((FIXTURES, 6), (DAY_B, 2), (PEDS_BP, 5)):
+            with self.subTest(set=directory.parent.name, case=number):
+                note = case(directory, number)
+                self.assertTrue(cc.has_stated_allergy(note))
+                self.assertEqual(self.kinds(note), (False, False, True))
+
+    def test_lactose_intolerance_is_not_a_food_allergy(self):
+        """peds-bp case 3's ``chews on cardboard`` shape, on the allergy side.
+
+        ``hx: strep pharyngitis, lactose intollaerance seasonal allergies`` is a
+        real committed input, an intolerance is not an allergy, and ``lactose``
+        sits outside the window because the window reaches one word back from
+        the allergy token and no further. It is excluded structurally rather
+        than by a token, which is why no ``lactose`` exclusion appears anywhere.
+        """
+        note = case(PEDS_BP, 5)
+        self.assertIn("lactose", note)
+        self.assertFalse(cc.has_food_allergy(note))
+
+    def test_a_drug_in_the_plan_is_not_an_allergen(self):
+        """The window is the allergy token's own sentence, not the note.
+
+        day-b 11 proposes bactrim in a plan while its allergy is levaquin. A
+        note-wide match would read every antibiotic prescribed anywhere as an
+        allergen, which would put ``allergies: nkda`` cases into the drug column
+        the moment anything was prescribed.
+        """
+        note = "Note 1\nallergies: seasonal allergies\nPlan bactrim ds BID\n"
+        self.assertEqual(self.kinds(note), (False, False, True))
+
+    def test_an_allergen_the_lists_miss_lands_in_unclassified(self):
+        """The safety valve, and the reason a token list is publishable at all."""
+        note = "Note 1\nallergies: zorbaxin\n"
+        self.assertTrue(cc.has_stated_allergy(note))
+        self.assertEqual(self.kinds(note), (False, False, False))
+        c = cc.survey([note])
+        self.assertEqual(c.allergy_unclassified, 1)
+
+    def test_a_denial_longhand_is_not_a_named_drug_allergen(self):
+        """The worst defect this class was written to guard, found in review.
+
+        ``ALLERGY_NONE`` required the negation to sit *adjacent* to the word, so
+        a qualifier between them broke it -- and ``ALLERGY_DRUG``'s generic
+        ``drug allerg`` form then read the denial as a **named drug allergen**.
+        A note saying the patient has no drug allergies became the strongest
+        evidence the corpus could offer against filling ``NKDA``. Two corpus
+        encounters were affected; the direction is what makes it worth a test of
+        its own rather than a figure.
+        """
+        for text in ("no drug allergies", "denies drug allergies",
+                     "denies any medication allergies", "no history of drug allergies",
+                     "no known drug allergies", "allergies: denies",
+                     "no hx allergies", "no sig hx allergies"):
+            with self.subTest(text=text):
+                note = f"Note 1\n{text}\n"
+                self.assertFalse(cc.has_stated_allergy(note))
+                self.assertFalse(cc.has_drug_allergy(note))
+
+    def test_a_negation_of_something_else_is_not_a_denial(self):
+        """The latent wrong branch the qualifier list exists to keep out.
+
+        An arbitrary-word gap reads ``no dm seasonal allergies`` as denying the
+        seasonal allergy, because nothing in a regex can tell the negation
+        belongs to the diabetes. It costs nothing on today's corpus -- the fix
+        moves the count by exactly the two real denials either way -- so it would
+        have been latent rather than visible.
+        """
+        for text in ("hx: htn no dm seasonal allergies",
+                     "no fever, seasonal allergies"):
+            with self.subTest(text=text):
+                note = f"Note 1\n{text}\n"
+                self.assertTrue(cc.has_stated_allergy(note))
+                self.assertTrue(cc.has_environmental_allergy(note))
+
+    def test_a_denial_that_names_a_drug_anyway_is_counted_apart(self):
+        """The one error running against ``allergy_no_drug``. Issue #78.
+
+        Everything else miscounts the safe way. This shape puts a real drug
+        allergy on the *no drug* side, which is why it is counted and printed
+        rather than argued about -- one corpus encounter, measured 2026-08-16.
+        """
+        note = "Note 1\nallergies: nkda except penicillin\n"
+        self.assertFalse(cc.has_stated_allergy(note))
+        self.assertTrue(cc.denies_allergies_but_names_a_drug(note))
+        self.assertEqual(cc.survey([note]).allergy_denied_but_drug, 1)
+
+    def test_no_committed_case_denies_and_names_a_drug(self):
+        """So the fixture figure of 14 of 16 needs no adjustment."""
+        c = cc.survey([note for _, note in all_committed_cases()])
+        self.assertEqual(c.allergy_denied_but_drug, 0)
+
+    def test_a_food_allergen_is_read(self):
+        """Untested against the corpus rather than unbuilt -- no committed input
+        names one, and the clinician named food as a category DAVID checks."""
+        for text in ("allergies: peanuts", "allergic to shellfish",
+                     "food allergy - eggs", "allergies: tree nuts"):
+            with self.subTest(text=text):
+                note = f"Note 1\n{text}\n"
+                self.assertTrue(cc.has_food_allergy(note))
+                self.assertFalse(cc.has_drug_allergy(note))
+
+    def test_a_kind_never_fires_where_the_slot_says_none(self):
+        """``NKDA`` and a kind cannot both hold, or the columns do not sum."""
+        for directory, numbers in ((FIXTURES, DAY_A_ALLERGY_NONE),
+                                   (DAY_B, DAY_B_ALLERGY_NONE),
+                                   (PEDS_BP, PEDS_BP_ALLERGY_NONE)):
+            for number in numbers:
+                with self.subTest(set=directory.parent.name, case=number):
+                    self.assertEqual(self.kinds(case(directory, number)),
+                                     (False, False, False))
+
+    def test_every_kind_implies_a_stated_allergy(self):
+        """The invariant ``allergy_unclassified`` subtracts on.
+
+        ``SocialSlotsSplitTwoWays::test_a_positive_tobacco_marker_always_implies_the_slot``
+        is this test with the slot changed, and it exists for that test's reason:
+        ``survey`` gates the kind counters behind ``has_stated_allergy``, which
+        hides a divergence rather than preventing one.
+        """
+        for path, note in all_committed_cases():
+            with self.subTest(case=str(path.relative_to(REPO_ROOT))):
+                if any(self.kinds(note)):
+                    self.assertTrue(cc.has_stated_allergy(note))
+
+    def test_survey_counts_the_three_kinds(self):
+        notes = [note for _, note in all_committed_cases()]
+        c = cc.survey(notes)
+        self.assertEqual(c.allergy_status_stated, 5)
+        self.assertEqual(c.allergy_drug, len(ALLERGY_DRUG_CASES))
+        self.assertEqual(c.allergy_food, len(ALLERGY_FOOD_CASES))
+        self.assertEqual(c.allergy_environmental, len(ALLERGY_ENVIRONMENTAL_CASES))
+        self.assertEqual(c.allergy_unclassified, 0)
+
+    def test_the_row_the_nkda_fill_rests_on(self):
+        """14 of 16 written statuses name no drug allergen, over the fixtures.
+
+        The figure ``SocialSlotsSplitTwoWays`` publishes for the same population
+        is 11 of 16, and 11 of 16 is not what ``NKDA`` is a claim about. Read on
+        drug allergens the fixture floor is *stronger* than the one #29 ruled on,
+        not weaker -- which is why #78's reopen trigger, written against the
+        undivided column, fired on a set that agrees with the ruling.
+        """
+        c = cc.survey([note for _, note in all_committed_cases()])
+        self.assertEqual(c.allergy_no_drug, 14)
+        self.assertEqual(c.allergy_no_drug_worst_case, 14)  # nothing unclassified
+        self.assertGreater(c.allergy_no_drug / c.with_allergy_status, 0.5)
+
+    def test_the_kinds_overlap_and_the_report_may_not_sum_them(self):
+        """Two of the five name a drug *and* an environmental allergy.
+
+        So the three columns are not a partition and adding them double-counts a
+        patient -- the error ``SocialSlotsSplitTwoWays``'s own comment records
+        being made once already, counting clauses instead of cases.
+        """
+        notes = [note for _, note in all_committed_cases()]
+        c = cc.survey(notes)
+        self.assertGreater(
+            c.allergy_drug + c.allergy_food + c.allergy_environmental,
+            c.allergy_status_stated,
+        )
 
 
 class Bands(unittest.TestCase):

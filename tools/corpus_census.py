@@ -106,11 +106,53 @@ Extractor limits worth knowing before quoting a number:
   status, spiritual, cultural, environmental, nutrition, fitness and sleep, and
   for alcohol and recreational drugs a shared denial -- "no smoke, drink, drugs"
   -- where the negation does not sit adjacent to the word it negates. Issue #29.
+- **The allergy slot's "names something" column was the wrong measurement for
+  the rule it fed, and it was published as the right one.** ``NKDA`` is *no
+  known drug allergy*: a patient with hay fever is NKDA, so a note naming a
+  seasonal allergy is no evidence at all against filling it. Issue #78 ran the
+  corpus and its own reopen trigger fired -- 173 of 284 written statuses naming
+  something, against a fixture floor of 5 of 16 -- and the trigger fired on a
+  count that could not tell a drug allergen from a seasonal one. Three of those
+  five fixture cases name nothing but an environmental allergy. ``ALLERGY_DRUG``,
+  ``ALLERGY_FOOD`` and ``ALLERGY_ENVIRONMENTAL`` split it; the three are the
+  categories the clinician named on 2026-08-16, and they are **not a partition**
+  -- two of the five name a drug *and* an environmental allergen, so the report
+  never sums them.
+- ``allergy_no_drug`` is the row the ``NKDA`` fill actually rests on, and it is a
+  **floor**. Three errors bear on it and all three are measured rather than
+  assumed. Two run the safe way: ``ALLERGY_DRUG`` is a token list matched inside
+  a window that cannot tell an allergen from a medication written beside it on
+  the same line, so ``allergy_drug`` is a ceiling; and any of
+  ``allergy_unclassified`` that is really a drug belongs on the other side --
+  charge every one of them as a drug and the share falls only from 69% to 63%.
+  The third runs against it and is ``allergy_denied_but_drug``: **one encounter
+  in 551**. Issue #78.
+- ``allergy_unclassified`` is **the token lists' miss rate and not a category**.
+  It is what makes a hand-written allergen list publishable here at all: a name
+  the lists do not carry becomes a printed number rather than a silent
+  misfiling. 16 of 173 against the corpus on 2026-08-16, and 0 of 5 against the
+  committed inputs -- so the lists are audited on the fixtures and measured, not
+  audited, on the corpus.
+- ``\bppd\b``'s purified-protein-derivative reading is **narrowed rather than
+  audited, and the narrowing is mechanical**. Issue #78 asked for the audit and
+  it needs a reader, because nothing separates the two senses. What a machine
+  can say, measured 2026-08-16 over 551 encounters: **102 encounters write a
+  bare ``ppd``, 13 of them carry no independent tobacco token** -- no "smok",
+  no "cigarette", no spelled-out pack-per-day -- and **none of those 13 writes a
+  TB-test word anywhere** ("tb", "tuberculosis", "quantiferon", "induration",
+  "skin test", "mantoux"). So 13 is a ceiling on what a PPD-skin-test reading
+  could cost the positive column, and charging all 13 as skin tests still leaves
+  159 of 197 positive -- 81%. **The ruling survives its worst case here too**,
+  and what stays with a reader is only whether any of those 13 is genuinely a
+  skin test. Do not confuse this 13 with issue #146's, which is a different set:
+  encounters writing a *welded* ``1ppd`` that ``\bppd\b`` cannot match at all.
 - ``\bppd\b`` is packs per day throughout this corpus and is also the standard
   abbreviation for a **purified protein derivative**. Nothing here can tell them
   apart, so a TB skin test written that way counts as a positive tobacco history
   and inflates that column. Audited against the 31 committed inputs, where every
-  instance is a pack-per-day quantity; unaudited against ``scratch/``.
+  instance is a pack-per-day quantity; against ``scratch/`` it is **bounded
+  rather than audited** -- see the ``allergy_no_drug`` bullet's neighbour below
+  for the 102/13/0 measurement and what it does and does not settle.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -522,16 +564,153 @@ ALLERGY_SLOT = re.compile(r"(?i)\ballerg|\bnkda\b|\bnka\b")
 # the longhand alternatives are carried so a day file that spells it out is not
 # read as a stated allergen.
 #
-# **A note writing both is counted as none, and no committed case does.** ``NKDA``
-# means no known *drug* allergy and coexists with a seasonal one, so "nkda,
-# seasonal allergies" is a real shape this would misclassify. It is absent from
-# all 31 committed inputs, so the branch is untested rather than wrong; this is
-# the line to change if one appears.
+# **A note writing both is counted as none. No committed case does, and 17
+# corpus encounters do** -- measured 2026-08-16 on issue #78, and the branch is
+# no longer untested. ``NKDA`` means no known *drug* allergy and coexists with a
+# seasonal one, so "nkda, seasonal allergies" is a real shape. **All 17 name an
+# environmental allergen and none names a drug or a food one**, so every one of
+# them is counted as saying none *correctly* -- ``NKDA`` is exactly what those
+# notes mean. #78's body predicted this would make the allergy figure "a slight
+# over-count of the gap reading" and it does not: it is the clinician writing the
+# drug-allergy denial beside a non-drug allergy 17 times, which is the same
+# reading he gave on 2026-08-16 and is corpus evidence for it rather than
+# against.
+#
+# **Three denial longhands were read as *stated allergens* until 2026-08-16**,
+# because the qualifier between the negation and the word broke the adjacency
+# every alternative here required: "no drug allergies", "denies drug allergies",
+# "denies any medication allergies". Two corpus encounters were affected. The
+# cost of leaving it was not the two: it was that ``ALLERGY_DRUG``'s generic
+# ``drug allerg`` form then read those denials as a **named drug allergen** --
+# the strongest possible evidence against the ruling the column exists to
+# support, manufactured out of a denial. Found by the standards review on #78.
+#
+# **The gap is a named qualifier list and not ``\w+``, and that is the whole
+# care in this fix.** An arbitrary-word gap reads "no dm seasonal allergies" as a
+# denial of the seasonal allergy, because nothing in a regex can tell that the
+# negation belongs to the diabetes. That shape costs nothing on today's corpus --
+# the widening moves the count by exactly the 2 real denials either way -- so it
+# would have been a latent wrong branch, kept out by measurement rather than
+# found by one. A comma already blocks the run-on: ``\w+\s+`` cannot cross the
+# comma in "no fever, seasonal allergies".
+ALLERGY_NEGATION_QUALIFIER = (
+    r"(?:known|any|other|new|current|active|significant|true|reported"
+    r"|history|hx|of|drugs?|meds?|medications?|medicine|food|foods"
+    r"|environmental|seasonal|latex|pcn|penicillin)"
+)
+
 ALLERGY_NONE = re.compile(
     r"(?i)\bnkda\b|\bnka\b"
-    r"|\bno\s+known\s+(?:drug\s+)?allerg"
-    r"|\bno\s+allerg|\bdenies\s+allerg"
-    r"|\ballerg\w*\s*[:\-]?\s*(?:none|neg)\b"
+    r"|\b(?:no|denies|denied|denying)\s+"
+    r"(?:" + ALLERGY_NEGATION_QUALIFIER + r"\s+){0,3}allerg"
+    # The ``hx`` limb takes an unrestricted filler where the others do not, and
+    # ``hx`` is what earns it: "no <anything> hx allergies" is a denial whatever
+    # the filler is, because the history word anchors the negation to the
+    # allergy rather than to the filler. Both corpus encounters this fix is for
+    # write a filler that is in no qualifier list -- found by counting, since
+    # printing the word would be printing note text.
+    r"|\b(?:no|denies|denied|denying)\s+(?:\w+\s+){0,2}(?:hx|history)\s+"
+    r"(?:of\s+)?(?:" + ALLERGY_NEGATION_QUALIFIER + r"\s+){0,2}allerg"
+    r"|\ballerg\w*\s*[:\-]?\s*(?:none|neg\w*|denie[sd])\b"
+)
+
+# Issue #78. Which *kind* of allergy the slot named, once it named one.
+#
+# **This is the column the ruling turns on, and until #78 it was one column.**
+# ``NKDA`` is *no known drug allergy*: a patient with hay fever is NKDA, so a
+# note naming a seasonal allergy is fully compatible with filling ``NKDA`` and is
+# no evidence at all against the gap reading. The corpus run #78 was owed came
+# back **173 of 284 written statuses naming something**, which fires that
+# ticket's own reopen trigger -- against a fixture floor of 5 of 16, three of
+# whose five name nothing but an environmental allergy. So the trigger fired on a
+# count that could not tell the two apart. The clinician ruled on 2026-08-16 that
+# an environmental-only note still takes ``NKDA``, and named **food** as the
+# third category, which is what ``DAVID`` checks.
+#
+# **The window runs from one word before the allergy token to the end of its
+# sentence *or* the end of its line, whichever comes first** -- ``[^.\n]*``, and
+# the line limb matters as much as the sentence one, because this shorthand
+# writes a whole history as one unpunctuated line and a whole plan as another.
+# That is what keeps a prescribed drug out of the allergen column: day-b case 11
+# writes ``allergies: seasonal allergies, levaquin`` and then proposes bactrim in
+# its plan, so a note-wide match would read every antibiotic prescribed anywhere
+# as an allergen -- and would put an ``NKDA`` case in the drug column the moment
+# anything was prescribed. One word back is what catches the allergen written
+# *before* the token (``peanut allergy``, ``seasonal allergies``) rather than
+# after it (``allergic to prednisone``); those are the only two positions an
+# allergen occupies. It is also what excludes ``lactose intollaerance seasonal
+# allergies`` in ``fixtures/peds-bp/shorthand/case-05.md`` -- an intolerance is
+# not an allergy, and it falls outside the window structurally rather than by an
+# exclusion someone had to think of.
+#
+# **What the window cannot do is tell an allergen from a medication written
+# beside it on the same line.** ``allergic rhinitis on zyrtec`` reads as a drug
+# allergy, and so does ``allergies: seasonal, meds: lisinopril``. There is no fix
+# inside a regex, and the ``unclassified`` column does not help -- that failure
+# lands a note in the wrong bucket rather than in none. It runs one way only:
+# it inflates ``allergy_drug`` and so deflates ``allergy_no_drug``, which is what
+# lets that figure be published as a floor.
+#
+# **A stated allergy matching none of the three is counted ``unclassified``, and
+# that is what makes a token list publishable at all.** These lists are common
+# allergen classes and nothing more; a name they miss becomes a printed number
+# instead of a silent misfiling, so the lists' quality is measurable from the
+# report rather than taken on trust.
+ALLERGY_WINDOW = re.compile(r"(?i)(?:\S+\s+)?(?:\ballerg|\bnkda\b|\bnka\b)[^.\n]*")
+
+ALLERGY_ENVIRONMENTAL = re.compile(
+    r"(?i)\bseasonal\b|\benvironmental\b|\bpollen\b|\bragweed\b|\bhay\s*fever\b"
+    r"|\bdust\b|\bmites?\b|\bmold\b|\bdander\b|\bgrass\b|\blatex\b"
+    r"|\bbees?\b|\bwasps?\b|\bhornets?\b|\binsect\b|\bstings?\b"
+    r"|\badhesive\b|\bnickel\b|\bcats?\b|\bdogs?\b|\banimals?\b"
+)
+
+# ``\bnuts?\b`` rather than a bare ``nut``, which would match "nutrition". No
+# committed input names a food allergen, so every alternative here is untested
+# against a real case rather than wrong -- the clinician named the category.
+ALLERGY_FOOD = re.compile(
+    r"(?i)\bfoods?\b|\bpeanuts?\b|\bnuts?\b|\bshellfish\b|\bshrimps?\b"
+    r"|\bcrab\b|\blobster\b|\bfish\b|\beggs?\b|\bmilk\b|\bdairy\b|\bsoy\b"
+    r"|\bwheat\b|\bgluten\b|\bsesame\b|\bstrawberr|\btomato|\bchocolate\b"
+    r"|\bmango\b|\bbanana\b|\bavocado\b|\bgelatin\b"
+)
+
+# Seeded from the allergens the committed inputs name -- prednisone, bactrim,
+# doxy, zyrtec, noroxin, pyridium, levaquin -- and widened to the classes a
+# primary-care allergy list carries. It is a list, so it is incomplete by
+# construction; ``unclassified`` is where that incompleteness is reported.
+ALLERGY_DRUG = re.compile(
+    # The generic forms are spelled as the whole phrase on purpose. A bare
+    # ``\bmeds?\b`` would fire on the ``meds:`` line the shorthand writes beside
+    # the allergy one, and a bare ``\bdrugs?\b`` on the shared social denial
+    # "no smoke, drink, drugs" -- two of the commonest lines in this corpus.
+    r"(?i)(?:drug|medication|med|antibiotic|abx)\w*\s+allerg"
+    r"|\ballergic\s+to\s+(?:a\s+|an\s+)?(?:drug|medication|antibiotic)"
+    r"|\bantibiotics?\b"
+    r"|\bpenicillins?\b|\bpcn\b|\bamoxicillin\b|\baugmentin\b|\bampicillin\b"
+    r"|\bcephalexin\b|\bkeflex\b|\bceftriaxone\b|\brocephin\b|\bcephalosporin"
+    r"|\bsulfa\w*\b|\bbactrim\b|\bseptra\b|\btmp\b"
+    r"|\bdoxy\w*\b|\btetracycline\b|\bminocycline\b"
+    r"|\bazithromycin\b|\bzithromax\b|\bz-?pak\b|\berythromycin\b|\bclindamycin\b"
+    r"|\blevaquin\b|\blevofloxacin\b|\bcipro\w*\b|\bmoxifloxacin\b|\bavelox\b"
+    r"|\bnorfloxacin\b|\bnoroxin\b|\bfluoroquinolone\w*\b"
+    r"|\bnitrofurantoin\b|\bmacrobid\b|\bvancomycin\b|\bmetronidazole\b|\bflagyl\b"
+    r"|\bprednisone\b|\bprednisolone\b|\bsteroids?\b"
+    r"|\bmorphine\b|\bcodeine\b|\bhydrocodone\b|\boxycodone\b|\bpercocet\b"
+    r"|\bvicodin\b|\btramadol\b|\bdilaudid\b|\bhydromorphone\b|\bfentanyl\b"
+    r"|\bdemerol\b|\bmeperidine\b|\bopioids?\b|\bopiates?\b"
+    r"|\bnsaids?\b|\bibuprofen\b|\bmotrin\b|\badvil\b|\bnaproxen\b|\baleve\b"
+    r"|\btoradol\b|\bketorolac\b|\baspirin\b|\basa\b"
+    r"|\bacetaminophen\b|\btylenol\b|\bstatins?\b|\blisinopril\b"
+    r"|\bmetformin\b|\bgabapentin\b|\blithium\b|\bphenytoin\b|\bdilantin\b"
+    r"|\blamotrigine\b|\blamictal\b|\bcarbamazepine\b|\btegretol\b"
+    r"|\ballopurinol\b|\bwarfarin\b|\bheparin\b|\blovenox\b"
+    r"|\bcontrast\b|\biodine\b|\bgadolinium\b|\bdye\b"
+    r"|\blidocaine\b|\bnovocaine\b|\banesthesia\b|\bpropofol\b"
+    r"|\bbenadryl\b|\bdiphenhydramine\b|\bzyrtec\b|\bcetirizine\b"
+    r"|\bclaritin\b|\bloratadine\b|\bpyridium\b|\bphenazopyridine\b"
+    r"|\bzofran\b|\bondansetron\b|\breglan\b|\bmetoclopramide\b"
+    r"|\bprilosec\b|\bomeprazole\b"
 )
 
 # ``\bnon-?smok`` is a separate alternative because ``\bsmok`` cannot match inside
@@ -845,6 +1024,74 @@ def has_stated_allergy(note: str) -> bool:
     return has_allergy_status(note) and not ALLERGY_NONE.search(note)
 
 
+def allergy_windows(note: str) -> list[str]:
+    """The spans a named allergen can occupy. See ``ALLERGY_WINDOW``. Issue #78."""
+    return ALLERGY_WINDOW.findall(note)
+
+
+def _allergy_kind(note: str, pattern: re.Pattern) -> bool:
+    """A kind fires only where the slot named something, and only in a window.
+
+    Gated on ``has_stated_allergy`` rather than left open, so the three kinds
+    partition the same population the report subtracts ``unclassified`` from --
+    and so ``no known drug allergies`` cannot be read as naming a drug, which is
+    the collision ``ALLERGY_DRUG``'s generic ``drug allerg`` form invites.
+
+    **The gate is not sufficient on its own, and saying so is the point.** It
+    only helps where ``ALLERGY_NONE`` recognised the denial; where that pattern
+    missed one -- as it did for "no drug allergies" until 2026-08-16 -- the gate
+    opens and the denial is read as a named drug allergen. The fix had to be in
+    ``ALLERGY_NONE``, and this docstring claimed the gate was the whole of it.
+    """
+    if not has_stated_allergy(note):
+        return False
+    return any(pattern.search(w) for w in allergy_windows(note))
+
+
+def has_drug_allergy(note: str) -> bool:
+    """A named drug allergen -- the only kind ``NKDA`` speaks to. Issue #78."""
+    return _allergy_kind(note, ALLERGY_DRUG)
+
+
+def has_food_allergy(note: str) -> bool:
+    """A named food allergen. The category the clinician added on 2026-08-16."""
+    return _allergy_kind(note, ALLERGY_FOOD)
+
+
+def has_environmental_allergy(note: str) -> bool:
+    """A named environmental allergen; seasonal allergies are the corpus's form."""
+    return _allergy_kind(note, ALLERGY_ENVIRONMENTAL)
+
+
+def has_unclassified_allergy(note: str) -> bool:
+    """Named something the three lists do not carry. The lists' miss rate."""
+    return has_stated_allergy(note) and not (
+        has_drug_allergy(note)
+        or has_food_allergy(note)
+        or has_environmental_allergy(note)
+    )
+
+
+def denies_allergies_but_names_a_drug(note: str) -> bool:
+    """A denial that names a drug allergen anyway -- "nkda except penicillin".
+
+    **The one error that pushes against ``allergy_no_drug`` rather than with
+    it**, and the reason that figure can be called a floor at all. Everything
+    else miscounts in the safe direction: ``ALLERGY_DRUG`` over-matches, and an
+    unclassified note might be a drug. This is the shape that would quietly put a
+    real drug allergy on the *no drug* side, and issue #78's body named it as the
+    branch nothing had measured -- *"if the corpus has some, the allergy figure
+    is a slight over-count of the gap reading"*. It has one. Measured 2026-08-16.
+
+    Counted separately rather than folded into ``ALLERGY_NONE``, because a note
+    denying drug allergies and then naming one is a contradiction in the source
+    and not a classification this tool gets to resolve.
+    """
+    if has_stated_allergy(note) or not has_allergy_status(note):
+        return False
+    return any(ALLERGY_DRUG.search(w) for w in allergy_windows(note))
+
+
 def has_tobacco_status(note: str) -> bool:
     """The tobacco slot was written, whatever it says. Issue #29."""
     return bool(TOBACCO_SLOT.search(note))
@@ -1032,6 +1279,11 @@ class Census:
     hypertension_bp_normal_lenient: int = 0
     with_allergy_status: int = 0
     allergy_status_none: int = 0
+    allergy_drug: int = 0
+    allergy_food: int = 0
+    allergy_environmental: int = 0
+    allergy_unclassified: int = 0
+    allergy_denied_but_drug: int = 0
     with_tobacco_status: int = 0
     tobacco_positive: int = 0
 
@@ -1039,6 +1291,32 @@ class Census:
     def allergy_status_stated(self) -> int:
         """Written and naming something. Issue #29."""
         return self.with_allergy_status - self.allergy_status_none
+
+    @property
+    def allergy_no_drug(self) -> int:
+        """Written, and naming no drug allergen. Issue #78, and the decisive row.
+
+        ``NKDA`` is *no known drug allergy*, so this is the population the fill
+        is right for -- the ``says none`` column plus every note whose only named
+        allergen is a food or an environmental one. It is a **floor**, by two
+        errors that both run the same way: ``ALLERGY_DRUG`` is a token list that
+        cannot tell an allergen from a medication named in the same sentence, so
+        ``allergy_drug`` is a ceiling, and any of ``allergy_unclassified`` that
+        is really a drug belongs on the other side. Read the report's own worst
+        case, which counts every unclassified note as a drug and still lands in
+        the majority.
+        """
+        return self.with_allergy_status - self.allergy_drug
+
+    @property
+    def allergy_no_drug_worst_case(self) -> int:
+        """``allergy_no_drug`` with every unclassified note charged as a drug.
+
+        Printed rather than left to a reader, because the ruling survives it and
+        a ruling that survives its own worst case is worth more than one quoted
+        at its best. Issue #78.
+        """
+        return self.allergy_no_drug - self.allergy_unclassified
 
     @property
     def tobacco_negated(self) -> int:
@@ -1088,6 +1366,8 @@ def survey(notes: list[str]) -> Census:
     hedge_n = hedge_org_n = pain_n = restated_n = 0
     htn_n = htn_bp_n = htn_normal_n = htn_lenient_n = 0
     allergy_n = allergy_none_n = tobacco_n = tobacco_pos_n = 0
+    allergy_drug_n = allergy_food_n = allergy_env_n = allergy_unclassified_n = 0
+    allergy_denied_drug_n = 0
 
     for note in notes:
         if has_hedge(note):
@@ -1099,6 +1379,13 @@ def survey(notes: list[str]) -> Census:
         if has_allergy_status(note):
             allergy_n += 1
             allergy_none_n += not has_stated_allergy(note)
+            # Not a partition: two of the five committed cases name a drug *and*
+            # an environmental allergen, so these three never get summed.
+            allergy_drug_n += has_drug_allergy(note)
+            allergy_food_n += has_food_allergy(note)
+            allergy_env_n += has_environmental_allergy(note)
+            allergy_unclassified_n += has_unclassified_allergy(note)
+            allergy_denied_drug_n += denies_allergies_but_names_a_drug(note)
         if has_tobacco_status(note):
             tobacco_n += 1
             tobacco_pos_n += has_positive_tobacco(note)
@@ -1178,6 +1465,11 @@ def survey(notes: list[str]) -> Census:
         hypertension_bp_normal_lenient=htn_lenient_n,
         with_allergy_status=allergy_n,
         allergy_status_none=allergy_none_n,
+        allergy_drug=allergy_drug_n,
+        allergy_food=allergy_food_n,
+        allergy_environmental=allergy_env_n,
+        allergy_unclassified=allergy_unclassified_n,
+        allergy_denied_but_drug=allergy_denied_drug_n,
         with_tobacco_status=tobacco_n,
         tobacco_positive=tobacco_pos_n,
     )
@@ -1381,6 +1673,23 @@ def format_report(
         f"     tobacco denying it  "
         f"{_pct(c.tobacco_negated, c.with_tobacco_status):>4}",
         "  the two slots must land opposite ways or the ruling has no basis",
+        "",
+        "  of those naming an allergy, which kind (issue #78. NKDA is no known",
+        "   DRUG allergy, so only the first row is evidence against filling it.",
+        "   a note may name two kinds - these NEVER sum to the column above)",
+        f"    drug             {c.allergy_drug:>7}",
+        f"    food             {c.allergy_food:>7}",
+        f"    environmental    {c.allergy_environmental:>7}",
+        f"    unclassified     {c.allergy_unclassified:>7}"
+        f"  <- the token lists' misses, not a kind",
+        f"  writes the slot and names NO drug allergen  "
+        f"{c.allergy_no_drug:>5}  {_pct(c.allergy_no_drug, c.with_allergy_status)}",
+        f"   worst case, every unclassified charged as a drug  "
+        f"{c.allergy_no_drug_worst_case:>4}  "
+        f"{_pct(c.allergy_no_drug_worst_case, c.with_allergy_status)}",
+        f"   against it, a denial that names a drug anyway  "
+        f"{c.allergy_denied_but_drug:>7}",
+        "  this is the row the NKDA fill rests on, and it is a floor",
     ]
     lines += ["", *format_band_report(bands)]
     return "\n".join(lines)
