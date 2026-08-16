@@ -428,7 +428,7 @@ Grounded, and expected:
 - A medication proposed in the **Plan** for a condition in the history — lisinopril where the history carries hypertension. This is the clinical reasoning being graded; make it.
 - Standard supportive care, health promotion, and return precautions for the stated diagnosis.
 - Testing for a documented infectious exposure — see below.
-- Screenings appropriate to the patient's age.
+- Screenings appropriate to the patient's age — **checked against the shipped sheet rather than recalled**. The Plan line reads as it always did; the population the recommendation is keyed to goes in the **tier block**, never beside the screening in the note. See *Guideline sheets*. This is the bullet a note followed to build a nine-item screening list on an age it had invented.
 - The exam of a system the shorthand never mentions.
 - **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes, and two of them are settled by a count rather than by inference: the allergy slot fills `NKDA` and the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
 - **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
@@ -503,6 +503,88 @@ If yes it is clinical and it stays. If no it is describing this skill's own work
 `No chronic illness reported` and `No new testing today` report. So does `acetaminophen, dose and frequency not documented` — an unverified dose is a real thing to know about a patient taking the drug. `No medication reconciliation was performed this visit` defends: strike the inferred medications and the sentence has nothing left to do.
 
 **It fails twice over, and the second failure is the worse one.** Nothing in the shorthand says a reconciliation was not done — this file infers that from an absent `meds:` line, and inferring it is correct. Writing it into the note turns that inference into a documented claim about the visit, under the clinician's name. The inference belongs in `FILLED·asserted`, which is where a preceptor can rule on it. Drift row 12. Issue #28.
+
+## Guideline sheets
+
+Two sheets ship in this repo, and where one covers what a Plan item asserts, it is **consulted rather than recalled**. This is the [icd10-cpt](../icd10-cpt/SKILL.md) code-set arrangement arriving one document over: a fact this repo holds is looked up, and a fact it does not hold says so. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
+
+| Sheet | Holds | Covers |
+| --- | --- | --- |
+| [`reference/guidelines-uspstf.md`](../../reference/guidelines-uspstf.md) | 143 recommendation statements, each with grade, population, interval, year, file and page, plus the verbatim statement text | preventive screening and counseling, **90 of 90** USPSTF documents |
+| [`reference/thresholds/`](../../reference/thresholds/) | per topic, the numeric decision points — target, cutoff, dose, interval — each with a verbatim snippet, source, page and class | **one topic**, hypertension, out of a 179-document corpus |
+
+**The obligation fires on the item's subject, never on whether the item states a number.** Before writing a Plan item whose appropriateness rests on a **population or a threshold** — every screening, counseling and immunization item, and every treatment item resting on a target or a cutoff — open the sheet that covers it. An item resting on neither is outside this rule entirely: `return precautions given`, `ibuprofen 400 mg PO q6h PRN for the sore throat`, `follow up as needed`. So is every part of the note that is not the Plan.
+
+**Gating this on a stated number was the live alternative and it was rejected.** `Colorectal cancer screening discussed` names no band and rests on one exactly as hard as `colorectal cancer screening from 45` does — the age decided whether to write the line at all. A number-gated rule would consult the sheet for the second and not the first, **which lets a line escape by being vague**, and that is the direction this repo refuses everywhere else: an unnumbered screening item is the *harder* one to check, not the exempt one.
+
+### The two silences are not the same silence
+
+Absence of a row means different things in the two sheets, and writing one wording over both is the defect this section exists to prevent.
+
+- **USPSTF is complete for what it covers.** 143 rows drawn from 90 of 90 documents, so a topic with no row is a topic the USPSTF has issued no statement on. The note may write `no USPSTF row` and mean it.
+- **A threshold sheet is not**, and its own [README](../../reference/thresholds/README.md) says so: *an empty directory entry is not a negative finding about a guideline.* A missing row there means one of three things, and the note may never claim it means the first:
+  1. the guideline holds no such number,
+  2. the recommendation was **scoped out by name** for carrying nothing a decision-point sheet can hold — 50 of hypertension's 103 are, each with its own reason in `## Coverage`, **28 of them reading exactly `no number`** and the rest naming what was missing more precisely: `no numeric trigger`, `no threshold value`, `no dose or duration stated`, and twice a number that exists only in a footnote. `single-pill combination recommended` and `shared decision-making principle` are both in that list,
+  3. the section it would be in was **never read** — every sheet's `## Scope` carries a `Not read:` limb, and hypertension's excludes the narrative sections, the evidence tables, the appendices and the reference list.
+
+So a threshold sheet that holds no row for what the note asserts earns `sheet does not settle it` and never `no guideline applies`.
+
+### The citation
+
+**Block only. It never appears in the note body.** A citation for a line this skill generated is this skill defending its own work, which is *The tier language stays out of the note* one section up, and it is the sharper half of the ticket's own constraint: a cited threshold reads as more authoritative than a recalled one **whether or not it applies**, and the note must not be more persuasive than it is correct.
+
+A bracketed tail on the item's own line, so the citation survives the line being copied out — the reasoning [icd10-cpt](../icd10-cpt/SKILL.md) gives for `SOURCE: filled` and `NOT FOR ENTRY`, that a block heading does not survive being copied one line at a time.
+
+**The sheet is named first**, because every field after it resolves only inside that sheet: `aha-2025` is a key in one sheet's `## Sources` and `adults-htn` is a key in its `## Populations`.
+
+```
+FILLED·proposed   Colorectal cancer screening discussed [uspstf: grade A, adults 50 to 75, 2021]
+FILLED·proposed   Continue lisinopril 20 mg daily, recheck 4 weeks [thresholds/hypertension: aha-2025 Class 1, adults-htn, SBP >=140]
+FILLED·proposed   Zoster vaccination discussed [uspstf: no row]
+FILLED·proposed   Inhaled maintenance therapy reviewed [recalled, no shipped sheet; catalog lists GOLD 2026]
+```
+
+**`no USPSTF row` says the USPSTF has issued no statement. It never says the item is not indicated**, and the zoster line is the case that shows the difference: the sheet holds **zero** immunization rows, because vaccine schedules are ACIP's remit and the USPSTF does not write them. So that verdict is a true and checkable fact about the sheet sitting on an item that is entirely appropriate — which is why the wording names the sheet rather than the medicine.
+
+**The tail stays on the item's line however long the line gets, and the lines above are not shortened to make that look comfortable.** The rule is about **the tail**, and nothing else in the block inherits it — a `DERIVED` line's arithmetic wraps the way the inferred-age line does, because arithmetic is not a marker and loses nothing by being read on two lines. A citation pushed onto a continuation line is the defect the same-line rule exists to prevent, and it is worse here than for `NOT FOR ENTRY` because a citation is three to five times longer and so likelier to wrap by accident. Four differential entries in `fixtures/filled-anchor/run-2/` already wrapped their descriptor and put an end-of-line marker on a continuation line, which is [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70) — **so a marker on the item's own line is countable, not reliably countable**, and that limit is named here rather than left for a counter to discover.
+
+**The filename and page are never written into the note.** Both sheets carry them per row, so the citation identifies the row and the sheet supplies the jump — which also means a corpus refresh that renames a file cannot leave a past note citing something that no longer exists.
+
+**The population is copied from the sheet's own cell and is never paraphrased into looking met.** Two things about that cell are worth knowing before it is trusted. In the USPSTF sheet the column is **derived from the statement text rather than quoted from a declared field** — the sheet says so at its top — so it is a reading, and a row whose population decides the patient's care is a row to check against the page it names. And **one row of the 143 has a population reading `not stated`**: the tail carries `population not stated` verbatim rather than inventing one, which is the same refusal as a `needs:` and reads as an instruction to open the source.
+
+**The population is the field that is not optional**, and it is there because of a real failure: a note filled an age of 55, built a nine-item age-keyed screening list on it, and the patient was 25. Every recommendation on that list may have been individually correct and none of them was owed to that patient. A citation without its population makes that note look better without making it truer. Issue [#158](https://github.com/mshamblin5150-code/clinical-skills/issues/158).
+
+### What the note owes when the population is not met
+
+**A filled population key is marked, never withheld.** Where the age, sex or measurement the row is keyed to was itself filled, the item says so — `age filled` — and the item is still written. This is drift row 20's ruling for codes applied one document over: *no code is withheld for resting on a filled value, and none is written as if measured.* Both halves fail here too.
+
+**A population condition the encounter never established takes `needs:`**, which is [icd10-cpt](../icd10-cpt/SKILL.md)'s own word for the measurement nobody took. A population **key** hides its own definition — `adults-htn-lowrisk` expands to *"adults with hypertension, no clinical CVD, 10-year PREVENT risk <7.5%"* — so the unmet limb has to be named beside it rather than left inside the key:
+
+```
+FILLED·proposed   Statin discussed for primary prevention [uspstf: grade B, adults 40 to 75 with 1+ risk factor and 10-year CVD risk 10%+, 2022] needs: 10-year risk not calculated
+```
+
+**Compute the risk where every input is present, and never invent one to get there.** A risk score is arithmetic on stated values, so it belongs under `DERIVED` with its arithmetic like a body mass index — but only when the note holds **every** input the equation takes. Any input missing and the item takes `needs:` instead. **No input to a risk score is ever filled**: age and vitals qualify for the standing-rule-2 exception, and a lipid value is a *result*, which *What may be inferred* refuses however plausible.
+
+**Name the calculator the cited row keys on, not a favorite.** The two sheets do not agree: AHA/ACC 2025 keys its populations on **PREVENT**, the USPSTF statin rows on an *estimated 10-year CVD risk*. And this repo ships no calculator, so the coefficients are recalled — the number carries `verify this number`, on [icd10-cpt](../icd10-cpt/SKILL.md)'s rule for working from recall.
+
+```
+DERIVED           10-year risk 12.4% = PREVENT, age 58 / male / SBP 148 treated /
+                  TC 214 / HDL 38 / smoker / no diabetes — verify this number
+```
+
+### When nothing ships
+
+Where no sheet covers the topic, the item reads `recalled, no shipped sheet` and the note may name **one** further thing: a document from [`reference/guidelines-catalog.md`](../../reference/guidelines-catalog.md), **and only on a literal match**. The catalog says what each of the 179 documents *is* and never what it says, so naming one is a checkable fact about which documents exist rather than a clinical claim — and gating it on a grep is what keeps it that way.
+
+- `grep -i "chronic obstructive" reference/guidelines-catalog.md` hits, so a COPD item may read `[recalled, no shipped sheet; catalog lists GOLD 2026]`.
+- `grep -i "zoster" reference/guidelines-catalog.md` returns nothing — the ACIP row's topic reads `adult immunization schedule`, which shares no word with it. So a zoster item names no document. **Finding it would take knowing that zoster is ACIP's business, which is recall wearing a citation.**
+
+It fails closed: no hit, no name.
+
+### What a citation can never carry
+
+**Whether the recommendation applies to this patient is not machine-checkable, and no wording here makes it so.** The population is quoted so a reader can compare it in one jump; that is the whole of what this buys. Two further limits are the sheets' own, written down in [reference/thresholds/README.md](../../reference/thresholds/README.md) rather than discovered: a sheet whose numbers are all real and all filed under the wrong heading passes every gate in that directory, and 138 of the 179 documents cannot be omission-gated at all — so *the sheet was consulted* and *the sheet is complete* are separate claims and only the first one is cheap.
 
 ## Conventions
 
@@ -739,6 +821,8 @@ The two FILLED lines together are **the FILLED block** — everything generated,
 
 A value can occupy two lines at once, and one routinely does: a BMI derived from a filled height is written under `DERIVED` with its arithmetic *and* under `FILLED·asserted` naming the filled input. Listing it only as derived hides that it was invented; listing it only as filled hides that it was computed.
 
+**A guideline citation rides on the `FILLED·proposed` item and does not move it.** There is no fourth tier and no `FILLED·cited` line. The three tiers answer *what did this encounter supply*, and for a screening item the answer is still **nothing — this skill wrote it**; a citation answers a different question, which is what stands behind the content. Two axes, so the citation is a tail on the line rather than a new heading. **The load-bearing part is that a cited item stays under FILLED**, where the clinician's confirmation pass reads it: a tier that moved cited items out would have taken the nine-item screening list off the one block a preceptor reads hardest, at the exact moment it most needed reading. Format and obligation are under *Guideline sheets*.
+
 **The block travels with the note.** [icd10-cpt](../icd10-cpt/SKILL.md) takes the note body *and* this block, because the body alone cannot say which of its numbers were measured — that is the whole point of writing filled content so it reads like the rest. Never hand a note to the coder with the tier block stripped. Where codes are produced mid-draft, as [SOAP.md](SOAP.md) and [HP.md](HP.md) both do, the step 4 tier assignment is what the coder needs; the block is that assignment's written form, not its only form.
 
 **FLAG is the block that matters.** A flag is a finding that was documented and then abandoned — an abnormal that reached the Objective and stopped there, a vital nobody addressed, a second problem the Assessment never names. It is neither a gap (nothing is missing from the source) nor a filled line (nothing was generated). It is the note failing to act on what it was told, which is the defect this skill exists to catch.
@@ -794,6 +878,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 21 | **Proposals** | Every `FILLED·proposed` item appears in the note body. **Checked by counting, the way rows 2, 16 and 18 are:** list every item the block proposes, then name where each one landed — the Plan order, the education point, the follow-up interval, the results line. **An item that landed nowhere was dropped**, and the block is describing a note that was not written. Fixed by writing the item or by striking it from the block, **never by a verdict saying it is there**. An `UNKNOWN`, a `FLAG` or a `GAPS` line is not a landing |
 | 22 | **Entry name** | Three limbs. **Naming** — every differential entry is named for the code it carries. **Slot** — no code marked `NOT CODED` anywhere in the note appears in any entry's code slot; the mark is the welded `NOT CODED: <code>` and a bare one is not read as a refusal at all. **Collapse** — two refusals resting on one documented finding are **one** entry naming both, not two entries sharing a label. **The favored entry and the conclusion line are exempt from the naming limb and from neither of the others** — `Final diagnosis` on **both branches** since 2026-08-16, and inside it every code not in a `NOT CODED:` clause is slot-held whatever pins it — because those keep the clinician's hedge, with a code beside it that is still only what the encounter supports. Where nothing was refused this row is satisfied by construction; it is failed by a label asserting a disease its code does not |
 | 23 | **Ranking** | The Assessment's differential is a **numbered list ordered most likely first** — `1.` is the favored entry — and **one entry per numbered item**. No diagnosis is argued down inside a paragraph: a differential written as prose fails this row however good the reasoning in it. The item is the unit, not the line — [SOAP.md](SOAP.md) writes one on one line and [HP.md](HP.md) on two — and **a wrapped line belongs to the item that opened it and never opens one**. **And the form is required rather than permitted**: the entry pins its code to its label with a hyphen, `Name - CODE: rationale`, so a code in parentheses or pinned with a colon fails this row. The conclusion line is exempt and row 22 says why |
+| 24 | **Guideline backing** | Every Plan item whose appropriateness rests on a **population or a threshold** — every screening, counseling and immunization item, and every treatment item resting on a target or cutoff — was **checked against the shipped sheet that covers it**, and its `FILLED·proposed` line carries the verdict as a tail on that line: a citation naming the sheet, the source and strength, the **population**, and the value — or `no USPSTF row`, or `sheet does not settle it`, or `recalled, no shipped sheet`. **The trigger is the item's subject and never whether it states a number**, so an unnumbered screening line owes this row exactly what a numbered one does. **The three silences are not interchangeable**, and a threshold sheet's may never be written as `no guideline applies`. A population key that was **filled** says so; a population condition the encounter never established takes `needs:`. **No citation appears in the note body.** An item resting on neither a population nor a threshold never fails this row |
 
 **Row 14 is appended rather than slotted beside row 4**, which is where it belongs by subject. Rows 1 through 13 are cited by number across this file, three fixture sets and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md), so renumbering to put it in its natural place would silently redirect every one of those citations. Its subject is row 4's, its number is not, and that is a deliberate cost.
 
@@ -896,6 +981,14 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 **It is not row 13 widened, and the two rows fail on different objects.** Row 13's subject is the **code** — is there one on every entry, and does any of them overstate what the encounter established. Row 23's is the **shape**, and a note can pass row 13 while failing this one: a prose paragraph carrying no diagnosis-shaped line owes row 13 nothing to count, which is precisely how `day-b` run 2's case 11 was scored. **Row 13 could not be failed by the thing it was written to catch**, because the run chose the denominator. That is why the shape became a row rather than a clause.
 
 **And a run that fails row 23 has not been graded on row 13**, which is the ordering to record when both are walked. An unnumbered differential leaves row 13's *two counts that either match or do not* resting on which grader read which line as an entry, so a `13 pass` beneath a `23 fail` is a verdict about nothing. Write the row-23 FLAG and say row 13 was not reachable, rather than reporting a pass on a count nobody could make. [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
+
+**Row 24 is appended for the reason row 23 was, and it is not row 21 widened.** Row 21 asks whether every `FILLED·proposed` item landed somewhere in the body — two counts, and a note that wrote all of them passes. Row 24 asks a question about the same items that counting cannot reach: **was the number in it looked up or recalled.** Case 10's nine-item screening list passes row 21 outright. Every item was in the Plan, every one was in the block, and not one had been checked against a sheet that holds three of them.
+
+**Its quiet failure is a note that reads better for having failed.** A recalled threshold and a cited one are the same sentence in the body — that is what *Block only* guarantees — so the only place the difference shows is the block, and a note that simply omits the tail looks tidier than one carrying `needs: 10-year risk not calculated`. **The row is failed by an absence that improves the document**, which is the shape rows 12 and 19 also have and the reason none of them survives being skimmed for.
+
+**Nothing checks this row, and that is worth stating rather than leaving to be found.** Rows 22 and 23 have `tools/differential_scan.py` reaching one limb each; this one has no scanner at all, so every limb is walked by a reader today. The mechanical limbs are there to be built — a tail is a string on a line and the sheets are greppable — but until something exists, *a clean read is the only read there is*.
+
+**And no scanner ever built for it will reach the limb that matters.** Whether a correctly extracted recommendation applies to the patient in front of the clinician is a clinical judgment, and the citation exists to put the population where a reader can rule on it — never to rule on it. A row that scored applicability would be asserting exactly the thing this whole section is arranged to avoid asserting. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
 
 **Counting is why this is a row rather than a requirement to quote the evidence.** The live alternative was to make row 4's verdict quote the Assessment or Plan words carrying each filled abnormal, and it fails on the case above: *"Addressed with nutrition and activity counseling at the primary care follow-up"* is a real sentence in that note, quotable, and false. **The most rigorous-looking check does not catch the most recent recurrence, because the false sentence is already inside the note.** Two integers do not have that problem. The clinician ruled on 2026-08-15. Issue [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47).
 
