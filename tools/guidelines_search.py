@@ -35,6 +35,14 @@ built by another schema version, or a query that would not parse. An index that 
 quietly failed to build would otherwise answer every clinical question with silence
 and look like a settled negative.
 
+**A crash while printing was reaching 1 through the back door, and that is what
+``use_utf8`` is doing in ``__main__``.** On a cp1252 console the print of a hit line
+carrying a threshold sign raised, the traceback escaped ``main``, and the process
+exited 1 -- which the paragraph above reads as *a genuine zero*. So the one failure
+these statuses exist to make visible was reachable by an accident, and the queries
+likeliest to trigger it were the clinical-threshold ones, because a cut point is
+written with a sign cp1252 has no code point for. Issue #150.
+
 Stdlib only -- FTS5 is compiled into the ``sqlite3`` that ships with Python, so
 querying costs no dependency at all.
 """
@@ -48,6 +56,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from console_codec import use_utf8
 from guidelines_index import DATABASE_ENVIRONMENT_VARIABLE, SCHEMA_VERSION, default_database
 
 DEFAULT_LIMIT = 20
@@ -208,8 +217,11 @@ def _report(connection: sqlite3.Connection, query: str, **options) -> int:
     hits = search(connection, query, **options)
     print(f"== {query}")
     for hit in hits:
-        # Plain ASCII throughout: printed to a Windows console, where a dash outside
-        # cp1252 comes back as a question mark and reads like corruption.
+        # The marker stays plain ASCII, so it reads the same on any console. That was
+        # once the whole of this file's thinking about cp1252, and it covered the one
+        # character here that is chosen rather than quoted: `hit.line` is a line off a
+        # guideline page, full of characters cp1252 cannot encode, and printing it
+        # raised. `use_utf8` in `__main__` is what makes it safe -- issue #150.
         mark = "~" if hit.from_snippet else " "
         print(f" {mark}{hit.doc_id}  p.{hit.page}  {hit.line}")
     print(f"-- {len(hits)} match(es); ~ = phrase spans lines, snippet shown")
@@ -259,4 +271,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

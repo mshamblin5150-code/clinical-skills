@@ -73,6 +73,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from console_codec import use_utf8
+
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
 # extension -- which is what keeps ``97.3`` and ``4/10`` out.
 CODE = r"[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?"
@@ -259,4 +261,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

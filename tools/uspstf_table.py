@@ -52,6 +52,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from console_codec import use_utf8
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
 
@@ -969,4 +971,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     sys.exit(main())

@@ -69,6 +69,8 @@ import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from console_codec import use_utf8
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Written with an explicit codec on every call and recorded in the manifest. This
@@ -526,12 +528,21 @@ def main(argv: list[str]) -> int:
         except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
             records.append(failed_document(relative, f"{type(error).__name__}: {error}"))
         if not args.quiet:
-            # Written through the same codec as the output files. A society
-            # directory or a file name outside cp1252 would otherwise take the
-            # run down at the print, having already done the work.
-            line = f"  {records[-1].source}"
-            sys.stdout.buffer.write(line.encode(OUTPUT_CODEC, "replace") + b"\n")
-            sys.stdout.flush()
+            # `use_utf8` in `__main__` is what keeps a society directory or a file
+            # name outside cp1252 from taking the run down at the print, having
+            # already done the work. This used to encode by hand through
+            # `sys.stdout.buffer`, which did the same job for this one line and left
+            # every other print in the file exposed -- including `record.error` on
+            # the failure path, where the reporting is what dies. Issue #150.
+            #
+            # The trade is real and worth naming: that hand-rolled line protected
+            # itself wherever it ran, and this one is protected by the entry point,
+            # so an in-process caller of `main` no longer gets it. There is no such
+            # caller, `sys.stdout.buffer` does not exist on the `StringIO` a test
+            # would redirect into, and one mechanism for the whole file beats one
+            # line that was safe alone. `flush` stays: that is progress output over
+            # 179 documents, and nothing to do with encoding.
+            print(f"  {records[-1].source}", flush=True)
 
     manifest = write_manifest(out_root, records, source_root)
 
@@ -575,4 +586,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

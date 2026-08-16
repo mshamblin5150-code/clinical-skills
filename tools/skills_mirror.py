@@ -40,6 +40,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from console_codec import use_utf8
+
 MIRROR = Path(".claude") / "skills"
 CANONICAL = Path("skills")
 
@@ -312,4 +314,5 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     sys.exit(main())

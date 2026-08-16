@@ -358,7 +358,23 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
     #: values (a 500, a 561, a 582), so a future run whose record happened to
     #: contain 548 or 559 would fail this test in a file nobody is allowed to fix.
     #: Found sweeping #137, which is open on what that tree costs.
-    EVIDENCE_PREFIX = Path("fixtures") / "filled-anchor" / "notes" / "case-"
+    #:
+    #: **There are two such directories since #124, and the second is the sharper
+    #: exposure.** ``fixtures/filled-anchor/run-2/`` is the first committed
+    #: ``icd10-cpt`` run, immutable on the same terms -- and **a worksheet is made
+    #: of ICD-10 codes**, so the exposure is not a coincidental dose literal. In the
+    #: dotted form those worksheets use, **27 real FY2026 codes contain ``548`` or
+    #: ``559``** -- ``M25.559 Pain in unspecified hip``,
+    #: ``H60.559 Acute reactive otitis externa, unspecified ear``,
+    #: ``M71.559 Other bursitis, not elsewhere classified, unspecified hip`` among
+    #: them, all ordinary primary-care codes. That run already proposes ``M25.561``,
+    #: ``M25.562``, ``H60.543`` and ``H60.501``, which are one digit away. Nothing
+    #: matches **today**, so this is a latent trap rather than a live failure --
+    #: which is exactly the state the ``notes/`` exemption was added in.
+    EVIDENCE_PREFIXES = (
+        Path("fixtures") / "filled-anchor" / "notes" / "case-",
+        Path("fixtures") / "filled-anchor" / "run-2" / "case-",
+    )
 
     #: The two files #63 named. **A sweep passes when a figure is deleted as
     #: happily as when it is corrected**, so each is pinned to state the current
@@ -391,7 +407,10 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
         for tree in self.SEARCHED:
             for path in sorted((REPO_ROOT / tree).rglob("*.md")):
                 relative = path.relative_to(REPO_ROOT)
-                if str(relative).startswith(str(self.EVIDENCE_PREFIX)):
+                if any(
+                    str(relative).startswith(str(prefix))
+                    for prefix in self.EVIDENCE_PREFIXES
+                ):
                     continue
                 lines = path.read_text(encoding="utf-8").splitlines()
                 for number, text in enumerate(lines, 1):
@@ -418,24 +437,37 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
         So the property pinned is that the tree is not read at all, checked
         against a bare digit sweep that every note matches.
 
-        **The expected path is written out here rather than taken from
-        ``EVIDENCE_PREFIX``.** Checking the constant against itself passes for
+        **The expected paths are written out here rather than taken from
+        ``EVIDENCE_PREFIXES``.** Checking the constant against itself passes for
         any value it holds -- point it at a directory that does not exist and the
         sweep reads the notes while this test still goes green. That is how the
-        first version of this was written and it is why the literal is repeated.
+        first version of this was written and it is why the literals are repeated.
+
+        **Both preserved run records are named, and the second one is why the
+        constant became a tuple.** ``run-2/`` is the first committed ``icd10-cpt``
+        run, immutable on ADR 0001's terms, and made of ICD-10 codes -- 27 real
+        FY2026 codes contain ``548`` or ``559``, so its trap is a routine coding
+        outcome rather than a coincidence.
         """
+        expected = (
+            "fixtures/filled-anchor/notes/case-",
+            "fixtures/filled-anchor/run-2/case-",
+        )
         swept = {str(figure.path) for figure in self.scan(re.compile(r"(\d)"))}
         self.assertTrue(swept, "the sweep read nothing at all")
         leaked = sorted(
             path
             for path in swept
-            if path.replace("\\", "/").startswith("fixtures/filled-anchor/notes/case-")
+            if path.replace("\\", "/").startswith(expected)
         )
         self.assertEqual(leaked, [])
 
-        # And the tree really is there, so the assertion above is not vacuous.
-        notes = sorted((REPO_ROOT / "fixtures" / "filled-anchor" / "notes").glob("case-*.md"))
-        self.assertGreater(len(notes), 5)
+        # And both trees really are there, so the assertion above is not vacuous.
+        for directory in ("notes", "run-2"):
+            records = sorted(
+                (REPO_ROOT / "fixtures" / "filled-anchor" / directory).glob("case-*.md")
+            )
+            self.assertGreater(len(records), 5, directory)
 
     def test_no_file_states_a_second_catalog_size(self):
         wrong = [
