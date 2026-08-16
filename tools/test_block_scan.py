@@ -138,6 +138,36 @@ class TheParserReadsTheBlock(unittest.TestCase):
     def test_a_note_with_no_block_reads_as_none(self) -> None:
         self.assertEqual(block_scan.read_block(NO_BLOCK), {})
 
+    def test_prose_opening_with_a_label_word_is_not_a_label(self) -> None:
+        """The label match is case-sensitive, and that is load-bearing.
+
+        An earlier version carried ``re.IGNORECASE``, so these sentences each
+        opened a section. Any note containing one then read as carrying a block,
+        and the exit-2 limb could not fire on a run this parser cannot read.
+        """
+        for line in (
+            "Unknown whether the patient smokes.",
+            "Gaps in the history remain.",
+            "- Derived from the height and weight above.",
+            "Flag this for the preceptor.",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(block_scan.read_block(line + "\n"), {})
+
+    def test_a_note_of_pure_prose_still_exits_two(self) -> None:
+        prose = (
+            "# Encounter\n\nUnknown whether the patient smokes.\n"
+            "Gaps in the history remain.\n"
+        )
+        with write_run({"case-01.md": prose, "case-02.md": prose}) as run:
+            self.assertEqual(block_scan.main([run]), 2)
+
+    def test_the_filled_suffix_may_be_any_case(self) -> None:
+        for suffix in ("asserted", "ASSERTED", "Asserted"):
+            with self.subTest(suffix=suffix):
+                block = block_scan.read_block(f"FILLED·{suffix}   Race/Ethnicity - x\n")
+                self.assertIn("FILLED·asserted", block)
+
 
 class TheThreeRowsFireOnWhatOpensAnEntry(unittest.TestCase):
     def test_a_clean_note_fails_nothing(self) -> None:
@@ -314,6 +344,52 @@ class TheExitStatusSaysWhichKindOfNothing(unittest.TestCase):
     def test_a_readme_is_not_a_note(self) -> None:
         with write_run({"README.md": CLEAN, "case-01.md": CLEAN}) as run:
             self.assertEqual(len(block_scan.read_notes(Path(run))), 1)
+
+
+class TheCommittedNotesReadClean(unittest.TestCase):
+    """The one real set this can be pointed at, pinned.
+
+    ``fixtures/filled-anchor/notes`` is a committed set of finished
+    ``clinical-note`` output — `day-b` run 1 byte for byte — so unlike a run
+    directory it is not a patient record and not going to vanish.
+    ``CLAUDE.md``'s *Differential scan* sets the precedent for recording what a
+    scanner does against it and pinning the figure with a test.
+
+    **This is the test that would have caught both parser bugs.** Before the
+    label match was anchored to the left margin, case 11's wrapped
+    ``DERIVED line. Lands in the overweight band`` re-opened a section and
+    captured the ``Race/Ethnicity`` line 32 lines below it, so this set scored
+    two F3 failures it does not have.
+    """
+
+    NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
+
+    def setUp(self) -> None:
+        self.blocks = [
+            block_scan.read_block(text)
+            for text in block_scan.read_notes(self.NOTES)
+        ]
+
+    def test_all_twelve_carry_a_readable_block(self) -> None:
+        self.assertEqual(len(self.blocks), 12)
+        self.assertEqual(sum(1 for b in self.blocks if b), 12)
+
+    def test_the_set_passes_f1_to_f3(self) -> None:
+        scan = block_scan.survey(self.blocks)
+        self.assertEqual(scan.findings, ())
+        self.assertEqual(block_scan.main([str(self.NOTES)]), 0)
+
+    def test_every_note_names_race_under_asserted(self) -> None:
+        """The limb the margin bug broke, asserted directly rather than through
+        the exit status, so a regression names the right thing."""
+        for index, block in enumerate(self.blocks):
+            with self.subTest(note=index):
+                self.assertTrue(
+                    any(
+                        block_scan.RACE_ANYWHERE.search(entry.text)
+                        for entry in block.get(block_scan.ASSERTED, [])
+                    )
+                )
 
 
 class TheSkillStillSaysWhatThisChecks(unittest.TestCase):

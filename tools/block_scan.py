@@ -86,11 +86,30 @@ LABELS = ("DERIVED", ASSERTED, PROPOSED, "FLAG", GAPS, "UNKNOWN")
 # ``FLAG  BP 141/93 undiscussed``, ``**GAPS**  Marital status``, ``- GAPS``.
 # The separator in the two FILLED labels is the skill's middle dot; a hyphen or a
 # period is read as the same label rather than as a different one.
+#
+# **Two restrictions here are load-bearing, and both were found by a review after
+# each had already produced a wrong number.**
+#
+# **Case-sensitive.** An earlier version carried ``re.IGNORECASE``, which made
+# ordinary prose open a section -- ``Unknown whether the patient smokes.`` and
+# ``Gaps in the history remain.`` both matched, so any note containing such a
+# sentence read as carrying a block and the exit-2 limb below could not fire. The
+# skill writes all six labels in capitals; only the suffix of the two FILLED
+# labels varies in case, and only that is matched loosely.
+#
+# **At the left margin.** An earlier version allowed leading whitespace, so a
+# *wrapped* line beginning with a label word re-opened that section and captured
+# everything after it. ``fixtures/filled-anchor`` case 11 wraps a sentence onto
+# ``DERIVED line. Lands in the overweight band``, which hijacked the rest of the
+# block -- including the ``Race/Ethnicity`` line 32 lines below -- and produced two
+# F3 failures on a set that has none. The canonical block writes every label at
+# column 0 and indents every continuation, which is the whole distinction this
+# parser runs on; a note that indents its entire block reads as no block, and the
+# exit status says so rather than scoring it.
 LABEL = re.compile(
-    r"^[ \t>]*(?:[-*+][ \t]+)?\*{0,2}"
-    r"(DERIVED|FILLED[·.\-]ASSERTED|FILLED[·.\-]PROPOSED|FLAG|GAPS|UNKNOWN)"
-    r"\*{0,2}[ \t]*:?[ \t]*(.*)$",
-    re.IGNORECASE,
+    r"^(?:>[ \t]*)*(?:[-*+][ \t]+)?\*{0,2}"
+    r"(DERIVED|FILLED[·.\-](?i:ASSERTED)|FILLED[·.\-](?i:PROPOSED)|FLAG|GAPS|UNKNOWN)"
+    r"\*{0,2}[ \t]*:?[ \t]*(.*)$"
 )
 # A line that ends a section without opening one.
 CLOSER = re.compile(r"^[ \t>]*(?:```|~~~|#{1,6}[ \t]|(?:[-*_][ \t]*){3,}$)")
@@ -193,42 +212,35 @@ def read_block(text: str) -> dict[str, list[Entry]]:
     the caller must distinguish from a block that carried nothing -- see the exit
     status note in the module docstring.
     """
-    block: dict[str, list[Entry]] = {}
-    wraps: dict[int, list[str]] = {}
+    # Built as ``[head, [wrap, ...]]`` pairs and frozen into ``Entry`` at the end,
+    # because an entry's wraps are not known until the next entry opens.
+    block: dict[str, list[list]] = {}
     current: str | None = None
     for raw in text.splitlines():
         match = LABEL.match(raw)
         if match:
             current = _canonical(match.group(1))
-            block.setdefault(current, [])
-            rest = match.group(2).strip()
-            block[current].append(Entry(rest))
-            wraps[id(block[current][-1])] = []
+            block.setdefault(current, []).append([match.group(2).strip(), []])
             continue
-        if current is None:
-            continue
-        if not raw.strip():
+        if current is None or not raw.strip():
             continue
         if CLOSER.match(raw):
             current = None
             continue
         bullet = BULLET.match(raw)
         if bullet:
-            block[current].append(Entry(bullet.group(1).strip()))
-            wraps[id(block[current][-1])] = []
+            block[current].append([bullet.group(1).strip(), []])
             continue
         indented = INDENTED.match(raw)
         if not indented:
             current = None
             continue
         if block[current]:
-            wraps[id(block[current][-1])].append(indented.group(1).strip())
+            block[current][-1][1].append(indented.group(1).strip())
         else:
-            block[current].append(Entry(indented.group(1).strip()))
-            wraps[id(block[current][-1])] = []
-    # Rebuild with the wraps attached, now that each entry's are known.
+            block[current].append([indented.group(1).strip(), []])
     return {
-        label: [Entry(e.head, tuple(wraps.get(id(e), ()))) for e in entries]
+        label: [Entry(head, tuple(wraps)) for head, wraps in entries]
         for label, entries in block.items()
     }
 

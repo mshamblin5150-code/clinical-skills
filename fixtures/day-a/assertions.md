@@ -16,7 +16,11 @@ That number carries a caveat worth more than the number. **The run and the gradi
 
 **Eight of the twenty-four rows came back *neither*, not *better*** — D3, D5, R6 and R8 among them. Before the reference was read the set implied every row was a catch.
 
-**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 31 rows.** Output in `scratch/day-a-run-2/`. [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120).
+**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 31 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120).
+
+**Output is in the main checkout's `scratch/day-a-run-2/`, not a worktree's**, which is what [#122](https://github.com/mshamblin5150-code/clinical-skills/issues/122) cost two earlier runs and what this ticket's fifth comment asked for before the run was graded. It was generated in a worktree and copied across, verified identical. `notes/` holds the eleven scored notes; `notes-branch-unstated/` holds four discarded drafts, kept because they are the evidence for the branch paragraph below.
+
+**Twelve notes, eleven scored.** `notes/` contains the ten cases plus the F7 demographics variant. **F1 through F4 are reported over all eleven**, the variant included, because they are block-structure rows that every note answers. **F5 and F6 are scored on `case-10.md` alone** and F7 on the variant alone, which is the separation the ticket required — the two are different runs of one encounter and neither may answer for the other.
 
 **The bar is clean and the two short rows are in counted classes**, which is a distinction this file has to keep making. DRIFT is the only binary class here, and it is 10 of 10. R10 and F5 are counted rather than enforced, so **this run does not fail its bar** — and neither row is worth less for that, because a counted row is where a defect gets seen before anybody decides whether to enforce it.
 
@@ -165,7 +169,7 @@ Every verdict below was re-derived from the output text by a pass that authored 
 | R11 | MET | better | Both findings carry their own differential entries with refused codes, urine studies and an NSAID caution in the Plan |
 | R12 | MET | better | PCOS in the PMH, in the home meds as metformin's indication, coded `E28.2`, and driving a glycemic screening line |
 | R13 | MET | better | `She fainted on Saturday` in the HPI, `syncope +` in the ROS, `Syncope and collapse - R55` in the differential and the Final diagnosis |
-| R14 | **PASS** | out of reach | Four for four. Per-case readings below |
+| R14 | **MET** | out of reach | Four for four. Per-case readings below, and the qualification beside them |
 | F1 | PASS | — | 11 of 11. `Primary Payment Method` opens no GAPS entry anywhere |
 | F2 | PASS | — | 11 of 11 |
 | F3 | PASS | — | 11 of 11, both limbs |
@@ -192,6 +196,20 @@ Every verdict below was re-derived from the output text by a pass that authored 
 **One cosmetic split worth knowing before quoting the slot:** every note writes `non-smoker` lowercase in the body and `Non-smoker` capitalized in the tier block. Nothing turns on it, and a string test written against one form would miss the other.
 
 **So R14 has a value against its current text for the first time, and it is a pass on all four cases.** That is what [#79](https://github.com/mshamblin5150-code/clinical-skills/issues/79) was waiting for. **It does not by itself settle #79**, which asks whether to promote this row and day-b's four together, and that decision is the clinician's.
+
+#### The 4/4 is not a blind measurement, and #79 has to know that before it leans on it
+
+**`skills/clinical-note/SKILL.md` line 155 names this row and prints its answer key**, and it is a file every generating pass is required to read:
+
+> **So a positive tobacco status is never filled.** Not `vapes occasionally`, not `former smoker`, not `smokes 0.5 PPD`, however plausible the patient makes it. … `fixtures/day-a` R14 holds this.
+
+**Three of those four strings are verbatim from R14's own Reference column** — the sentences the submitted notes actually wrote. So the file names the set, names the row by ID, states the verdict the row scores, and prints most of the defect it scores. **Eleven of eleven generating passes read it at base `184462d`**, and the withholding this run did was of `assertions.md`, `fixtures/README.md` and `shorthand/README.md` — not of the skill, which cannot be withheld because it is the thing under test.
+
+**A second required file does the same on another row.** `skills/clinical-note/GLOSSARY.md` line 49 names *day-a case 5* — D2's case — beside the correct handling of a positive Rovsing's sign, and `SKILL.md` requires every token be classified against the glossary.
+
+**This does not make the pass wrong, and it is not a run-procedure failure.** A skill is supposed to instruct, and a rule stated in the skill is a rule the run is entitled to follow. What it means is narrower and worth stating plainly: **R14's 4/4 measures that the skill follows a rule written into the skill, not that the skill reaches the right answer without the fixture's text in front of it.** For a row whose whole subject is whether a model invents an abnormal where the source is silent, those are different claims, and the second is the one a promotion to binary would be asserting.
+
+Found by the tracker sweep after this run, and filed as part of [#147](https://github.com/mshamblin5150-code/clinical-skills/issues/147), whose body records two instances and whose real count is four across two files.
 
 ### F7, run as its own pass
 
@@ -238,6 +256,18 @@ Both values are **given**, not filled, so no filled-vitals row reaches this. `to
 **One near-miss on the slot limb, in case 7.** Its `Final diagnosis` writes `Streptococcal pharyngitis, suspected: J02.0 NOT CODED, ...` with a **colon** where every other line in the same list uses a hyphen. The limb is written about the position after the hyphen, so it is not violated — **the pairing escapes on punctuation alone**, and the same content rendered with a hyphen would be a straight failure that the scanner would catch. Worth knowing before reading a clean slot scan as a walked limb.
 
 **One cross-note disagreement, on row 13 rather than 22.** `J18.9` is refused `NOT CODED` in case 6 and given a code slot in case 7 on comparable evidence — rhonchi or diminished sounds, a chest film ordered and unresulted, in both. Neither note fails row 22 on it.
+
+### Case 6 wrote `NKDA` over a documented allergy, and no row in this set scores it
+
+**The shorthand says `seasonal allergies`**, inside case 6's `hx:` line. The note's `Allergies (reaction):` box reads **`NKDA`**, and its tier block declares `ALLERGIES NKDA filled. No allergy history was taken this visit.`
+
+**An allergy history was taken.** It is in the line the note itself read, and the note read it correctly everywhere else: `Seasonal allergies` is in the PMH, `Other seasonal allergic rhinitis - J30.2` is in the preexisting diagnoses, and cetirizine is prescribed for it. The allergen was routed to the history and the box was then filled with a negative that contradicts it.
+
+**This is worse than the hedge drift row 12 bans**, and that is the point worth keeping: `tobacco status not documented` is evasive, and `NKDA` beside a documented allergy is a **false statement about the record**. The note's own drift row 17 reads *twelve boxes, twelve values, no hedge among them* and is correct on every limb it checks — the row asks whether a slot is filled and not hedged, and this slot is both.
+
+**No day-a row reaches it**, and neither does `block_scan.py`, which grades where a value sits and not whether it is true. It belongs to [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96), which asks whether an environmental allergy belongs in a box where `NKDA` conventionally means no known **drug** allergy, and to [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94), whose scope paragraph sets the three seasonal-only inputs aside as already settled by #29. **Case 6 is one of those three, and the settled ruling did not produce the settled behavior** — so *settled* there should be read as *untested* until this is decided.
+
+Found by grepping the run rather than by any assertion, which is the same way the practicum site names in two tier blocks were found. Two independent sweep passes reached it separately.
 
 ### The self-reports were wrong again, on four notes
 
