@@ -52,6 +52,16 @@ One row per document, with the key each threshold row cites, the society, the
 document's `doc_id` (which is its path under the corpus root, no suffix), the version,
 the publication date, the URL, and the **mode**.
 
+**Version, publication date and URL are required, and a blank one is refused.** They
+were parsed past until they were not — the grader kept society, document and mode and
+dropped the other three, so a sheet could carry a threshold with no edition behind it
+and grade clean. That is the failure this format exists to prevent: societies revise,
+and 2017's number sitting under a 2025 heading is wrong in the most expensive way.
+
+**The columns are read by name against the header row**, not by position, so adding a
+column cannot silently redefine `mode` — which is the cell deciding whether an
+omission refuses or merely warns.
+
 **Mode is not a style choice and is not set by hand.** It comes from
 `tools/guidelines_recs.py`, and it says whether that document's recommendations could
 be counted *exactly* — read out of a ruled `COR | LOE` table — or only *bounded* by
@@ -64,6 +74,24 @@ The sections-read line, and it is load-bearing rather than courteous. **A synthe
 pass is a reading and readings miss things.** If only the recommendation tables were
 read, the sheet says so, so that *absent from the sheet* is never misread as *absent
 from the guideline*.
+
+**Both halves are required and the grader refuses a sheet missing either.** The
+section must say what was read and, separately, what was **not** — `Read:` and
+`Not read:`. The second limb is the one doing the work: a list of what was covered
+tells a clinician nothing about whether a number's absence here means the guideline
+is silent. A sheet with no `## Scope` section at all is refused outright.
+
+**That this is graded at all is recent, and the gap is worth naming.** The section
+was described here as load-bearing while nothing checked it — deleting it entirely
+from `hypertension.md` left every gate at `0` and the run at exit `0`. So the honesty
+clause was the one part of the format a sheet could drop for free, and dropping it
+scored *cleaner*, since the only trace was a `last resolved` line that touches no
+exit status.
+
+The grader reads these two phrases from **this section alone**, never from the
+document as a whole, so a threshold row whose snippet happens to quote *"not read"*
+cannot discharge the rule. That is `block_scan.py`'s mention-versus-use distinction,
+which applies wherever a keyword decides a verdict.
 
 It also carries `citations resolved against <corpus> on <date>`. That is the artifact's
 own record of when the citation gate last ran against real PDFs — see below.
@@ -197,10 +225,11 @@ not left to be discovered:
 - **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
   stripped by #80 appears inside an extracted table row, that row is suspect and must
   be read off the rendered page."* **This ticket widened the exposure rather than
-  narrowing it** — boilerplate stripping went from 554,372 characters to 921,168 under
-  the new reader, so there is more stripped text that could have been interleaved, not
-  less. The `RENDERED:` marker gives a row a way to *declare* it was read off the page;
-  nothing yet *detects* that it should have been.
+  narrowing it** — boilerplate stripping went from 554,372 characters to **954,088**
+  under the new reader, so there is more stripped text that could have been interleaved,
+  not less. The `RENDERED:` marker gives a row a way to *declare* it was read off the
+  page; nothing yet *detects* that it should have been. ([#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)
+  holds this and gate 5.)
 - **Gate 5, the second independent read, was not built.** #83 describes it as the only
   mechanism that catches *misreading* rather than *miscitation*, and says in the same
   breath that its weakness is correlated error — same model, same PDF, same mangling,

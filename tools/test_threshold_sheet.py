@@ -15,6 +15,7 @@ came from outside the corpus.
 
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -47,6 +48,10 @@ HEADER = f"""# Test sheet
 | src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |
 
 ## Scope
+
+**Read:** the recommendation tables.
+
+**Not read:** the narrative sections and the appendices.
 
 citations resolved against C:/nowhere on 2026-08-16
 
@@ -531,6 +536,117 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             line = self.coverage_line(out.getvalue())
             self.assertIn("refusing", line)
             self.assertNotIn("NOT RUN", line)
+
+
+class TheScopeSectionIsGraded(unittest.TestCase):
+    """#83 names this as a thing each sheet *carries*: *"a **sections-read scope
+    line**. A synthesis pass is a reading and readings miss things ... so that
+    'absent from the sheet' is never misread as 'absent from the guideline'."*
+
+    It was the one format element with no gate behind it. Deleting the entire
+    ``## Scope`` section from the real sheet left every gate at 0 and exit 0 -- the
+    only trace was ``last resolved NOT RECORDED``, which touches no exit status. So a
+    sheet could drop the sentence that bounds what it claims and still read as fully
+    graded, which inverts the clause's whole purpose: **the less a sheet admits it
+    skipped, the cleaner it scored.**
+
+    Both limbs are required, and the second is the one that does the work. *Read:*
+    alone lists what was covered; only *Not read:* tells a clinician that a number's
+    absence here is not evidence of its absence in the guideline.
+    """
+
+    def schema_findings(self, text: str) -> list[str]:
+        return gate.gate_schema(gate.parse(text, Path("test-sheet.md")))
+
+    def full(self, scope: str) -> str:
+        return (
+            HEADER.replace(
+                "**Read:** the recommendation tables.\n\n"
+                "**Not read:** the narrative sections and the appendices.\n",
+                scope,
+            )
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row()
+        )
+
+    def test_the_unmodified_header_still_passes(self):
+        """Guards the replace() above: if HEADER's wording drifts, the substitution
+        silently stops matching and every test below would pass vacuously."""
+        self.assertEqual(self.schema_findings(self.full(
+            "**Read:** the recommendation tables.\n\n"
+            "**Not read:** the narrative sections and the appendices.\n")), [])
+
+    def test_a_sheet_with_no_scope_section_fails(self):
+        text = re.sub(r"\n## Scope\n.*?(?=\n## )", "\n", self.full(""), flags=re.S)
+        self.assertNotIn("## Scope", text)
+        findings = self.schema_findings(text)
+        self.assertTrue(any("scope" in f.lower() for f in findings), findings)
+
+    def test_a_scope_that_never_says_what_was_not_read_fails(self):
+        findings = self.schema_findings(self.full("**Read:** the recommendation tables.\n"))
+        self.assertTrue(any("not read" in f.lower() for f in findings), findings)
+
+    def test_a_scope_that_never_says_what_was_read_fails(self):
+        findings = self.schema_findings(self.full("**Not read:** the appendices.\n"))
+        self.assertTrue(any("read" in f.lower() for f in findings), findings)
+
+    def test_an_empty_scope_section_fails_rather_than_counting_as_present(self):
+        findings = self.schema_findings(self.full("\n"))
+        self.assertTrue(findings)
+
+    def test_the_words_are_read_off_the_scope_section_and_not_the_whole_sheet(self):
+        """A row whose snippet happens to contain 'not read' must not satisfy the
+        scope rule -- `block_scan.py`'s mention-versus-use distinction, which this
+        repo applies everywhere a keyword decides a verdict."""
+        text = self.full("nothing here bounds anything.\n").replace(
+            '"an SBP goal of <130 mm Hg"', '"read the label; not read elsewhere"')
+        findings = self.schema_findings(text)
+        self.assertTrue(any("scope" in f.lower() for f in findings), findings)
+
+
+class TheSourceRowCarriesItsProvenance(unittest.TestCase):
+    """#83: *"Each sheet carries source, **version, publication date, URL**"*, and
+    `reference/thresholds/README.md` claims *"every part of it is read by the
+    grader."* Three of those cells were parsed past -- `parse` kept `society`,
+    `document` and `mode` -- so a sheet could leave version, published and url blank
+    and grade clean. A threshold with no edition behind it is the failure this whole
+    format exists to prevent: guidelines are revised, and 2017's number under 2025's
+    heading is wrong in the most expensive way.
+    """
+
+    def blanked(self, column: str) -> list[str]:
+        cells = {"version": "2025", "published": "2025", "url": "https://example.invalid"}
+        cells[column] = ""
+        line = (f"| src | AHA/ACC | Society/doc | {cells['version']} | "
+                f"{cells['published']} | {cells['url']} | exact |")
+        text = HEADER.replace(
+            "| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |",
+            line,
+        ) + ("\n## Thresholds\n\n"
+             "| quantity | population | value | snippet | source | page | rec | class |\n"
+             "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + row())
+        return gate.gate_schema(gate.parse(text, Path("test-sheet.md")))
+
+    def test_a_blank_version_fails(self):
+        self.assertTrue(any("version" in f.lower() for f in self.blanked("version")))
+
+    def test_a_blank_publication_date_fails(self):
+        self.assertTrue(any("published" in f.lower() for f in self.blanked("published")))
+
+    def test_a_blank_url_fails(self):
+        self.assertTrue(any("url" in f.lower() for f in self.blanked("url")))
+
+    def test_the_real_sheet_carries_all_three(self):
+        """The one committed sheet has to satisfy the rule this adds, or the rule is
+        aspirational rather than enforced."""
+        path = Path(__file__).resolve().parent.parent / "reference" / "thresholds" / "hypertension.md"
+        parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+        self.assertTrue(parsed.sources)
+        for key, source in parsed.sources.items():
+            for column in ("version", "published", "url"):
+                self.assertTrue(source.get(column), f"{key} has no {column}")
 
 
 class TheRenderedPageEscapeHatch(unittest.TestCase):

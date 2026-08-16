@@ -19,10 +19,20 @@ Four gates, and what each one can and cannot see
 ``SCHEMA``  refuses
     Structural. Every row has all eight columns, a population key drawn from the
     sheet's own declared vocabulary, no non-ASCII comparison character in its value,
-    and a source key that the Sources table defines. **And the conflict rule**: two rows sharing a
+    and a source key that the Sources table defines. Every source carries a version,
+    a publication date and a URL. The sheet has a ``## Scope`` section saying both
+    what was read and what was **not**. **And the conflict rule**: two rows sharing a
     quantity key AND a population key with different values must be covered by a
-    ``CONFLICT`` block naming both. Needs nothing but the sheet, so it runs
+    ``CONFLICT`` block for that quantity. Needs nothing but the sheet, so it runs
     everywhere and always.
+
+    **What the conflict rule checks is the block's existence, not its contents.**
+    This sentence used to say the block must name *both* rows; it does not, and
+    nothing reads the block's prose. Corrected rather than implemented, because the
+    check a reader was promised -- does this paragraph name both societies and both
+    values -- is a reading, and the file two screens down deletes an allowlist for
+    exactly this reason: *"a rule that has drifted from the file a reader opens reads
+    as agreement."*
 
 ``CITATION`` refuses, in two tiers
     Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
@@ -225,6 +235,12 @@ class Sheet:
     populations: dict[str, str] = field(default_factory=dict)
     conflicts: dict[str, str] = field(default_factory=dict)
     scoped_out: dict[str, str] = field(default_factory=dict)
+    # The prose of the ``## Scope`` section, and nothing from anywhere else. Kept as
+    # its own field rather than searched for over the whole document because the two
+    # phrases that satisfy it are ordinary English: a threshold row whose snippet
+    # quotes "not read" would otherwise discharge the sheet's honesty clause.
+    scope: str = ""
+    has_scope_section: bool = False
     resolved_corpus: str | None = None
     resolved_date: str | None = None
     ok: bool = True
@@ -261,11 +277,19 @@ def parse(text: str, path: Path) -> Sheet:
         return sheet
 
     section: str | None = None
+    source_columns: list[str] = []
     for number, line in enumerate(text.splitlines(), start=1):
         heading = re.match(r"^\s*#{1,6}\s+(?P<name>.+?)\s*$", line)
         if heading:
             section = heading.group("name").strip().lower()
+            if section == "scope":
+                sheet.has_scope_section = True
             continue
+
+        if section == "scope":
+            sheet.scope += line + "\n"
+            # No `continue`: the `citations resolved against ...` line lives in this
+            # section and is read below.
 
         resolved = _RESOLVED.search(line)
         if resolved:
@@ -288,11 +312,24 @@ def parse(text: str, path: Path) -> Sheet:
         if cells is None or _is_rule(cells):
             continue
 
+        if section == "sources" and cells[0] == "key":
+            source_columns = [cell.lower() for cell in cells]
+            continue
+
         if section == "sources" and len(cells) >= 3 and cells[0] != "key":
+            # Read by NAME against the header row rather than by position, which is
+            # `ROW_COLUMNS`' rule applied to the table it was not applied to. `mode`
+            # was `cells[-1]`, so appending a column to this table would silently
+            # redefine the cell that decides refuse-versus-warn. Position is kept
+            # only as the fallback for a sheet whose header this cannot read.
+            named = dict(zip(source_columns, cells)) if source_columns else {}
             sheet.sources[cells[0]] = {
-                "society": cells[1],
-                "document": cells[2],
-                "mode": cells[-1],
+                "society": named.get("society", cells[1]),
+                "document": named.get("document", cells[2]),
+                "version": named.get("version", cells[3] if len(cells) > 3 else ""),
+                "published": named.get("published", cells[4] if len(cells) > 4 else ""),
+                "url": named.get("url", cells[5] if len(cells) > 5 else ""),
+                "mode": named.get("mode", cells[-1]),
             }
         elif section == "populations" and len(cells) >= 2 and cells[0] != "key":
             sheet.populations[cells[0]] = cells[1]
@@ -319,8 +356,39 @@ def parse(text: str, path: Path) -> Sheet:
 
 
 def gate_schema(sheet: Sheet) -> list[str]:
-    """Structure, declared vocabulary, and the conflict rule."""
+    """Structure, provenance, scope, declared vocabulary, and the conflict rule."""
     failures: list[str] = []
+
+    # #83 lists the scope line among the things a sheet *carries*, and gives the
+    # reason: *"so that 'absent from the sheet' is never misread as 'absent from the
+    # guideline'"*. Both limbs are required and the second does the work -- `Read:`
+    # alone lists coverage, only `Not read:` bounds the claim. Graded against the
+    # `## Scope` section alone, never the whole document, so a row quoting either
+    # phrase in its snippet cannot discharge it.
+    if not sheet.has_scope_section:
+        failures.append(f"{sheet.path.name}  no '## Scope' section, so nothing bounds what this sheet claims")
+    else:
+        scope = sheet.scope.lower()
+        # The lookbehind is the whole rule, not a refinement: `not read:` CONTAINS
+        # `read:`, so a plain substring test was discharged by the very sentence that
+        # should have failed it -- a sheet declaring only what it skipped read as
+        # having declared both.
+        if not re.search(r"(?<!not )read:", scope):
+            failures.append(f"{sheet.path.name}  '## Scope' never says what was read")
+        if "not read:" not in scope:
+            failures.append(
+                f"{sheet.path.name}  '## Scope' never says what was NOT read, so an absent "
+                "number cannot be told from an unread section"
+            )
+
+    # A threshold with no edition behind it is the failure the format exists to
+    # prevent: societies revise, and 2017's number under 2025's heading is wrong in
+    # the most expensive way. These three cells were parsed past until they were not.
+    for key, source in sheet.sources.items():
+        for column in ("version", "published", "url"):
+            if not source.get(column):
+                failures.append(f"{sheet.path.name}  source '{key}' has no {column}")
+
     for row in sheet.rows:
         where = f"{sheet.path.name}:{row.line}"
         if row.population not in sheet.populations:
@@ -603,7 +671,11 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
     report(f"  sources         {len(sheet.sources)}")
     report(f"  populations     {len(sheet.populations)}")
     report(f"  scoped out      {len(sheet.scoped_out)}")
-    print()
+    # `report`, not `print`: this blank line is part of the report and `--quiet`
+    # promises to suppress the report and never a finding. As a bare `print` it was
+    # the one piece of the report that survived --quiet, so the pre-commit hook
+    # emitted a stray blank line on a clean sheet.
+    report()
     report(f"  SCHEMA          {len(schema)}")
     report(f"  CITATION tier 1 {len(tier1)}")
     if tier2_skip:

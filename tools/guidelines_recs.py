@@ -6,10 +6,20 @@ This is #83 gate 2's input, and it exists because of one measurement. The ticket
 assumed a recommendation count could only ever be a bound -- "it over-counts by
 nature, the way HEDGE does in corpus_census.py" -- and that assumption was made
 against a flattened text stream. Read the same PDF's **ruled tables** instead and
-the AHA/ACC 2025 hypertension guideline yields 103 numbered recommendations in 33
-tables with **zero** rows whose Class-of-Recommendation cell fails to parse.
-Measured 2026-08-16. An exact count can be enforced; a bound cannot, and the
-difference decides whether gate 2 may refuse a commit.
+the AHA/ACC 2025 hypertension guideline yields **103 numbered recommendations**,
+103 unique identifiers, and **zero** rows whose Class-of-Recommendation cell fails
+to parse. Measured 2026-08-16, re-derived the same day by a second reader running
+this module against the PDF. An exact count can be enforced; a bound cannot, and
+the difference decides whether gate 2 may refuse a commit.
+
+**The table figure that used to sit in that sentence is gone rather than corrected
+down.** It read *"in 33 tables"*; this module prints **27**, and 27 itself counts
+two ``(Continued)`` continuations as separate tables, so the guideline presents 25.
+Three numbers, none of them what the sentence implied, and **not one of them load
+bearing** -- gate 2 keys on ``rec_id``, so the table count grades nothing. Run the
+module for the figure it actually reports; a number no caller needs is a number
+that goes stale unwatched, which is #143 and is how this one crossed two files and
+a review before anyone re-derived it.
 
 **Two modes, and the whole honesty of this module is in telling them apart.**
 

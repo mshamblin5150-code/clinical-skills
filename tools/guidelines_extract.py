@@ -82,8 +82,8 @@ word broken, pieces not all single    188   1.4%  mostly a footnote marker
 
 13,685 split occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
 
-**The number that matters for this repo is zero.** Of the 413 digit-breaks, all
-**141** distinct runs are citation apparatus -- a year (``2009;``, 158 of them),
+**The number that matters for this repo is zero.** Of the 390 digit-breaks, every
+distinct run is citation apparatus -- a year (``2009;``, 158 of them),
 supplement page ranges (``S131-S155``), a superscript reference marker welded to
 its word (``al,23``). **Not one carries a clinical unit**, so no threshold value is
 broken anywhere in the corpus. That was the risk worth measuring: a repo whose
@@ -561,9 +561,13 @@ def span_baselines(line: dict) -> list[float]:
 
         American Journal of Transplantation 2 0 0 9 ; 9 ( S u p p l 3 ) : S i - S i
 
-    That one footer, repeated on 158 pages, produced 158 of the 349 letter-spaced
-    splits and all 158 `2009;` digit-breaks -- 316 of the 762 damaged tokens in the
-    whole corpus, from one line in one document.
+    That one footer is the largest single source of damage in the corpus. **The
+    figures live in this module's own docstring and are deliberately not restated
+    here** -- 142 of the 306 letter-spaced splits and 142 of the 390 digit-breaks,
+    284 of 696 in all. This paragraph carried its own copy, taken before the fix
+    below landed, and so went on quoting the pre-fix 349 and 762 in the present
+    tense inside the docstring of the function that changed them. #143's shape,
+    one scroll apart.
 
     The fallback order matters. A span too short for its own median borrows the
     line's, which is right where a line is one typeface broken into spans by a bold
