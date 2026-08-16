@@ -1,9 +1,13 @@
 """Cover ``specificity_scan``'s parser against synthetic worksheets.
 
-Every worksheet here is written in this file. There is no committed run of
-``icd10-cpt`` to test against -- a run directory is a patient record under
-``scratch/`` -- so the fixtures are invented, the way ``test_skills_mirror``
+Every worksheet here is written in this file, the way ``test_skills_mirror``
 builds throwaway checkouts rather than touching the real one.
+
+**That used to be because no committed run of ``icd10-cpt`` existed. One does
+now** -- ``fixtures/filled-anchor/run-2/``, from [#124] -- and the fixtures stay
+invented anyway, on ``test_icd10.py``'s reasoning: a test reading the run this
+scanner's own row graded would pass for two reasons, one of them being that the
+run and the scanner are wrong together.
 
 ``TheSkillSaysWhatThisChecks`` is the one test that reads a committed file, and
 it is there for ``test_spelling_scan``'s reason: a scanner that drifts from the

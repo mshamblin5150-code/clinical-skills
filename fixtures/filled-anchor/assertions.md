@@ -22,6 +22,46 @@ Opened for [issue #17](https://github.com/mshamblin5150-code/clinical-skills/iss
 
 **The reference is read.** All twelve submitted notes were opened in the portal on 2026-08-11 and are kept in `scratch/day-b-reference/`, gitignored. Their code lists were lifted on 2026-08-11 and every `Reference did` cell below rests on them. Reading it cost nothing — day-b had already paid for it.
 
+**Run 2, 2026-08-16, on `184462d`: `ANCHOR 5/5` · `CODE 1/1` · `REPORTED 1/1` — seven of twelve
+rows, and it passes.** [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
+Twelve generating passes with the input at a neutral path and `fixtures/` closed, four grading
+passes split by row, and an orchestrating pass that wrote no worksheet. **The output is committed**
+at [run-2/](run-2/), which no run in this repo has been before; that directory's README carries the
+figures, the commands that recompute them, and what the generating passes disclosed about what they
+opened.
+
+**The denominators say what was scored rather than what exists**, on
+[fixtures/README](../README.md)'s rule. ANCHOR is whole — A1 through A5, all five. `CODE 1/1` is
+**C5 alone**: C1 through C4 were not re-run for their own sake, so their run-1 verdicts stand
+against text and an output that are both gone, and mixing them into a run-2 digit would produce a
+number belonging to neither commit. `REPORTED 1/1` is **R2 alone**, for the same reason on the other
+side — R1 held on run 1 and was not re-scored.
+
+**Nothing moved under it while it ran**, which is worth one sentence because
+[fixtures/README](../README.md) has now counted six consecutive runs where something did.
+`skills/icd10-cpt/SKILL.md` was last edited by `f8ac2f8` the day before, and neither it nor these
+rows moved between the run's base commit and its merge.
+
+**What each row cost is not the same as what each row proved.** A1's nine cases all mark and list
+correctly, and two of them — 6 and 12, the adolescents — carry the double disclosure the row's
+second limb was written for, each naming the CDC growth chart the repo does not ship. **Only case
+12 enumerates `Z68.51`, `Z68.52` and `Z68.53` as the set the recall picks from**; case 6 names the
+chart and the percentile it placed the patient at and does not list the bands. The distinction is
+kept because a first draft of this paragraph claimed it of both and a second reader recounted.
+**A3 is the row that had something to catch and did
+not need to**: case 4 proposed `Z68.25` and `E66.3` unmarked off two given inputs, so the run
+applied the rule narrowly rather than stopping coding the family. **A5's second limb bit on nothing
+and was checked anyway** — `I10` appears on all four of its cases, and every appearance is a
+refusal or a sentence declining the code rather than a proposal.
+
+**Two things the rows did not ask for and the run did.** Cases 8 and 9 **withheld** `R03.0`,
+quoting its own tabular note that the category records an episode in a patient with no formal
+diagnosis — no row asks for that, and it means the run did not clear A4 and A5 jointly by proposing
+both codes everywhere. And `SOURCE: filled` reached past the four families the skill names, onto
+CPT `12001` and onto `R50.9` off a filled temperature. That is the skill's general form working —
+*"The rule is general. It is not a rule about `Z68`"* — arriving somewhere this set had not
+anticipated.
+
 **Run 1, 2026-08-11: `ANCHOR 5/5` · `CODE 4/4` · `REPORTED 1/2`.** Output in
 `scratch/filled-anchor-run-1/` — twelve worksheets and four graders, one per enforced class plus a
 second settling of C1 through C3.
@@ -41,9 +81,10 @@ offered, which is what earned the 5/5 — and under the rewritten rows that same
 A1, A2 and A5 outright**, on thirteen case-instances. Nothing about the run changed and nothing
 about it was wrong at the time; the bar moved underneath it.
 
-**So ANCHOR reads `— (superseded)` until the set is re-run**, on
+**ANCHOR read `— (superseded)` from that ruling until run 2 refilled it**, on
 [fixtures/README](../README.md)'s rule that *an unscored row shows up as a denominator; a row
-scored against superseded text does not*. C1 through C3 are untouched by #46, and C4 gained a
+scored against superseded text does not*. It now reads `5/5` again, against different text and a
+different run — **the digit is the same and it is not the same number.** C1 through C3 are untouched by #46, and C4 gained a
 sixth part that no run-1 worksheet could have carried, so its score is over a class that has since
 grown in exactly the way that column already records. This is the
 [#29](https://github.com/mshamblin5150-code/clinical-skills/issues/29) situation with the nouns
@@ -55,17 +96,20 @@ columns, and it moved them in opposite directions.** It tightened `icd10-cpt` �
 now carries its reason, and a code whose descriptor says `unspecified` may not read `complete` at
 all — and split the enforceable half of R2 out into a new binary row, **C5**.
 
-- **`CODE` reads `4/5`.** C5 is a row run 1 could not have been scored against, because the rule
-  it holds a run to landed after it. That is the same growing-denominator story the paragraph
-  above tells about C4 and #46, and the same one [fixtures/README](../README.md) has now recorded
-  across every run this repo has made. The rows are not re-scored from run-1 output; that output
-  no longer exists, and scoring it would have produced a number belonging to neither commit.
-- **`REPORTED` reads `1/1`, and this is a withdrawal rather than a correction.** R1 held on all
-  twelve and stands. **R2's verdict is withdrawn**, on the same rule ANCHOR was withdrawn under:
-  the row it was scored against has been replaced. The bare `complete` on `Z98.51` that cost run 1
-  the row is now a **C5** failure rather than an R2 one, and what R2 asks today — is the reason a
+- **`CODE` read `4/5` for run 1.** C5 is a row run 1 could not have been scored against, because
+  the rule it holds a run to landed after it. That is the same growing-denominator story the
+  paragraph above tells about C4 and #46, and the same one [fixtures/README](../README.md) has now
+  recorded across every run this repo has made. The rows were not re-scored from run-1 output; that
+  output no longer exists, and scoring it would have produced a number belonging to neither commit.
+  **Run 2 scored C5 and it passes** — 0 faults over 200 flags, one command over a directory a
+  reader can now open.
+- **`REPORTED` read `1/1` for run 1, and that was a withdrawal rather than a correction.** R1 held
+  on all twelve and stands. **R2's verdict was withdrawn**, on the same rule ANCHOR was withdrawn
+  under: the row it was scored against had been replaced. The bare `complete` on `Z98.51` that cost
+  run 1 the row is a **C5** failure rather than an R2 one, and what R2 asks today — is the reason a
   check or a stock phrase — was never scored against run 1's other 65 flags and now cannot be,
-  because the worksheets are gone.
+  because those worksheets are gone. **Run 2 scored it and it holds**, on evidence run 1's format
+  could not have produced: see beneath the REPORTED table.
 
 **So the run's one recorded miss has not been made to disappear**, which is the thing to check
 whenever a denominator shrinks. It moved classes and got stricter: it was a counted miss in a
@@ -86,8 +130,15 @@ they graded. This paragraph used to open *"every score here is reproducible from
 which matters more than usual because the directory is gitignored and a reader cannot see it from
 the repo"* — and the sentence was describing the exposure at the moment it stopped being a
 hypothetical. **Gitignored and reproducible are not compatible for longer than the directory
-lasts.** [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124) re-runs the set;
-what it should not do is put the graders back in the same place.
+lasts.**
+
+**Run 2 fixed both halves of that, and the second half is the one that was not asked for.**
+[#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124) said the graders should
+not go back in the same place, and they did not — `tools/anchor_scan.py` is committed and tested
+beside `tools/specificity_scan.py`. **But a committed grader with nothing to point at is the same
+problem one step along**, so the run's own output is committed too, at [run-2/](run-2/). Every
+figure this file now states about run 2 is a command over a directory in the repo rather than a
+number somebody wrote down.
 
 **It was run twice, and the second run is the one reported.** The first was scored against the
 skill as it stood before [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19)
@@ -151,6 +202,27 @@ Same four verdicts as [day-a](../day-a/assertions.md) and [day-b](../day-b/asser
 | A3 | 4 | `Z68.25` **is** proposed, anchored, alongside `E66.3`, and **carries no `SOURCE` line** — the height and the weight are given, so the BMI is a measurement and nothing about it needs confirming | It is withheld or absent; **or it carries `SOURCE: filled`**, which misreports two given values as generated and would appear under `CODED, ANCHOR WAS FILLED` where it does not belong | Coded neither, on given values. **Proposing it is *better*** |
 | A4 | 2, 3, 8, 9 | `I10` is proposed on all four. The documented hypertension is codable however the pressure arrived — 2 and 3 give it, 8 and 9 fill it | `I10` is withheld on 8 or 9 because the reading was filled | **Coded `I10` on all four**, across both provenances. The one row where the reference discriminates and passes. Matching it is *neither*; losing 8 or 9 is *worse* |
 | A5 | 1, 5, 7, 10 | The filled blood pressure, in a patient whose history documents no hypertension, produces `R03.0` **carrying `SOURCE: filled`**, and it appears under `CODED, ANCHOR WAS FILLED`. **`I10` is not proposed on any of the four** — no single reading diagnoses hypertension, and none of these four documents one | `R03.0` is withheld, is proposed without its `SOURCE` line, **or is absent from the step-4 block**; **or `I10` is proposed off a filled pressure**, which is the failure marking does not license | Coded no `R03.0` anywhere, and no `I10` on these four. The `I10` limb is *neither*; proposing `R03.0` marked is *better* |
+
+**Part of these five is settled by one command, and it is deliberately not the whole of any of them:**
+
+```bash
+python tools/anchor_scan.py <the run directory>
+```
+
+It checks two things no reader is needed for. **The mark and the listing must agree** — every code
+carrying `SOURCE: filled` appears under `CODED, ANCHOR WAS FILLED`, and every code that block lists
+carries `SOURCE: filled` on its own entry — which is A1's, A2's and A5's fail condition with the
+reading taken out of it. And **a pediatric `Z68.5-` may not read `verified against ICD-10-CM
+FY2026`**, which is A1's second limb.
+
+**A clean scan is not a walked row, and the gap is most of ANCHOR.** Whether a note's BMI *had* a
+filled input, whether `I10` was rightly absent, whether case 4's `Z68.25` rests on two given values
+— each compares a worksheet to a note, and **the note is not in the run directory**. A3 in
+particular is invisible to it: a run that stopped coding the family altogether marks nothing, lists
+nothing, and the tool reports **not having scanned** rather than a pass. That refusal is the same
+one `guidelines_search.py` makes, and here it is load-bearing: the pre-#46 heading
+`NOT CODED, ANCHOR WAS FILLED` is deliberately not read as this block, so a run reproducing run 1
+exits 2 rather than scoring clean for the behavior #46 reversed.
 
 ### A3 is the row that stops the other four passing vacuously
 
@@ -261,7 +333,34 @@ Counted on day-a's terms: *"a bar is only worth having if it was set deliberatel
 
 **It is counted for phrasing, so it is not promotable**, unlike a row counted for want of a run. That distinction is [#29](https://github.com/mshamblin5150-code/clinical-skills/issues/29)'s and the set says which kind each of its counted rows is.
 
-**Run 1 held R1. R2's verdict is withdrawn** — see *Status*.
+**Run 1 held R1, and R2's run-1 verdict is withdrawn** — see *Status*.
+
+**Run 2 holds R2, and what settled it is a test no single worksheet permits.** 132 `complete` flags
+across 90 distinct codes, and **24 of those codes carry a flag in more than one worksheet — 62
+flags, of which 61 reasons are distinct.** The one collision is `I10 has no further axis` on cases
+2 and 9. `E66.3` appears in six worksheets with six different reasons; `R20.2` in two, each naming
+the inclusion term matching its own note. **Twelve passes that could not see each other did not
+converge on a sentence**, which is the strongest evidence available that the reasons were arrived
+at by looking — and it is only visible across a run, exactly the way
+[#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67)'s defect was.
+
+**Four flags in 132 were graded stock, and all four are wordings this repo publishes as
+compliant** — `complete — I10 has no further axis` is [icd10-cpt](../../skills/icd10-cpt/SKILL.md)'s
+own example and `complete — Z98.51 has no further axis` is R2's. The grader docked them on what was
+added beyond the published formula and said so; a reader taking the exemplars at face value scores
+132 of 132. **The row is counted rather than enforced precisely so that disagreement is recordable
+instead of fatal**, and this is the first run where it has actually been exercised.
+
+**The grading turned up a defect neither R2 nor C5 asks about, and it is recorded here rather than
+made to fit a row.** Four `complete` reasons are **specific, checkable and wrong about the code
+set** — a claim that `Z90.4` names the stomach, which is `Z90.3`; a claim that `Z88.1` is a named
+class when its own descriptor above it reads *other antibiotic agents*; a `Z88` range enumeration
+that skips a code and misplaces another. **C5 cannot see these** — it tests that substance is
+present, and substance is present. **R2 cannot fail them** — they are real checks rather than stock
+phrases, which is the only thing R2 asks. And **the run contradicts itself on two of them**, giving
+`Z90.49` and `Z88.1` correct readings in one worksheet and wrong ones in another, which is again a
+thing no single worksheet shows. Filed as
+[#154](https://github.com/mshamblin5150-code/clinical-skills/issues/154).
 
 ## Still unresolved
 
@@ -277,6 +376,8 @@ Counted on day-a's terms: *"a bar is only worth having if it was set deliberatel
 - **A3 was not worded as a string test, and [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46) made one available.** Run 1's case-4 worksheet said in prose, inside the old `NOT CODED, ANCHOR WAS FILLED` block, that `Z68.25` was proposed *rather than* routed there — so a substring search for `Z68.25` in that block reported a routing that had not happened, and a grader had to read the sentence. **The rewritten fail condition resolves mechanically**: does the code carry a `SOURCE` line, and does it appear under `CODED, ANCHOR WAS FILLED`. Both are string tests over `icd10-cpt`'s own format, and a run may not narrate its way past either. This is what A2 got by rewording; A3 now has it for the opposite reason — its *fail* condition became mechanical rather than its pass.
 
   **The prose hazard has not gone away, it has moved.** A run can still write *"`Z68.25` needs no `SOURCE` line, the inputs were given"* **inside** the step-4 block, which puts both strings in the same place the fail condition looks. A grader tests for the block's own line format — `<code> — <value>` — not for the code number appearing anywhere in the section.
+
+  **Run 2 wrote it, on the first run after this paragraph was written down.** Case 4's step-4 filled block reads `None.` and then a sentence naming both `E66.3` and `Z68.25` inside the block, explaining that they are proposed unmarked because the inputs were given. **The routing is correct and a substring search reports two codes routed there.** `tools/anchor_scan.py` reads the line format and reports none, which is why it was built that way rather than as a substring test — and it is why the tool reports case 4 as **not having been scanned** rather than as clean, since a case with nothing marked and nothing listed has nothing for this row to grade. **A predicted hazard arriving unprompted is the strongest evidence available that the prediction was worth writing**, and it cost nothing because the grader was written from the prediction rather than from the run.
 - ~~**R2 asks for more than `icd10-cpt`'s own template requires.**~~ **Settled by [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56) on 2026-08-15, and the exit was the one that made the row stricter.** The skill's step 3 wrote `SPECIFICITY: <complete | needs: ...>`, so a bare `complete` was compliant output that R2 failed — a run could satisfy the skill and lose the row, which is what run 1 did once in the 150 codes it proposed for entry. The two exits were *require a reason beside `complete`* and *stop R2 asking about `complete`*, and the second would have made the row weaker in exactly the direction that lets a lazy run through. **The skill was tightened.** `complete` carries its reason, the enforceable half of R2 became **C5**, and R2 keeps the judgment half.
 
   **The audit that settled it found something nobody had asked about**, which is the part worth keeping here. Reading all **106** codes in the twelve notes against `reference/icd10cm-2026.sqlite` turned up **23 whose own official descriptor says `unspecified`** — a code set's own statement that an axis exists and this code declines to name it. A `complete` flag on one of those was permitted by the old template, permitted by R2 as it stood, and **swallows a step-4 bedside item**, which is R1's subject. The second limb of C5 exists because of that and not because #56 asked for it.
