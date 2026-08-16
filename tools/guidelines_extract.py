@@ -532,8 +532,16 @@ def main(argv: list[str]) -> int:
             # name outside cp1252 from taking the run down at the print, having
             # already done the work. This used to encode by hand through
             # `sys.stdout.buffer`, which did the same job for this one line and left
-            # every other print in the file exposed -- issue #150. `flush` stays: it
-            # is progress output over 179 documents, not encoding.
+            # every other print in the file exposed -- including `record.error` on
+            # the failure path, where the reporting is what dies. Issue #150.
+            #
+            # The trade is real and worth naming: that hand-rolled line protected
+            # itself wherever it ran, and this one is protected by the entry point,
+            # so an in-process caller of `main` no longer gets it. There is no such
+            # caller, `sys.stdout.buffer` does not exist on the `StringIO` a test
+            # would redirect into, and one mechanism for the whole file beats one
+            # line that was safe alone. `flush` stays: that is progress output over
+            # 179 documents, and nothing to do with encoding.
             print(f"  {records[-1].source}", flush=True)
 
     manifest = write_manifest(out_root, records, source_root)

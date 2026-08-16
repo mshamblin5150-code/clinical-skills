@@ -39,7 +39,9 @@ Also not required to use the clinical skills, and deliberately not cited from [A
 
 ### Console codec
 
-`tools/console_codec.py` is the only shared module in `tools/`, and it holds one line of policy: **every command line here puts stdout and stderr on UTF-8 with `errors="replace"` before it prints anything.**
+`tools/console_codec.py` is **the only module every command line in `tools/` imports**, and it holds one line of policy: **each of them puts stdout and stderr on UTF-8 with `errors="replace"` before printing anything.**
+
+It is *not* the directory's first shared module, and #150's *"there is no shared module in `tools/` today to put one in"* is false as written — `guidelines_search` imports `guidelines_index`, `icd10_lookup` imports `icd10_build`, `harvest_review` imports `phi_scan`, `filled_vitals_census` imports `corpus_census`. What it is first at is being **infrastructure rather than a tool another tool happens to need**. This paragraph originally said "the only shared module in `tools/`" and was caught in review, which is the #137 shape again: the generalization was made from the four files the work had open.
 
 ```python
 from console_codec import use_utf8
@@ -55,9 +57,9 @@ if __name__ == "__main__":
 
 **Called from `__main__`, never at import, and that is the shape rather than a habit.** Reconfiguring `sys.stdout` is a decision about a process; a module that made it on import would make it for every test importing it and for every tool importing another. `tools/test_console_codec.py` **parses every module in `tools/` and asserts the ones with a command line call it** — 15 of them today. The check is an AST walk and not a substring search, because the first version was a substring search and `console_codec.py` passed it on the usage example in its own docstring: a module with no command line at all, graded as having one. That is `spelling_scan`'s mention-versus-use distinction arriving uninvited, and it is why a fifteenth tool cannot quietly skip the line.
 
-**The one thing it does not reach is a tool that prints before `main`.** Nothing here does, and an `argparse` error message is written by `argparse` to a stream this has already reconfigured — but a module-level `print` would run first and is outside it.
+**Two things it does not reach, and both follow from the placement rather than being oversights.** A tool that printed *before* `main` would print through the old codec — nothing here does, checked by AST, and an `argparse` error is written by `argparse` to a stream already reconfigured. And **a caller that imports `main()` rather than running the script gets no protection at all**, which is every command-line test in `tools/`; that is why they still redirect into a `StringIO` happily and why #150's end-to-end case had to be a subprocess.
 
-**`icd10_lookup.py` was safe, and not for the reason #150 assumed.** Measured against the shipped FY2026 database, 2026-08-16: the **98,186 descriptors carry zero non-ASCII characters**, but the **22,988 tabular notes carry 65** — nine distinct code points, every one an accented Latin letter out of an eponym (Sjögren, Ménière). cp1252 encodes all nine, so it never crashed; it was safe by the accident of which accents CMS happens to use, and a cp437 or ASCII console would have taken the same traceback. Those figures are a measurement, not a test — nothing in `tools/` tests against the shipped database.
+**`icd10_lookup.py` was safe, and not for the reason #150 assumed** — it prints tabular notes as well as descriptors, and only the descriptors are ASCII. The counts, the date and the nine code points are in that module's own docstring and **deliberately not restated here**, on `spelling_scan --record`'s terms: #94 and #96 are one figure that went stale in ten places across four files, and a number is cheapest to keep true where the code that produces it lives.
 
 ### Corpus census
 
