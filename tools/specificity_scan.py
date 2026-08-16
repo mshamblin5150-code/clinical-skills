@@ -75,6 +75,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from console_codec import use_utf8
+
 # ``ICD-10  M19.90  Unspecified osteoarthritis, unspecified site``. The trailing
 # ``NOT FOR ENTRY`` mark belongs to the differential shape and is not descriptor.
 ENTRY = re.compile(
@@ -306,4 +308,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

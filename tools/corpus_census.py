@@ -126,6 +126,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from console_codec import use_utf8
+
 # A note opens with "Note 1" at the start of a line. Case-insensitive: the corpus
 # contains "NOte 3", and fixtures/day-a/shorthand/case-03.md preserves it.
 NOTE_DELIMITER = re.compile(r"(?im)^\s*note\s*#?\s*\d+")
@@ -1498,4 +1500,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv))

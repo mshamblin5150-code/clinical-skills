@@ -37,6 +37,30 @@ Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
 
+### Console codec
+
+`tools/console_codec.py` is **the only module every command line in `tools/` imports**, and it holds one line of policy: **each of them puts stdout and stderr on UTF-8 with `errors="replace"` before printing anything.**
+
+It is *not* the directory's first shared module, and #150's *"there is no shared module in `tools/` today to put one in"* is false as written — `guidelines_search` imports `guidelines_index`, `icd10_lookup` imports `icd10_build`, `harvest_review` imports `phi_scan`, `filled_vitals_census` imports `corpus_census`. What it is first at is being **infrastructure rather than a tool another tool happens to need**. This paragraph originally said "the only shared module in `tools/`" and was caught in review, which is the #137 shape again: the generalization was made from the four files the work had open.
+
+```python
+from console_codec import use_utf8
+
+if __name__ == "__main__":
+    use_utf8()
+    raise SystemExit(main(sys.argv[1:]))
+```
+
+**The defect it exists for is an exit status, not a mangled character** — [#150](https://github.com/mshamblin5150-code/clinical-skills/issues/150). On Windows the default stdout codec is cp1252, and guideline text is full of characters it has no code point for: the greater-or-equal sign a threshold is written with, an en dash, a typographic quote, a mu. The `print` raised `UnicodeEncodeError`, the traceback escaped `main`, and the process exited **1** — which `guidelines_search.py`'s own contract reads as *a genuine zero*. So the one failure those statuses exist to make visible was reachable by accident, and **the queries likeliest to hit it were the clinical-threshold ones**, because a cut point is written with exactly the character that dies. Output was partial and looked complete: the `== query` header printed, some hits printed, then it stopped mid-list.
+
+**`errors="replace"` carries as much of the fix as the encoding does.** A console that genuinely will not move off its codec still has to print a legible line with a `?` in it rather than raise, because the thing being protected is the exit status and not the glyph.
+
+**Called from `__main__`, never at import, and that is the shape rather than a habit.** Reconfiguring `sys.stdout` is a decision about a process; a module that made it on import would make it for every test importing it and for every tool importing another. `tools/test_console_codec.py` **parses every module in `tools/` and asserts the ones with a command line call it** — 15 of them today. The check is an AST walk and not a substring search, because the first version was a substring search and `console_codec.py` passed it on the usage example in its own docstring: a module with no command line at all, graded as having one. That is `spelling_scan`'s mention-versus-use distinction arriving uninvited, and it is why a fifteenth tool cannot quietly skip the line.
+
+**Two things it does not reach, and both follow from the placement rather than being oversights.** A tool that printed *before* `main` would print through the old codec — nothing here does, checked by AST, and an `argparse` error is written by `argparse` to a stream already reconfigured. And **a caller that imports `main()` rather than running the script gets no protection at all**, which is every command-line test in `tools/`; that is why they still redirect into a `StringIO` happily and why #150's end-to-end case had to be a subprocess.
+
+**`icd10_lookup.py` was safe, and not for the reason #150 assumed** — it prints tabular notes as well as descriptors, and only the descriptors are ASCII. The counts, the date and the nine code points are in that module's own docstring and **deliberately not restated here**, on `spelling_scan --record`'s terms: #94 and #96 are one figure that went stale in ten places across four files, and a number is cheapest to keep true where the code that produces it lives.
+
 ### Corpus census
 
 Several claims in [clinical-note](skills/clinical-note/SKILL.md) are counts over the clinician's shorthand corpus, and rulings have turned on them. `tools/corpus_census.py` recomputes all of them:

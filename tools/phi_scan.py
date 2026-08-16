@@ -68,6 +68,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
+from console_codec import use_utf8
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Directories the PHI firewall in .gitignore already covers -- scratch/ is working
@@ -737,4 +739,5 @@ def review_hint(findings: Sequence[Finding], unreviewed: set[str]) -> str:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

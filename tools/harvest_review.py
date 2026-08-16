@@ -68,6 +68,8 @@ from typing import NamedTuple, Sequence
 
 import phi_scan
 
+from console_codec import use_utf8
+
 
 class Sighting(NamedTuple):
     """One appearance of an unruled string, with what surrounds it."""
@@ -165,4 +167,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
     raise SystemExit(main(sys.argv[1:]))
