@@ -160,6 +160,24 @@ not left to be discovered:
 - **One topic has a sheet.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
+- **Most of the corpus cannot be gated at all yet, and the number is measured.**
+  `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-16:
+
+  | mode | docs | what a gate can do |
+  | --- | ---: | --- |
+  | `exact` | **22** | omissions **refused**; 22 of 23 AHA/ACC files, 2,969 recommendations |
+  | `bound` | 19 | omissions **warned**; 16 KDIGO, 2 IDSA, 1 ADA |
+  | nothing found | **138** | nothing counted, so nothing gated |
+
+  **The 138 is a limit of this extractor, not a finding about those guidelines.** It
+  knows two house styles — a ruled `COR | LOE` table and a `Recommendation N.N.N` /
+  `Practice Point` marker. USPSTF grades recommendations with a letter (A/B/C/D/I) and
+  IDSA writes *"strong recommendation, moderate-quality evidence"* in prose; neither is
+  matched. `guidelines_recs.py` exits 2 on those and says so in as many words rather
+  than reporting a zero, and all 90 USPSTF documents are separately covered by
+  `reference/guidelines-uspstf.md`. **A sheet built on any of the 138 would have its
+  omission gate silently do nothing**, which is why the mode is recorded per source and
+  cross-checked rather than trusted.
 - **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
   stripped by #80 appears inside an extracted table row, that row is suspect and must
   be read off the rendered page."* **This ticket widened the exposure rather than

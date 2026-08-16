@@ -138,7 +138,10 @@ def calls_helper(node: ast.AST) -> bool:
 
 class EveryToolTakesIt(unittest.TestCase):
     """Parity, mechanically. Parses the files rather than importing them, because
-    three of them need ``pypdf`` or ``fitz`` to import and none needs it to be read.
+    five of them open a PDF and none needs a PDF library to be *read*. (Those five
+    all import it inside the function that opens the file, so importing them would in
+    fact work -- parsing is the stronger guarantee, and it is the one that survives a
+    sixth tool putting its import at module scope.)
 
     **By AST and not by substring, which is not fastidiousness.** The first version
     of this searched the file text, and ``console_codec.py`` passed it on the usage
@@ -169,8 +172,8 @@ class EveryToolTakesIt(unittest.TestCase):
         subtest did not. ``block_scan.py`` repeated it one merge later.
 
         The floor stays deliberately below the count. It is here to catch the glob
-        breaking, not to be a second place the tool count has to be kept true -- #94
-        and #96 are what one figure copied into ten places becomes."""
+        breaking, not to be a second place the tool count has to be kept true -- #143
+        is what one figure copied into ten places becomes."""
         self.assertGreaterEqual(len(self.command_line_tools()), 17)
 
     def test_the_helper_itself_is_not_counted_as_a_command_line_tool(self):
