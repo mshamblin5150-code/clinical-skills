@@ -6,11 +6,13 @@ This set exists for one thing `day-b` cannot test: **what the skill does when th
 
 Which three encounters, how they were selected out of seventeen candidates, and what the inputs are known to leave out are in [shorthand/README.md](shorthand/README.md) and are deliberately not restated here.
 
-## Status — inputs in, run 1 scored, four rows added under it, reference owed
+## Status — inputs in, run 1 scored, five rows added under it, reference owed
 
 **Run 1, 2026-08-15: `CODING 5/5` · `DRIFT 1/1` · `REPORTED 1/1`.** Those three classes were scored on the day and the run passes every row in them. **`NAMING` did not exist yet**, was added under the run later the same day, and is scored here retrospectively: **`N3` passes, `N1` and `N2` fail, and `N4` cannot be scored at all.** That is deliberately not written as a fraction — three of the four rows have verdicts and the fourth has none, so any denominator would either hide the unscoreable row or count it as a loss. A reader taking the three fractions above as the set's verdict is reading a set that has since grown a class. Three generating passes with the shorthand pasted inline and `fixtures/` declared closed; two grading passes split by class, neither having written a note; an orchestrating pass that authored none and re-derived every quotation from the output text.
 
 **That was `7` rows and this section called it six**, in two places, until [#151](https://github.com/mshamblin5150-code/clinical-skills/issues/151) counted them: `C1`–`C5`, `D1`, `R1`. The digits `5/5`, `1/1` and `1/1` were right the whole time and their total was written down wrong — **which is this section's own subject arriving in this section**, three paragraphs below a note being faulted for enumerating seven things after announcing six. Nothing recomputes an integer typed into prose. The wording above no longer states a total; the tables are the count.
+
+**A fifth row was added on 2026-08-16 for [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) — `R2`, on case 3's allergy line — and run 1 is not scored against it**, on the standing rule that a row existing because the skill changed cannot be graded from notes predating the change. Its own section below says why this set is where that ruling was decided.
 
 **Four NAMING rows were added later the same day for [#68](https://github.com/mshamblin5150-code/clinical-skills/issues/68), and run 1 fails two of them.** **None of the seven verdicts above moves** — nothing in `CODING`, `DRIFT` or `REPORTED` turns on what an entry is called. *(Seven **rows**, three **fractions**. A code review caught this sentence saying "the seven digits", which is neither, one paragraph below the one faulting this section for exactly that.)* See *NAMING* below for what run 1 wrote and why it was compliant when it wrote it. **This is `filled-anchor`'s shape arriving here** — that set also passed its first run and had rows reversed underneath it by [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46) — with one difference worth keeping straight: #46 **reversed** rows that were wrong, and #68 **added** rows for a question nothing had asked. The old rows were not wrong; they were silent.
 
@@ -124,6 +126,7 @@ Added 2026-08-15 for [#68](https://github.com/mshamblin5150-code/clinical-skills
 | # | Case | Counted | Reference did |
 | --- | --- | --- | --- |
 | R1 | 1 — 7 yo f | **What the note does about the missing radiographic basis.** Three shapes seen so far: it orders a film prospectively under `FILLED·proposed`; it records the pneumonia entry as resting on a film with no result; it says nothing | **Owed, and out of reach.** Same reasoning as D1 |
+| R2 | 3 — 3 yo | **The `allergy: seasonal` line reaches the `Allergies (reaction)` box named as environmental, *and* the box states a drug status.** Both limbs, not one instead of the other: a box reading only `Environmental: seasonal allergies` fails as surely as a bare `NKDA` with the allergen routed to `PMH/PSH`. The Plan proposes azithromycin and prednisolone, so the drug half is what says the two may be given. **And where the `NKDA` is inferred, its `FILLED·asserted` line names the drugs leaning on it and does not deny the seasonal allergy** | **Owed.** Same standing as this set's other rows. |
 
 **R1 was drafted as the second limb of D1, split out before the run, and then rewritten because the run proved it wrong.** All three states are recorded because the reasoning is the argument, not the outcome.
 
@@ -136,6 +139,16 @@ Added 2026-08-15 for [#68](https://github.com/mshamblin5150-code/clinical-skills
 **What is left is genuinely counted, and it is counted for the third reason [fixtures/README](../README.md) names — the claim is hard and there is no bar to set.** Ordering the film prospectively and naming the pneumonia as film-dependent are both defensible, both licensed, and nothing ranks them. Run 1 produced one of each on two different cases, which is the evidence that this is a real fork rather than a right answer and a wrong one.
 
 **Splitting from D1 still costs nothing and keeps D1 clean.** D1's subject is invention, which every rule here already forbids. R1's is a choice between two permitted behaviors. Bundling them would have made a binary row fail on its soft limb and taken the hard one down with it.
+
+### R2 is here because case 3's three-word allergy line decided a ruling for four sets
+
+**This set holds the one input in the repo where the two candidate rules gave opposite answers**, and it was not in the ticket's own table until a sweep put it there. [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) asked whether an environmental allergy belongs in a box where `NKDA` conventionally means no known **drug** allergy, and it tested a second hypothesis alongside: that the discriminator is **where the clinician typed the words** — under an `allergies:` label to the box, inside an `hx:` list to the history.
+
+**Case 3 reads `allergy: seasonal` — labeled *and* environmental.** Label placement puts it in the box; a drug-only reading of the box keeps it out. Every other committed input naming an allergen is either environmental-inside-`hx:` or drug-under-a-label, where the two rules agree and neither is tested. **So one input of eight decided it**, and it was put in front of the clinician as the concrete case, with this note's azithromycin beside it, on 2026-08-16.
+
+**He ruled that the box carries both, each named by its kind**, which retires the placement hypothesis rather than choosing between its outcomes. The population and the four-and-four count that killed that hypothesis are stated once in [day-b](../day-b/assertions.md) under R6 and deliberately not repeated here.
+
+**Counted rather than binary on #29's reason**, one ruling across four sets — this row, [day-a](../day-a/assertions.md) R15, day-b R6 and [peds-bp](../peds-bp/assertions.md) R3. **Promotable, for want of a run, and the four go together.** It sits in REPORTED rather than beside the CODING and NAMING rows despite resolving to a value a reader compares, which is the same tension R2 carries in peds-bp and is recorded for the same reason.
 
 ## Still unresolved
 

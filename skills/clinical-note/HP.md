@@ -9,7 +9,8 @@ Chief Complaint
 <one line>
 
 Allergies (with reaction)
-<allergen - reaction; and drug allergies separately; NKDA if none>
+<allergen - reaction; drug status first, NKDA if none;
+ then environmental and food, each named by its kind>
 
 History of Present Illness (OLDCARTS)
 <all eight carry a value; none is left blank or "not documented">
@@ -118,6 +119,8 @@ illness but matters for counselling and future care>
 **Social History is no longer that**, and it used to be governed by the same sentence. Every one of the twelve lines carries a value, **and none of them is a hedge**: `tobacco not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Which value each line takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus, every other line by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled line in `FILLED·asserted` carrying its value. Issue #29.
 
 **Allergies (with reaction)** is the same class and takes the same treatment. `NKDA` where the shorthand is silent, never a hedge; a stated allergen is a given and survives unchanged; and where a drug the Plan proposes rests on an inferred `NKDA`, that FILLED line says so.
+
+**It survives *in this box*, and the box says which kind it is** — drug, environmental or food. The placeholder above has said `and drug allergies separately` since this template was written and [SOAP.md](SOAP.md) said nothing of the kind, so the two branches disagreed on the shape for months while both were being obeyed. They now read alike. Which kind an allergen is, and what a food intolerance takes, are [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: do not restate them here, do apply them. Issue #96.
 
 **`Lab, x-ray, other tests` is not a results-only line**, and its placeholder here said it was. A test the encounter ordered goes on it as an order carrying no result, because a given order is a given and having no value to report is not a reason to drop it. `No new testing today` is reserved for an encounter that ordered nothing — writing it over a plan line that names a test is a false statement about the visit, not a cautious one. [SKILL.md](SKILL.md)'s *A given order is a given* is the rule; drift row 18 counts it. Issue #66.
 
