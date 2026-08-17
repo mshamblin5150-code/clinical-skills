@@ -55,4 +55,4 @@ git config core.hooksPath tools/hooks
 
 A file that genuinely needs PHI-shaped literals — the tests for the date extractors do — declares `phi-scan: synthetic` near its top, **alone on its own line**. Mentioning it mid-sentence, as this paragraph does, is not declaring it. **That exempts the shape rules only.** A file may say its dates are invented; no file may say its patient names are fine.
 
-It is a seatbelt, not a vault: `--no-verify` bypasses it, and the corpus layer is inert on a clone with no local corpus. Details and limits in [CLAUDE.md](CLAUDE.md).
+It is a seatbelt, not a vault: `--no-verify` bypasses it, and the corpus layer is inert on a clone with no local corpus — though since #93 that refuses the commit rather than warning past it, until the clone declares once that it has no corpus. Details and limits in [CLAUDE.md](CLAUDE.md).

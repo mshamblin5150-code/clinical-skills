@@ -145,6 +145,45 @@ class ThePhiStepCannotReadAsCoverage(unittest.TestCase):
         the corpus layer was already dead."""
         self.assertRegex(workflow_text(), r"phi_scan\.py --all")
 
+    def test_the_scan_step_carries_the_no_corpus_flag(self):
+        """Since #93 an absent corpus is exit 2, and in CI it is absent on every
+        run that will ever happen -- so without this flag the step is red
+        forever, and a check that can never be green checks nothing.
+
+        Pinned here because the failure is invisible until a push: dropping the
+        flag breaks nothing locally, where the corpus is present, and the first
+        thing that notices is a red `main`. That is ADR 0002's own *the first
+        push is still the only end-to-end check*, so the flag needs a test on
+        the side where it can be seen.
+        """
+        import phi_scan
+        step = [
+            line for line in workflow_text().splitlines()
+            if "phi_scan.py --all" in line and "--layers" not in line
+        ]
+        self.assertEqual(len(step), 1, "expected exactly one scanning phi step")
+        self.assertIn(phi_scan.ALLOW_NO_CORPUS_FLAG, step[0])
+
+    def test_the_yaml_does_not_second_guess_the_exit_status(self):
+        """#93 ruled the exemption belongs in the scanner's vocabulary, not in
+        control flow here. Branching on the scanner's exit code in this file
+        would be a judgment about `phi_scan` that `phi_scan` does not make and
+        nothing re-derives -- the same objection the layer-report step exists to
+        answer, one step over.
+
+        **Comment lines are stripped, and that is not tidiness.** The first
+        version was a substring search over the whole file, and it failed on the
+        comment above the step -- prose that names the construct in order to
+        reject it. That is `spelling_scan.py`'s mention-versus-use distinction
+        and the pragma's own-line rule arriving uninvited a third time: a file
+        explaining a rule should not have to break it to say what it does.
+        """
+        live = [
+            line for line in workflow_text().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        self.assertNotIn("LASTEXITCODE", "\n".join(live))
+
     def test_the_job_name_carries_the_caveat(self):
         """The **job** name is the string on the PR check list. It is the only
         part of this a reader who never opens the run will ever see, so the

@@ -75,6 +75,8 @@ python tools/corpus_census.py
 
 It reads `scratch/day-file-text/` — gitignored PHI — and **prints counts only, never matched text**, so its output is safe to paste into a ticket. Run it before relying on a figure again, and whenever the corpus grows.
 
+**Since #93 that path resolves through the checkout that owns this tree, so the command above works from a worktree with no argument.** It used to resolve from the module's own location, which in a worktree is a `scratch/` that has never existed — #78 was blocked on exactly that and got its figures by typing the main checkout's path. See *Corpus resolution* under the PHI hook.
+
 Its extractors are covered by `tools/test_corpus_census.py`, which runs against the committed PHI-free fixtures and never touches `scratch/`:
 
 ```bash
@@ -529,6 +531,30 @@ python tools/phi_scan.py --show
 
 Audit everything already committed with `python tools/phi_scan.py --all`.
 
+#### Corpus resolution
+
+`scratch/` is gitignored, so `git worktree` does not bring it. Every tool that reached for it resolved through `Path(__file__).resolve().parent.parent`, which in a worktree is **the worktree** — a tree that has never had a corpus. [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93).
+
+`tools/repo_root.py` is the one place that resolves it now. `main_repo_root()` reads the worktree's `.git` pointer file and walks up to the clone that owns it; `scratch_root()` is that plus `scratch/`. **Run `python tools/phi_scan.py --layers` from a worktree and the corpus line reads `ACTIVE`** — the figures beside it are counted from `scratch/` and are deliberately not restated here, on `differential_scan.py`'s terms: nothing committed can re-derive a number measured against a directory under `scratch/`, and [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is what one such figure copied into many files becomes. They match what a dozen by-hand workarounds recorded on the ticket, which is the check worth making.
+
+**Two tools shared the line and failed differently, and the difference is why one cost a firewall and the other a ticket.** `corpus_census.py` degraded *loudly* — it named the path it looked at and stopped — so #78 got its figures by typing the main checkout's path as an argument. `phi_scan.py` degraded *silently*: the corpus layer went quiet, the shape layer kept passing, and the commit went through on two thirds of its evidence. `harvest_review.py` imports `phi_scan` and inherits whatever it does, which is now the fix.
+
+**The count of modules repeating that line is not a to-do list**, and the ticket thread invites reading it as one — it has been posted there as 11, corrected to 14, re-derived as 20, and this paragraph first said 21 and was **23 by the time the branch it was written on finished**. That is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape happening inside the paragraph warning about it, which is why no number is stated here now. The durable claim is the qualitative one: **most of those callers want the worktree** — a test reading `fixtures/`, `scan_all` walking the files being committed, `_git` choosing a working directory — and **moving them would make a worktree scan somebody else's tree**, which is worse than the bug. Only a caller reaching for `scratch/` wants the main checkout. `phi_scan` holds both roots as two named constants for exactly that reason.
+
+**An absent corpus is exit 2 — *did not scan*.** That is `guidelines_search.py`'s convention, already copied into `specificity_scan`, `differential_scan`, `anchor_scan` and `block_scan`, and #93 names the defect it fixes in its own comments: *those two exit-0s mean different things and nothing in the status distinguishes them*. The hook needed no edit — it already ORs any non-zero into its status. **Where a finding and a dead corpus both hold, 1 wins**, on `differential_scan.py`'s reasoning, and the layer report prints above it so the refusal reads as a floor.
+
+**Two doors out, for the two places an absent corpus is expected rather than a fault**, and they are different doors because the callers differ. A person committing has nowhere to put a flag — the hook is what invokes the scanner — so a clone that holds no patient material says so once, alongside the `core.hooksPath` line it already needs:
+
+```bash
+git config clinical.phiAllowNoCorpus true
+```
+
+CI invokes the scanner directly and gets `--allow-no-corpus`, written into `.github/workflows/checks.yml` where a reader can see the job knowingly runs a layer short. **Not `if ($LASTEXITCODE -eq 2)` in the YAML**: that would be a judgment about `phi_scan` that `phi_scan` does not make and nothing re-derives, which is the objection the layer-report step next to it already exists to answer.
+
+**Neither door buys silence, and that is what makes them safe.** Both convert the status and neither suppresses the report — `PATIENT NAMES ARE NOT CHECKED` prints either way. Same shape as `errors="replace"` in the console codec: the fix is about the exit status, not about the glyph.
+
+**What it does not reach is CI, permanently.** `scratch/` is gitignored PHI that must never touch a runner, so there is no common dir holding a corpus anywhere on that machine and no resolution can find one. The ticket's own *Related* note — *a check that runs in CI would not care where the working tree is* — is backwards, and #86 landing is what settled it.
+
 #### Ruling on what the harvester found
 
 The corpus layer harvests names from `scratch/name-index.json`. `win[0]` is a name's own line, so harvesting it is sound; `win[1..3]` are the shorthand lines that follow, and clinical shorthand is full of two-word letters-only phrases that look exactly like names. Those get indexed, and each one eventually refuses a fixture containing no PHI at all — `fixtures/day-b/shorthand/case-10.md` was refused for exactly this. The reverse also happens: a real name the index only ever caught mid-note.
@@ -548,7 +574,7 @@ Why it is not automated is recorded in the module docstring, including the two d
 **What this does not do.** It is a seatbelt, not a vault:
 
 - `git commit --no-verify` bypasses it, as it bypasses any hook.
-- The corpus layer needs `scratch/` present. On a fresh clone it finds nothing and only the shape layer remains.
+- The corpus layer needs `scratch/` present. Where it is genuinely absent that layer finds nothing and only the shape layer remains — but since #93 that **refuses** rather than warns, so it can no longer happen quietly. See *Corpus resolution* below.
 - **Binary files are skipped entirely**, so nothing inside `reference/icd10cm-2026.sqlite` is read. Its contents are the public ICD-10-CM release and carry no patient data — but a tracked binary that *could* carry PHI would go unexamined and unmentioned.
 - A patient name that appears nowhere in the corpus and is not date-shaped is caught by neither layer. All PHI here originates in the corpus, so the hole is narrow — but it is real, and it is why the rule still has to be read.
 - **It has no concept of the account profile, and that hole is the wider one.** A site name, a preceptor, a payer mapping: none is a patient name, a corpus date or a PHI shape, so no layer matches one. Committed fixture notes have carried practicum site names through this scanner without a word — found by a reviewer who thought to grep. [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50) ruled that **acceptable rather than unnoticed** and built no fourth layer, so do not refile it. **The reasoning it kept instead is [fixtures/README.md](fixtures/README.md)'s** — a fixture built from another skill's *output* inherits that skill's whole context — which is wider than a site list and is why the list was not worth writing. The counts and the ruling's grounds live there and in that set's own README, once each.
