@@ -24,10 +24,17 @@ rather than being copied.
 ``Path(__file__).resolve().parent.parent`` is not a to-do list, and #93's own
 comment thread invites reading it as one. Most of them want the worktree: a test
 reading ``fixtures/``, ``scan_all`` walking the files being committed, ``_git``
-choosing a working directory. Only a caller reaching for ``scratch/`` wants the
-main checkout, and there are three -- ``phi_scan``'s name index, its reviewed
-ledger and its date corpus -- plus ``corpus_census``'s default directory. Making
-the other callers adopt this would send a worktree's scan into the wrong tree.
+choosing a working directory. Making those adopt this would send a worktree's
+scan into the wrong tree, which is worse than the bug being fixed. **Only a
+caller reaching for ``scratch/`` wants the main checkout** -- that is the test,
+and it is stated as a test rather than as a list on purpose.
+
+An earlier draft of that sentence ended by counting the qualifying call sites.
+It was correct when written, nothing recomputed it, and it sat four lines above
+the warning that such a number goes stale -- #143's shape inside the paragraph
+about #143, which is the same thing that happened to the module count in
+``CLAUDE.md`` on this branch. Caught in review both times; the fix both times was
+to state no number.
 
 No subprocess, deliberately. ``git rev-parse --git-common-dir`` answers the same
 question and #93 verified it, but it needs git on PATH and a process launch on a
