@@ -651,7 +651,28 @@ class TheSourceRowCarriesItsProvenance(unittest.TestCase):
 
 class TheRenderedPageEscapeHatch(unittest.TestCase):
     """#83: *"a per-row annotation meaning read off the rendered page, extraction
-    garbles this table. Declaring it is a deliberate act that leaves a trace."*"""
+    garbles this table. Declaring it is a deliberate act that leaves a trace."*
+
+    **This is the one class in `tools/` that needs something installed, and #86's
+    first CI run is what found that out.** `gate_citation_tier2` returns early
+    with the reason ``pymupdf is not installed``, so on a clean machine the
+    first test below fails outright -- and, worse, two of the other three pass
+    for the wrong reason, asserting ``rendered == 0`` against a gate that
+    short-circuited before it could count anything. That is `test_icd10.py`'s
+    two-reasons objection, hidden by a dependency the maintainer's machine
+    happens to satisfy.
+
+    So the whole class skips rather than the one test: a partial run here reads
+    as a pass, which is the shape this repo keeps naming. It also means
+    CLAUDE.md's *"the test suite needs nothing installed"* is now true of every
+    module except this class, which skips instead.
+    """
+
+    def setUp(self):
+        try:
+            import pymupdf  # noqa: F401
+        except ImportError:
+            self.skipTest("pymupdf absent; tier 2 short-circuits and these grade nothing")
 
     def test_a_declared_row_is_skipped_by_tier_two_and_counted(self):
         marked = row(snippet=f"{gate.RENDERED_MARKER} an SBP goal of <130 mm Hg")
