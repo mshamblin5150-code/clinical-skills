@@ -75,7 +75,13 @@ Ask, and record the answers rather than deriving them:
 
 Preceptors, sites, case types and Patient Time bands are per-account picklists. Read them off the portal and record the strings **character for character** — one account carries `Wyoming County Health Dept.` with a trailing period and `New River Health - Oak Hill` with a spaced hyphen. A near-miss string does not match.
 
-Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly. A name that maps to nobody is reported, never substituted.
+Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly.
+
+**A name that maps to nobody is a question, not a defect.** The person a day file names may be a physician the clinician rounded with who is not on the picklist at all — in which case nothing is missing from the record and nothing needs mapping. Ask what goes in the box instead, and **write the ruling into the profile**. **Never guess a nearest surname match**: that is how a shift's hours get attributed to someone who was not there, and nothing downstream will catch it.
+
+**This step collects the answer; it does not decide what to do with one.** [batch-shift](../batch-shift/SKILL.md) step 1 owns that — the lookup order, and why a clinician entering his own preceptor of record is a different act from an agent guessing a surname. **Stated there and not restated here on purpose**, so the two cannot drift apart again.
+
+*(This paragraph read "A name that maps to nobody is reported, never substituted" until 2026-08-16, which welded those two acts into one prohibition. [#91](https://github.com/mshamblin5150-code/clinical-skills/pull/91) separated them in `batch-shift` on 2026-08-12 and did not sweep for this second copy, so the two skills gave opposite instructions on one rule for four days. #90.)*
 
 ### 5. Declared field defaults — measure, do not inherit
 

@@ -794,6 +794,12 @@ The program sets the rule: **the first six documented encounters of a practicum 
 
 Check the count before assuming. `Student Overview` in Medatrax reports forms by type; if the current course has fewer than six H&Ps, this encounter is an H&P regardless of what is convenient. State which branch you chose and why.
 
+**Where a branch was named, that is the branch.** A user who says *H&P* has decided, and [batch-shift](../batch-shift/SKILL.md) step 4 settles one for a whole shift. **This does not suspend the rule above**: if you can see the count and it disagrees — fewer than six H&Ps on the course, and SOAP named — say so and let the clinician choose. The program's rule is the program's, and a named branch is an instruction rather than a ruling on whether the form is the right one.
+
+**Where nobody named one and the count cannot be checked, write SOAP, say which you chose, and offer to redo it as an H&P.** Ruled 2026-08-16. The rule above needs the `Student Overview` count, and a run outside `batch-shift` usually has no Medatrax session to read it from — so what happens is not that the rule is applied, but that it is **guessed at from the same words that state it**. `fixtures/day-a` run 2 is the evidence: given the shorthand with no branch stated, several of its passes chose the FNP H&P unprompted and were discarded. Nothing was wrong with their reasoning; the branch is simply not derivable without the portal. **The count is stated once, in [fixtures/day-a/assertions.md](../../fixtures/day-a/assertions.md)**, because it was measured against a directory under `scratch/` and nothing committed re-derives it.
+
+**The default is wrong during the first six encounters of a course, and saying so out loud is the whole of the mitigation.** That is the one window where it is wrong, and it is also the window where nobody thinks to name a branch — a course starting from zero has no habit yet. So *state which branch you chose and why* is load-bearing here rather than a formality: it is the clinician's chance to catch it on note one instead of note eleven. **Never silently default during a course whose count you have not seen.**
+
 Load only the branch's template.
 
 ### 4. Tier every element, then draft
