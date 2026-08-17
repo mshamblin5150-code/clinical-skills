@@ -377,8 +377,8 @@ Nine filled heights over **four distinct values**, four of them `5'10"` — incl
 FILLED·asserted   BP 146/84 filled. Reasoned from age 68 with type 2 diabetes and
                   COPD, at rest and in no distress, afebrile and pain 2/10, so no
                   acute driver. Above goal, and worked up in the Plan by recheck.
-                  Ht 5'10" (70 in) filled. Plausible adult male height; no habitus
-                  or percentile datum in the source to move it.
+                  Ht 5'10" (70 in) filled. Mid-range for a 68-year-old man; no
+                  habitus or percentile datum in the source to move it.
 ```
 
 Two reasons, and the second is the one that bites:
@@ -397,6 +397,24 @@ Two reasons, and the second is the one that bites:
 **This is not the bland-normal rule coming back**, and the difference is the whole of the section above. A value with an anchor follows the anchor wherever it goes — a 373 lb patient's pressure, a COPD patient's saturation, a distressed toddler's pulse are all abnormal and all earned. What is forbidden is the abnormal with nothing behind it, which is the shape both runs produced: a pressure just over the line and a line that names no reason for it being there. **So the two halves of the row work together** — the anchor makes the abnormal legitimate, and naming it is what a reader checks.
 
 **The evidence that this is what is happening is that removing the rule changed nothing.** Until 2026-08-11 this section ordered a hypertensive pressure for a documented hypertensive; issue #23 retired it on a corpus count. **The run before that and the run after it both landed both hypertensives above the line** — 148/92 and 146/90 under the old rule, 138/86 and 138/86 under no rule at all — which is `fixtures/day-b` B2's second exit never once being reached in two runs under two different rules. A rule that is gone cannot be what is producing the number.
+
+##### Two of these are graded now, and one of them needed no threshold
+
+Ruled by the clinician on **2026-08-17**, [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97). That ticket asked what rate of repeated or not-normal filled vitals is wrong and objected to its own answer: *a row saying no more than N needs an N that nothing grounds.* **One of the two rules needs no N, and the other's N is not invented.** Both are settled by one command over a finished run:
+
+```bash
+python tools/filled_vitals_census.py <the run directory>
+```
+
+**A filled height's line names the age and the sex.** Every patient in this corpus is given both, so however little the encounter says about the body a height is never *truly* unanchored — the two anchors are always sitting there. `Plausible adult male height` names a sex and no age and fails; `Mid-range for a 68-year-old man` passes, as does `Approximately the 60th percentile for a 17-year-old male`. **Spell the sex** — a bare `M` or `F` does not count, because `T 98.4 F filled` sits in the same block and its Fahrenheit mark would otherwise satisfy the rule for whatever height is beside it. **The `no habitus or percentile datum` exit is untouched**: it still passes, and the age and sex are named alongside it rather than instead of it.
+
+**Repetition itself is still not graded, and that is the ruling rather than a gap left in it.** Nothing counts how many heights land on one value. The paragraphs above are why — the repetition is honesty's consequence where the encounter supplies no habitus datum, and a bar on it would leave a compliant run no escape but inventing a distinguishing value, which standing rule 2 forbids in the same words. **A rule whose only available remedy is a banned act is not a rule.**
+
+**Filled pressures may not land not-normal far more often than a fair split explains.** The corpus is what grounds this: 249 transcribed pressures split about evenly at 130/80, so an honestly reasoned set of filled pressures should land like that many coin flips. What was chosen is not a count but **how often an honest run may be failed for nothing** — 2%, which puts the bar at **8 or more of 9**. Six of 9 is a coin-flip outcome one time in four and **passes deliberately**; a bar failing it would fire on an honest set a quarter of the time, which is the rate at which a warning stops being read. **Six is the smallest set this can fail**, and only by failing every pressure in it.
+
+**One-sided, on purpose.** Filled pressures clustering *normal* is the bland normal — a different defect, guarded upstream in the choosing — and a two-sided test here would fail a run for the opposite of what this section is about.
+
+**A clean run is not a walked section, and the gap is named rather than left implicit.** Three vital classes are graded. **Temperature, heart rate, respiratory rate and oxygen saturation are counted and not graded** — the corpus offers no even split for any of them to ground a bar the way 130/80 grounds the pressure one — and in the committed run those four carry **36 filled values against the 27 the graded rules read**. Whether a filled temperature was reasoned is still a question for a reader.
 
 **A run that sees more than one encounter owes the check across them**, and one does: [batch-shift](../batch-shift/SKILL.md) step 6 rolls the shift's filled values up for the same reason it rolls the FLAGs up — one note cannot see it and the shift can.
 
@@ -961,6 +979,8 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 **Its two prohibitions are one prohibition seen from both sides.** *Do not move the value to avoid making the disclosure* was already written under *A filled BMI near a threshold says how near*, and it was written about one direction because that was the direction someone had thought of. The direction two runs actually failed is the other one: six of nine filled pressures landing not-normal, a rate the corpus refuses, in a file whose abnormal-value machinery is many times longer than its normal-value machinery. **A run demonstrating compliance produces something to be compliant about**, and issue #23 retiring the rule that used to order the abnormal changed the count not at all.
 
 **Check it by reading the FILLED block alone, one line per generated value.** Take each filled vital, measurement and severity and ask what in the encounter the line names — a documented condition, a given pulse or temperature, the exam's description of distress, the treatment given, age and sex. A line naming nothing fails unless it says so in those words. **A line saying `no habitus or percentile datum in the source to move it` passes**, and that is the point of the row rather than a loophole in it: the unanchored value is honest and the concealed one is not. Issue #67.
+
+**A second narrowing landed on 2026-08-17 and it is the mirror of the one below.** The zero's carve-out removes the *no anchor* exit; the height's leaves it and adds to it — a filled height's line **names the age and the sex** as well, because both are given on every patient here and a value with two anchors available is not one the encounter supplied nothing for. So `no habitus or percentile datum in the source to move it` still passes and no longer passes *alone*. **Ruled by the clinician**, with the pressure bar beside it, and both are settled by `python tools/filled_vitals_census.py`. The argument is in *Two of these are graded now* above. Issue #97.
 
 **The one exception was added later and it narrows that exit rather than widening the row.** A filled `0/10` pain score may not say the encounter supplied no anchor, because for a zero *nothing anchored this* and *I looked for a pain source and found none* are the same sentence — the admission that passes everywhere else is indistinguishable here from not having looked. So the zero's line names the search. The argument is in *a filled 0/10 may not take drift row 19's no anchor exit* above, and the reason it is load-bearing is that a filled `0/10` owes the Plan nothing under drift row 15: this line is the only check on it that happens after the value is chosen. **Ruled by the clinician on 2026-08-15**, and asked for rather than assumed — a row narrowed by the pass implementing #59 would have been that ticket's own defect committed inside its fix. Issue #59.
 
