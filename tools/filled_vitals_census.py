@@ -29,9 +29,14 @@ unless ``--show`` asks. ``--show`` output is PHI on the same terms as
 **Exit status answers three rows now, and the last two are issue #97's ruling.**
 0 clean, 1 for a violation, **2 for every way of not having scanned** -- no
 directory, no notes in it, or no note declaring a filled height or a filled
-pressure, which is ``scratch/day-a-run-2``'s real shape: eleven notes, nothing
-filled at all. **Where a violation and an ungraded set both hold, 1 wins**, on
-``differential_scan.py``'s ordering and for its reason. The three graded rows:
+pressure. **That last limb has a real instance rather than a hypothetical one**:
+a full separated run over ``day-a`` declared nothing filled at all, because every
+one of that set's inputs gives a pressure. The figures are in issue #97's own
+comments and are **deliberately not restated here**, having been measured against
+a directory under ``scratch/`` that nothing committed can re-derive --
+``differential_scan.py``'s rule, and #143's shape. **Where a violation and an
+ungraded set both hold, 1 wins**, on that tool's ordering and for its reason. The
+three graded rows:
 
 - **B13** -- no two notes share an identical filled height-and-weight pair.
 - **The tilt bar** -- filled pressures may not land not-normal so much more often
@@ -40,13 +45,24 @@ filled at all. **Where a violation and an ungraded set both hold, 1 wins**, on
 - **The person rule** -- every filled height's own clause names an age and a sex.
 
 Everything else is counted rather than enforced, which is ``fixtures/day-b`` R5.
-**That now includes four vital classes this tool could not previously see at all**
--- temperature, heart rate, respiratory rate and oxygen saturation. Issue #69 was
-ruled entirely on a filled temperature and two filled saturations while this
-module read none of them, and a bar written over three of five classes with
-nothing recording which three is what that ticket objected to. They are counted
-and not graded because the corpus supplies no even split for a temperature or a
-saturation to ground a cutoff on, the way it does at 130/80 for a pressure.
+**That now includes the five vital classes this tool could not previously see at
+all** -- temperature, heart rate, respiratory rate, oxygen saturation and pain
+score. Issue #69 was ruled entirely on a filled temperature and two filled
+saturations while this module read none of them, and a bar written over three of
+five classes with nothing recording which three is what that ticket objected to.
+They are counted and not graded because the corpus supplies no even split for a
+temperature or a saturation to ground a cutoff on, the way it does at 130/80 for
+a pressure.
+
+**The fifth was nearly left out, and the near-miss is the reusable part.** The
+first pass here added four and wrote this paragraph enumerating them as though
+the gap were closed; review caught it against #69's own list. The pain score is
+the one with no label of its own -- it is written ``7/10 itching filled`` -- and
+the only one already carrying a clinician's ruling, #59's carve-out barring a
+filled ``0/10`` from drift row 19's *no anchor* exit. **Counting it is not that
+rule**, which is about a disclosure's wording and stays with a reader.
+``COUNTED_CLASSES`` is one tuple for exactly this reason: a sixth class is one
+entry, not six edits.
 
 **Run it against ``fixtures/filled-anchor/notes`` and it exits 1**, which is
 correct and worth knowing before reading it as breakage. **5 of its 9 heights
@@ -92,10 +108,18 @@ Extractor limits worth knowing before quoting a number:
   height last has the rest of the block in scope.
 - **A sex has to be spelled.** A bare ``M`` or ``F`` is not accepted, because
   ``T 98.4 F filled`` sits in these blocks and a Fahrenheit mark would otherwise
-  satisfy the rule for a neighbouring height.
-- The four counted classes are matched on the same labelled-value-then-``filled``
-  form as the three graded ones, and are subject to every limit in this list.
-  Nothing about them reaches the exit status.
+  satisfy the rule for a neighboring height.
+- The counted classes are matched on the same labeled-value-then-``filled`` form
+  as the three graded ones, and are subject to every limit in this list. Nothing
+  about them reaches the exit status. **The pain score has no label**, so it is
+  matched on the ``N/10`` shape alone and is the loosest pattern here.
+- **A usage error exits 2 as well, and that changed** -- no argument, no such
+  directory and no notes in it all returned 1 before #97, which is the status a
+  B13 violation returns. Nothing asked for that; it is the sibling scanners'
+  arrangement and the reason is theirs, that a run reporting *nothing found*
+  and a run reporting *nothing read* must not share a status. Declared here
+  because a caller checking ``== 1`` for a violation would otherwise change
+  meaning silently.
 - A height is caught in the ``5'10"`` form and in bare ``70 in``. A run writing
   it any other way reads as having declared no height, which is a floor on the
   height figures -- and **not** a floor on ``repeated_bodies``, which needs both
@@ -170,10 +194,30 @@ SPO2_DECL = re.compile(
     r"(?i)\b(?:spo2|sao2|o2 sat(?:uration)?|oxygen saturation)\b[\s.:]*(\d{2,3})\s*%?"
     + _TO_FILLED
 )
+# A severity, which is the fifth of the five classes #69's comment on #97 named
+# and the one most easily left out: it has no label of its own, being written as
+# ``7/10 itching filled``. It is also the only counted class already carrying a
+# clinician's ruling -- a filled ``0/10`` may not take drift row 19's *no anchor*
+# exit, issue #59 -- so leaving it uncounted would have been the worst of the
+# five to leave uncounted. **Counting is not that rule**, which is about a
+# disclosure's wording and stays with a reader.
+PAIN_DECL = re.compile(r"(\d{1,2})\s*/\s*10\b" + _TO_FILLED)
+
+# One entry per counted class, and **adding a class is one entry and nothing
+# else** -- the report, the census and the extractor all read this tuple. It was
+# four parallel fields and a fifth had to be added the day after; that is the
+# shotgun-surgery smell arriving on schedule, and this is the fix.
+COUNTED_CLASSES: tuple[tuple[str, str, "re.Pattern[str]"], ...] = (
+    ("temperature", "temperature", TEMP_DECL),
+    ("heart rate", "heart_rate", HR_DECL),
+    ("respiratory rate", "resp_rate", RR_DECL),
+    ("saturation", "saturation", SPO2_DECL),
+    ("pain score", "pain_score", PAIN_DECL),
+)
 
 # The two halves of #97's person rule. An age is spelled in any of the corpus's
 # forms; a sex is **spelled**, never a bare ``M`` or ``F`` -- ``T 98.4 F filled``
-# is in these blocks and would otherwise satisfy a neighbouring height.
+# is in these blocks and would otherwise satisfy a neighboring height.
 NAMES_AGE = re.compile(
     r"(?i)\b(?:age[ds]?\s*\d{1,3}"
     r"|\d{1,3}\s*[-‐‑‒– ]?\s*(?:year|yr|y/o|yo)s?\b"
@@ -245,7 +289,7 @@ def tilt_beyond_chance(not_normal: int, total: int, floor: float = CHANCE_FLOOR)
     **The 50% null is generous to the machine.** Encounters whose shorthand omits
     vitals are plausibly the simpler ones, so an honest run arguably ought to land
     below half rather than at it. Nothing measures that, so the assumption that
-    favours the run is the one used.
+    favors the run is the one used.
 
     A set too small to distinguish is not failed: five of five is 1 in 32 and
     passes, six of six is 1 in 64 and does not. **Six is the smallest set this can
@@ -260,9 +304,16 @@ def tilt_beyond_chance(not_normal: int, total: int, floor: float = CHANCE_FLOOR)
 def names_person(scope: str) -> bool:
     """Does this clause name both an age and a sex?
 
-    Issue #97's second ruling. Age and sex are given on every patient in this
-    corpus, so a filled height is never truly unanchored however little the
-    encounter says about the body.
+    Issue #97's second ruling. Age and sex are given on **36 of the 37 committed
+    inputs**, so a filled height is almost never truly unanchored however little
+    the encounter says about the body.
+
+    **The ruling was made on the stronger claim and the stronger claim is false.**
+    ``fixtures/day-a/shorthand/case-10.md`` carries no age line -- the only one of
+    the 37, and issue #158's own case. On such an input this rule can be satisfied
+    only by naming an *inferred* age, so the height comes to lean on the same guess
+    #158 is about. That is a real cost of the rule and it is recorded rather than
+    smoothed over; it does not change the rule, which the clinician ruled.
 
     **Repetition itself is not graded**, and that is the ruling rather than a gap:
     ``clinical-note`` says outright that where the encounter supplies no habitus
@@ -284,11 +335,10 @@ class Fill:
     height_in: int | None = None
     weight_lb: int | None = None
     pressure: Reading | None = None
-    # Counted, never graded.
-    temperature: str | None = None
-    heart_rate: int | None = None
-    resp_rate: int | None = None
-    saturation: int | None = None
+    # Which of ``COUNTED_CLASSES`` this note declared, by key. Presence only --
+    # nothing here is graded, so the value is never needed and storing one would
+    # be a measured value kept for no reason.
+    counted: frozenset[str] = frozenset()
     # ``None`` where the note declared no filled height, so a control with
     # nothing to fail is never counted as having failed.
     height_names_person: bool | None = None
@@ -319,14 +369,20 @@ class Census:
     repeated_bodies: int
     # #97's person rule. Over notes declaring a filled height, never over notes.
     heights_missing_person: int = 0
-    # Counted, never graded -- #69's four classes.
-    temperatures: int = 0
-    heart_rates: int = 0
-    resp_rates: int = 0
-    saturations: int = 0
+    # Counted, never graded -- #69's five classes, keyed as ``COUNTED_CLASSES``.
+    counted: tuple[tuple[str, int], ...] = ()
     # Kept for ``--show`` alone, and never read by ``format_report`` without it.
     height_counts: tuple[tuple[int, int], ...] = ()
     body_counts: tuple[tuple[tuple[int, int], int], ...] = ()
+
+    def count_of(self, key: str) -> int:
+        """How many notes declared one counted class, by its ``COUNTED_CLASSES`` key."""
+        return dict(self.counted).get(key, 0)
+
+    @property
+    def counted_total(self) -> int:
+        """Every declaration in the counted classes, across the set."""
+        return sum(n for _, n in self.counted)
 
     @property
     def tilted(self) -> bool:
@@ -365,15 +421,7 @@ def read_fill(text: str) -> Fill:
     inches = None if height else _declaration(HEIGHT_IN_DECL, block)
     weight = _declaration(WEIGHT_DECL, block)
     pressure = _declaration(BP_DECL, block)
-    counted = {
-        name: _declaration(pattern, block)
-        for name, pattern in (
-            ("temperature", TEMP_DECL),
-            ("heart_rate", HR_DECL),
-            ("resp_rate", RR_DECL),
-            ("saturation", SPO2_DECL),
-        )
-    }
+    counted = {key: _declaration(pattern, block) for _, key, pattern in COUNTED_CLASSES}
     anchor = height or inches
     if height:
         height_in = int(height.group(1)) * 12 + int(height.group(2))
@@ -385,14 +433,17 @@ def read_fill(text: str) -> Fill:
         height_in=height_in,
         weight_lb=int(weight.group(1)) if weight else None,
         pressure=(int(pressure.group(1)), int(pressure.group(2))) if pressure else None,
-        temperature=counted["temperature"].group(1) if counted["temperature"] else None,
-        heart_rate=int(counted["heart_rate"].group(1)) if counted["heart_rate"] else None,
-        resp_rate=int(counted["resp_rate"].group(1)) if counted["resp_rate"] else None,
-        saturation=int(counted["saturation"].group(1)) if counted["saturation"] else None,
+        counted=frozenset(key for key, match in counted.items() if match),
         height_names_person=(
-            None if anchor is None else names_person(_clause(block, anchor, [
-                m for m in [weight, pressure, *counted.values()] if m is not None
-            ]))
+            None
+            if anchor is None
+            else names_person(
+                _clause(
+                    block,
+                    anchor,
+                    [m for m in [weight, pressure, *counted.values()] if m is not None],
+                )
+            )
         ),
     )
 
@@ -423,10 +474,10 @@ def survey(texts: list[str]) -> Census:
         bodies=sum(bodies.values()),
         repeated_bodies=sum(n - 1 for n in bodies.values() if n > 1),
         heights_missing_person=sum(1 for f in fills if f.height_names_person is False),
-        temperatures=sum(1 for f in fills if f.temperature is not None),
-        heart_rates=sum(1 for f in fills if f.heart_rate is not None),
-        resp_rates=sum(1 for f in fills if f.resp_rate is not None),
-        saturations=sum(1 for f in fills if f.saturation is not None),
+        counted=tuple(
+            (key, sum(1 for f in fills if key in f.counted))
+            for _, key, _ in COUNTED_CLASSES
+        ),
         height_counts=tuple(sorted(heights.items())),
         body_counts=tuple(sorted(bodies.items())),
     )
@@ -464,10 +515,10 @@ def format_report(census: Census, source: str, show: bool = False) -> str:
         f"    sharing a body with another note     {census.repeated_bodies}",
         "",
         "  counted, not graded — no corpus split grounds a bar on these:",
-        f"    declaring a filled temperature       {census.temperatures}",
-        f"    declaring a filled heart rate        {census.heart_rates}",
-        f"    declaring a filled respiratory rate  {census.resp_rates}",
-        f"    declaring a filled saturation        {census.saturations}",
+    ]
+    lines += [
+        f"    {f'declaring a filled {label}':<37}{census.count_of(key)}"
+        for label, key, _ in COUNTED_CLASSES
     ]
     if show:
         lines += ["", "  heights, most repeated first:"]
@@ -530,7 +581,8 @@ def main(argv: list[str]) -> int:
     if census.heights_missing_person:
         findings.append(
             f"{census.heights_missing_person} filled height(s) name no age and sex."
-            " Both are given on every patient, so a height always has two anchors."
+            " Both are given on all but one committed input, so a height almost"
+            " always has two anchors already in the encounter."
             " fixtures/day-b B18 fails."
         )
     if findings:

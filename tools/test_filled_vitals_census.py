@@ -362,7 +362,7 @@ class TheTiltBarIsArithmeticRatherThanOpinion(unittest.TestCase):
 
         Filled pressures clustering normal is a different defect -- the bland
         normal -- and ``clinical-note`` guards it elsewhere. A two-sided test here
-        would fail a run for the opposite of the behaviour #97 is about.
+        would fail a run for the opposite of the behavior #97 is about.
         """
         self.assertFalse(fvc.tilt_beyond_chance(0, 9))
         self.assertFalse(fvc.tilt_beyond_chance(1, 9))
@@ -406,11 +406,11 @@ class AFilledHeightNamesTheAgeAndTheSex(unittest.TestCase):
         """``T 98.4 F`` is a temperature unit, and it sits in these blocks.
 
         Accepting a bare ``M`` or ``F`` would pass a height whose only claim to
-        naming a sex is the Fahrenheit mark on a neighbouring temperature.
+        naming a sex is the Fahrenheit mark on a neighboring temperature.
         """
         self.assertFalse(fvc.names_person("HEIGHT 5'10\" filled. T 98.4 F filled. 36 yo."))
 
-    def test_the_paediatric_age_forms_read(self):
+    def test_the_pediatric_age_forms_read(self):
         for age in ("a 17-year-old boy", "17 yo male", "age 17, male", "a 9-month-old girl"):
             with self.subTest(age=age):
                 self.assertTrue(fvc.names_person(f"Reasoned from {age}."))
@@ -445,66 +445,85 @@ class TheCensusSeesTheOtherVitalClasses(unittest.TestCase):
     """Issue #69's finding, answered by counting rather than by grading.
 
     That ruling turned entirely on a filled temperature and two filled
-    saturations, and this tool could not see any of them: the twelve committed
-    notes declare **36** values across the four -- nine of each -- on top of the
-    27 height, weight and pressure values it did count. A bar written over three
-    of five classes with nothing recording which three is the shape #69 objected
-    to. They are counted and **not graded** --
-    the corpus supplies no comparable even split for a temperature or a
-    saturation, so no cutoff here could be grounded the way the pressure one is.
+    saturations, and this tool could not see any of them. **All five of the
+    classes that comment names are counted now**, and the fifth was nearly left
+    out: the first pass added four and wrote prose enumerating them as though the
+    gap were closed, which review caught. The pain score is the one with no label
+    of its own -- it is written ``7/10 itching filled`` -- and the only one
+    already carrying a clinician's ruling, #59's carve-out on a filled ``0/10``.
+
+    They are counted and **not graded**: the corpus supplies no comparable even
+    split for a temperature or a saturation, so no cutoff here could be grounded
+    the way the pressure one is.
     """
 
     def setUp(self):
         self.census = fvc.survey(all_notes())
 
-    def test_the_four_classes_are_counted(self):
-        """Nine of each. **Every one of the nine filled cases declares all four.**
+    def test_every_class_69_named_is_counted(self):
+        """The enumeration is read off the module, not retyped here.
+
+        A sixth class added to ``COUNTED_CLASSES`` and forgotten in the report is
+        the failure this replaces, and it is the failure the four-field version
+        actually committed.
+        """
+        self.assertEqual(
+            [key for _, key, _ in fvc.COUNTED_CLASSES],
+            ["temperature", "heart_rate", "resp_rate", "saturation", "pain_score"],
+        )
+
+    def test_the_four_vital_classes_are_nine_each(self):
+        """**Every one of the nine filled cases declares all four.**
 
         The first count taken during #97's grilling read 7 temperatures, from a
         hand-rolled regex that missed the two written ``98.2 °F`` with a degree
         sign. Pinned here at the figure this module actually produces, which is
         the point of counting with the instrument rather than beside it.
         """
-        self.assertEqual(self.census.temperatures, 9)
-        self.assertEqual(self.census.heart_rates, 9)
-        self.assertEqual(self.census.resp_rates, 9)
-        self.assertEqual(self.census.saturations, 9)
+        for key in ("temperature", "heart_rate", "resp_rate", "saturation"):
+            with self.subTest(key=key):
+                self.assertEqual(self.census.count_of(key), 9)
 
     def test_the_set_declares_more_than_the_census_used_to_reach(self):
-        """27 of 63, before this. Stated as arithmetic so an edit moves it."""
-        seen_before = self.census.heights + self.census.weights + self.census.pressures
-        added = (
-            self.census.temperatures
-            + self.census.heart_rates
-            + self.census.resp_rates
-            + self.census.saturations
-        )
-        self.assertEqual(seen_before, 27)
-        self.assertEqual(added, 36)
-        self.assertEqual(seen_before + added, 63)
+        """27 graded against 36 counted, and the 36 is pinned rather than derived.
+
+        That figure is published in three prose files, which is #180's shape --
+        so it is asserted as a literal here and the pain-score zero is asserted
+        beside it. A sixth class, or a run declaring a severity, moves the total
+        and fails this test rather than leaving three files quietly wrong.
+        """
+        graded = self.census.heights + self.census.weights + self.census.pressures
+        self.assertEqual(graded, 27)
+        self.assertEqual(self.census.counted_total, 36)
+        self.assertEqual(self.census.count_of("pain_score"), 0)
 
     def test_a_given_vital_is_still_not_counted(self):
-        fill = fvc.read_fill("FILLED·asserted   BMI from the given T 101.2 F and HR 118 filled.\n")
-        self.assertIsNone(fill.temperature)
-
-    def test_the_canonical_given_pulse_is_not_a_filled_heart_rate(self):
-        """``clinical-note``'s own worked block reasons a pressure from one.
-
-        The four new classes inherit ``PRECEDING_GIVEN`` rather than a guard of
-        their own, and this is the phrasing that matters -- a filled line naming
-        the given it was reasoned from must not have that given counted as a
-        fifth filled value.
-        """
         fill = fvc.read_fill(
-            "FILLED·asserted   BP 138/86 filled. Reasoned from the given pulse 112 filled.\n"
+            "FILLED·asserted   BMI from the given T 101.2 F and HR 118 filled.\n"
         )
-        self.assertEqual(fill.pressure, (138, 86))
-        self.assertIsNone(fill.heart_rate)
+        self.assertNotIn("temperature", fill.counted)
+
+    def test_a_filled_severity_is_counted(self):
+        """#69's fifth class, and the one with no label of its own."""
+        fill = fvc.read_fill("FILLED·asserted   7/10 itching filled.\n")
+        self.assertIn("pain_score", fill.counted)
+
+    def test_counting_a_severity_is_not_59s_rule(self):
+        """A filled ``0/10`` is counted here and graded nowhere in this module.
+
+        #59's carve-out is about what the disclosure line must say, which is a
+        reader's question. Counting it must not read as having checked it.
+        """
+        fill = fvc.read_fill("FILLED·asserted   0/10 filled.\n")
+        self.assertIn("pain_score", fill.counted)
 
     def test_none_of_them_reaches_the_exit_status(self):
         """Counted, not graded — so a set declaring only these exits 2."""
         with tempfile.TemporaryDirectory() as tmp:
-            block = "FILLED·asserted   T 101.2 F filled. HR 118 filled. SpO2 91% filled.\n"
+            block = (
+                "FILLED·asserted   T 101.2 F filled. HR 118 filled. SpO2 91% filled.\n"
+                "                  9/10 filled.\n"
+            )
             self.assertEqual(fvc.main([str(written(Path(tmp), a=block, b=block))]), 2)
 
 
