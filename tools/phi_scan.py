@@ -56,6 +56,12 @@ Usage:
     python tools/phi_scan.py              # scan staged changes (what the hook runs)
     python tools/phi_scan.py --all        # scan every tracked file
     python tools/phi_scan.py --show       # reveal matches instead of redacting
+    python tools/phi_scan.py --layers     # report which layers would run; scan nothing
+
+``--layers`` exists for #86: the CI job prints it beside its own checkmark,
+because in CI the corpus layer is dead on every run that will ever happen and a
+clean scan there would otherwise read as coverage. It composes with ``--all``,
+which reports a different path layer -- see `layer_report`.
 """
 
 from __future__ import annotations
@@ -677,9 +683,70 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     return findings
 
 
+def layer_report(names: set[str], dates: set[str], all_mode: bool) -> list[str]:
+    """What ran and what did not, one line per layer. #86 decision 2.
+
+    **A layer that did not run is named as not having run, never omitted.** The
+    omission is the whole defect this answers: a scanner that prints only its
+    live layers reports a clean tree in exactly the configuration where the
+    layer that catches real patient names is dead, and a checkmark over that
+    reads as coverage. CI is permanently in that configuration -- ``scratch/``
+    is gitignored PHI and must never reach a runner -- so the report is not an
+    edge case there, it is every run.
+
+    **Counts only, never an identifier**, on ``corpus_census.py``'s terms and
+    for its reason: this is written to a CI step summary, which is a place a
+    person pastes from.
+
+    Takes the harvested sets rather than reading the corpus itself, so the
+    caller's single ``corpus_identifiers()`` call answers for both the scan and
+    the report. A second read could disagree with the first.
+
+    ``all_mode`` rather than ``scan_all``, which is the name of a function in
+    this module -- a parameter shadowing it reads as a call at a glance.
+    """
+    dead: list[str] = []
+
+    # `--all` walks `git ls-files`, and every guarded directory is gitignored,
+    # so no tracked path can ever be under one. The layer is inapplicable there
+    # rather than clean -- the distinction this whole report exists to draw.
+    if all_mode:
+        path = "NOT RUN  -- --all walks tracked files; nothing can be staged from a gitignored directory"
+        dead.append("path")
+    else:
+        path = "ACTIVE   -- " + ", ".join(PHI_DIRECTORIES)
+
+    if names or dates:
+        corpus = f"ACTIVE   -- {len(names)} name(s), {len(dates)} date literal(s) from scratch/"
+    else:
+        corpus = "NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED"
+        dead.append("corpus")
+
+    lines = [
+        f"phi-scan layers ({'--all' if all_mode else 'staged'}):",
+        f"  path layer     {path}",
+        f"  corpus layer   {corpus}",
+        "  shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date",
+    ]
+    if dead:
+        lines.append(
+            f"  ** A clean result here is NOT \"no PHI\": the {' and '.join(dead)} "
+            f"layer{'s' if len(dead) > 1 else ''} did not run. **"
+        )
+    return lines
+
+
 def main(argv: list[str]) -> int:
     show = "--show" in argv
     names, dates = corpus_identifiers()
+
+    # Reports and does not scan, so a CI job can print the layers as their own
+    # step -- a clean scan prints nothing, which is the moment the reader most
+    # needs to be told what was not looked at.
+    if "--layers" in argv:
+        for line in layer_report(names, dates, "--all" in argv):
+            print(line)
+        return 0
 
     if not names and not dates:
         print(
