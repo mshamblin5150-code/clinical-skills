@@ -80,6 +80,16 @@ jobs:
       # is named for what it is: a green check beside these words is "no
       # PHI-shaped strings", never "no PHI". #86's trap, answered rather than
       # walked into.
+      #
+      # `--allow-no-corpus` because since #93 an absent corpus is exit 2 -- "did
+      # not scan" -- which would otherwise make this step red on every run
+      # forever, and a check that can never be green checks nothing. The flag
+      # sitting here IS the record that this job knowingly runs a layer short,
+      # readable by anyone opening the file. Deliberately not `if: $LASTEXITCODE
+      # -eq 2` in this YAML: that would be a judgment about `phi_scan` that
+      # `phi_scan` does not make and nothing re-derives, which is the same
+      # objection the layer-report step above exists to answer. It buys the exit
+      # status and nothing else -- the degradation still prints.
       - name: PHI shape layer only, corpus layer cannot run in CI
         if: always()
-        run: python tools/phi_scan.py --all
+        run: python tools/phi_scan.py --all --allow-no-corpus

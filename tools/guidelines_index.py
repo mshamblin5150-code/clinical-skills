@@ -68,6 +68,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 from console_codec import use_utf8
+from repo_root import main_repo_root
 
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -127,28 +128,6 @@ class BuildReport:
     pages: int
     characters: int
     manifest_only: list[str]  # named by the manifest, no extracted text found
-
-
-def main_repo_root(start: Path | None = None) -> Path:
-    """The main checkout, which is not this worktree.
-
-    ``Path(__file__).parent.parent`` is the *worktree* root, and the worktrees here
-    live under ``.claude/worktrees/``. Defaulting the index relative to that would put
-    a 65 MB file inside the repo while looking like it was outside one. A worktree's
-    ``.git`` is a file pointing at ``<main>/.git/worktrees/<name>``, so the main
-    checkout is three levels up from what it names.
-    """
-    root = (start or Path(__file__).resolve().parent).resolve().parent
-    marker = root / ".git"
-    if marker.is_file():
-        pointer = marker.read_text(encoding="utf-8").split(":", 1)[-1].strip()
-        gitdir = Path(pointer)
-        if not gitdir.is_absolute():
-            gitdir = (root / gitdir).resolve()
-        # <main>/.git/worktrees/<name> -> <main>
-        if gitdir.parent.parent.name == ".git":
-            return gitdir.parent.parent.parent
-    return root
 
 
 def default_repo_roots() -> list[Path]:

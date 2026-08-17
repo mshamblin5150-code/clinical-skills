@@ -7,9 +7,14 @@ repo_root=$(git rev-parse --show-toplevel) || exit 0
 for python in python python3 py; do
     if command -v "$python" >/dev/null 2>&1; then
         # Advisory, and deliberately not part of the exit status: a stale
-        # .claude/skills/ mirror is a wiring fault, not PHI, and standing rule 1
-        # stays the only thing that refuses a commit in this repo. Prints nothing
-        # when the mirror is linked. See tools/skills_mirror.py.
+        # .claude/skills/ mirror is a wiring fault, not PHI. Prints nothing when
+        # the mirror is linked. See tools/skills_mirror.py.
+        #
+        # This comment used to close with "standing rule 1 stays the only thing
+        # that refuses a commit in this repo". That stopped being true at #83 and
+        # is doubly untrue now -- CLAUDE.md names the same sentence as a claim
+        # that survived a merge past being false, in two other files, and this
+        # was the third copy. Recorded rather than quietly deleted.
         "$python" "$repo_root/tools/skills_mirror.py" --quiet >&2 || true
 
         # Advisory on the same terms, and for the same reason: a British
@@ -38,6 +43,11 @@ for python in python python3 py; do
 
         # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
         # and nothing above can suppress it -- the status is OR-ed, never replaced.
+        #
+        # Since #93 a non-zero here means one of two things: 1, PHI was found, or
+        # 2, the corpus layer could not run and so no patient name was checked.
+        # Both refuse, and this line needs no edit to tell them apart -- the
+        # scanner prints which, in the words that say so.
         "$python" "$repo_root/tools/phi_scan.py" || status=1
         exit "$status"
     fi

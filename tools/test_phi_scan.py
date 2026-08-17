@@ -775,6 +775,36 @@ class LayerReport(unittest.TestCase):
         text = self.report(NAMES, DATES, scan_all=False)
         self.assertNotRegex(text, r"(?i)a clean result")
 
+    def test_one_missing_source_reads_as_partial_and_never_as_active(self):
+        """Three states, and a two-valued verdict has to lie about one of them.
+        A half-present corpus reported ACTIVE is what let #93's fix reintroduce
+        #93 -- see `missing_corpus_sources`."""
+        line = self.corpus_line(
+            "\n".join(ps.layer_report(set(NAMES), set(), False, ["day-file-text"]))
+        )
+        self.assertIn("PARTIAL", line)
+        self.assertNotIn("ACTIVE", line)
+
+    def test_both_missing_still_reads_as_not_run(self):
+        line = self.corpus_line(
+            "\n".join(ps.layer_report(set(), set(), False,
+                                      ["name-index.json", "day-file-text"]))
+        )
+        self.assertIn("NOT RUN", line)
+
+    def test_a_partial_layer_still_warns_that_clean_is_not_coverage(self):
+        """Half a layer is not a layer, so the banner has to fire on it too."""
+        text = "\n".join(ps.layer_report(set(NAMES), set(), False, ["day-file-text"]))
+        self.assertRegex(text, r"(?i)a clean result")
+
+    def test_a_partial_report_names_no_identifier(self):
+        """The counts-only rule holds on every path, including the new one --
+        this text reaches a CI step summary, which is a place people paste from."""
+        text = "\n".join(ps.layer_report(set(NAMES), set(DATES), False, ["day-file-text"]))
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, text)
+
     def _line(self, text, word):
         """The layer's own row, not the warning beneath it -- which names the
         dead layers and so contains their words too."""
@@ -839,6 +869,215 @@ class LayersCommandLine(unittest.TestCase):
         self.assertIn("(staged)", staged.splitlines()[0])
         self.assertNotIn("--all", staged.splitlines()[0])
         self.assertIn("(--all)", everything.splitlines()[0])
+
+
+class DidNotScan(unittest.TestCase):
+    """Issue #93: a dead corpus layer refuses instead of warning.
+
+    **The whole ticket is an exit status, not a message.** The old code printed
+    ``no corpus under scratch/ -- the corpus layer is inactive`` and returned 0,
+    which reads exactly like the ordinary preamble of a passing hook -- the
+    ticket's own words. Two exit-0s meant two different things and nothing in the
+    status told them apart.
+
+    Every test here injects the corpus state rather than reading the real tree,
+    because whether the machine running the suite happens to hold patient
+    material is precisely the variable under test. A test that read the real
+    ``scratch/`` would assert something different on the maintainer's machine
+    than on a runner, which is the defect wearing a lab coat.
+    """
+
+    NAME_SOURCE = "name-index.json"
+    DATE_SOURCE = "day-file-text"
+
+    def setUp(self):
+        self._saved = {
+            name: getattr(ps, name)
+            for name in ("corpus_identifiers", "_git", "scan_staged", "scan_all",
+                         "missing_corpus_sources")
+        }
+        self.addCleanup(self.restore)
+        # Nothing staged and nothing tracked, so a run's status is about the
+        # corpus and never about a finding -- except where a test says otherwise.
+        ps.scan_staged = lambda index: []
+        ps.scan_all = lambda index: []
+        self.set_config("")
+
+    def restore(self):
+        for name, value in self._saved.items():
+            setattr(ps, name, value)
+
+    def set_config(self, value):
+        """Stand in for ``git config --bool --get``. Unset returns "" and exit 1,
+        which this module already tolerates -- `_git` never checks a status."""
+        ps._git = lambda *args: value
+
+    def corpus(self, live, missing=None):
+        """``missing`` overrides which halves are on disk, so the three states --
+        both present, one present, neither -- are all reachable from a test."""
+        if missing is None:
+            missing = [] if live else [self.NAME_SOURCE, self.DATE_SOURCE]
+        ps.missing_corpus_sources = lambda: list(missing)
+        names = set(NAMES) if self.NAME_SOURCE not in missing else set()
+        dates = set(DATES) if self.DATE_SOURCE not in missing else set()
+        ps.corpus_identifiers = lambda: (names, dates)
+
+    def run_main(self, argv=(), live=False, config="", missing=None):
+        self.corpus(live, missing)
+        self.set_config(config)
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = ps.main(list(argv))
+        return status, out.getvalue(), err.getvalue()
+
+    def test_half_a_corpus_does_not_read_as_a_scan(self):
+        """**This bug was introduced by #93's own fix and caught in review.**
+
+        The first version inferred deadness from ``not names and not dates``, so
+        a tree holding one source and not the other took the live path: no
+        report, no refusal, exit 0. The ticket's own comment had said so in
+        advance -- *option 2 cannot be gated on whether ``scratch/`` exists ...
+        whatever refuses has to test for the corpus itself*.
+        """
+        for absent in (self.NAME_SOURCE, self.DATE_SOURCE):
+            with self.subTest(absent=absent):
+                status, _, err = self.run_main(missing=[absent])
+                self.assertEqual(status, ps.NOT_SCANNED)
+                self.assertIn(absent, err)
+
+    def test_the_dangerous_half_is_named_for_what_it_costs(self):
+        """With ``day-file-text/`` present and ``name-index.json`` gone the scan
+        ran on dates alone -- which is checking no patient name at all, and the
+        shape layer cannot stand in: #93's own *shape rules catch an SSN or a
+        ``dob`` token; they do not catch a patient's name*."""
+        _, _, err = self.run_main(missing=[self.NAME_SOURCE])
+        self.assertIn("PATIENT NAMES ARE NOT CHECKED", err)
+
+    def test_a_missing_date_half_does_not_claim_names_are_unchecked(self):
+        """The report has to be true in both directions. Saying patient names
+        are unchecked when they were is the mirror error, and it teaches a
+        reader to discount the line that matters."""
+        _, _, err = self.run_main(missing=[self.DATE_SOURCE])
+        self.assertNotIn("PATIENT NAMES ARE NOT CHECKED", err)
+        self.assertIn("date literals are not checked", err)
+
+    def test_a_dead_corpus_refuses(self):
+        """The commit stops. `tools/hooks/pre-commit` needs no edit to honor
+        this -- it already ORs any non-zero into its own status."""
+        status, _, _ = self.run_main()
+        self.assertEqual(status, ps.NOT_SCANNED)
+
+    def test_two_is_not_one(self):
+        """A finding and a dead corpus are different claims about a tree, and a
+        reader acts differently on each. `guidelines_search.py`'s arrangement."""
+        self.assertNotEqual(ps.NOT_SCANNED, 1)
+        self.assertNotEqual(ps.NOT_SCANNED, 0)
+
+    def test_a_live_corpus_with_no_findings_is_still_zero(self):
+        """The ordinary passing commit, which must not have become noisier."""
+        status, _, err = self.run_main(live=True)
+        self.assertEqual(status, 0)
+        self.assertEqual(err, "")
+
+    def test_the_flag_downgrades_the_status(self):
+        status, _, _ = self.run_main([ps.ALLOW_NO_CORPUS_FLAG])
+        self.assertEqual(status, 0)
+
+    def test_the_config_downgrades_the_status(self):
+        status, _, _ = self.run_main(config="true\n")
+        self.assertEqual(status, 0)
+
+    def test_an_unset_config_refuses(self):
+        """Unset must be false. A default that allowed would put every machine
+        that has never heard of this setting into the configuration #93 is about."""
+        for value in ("", "false\n", "\n"):
+            with self.subTest(value=value):
+                status, _, _ = self.run_main(config=value)
+                self.assertEqual(status, ps.NOT_SCANNED)
+
+    def test_being_allowed_does_not_buy_silence(self):
+        """The ruling that makes the escape safe: the flag is about the exit
+        status, not about the message. `console_codec`'s errors="replace" shape --
+        a stream that cannot move still has to print a legible line."""
+        _, _, allowed = self.run_main([ps.ALLOW_NO_CORPUS_FLAG])
+        _, _, refused = self.run_main()
+        for text in (allowed, refused):
+            self.assertIn("PATIENT NAMES ARE NOT CHECKED", text)
+            self.assertIn("corpus layer", text)
+
+    def test_the_refusal_names_both_doors(self):
+        """A hook that stops a commit without saying how to proceed is a hook
+        people learn to --no-verify around."""
+        _, _, err = self.run_main()
+        self.assertIn(ps.ALLOW_NO_CORPUS_CONFIG, err)
+        self.assertIn(ps.ALLOW_NO_CORPUS_FLAG, err)
+        self.assertIn("git config", err)
+
+    def test_the_refusal_names_the_path_it_looked_in(self):
+        """So a wrong resolution reads as a wrong resolution rather than as a
+        missing corpus -- which is #93 itself, and would otherwise recur silently."""
+        _, _, err = self.run_main()
+        self.assertIn(str(ps.SCRATCH), err)
+
+    def test_a_finding_outranks_a_dead_corpus(self):
+        """`differential_scan.py`'s ruling, for its reason: returning NOT_SCANNED
+        here would file the strongest thing known about the tree under the
+        weakest heading."""
+        ps.scan_staged = lambda index: [
+            ps.Finding(path="notes.md", line=3, rule="shape-dob", match="4-17-88")
+        ]
+        status, _, err = self.run_main()
+        self.assertEqual(status, 1)
+        self.assertIn("refusing the commit", err)
+
+    def test_a_refusal_on_a_dead_corpus_still_states_its_coverage(self):
+        """So the finding reads as a floor rather than as the whole -- the same
+        reason `differential_scan` names its unwelded count on an exit 1."""
+        ps.scan_staged = lambda index: [
+            ps.Finding(path="notes.md", line=3, rule="shape-dob", match="4-17-88")
+        ]
+        _, _, err = self.run_main()
+        self.assertIn("PATIENT NAMES ARE NOT CHECKED", err)
+
+    def test_layers_reports_and_never_refuses(self):
+        """It scans nothing, so it has nothing to have failed to scan. The mode
+        exists to be printed beside a checkmark, and a non-zero there would make
+        the report itself the failure."""
+        for argv in ([""], ["--all"]):
+            with self.subTest(argv=argv):
+                status, out, _ = self.run_main(["--layers", *argv])
+                self.assertEqual(status, 0)
+                self.assertIn("corpus layer", out)
+
+    def test_the_degradation_goes_to_stderr(self):
+        """stdout is `--layers`' channel, and the CI job pipes it into the step
+        summary. A degradation notice landing there would corrupt that report."""
+        _, out, err = self.run_main()
+        self.assertEqual(out, "")
+        self.assertTrue(err.strip())
+
+
+class CorpusResolution(unittest.TestCase):
+    """Where the scanner looks for the corpus, versus where it looks for files.
+
+    These are two different trees in a worktree and #93 is what happens when one
+    constant serves both.
+    """
+
+    def test_the_corpus_is_resolved_through_the_owning_checkout(self):
+        from repo_root import scratch_root
+        self.assertEqual(ps.SCRATCH, scratch_root())
+
+    def test_the_scanned_tree_is_still_this_one(self):
+        """`scan_all` walks from REPO_ROOT and `_git` runs there. Moving those to
+        the main checkout would make a worktree scan somebody else's files, which
+        is a worse bug than the one being fixed."""
+        self.assertEqual(ps.REPO_ROOT, Path(ps.__file__).resolve().parent.parent)
+
+    def test_every_corpus_path_hangs_off_the_resolved_root(self):
+        """The three that must move together. A ledger left behind in the
+        worktree would rule on names harvested from a corpus it cannot see."""
+        self.assertEqual(ps.REVIEWED_LEDGER.parent, ps.SCRATCH)
 
 
 if __name__ == "__main__":
