@@ -26,11 +26,59 @@ a small county is closer to one than this script can judge, so neither is printe
 unless ``--show`` asks. ``--show`` output is PHI on the same terms as
 ``harvest_review.py``: read it, do not paste it.
 
-**Exit status is the answer to B13.** Zero when no two notes in the directory share
-an identical filled height-and-weight pair, non-zero when any two do, so a grading
-pass cannot report a pass by printing something reassuring. Every other figure it
-prints is counted rather than enforced -- the corpus splits about evenly at 130/80
-and nothing licenses turning that into a bar over nine samples.
+**Exit status answers three rows now, and the last two are issue #97's ruling.**
+0 clean, 1 for a violation, **2 for every way of not having scanned** -- no
+directory, no notes in it, or no note declaring a filled height or a filled
+pressure. **That last limb has a real instance rather than a hypothetical one**:
+a full separated run over ``day-a`` declared nothing filled at all, because every
+one of that set's inputs gives a pressure. The figures are in issue #97's own
+comments and are **deliberately not restated here**, having been measured against
+a directory under ``scratch/`` that nothing committed can re-derive --
+``differential_scan.py``'s rule, and #143's shape. **Where a violation and an
+ungraded set both hold, 1 wins**, on that tool's ordering and for its reason. The
+three graded rows:
+
+- **B13** -- no two notes share an identical filled height-and-weight pair.
+- **The tilt bar** -- filled pressures may not land not-normal so much more often
+  than a fair split that chance would produce it less than ``CHANCE_FLOOR`` of the
+  time. See ``tilt_beyond_chance`` for why that number is not an invented one.
+- **The person rule** -- every filled height's own clause names an age and a sex.
+
+Everything else is counted rather than enforced, which is ``fixtures/day-b`` R5.
+**That now includes the five vital classes this tool could not previously see at
+all** -- temperature, heart rate, respiratory rate, oxygen saturation and pain
+score. Issue #69 was ruled entirely on a filled temperature and two filled
+saturations while this module read none of them, and a bar written over three of
+five classes with nothing recording which three is what that ticket objected to.
+They are counted and not graded because the corpus supplies no even split for a
+temperature or a saturation to ground a cutoff on, the way it does at 130/80 for
+a pressure.
+
+**The fifth was nearly left out, and the near-miss is the reusable part.** The
+first pass here added four and wrote this paragraph enumerating them as though
+the gap were closed; review caught it against #69's own list. The pain score is
+the one with no label of its own -- it is written ``7/10 itching filled`` -- and
+the only one already carrying a clinician's ruling, #59's carve-out barring a
+filled ``0/10`` from drift row 19's *no anchor* exit. **Counting it is not that
+rule**, which is about a disclosure's wording and stays with a reader.
+``COUNTED_CLASSES`` is one tuple for exactly this reason: a sixth class is one
+entry, not six edits.
+
+**Run it against ``fixtures/filled-anchor/notes`` and it exits 1**, which is
+correct and worth knowing before reading it as breakage. **5 of its 9 heights
+name no age and sex; the other 4 already write the compliant form**, two of them
+with a percentile. Its pressures clear the tilt bar, so the exit status is the
+heights and nothing else. Measured 2026-08-17 and pinned by a test.
+
+**The obvious explanation for that is wrong and was published wrong first.**
+Those twelve notes are day-b **run 1** byte for byte, written before drift row 19
+existed, so the prediction was that every height fails. Four do not. The
+prediction was made from two notes during this ticket's grilling and corrected by
+running the scanner over all twelve -- issue #137's subject, and the reason the
+compliant form is worth naming: **the rule asks for something this skill has
+already produced unprompted**, which is a much better argument for it than the
+one it was ruled on. **The counts over the set are untouched** and stay #67's
+evidence.
 
 Extractor limits worth knowing before quoting a number:
 
@@ -51,6 +99,27 @@ Extractor limits worth knowing before quoting a number:
   filled`` is the shape. A ``given`` anywhere in the span is therefore rejected,
   which is a guard against one wording and not against every one. **Read the
   block yourself before quoting a figure off a run that writes it unusually.**
+- **The person rule reads a height's own clause, never the whole block**, and the
+  clause runs from the height's label to the next declared value or the end of the
+  block. A block-wide test would pass a height on an age read for a *different*
+  value -- ``clinical-note``'s own canonical example names ``age 68`` on the
+  pressure line and nothing on the height line -- which is the 17-year-old
+  surviving his own fix. The cost of the narrow scope is that a run declaring its
+  height last has the rest of the block in scope.
+- **A sex has to be spelled.** A bare ``M`` or ``F`` is not accepted, because
+  ``T 98.4 F filled`` sits in these blocks and a Fahrenheit mark would otherwise
+  satisfy the rule for a neighboring height.
+- The counted classes are matched on the same labeled-value-then-``filled`` form
+  as the three graded ones, and are subject to every limit in this list. Nothing
+  about them reaches the exit status. **The pain score has no label**, so it is
+  matched on the ``N/10`` shape alone and is the loosest pattern here.
+- **A usage error exits 2 as well, and that changed** -- no argument, no such
+  directory and no notes in it all returned 1 before #97, which is the status a
+  B13 violation returns. Nothing asked for that; it is the sibling scanners'
+  arrangement and the reason is theirs, that a run reporting *nothing found*
+  and a run reporting *nothing read* must not share a status. Declared here
+  because a caller checking ``== 1`` for a violation would otherwise change
+  meaning silently.
 - A height is caught in the ``5'10"`` form and in bare ``70 in``. A run writing
   it any other way reads as having declared no height, which is a floor on the
   height figures -- and **not** a floor on ``repeated_bodies``, which needs both
@@ -72,6 +141,7 @@ import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
+from math import comb
 from pathlib import Path
 
 from console_codec import use_utf8
@@ -111,6 +181,59 @@ BP_DECL = re.compile(
 PRECEDING_GIVEN = re.compile(r"(?i)\bgiven\s*$")
 _LOOKBACK = 12
 
+# Counted, never graded -- see the module docstring. These are the four classes
+# issue #69 was ruled on while this module could not see any of them.
+TEMP_DECL = re.compile(
+    r"(?i)\b(?:t|temp|temperature)\b[\s.:]*(\d{2,3}(?:\.\d)?)\s*°?\s*[FC]\b" + _TO_FILLED
+)
+HR_DECL = re.compile(r"(?i)\b(?:hr|heart rate|pulse)\b[\s.:]*(\d{2,3})\b" + _TO_FILLED)
+RR_DECL = re.compile(
+    r"(?i)\b(?:rr|resp(?:iratory)? rate)\b[\s.:]*(\d{1,2})\b" + _TO_FILLED
+)
+SPO2_DECL = re.compile(
+    r"(?i)\b(?:spo2|sao2|o2 sat(?:uration)?|oxygen saturation)\b[\s.:]*(\d{2,3})\s*%?"
+    + _TO_FILLED
+)
+# A severity, which is the fifth of the five classes #69's comment on #97 named
+# and the one most easily left out: it has no label of its own, being written as
+# ``7/10 itching filled``. It is also the only counted class already carrying a
+# clinician's ruling -- a filled ``0/10`` may not take drift row 19's *no anchor*
+# exit, issue #59 -- so leaving it uncounted would have been the worst of the
+# five to leave uncounted. **Counting is not that rule**, which is about a
+# disclosure's wording and stays with a reader.
+PAIN_DECL = re.compile(r"(\d{1,2})\s*/\s*10\b" + _TO_FILLED)
+
+# One entry per counted class, and **adding a class is one entry and nothing
+# else** -- the report, the census and the extractor all read this tuple. It was
+# four parallel fields and a fifth had to be added the day after; that is the
+# shotgun-surgery smell arriving on schedule, and this is the fix.
+COUNTED_CLASSES: tuple[tuple[str, str, "re.Pattern[str]"], ...] = (
+    ("temperature", "temperature", TEMP_DECL),
+    ("heart rate", "heart_rate", HR_DECL),
+    ("respiratory rate", "resp_rate", RR_DECL),
+    ("saturation", "saturation", SPO2_DECL),
+    ("pain score", "pain_score", PAIN_DECL),
+)
+
+# The two halves of #97's person rule. An age is spelled in any of the corpus's
+# forms; a sex is **spelled**, never a bare ``M`` or ``F`` -- ``T 98.4 F filled``
+# is in these blocks and would otherwise satisfy a neighboring height.
+NAMES_AGE = re.compile(
+    r"(?i)\b(?:age[ds]?\s*\d{1,3}"
+    r"|\d{1,3}\s*[-‐‑‒– ]?\s*(?:year|yr|y/o|yo)s?\b"
+    r"|\d{1,2}\s*[-‐‑‒– ]?\s*(?:month|week|day)s?[-– ]?old)"
+)
+NAMES_SEX = re.compile(
+    r"(?i)\b(?:male|female|man|men|woman|women|boy|girl|gentleman|lady|"
+    r"transgender|nonbinary)\b"
+)
+
+# How often a bar is willing to fail an honestly reasoned run for nothing. Ruled
+# by the clinician on 2026-08-17 at 2%, which puts the cut at 8 of 9 -- see
+# ``tilt_beyond_chance``. It is the false-alarm rate that was chosen and not the
+# count, so the bar follows a set of any size without being re-decided.
+CHANCE_FLOOR = 0.02
+
 
 def _declaration(pattern: re.Pattern[str], block: str) -> re.Match[str] | None:
     """The first match whose label is not introduced as a given value."""
@@ -121,6 +244,90 @@ def _declaration(pattern: re.Pattern[str], block: str) -> re.Match[str] | None:
     return None
 
 
+def _clause(block: str, declaration: re.Match[str], others: list[re.Match[str]]) -> str:
+    """One declaration's own span: from its label to wherever the next one starts.
+
+    The boundary is a **declaration** and not a sentence, because a disclosure is
+    several sentences and a value is one label -- ``clinical-note``'s canonical
+    block runs three sentences of reasoning under one pressure. Reading to the
+    next label is what stops a height borrowing the age named for the pressure
+    above it, which is the whole point of scoping this at all.
+    """
+    starts = [m.start() for m in others if m.start() > declaration.start()]
+    return block[declaration.start() : min(starts, default=len(block))]
+
+
+def tilt_beyond_chance(not_normal: int, total: int, floor: float = CHANCE_FLOOR) -> bool:
+    """Is this many not-normal filled pressures more than a fair split explains?
+
+    Issue #97's objection to its own option 1 was that *a row saying no more than
+    N needs an N that nothing grounds*. **It is groundable.** ``clinical-note``
+    measures 249 transcribed pressures splitting about evenly at 130/80, so a set
+    of honestly reasoned filled pressures should land like that many coin flips.
+    What is left to choose is not a count but **how often an honest run may be
+    failed for nothing**, which is a judgment a clinician can make and did:
+
+    ======================  ==============================
+    fail a set of 9 at      an honest run wrongly fails
+    ======================  ==============================
+    5 or more               50%
+    6 or more               25%
+    7 or more               9%
+    **8 or more**           **2%**  <- ruled 2026-08-17
+    ======================  ==============================
+
+    **The run that filed the ticket passes, and that was ruled knowingly.**
+    ``fixtures/filled-anchor``'s six of nine is a coin-flip outcome one time in
+    four; a bar failing it would fire on an honest set a quarter of the time,
+    which is the rate at which a warning stops being read. Its defect is graded
+    by the person rule on its heights instead.
+
+    **One-sided on purpose.** Filled pressures clustering *normal* is the bland
+    normal, a different defect that ``clinical-note`` guards upstream, and a
+    two-sided test here would fail a run for the opposite of what #97 is about.
+
+    **The 50% null is generous to the machine.** Encounters whose shorthand omits
+    vitals are plausibly the simpler ones, so an honest run arguably ought to land
+    below half rather than at it. Nothing measures that, so the assumption that
+    favors the run is the one used.
+
+    A set too small to distinguish is not failed: five of five is 1 in 32 and
+    passes, six of six is 1 in 64 and does not. **Six is the smallest set this can
+    fail**, and only by failing every pressure in it.
+    """
+    if total <= 0 or not_normal <= total / 2:
+        return False
+    tail = sum(comb(total, k) for k in range(not_normal, total + 1)) / 2**total
+    return tail < floor
+
+
+def names_person(scope: str) -> bool:
+    """Does this clause name both an age and a sex?
+
+    Issue #97's second ruling. Age and sex are given on **36 of the 37 committed
+    inputs**, so a filled height is almost never truly unanchored however little
+    the encounter says about the body.
+
+    **The ruling was made on the stronger claim and the stronger claim is false.**
+    ``fixtures/day-a/shorthand/case-10.md`` carries no age line -- the only one of
+    the 37, and issue #158's own case. On such an input this rule can be satisfied
+    only by naming an *inferred* age, so the height comes to lean on the same guess
+    #158 is about. That is a real cost of the rule and it is recorded rather than
+    smoothed over; it does not change the rule, which the clinician ruled.
+
+    **Repetition itself is not graded**, and that is the ruling rather than a gap:
+    ``clinical-note`` says outright that where the encounter supplies no habitus
+    datum *the repetition across a set is that honesty's consequence*, so a bar on
+    repeated values would leave a compliant run no way out but inventing a
+    distinguishing one -- which standing rule 2 forbids in the same words.
+
+    **A sex must be spelled.** A bare ``M`` or ``F`` is refused because
+    ``T 98.4 F filled`` is in these blocks and its Fahrenheit mark would otherwise
+    satisfy the rule for whatever height sits beside it.
+    """
+    return bool(NAMES_AGE.search(scope)) and bool(NAMES_SEX.search(scope))
+
+
 @dataclass(frozen=True)
 class Fill:
     """One note's declared-filled body values."""
@@ -128,6 +335,13 @@ class Fill:
     height_in: int | None = None
     weight_lb: int | None = None
     pressure: Reading | None = None
+    # Which of ``COUNTED_CLASSES`` this note declared, by key. Presence only --
+    # nothing here is graded, so the value is never needed and storing one would
+    # be a measured value kept for no reason.
+    counted: frozenset[str] = frozenset()
+    # ``None`` where the note declared no filled height, so a control with
+    # nothing to fail is never counted as having failed.
+    height_names_person: bool | None = None
 
     @property
     def body(self) -> tuple[int, int] | None:
@@ -153,9 +367,36 @@ class Census:
     abnormal_pressures: int
     bodies: int
     repeated_bodies: int
+    # #97's person rule. Over notes declaring a filled height, never over notes.
+    heights_missing_person: int = 0
+    # Counted, never graded -- #69's five classes, keyed as ``COUNTED_CLASSES``.
+    counted: tuple[tuple[str, int], ...] = ()
     # Kept for ``--show`` alone, and never read by ``format_report`` without it.
     height_counts: tuple[tuple[int, int], ...] = ()
     body_counts: tuple[tuple[tuple[int, int], int], ...] = ()
+
+    def count_of(self, key: str) -> int:
+        """How many notes declared one counted class, by its ``COUNTED_CLASSES`` key."""
+        return dict(self.counted).get(key, 0)
+
+    @property
+    def counted_total(self) -> int:
+        """Every declaration in the counted classes, across the set."""
+        return sum(n for _, n in self.counted)
+
+    @property
+    def tilted(self) -> bool:
+        """#97's pressure bar over this set."""
+        return tilt_beyond_chance(self.abnormal_pressures, self.pressures)
+
+    @property
+    def gradeable(self) -> bool:
+        """Was there anything here for either graded row to read?
+
+        A set declaring no filled height and no filled pressure has not passed
+        them; it has not been measured by them, and the exit status says which.
+        """
+        return bool(self.heights or self.pressures)
 
 
 def filled_block(text: str) -> str:
@@ -180,6 +421,8 @@ def read_fill(text: str) -> Fill:
     inches = None if height else _declaration(HEIGHT_IN_DECL, block)
     weight = _declaration(WEIGHT_DECL, block)
     pressure = _declaration(BP_DECL, block)
+    counted = {key: _declaration(pattern, block) for _, key, pattern in COUNTED_CLASSES}
+    anchor = height or inches
     if height:
         height_in = int(height.group(1)) * 12 + int(height.group(2))
     elif inches:
@@ -190,6 +433,18 @@ def read_fill(text: str) -> Fill:
         height_in=height_in,
         weight_lb=int(weight.group(1)) if weight else None,
         pressure=(int(pressure.group(1)), int(pressure.group(2))) if pressure else None,
+        counted=frozenset(key for key, match in counted.items() if match),
+        height_names_person=(
+            None
+            if anchor is None
+            else names_person(
+                _clause(
+                    block,
+                    anchor,
+                    [m for m in [weight, pressure, *counted.values()] if m is not None],
+                )
+            )
+        ),
     )
 
 
@@ -218,6 +473,11 @@ def survey(texts: list[str]) -> Census:
         abnormal_pressures=sum(n for p, n in pressures.items() if not is_normal_bp(p)),
         bodies=sum(bodies.values()),
         repeated_bodies=sum(n - 1 for n in bodies.values() if n > 1),
+        heights_missing_person=sum(1 for f in fills if f.height_names_person is False),
+        counted=tuple(
+            (key, sum(1 for f in fills if key in f.counted))
+            for _, key, _ in COUNTED_CLASSES
+        ),
         height_counts=tuple(sorted(heights.items())),
         body_counts=tuple(sorted(bodies.items())),
     )
@@ -225,6 +485,13 @@ def survey(texts: list[str]) -> Census:
 
 def _inches(value: int) -> str:
     return f"{value // 12}'{value % 12}\""
+
+
+def _tilt_verdict(census: Census) -> str:
+    """The tilt line, which never reads as a pass where nothing was measured."""
+    if not census.pressures:
+        return "not graded — no filled pressure declared"
+    return "YES" if census.tilted else "no"
 
 
 def format_report(census: Census, source: str, show: bool = False) -> str:
@@ -236,14 +503,22 @@ def format_report(census: Census, source: str, show: bool = False) -> str:
         f"  declaring a filled height       {census.heights}",
         f"    distinct values               {census.distinct_heights}",
         f"    largest group at one value    {census.largest_height_group}",
+        f"    naming no age and sex         {census.heights_missing_person}",
         f"  declaring a filled weight       {census.weights}",
         f"    distinct values               {census.distinct_weights}",
         f"  declaring a filled pressure     {census.pressures}",
         f"    distinct values               {census.distinct_pressures}",
         f"    largest group at one value    {census.largest_pressure_group}",
         f"    not normal (130+ or 80+)      {census.abnormal_pressures}",
+        f"    {f'beyond a fair split at {CHANCE_FLOOR:.0%}?':<30}{_tilt_verdict(census)}",
         f"  declaring a filled height and weight   {census.bodies}",
         f"    sharing a body with another note     {census.repeated_bodies}",
+        "",
+        "  counted, not graded — no corpus split grounds a bar on these:",
+    ]
+    lines += [
+        f"    {f'declaring a filled {label}':<37}{census.count_of(key)}"
+        for label, key, _ in COUNTED_CLASSES
     ]
     if show:
         lines += ["", "  heights, most repeated first:"]
@@ -276,27 +551,57 @@ def main(argv: list[str]) -> int:
     show = "--show" in argv
     if not args:
         print("usage: filled_vitals_census.py <directory> [--show]", file=sys.stderr)
-        return 1
+        return 2
     directory = Path(args[0])
     # The directory name, never the path: a run directory sits under ``scratch/``
     # or ``output/``, and its path names the shift and often the site.
     if not directory.is_dir():
         print(f"no directory named {directory.name}", file=sys.stderr)
-        return 1
+        return 2
     notes = read_notes(directory)
     if not notes:
         print(f"no notes found in {directory.name}", file=sys.stderr)
-        return 1
+        return 2
     census = survey(notes)
     print(format_report(census, source=directory.name, show=show))
+
+    findings = []
     if census.repeated_bodies:
+        findings.append(
+            f"{census.repeated_bodies} note(s) share a filled body with another."
+            " fixtures/day-b B13 fails."
+        )
+    if census.tilted:
+        findings.append(
+            f"{census.abnormal_pressures} of {census.pressures} filled pressures land"
+            " not normal, which a fair split produces less than"
+            f" {CHANCE_FLOOR:.0%} of the time. The anchors were in the notes."
+            " fixtures/day-b B17 fails."
+        )
+    if census.heights_missing_person:
+        findings.append(
+            f"{census.heights_missing_person} filled height(s) name no age and sex."
+            " Both are given on all but one committed input, so a height almost"
+            " always has two anchors already in the encounter."
+            " fixtures/day-b B18 fails."
+        )
+    if findings:
+        # 1 outranks 2 deliberately: returning 2 where something was graded and
+        # failed would file the strongest thing known about the run under the
+        # heading that means nothing was measured.
         print(
-            f"\n{census.repeated_bodies} note(s) share a filled body with another."
-            " fixtures/day-b B13 fails. Re-run with --show to see which values,"
+            "\n" + "\n".join(findings) + "\nRe-run with --show to see which values,"
             " and do not paste that output.",
             file=sys.stderr,
         )
         return 1
+    if not census.gradeable:
+        print(
+            f"\nno note in {directory.name} declares a filled height or a filled"
+            " pressure, so neither graded row read anything. This is not a pass.",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 

@@ -295,10 +295,12 @@ class ExitStatusReportsTheDefect(unittest.TestCase):
     printing something reassuring.
     """
 
-    BODY = "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. WEIGHT 190 lb filled.\n"
-
-    def test_a_set_with_no_repeated_body_exits_zero(self):
-        self.assertEqual(fvc.main([str(NOTES)]), 0)
+    # Compliant under #97's height rule, so a non-zero below is the shared body
+    # and never the age-and-sex line failing underneath it.
+    BODY = (
+        "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a 36-year-old\n"
+        "                  man; no habitus datum in the source. WEIGHT 190 lb filled.\n"
+    )
 
     def test_a_repeated_body_exits_non_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -312,12 +314,303 @@ class ExitStatusReportsTheDefect(unittest.TestCase):
             other = self.BODY.replace("190 lb", "165 lb")
             self.assertEqual(fvc.main([str(written(Path(tmp), a=self.BODY, b=other))]), 0)
 
-    def test_a_directory_with_no_notes_exits_non_zero(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            self.assertEqual(fvc.main([str(Path(tmp))]), 1)
 
-    def test_a_directory_that_is_not_there_exits_non_zero(self):
-        self.assertEqual(fvc.main([str(REPO_ROOT / "no-such-directory")]), 1)
+class TheTiltBarIsArithmeticRatherThanOpinion(unittest.TestCase):
+    """Issue #97's ruling, and the reason it could be made at all.
+
+    That ticket's own objection was that *a row saying no more than N needs an N
+    that nothing grounds*. It is groundable: ``clinical-note`` measures 249
+    transcribed pressures splitting about evenly at 130/80, so an honestly
+    reasoned set of filled pressures should land like that many coin flips. The
+    clinician then chose not a count but a **false-alarm rate** -- how often he
+    would accept an honest run being failed for nothing -- and 2% put the bar at
+    8 of 9. These tests pin the ruling at the shape it was made in.
+    """
+
+    def test_eight_of_nine_fails_and_seven_passes(self):
+        """The clinician's ruling on 2026-08-17, in the numbers he was shown."""
+        self.assertTrue(fvc.tilt_beyond_chance(8, 9))
+        self.assertFalse(fvc.tilt_beyond_chance(7, 9))
+
+    def test_the_run_that_filed_the_ticket_passes_and_that_is_deliberate(self):
+        """Six of nine is a coin-flip outcome one time in four.
+
+        ``fixtures/filled-anchor``'s six not-normal pressures are what #67 and #97
+        were argued from, and the bar does **not** fail them. That was ruled
+        knowingly: a bar at 6 wrongly fails an honest run 25% of the time, which
+        is the rate at which a warning stops being read. The height half of that
+        same run is where its defect is graded instead.
+        """
+        self.assertFalse(fvc.tilt_beyond_chance(6, 9))
+
+    def test_a_set_too_small_to_grade_can_never_fail(self):
+        """Five all-abnormal pressures are 1 in 32, which is not yet evidence.
+
+        Stated as a test because the alternative reading -- that a five-note set
+        passed the bar -- is exactly the silent-pass shape this repo refuses. Six
+        is the smallest set that can fail it, and only by failing every one.
+        """
+        self.assertFalse(fvc.tilt_beyond_chance(5, 5))
+        self.assertTrue(fvc.tilt_beyond_chance(6, 6))
+
+    def test_no_pressures_at_all_is_not_a_pass(self):
+        """Nothing to grade is reported by the exit status, not by this."""
+        self.assertFalse(fvc.tilt_beyond_chance(0, 0))
+
+    def test_the_bar_is_one_sided(self):
+        """A set landing *below* the line is not what this measures.
+
+        Filled pressures clustering normal is a different defect -- the bland
+        normal -- and ``clinical-note`` guards it elsewhere. A two-sided test here
+        would fail a run for the opposite of the behavior #97 is about.
+        """
+        self.assertFalse(fvc.tilt_beyond_chance(0, 9))
+        self.assertFalse(fvc.tilt_beyond_chance(1, 9))
+
+
+class AFilledHeightNamesTheAgeAndTheSex(unittest.TestCase):
+    """The clinician's second ruling on 2026-08-17.
+
+    Repetition across a set stays honest -- ``clinical-note`` says outright that
+    *the repetition across a set is that honesty's consequence* -- so no bar
+    counts repeated heights. What is graded is that the two anchors a height
+    always has were read: age and sex are given on every patient in this corpus,
+    so a height is never truly unanchored however little the encounter says about
+    the body.
+
+    **The form is already in the corpus, which is the strongest argument for the
+    rule.** ``fixtures/filled-anchor`` case 6 writes *Approximately the 60th
+    percentile for a 17-year-old male* and case 9 *plausible for a 44-year-old
+    female*. Four of that set's nine heights are written that way and five name
+    nothing at all, so this requires a form the skill has demonstrably produced
+    rather than inventing a new burden.
+    """
+
+    def test_a_line_naming_both_passes(self):
+        self.assertTrue(fvc.names_person("Plausible for a 36-year-old man; no habitus datum."))
+
+    def test_a_sex_without_an_age_fails(self):
+        """``Plausible adult male height`` names a sex and no age at all.
+
+        **Not the 17-year-old's line**, which names both -- that claim was made
+        during the grilling for this ticket from two notes rather than nine, and
+        this scanner is what disproved it. Kept as a predicate test because the
+        shape is the one five of that set's nine heights come closest to.
+        """
+        self.assertFalse(fvc.names_person("Plausible adult male height; nothing to move it."))
+
+    def test_an_age_without_a_sex_fails(self):
+        self.assertFalse(fvc.names_person("Mid-range for a 17-year-old; no habitus datum."))
+
+    def test_a_bare_F_is_not_a_sex(self):
+        """``T 98.4 F`` is a temperature unit, and it sits in these blocks.
+
+        Accepting a bare ``M`` or ``F`` would pass a height whose only claim to
+        naming a sex is the Fahrenheit mark on a neighboring temperature.
+        """
+        self.assertFalse(fvc.names_person("HEIGHT 5'10\" filled. T 98.4 F filled. 36 yo."))
+
+    def test_the_pediatric_age_forms_read(self):
+        for age in ("a 17-year-old boy", "17 yo male", "age 17, male", "a 9-month-old girl"):
+            with self.subTest(age=age):
+                self.assertTrue(fvc.names_person(f"Reasoned from {age}."))
+
+    def test_the_scope_is_the_height_declaration_and_not_the_whole_block(self):
+        """The canonical block names the age on the *pressure* line.
+
+        A block-wide check would pass that height on an age read for a different
+        value, which is the 17-year-old defect surviving its own fix.
+        """
+        block = (
+            "FILLED·asserted   BP 146/84 filled. Reasoned from age 68 with type 2\n"
+            "                  diabetes, at rest and in no distress.\n"
+            "                  Ht 5'10\" (70 in) filled. Plausible adult male height.\n"
+        )
+        self.assertFalse(fvc.read_fill(block).height_names_person)
+
+    def test_a_height_whose_own_clause_names_both_reads_true(self):
+        block = (
+            "FILLED·asserted   BP 146/84 filled. Reasoned from the given pulse of 112.\n"
+            "                  Ht 5'10\" (70 in) filled. Mid-range for a 68-year-old man;\n"
+            "                  no habitus or percentile datum in the source to move it.\n"
+        )
+        self.assertTrue(fvc.read_fill(block).height_names_person)
+
+    def test_a_note_declaring_no_filled_height_is_not_graded(self):
+        """``None`` rather than ``False`` -- a control has nothing to fail."""
+        self.assertIsNone(fvc.read_fill("FILLED·asserted   BP 138/86 filled.\n").height_names_person)
+
+
+class TheCensusSeesTheOtherVitalClasses(unittest.TestCase):
+    """Issue #69's finding, answered by counting rather than by grading.
+
+    That ruling turned entirely on a filled temperature and two filled
+    saturations, and this tool could not see any of them. **All five of the
+    classes that comment names are counted now**, and the fifth was nearly left
+    out: the first pass added four and wrote prose enumerating them as though the
+    gap were closed, which review caught. The pain score is the one with no label
+    of its own -- it is written ``7/10 itching filled`` -- and the only one
+    already carrying a clinician's ruling, #59's carve-out on a filled ``0/10``.
+
+    They are counted and **not graded**: the corpus supplies no comparable even
+    split for a temperature or a saturation, so no cutoff here could be grounded
+    the way the pressure one is.
+    """
+
+    def setUp(self):
+        self.census = fvc.survey(all_notes())
+
+    def test_every_class_69_named_is_counted(self):
+        """The enumeration is read off the module, not retyped here.
+
+        A sixth class added to ``COUNTED_CLASSES`` and forgotten in the report is
+        the failure this replaces, and it is the failure the four-field version
+        actually committed.
+        """
+        self.assertEqual(
+            [key for _, key, _ in fvc.COUNTED_CLASSES],
+            ["temperature", "heart_rate", "resp_rate", "saturation", "pain_score"],
+        )
+
+    def test_the_four_vital_classes_are_nine_each(self):
+        """**Every one of the nine filled cases declares all four.**
+
+        The first count taken during #97's grilling read 7 temperatures, from a
+        hand-rolled regex that missed the two written ``98.2 °F`` with a degree
+        sign. Pinned here at the figure this module actually produces, which is
+        the point of counting with the instrument rather than beside it.
+        """
+        for key in ("temperature", "heart_rate", "resp_rate", "saturation"):
+            with self.subTest(key=key):
+                self.assertEqual(self.census.count_of(key), 9)
+
+    def test_the_set_declares_more_than_the_census_used_to_reach(self):
+        """27 graded against 36 counted, and the 36 is pinned rather than derived.
+
+        That figure is published in three prose files, which is #180's shape --
+        so it is asserted as a literal here and the pain-score zero is asserted
+        beside it. A sixth class, or a run declaring a severity, moves the total
+        and fails this test rather than leaving three files quietly wrong.
+        """
+        graded = self.census.heights + self.census.weights + self.census.pressures
+        self.assertEqual(graded, 27)
+        self.assertEqual(self.census.counted_total, 36)
+        self.assertEqual(self.census.count_of("pain_score"), 0)
+
+    def test_a_given_vital_is_still_not_counted(self):
+        fill = fvc.read_fill(
+            "FILLED·asserted   BMI from the given T 101.2 F and HR 118 filled.\n"
+        )
+        self.assertNotIn("temperature", fill.counted)
+
+    def test_a_filled_severity_is_counted(self):
+        """#69's fifth class, and the one with no label of its own."""
+        fill = fvc.read_fill("FILLED·asserted   7/10 itching filled.\n")
+        self.assertIn("pain_score", fill.counted)
+
+    def test_counting_a_severity_is_not_59s_rule(self):
+        """A filled ``0/10`` is counted here and graded nowhere in this module.
+
+        #59's carve-out is about what the disclosure line must say, which is a
+        reader's question. Counting it must not read as having checked it.
+        """
+        fill = fvc.read_fill("FILLED·asserted   0/10 filled.\n")
+        self.assertIn("pain_score", fill.counted)
+
+    def test_none_of_them_reaches_the_exit_status(self):
+        """Counted, not graded — so a set declaring only these exits 2."""
+        with tempfile.TemporaryDirectory() as tmp:
+            block = (
+                "FILLED·asserted   T 101.2 F filled. HR 118 filled. SpO2 91% filled.\n"
+                "                  9/10 filled.\n"
+            )
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=block, b=block))]), 2)
+
+
+class ExitStatusSeparatesNotScannedFromNothingFound(unittest.TestCase):
+    """``differential_scan.py``'s arrangement, adopted for its reason.
+
+    A run whose notes declare no filled height and no filled pressure has nothing
+    for either graded rule to read, and reporting that as 0 would file the
+    strongest thing known about the run -- that it was never graded -- under the
+    heading that means it passed. ``scratch/day-a-run-2`` is the real instance:
+    eleven notes, nothing filled at all. **Where a violation and an ungraded set
+    both hold, 1 wins**, which is that tool's ordering too.
+    """
+
+    BODY = "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a 36-year-old man.\n"
+
+    def test_a_clean_set_exits_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            other = self.BODY.replace("5'10\" (70 in)", "5'8\" (68 in)")
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=self.BODY, b=other))]), 0)
+
+    def test_a_set_declaring_nothing_gradeable_exits_two(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            block = "FILLED·asserted   None. Every vital in this encounter was given.\n"
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=block, b=block))]), 2)
+
+    def test_a_directory_with_no_notes_exits_two(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(fvc.main([str(Path(tmp))]), 2)
+
+    def test_a_directory_that_is_not_there_exits_two(self):
+        self.assertEqual(fvc.main([str(REPO_ROOT / "no-such-directory")]), 2)
+
+    def test_a_height_with_no_person_named_exits_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bare = "FILLED·asserted   HEIGHT 5'10\" (70 in) filled.\n"
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=bare))]), 1)
+
+    def test_the_tilt_bar_exits_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            notes = {
+                f"case{n}": f"FILLED·asserted   BP 1{40 + n}/9{n % 10} filled.\n" for n in range(6)
+            }
+            self.assertEqual(fvc.main([str(written(Path(tmp), **notes))]), 1)
+
+    def test_a_violation_outranks_an_ungraded_set(self):
+        """Both hold at once, and the exit reports the violation.
+
+        Returning 2 here would say *nothing was graded* about a set in which
+        something was graded and failed.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            bare = "FILLED·asserted   HEIGHT 5'10\" (70 in) filled.\n"
+            silent = "SUBJECTIVE  no block here at all\n"
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=bare, b=silent))]), 1)
+
+
+class TheCommittedRunSplitsOnTheHeightRule(unittest.TestCase):
+    """It exits 1, and reading that as breakage is the mistake to avoid.
+
+    ``fixtures/filled-anchor/notes`` is day-b **run 1** byte for byte, written
+    before drift row 19 existed. The obvious prediction from that is that it
+    fails the age-and-sex rule everywhere, **and it does not** -- four of the
+    nine heights already name both, two of them with a percentile. So the set is
+    not uniformly pre-row-19 and it is not uniform at all, which is
+    [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s
+    subject arriving on this file: the prediction was made from two notes during
+    #97's grilling and corrected by running the scanner over all twelve.
+
+    The counts over it are untouched and stay the evidence for #67.
+    """
+
+    def test_the_set_exits_one(self):
+        self.assertEqual(fvc.main([str(NOTES)]), 1)
+
+    def test_five_of_the_nine_heights_name_no_age_and_sex(self):
+        self.assertEqual(fvc.survey(all_notes()).heights_missing_person, 5)
+
+    def test_the_other_four_already_write_the_compliant_form(self):
+        """Which is why the rule asks for nothing new of the skill."""
+        census = fvc.survey(all_notes())
+        self.assertEqual(census.heights - census.heights_missing_person, 4)
+
+    def test_its_pressures_clear_the_tilt_bar(self):
+        """So the exit status above is the heights and nothing else."""
+        census = fvc.survey(all_notes())
+        self.assertFalse(fvc.tilt_beyond_chance(census.abnormal_pressures, census.pressures))
 
 
 if __name__ == "__main__":
