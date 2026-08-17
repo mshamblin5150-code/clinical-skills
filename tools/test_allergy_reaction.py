@@ -5,8 +5,10 @@
 shorthand gives an allergen and no reaction three rules bound it shut at once:
 the box demands a value, the grounding rule supplies none, and drift row 12 bans
 the hedge. **Three independent runs reached for the banned string**, one of them
-committed at ``fixtures/filled-anchor/notes/case-07.md``, which writes
-``reaction not documented`` six times.
+committed under ``fixtures/filled-anchor/``, which carries the class **18 times
+across six files** in **five** phrasings -- a figure this file's own prose twice
+got wrong by running ``grep -c`` on one literal, which counts lines rather than
+occurrences and misses the paraphrases outright.
 
 **The clinician ruled on 2026-08-16: the reaction is inferred**, written into the
 box so the rubric's own ``Allergies (with reaction)`` heading is satisfied
@@ -329,7 +331,12 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
     #: *The reaction beside a given allergen* and in ``day-b/assertions.md``.
     EXPECTED = {"inputs": 37, "allergy_clause": 20, "nkda": 12, "names_allergen": 8}
 
-    #: The 8, split the way the disclosure floor is drawn. No committed input
+    #: The 8, split the way the disclosure floor is drawn. **Not a partition:**
+    #: ``day-b`` cases 7 and 11 name an environmental allergen *as well* as a
+    #: drug one, so 4 inputs name a drug and **6** name an environmental -- the
+    #: set below is the environmental-*only* four, which is what the published
+    #: figure says and what the name now records. A reader taking the two counts
+    #: for complements has the wrong denominator for either. No committed input
     #: names a **food** allergen; ``peds-bp`` case 5's lactose intolerance is an
     #: enzyme deficiency rather than an allergy, and whether it reaches the box
     #: at all is #96's question rather than this one's.
@@ -339,7 +346,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         "fixtures/duration-span/shorthand/case-01.md",
         "fixtures/duration-span/shorthand/case-02.md",
     }
-    ENVIRONMENTAL = {
+    ENVIRONMENTAL_ONLY = {
         "fixtures/day-a/shorthand/case-06.md",
         "fixtures/day-b/shorthand/case-02.md",
         "fixtures/hedged-dx/shorthand/case-03.md",
@@ -387,12 +394,72 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
                     "and update SKILL.md and day-b/assertions.md together",
                 )
 
-    def test_the_eight_split_four_drug_and_four_environmental(self) -> None:
+    def test_the_eight_split_four_drug_and_four_environmental_only(self) -> None:
         """The split the disclosure floor rests on, pinned by path not by count."""
         named = self.census()["named_paths"]
-        self.assertEqual(named, self.DRUG | self.ENVIRONMENTAL)
+        self.assertEqual(named, self.DRUG | self.ENVIRONMENTAL_ONLY)
         self.assertEqual(len(self.DRUG), 4)
-        self.assertEqual(len(self.ENVIRONMENTAL), 4)
+        self.assertEqual(len(self.ENVIRONMENTAL_ONLY), 4)
+
+    #: Every place a figure is published, and the label it is published under.
+    #: Markdown emphasis and backticks are stripped before matching, so a
+    #: rewrite that re-bolds a sentence does not break the pin.
+    PUBLISHED = {
+        "inputs": r"(\d+) committed inputs",
+        "allergy_clause": r"(\d+) carry an allergy clause",
+        "nkda": r"(\d+) say NKDA",
+        "names_allergen": r"(\d+) name an allergen",
+    }
+
+    def test_the_prose_copies_agree_with_the_re_derivation(self) -> None:
+        """Pin the **published** figures, not only the computed ones.
+
+        ``test_the_published_figures_still_hold`` guards fixtures against
+        ``EXPECTED``; nothing guarded ``EXPECTED`` against the prose, so editing
+        a ``37`` to a ``38`` in either document failed no test. That is exactly
+        the residual gap [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)
+        describes -- a figure kept true in one place and copied to two others --
+        and it is this ticket's own ``31 / 16 / 11 / 5`` waiting to happen again.
+        Found in the tracker sweep.
+        """
+        for path in (SKILL, REPO_ROOT / "fixtures" / "day-b" / "assertions.md"):
+            plain = read(path).replace("*", "").replace("`", "")
+            for sentence in self.fixture_sentences(plain):
+                for key, pattern in self.PUBLISHED.items():
+                    for written in re.findall(pattern, sentence):
+                        with self.subTest(path=path.name, figure=key):
+                            self.assertEqual(
+                                int(written),
+                                self.EXPECTED[key],
+                                f"{path.name} publishes {key}={written}, "
+                                f"re-derivation gives {self.EXPECTED[key]}",
+                            )
+
+    @staticmethod
+    def fixture_sentences(plain: str) -> list[str]:
+        """Sentences about the **committed inputs**, not about the corpus.
+
+        Both denominators live in these files and both are counted with the same
+        verb: ``20 carry an allergy clause`` over 37 fixtures, and ``284`` over
+        551 corpus encounters. A pattern blind to which one it matched read the
+        corpus figure as a stale fixture figure -- the first run of this test
+        failed on exactly that, which is the two-denominators confusion #143
+        names, arriving in the guard written against it.
+        """
+        return [
+            sentence
+            for sentence in re.split(r"(?<=[.])\s", plain)
+            if "committed inputs" in sentence
+        ]
+
+    def test_each_figure_is_actually_published_somewhere(self) -> None:
+        """A pin matching nothing passes for the wrong reason."""
+        plain = read(SKILL).replace("*", "").replace("`", "")
+        for key, pattern in self.PUBLISHED.items():
+            if key == "nkda":
+                continue  # SKILL.md states this one only via the corpus split
+            with self.subTest(figure=key):
+                self.assertTrue(re.search(pattern, plain), f"{key} unpublished")
 
     def test_no_committed_input_pairs_an_allergen_with_a_reaction(self) -> None:
         """The claim the whole ticket rests on, checked over every input.
