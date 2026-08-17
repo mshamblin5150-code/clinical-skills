@@ -16,17 +16,31 @@ a population key that expands to a PREVENT risk, a catalog that answers a grep f
 those is a fact about a committed artifact, and every one of them can go stale
 without the skill file changing a character** -- a corpus refresh, a second
 threshold sheet, a regraded recommendation. So they are re-derived here against
-the artifacts rather than restated, which is #94 and #96's lesson applied before
-the figure has had a chance to drift rather than after.
+the artifacts rather than restated, which is [#143]'s lesson applied before the
+figure has had a chance to drift rather than after.
+
+**That citation read #94 and #96 when this file was written, and those are
+allergy-slot rulings.** [#165] is the ticket for exactly that miscitation, it was
+closed by removing the wrong number from three places in ``CLAUDE.md``, and this
+file was authored in a worktree holding the pre-fix copy -- so the wrong citation
+is the one the new file copied, which is the outcome #165 predicted in as many
+words. Caught in the tracker sweep for #85.
 
 That is also why every count the skill states is re-derived here rather than
 pinned as a literal on both sides. **This docstring claimed that before it was
 true**: the first version checked *90 of 90* and *one topic* and left *143* and
 *179* -- the two figures that appear in three files each -- asserted nowhere,
-which is the #94 and #96 shape appearing in the very file written to prevent it.
-Caught in review. Every figure the new prose states is now counted from the
-artifact, so a corpus refresh or a second threshold sheet fails a test instead of
-quietly making a sentence false.
+which is [#143]'s shape appearing in the very file written to prevent it. Caught
+in review. Every figure the new prose states is now counted from the artifact, so
+a corpus refresh or a second threshold sheet fails a test instead of quietly
+making a sentence false.
+
+**One figure resists that, and it is marked rather than smoothed over.** The *138
+of 179 documents not omission-gateable* the skill cites is a count over the
+out-of-repo corpus, so nothing committed can re-derive it. The assertion below
+compares the skill's copy to the README's and is a **consistency check between
+two files, not a verification** -- named here because a pinned figure and a
+re-derived one look identical in a passing suite.
 
 **Nothing here reads a note or a run directory.** It reads committed Markdown
 only, so it needs no fixtures, touches nothing under ``scratch/`` or ``output/``,
@@ -163,12 +177,14 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         ]
         self.assertGreaterEqual(len(tails), 4, "the section lost its worked examples")
         for line in tails:
-            # The tail closes the line, or is followed only by its `needs:`
-            # clause -- which is part of the same tail and is the one thing the
-            # format puts after the bracket.
+            # The tail closes the line, or is followed only by one of the two
+            # clauses that are part of the same tail: `needs:` for a population
+            # condition the encounter never established, and `verify this number`
+            # for one this repo cannot evaluate. Nothing else may follow it --
+            # a free-text remark after the bracket is how the format erodes.
             self.assertRegex(
                 line,
-                r"\[[^\[\]]+\](?: needs: .+)?$",
+                r"\[[^\[\]]+\](?: (?:needs: .+|verify this number))?$",
                 f"citation not closing the item line: {line}",
             )
 
@@ -187,7 +203,7 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
     def test_the_population_cell_is_copied_and_its_two_caveats_are_stated(self):
         # The USPSTF column is derived rather than quoted, and one row of 143
         # has none. Both make "quote the population" less safe than it sounds.
-        self.assertIn("never paraphrased into looking met", self.section)
+        self.assertIn("taken from the sheet's own cell", self.section)
         self.assertIn("derived from the statement text rather than quoted", self.section)
         self.assertIn("population not stated", self.section)
 
@@ -198,11 +214,41 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         self.assertIn("needs:", self.section)
         self.assertIn("10-year risk not calculated", self.section)
 
-    def test_no_input_to_a_risk_score_is_ever_filled(self):
+    def test_nothing_is_filled_in_order_to_complete_a_score(self):
         # The half of the calculate-it ruling that keeps it inside standing rule
         # 2. Without it, "compute where you have the data" invents a lipid panel.
-        self.assertIn("No input to a risk score is ever filled", self.section)
+        #
+        # This read "No input to a risk score is ever filled" and was wrong twice:
+        # it barred the ordinary case, and it contradicted the worked example
+        # three lines below it, which runs on a filled age and a filled pressure.
+        # Both halves are asserted now so a revert fails rather than reads well.
+        self.assertIn("Nothing is filled in order to complete a score", self.section)
+        self.assertIn("because the equation wanted it", self.section)
+        self.assertNotIn("No input to a risk score is ever filled**:", self.section)
         self.assertIn("verify this number", self.section)
+
+    def test_a_lipid_value_is_barred_outright(self):
+        self.assertIn("A lipid value is barred outright", self.section)
+        self.assertIn("is a *result*", self.section)
+
+    def test_a_score_on_a_filled_input_carries_the_mark_into_its_citation(self):
+        # The step where the disclosure was most likely to be dropped, because
+        # arithmetic reads as provenance-free.
+        self.assertIn("carries that up into the citation it keys", self.section)
+
+    def test_the_population_may_be_shortened_and_never_softened(self):
+        # The rule read "never paraphrased" while the statin example compresses
+        # its cell -- a contradiction between a rule and the example under it,
+        # which is the pair a generating pass resolves in the looser direction.
+        self.assertIn("It may be shortened; it may never be softened", self.section)
+        self.assertIn("Dropping the risk threshold would be softening", self.section)
+
+    def test_a_population_this_repo_cannot_evaluate_is_marked(self):
+        # #123's hole reaching the citation rule: the repo ships the codes and
+        # the recommendations without the CDC growth charts, so a pediatric
+        # percentile population is recalled however carefully it was checked.
+        self.assertIn("A population this repo cannot evaluate takes `verify this number`", self.section)
+        self.assertIn("95th percentile for age and sex", self.section)
 
     def test_the_calculator_follows_the_cited_row(self):
         self.assertIn("Name the calculator the cited row keys on", self.section)
@@ -462,10 +508,38 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         self.assertIn("the narrative sections", scope)
         self.assertIn("the narrative sections, the evidence tables", self.text)
 
-    def test_the_ungated_majority_figure_is_the_readmes_own(self):
+    def test_the_ungated_majority_figure_matches_the_readmes_own(self):
+        # A consistency check between two files, NOT a verification: 138 is a
+        # count over the out-of-repo corpus and nothing committed can re-derive
+        # it. Named in the docstring for the same reason.
+        #
+        # The bare assertIn("138", readme) this replaces matched any 138 in a
+        # 250-line file -- including a page number or a byte count -- so it would
+        # have kept passing after the figure it guards was regraded.
         readme = (THRESHOLDS / "README.md").read_text(encoding="utf-8")
-        self.assertIn("138", readme)
+        self.assertRegex(readme, r"\| nothing found \| \*\*138\*\* \|")
         self.assertIn("138 of the 179 documents cannot be omission-gated", self.text)
+
+    def test_the_pediatric_row_the_skill_quotes_is_real(self):
+        # Quoted with a grade and a year, both of which were written before they
+        # were checked. Pinned so the next edit cannot repeat that.
+        self.assertRegex(
+            self.uspstf,
+            r"\| Interventions for High Body Mass Index in Children and Adolescents \|"
+            r" children and adolescents 6 years or older with a high BMI"
+            r" \(95th percentile for age and sex\)[^|]*\| B \|[^|]*\| 2024 \|",
+        )
+        self.assertIn("[uspstf: grade B, children and adolescents 6 years or older", self.text)
+
+    def test_no_scanner_claim_names_only_the_row_it_can_name(self):
+        # differential_scan.py reaches one limb of row 22 and nothing else. The
+        # skill claimed it reached a limb of row 23 too, while that tool's own
+        # docstring said otherwise -- a skill file disagreeing with the tool it
+        # cites is worse than silence, because it reads as agreement.
+        scanner = (REPO_ROOT / "tools" / "differential_scan.py").read_text(encoding="utf-8")
+        self.assertNotIn("row 23", scanner)
+        self.assertIn("reaches one limb of row 22 and nothing else", self.text)
+        self.assertIn("**not row 23 either**", self.text)
 
 
 class TheCoderGainsNoObligation(unittest.TestCase):
