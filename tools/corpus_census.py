@@ -174,6 +174,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
+from repo_root import scratch_root
 
 # A note opens with "Note 1" at the start of a line. Case-insensitive: the corpus
 # contains "NOte 3", and fixtures/day-a/shorthand/case-03.md preserves it.
@@ -1882,8 +1883,16 @@ def read_corpus(directory: Path) -> Corpus:
 
 
 def main(argv: list[str]) -> int:
-    repo_root = Path(__file__).resolve().parent.parent
-    directory = Path(argv[1]) if len(argv) > 1 else repo_root / "scratch" / "day-file-text"
+    # Resolved through the checkout that owns this tree rather than through this
+    # file's own location -- issue #93. `scratch/` is gitignored, so a worktree
+    # never has one, and the old default pointed at a path that had never
+    # existed there. #78 was blocked on exactly that and got its figures by
+    # typing the main checkout's path as an argument.
+    #
+    # This tool degraded *loudly* -- it named the path it looked at and stopped
+    # -- which is why it cost a ticket rather than a firewall. `phi_scan` shared
+    # the line and degraded silently. One resolution now, in `repo_root`.
+    directory = Path(argv[1]) if len(argv) > 1 else scratch_root() / "day-file-text"
     if not directory.is_dir():
         print(f"no corpus at {directory}", file=sys.stderr)
         return 1

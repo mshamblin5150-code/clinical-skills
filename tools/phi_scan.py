@@ -29,8 +29,10 @@ say "my patient names are fine".
 Known limits, stated so nobody mistakes this for a guarantee:
 
 - ``git commit --no-verify`` bypasses it, as it bypasses any hook.
-- The corpus layer is only as good as ``scratch/``. On a fresh clone there is no
-  corpus, so that layer finds nothing and the shape layer is all that remains.
+- The corpus layer is only as good as ``scratch/``. Where there is no corpus that
+  layer finds nothing and the shape layer is all that remains -- but since #93
+  that is a **refusal** rather than a warning, so it can no longer happen
+  quietly. See `NOT_SCANNED` and `allows_no_corpus`.
 - A patient name that appears nowhere in the corpus and is not date-shaped is
   caught by neither layer. All PHI here originates in the corpus, so this is a
   narrow hole, but it is a real one.
@@ -58,10 +60,20 @@ Usage:
     python tools/phi_scan.py --show       # reveal matches instead of redacting
     python tools/phi_scan.py --layers     # report which layers would run; scan nothing
 
+Exit status, and the three values mean three different things:
+
+===  ==========================================================================
+0    Scanned with the corpus layer live, and found nothing.
+1    Found something. The commit is refused.
+2    **Did not scan** -- there is no corpus to scan against. Also refuses, and
+     `NOT_SCANNED` says why that is a status rather than a warning.
+===  ==========================================================================
+
 ``--layers`` exists for #86: the CI job prints it beside its own checkmark,
 because in CI the corpus layer is dead on every run that will ever happen and a
 clean scan there would otherwise read as coverage. It composes with ``--all``,
-which reports a different path layer -- see `layer_report`.
+which reports a different path layer -- see `layer_report`. It reports and never
+scans, so it is the one mode that always exits 0.
 """
 
 from __future__ import annotations
@@ -75,8 +87,21 @@ from pathlib import Path
 from typing import NamedTuple, Sequence
 
 from console_codec import use_utf8
+from repo_root import scratch_root
 
+# The tree being committed from -- this worktree. `_git` runs here and `scan_all`
+# walks from here, and both are right: the subject of a commit is the tree making
+# it. Deliberately **not** the corpus root; see below.
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# The tree that holds `scratch/`, which is the main clone and never a worktree --
+# `scratch/` is gitignored, so `git worktree` does not bring it. Splitting these
+# two apart is issue #93: they were one constant, so in a worktree the corpus
+# layer looked for patient names in a directory that had never existed there,
+# found none, and let the commit through on the shape layer alone. That was the
+# steady state for most commits made to this repo, because agents work in
+# worktrees.
+SCRATCH = scratch_root()
 
 # Directories the PHI firewall in .gitignore already covers -- scratch/ is working
 # files, output/ is finished notes and case studies. Staging anything under them
@@ -85,7 +110,25 @@ PHI_DIRECTORIES = ("scratch/", "output/", "cases/", "patients/")
 
 # Harvested strings a human has ruled on and judged to be real names. Under
 # scratch/ because that is what it holds -- see `reviewed_names`.
-REVIEWED_LEDGER = REPO_ROOT / "scratch" / "harvest-reviewed.json"
+REVIEWED_LEDGER = SCRATCH / "harvest-reviewed.json"
+
+# **Exit 2 is "did not scan", and it is this repo's own convention rather than a
+# new one** -- `guidelines_search.py` reserves it for every way of not having
+# searched, and `specificity_scan`, `differential_scan`, `anchor_scan` and
+# `block_scan` all copy it. #93 names the defect it fixes in one line of its own
+# comments: *those two exit-0s mean different things and nothing in the status
+# distinguishes them*. Now the status does.
+#
+# The hook needs no edit to honor it. `tools/hooks/pre-commit` already runs
+# `phi_scan.py || status=1`, so any non-zero refuses the commit.
+NOT_SCANNED = 2
+
+# The two doors out of NOT_SCANNED, for the two environments where an absent
+# corpus is expected rather than a fault: a clone that holds no patient material,
+# and CI, where `scratch/` is gitignored PHI that must never reach a runner. See
+# `allows_no_corpus` for why one is a config and the other a flag.
+ALLOW_NO_CORPUS_FLAG = "--allow-no-corpus"
+ALLOW_NO_CORPUS_CONFIG = "clinical.phiAllowNoCorpus"
 
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"
@@ -379,7 +422,7 @@ def harvest_entries() -> list[dict]:
     line. **No generator for it is committed**, only this consumer and
     ``harvest_review.py``, so nothing here can rebuild it.
     """
-    return _load_json(REPO_ROOT / "scratch" / "name-index.json", [])
+    return _load_json(SCRATCH / "name-index.json", [])
 
 
 def reviewed_names() -> set[str]:
@@ -452,13 +495,44 @@ def corpus_identifiers() -> tuple[set[str], set[str]]:
     dates: set[str] = set()
     names = harvested_names(harvest_entries())
 
-    corpus = REPO_ROOT / "scratch" / "day-file-text"
+    corpus = SCRATCH / "day-file-text"
     if corpus.is_dir():
         for path in corpus.glob("*.txt"):
             text = path.read_text(encoding="utf-8", errors="replace")
             dates.update(re.findall(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", text))
 
     return kept_names(names), dates
+
+
+def missing_corpus_sources() -> list[str]:
+    """The halves of the corpus that are not on disk, named.
+
+    **Two sources, and they fail independently** -- ``name-index.json`` carries
+    the patient names, ``day-file-text/`` carries the date literals. Asking
+    whether *the corpus* is present is the wrong question, and the first version
+    of #93's fix asked it: it inferred deadness from ``not names and not dates``,
+    so a tree holding one source and not the other reported a live layer, printed
+    nothing and exited 0.
+
+    **The dangerous direction is the name half**, because it is the half the
+    shape layer cannot stand in for -- #93's own sentence, *shape rules catch an
+    SSN or a ``dob`` token; they do not catch a patient's name*. With
+    ``day-file-text/`` present and ``name-index.json`` gone, the conjunction was
+    false, the scan ran on dates alone, and no patient name was checked at all.
+    That is this ticket's defect one artifact narrower, reintroduced by its own
+    fix and caught in review.
+
+    Tested on disk rather than on the yield, because the two are not the same
+    claim. ``harvest_entries`` falls back to ``[]`` for a file that is absent
+    *and* for one that is malformed, and a corpus directory that genuinely holds
+    no date literal is present rather than missing.
+    """
+    absent = []
+    if not (SCRATCH / "name-index.json").is_file():
+        absent.append("name-index.json")
+    if not (SCRATCH / "day-file-text").is_dir():
+        absent.append("day-file-text")
+    return absent
 
 
 def kept_names(harvested: set[str]) -> set[str]:
@@ -683,7 +757,9 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     return findings
 
 
-def layer_report(names: set[str], dates: set[str], all_mode: bool) -> list[str]:
+def layer_report(
+    names: set[str], dates: set[str], all_mode: bool, missing: Sequence[str] = (),
+) -> list[str]:
     """What ran and what did not, one line per layer. #86 decision 2.
 
     **A layer that did not run is named as not having run, never omitted.** The
@@ -716,7 +792,20 @@ def layer_report(names: set[str], dates: set[str], all_mode: bool) -> list[str]:
     else:
         path = "ACTIVE   -- " + ", ".join(PHI_DIRECTORIES)
 
-    if names or dates:
+    # **A half-present corpus is named as half-present, never as ACTIVE.** The
+    # two sources fail independently and only one of them is patient names, so a
+    # single ACTIVE/NOT RUN verdict has to lie about one of the three states.
+    # `missing_corpus_sources` says why that mattered.
+    if missing:
+        lost = ", ".join(missing)
+        harm = (
+            "PATIENT NAMES ARE NOT CHECKED" if "name-index.json" in missing
+            else "date literals are not checked"
+        )
+        verdict = "NOT RUN " if len(missing) > 1 else "PARTIAL "
+        corpus = f"{verdict} -- no {lost} under scratch/; {harm}"
+        dead.append("corpus")
+    elif names or dates:
         corpus = f"ACTIVE   -- {len(names)} name(s), {len(dates)} date literal(s) from scratch/"
     else:
         corpus = "NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED"
@@ -736,30 +825,98 @@ def layer_report(names: set[str], dates: set[str], all_mode: bool) -> list[str]:
     return lines
 
 
+def allows_no_corpus(argv: Sequence[str]) -> bool:
+    """Whether this environment has declared that it has no corpus and never will.
+
+    **Two callers, one condition, and they need different doors.** The hook is
+    what runs this scanner at commit time, so a person committing has nowhere to
+    put a flag -- they get the git config. CI invokes the scanner directly, so it
+    gets the flag, written into ``checks.yml`` where anyone opening the file can
+    read that the job knowingly runs a layer short.
+
+    The config is read with ``--bool`` and unset is false, so the default posture
+    is to refuse. **Per clone rather than per worktree, which is the granularity
+    the fact actually has**: worktrees share their clone's ``.git/config``, and
+    whether a machine holds patient material is a property of the clone. That is
+    also the mechanism ``CLAUDE.md`` already spends once per clone on
+    ``core.hooksPath``, so this is the repo's existing shape rather than a new one.
+
+    Deliberately not an environment variable. An exported variable is ambient --
+    set in a shell profile and forgotten, inherited by every process, invisible
+    to anyone reading the repo, and needing to be set again for every agent
+    session. ``.git/config`` is a file somebody chose to write.
+    """
+    if ALLOW_NO_CORPUS_FLAG in argv:
+        return True
+    return _git("config", "--bool", "--get", ALLOW_NO_CORPUS_CONFIG).strip() == "true"
+
+
+def no_corpus_hint(missing: Sequence[str] = ()) -> str:
+    """What to do about a dead corpus layer, naming both doors and neither vaguely."""
+    return (
+        "\nphi-scan: DID NOT SCAN. The corpus layer did not run, so no patient\n"
+        "name was checked -- standing rule 1 cannot be enforced from here.\n"
+        f"\nLooked in: {SCRATCH}\n"
+        f"Absent:    {', '.join(missing) if missing else '(nothing)'}\n"
+        "\nThat is resolved through the checkout this tree belongs to, which in a\n"
+        "worktree is not this tree. If the path above is wrong, the resolution is\n"
+        "the bug and not the corpus -- see tools/repo_root.py.\n"
+        "\nIf this clone genuinely has no corpus and never will -- a fresh clone,\n"
+        "or a machine that holds no patient material -- say so once:\n"
+        f"\n    git config {ALLOW_NO_CORPUS_CONFIG} true\n"
+        f"\nFor a single invocation, pass {ALLOW_NO_CORPUS_FLAG}. Either way the\n"
+        "layer report above still prints: the exemption is about the exit status,\n"
+        "not about the silence.\n"
+    )
+
+
 def main(argv: list[str]) -> int:
     show = "--show" in argv
+    all_mode = "--all" in argv
     names, dates = corpus_identifiers()
+    missing = missing_corpus_sources()
 
     # Reports and does not scan, so a CI job can print the layers as their own
     # step -- a clean scan prints nothing, which is the moment the reader most
     # needs to be told what was not looked at.
     if "--layers" in argv:
-        for line in layer_report(names, dates, "--all" in argv):
+        for line in layer_report(names, dates, all_mode, missing):
             print(line)
         return 0
 
-    if not names and not dates:
-        print(
-            "phi-scan: no corpus under scratch/ -- the corpus layer is inactive, "
-            "only PHI-shaped patterns will be caught.",
-            file=sys.stderr,
-        )
+    # **The full report, not the one-line notice it replaces.** #93's finding is
+    # that `no corpus under scratch/ -- the corpus layer is inactive` reads as a
+    # fact about the environment, in the same register as the mirror's advisory
+    # line, and scrolls past in the same output. `layer_report` already names
+    # what is not being checked in the words that say so -- PATIENT NAMES ARE NOT
+    # CHECKED -- and #86's own comment drew the corollary that the local hook
+    # deserves it too. It costs one call.
+    #
+    # Printed before the scan rather than after, so a refusal below reads with
+    # its coverage already stated.
+    # **Any missing source, not both.** `missing_corpus_sources` carries why: the
+    # conjunction let a tree with `day-file-text/` and no `name-index.json` scan
+    # on dates alone and exit 0 in silence, which is checking no patient name at
+    # all -- #93's harm, reintroduced by #93's fix.
+    dead_corpus = bool(missing)
+    if dead_corpus:
+        for line in layer_report(names, dates, all_mode, missing):
+            print(line, file=sys.stderr)
 
     index = build_index(names, dates)
-    findings = scan_all(index) if "--all" in argv else scan_staged(index)
-    if not findings:
-        return 0
+    findings = scan_all(index) if all_mode else scan_staged(index)
 
+    if not findings:
+        if not dead_corpus or allows_no_corpus(argv):
+            return 0
+        print(no_corpus_hint(missing), file=sys.stderr)
+        return NOT_SCANNED
+
+    # **Findings beat a dead corpus, and the order is deliberate.** Returning
+    # NOT_SCANNED here would file the strongest thing known about this tree under
+    # the weakest heading -- `differential_scan.py`'s ruling, for its reason. The
+    # layer report is already above, so the refusal reads as a floor rather than
+    # as the whole.
     print("\nphi-scan: refusing the commit. Standing rule 1: no PHI is ever committed.\n",
           file=sys.stderr)
     for finding in findings:

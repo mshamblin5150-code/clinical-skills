@@ -16,7 +16,7 @@ That number carries a caveat worth more than the number. **The run and the gradi
 
 **Eight of the twenty-four rows came back *neither*, not *better*** — D3, D5, R6 and R8 among them. Before the reference was read the set implied every row was a catch.
 
-**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 31 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120).
+**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 32 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120). **It read 31 of 31 until [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) added R15 on 2026-08-16**, which this run predates and is not graded against. Every scored digit is unmoved — `REPORTED` is still `13/14` — and only the denominator moved.
 
 **Output is in the main checkout's `scratch/day-a-run-2/`, not a worktree's**, which is what [#122](https://github.com/mshamblin5150-code/clinical-skills/issues/122) cost two earlier runs and what this ticket's fifth comment asked for before the run was graded. It was generated in a worktree and copied across, verified identical. `notes/` holds the eleven scored notes; `notes-branch-unstated/` holds four discarded drafts, kept because they are the evidence for the branch paragraph below.
 
@@ -105,6 +105,17 @@ These came out of the submitted notes, not from issue #1. All are drift-class.
 | R12 | 2 — 40 F | PCOS from the history reaches the note | Dropped. PMH lists only PE tubes and tonsillectomy. |
 | R13 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
 | R14 | 3, 6, 8, 10 | No **positive** tobacco or vaping status is filled where the shorthand supplies none, **and the slot is not left as a hedge** — it carries `Non-smoker` or an equivalent claim about the patient, never `tobacco status not documented` and never a blank | Asserted one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". **Recalled from the encounters, not invented**, per the clinician on 2026-08-11. *Out of reach* — right in his note, forbidden in the skill's. |
+| R15 | 6 — 37 M | **The `seasonal allergies` in the `hx:` line reaches the `Allergies (reaction)` box, named as environmental**, and the box states a drug status beside it. Routing it to `PMH/PSH` and leaving the box a bare `NKDA` fails. **And the `FILLED·asserted` line does not deny it** — `ALLERGIES NKDA filled. No allergy history was taken this visit.` fails whatever the box says, because an allergy history was taken | **Unscoreable against the reference, permanently.** A submitted note carries no tier block, so the second limb has nothing to grade; and this set's reference writes no enumerated allergy slot for the first limb to read. **Ungraded against run 2 as well** — see below. |
+
+### R15 is #96's, it is counted, and this set is one of four holding it
+
+**[Issue #96](https://github.com/mshamblin5150-code/clinical-skills/issues/96), ruled by the clinician 2026-08-16.** Case 6 is this set's only input naming an allergen, and it is the case the ruling's *worked failure* was read off — the section below records what run 2 wrote.
+
+**The row was written *from* run 2 and is not scored *against* it, and the two are easy to run together.** Run 2 predates the ruling: when it was written, [SOAP.md](../../skills/clinical-note/SOAP.md) instructed `<allergen - reaction; NKDA if none>` and nothing required the environmental allergen in the box, so a score would belong to neither commit. That is this file's own position on row 22 one section down — *"this run predates it, so nothing here is graded"* — and day-b's on B15 and B16, which came from run 3's own case 7 and are unscored for the same reason. **So `REPORTED` stays `13/14` and the run's total stays 31 of 32**: what run 2 supplied is the behavior, recorded below as a finding, and a finding a row was written from is not a verdict that row has earned.
+
+**Counted rather than binary on #29's reason exactly**, which [fixtures/README](../README.md) states as one ruling across two sets holding the same rule to different standards. #96 lands in **four**: this row, [day-b](../day-b/assertions.md) R7 on cases 2, 7 and 11, [peds-bp](../peds-bp/assertions.md) R3 on case 5 and [hedged-dx](../hedged-dx/assertions.md) R2 on case 3. **Counted for want of a run, promotable, and the four are promoted together or not at all** — the same footing R14 sits on beside day-b's R2 through R4.
+
+**The population it was ruled over is stated once, in [day-b](../day-b/assertions.md) under R6 and R7**, and deliberately not repeated here: it has already moved four times as fixture sets landed, and [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is what one such figure copied into four files becomes.
 
 ### R14's verdict stands and its reasoning was replaced, on #29
 
@@ -283,9 +294,13 @@ Both values are **given**, not filled, so no filled-vitals row reaches this. `to
 
 **This is worse than the hedge drift row 12 bans**, and that is the point worth keeping: `tobacco status not documented` is evasive, and `NKDA` beside a documented allergy is a **false statement about the record**. The note's own drift row 17 reads *twelve boxes, twelve values, no hedge among them* and is correct on every limb it checks — the row asks whether a slot is filled and not hedged, and this slot is both.
 
-**No day-a row reaches it**, and neither does `block_scan.py`, which grades where a value sits and not whether it is true. It belongs to [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96), which asks whether an environmental allergy belongs in a box where `NKDA` conventionally means no known **drug** allergy, and to [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94), whose scope paragraph sets the three seasonal-only inputs aside as already settled by #29. **Case 6 is one of those three, and the settled ruling did not produce the settled behavior** — so *settled* there should be read as *untested* until this is decided.
+**No day-a row reached it**, and neither does `block_scan.py`, which grades where a value sits and not whether it is true. It belonged to [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96), which asked whether an environmental allergy belongs in a box where `NKDA` conventionally means no known **drug** allergy, and to [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94), whose scope paragraph sets the three seasonal-only inputs aside as already settled by #29. **Case 6 is one of those three, and the settled ruling did not produce the settled behavior** — so *settled* there should have been read as *untested* until this was decided.
 
 Found by grepping the run rather than by any assertion, which is the same way the practicum site names in two tier blocks were found. Two independent sweep passes reached it separately.
+
+**#96 is ruled, 2026-08-16, and both halves of this finding fail under it — R15 is the row.** The clinician ruled that the box carries **every** allergen the shorthand names, labeled by its kind, and states a drug status besides. So case 6's box owed `NKDA` for the drug half **and** the seasonal allergy named as environmental, and routing the allergen to the PMH instead is now a defect rather than an open question. The tier block's *No allergy history was taken this visit* fails independently, on the limb #96 added to `clinical-note`'s drift row 17: **a `FILLED·asserted` line may not deny a given the note read.**
+
+**What #96 did not settle is what the *reaction* reads**, which stays #94's. Nothing about this case turns on it — the shorthand names no reaction and never did.
 
 ### The self-reports were wrong again, on four notes
 
