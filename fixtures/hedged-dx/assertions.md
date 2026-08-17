@@ -146,7 +146,7 @@ Added 2026-08-15 for [#68](https://github.com/mshamblin5150-code/clinical-skills
 
 **Case 3 reads `allergy: seasonal` — labeled *and* environmental.** Label placement puts it in the box; a drug-only reading of the box keeps it out. Every other committed input naming an allergen is either environmental-inside-`hx:` or drug-under-a-label, where the two rules agree and neither is tested. **So one input of eight decided it**, and it was put in front of the clinician as the concrete case, with this note's azithromycin beside it, on 2026-08-16.
 
-**He ruled that the box carries both, each named by its kind**, which retires the placement hypothesis rather than choosing between its outcomes. The population and the four-and-four count that killed that hypothesis are stated once in [day-b](../day-b/assertions.md) under R6 and deliberately not repeated here.
+**He ruled that the box carries both, each named by its kind**, which retires the placement hypothesis rather than choosing between its outcomes. The population and the four-and-four count that killed that hypothesis are stated once in [day-b](../day-b/assertions.md) under R6 and R7 and deliberately not repeated here.
 
 **Counted rather than binary on #29's reason**, one ruling across four sets — this row, [day-a](../day-a/assertions.md) R15, day-b R6 and [peds-bp](../peds-bp/assertions.md) R3. **Promotable, for want of a run, and the four go together.** It sits in REPORTED rather than beside the CODING and NAMING rows despite resolving to a value a reader compares, which is the same tension R2 carries in peds-bp and is recorded for the same reason.
 

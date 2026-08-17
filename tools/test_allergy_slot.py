@@ -322,7 +322,7 @@ class TheRulingIsHeldAtTheSameWidthInEverySet(unittest.TestCase):
 
     ROWS = {
         "day-a": "R15",
-        "day-b": "R6",
+        "day-b": "R7",
         "hedged-dx": "R2",
         "peds-bp": "R3",
     }
