@@ -1,11 +1,15 @@
 ---
 name: batch-shift
-description: Split one shift's worth of clinical shorthand into separate encounters and process them all in one run. Use when the user pastes a whole shift, several patients at once, or says "here's my shift", "do all of these", "batch these".
+description: Split one day file — a shift's shorthand in a single scanned document — into separate encounters and process them all in one run. Use when the clinician hands over a day file, or says "here's my shift", "do all of these", "batch these". A paste of one or two encounters is clinical-note's job, not this one.
 ---
 
-A shift dump is many **encounters** run together in one paste. The unit of work is the encounter; this skill's whole job is getting the boundaries right before any note is written.
+A **day file** is many **encounters** run together in one document — one shift's shorthand, scanned. The unit of work is the encounter; this skill's whole job is getting the boundaries right before any note is written.
 
 **A wrong boundary merges two patients.** One patient's vitals land in another's note, and the error is invisible downstream — every note reads fine. Splitting is therefore confirmed with the clinician before anything is processed, not after.
+
+**One entry point, and it is a file.** [#90](https://github.com/mshamblin5150-code/clinical-skills/issues/90) asked whether steps 1 and 2 were archaeology left over from a backlog that no longer exists — [#88](https://github.com/mshamblin5150-code/clinical-skills/issues/88) having established that the whole day-file catalog is already submitted against courses that are finished. **They are not archaeology: the clinician still scans each shift to a PDF**, so they fire on live work for the current course. Ruled 2026-08-16.
+
+**The same ruling closed the other half of the question.** A whole shift never arrives as a paste — a paste is one or two encounters, which is [clinical-note](../clinical-note/SKILL.md)'s job. So there is no second input shape to declare, and it was this skill's own `description` that was stale rather than its first two steps: it read *"Use when the user pastes a whole shift"* while the first third of the file opened a PDF.
 
 ## Steps
 
@@ -21,6 +25,8 @@ The convention is `<date> <preceptor>_<scan timestamp>.pdf`, and it varies:
 - `Notes_<timestamp>.pdf` — no date and no preceptor at all. Both must be asked for.
 
 Read both sources. A comma in the preceptor position means a **dual-preceptor day**, and the file header decides which encounters belong to which — if it does not say, that is a question for the clinician, not a guess. Preceptor attribution is what makes the hours count.
+
+**This step does two jobs, and only the first is about a file.** Everything above is read off a filename or a header. Everything below is about an **account** — who supervises, which picklist string, what to do with a name that is on neither list — and it is owed for step 6's `Preceptor` field however the shift arrived. #90 was filed on the reading that the whole step is file archaeology; the half below is not, and if steps 1 and 2 are ever moved somewhere else, **the filename half is what moves and this half stays.**
 
 Day files name preceptors by first name; Medatrax wants `Last,First` exactly.
 
@@ -54,6 +60,8 @@ if not "".join(p.get_text() for p in d).strip():
 ```
 
 140 DPI renders these legibly. A zero-length extraction is a scan, never an empty file — never report a scanned day as containing no notes.
+
+**The clinician's scanner produces a text layer today** — ruled 2026-08-16 — so the second limb increasingly describes the archive rather than the file in front of you. **Run the check anyway.** It is two lines, it costs nothing when the answer is the expected one, and the failure it prevents is the one in the sentence above. The two counts belong to the closed catalog and are [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63)'s, not this step's; nothing here rests on them.
 
 ### 3. Find the boundaries
 
@@ -114,17 +122,24 @@ Found N encounters:
 Unassigned lines: <verbatim, or "none">
 Low-confidence boundaries: <which splits you are unsure about, and why>
 Openers missing age or sex: <which encounters, and which field>
+Branch for the whole shift: <the one the clinician named, or "SOAP by default — say the word and it is an H&P">
 ```
 
 Show the first and last line of each encounter verbatim — that is what lets the clinician spot a bad boundary at a glance. Naming a low-confidence boundary explicitly is part of the output; silence there reads as certainty you do not have.
 
 **An opener that omits age or sex is reported here, not later.** It is not a boundary problem, so it does not belong on the low-confidence line, and it is not the kind of gap that survives to be filled downstream — age sets `Patient Time`, and no amount of reading the encounter recovers it. This stop is the cheapest moment it can be answered: the clinician still remembers the patient. After this, the only source left is the Medatrax record.
 
+**The branch is settled here, once, for the whole shift — and this stop is why it can be.** Step 5 says the shift takes one branch. [clinical-note](../clinical-note/SKILL.md) step 3 defaults to SOAP where nobody named one, which is right for a shift and **wrong during the first six encounters of a course**, exactly when nobody thinks to name one. Standalone, that default can only be announced after the fact. **Here it is announced before a single note is written**, on a block the run is already stopping on, so the correction costs one word instead of eleven regenerations.
+
+**So the default must not reach step 5 disguised as a choice.** Print it as a default and let the clinician overturn it on the confirm — a shift that resumes on this block has a branch the clinician has *seen*, which is the thing step 5's *the branch the user named* assumes and cannot check.
+
+**A run got this wrong and it is on the record.** `fixtures/day-a` run 2 was given the shorthand without being told which branch to take, and some of its passes chose the FNP H&P unprompted — reasoning from the first-six rule with no course context to check it against — and had to be discarded and regenerated. Nothing was wrong with their reasoning; a mixed-branch shift is simply not scoreable against a row that names one branch's fields. **The count is in [fixtures/day-a/assertions.md](../../fixtures/day-a/assertions.md) and deliberately not repeated here** — it was measured against a directory under `scratch/`, so nothing committed re-derives it, and [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is what one unre-derivable figure copied into many files becomes. #90.
+
 Resume only on the clinician's confirmation or correction.
 
 ### 5. Process each encounter
 
-Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter independently, on the branch the user named — the whole shift takes the same branch unless they say otherwise. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 fills its own from its own age — it never borrows encounter 3's.
+Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter independently, **on the branch step 4 settled** — the whole shift takes the same branch unless the clinician says otherwise. State it to every pass rather than letting each derive its own: a pass given no branch routes on the program's first-six rule with no course context to check it against, and a shift is not scoreable against a row that names one branch's fields. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 fills its own from its own age — it never borrows encounter 3's.
 
 Number the output and keep the source order.
 
@@ -185,7 +200,9 @@ The glossary candidates are the compounding part. Tokens that appeared more than
 
 **Offer a `.docx` of the shift. Produce it only when the clinician asks.**
 
-The shift is the unit that leaves the machine — a single encounter is never handed over on its own, which is why the emit lives here and [clinical-note](../clinical-note/SKILL.md) has no document branch at all.
+The shift is the unit that leaves the machine — a single encounter is never handed over on its own, which is why the emit lives here and [clinical-note](../clinical-note/SKILL.md) **never writes a document**.
+
+**That sentence used to read *"`clinical-note` has no document branch at all"*, and *branch* is the wrong word for it.** In this repo a branch is which template a note is written against — SOAP or H&P, [CONTEXT.md](../../CONTEXT.md) — and `clinical-note` has two of those. What it does not have is a `.docx` emit. The two senses sat four steps apart in this file and read as a contradiction, which [#90](https://github.com/mshamblin5150-code/clinical-skills/issues/90)'s third comment flagged.
 
 It is offered rather than produced because of what step 6 just printed. The FILLED block is generated content awaiting confirmation, and standing rule 2 puts that confirmation before submission. A document written straight off the roll-up is a document of unconfirmed content that looks finished. So the offer comes after the FLAGS, and the file comes after the clinician has read them.
 

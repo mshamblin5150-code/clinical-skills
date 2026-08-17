@@ -9,7 +9,7 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 | Skill | Read | Use when |
 | --- | --- | --- |
 | clinical-note | [skills/clinical-note/SKILL.md](skills/clinical-note/SKILL.md) | Encounter shorthand needs to become a comprehensive SOAP or an FNP H&P |
-| batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A whole shift is pasted at once and needs splitting into encounters |
+| batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A day file — one shift's shorthand, scanned — needs splitting into encounters |
 | icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
 | setup-clinical-skills | [skills/setup-clinical-skills/SKILL.md](skills/setup-clinical-skills/SKILL.md) | **Run once first.** A new clinician's portal, program, picklists and patient identity map need configuring |
 
