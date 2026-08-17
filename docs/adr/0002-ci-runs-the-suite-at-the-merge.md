@@ -21,7 +21,18 @@ A third merge (#179) had 66 tests that neither side had run, and was green — a
 
 `.github/workflows/checks.yml`, one job, `windows-latest`, Python 3.14, running the suite and `phi_scan --all`. Triggers on `push` to `main`, on `pull_request`, and on `workflow_dispatch`.
 
-**`windows-latest` because CI red must mean the maintainer's machine red.** The platform-shaped code here is Windows-shaped: the cp1252 console defect #150 exists for, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo actually executes. A Linux runner would exercise the `os.symlink` branch nobody uses. Python 3.14 for the same reason — no consumer runs these tools, so the stated 3.11 floor has nobody behind it, and matching the machine is worth more than proving a floor. *(The floor is 3.10 in any case: `int | None` is PEP 604, and there is no 3.11-or-later syntax anywhere in `tools/` — checked, not assumed.)*
+**`windows-latest` because CI red must mean the maintainer's machine red.** The platform-shaped code here is Windows-shaped: the cp1252 console defect #150 exists for, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo actually executes. A Linux runner would exercise the `os.symlink` branch nobody uses. Python 3.14 for the same reason — no consumer runs these tools, so the stated floor has nobody behind it, and matching the machine is worth more than proving a floor.
+
+**What the floor actually is, and why the first answer here was wrong.** This paragraph originally read *"the floor is 3.10 in any case: `int | None` is PEP 604, and there is no 3.11-or-later syntax anywhere in `tools/` — checked, not assumed."* The number survives and **both halves of the reasoning do not**. #86's body argued the floor from `int | None`, and that binds almost nowhere here: **29 of the 39 modules in `tools/` carry `from __future__ import annotations`**, so their annotations are strings and PEP 604 never evaluates. What actually pins 3.10 is two things neither the ticket nor the first draft of this ADR names:
+
+| | |
+| --- | --- |
+| `tools/guidelines_catalog.py:148` — `zip(COLUMNS, cells, strict=True)` | `zip(strict=)` is a **runtime API** added in 3.10, and no future import defuses a call |
+| `tools/test_console_codec.py:105` — `-> ast.If \| None` | one of the ten modules without the future import, so this one annotation really is evaluated |
+
+**And "checked, not assumed" was overstated, which is the part worth keeping.** The check was a grep for a hand-picked list of newer syntax — the same partial-instrument move [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) is about, made while writing a ticket that cites it. `ast.parse(..., feature_version=(3, 9))` parses every module here cleanly, because `int | None` in an annotation is valid *grammar* at any version and fails only at runtime, so that instrument is blind too. **The only interpreter on this machine is 3.14**, so the suite has never run on 3.10 or 3.11 and nobody has evidence that it would. The floor is inferred by static reading, and static reading has now been wrong about it twice.
+
+That does not change the ruling — a single job matching the maintainer's machine is what was decided, and an unverified floor is an argument for claiming less rather than for running more. But if the floor is ever to be a claim this repo makes, **only a job that runs on it can settle it**, and that is a second decision rather than a correction.
 
 **Both triggers, because `main` is reached two ways.** `pull_request` checks out the merge result rather than the branch head, which is the tree this ADR is about; `push` to `main` catches the local-merge-and-push route that `pull_request` never sees.
 
