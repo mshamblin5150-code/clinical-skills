@@ -181,13 +181,15 @@ The reason is that rule's reason. Two independent FILLED lines say an allergy st
 
 **Where the allergen is a given and the reaction is not, the reaction is inferred.** The clinician ruled it on 2026-08-16, [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94). The shorthand names the allergen and stops: over the **37 committed inputs**, 20 carry an allergy clause and **8 name an allergen, of which not one names a reaction** — re-derived 2026-08-16 over `git ls-files 'fixtures/*/shorthand/case-*.md'`. So the template's `allergen - reaction` shape is satisfiable from the shorthand only where the answer is `NKDA`, and until this ruling a run that found nothing to write had **no legal value at all**: the box demanded one, the grounding rule supplied none, and drift row 12 banned the hedge. **Three independent runs reached for `reaction not documented` anyway**, one of them committed at `fixtures/filled-anchor/notes/case-07.md`, which writes it six times.
 
-**The box carries a reaction, reasoned the way every filled value here is** — the one this patient most plausibly had, from the drug class and what the encounter supplies, never a bland pick. `Levofloxacin (Levaquin) - rash`. **The note body says nothing about where it came from**: drift row 12 bans every tier word from the note, and the tier block is the audit trail that travels beside it.
+**The box carries a reaction, reasoned the way every filled value here is** — the one this patient most plausibly had, from the drug class and what the encounter supplies, never a bland pick. `Penicillin - rash`. **The note body says nothing about where it came from**: drift row 12 bans every tier word from the note, and the tier block is the audit trail that travels beside it.
 
 ```
-FILLED·asserted   ALLERGIES levofloxacin reaction rash filled; no reaction was
-                  elicited this visit, and the Plan's Bactrim DS does not rest
-                  on it.
+FILLED·asserted   ALLERGIES penicillin reaction rash filled; no reaction was
+                  elicited this visit, and the Plan's cephalexin is proposed on
+                  the allergen rather than on the reaction.
 ```
+
+**The worked example is deliberately an allergen no committed fixture names**, and the first draft of this section was not — it used a drug allergen and the plan drug from one `day-b` case, which is the pair `fixtures/day-b` R6 grades. That is [#147](https://github.com/mshamblin5150-code/clinical-skills/issues/147)'s subject arriving a third time, and worse than the two instances that ticket names: **this file is the one every generating pass is required to read**, so a run scoring R6 would have read the answer to its own row here. Caught in review, the same way [#65](https://github.com/mshamblin5150-code/clinical-skills/issues/65)'s was. **#147 is still undecided and this is not a ruling on it** — it is the one position all three of its candidates agree on.
 
 **This does not make the reaction a fourth member of the filled-vital class.** It is licensed by the two-part test at the top of this section, which the allergy box already passes as a whole — a box demands a value, and the shorthand constrains none.
 
@@ -199,9 +201,17 @@ FILLED·asserted   ALLERGIES levofloxacin reaction rash filled; no reaction was
 | --- | --- | --- |
 | Drug | `Z88.0`–`Z88.9`, keyed on drug class | **No** — `Z88` carries no reaction axis |
 | Food | `Z91.01-` status **or** `T78.0-` anaphylactic reaction | **Yes, and the reaction picks which** |
-| Environmental | `J30.1`, `J30.2`, `J30.81` — a disease, not a status | **Yes** — the descriptor is the reaction |
+| Environmental | usually `J30.1`, `J30.2`, `J30.81` — a disease | **Usually** — `J30`'s descriptor is the reaction |
 
-So a **drug or food** allergen with no documented reaction always takes the disclosure, and an **environmental** one takes it only where knowing the reaction would change what the Plan does. The middle row is the one neither the ticket nor its eight comments had: for food the reaction does not refine a code, it **chooses the code family**. **Of the 8 committed inputs naming an allergen, 4 name a drug, 4 name only an environmental one, and none names a food** — so the food row is a corpus concern rather than a fixture one, and [#78](https://github.com/mshamblin5150-code/clinical-skills/issues/78)'s kind split counts 4 of 173 across 551 encounters.
+So a **drug or food** allergen with no documented reaction always takes the disclosure, and an **environmental** one takes it only where knowing the reaction would change what the Plan does. The middle row is the one neither the ticket nor its eight comments had: for food the reaction does not refine a code, it **chooses the code family**.
+
+**The third row says *usually* rather than *always*, and the qualifier is load-bearing rather than cautious.** `Z91.09` and `Z91.048` are billable allergy **status** codes for non-drug allergens and neither carries a reaction axis, so an environmental allergen coded as a status is in `Z88`'s position and not `J30`'s. **That is why the row is on the management test rather than excluded from the floor**: the floor is for the categories where the reaction is always owed, and environmental is the one where it depends. This paragraph read *a disease, not a status* and was over-stated — caught in review against the same `--find "allergy status"` output the section cites.
+
+**Of the 8 committed inputs naming an allergen, 4 name a drug and 4 name an environmental one**, and [#78](https://github.com/mshamblin5150-code/clinical-skills/issues/78)'s kind split counts 4 food in 173 across 551 encounters — so the food row is a corpus concern rather than a fixture one. **The nearest thing to a food case is not one**: `peds-bp` case 5 carries a lactose intolerance beside its seasonal allergy, and an intolerance is an enzyme deficiency rather than an allergy, so it names no food *allergen* and `Z91.01` is not its code. **Whether it reaches this box at all is [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96)'s**, which names that case, and nothing here rules on it.
+
+**No GAPS entry, and that is a ruling rather than an omission.** The clinician was offered a variant that filed the missing reaction under GAPS as well and did not take it. A reaction written into the box is **supplied**, so there is nothing absent for the block to hold — *What never goes under GAPS* already covers the whole slot and now covers the sub-field for the same reason. A run writing `GAPS penicillin reaction not documented` has not found a gap; it has failed to fill a box, and drift row 17 is what catches it.
+
+**Which allergens reach this box is not settled here.** The rule is category-neutral by construction — whatever allergen the box carries, a reaction absent from the shorthand is inferred — and #96 is where the prior question lives. The four environmental inputs therefore take an inferred reaction like any other, which for a seasonal allergy is the grounded one #29 blessed: itching and sneezing are what seasonal allergies do.
 
 **What this narrows is stated where the absolute is**, under *Filled vitals, body measurements and the pain score*: that section closed its class test with *no exam finding, symptom or result will ever pass them*, and **a drug reaction is a finding, so the sentence forbade this ruling as written.** A file carrying both would contradict itself on two pages that each read as coherent alone, which is the defect [#90](https://github.com/mshamblin5150-code/clinical-skills/issues/90) exists over.
 
