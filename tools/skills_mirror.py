@@ -76,6 +76,7 @@ def repo_root(start: Path | None = None) -> Path:
         out = subprocess.run(
             ["git", "-C", str(here), "rev-parse", "--show-toplevel"],
             capture_output=True, text=True, check=True,
+            encoding="utf-8", errors="replace",
         )
         return Path(out.stdout.strip()).resolve()
     except (OSError, subprocess.CalledProcessError):
@@ -192,6 +193,7 @@ def link(mirror_entry: Path, canonical: Path) -> None:
         subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(mirror_entry), str(canonical)],
             check=True, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
         )
     else:
         os.symlink(canonical, mirror_entry, target_is_directory=True)

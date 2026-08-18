@@ -12,6 +12,7 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 | batch-shift | [skills/batch-shift/SKILL.md](skills/batch-shift/SKILL.md) | A day file — one shift's shorthand, scanned — needs splitting into encounters |
 | icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
 | setup-clinical-skills | [skills/setup-clinical-skills/SKILL.md](skills/setup-clinical-skills/SKILL.md) | **Run once first.** A new clinician's portal, program, picklists and patient identity map need configuring |
+| practicum-case-study | [skills/practicum-case-study/SKILL.md](skills/practicum-case-study/SKILL.md) | A graded course case study needs writing up from faculty material, and submitting as a `.docx` |
 
 <!-- Additional skills are appended here as they are written. -->
 

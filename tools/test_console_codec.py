@@ -196,5 +196,78 @@ class EveryToolTakesIt(unittest.TestCase):
                 )
 
 
+class TheOtherEndOfTheSameBoundary(unittest.TestCase):
+    """#150 fixed the process's **output** codec. This is its **input** twin.
+
+    ``use_utf8`` reconfigures ``sys.stdout``. It does nothing about a subprocess
+    whose output *this* process decodes -- and ``subprocess.run(..., text=True)``
+    with no ``encoding`` decodes with the **locale** codec, which on this machine
+    is cp1252. So a tool reading ``git`` output crashes on any byte cp1252 has no
+    mapping for, and 0x81 is the second byte of a Cyrillic small letter es in
+    UTF-8.
+
+    **That is not hypothetical and it is how this test came to exist.** A
+    ``CLAUDE.md`` paragraph *documenting* ``docx_read.py``'s homoglyph map -- which
+    has to contain the homoglyphs to describe them -- was staged, and
+    ``spelling_scan``'s pre-commit run died in ``staged_additions``:
+    ``'NoneType' object has no attribute 'splitlines'``, on a ``_git`` that had
+    already raised ``UnicodeDecodeError`` in a reader thread. **The commit went
+    through**, because ``spelling_scan`` is advisory and the hook ORs it away, so
+    an advisory check that crashed was indistinguishable from one that passed.
+    Describing the rule is what broke the tool that checks the rule, which is
+    ``differential_scan``'s #153 arriving on a different module.
+
+    ``phi_scan._git`` had it right and the other three did not, so this is a
+    mechanism rather than a habit -- the same argument as the class above.
+    """
+
+    def decoding_calls(self):
+        """Every ``subprocess`` call in ``tools/`` that decodes bytes to text."""
+        for path in sorted(TOOLS.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+                if name not in ("run", "check_output", "Popen"):
+                    continue
+                keywords = {k.arg for k in node.keywords}
+                decodes = (
+                    "text" in keywords
+                    or "universal_newlines" in keywords
+                    or name == "check_output"
+                )
+                if decodes:
+                    yield path.name, node.lineno, keywords
+
+    def test_the_repo_still_has_decoding_calls_to_check(self):
+        """A vacuous pass is the failure mode this whole file exists to avoid."""
+        self.assertGreaterEqual(len(list(self.decoding_calls())), 4)
+
+    def test_every_decoding_call_names_its_encoding(self):
+        naked = [
+            f"{name}:{line}"
+            for name, line, keywords in self.decoding_calls()
+            if "encoding" not in keywords
+        ]
+        self.assertEqual(
+            naked, [],
+            "subprocess output decoded with the locale codec, not UTF-8: "
+            + ", ".join(naked),
+        )
+
+    def test_every_decoding_call_survives_an_undecodable_byte(self):
+        """``errors`` too, on ``use_utf8``'s reasoning: never raise, degrade."""
+        lax = [
+            f"{name}:{line}"
+            for name, line, keywords in self.decoding_calls()
+            if "errors" not in keywords
+        ]
+        self.assertEqual(
+            lax, [],
+            "decodes as UTF-8 but still raises on a stray byte: " + ", ".join(lax),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
