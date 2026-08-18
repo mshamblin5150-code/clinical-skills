@@ -570,6 +570,42 @@ class TheRulingCohortIsClosed(unittest.TestCase):
             "the never-discharge limb is the one clause the ruling rests on",
         )
 
+    def test_the_split_or_clarify_check_is_recorded(self) -> None:
+        """A promotion that skipped the check reads exactly like one that passed it.
+
+        ``fixtures/README`` -- from #79's branch, where the promotion policy is
+        written -- requires that *a row asking two things is split or clarified
+        before it is promoted, never promoted whole and read down later.* #56 is
+        the worked instance, and the failure it names is a bar meaning less than
+        it reads. **The check leaves no trace in the promoted row**, so nothing
+        but a recorded outcome distinguishes a row that was examined from one
+        that was waved through -- which is why this pins the record rather than
+        the row.
+        """
+        text = self.day_b()
+        self.assertIn(
+            "split or clarified before it is promoted",
+            text,
+            "the criterion the promotion was checked against is not quoted",
+        )
+        self.assertRegex(
+            text,
+            rf"\| R6 . {self.SUCCESSOR} \|",
+            "no split-or-clarify outcome is recorded for the promoted row",
+        )
+
+    def test_the_promoted_row_leaves_later_reported_denominators(self) -> None:
+        """A rule graded twice under one fraction is a fraction nobody can read.
+
+        The historical fractions are the other half and are pinned above: run
+        3's ``REPORTED 1/4`` still means the four rows it meant in 2026-08-12.
+        """
+        self.assertRegex(
+            self.day_b(),
+            r"Seven rows, six of them live",
+            "REPORTED still counts the promoted row in its live denominator",
+        )
+
     def test_the_last_complete_run_fraction_is_untouched(self) -> None:
         """A targeted score is not a run, and folding it in would redate one.
 
