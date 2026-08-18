@@ -33,6 +33,7 @@ the prose around them stays free.
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -47,6 +48,30 @@ BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def names_the_same_field(claimed: str, field: str) -> bool:
+    """Does a phrase from ``setup``'s per-account sentence name a declared field?
+
+    The two files write one field differently on purpose: ``setup`` pluralizes
+    (*case types*) and qualifies (*Patient Time bands*) in running prose, while
+    the reference uses the bare dropdown label. So the comparison strips one
+    trailing ``s`` and matches **in both directions** -- a one-way containment
+    test read *Patient Time bands* correctly and would have missed a bare
+    *case*, which the spec axis of #222's review found by trying it.
+
+    Deliberately blunt, and it can only ever produce a **false alarm**: two
+    documents disagreeing about one field, reported for a person to settle. That
+    is the safe direction here, and the alternative is the name vocabulary
+    [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)
+    declined to build.
+    """
+    def norm(value: str) -> str:
+        value = value.strip().lower()
+        return value[:-1] if value.endswith("s") else value
+
+    a, b = norm(claimed), norm(field)
+    return a == b or a in b or b in a
 
 
 def frontmatter_description(path: Path) -> str:
@@ -277,6 +302,164 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         self.assertIn(
             "keys on a preceptor or a site is per-account", read(SETUP)
         )
+
+
+class TheReferenceDeclaresWhichFieldsItHoldsValuesFor(unittest.TestCase):
+    """#222's ruling of 2026-08-18: a declared inventory, and it states its own gap.
+
+    #212 emptied the per-account picklists out of the reference and left nothing
+    that would notice a new one arriving. The ticket offered three ways to fix
+    that and the clinician took the middle one: **the reference names, once, the
+    exact set of fields it holds values for**, and this class asserts the file
+    holds values for exactly those and no others. So a ninth picklist cannot land
+    quietly -- it forces a one-line diff in a sentence whose entire subject is
+    *is this universal?*, which is a better review surface than the whole file.
+
+    **What it reaches is a field label; what it cannot reach is a value, and the
+    reference says so beside the inventory.** The preceptor and site lists were
+    fenced values under a bold label, so they are reachable wherever in the file
+    they land. A site name appended to the ``Case Type`` list is not, and neither
+    was the ``Primary Payment Method`` rule -- a **pipe table keyed on site
+    names** under a different heading. No structural test tells one site name
+    from one payer string without exactly the vocabulary
+    [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)
+    declined to build and #212 re-ruled. **A green run here is not a walked
+    file**, which is ``differential_scan.py``'s *a clean scan is not a walked
+    row* arriving on a document instead of a run.
+
+    **The decision 2 the ticket proposed was weaker than this and would have
+    caught neither defect.** It asked the reference to declare an allow-list of
+    *headings* it owns -- and both defects arrived under headings the reference
+    legitimately owns, the picklists under *Picklists* and the payer table under
+    *Field selection rules*. The unit had to drop to the field for the check to
+    have any grip at all. Re-derived from ``c588e2f`` rather than taken from the
+    ticket body.
+
+    **The inventory names fields, never values**, so nothing here puts an account
+    back in the tree that ``ThePerAccountPicklistsAreNotInTheReference`` above
+    just emptied.
+    """
+
+    #: The inventory sentence's opener. Held once because the parse and the
+    #: presence check must key on the same string, and two copies is how they
+    #: drift apart.
+    INVENTORY_OPENER = "**This file holds values for exactly these fields"
+
+    def declared_fields(self):
+        for line in read(MEDATRAX).splitlines():
+            if line.startswith(self.INVENTORY_OPENER):
+                _, _, tail = line.partition(":**")
+                return [part.strip() for part in tail.split("·") if part.strip()]
+        raise AssertionError(
+            "reference/medatrax-fields.md declares no field inventory under Picklists"
+        )
+
+    def labeled_fields(self):
+        """Every ``**Field:**`` line opener in the file, bar the inventory itself.
+
+        A value line is bold, colon-terminated **inside** the bold span, and at
+        the start of its line. The pointer paragraph -- *Preceptor and Location /
+        Site are per-account* -- and the override sweep both end their bold span
+        with a period rather than a colon, so neither is read as a field. Checked
+        against the real file rather than assumed.
+
+        **The whole file, and a first version of this read one section.** The
+        ticket's hole is a per-account value arriving *under some other heading*,
+        so a bounded read answers a narrower question than the one asked -- and
+        worse, it was escapable by adding a heading, since the terminator matched
+        ``###`` as well as ``##``. The paragraph fenced off behind such a heading
+        is reworded now instead. Found by the spec axis of the review.
+
+        **Prose that does open that way is read as a field, and the reference says
+        so beside the inventory.** The paragraph naming what this check cannot
+        reach tripped it while being written, which is ``differential_scan``'s
+        *describing the rule broke the tool that checks the rule* arriving a third
+        time. The parse stays blunt anyway: telling a label from a sentence is a
+        judgment, and a judgment is the seam a ninth picklist would come through.
+        """
+        found = []
+        for line in read(MEDATRAX).splitlines():
+            if line.startswith(self.INVENTORY_OPENER):
+                continue
+            match = re.match(r"\*\*([^*]+):\*\*", line)
+            if match:
+                found.append(match.group(1).strip())
+        return found
+
+    def test_the_inventory_and_the_value_lines_agree(self):
+        declared = self.declared_fields()
+        labeled = self.labeled_fields()
+        self.assertEqual(
+            len(set(declared)), len(declared), "the inventory names a field twice"
+        )
+        undeclared = sorted(set(labeled) - set(declared))
+        self.assertEqual(
+            undeclared,
+            [],
+            "reference/medatrax-fields.md holds values for a field its inventory "
+            "does not declare. Add it to the inventory sentence if it really is a "
+            "Medatrax dropdown every account renders; move it to "
+            "scratch/medatrax-profile.md if it is one account's; or reword it if "
+            "it is prose that opened with a bold span ending in a colon, which is "
+            f"the field-label form and cannot be told apart from one: {undeclared}",
+        )
+        stale = sorted(set(declared) - set(labeled))
+        self.assertEqual(
+            stale,
+            [],
+            f"the inventory declares a field the file no longer holds values for: {stale}",
+        )
+
+    def test_the_inventory_states_the_shape_it_cannot_reach(self):
+        # **The load-bearing half of the ruling.** A gate that reaches one of two
+        # shapes and does not say so reads as coverage it does not have, which is
+        # the failure this repo names in every scanner it ships. Asserting the
+        # sentence is what stops a tidy quietly upgrading the claim.
+        text = read(MEDATRAX)
+        self.assertIn("does not reach", text)
+        self.assertIn("keyed on a site", text)
+
+    def test_setup_does_not_call_an_inventoried_field_per_account(self):
+        """The cross-file half, and the defect that was live when #222 was built.
+
+        ``setup-clinical-skills`` step 4 read *Preceptors, sites, case types and
+        Patient Time bands are per-account picklists* while the reference held
+        Case Type's values and the Patient Time bands as universal. Both
+        files read as coherent alone, which is this module's whole subject, and
+        no assertion in the class above could see it. The clinician ruled
+        2026-08-18 that the reference is right: Medatrax renders the same two
+        dropdowns on every account, and what varies is the program's hour
+        breakdown across the bands -- a different fact, in a different file.
+        """
+        sentences = [
+            line for line in read(SETUP).splitlines()
+            if "are per-account picklists" in line
+        ]
+        # **Every such line, not exactly one.** Requiring a single line would
+        # report a rewrite of step 4 into two sentences as a contradiction, which
+        # is the failure this module's own docstring rules against -- *a test
+        # asserting a paragraph verbatim fails on every rewrite and teaches the
+        # next session to delete it*. Caught by the standards axis of the review.
+        self.assertTrue(
+            sentences,
+            "setup-clinical-skills no longer names which picklists are per-account",
+        )
+        for sentence in sentences:
+            head = sentence.split("are per-account picklists")[0]
+            claimed = [
+                part.strip(" *`")
+                for chunk in head.split(",")
+                for part in chunk.split(" and ")
+                if part.strip(" *`")
+            ]
+            for item in claimed:
+                for field in self.declared_fields():
+                    self.assertFalse(
+                        names_the_same_field(item, field),
+                        f"setup-clinical-skills calls {item!r} per-account while "
+                        "reference/medatrax-fields.md holds its values as universal. "
+                        "One of the two files is wrong",
+                    )
 
 
 if __name__ == "__main__":
