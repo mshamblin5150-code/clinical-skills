@@ -102,12 +102,13 @@ ordering rather than on citation hygiene.
 
 **It is a claim about where the length goes and not about what may be left broken.** This paragraph
 used to add that *a grader who docks only clinical decisions and never formatting is not deviating
-from the rubric*, which was true of the three deductions observed and was being read as a license
-to skip the reference walk. **Ruled 2026-08-18 on
+from the rubric*, which was true of every deduction the corpus records and was being read as a
+license to skip the reference walk. **Ruled 2026-08-18 on
 [#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211)** — the walk runs on every
 document and its findings get fixed rather than handed back. [apa7.md](apa7.md) is the rule it runs
-against. **Three deductions is also a thin basis for a claim about the grader**, and the published
-weighting above supports the same emphasis without needing one.
+against. **That evidence is also a thin basis for a claim about the grader** — it is three data points,
+counted once in [style.md](style.md) §9 and deliberately not restated here — **and the published
+weighting above supports the same emphasis without needing it.**
 
 **Preventive Care and Health Promotion is 5 points that a focused acute case makes easy to
 forget.** `reference/guidelines-uspstf.md` in this repo holds 143 USPSTF recommendation statements

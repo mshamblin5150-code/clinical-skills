@@ -85,8 +85,8 @@ bottom of [reference/rubric.md](reference/rubric.md) and this skill does not wri
 [reference/style.md](reference/style.md) holds the house style, derived from ten graded and
 returned submissions. It is the authority on voice, on section shapes and on the normalizations.
 [reference/apa7.md](reference/apa7.md) is the authority on the reference list.
-**Every section below is written, every time** — see *Three modes* under it. The skeleton, in
-order:
+**Every section below is written, every time** — see *Three modes, and none of them subtracts a
+section* under it. The skeleton, in order:
 
 1. **Sanity Check** — four confirmations then a closer. Always first, before any clinical content.
 2. **Intake block** — the faculty material, transcribed and cleaned, never invented.
@@ -113,6 +113,8 @@ Bullets destroy that, and the corpus's own worst list mixes both markers in one 
 
 Everything else stays as it is: the intake block is a table, the Assessment runs as prose, and the
 prescriptions are tables.
+
+### Three modes, and none of them subtracts a section
 
 **The skeleton is written in full, every time. Ruled 2026-08-18, reversing what this file used to
 say.** Where the faculty pose explicit questions, they are answered **in addition to** the
@@ -330,6 +332,13 @@ should be fixed to one form:
 **Abbreviations are free in the Plan and the MDM** — `s/p`, `f/u`, `RTC`, `DC` — and **never
 appear in Patient Education**, which is spoken to the patient.
 
+**Never write a `Case ID:` line. Ruled 2026-08-18.** It appears above the references in exactly one
+submission in the corpus and nowhere else, nothing in the spec asks for it, and its absence has
+never been docked. **The risk runs the other way**: a run that derived a case number from the module number
+would be writing a wrong identifier onto a graded paper, which is worse than the field being
+missing. The skeleton above has no such item, and this sentence is here so that omission reads as a
+decision rather than an oversight.
+
 ## Steps
 
 ### 1. Read the faculty material
@@ -380,22 +389,19 @@ the numbers out and ends `for <indication>`. Held orders say so in the drug row.
 **Then a short prose block under each table**, carrying the five fields the spec's Pharmacologic
 Therapy component names and the table does not: **drug class, contraindications, monitoring,
 adverse effects, and the guideline that supports the choice**. One paragraph, not a second table.
+**Ruled 2026-08-18.** The shape and the worked example are in
+[reference/style.md](reference/style.md) §8, which is the authority on section shapes and the one
+place they are written.
 
-> Third-generation cephalosporin. Contraindicated in anaphylaxis to cephalosporins or a severe
-> penicillin reaction. Monitor the injection site and observe for hypersensitivity over the
-> following 30 minutes. Adverse effects are injection-site pain, diarrhea and rash. First-line for
-> this indication in the CDC STI Treatment Guidelines (Workowski et al., 2021).
+**Why prose rather than more rows.** The spec asks eleven fields per medication and the table
+carries six, so something had to give. Eleven rows stops it looking like a prescription; nowhere
+leaves a scored component answered only by accident, in whatever the Patient Education happened to
+say. **The table is where the order belongs and the prose is where graded reasoning belongs**, and
+the guideline citation in that block is the cheapest *Integration of Evidence-Based Guidelines*
+point in the document.
 
-**Ruled 2026-08-18: the table keeps its six rows and the five fields go underneath it.** The spec
-asks for all eleven fields per medication and the corpus's table carries six, so something had to
-give. Putting them in the table would make it eleven rows and stop it looking like a prescription;
-putting them nowhere leaves a scored component answered only by accident, in whatever the Patient
-Education happened to say. **The prose block is where graded reasoning belongs and the table is
-where the order belongs**, and the guideline citation in that block is the cheapest
-*Integration of Evidence-Based Guidelines* point in the document.
-
-**Omitting them has never cost a point across ten submissions, which is not the same as being
-safe** — it is the Q&A finding again, one section down. See *Three modes* above.
+**Omitting them has never cost a point, which is not the same as being safe** — it is the mode
+finding again, one section down. See *Three modes, and none of them subtracts a section* above.
 
 ### 6. Fix the references
 

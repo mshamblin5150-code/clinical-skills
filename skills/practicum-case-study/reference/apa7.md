@@ -10,6 +10,11 @@ that date, not recalled. A rule this sheet does not cover is looked up the same 
 is looked up, never recalled**, which is [SKILL.md](../SKILL.md)'s anchor discipline arriving at
 the reference list.
 
+**The *Publication Manual* section numbers are what those pages cite, and are not themselves
+checked here** — the manual is not in this repo and cannot be. They are a pointer for anyone who
+holds a copy, and the claim being made is only that the site said so on the date above. Treating
+them as verified would be the thing this sheet exists to stop.
+
 **What this sheet is for.** *APA Format and Scholarly Writing* is 5 of the 100 points, and
 [SKILL.md](../SKILL.md) requires the reference walk in step 6 to run on every document. That
 instruction needs a written rule behind it, or *"fix the reference list"* is a wish rather than a
@@ -26,6 +31,8 @@ differential is very important, but that shouldn't take the place of tidiness.*
 - The label is **`References`**, **bold and centered**. Never `Works Cited`, `Bibliography` or
   `Reference List`. Where the list holds exactly one entry the singular **`Reference`** is
   permitted — which the corpus needs, since one submission scored full marks on a single source.
+  **Do not take that permission here yet**: the renderer keys the hanging indent on the plural and
+  silently drops it on the singular. See §6.
 - Each entry is **one paragraph, flush left**, with a **0.5 inch hanging indent applied to the
   whole list**.
 - **Double spaced throughout, with no extra space between entries.**
@@ -100,7 +107,7 @@ here**, and it is ordinary rather than exotic.
 inherently designed to change over time, **and** an unarchived version of it is what is being
 cited.
 
-- **UpToDate always takes one** — APA says so on the page quoted in §2.
+- **UpToDate always takes one** — the APA Style page reproduced in §2 states it outright.
 - A society guideline PDF, a journal article, a USPSTF statement and a textbook **do not**. Adding
   one there is a defect in the other direction, and a run that puts retrieval dates on everything
   is wrong on most of the list.
@@ -133,11 +140,24 @@ and the references of a meta-analysis.
 | No extra space between entries | applied |
 | `References` heading **bold** | applied |
 | `References` heading **centered** | **not applied** — it renders flush left |
+| `References` heading at **body size**, 12 pt | **not applied** — H1 renders 14 pt, H2 13 pt |
 | Reference list **starts on a new page** | **not applied** — no page break is emitted |
 | **Page numbers**, top right of every page | **not applied** — the document carries no header part |
+| The singular **`Reference`** heading gets the hanging indent | **not applied** — see below |
 
-**Those three are worth a point between them at most, and they are still real.** They are recorded
-here and filed rather than fixed, because they are renderer behavior rather than a rule about what
-this skill writes — [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217).
+**Every row above was measured by rendering a document and reading the XML, not inferred from the
+source.** 2026-08-18.
+
+**The last row is a gap this sheet created, which is why it is named rather than left for someone
+to trip over.** `docx_write.py` decides a paragraph is a reference by matching `references\b`
+against the heading, so it matches `References` and **does not match the singular `Reference`** —
+and §1 above is what blesses the singular for a one-entry list. So taking §1's permission silently
+loses the hanging indent on the only kind of list small enough for a reader to notice. **Until
+[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) lands, write
+`References` even for a single entry**, and take the plural over the indent.
+
+**None of these is worth more than a point, and they are still real.** They are recorded here and
+filed rather than fixed, because they are renderer behavior rather than a rule about what this
+skill writes — [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217).
 **A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 8's
 sentence arriving one level down.

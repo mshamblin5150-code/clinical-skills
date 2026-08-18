@@ -198,7 +198,43 @@ points, because it was listed eleventh of thirteen and appendicitis was named mo
 
 Against that: one submission scored full marks with a single reference, no plan, no prescriptions,
 no differential list and no signature. It answered the four questions the faculty asked and nothing
-else. **Completeness is not what is being rewarded. Judgment is.**
+else.
+
+**The conclusion drawn from that here used to be *"Completeness is not what is being rewarded.
+Judgment is."* It is withdrawn, and the sentence it justified is reversed.** Ruled 2026-08-18 —
+every skeleton section is written every time, and faculty questions are answered in addition to it
+rather than instead of it. **What the submission proves is that the omission was survivable on one
+occasion, not that it was rewarded**; the rubric scores ten criteria and four faculty questions
+need not touch all ten, so the sections it dropped were points nobody checked rather than points
+nobody wanted. See *Three modes, and none of them subtracts a section* in [SKILL.md](../SKILL.md),
+and the rulings block at the foot of this file.
+
+**Judgment being what earns the marks is still true, and it was never the same claim.** It is why
+the three deductions are all clinical and why ordering is graded — it is not a reason to hand in
+fewer sections.
+
+## 9a. Faculty Questions — the section the mode ruling created
+
+**New 2026-08-18 and it has no corpus precedent, which is the point.** The two submissions that
+answered faculty questions did so *instead of* the workup; this section is what answering them
+*alongside* it looks like, so there is no submitted example to derive a shape from and the shape
+below is a ruling rather than a description.
+
+- **Sits after `Signed by:` is wrong — it sits before it**, at skeleton position 10, so the
+  signature stays the last thing before the references.
+- **Present only where the faculty material poses explicit questions.** No questions, no heading.
+- **Each question is restated verbatim, then answered underneath in prose.** Restated because a
+  grader reading for *"did they answer what was asked"* should not have to hold the question sheet
+  beside the paper.
+- **Numbered, matching the faculty's own numbering** where they numbered them.
+- **An answer may point at a section rather than repeat it** — *"Covered in the differential above;
+  the short answer is ectopic pregnancy first, for the reason in MDM entry 1."* The sections are
+  already written, and restating them wholesale is what made the replacement mode attractive in the
+  first place.
+
+**A question the skeleton already answers still gets an entry here.** The section exists so that
+every item on the faculty's own list can be pointed at, which is [SKILL.md](../SKILL.md) step 8's
+first check.
 
 ## 10. References — APA 7
 
@@ -272,7 +308,8 @@ than the question.
 and faculty questions are answered in addition to it. **This reverses what
 [SKILL.md](../SKILL.md) shipped saying.** The evidence for replacing was two full-marks submissions
 that did it — real, and not enough, because the rubric scores ten criteria and a set of faculty
-questions need not touch all ten. The reasoning is in [SKILL.md](../SKILL.md) under *Three modes*.
+questions need not touch all ten. The reasoning is in [SKILL.md](../SKILL.md) under *Three modes,
+and none of them subtracts a section*.
 
 **2. The `a`/`b` disambiguation, the retrieval dates and the rest of the reference walk are not
 optional, and their findings are not handed back.** His words: *ordering the differential is very
