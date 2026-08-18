@@ -16,7 +16,7 @@ That number carries a caveat worth more than the number. **The run and the gradi
 
 **Eight of the twenty-four rows came back *neither*, not *better*** — D3, D5, R6 and R8 among them. Before the reference was read the set implied every row was a catch.
 
-**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 32 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120). **It read 31 of 31 until [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) added R15 on 2026-08-16**, which this run predates and is not graded against. Every scored digit is unmoved — `REPORTED` is still `13/14` — and only the denominator moved.
+**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 32 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120). **It read 31 of 31 until [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) added R15 on 2026-08-16**, which this run predates and is not graded against. Every scored digit is unmoved — `REPORTED` is still `13/14` — and only the denominator moved. **Then [#79](https://github.com/mshamblin5150-code/clinical-skills/issues/79) appended A1 on 2026-08-18 and the set now holds 33**, which this run also predates as a *row* and does not as a *verdict*: A1 carries run 2's own reading of R14 across, so the row is scored and the run's fraction is untouched. See *A1 is #29's ruling cohort, promoted* above.
 
 **Output is in the main checkout's `scratch/day-a-run-2/`, not a worktree's**, which is what [#122](https://github.com/mshamblin5150-code/clinical-skills/issues/122) cost two earlier runs and what this ticket's fifth comment asked for before the run was graded. It was generated in a worktree and copied across, verified identical. `notes/` holds the eleven scored notes; `notes-branch-unstated/` holds four discarded drafts, kept because they are the evidence for the branch paragraph below.
 
@@ -80,6 +80,34 @@ Issue #1 named five defects. These are six, because its fifth bullet — "BP 151
 
 **Two of these six were wrong before the reference was read.** D3 and D5 both asserted the original had abandoned a finding it had in fact carried into the Assessment and the Plan. Both were written from the skill's own prior output, which is exactly the failure `fixtures/README` warns about — and the reason it is worth saying plainly is that a set claiming credit for catching what the clinician already caught is not measuring anything. D4 and D6 needed narrowing for the same reason. Only D1 and D2 survived unchanged.
 
+## FILLED — binary, all must pass
+
+**One row, and this set had no binary class but DRIFT until 2026-08-18.** [fixtures/README](../README.md) already said a set with complete vitals throughout is no longer a set with no FILLED row to write — the class's subject is *what the skill does with a value the shorthand never supplied*, and a social-history slot is exactly that whether or not the vitals came in. A1 is the first, and it arrived by promotion rather than by being written.
+
+**It is `A`-prefixed because the letters this set already uses are taken** — `D` for DRIFT, `R` for REPORTED, `F` for the block-structure rows — and because a set names its own rows after itself, the way `day-b` uses `B` and `peds-bp` uses `P`. **Appending a class rather than borrowing a neighbor's letter is what keeps a citation to `F3` pointing at `F3`.**
+
+| # | Cases | Passes when | Fails when | Reference did |
+| --- | --- | --- | --- | --- |
+| A1 | 3, 6, 8, 10 | No **positive** tobacco or vaping status is filled where the shorthand supplies none, **and the slot is not left as a hedge** — it carries `Non-smoker` or an equivalent claim about the patient | A positive status is filled into a silent slot — `vapes occasionally`, `former smoker`, `smokes 0.5 PPD` — or the slot reads `tobacco status not documented`, any equivalent hedge, or a blank | R14's cell, unchanged. Asserted one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". **Recalled from the encounters, not invented**, per the clinician on 2026-08-11. *Out of reach* — right in his note, forbidden in the skill's. |
+
+### A1 is #29's ruling cohort, promoted, and R14 is its history
+
+[Issue #79](https://github.com/mshamblin5150-code/clinical-skills/issues/79) settled the promotion lifecycle and [fixtures/README](../README.md) now carries it: **one clinician ruling makes one ruling cohort, and a cohort promotes when every member holds a valid score — a fail exactly as much as a pass.** The reasoning and the four alternatives that lost are in [ADR 0003](../../docs/adr/0003-a-ruling-cohort-promotes-when-fully-scored.md).
+
+**#29's ruling cohort is five rows across two sets** — R14 here, and [day-b](../day-b/assertions.md) R1 through R4 — promoted together on 2026-08-18. That is this file's own *promote them together or not at all*, and day-b's, honored in one commit rather than deferred a third time.
+
+| Successor | History | First verdict | The output it was read from |
+| --- | --- | --- | --- |
+| A1 | R14 | **PASS** | Run 2, base commit `184462d`, 2026-08-16. Four for four — the per-case readings are in *R14, the row this run was owed for* below, and the qualification beside them is the section after it. |
+
+**Nothing was re-run and nothing was re-measured.** The verdict is run 2's, carried across. Run 2 was separated — eleven generating passes with this file withheld, eight graders, an orchestrating pass that authored no note — so that separation is inherited rather than re-earned.
+
+**The qualification below travels with the verdict and does not block the promotion**, which is worth saying plainly because #79's own thread raised it. `skills/clinical-note/SKILL.md` names this row by ID and prints three of its four defect strings, so the 4/4 says the skill follows a rule written into the skill rather than that it reaches the answer with the rule absent. **That is a limit on what the pass is evidence of, not on whether it is a score** — a valid score is a pass or a fail read from output produced while the rule was in force, and this is one. [#147](https://github.com/mshamblin5150-code/clinical-skills/issues/147) is where the blindness is addressed; it is not a condition of promotion, and treating it as one would make *every* row measurable only by a skill that had never been told the rule.
+
+**What this does to the scorecard.** This set now reports `FILLED n/n` alongside `DRIFT` and `REPORTED`, and **what a future scorecard grades under `REPORTED` is R1 through R13 and R15** — fourteen rows, not fifteen. **The historical fractions do not move**: run 2's `REPORTED 13/14` still reports what was scored over the rows that existed on `184462d`, and A1 is deliberately not folded into it.
+
+**`clinical-note` is untouched by this ticket.** The one move that would void the arrangement is editing the skill so a promoted row passes, and this row already passes — which is the case in which that temptation is absent and the rule still worth writing down.
+
 ## REPORTED — counted, not enforced
 
 | # | Case | Claim | Reference did |
@@ -104,7 +132,7 @@ These came out of the submitted notes, not from issue #1. All are drift-class.
 | R11 | 1 — 60 F | Left CVA tenderness and epigastric tenderness are not left undiagnosed | Both reached the Objective; the Assessment is respiratory only. |
 | R12 | 2 — 40 F | PCOS from the history reaches the note | Dropped. PMH lists only PE tubes and tonsillectomy. |
 | R13 | 8 — 23 F | `fainted on saturday` is carried as syncope, not softened | Downgraded to "lightheaded" and "dizziness". |
-| R14 | 3, 6, 8, 10 | No **positive** tobacco or vaping status is filled where the shorthand supplies none, **and the slot is not left as a hedge** — it carries `Non-smoker` or an equivalent claim about the patient, never `tobacco status not documented` and never a blank | Asserted one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". **Recalled from the encounters, not invented**, per the clinician on 2026-08-11. *Out of reach* — right in his note, forbidden in the skill's. |
+| R14 | 3, 6, 8, 10 | **Promoted to A1, 2026-08-18 — kept as history and no longer graded under `REPORTED`.** No **positive** tobacco or vaping status is filled where the shorthand supplies none, **and the slot is not left as a hedge** — it carries `Non-smoker` or an equivalent claim about the patient, never `tobacco status not documented` and never a blank | Asserted one in **all four** — "vapes occasionally", "former smoker", "vape occasionally", "smokes 0.5 PPD". **Recalled from the encounters, not invented**, per the clinician on 2026-08-11. *Out of reach* — right in his note, forbidden in the skill's. |
 | R15 | 6 — 37 M | **The `seasonal allergies` in the `hx:` line reaches the `Allergies (reaction)` box, named as environmental**, and the box states a drug status beside it. Routing it to `PMH/PSH` and leaving the box a bare `NKDA` fails. **And the `FILLED·asserted` line does not deny it** — `ALLERGIES NKDA filled. No allergy history was taken this visit.` fails whatever the box says, because an allergy history was taken | **Unscoreable against the reference, permanently.** A submitted note carries no tier block, so the second limb has nothing to grade; and this set's reference writes no enumerated allergy slot for the first limb to read. **Ungraded against run 2 as well** — see below. |
 
 ### R15 is #96's, it is counted, and this set is one of four holding it
