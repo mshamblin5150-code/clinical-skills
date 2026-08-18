@@ -60,7 +60,13 @@ filled**. See the tier rule in [SKILL.md](../SKILL.md).
 name, **drug class**, dose, route, frequency, duration, **contraindications**, **monitoring**,
 **adverse effects**, patient education, **guideline support**. The habitual table carries drug,
 dose, route, frequency, duration, sig and indication. The bolded five land in the patient-education
-prose when they land at all, which is unstructured and case-dependent. **Write them.**
+prose when they land at all, which is unstructured and case-dependent.
+
+**Write them, in a prose block under each Rx table. Ruled 2026-08-18** — the table keeps its six
+rows, and the five go underneath it as one paragraph rather than into the table or into nothing.
+The shape and the worked example are in [style.md](style.md) §8; the reasoning is in
+[SKILL.md](../SKILL.md) step 5. **Omitting them has never cost a point**, which the ruling treats
+as survivable rather than as safe.
 
 ## Two explicit limits
 
@@ -91,10 +97,17 @@ strength.
 | Peer Clinical Critique | 5 |
 
 **Clinical judgment carries 70 of the 100 points.** APA format and guideline integration carry 10
-between them. A grader who docks only clinical decisions and never formatting is not deviating from
-the rubric — that *is* the rubric's weighting, and it is why
-[SKILL.md](../SKILL.md) spends its length on the differential and its ordering rather than on
-citation hygiene.
+between them, and that is why [SKILL.md](../SKILL.md) spends its length on the differential and its
+ordering rather than on citation hygiene.
+
+**It is a claim about where the length goes and not about what may be left broken.** This paragraph
+used to add that *a grader who docks only clinical decisions and never formatting is not deviating
+from the rubric*, which was true of the three deductions observed and was being read as a license
+to skip the reference walk. **Ruled 2026-08-18 on
+[#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211)** — the walk runs on every
+document and its findings get fixed rather than handed back. [apa7.md](apa7.md) is the rule it runs
+against. **Three deductions is also a thin basis for a claim about the grader**, and the published
+weighting above supports the same emphasis without needing one.
 
 **Preventive Care and Health Promotion is 5 points that a focused acute case makes easy to
 forget.** `reference/guidelines-uspstf.md` in this repo holds 143 USPSTF recommendation statements

@@ -45,6 +45,15 @@ follows immediately. When there is a body it holds reasoning that belongs to no 
   description of a urinalysis contradicts the slide's, states both, and orders the test that would
   settle it. **That is the model.** Never reconcile a conflict silently.
 
+  **The slides are inside the video — there is no separate deck to go and find. Ruled 2026-08-18.**
+  That mattered because the rule as written left it ambiguous, and a run reading it could go
+  hunting for a handout that does not exist and then treat the material as incomplete when it
+  failed to turn one up. **So the rule is not about slides.** It fires wherever the material
+  carries two accounts of the same finding — narration against what is shown on screen, the video
+  against the graded wrapper, the wrapper against the case title. The wrappers are known to carry
+  copy-paste damage, which makes the last of those the common one rather than the exotic one; see
+  *The wrappers carry copy-paste damage* in [rubric.md](rubric.md).
+
 ## 3. Differential Diagnoses
 
 - One diagnosis per line, **numbered and ranked**, `1.` favored.
@@ -154,6 +163,23 @@ One table per drug, including home medications continued unchanged.
 him in. The `Signed by:` line at the foot of the document takes `RN, CEN, TCRN`, which is what
 every real clinical note takes. Two strings in one document is correct.
 
+### The prose block under each table — ruled 2026-08-18
+
+The table stays six rows. Underneath it, one short paragraph carries the five fields the spec's
+Pharmacologic Therapy component asks for and the table has never held: **drug class,
+contraindications, monitoring, adverse effects, and the guideline supporting the choice.**
+
+> Third-generation cephalosporin. Contraindicated in anaphylaxis to cephalosporins or a severe
+> penicillin reaction. Monitor the injection site and observe for hypersensitivity over the
+> following 30 minutes. Adverse effects are injection-site pain, diarrhea and rash. First-line for
+> this indication in the CDC STI Treatment Guidelines (Workowski et al., 2021).
+
+**Prose and not a second table, and not eleven rows in the first one.** The six-row table is a
+prescription and reads as one; the five added fields are graded reasoning, and graded reasoning
+belongs in prose. **Omitting them has never cost a point across ten submissions**, which is
+evidence that the omission is survivable rather than that it is right — the same finding the mode
+ruling rests on. See [SKILL.md](../SKILL.md) step 5.
+
 ## 9. Ordering is the graded axis
 
 The three deductions across the ten submissions were **all clinical decisions**. Not one was
@@ -176,13 +202,27 @@ else. **Completeness is not what is being rewarded. Judgment is.**
 
 ## 10. References — APA 7
 
+**[apa7.md](apa7.md) is the authority here and this section is the corpus description beside it.**
+Where the two disagree, APA wins — this section describes ten submitted documents, and those
+documents are not the standard.
+
 - **UpToDate dominates** — roughly nine in ten across the set:
   `Author, A., & Author, B. (Year). Title in sentence case. UpToDate. Retrieved Month D, YYYY, from
   https://...`
-- Non-UpToDate entries are formatted the same way. The set includes a university teaching page, a
-  badge reference card, and a state administrative code — the last cited properly with its section
-  number and pulled through into the argument, which is the right way to use a non-clinical source.
-- Roughly alphabetical.
+  **Two corrections to that form, from APA's own UpToDate page** — the database name is
+  *italicized* in the entry and not in running text, and the year is the topic's **last update**
+  year rather than the year it was read. See [apa7.md](apa7.md) §2. The corpus does neither.
+- The set includes a university teaching page, a badge reference card, and a state administrative
+  code — the last cited properly with its section number and pulled through into the argument,
+  which is the right way to use a non-clinical source.
+- **`Non-UpToDate entries are formatted the same way` was wrong and is withdrawn.** A retrieval
+  date belongs only where the work is designed to change *and* the version cited is unarchived —
+  so UpToDate takes one and a society guideline, a journal article, a USPSTF statement and a
+  textbook do not. Copying the UpToDate form across the whole list puts a retrieval date on most
+  of the entries that must not carry one, which is a defect in the opposite direction from the one
+  the table below catches. [apa7.md](apa7.md) §4.
+- **`Roughly alphabetical` is what the corpus is, not what the rule is.** Alphabetize by the first
+  word of the entry. [apa7.md](apa7.md) §1.
 
 ### The defects to fix every time
 
@@ -221,15 +261,44 @@ year typed a decade wrong, in a passage whose entire point was that accurate dat
 stray `±` alone on its own line. **A transcription defect in a document about precision reads as
 carelessness about the precision.**
 
-## Still open — needs the clinician
+## Ruled 2026-08-18 — the four this file carried open, plus one
 
-1. **Rubric versus grader.** The evidence says the grader rewards clinical judgment and
-   differential ordering, and does not appear to police citation minimums or section completeness.
-   That is a reading of three deductions, not a rule.
-2. **Where the slide description came from** in the submission that compared the video against
-   slides. The video-versus-slides conflict rule is live and its source is unclear.
-3. **`Case ID:`** appears above the references in one submission and nowhere else. Required field,
-   or a stray?
-4. **Q&A mode** — when faculty questions are present, do they replace the full workup or sit
-   alongside it? Both submissions that replaced it scored full marks, which is evidence and not a
-   ruling.
+Settled with the clinician on
+[#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211). Recorded here because
+this is where they were left open, and a reader who knew to look here should find the answer rather
+than the question.
+
+**1. Q&A mode does not replace the full workup.** Every skeleton section is written every time,
+and faculty questions are answered in addition to it. **This reverses what
+[SKILL.md](../SKILL.md) shipped saying.** The evidence for replacing was two full-marks submissions
+that did it — real, and not enough, because the rubric scores ten criteria and a set of faculty
+questions need not touch all ten. The reasoning is in [SKILL.md](../SKILL.md) under *Three modes*.
+
+**2. The `a`/`b` disambiguation, the retrieval dates and the rest of the reference walk are not
+optional, and their findings are not handed back.** His words: *ordering the differential is very
+important, but that shouldn't take the place of tidiness.* The sentence in
+[SKILL.md](../SKILL.md) that read *the ordering of a differential matters more than the tidiness of
+a citation* is gone, because a run could read it as permission to skip the walk. The rubric's
+70-of-100 weighting still decides where the **length** goes; it never decided what may be left
+broken. **[apa7.md](apa7.md) exists because of this ruling** — an instruction to fix the reference
+list needs a written rule behind it.
+
+**3. The slides are inside the video.** No separate deck to hunt for, and the conflict rule
+generalizes to any two accounts of the same finding in the material. See §2 above.
+
+**4. `Case ID:` is a stray. Never write it.** One submission in ten, no deduction anywhere for its
+absence, and nothing in the spec asks for it. **The risk ran the other way**: a run that derived a
+case number from the module number would be writing a wrong identifier onto a graded paper.
+
+**5. The Pharmacologic Therapy fields go in a prose block under the Rx table**, not into the table
+and not nowhere. See *The prose block under each table* in §8.
+
+## Still open
+
+**Nothing from the original four.** What remains is tracked rather than listed here:
+[#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213) the voice model,
+[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) the research fan-out and
+the recency rule, [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the
+renderer's three APA gaps, and
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218) checkers over the finished
+draft.
