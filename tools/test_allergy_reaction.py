@@ -31,6 +31,15 @@ next session would resolve it by guessing.
 There is no scanner to keep parity with. This is ``test_spelling_scan.py``'s *the
 scanner must not drift from the file a reader opens* with both readers being
 Markdown, which is what ``test_skill_agreement.py`` is.
+
+**Two classes here are not about the ruling, and they are here rather than in a
+file of their own because #200 is what moved the figures they guard.**
+``TheRulingCohortIsClosed`` pins the promotion of ``R6`` to ``B23``, and
+``TheSetTotalIsReDerivedRatherThanTyped`` pins day-b's row total and its FILLED
+class count against the tables. That is a second subject in one module, and it
+is the trade this repo has taken before: a guard living beside the change that
+needed it gets read, and a guard filed by subject gets written once and never
+opened. Move them if a third subject arrives.
 """
 
 from __future__ import annotations
@@ -478,6 +487,213 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
                         r"allerg\w*[^.]*\b(rash|hives|urticaria|anaphylaxis|swelling)\b",
                         "a shorthand naming a reaction would change the premise",
                     )
+
+
+
+class TheRulingCohortIsClosed(unittest.TestCase):
+    """[#200](https://github.com/mshamblin5150-code/clinical-skills/issues/200):
+    ``R6`` was promotable *for want of a run* and now has one.
+
+    **A promotion is two claims, not one**, and the tests here hold them apart.
+    The first is that a **valid** score exists -- output produced while the #94
+    rule was in force, graded by a pass that did not write it -- which is why
+    the verdict has to carry a commit and a date rather than only a word. The
+    second is that promoting it did not quietly dilute the rule: the binary row
+    has to carry the limbs ``R6`` carried, or the cohort closed by weakening.
+
+    **The historical row stays.** ``fixtures/README``'s *append, never insert*
+    reaches rows across a promotion exactly as it reaches a drift matrix -- a
+    reader arriving at ``R6`` from #94, from #95 or from ``SKILL.md`` has to
+    land on the row those documents cite, marked with where it went.
+    """
+
+    DAY_B = REPO_ROOT / "fixtures" / "day-b" / "assertions.md"
+    SUCCESSOR = "B23"
+
+    def day_b(self) -> str:
+        return read(self.DAY_B)
+
+    def row(self, ident: str) -> str:
+        """The one table line whose first cell is ``ident``."""
+        for line in self.day_b().splitlines():
+            if line.startswith(f"| {ident} |"):
+                return line
+        self.fail(f"day-b/assertions.md holds no {ident} row")
+
+    def test_the_historical_row_survives_the_promotion(self) -> None:
+        """#94, #95 and this file all cite ``R6`` by name. It may not vanish."""
+        self.assertTrue(self.row("R6"))
+
+    def test_the_historical_row_names_its_successor(self) -> None:
+        """A row a reader arrives at from a ticket has to say where it went."""
+        self.assertIn(
+            self.SUCCESSOR,
+            self.row("R6"),
+            "R6 is promoted and does not say so -- a reader arriving from #94 "
+            "would read a counted row and miss the enforced one",
+        )
+
+    def test_the_successor_is_in_the_binary_class(self) -> None:
+        """``B`` is FILLED's prefix, and the prefix follows the bar here."""
+        self.assertTrue(self.row(self.SUCCESSOR))
+
+    def test_the_verdict_carries_a_commit_and_a_date(self) -> None:
+        """A verdict with no commit is not a valid score, it is an opinion.
+
+        The rule was in force from 2026-08-16; a score belongs to the commit it
+        was produced on, which is the whole of what runs 1 through 3 could not
+        say about this row.
+        """
+        row = self.row("R6")
+        self.assertRegex(row, r"\b(PASS|FAIL)\b", "no explicit verdict on the R6 row")
+        self.assertRegex(
+            row,
+            r"\b(PASS|FAIL)\b.{0,120}?`[0-9a-f]{7}`",
+            "the verdict names no commit -- a score with no commit belongs to none",
+        )
+        self.assertRegex(
+            row,
+            r"\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\b",
+            "the verdict names no scoring date",
+        )
+        self.assertIn("targeted scoring", self.day_b())
+
+    def test_the_promotion_did_not_dilute_the_rule(self) -> None:
+        """Every limb ``R6`` carried survives into the enforced row."""
+        row = self.row(self.SUCCESSOR)
+        for limb in ("inferred reaction", "no tier word", "FILLED·asserted"):
+            with self.subTest(limb=limb):
+                self.assertIn(limb, row)
+        self.assertRegex(
+            row,
+            r"never licenses|licenses a drug",
+            "the never-discharge limb is the one clause the ruling rests on",
+        )
+
+    def test_the_last_complete_run_fraction_is_untouched(self) -> None:
+        """A targeted score is not a run, and folding it in would redate one.
+
+        Run 3 graded twenty-four rows on ``b65b9f6``. The cohort scored here is
+        two encounters of twelve on a later commit, so it can no more move that
+        fraction than #95's re-score moved run 2's.
+        """
+        self.assertIn(
+            "`DRIFT 7/7` · `FILLED 10/11` · `CODING 2/2` · `REPORTED 1/4`",
+            self.day_b(),
+            "run 3's scorecard has moved -- a targeted verdict may not touch it",
+        )
+
+
+class TheSetTotalIsReDerivedRatherThanTyped(unittest.TestCase):
+    """The denominator guard, added by the change that moved the denominator.
+
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is
+    one figure going stale in many places at once, and day-b's row total is its
+    worst instance: it was typed in **eight** places across two files and three
+    consecutive commits were spent chasing it. Nothing recomputed it.
+
+    **The tables are the source and the prose is the copy**, which is the method
+    the merge conflict on this file forced -- count the row identifiers, then
+    check every published total against the count. It is the only method that
+    catches a *wrong starting figure* rather than a stale one.
+
+    **Row totals are matched by the word ``rows`` following them**, deliberately.
+    Both denominators live in these files: thirty-six rows over one set, and
+    thirty-seven committed inputs over all of them. A pattern blind to which one
+    it matched is the confusion #143 names, and ``TheFixturesStillPoseTheQuestion``
+    already failed on exactly that once.
+    """
+
+    DAY_B = REPO_ROOT / "fixtures" / "day-b" / "assertions.md"
+    README = REPO_ROOT / "fixtures" / "README.md"
+
+    #: Enough of the range to survive a few more rows without an edit here.
+    SPELLED = {
+        15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen",
+        19: "nineteen", 20: "twenty", 21: "twenty-one", 22: "twenty-two",
+        23: "twenty-three", 24: "twenty-four", 25: "twenty-five",
+        26: "twenty-six", 27: "twenty-seven", 28: "twenty-eight",
+        29: "twenty-nine",
+        30: "thirty", 31: "thirty-one", 32: "thirty-two", 33: "thirty-three",
+        34: "thirty-four", 35: "thirty-five", 36: "thirty-six",
+        37: "thirty-seven", 38: "thirty-eight", 39: "thirty-nine", 40: "forty",
+        41: "forty-one", 42: "forty-two", 43: "forty-three", 44: "forty-four",
+        45: "forty-five",
+    }
+
+    ROW_ID = re.compile(r"^\| ([DBCGR][0-9]+) \|")
+
+    def row_ids(self) -> set[str]:
+        found = set()
+        for line in read(self.DAY_B).splitlines():
+            match = self.ROW_ID.match(line)
+            if match:
+                found.add(match.group(1))
+        return found
+
+    def test_the_identifiers_are_readable(self) -> None:
+        """A guard that parsed nothing would pass for the wrong reason."""
+        self.assertGreaterEqual(len(self.row_ids()), 35)
+
+    def test_every_published_total_agrees_with_the_tables(self) -> None:
+        """Both files, every spelled total, against one re-derivation."""
+        expected = self.SPELLED[len(self.row_ids())]
+        for path in (self.DAY_B, self.README):
+            plain = read(path).replace("*", "").replace("`", "")
+            for written in re.findall(r"\b((?:thirty|forty)-?\w*) rows\b", plain):
+                with self.subTest(path=path.name, written=written):
+                    self.assertEqual(
+                        written,
+                        expected,
+                        f"{path.name} publishes {written} rows, the tables hold "
+                        f"{len(self.row_ids())} -- re-derive both files together",
+                    )
+
+    def test_the_total_is_published_at_all(self) -> None:
+        """A pin matching nothing passes for the wrong reason -- twice over."""
+        expected = self.SPELLED[len(self.row_ids())]
+        for path in (self.DAY_B, self.README):
+            plain = read(path).replace("*", "").replace("`", "")
+            with self.subTest(path=path.name):
+                self.assertIn(f"{expected} rows", plain)
+
+    def test_the_sets_table_cell_agrees_too(self) -> None:
+        """The numeric copy, which the spelled pattern above cannot see.
+
+        ``fixtures/README``'s ``Sets`` table reports day-b as ``N of M rows``.
+        Every other set reports its own M in the same column, so this is scoped
+        to the one line rather than matched across the table -- ``day-a``'s
+        ``31 of 31`` is a correct figure about a different set.
+        """
+        for line in read(self.README).splitlines():
+            if not line.startswith("| [day-b]"):
+                continue
+            written = re.search(r"(\d+) of (\d+) rows", line)
+            self.assertTrue(written, "day-b's Sets row states no row count")
+            self.assertEqual(
+                int(written.group(2)),
+                len(self.row_ids()),
+                "the Sets table and the tables disagree about how many rows "
+                "day-b holds -- re-derive from the identifiers, not from the cell",
+            )
+            return
+        self.fail("fixtures/README.md holds no day-b row in the Sets table")
+
+    def test_the_filled_class_count_agrees_with_its_own_rows(self) -> None:
+        """The denominator that three sweeps missed, pinned where it lives.
+
+        ``These nineteen do not move with wording`` is a count of the ``B``
+        rows, written into the middle of a paragraph rather than into a
+        scorecard -- which is why every sweep that went looking for a stale
+        figure walked past it while it said *sixteen* against eighteen rows.
+        """
+        b_rows = len([r for r in self.row_ids() if r.startswith("B")])
+        expected = self.SPELLED[b_rows]
+        self.assertIn(
+            f"These {expected} do not move with wording",
+            read(self.DAY_B),
+            f"the FILLED class holds {b_rows} rows and the prose disagrees",
+        )
 
 
 if __name__ == "__main__":
