@@ -35,8 +35,18 @@ the 100-point rubric, and the 21 guideline bodies. Read it before drafting. Thre
 decide how the document is written:
 
 **Clinical judgment carries 70 of the 100 points.** APA format is 5 and guideline integration is
-5. This is why the ordering of a differential matters more than the tidiness of a citation, and it
-is not a guess about the grader — it is the rubric's own weighting.
+5. This is why the skill spends its length on the ordering of a differential rather than on
+citation hygiene, and it is not a guess about the grader — it is the rubric's own published
+weighting.
+
+**It is a reason to spend length. It is not a reason to skip the reference walk.** This sentence
+used to read *the ordering of a differential matters more than the tidiness of a citation*, which a
+run could read as permission to hand back a document with known reference-list defects still in it.
+**Ruled 2026-08-18, in the clinician's words:** *ordering the differential is very important, but
+that shouldn't take the place of tidiness.* So step 6 runs on every document, and a defect it finds
+is **fixed before the document is handed over** rather than listed in `PROPOSED` for him to fix by
+hand. [reference/apa7.md](reference/apa7.md) is the written rule it runs against — without one,
+*"fix the reference list"* is a wish rather than a check.
 
 **Three to five prioritized differentials is the stated cap, and the corpus exceeds it routinely
 without ever being docked.** Nine, eleven and thirteen entries have each scored 98% or better.
@@ -74,7 +84,9 @@ bottom of [reference/rubric.md](reference/rubric.md) and this skill does not wri
 
 [reference/style.md](reference/style.md) holds the house style, derived from ten graded and
 returned submissions. It is the authority on voice, on section shapes and on the normalizations.
-The skeleton, in order:
+[reference/apa7.md](reference/apa7.md) is the authority on the reference list.
+**Every section below is written, every time** — see *Three modes, and none of them subtracts a
+section* under it. The skeleton, in order:
 
 1. **Sanity Check** — four confirmations then a closer. Always first, before any clinical content.
 2. **Intake block** — the faculty material, transcribed and cleaned, never invented.
@@ -86,9 +98,11 @@ The skeleton, in order:
 6. **MDM** — one entry per differential, each stating what in *this case* puts it in or out.
 7. **Plan:** — imperative orders.
 8. **Patient Education:** — spoken, second person.
-9. **Rx:** — one table per drug, fixed shape.
-10. **Signed by:** — name, credentials, timestamp.
-11. **References** — APA 7.
+9. **Rx:** — one table per drug, fixed shape, each with the pharmacologic prose block under it.
+10. **Faculty Questions:** — present only where the material poses them, and it answers them
+    rather than replacing anything above.
+11. **Signed by:** — name, credentials, timestamp.
+12. **References** — APA 7, alphabetized. [reference/apa7.md](reference/apa7.md).
 
 **The differential, the MDM, the Plan and the Patient Education are numbered lists. Never
 bullets.** His ruling, 2026-08-18, and it is not a formatting preference. A grader counting
@@ -100,14 +114,27 @@ Bullets destroy that, and the corpus's own worst list mixes both markers in one 
 Everything else stays as it is: the intake block is a table, the Assessment runs as prose, and the
 prescriptions are tables.
 
-**Three modes, and the faculty material picks one.** A **full workup** is the skeleton end to end.
-**Q&A** is what to write when the faculty pose explicit questions: restate each question as a
-bullet and answer it underneath in prose. **Discussion** adds a narrative section for reasoning
-that does not fit the differential-by-differential frame. A mode is not a quality tier — the Q&A
-submissions in the corpus scored as well as the full workups, and one scored 100% with no plan, no
-prescriptions, no differential list and a single reference, because it answered the four questions
-it was asked and nothing else. **Answer the prompt that was set, not the prompt the skeleton
-expects.**
+### Three modes, and none of them subtracts a section
+
+**The skeleton is written in full, every time. Ruled 2026-08-18, reversing what this file used to
+say.** Where the faculty pose explicit questions, they are answered **in addition to** the
+skeleton and never instead of it: restate each question and answer it underneath in prose, under a
+`Faculty Questions:` heading, and let the skeleton sections carry the rest. **Discussion** — a
+narrative section for reasoning that does not fit the differential-by-differential frame — is
+additive on the same terms.
+
+**The evidence for the opposite reading is real, and it was not enough.** Two submissions in the
+corpus replaced the workup with answers to the questions asked and both scored full marks; one
+scored 100% with no plan, no prescriptions, no differential list and a single reference. This file
+concluded from that: *answer the prompt that was set, not the prompt the skeleton expects.*
+
+**What that conclusion missed is that the rubric scores ten criteria and a set of faculty questions
+need not touch all ten.** Preventive Care and Health Promotion is 5 points, Integration of
+Evidence-Based Guidelines is 5, APA Format is 5 — and four questions about a differential and a
+plan ask for none of the three. **Two submissions surviving the omission is evidence that it is
+survivable, not that it is right**, and a run that drops a scored section is spending fifteen points
+on the clinician's behalf without being asked. A mode is still not a quality tier; what changed is
+that a mode no longer subtracts sections.
 
 ## Ordering is the graded axis
 
@@ -305,6 +332,13 @@ should be fixed to one form:
 **Abbreviations are free in the Plan and the MDM** — `s/p`, `f/u`, `RTC`, `DC` — and **never
 appear in Patient Education**, which is spoken to the patient.
 
+**Never write a `Case ID:` line. Ruled 2026-08-18.** It appears above the references in exactly one
+submission in the corpus and nowhere else, nothing in the spec asks for it, and its absence has
+never been docked. **The risk runs the other way**: a run that derived a case number from the module number
+would be writing a wrong identifier onto a graded paper, which is worse than the field being
+missing. The skeleton above has no such item, and this sentence is here so that omission reads as a
+decision rather than an oversight.
+
 ## Steps
 
 ### 1. Read the faculty material
@@ -352,16 +386,47 @@ home medications that are being continued unchanged. The patient cell is a place
 of birth is literally `x-x-xxx` — **a case study prescription carries no identifiers**. Sig spells
 the numbers out and ends `for <indication>`. Held orders say so in the drug row.
 
+**Then a short prose block under each table**, carrying the five fields the spec's Pharmacologic
+Therapy component names and the table does not: **drug class, contraindications, monitoring,
+adverse effects, and the guideline that supports the choice**. One paragraph, not a second table.
+**Ruled 2026-08-18.** The shape and the worked example are in
+[reference/style.md](reference/style.md) §8, which is the authority on section shapes and the one
+place they are written.
+
+**Why prose rather than more rows.** The spec asks eleven fields per medication and the table
+carries six, so something had to give. Eleven rows stops it looking like a prescription; nowhere
+leaves a scored component answered only by accident, in whatever the Patient Education happened to
+say. **The table is where the order belongs and the prose is where graded reasoning belongs**, and
+the guideline citation in that block is the cheapest *Integration of Evidence-Based Guidelines*
+point in the document.
+
+**Omitting them has never cost a point, which is not the same as being safe** — it is the mode
+finding again, one section down. See *Three modes, and none of them subtracts a section* above.
+
 ### 6. Fix the references
 
-APA 7, roughly alphabetical. Then walk the defect list, every time:
+**APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
+rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
+form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
+An APA question it does not answer is looked up at apastyle.apa.org, never guessed.
+
+**`Roughly alphabetical` was a description of the corpus and never the standard.** Sorted is
+sorted.
+
+**This walk is not optional and its findings are not handed back.** Ruled 2026-08-18 — see
+*What it is graded by* above. Walk the defect list, every time:
 
 | Defect | Fix |
 | --- | --- |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
+| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4 |
 | In-text year not matching the reference list year | reconcile |
-| Two entries with the same author and year and no `a`/`b` | disambiguate, in both places |
+| Two entries with the same author and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3 |
+| An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
+| An UpToDate year that is the year it was read | use the topic's **last update** year |
+| An entry in the list that is cited nowhere in the body | delete it |
+| A citation in the body with no entry in the list | add it |
 | A missing space in a date | `February 19, 2026` |
 | A misspelled month | check every one |
 
@@ -385,11 +450,16 @@ render from a copy that does not carry it: it is for the clinician, not for the 
 
 Against this list, by eye — none of it is mechanical:
 
-- Does every item on the faculty's own to-do list have a section that answers it?
+- Does every item on the faculty's own to-do list have a section that answers it, **and is every
+  skeleton section present regardless of what the faculty asked for**?
 - Is the differential **numbered**, and is `1.` defensible as the thing that would kill first?
 - Does every MDM entry name a discriminator from *this* case, and carry a citation?
 - Does every drug in the Plan have a prescription table, and every table a `Sig` ending in an
-  indication?
+  indication **and a prose block under it carrying class, contraindications, monitoring, adverse
+  effects and guideline support**?
+- **Has the step 6 reference walk actually run**, against
+  [reference/apa7.md](reference/apa7.md) rather than from memory? A known reference defect does
+  not leave this step in the `PROPOSED` block — it gets fixed.
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - Does any number in the body rest on recall rather than on a source in hand?
 - Is the `PROPOSED` block complete, and is it out of the `.docx`?
