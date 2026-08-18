@@ -79,6 +79,8 @@ FOOD_INTOLERANCE = ("peds-bp/shorthand/case-05.md",)
 # drug-under-a-label, where both candidate rules agree and neither is tested.
 DECIDING_INPUT = "hedged-dx/shorthand/case-03.md"
 
+GIVEN_HEADING = "## GIVEN — binary, all must pass"
+
 LABEL = re.compile(r"^\s*allerg(?:y|ies)\s*:", re.IGNORECASE)
 NO_ALLERGEN = re.compile(r"^\s*(nkda|none|no known.*)\s*\.?\s*$", re.IGNORECASE)
 
@@ -318,13 +320,31 @@ class TheSkillStillSaysWhatWasRuled(unittest.TestCase):
 
 
 class TheRulingIsHeldAtTheSameWidthInEverySet(unittest.TestCase):
-    """Four rows, one ruling, promotable only as a group."""
+    """Four rows, one ruling, promoted only as a group -- and it was, on #201.
+
+    Both halves are pinned because promotion keeps the historical row rather
+    than replacing it. ``ROWS`` is the counted row each set recorded the ruling
+    under; ``SUCCESSORS`` is the enforced row each gained on 2026-08-18. A set
+    losing either one leaves the ruling held at a width nobody chose: without
+    the R row the score has no provenance, and without the G row the rule is
+    counted in one set and enforced in three.
+    """
 
     ROWS = {
         "day-a": "R15",
         "day-b": "R7",
         "hedged-dx": "R2",
         "peds-bp": "R3",
+    }
+
+    # day-b hosts the GIVEN class and already had G1 -- an unrelated row about
+    # seven orders on a plan line -- so its successor is G2 and the other three,
+    # which gained the class with this promotion, each start at G1.
+    SUCCESSORS = {
+        "day-a": "G1",
+        "day-b": "G2",
+        "hedged-dx": "G1",
+        "peds-bp": "G1",
     }
 
     def test_each_set_still_carries_its_row(self) -> None:
@@ -334,6 +354,53 @@ class TheRulingIsHeldAtTheSameWidthInEverySet(unittest.TestCase):
                     encoding="utf-8"
                 )
                 self.assertIn(f"| {row} |", text)
+
+    def test_each_set_carries_its_enforced_successor(self) -> None:
+        """The promotion, pinned the same way the counted rows are."""
+        for directory, row in self.SUCCESSORS.items():
+            with self.subTest(directory):
+                text = (FIXTURES / directory / "assertions.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(f"| {row} |", text)
+
+    def test_every_set_defines_the_given_class(self) -> None:
+        """The class is GIVEN in all four, not DRIFT in some and GIVEN in one.
+
+        ``fixtures/README.md`` names *a stated allergen* among GIVEN's subjects,
+        so the ruling had a class waiting for it. A set that hosted its
+        successor under a different heading would report the rule under a
+        denominator the other three do not share.
+        """
+        for directory in self.SUCCESSORS:
+            with self.subTest(directory):
+                text = (FIXTURES / directory / "assertions.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(GIVEN_HEADING, text)
+
+    def test_each_historical_row_points_at_its_successor(self) -> None:
+        """A preserved row nobody can follow forward is a dead identity.
+
+        Read off the R row's **own table line** and nowhere else. Written first
+        as a whole-file ``assertIn``, which passed for the wrong reason: the
+        GIVEN section the same change appended contains both strings, so
+        deleting the forward pointer left the test green. That is
+        ``test_icd10.py``'s *passes for two reasons* objection landing inside a
+        test written to enforce the promotion.
+        """
+        for directory, row in self.ROWS.items():
+            with self.subTest(directory):
+                text = (FIXTURES / directory / "assertions.md").read_text(
+                    encoding="utf-8"
+                )
+                line = next(
+                    (ln for ln in text.splitlines() if ln.startswith(f"| {row} |")),
+                    None,
+                )
+                self.assertIsNotNone(line, f"{directory} has no {row} row")
+                self.assertIn("issues/201", line)
+                self.assertIn(self.SUCCESSORS[directory], line)
 
     def test_each_row_cites_the_ticket(self) -> None:
         for directory in self.ROWS:
