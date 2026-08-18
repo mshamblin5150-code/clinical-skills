@@ -191,7 +191,7 @@ itching and sneezing.
 
 **He ruled that the box carries both, each named by its kind**, which retires the placement hypothesis rather than choosing between its outcomes. The population and the four-and-four count that killed that hypothesis are stated once in [day-b](../day-b/assertions.md) under R6 and R7 and deliberately not repeated here.
 
-**Counted rather than binary on #29's reason**, one ruling across four sets — this row, [day-a](../day-a/assertions.md) R15, day-b R6 and [peds-bp](../peds-bp/assertions.md) R3. **Promotable, for want of a run, and the four go together.** It sits in REPORTED rather than beside the CODING and NAMING rows despite resolving to a value a reader compares, which is the same tension R2 carries in peds-bp and is recorded for the same reason.
+**Counted rather than binary on #29's reason**, one ruling across four sets — this row, [day-a](../day-a/assertions.md) R15, [day-b](../day-b/assertions.md) R7 and [peds-bp](../peds-bp/assertions.md) R3. **That cited day-b R6 until 2026-08-18 and R6 is #94's row, not #96's** — the two rulings were written on branches neither of which could see the other, both numbered their row R6, and one was renumbered at the merge; day-a and peds-bp were swept and this citation was not. It matters more since [#200](https://github.com/mshamblin5150-code/clinical-skills/issues/200) closed #94's cohort: a reader following the old link would land on a **promoted** row and read this cohort as having closed with it. **Promotable, for want of a run, and the four go together.** It sits in REPORTED rather than beside the CODING and NAMING rows despite resolving to a value a reader compares, which is the same tension R2 carries in peds-bp and is recorded for the same reason.
 
 ## Still unresolved
 
