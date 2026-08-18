@@ -35,7 +35,7 @@ Five behaviors that decide whether a sweep works at all. Each one has cost a pas
 
 **Do not ask the page for hrefs or raw markup.** A `javascript_tool` call returning page HTML that contained `resultid=` query strings came back `[BLOCKED: Cookie/query string data]`. Returning a short slice of `innerText` works fine.
 
-Picklist strings below are exact — match them character for character, including `Wyoming County Health Dept.` with its period and `New River Health - Oak Hill` with spaced hyphen.
+Picklist strings are exact — match them character for character, here and in the per-account lists this file points at. Site names are where that bites: on this account one entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss does not match.
 
 **Scope.** This file currently documents Medatrax for *reading* — what the fields are, what they accept, and how a note supplies them. Entering encounters through the portal is out of scope for this pass, **not permanently**: the field table and selection rules below are written to serve entry when it lands, which is the destination of the whole toolchain.
 
@@ -120,19 +120,9 @@ Assignments: none. Time Log `Confirmed` column: unchecked on every row.
 
 ## Picklists — exact strings
 
-**Preceptor** (`Last,First`, no space; the Time Log displays them with a space):
+**Preceptor and Location / Site are per-account, and their values are deliberately not recorded here.** They are names — eight people and four places on this program — and [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) already rules the split this file lives under: *this file holds the universal Medatrax behavior and the profile holds everything about them.* Both lists sit in `scratch/medatrax-profile.md` under *Picklists*, which is gitignored. Read them off the portal for a new account rather than inheriting someone else's.
 
-```
-Cecil,Sharon      Green,Marie       Karper,Kelli      Lester,Miranda
-Lindley,Juddson   Rose,Brittany     Sharp,Jessica     Sison,Julie
-```
-
-**Location / Site:**
-
-```
-Bluestone Medical Center      New River Health - Oak Hill
-Welch Community Hospital      Wyoming County Health Dept.
-```
+The **format** is the universal part and is what belongs here: `Preceptor` is `Last,First` with no space, and the Time Log renders that same value with a space.
 
 **Interaction Level:** `Level 0` … `Level 5`. Every existing entry is Level 5, the top of the scale.
 
@@ -212,12 +202,7 @@ Some fields are administrative and never appear in bedside shorthand. Without a 
 
 Payer data is not visible at the bedside. The value is *declared*, not derived — but it is not a constant either. The flat `Medicaid` default that used to sit here was wrong close to two times in five: all eleven encounters on a sampled day were read field by field on 2026-08-09 and carry **six `Medicaid`, three `Commercial insurance/HMO/PPO`, two `Medicare`** — including `Medicare` on a 23-year-old.
 
-Read off the clinician's own entries, the pattern below fits 16 of the 18 H&P encounters and most of the SOAP comparison set:
-
-| Site | Rule |
-| --- | --- |
-| Bluestone | `Self-pay/other` |
-| Welch | `Medicaid` for pediatric patients and single adults · `Commercial insurance/HMO/PPO` for married working-age patients · `Medicare` from about 60 |
+**The rule keys on the site, so the rule is per-account and lives with the picklist.** It is in `scratch/medatrax-profile.md` under *Declared field defaults*, read off the clinician's own entries, and it fits 16 of the 18 H&P encounters and most of the SOAP comparison set. **What generalizes is that the site is a key at all, not the mapping** — [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) step 5 says to measure this against the account's own record rather than carry another one's across, and a payer table is exactly the field that ruling was written about.
 
 `Worker's comp` overrides all of it where the shorthand documents a work-related injury — and that exception is a **given**, read from the note, not a guess about the payer.
 

@@ -73,7 +73,7 @@ Ask, and record the answers rather than deriving them:
 
 ### 4. Picklists — read them, do not assume them
 
-Preceptors, sites, case types and Patient Time bands are per-account picklists. Read them off the portal and record the strings **character for character** — one account carries `Wyoming County Health Dept.` with a trailing period and `New River Health - Oak Hill` with a spaced hyphen. A near-miss string does not match.
+Preceptors, sites, case types and Patient Time bands are per-account picklists. Read them off the portal and record the strings **character for character** — on one account a site entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss string does not match.
 
 Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly.
 
@@ -90,6 +90,8 @@ Some fields are never visible at the bedside and need a declared value: `Primary
 **Measure them against this clinician's own record.** Open one full day of existing encounters and count. Do not carry another account's default across — on one account `Medicaid` was recorded as a safe constant and turned out to be six of eleven, with three Commercial and two Medicare beside it.
 
 Record the measured distribution alongside the default, and say how often the default is wrong. A default that is wrong two times in five belongs under `FILLED·asserted` for confirmation; one that is wrong one time in twenty can be filled silently. The number decides, not the habit.
+
+**A rule that keys on a preceptor or a site is per-account whatever else it looks like, and belongs in the profile rather than in the reference.** On this account `Primary Payment Method` turned out to key on the site, so the rule names two places; it sat in `reference/medatrax-fields.md` until [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212) moved it. The reference is the file another clinician inherits — a rule written there that only resolves against one account's picklist is both a leak and wrong for them.
 
 ### 6. The identity map — the part that prevents duplicates
 
