@@ -335,7 +335,10 @@ and not nowhere. See *The prose block under each table* in §8.
 **Nothing from the original four.** What remains is tracked rather than listed here:
 [#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213) the voice model,
 [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) the research fan-out and
-the recency rule, [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the
-renderer's three APA gaps, and
+the recency rule,
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) the two APA gaps the
+renderer has left, and
 [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218) checkers over the finished
-draft.
+draft. [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) is settled — it
+was filed as the renderer's three APA gaps and closed five, two of them found after it was
+written.
