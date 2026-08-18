@@ -23,6 +23,14 @@ confusable would corrupt genuine non-Latin text.
 a zip with no ``word/document.xml``. A document whose text landed in a part this does not
 know about would otherwise print nothing and read as an empty document.
 
+**That limit is live rather than theoretical: a header is a part, and this does not read
+one.** Since #217 ``docx_write.py`` emits ``word/header1.xml`` for APA 7's page number,
+and nothing this reader is pointed at would show it. That costs nothing here because the
+part carries a ``PAGE`` field and no prose -- a test pins that the round trip still
+returns every word the writer was given -- but a document from elsewhere whose running
+head holds real text loses it silently, which is the shape ``--normalize`` exists for one
+level up.
+
 **Its output is whatever the document held**, and this reads any document it is pointed
 at. Where that is a patient record or faculty material about one, the output is PHI on
 ``harvest_review.py``'s terms: read it, do not paste it. There is no redaction here

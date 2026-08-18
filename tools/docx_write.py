@@ -23,14 +23,29 @@ blank line              paragraph break
 ======================  ====================================================
 
 **The References heading switches the body style, and that is APA 7 rather than a
-nicety.** Every paragraph after a heading whose text begins ``References`` is rendered
-with a 0.5 inch hanging indent, which is what a reference list is. The switch is on the
-*heading*, so a document with no References section never pays for it.
+nicety.** Every paragraph after a heading whose text begins ``References`` -- or the
+singular ``Reference``, which APA permits for a one-entry list -- is rendered with a
+0.5 inch hanging indent, which is what a reference list is. That heading also takes a
+page break and centers, because APA 7 section 2.12 starts the list on a new page under a
+bold centered label. The switch is on the *heading*, so a document with no References
+section never pays for any of it.
 
 **Page setup is APA 7 student paper**: Times New Roman 12 pt, double spaced, 1 inch
-margins. The rubric gives APA format 5 of 100 points, and this is the whole of what
-that line can be given mechanically -- see
-``skills/practicum-case-study/reference/rubric.md``.
+margins, and a page number in the top right of every page -- the ``word/header1.xml``
+part, which is the only reason this archive carries a header at all. Headings are body
+size at every level, distinguished the way APA distinguishes them: level 1 bold
+centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
+indented. The rubric gives APA format 5 of 100 points, and this is most of what that
+line can be given mechanically -- see ``skills/practicum-case-study/reference/rubric.md``.
+
+**What it still does not do, named rather than implied by the claim above.** There is no
+title page; APA level 4 and 5 headings are run-in and Markdown cannot express one, so
+level 4 is rendered as the indented bold paragraph it otherwise is and level 5 is not in
+the subset at all; body paragraphs take no 0.5 inch first-line indent; and a table is
+drawn with a full grid rather than APA's horizontal rules. ``apa7.md`` section 6 is where
+that list is kept for a reader of the skill -- #220 tracks the two of them that are
+mechanical. **A rendered .docx is not an APA-formatted document**, which is
+``skills/practicum-case-study/SKILL.md`` step 8's sentence arriving one level down.
 
 Covered by ``tools/test_docx.py``, which writes into a temp directory and reads the
 result back with ``docx_read`` -- the round trip is the test, because a ``.docx`` that
@@ -58,6 +73,7 @@ CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
 <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
 </Types>"""
 
 ROOT_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -69,19 +85,63 @@ DOC_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
 </Relationships>"""
 
 W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+HEADER_ID = "rId3"
+
+# APA 7 wants a page number in the top right of every page and nothing else in the
+# header -- a student paper carries no running head. ``PAGE`` is a field code rather
+# than text, so it is a ``w:fldSimple``; the ``1`` inside it is the cached result Word
+# recomputes on open, and it is deliberately the only character here. Nothing in this
+# part is prose, which is what keeps ``docx_read`` -- which reads ``word/document.xml``
+# and no other part -- able to read back everything a document says.
+HEADER = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr {w}>
+<w:p><w:pPr><w:jc w:val="right"/></w:pPr>
+<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>
+</w:p>
+</w:hdr>""".format(w=W)
 
 
-def _heading_style(level: int, half_points: int) -> str:
+# APA 7 sets every heading at body size and distinguishes the levels by weight,
+# centering and indent instead -- section 2.27. Level 4 is a run-in heading in the
+# manual, which Markdown cannot express because ``#### x`` owns its own line; it is
+# rendered as the indented bold paragraph the run-in form is otherwise identical to.
+BODY_HALF_POINTS = 24
+HEADING_LEVELS = {
+    1: {"align": "center"},
+    2: {},
+    3: {"italic": True},
+    4: {"indent": HANGING},
+}
+
+
+def _heading_style(level: int) -> str:
+    """One heading style. The property order inside ``w:pPr`` is the schema's.
+
+    ``CT_PPrBase`` is a sequence -- ``keepNext``, ``spacing``, ``ind``, ``jc``,
+    ``outlineLvl`` -- and this used to emit ``outlineLvl`` before ``spacing``. Word
+    opened those documents, which is exactly why nothing caught it; a test pins the
+    order now rather than trusting that tolerance.
+    """
+    spec = HEADING_LEVELS[level]
+    spacing = '<w:spacing w:before="0" w:after="0" w:line="{l}" w:lineRule="auto"/>'
+    props = ["<w:keepNext/>", spacing.format(l=LINE_DOUBLE)]
+    if spec.get("indent"):
+        props.append('<w:ind w:left="{i}"/>'.format(i=spec["indent"]))
+    if spec.get("align"):
+        props.append('<w:jc w:val="{a}"/>'.format(a=spec["align"]))
+    props.append('<w:outlineLvl w:val="{o}"/>'.format(o=level - 1))
+    runs_props = "<w:b/>" + ("<w:i/>" if spec.get("italic") else "")
     return (
         '<w:style w:type="paragraph" w:styleId="Heading{lv}">'
         '<w:name w:val="heading {lv}"/><w:basedOn w:val="Normal"/>'
-        '<w:pPr><w:keepNext/><w:outlineLvl w:val="{out}"/>'
-        '<w:spacing w:before="0" w:after="0" w:line="{line}" w:lineRule="auto"/></w:pPr>'
-        '<w:rPr><w:b/><w:sz w:val="{sz}"/><w:szCs w:val="{sz}"/></w:rPr></w:style>'
-    ).format(lv=level, out=level - 1, line=LINE_DOUBLE, sz=half_points)
+        "<w:pPr>{ppr}</w:pPr>"
+        '<w:rPr>{rpr}<w:sz w:val="{sz}"/><w:szCs w:val="{sz}"/></w:rPr></w:style>'
+    ).format(lv=level, ppr="".join(props), rpr=runs_props, sz=BODY_HALF_POINTS)
 
 
 STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -109,10 +169,10 @@ STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     w=W,
     line=LINE_DOUBLE,
     hang=HANGING,
-    h1=_heading_style(1, 28),
-    h2=_heading_style(2, 26),
-    h3=_heading_style(3, 24),
-    h4=_heading_style(4, 24),
+    h1=_heading_style(1),
+    h2=_heading_style(2),
+    h3=_heading_style(3),
+    h4=_heading_style(4),
 )
 
 
@@ -186,16 +246,33 @@ def runs(text: str, bold: bool = False) -> str:
     return "".join(out)
 
 
-def para(text: str, style: str = "", num_id: int = 0, level: int = 0) -> str:
+def para(
+    text: str,
+    style: str = "",
+    num_id: int = 0,
+    level: int = 0,
+    page_break: bool = False,
+    align: str = "",
+) -> str:
+    """One paragraph. The property order is the schema's, not a preference.
+
+    ``CT_PPrBase`` is a sequence rather than a set -- ``pStyle``, ``pageBreakBefore``,
+    ``numPr``, then ``jc`` -- and Word refuses a file whose properties arrive out of
+    order. Nothing here validates that, so the order is kept by construction.
+    """
     props = []
     if style:
         props.append('<w:pStyle w:val="{s}"/>'.format(s=style))
+    if page_break:
+        props.append("<w:pageBreakBefore/>")
     if num_id:
         props.append(
             '<w:numPr><w:ilvl w:val="{lv}"/><w:numId w:val="{n}"/></w:numPr>'.format(
                 lv=level, n=num_id
             )
         )
+    if align:
+        props.append('<w:jc w:val="{a}"/>'.format(a=align))
     ppr = "<w:pPr>{p}</w:pPr>".format(p="".join(props)) if props else ""
     return "<w:p>{ppr}{r}</w:p>".format(ppr=ppr, r=runs(text))
 
@@ -251,6 +328,7 @@ def body_xml(markdown: str) -> str:
     lines = markdown.replace("\r\n", "\n").split("\n")
     out = []
     in_references = False
+    has_content = False
     index = 0
     while index < len(lines):
         line = lines[index]
@@ -266,8 +344,26 @@ def body_xml(markdown: str) -> str:
         if heading:
             level = len(heading.group(1))
             text = heading.group(2).strip()
-            in_references = bool(re.match(r"references\b", text, re.I))
-            out.append(para(text, style="Heading{n}".format(n=level)))
+            # APA permits the singular for a one-entry list, and matching only the
+            # plural silently dropped the hanging indent on the one list small enough
+            # for a reader to notice. The two spellings do not get the same rule: the
+            # plural keeps its prefix match, because no ordinary heading opens with it,
+            # while the singular has to be the whole heading -- ``Reference Ranges`` is
+            # a lab heading, and since a match now also centers and breaks the page, a
+            # wrong one is louder than a stray indent.
+            in_references = bool(re.match(r"references\b|reference\s*$", text, re.I))
+            out.append(
+                para(
+                    text,
+                    style="Heading{n}".format(n=level),
+                    # A page break on the document's first paragraph renders an empty
+                    # first page, so a document that opens on its reference list takes
+                    # the centering and not the break.
+                    page_break=in_references and has_content,
+                    align="center" if in_references else "",
+                )
+            )
+            has_content = True
             index += 1
             continue
 
@@ -278,12 +374,14 @@ def body_xml(markdown: str) -> str:
                 rows.append(split_row(lines[index].strip()))
                 index += 1
             out.append(table(rows))
+            has_content = True
             continue
 
         bullet = re.match(r"([ \t]*)[-*+]\s+(.*)", line)
         if bullet:
             level = min(len(bullet.group(1).expandtabs(4)) // 2, 2)
             out.append(para(bullet.group(2), style="ListParagraph", num_id=1, level=level))
+            has_content = True
             index += 1
             continue
 
@@ -291,25 +389,30 @@ def body_xml(markdown: str) -> str:
         if numbered:
             level = min(len(numbered.group(1).expandtabs(4)) // 2, 2)
             out.append(para(numbered.group(2), style="ListParagraph", num_id=2, level=level))
+            has_content = True
             index += 1
             continue
 
         out.append(para(stripped, style="Reference" if in_references else ""))
+        has_content = True
         index += 1
 
     return "".join(out)
 
 
 def document_xml(markdown: str) -> str:
+    # ``headerReference`` is the first child of ``sectPr`` because the schema puts it
+    # there; a reference written after ``pgSz`` is a file Word declines to open.
     sect = (
-        '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'
+        '<w:sectPr><w:headerReference w:type="default" r:id="{h}"/>'
+        '<w:pgSz w:w="12240" w:h="15840"/>'
         '<w:pgMar w:top="{m}" w:right="{m}" w:bottom="{m}" w:left="{m}" '
         'w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
-    ).format(m=MARGIN)
+    ).format(m=MARGIN, h=HEADER_ID)
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        "<w:document {w}><w:body>{b}{s}</w:body></w:document>"
-    ).format(w=W, b=body_xml(markdown), s=sect)
+        "<w:document {w} {r}><w:body>{b}{s}</w:body></w:document>"
+    ).format(w=W, r=R, b=body_xml(markdown), s=sect)
 
 
 def write_docx(markdown: str, destination) -> Path:
@@ -322,6 +425,7 @@ def write_docx(markdown: str, destination) -> Path:
         archive.writestr("word/_rels/document.xml.rels", DOC_RELS)
         archive.writestr("word/styles.xml", STYLES)
         archive.writestr("word/numbering.xml", NUMBERING)
+        archive.writestr("word/header1.xml", HEADER)
         archive.writestr("word/document.xml", document_xml(markdown))
     return destination
 

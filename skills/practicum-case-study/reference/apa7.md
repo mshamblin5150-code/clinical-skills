@@ -31,8 +31,12 @@ differential is very important, but that shouldn't take the place of tidiness.*
 - The label is **`References`**, **bold and centered**. Never `Works Cited`, `Bibliography` or
   `Reference List`. Where the list holds exactly one entry the singular **`Reference`** is
   permitted — which the corpus needs, since one submission scored full marks on a single source.
-  **Do not take that permission here yet**: the renderer keys the hanging indent on the plural and
-  silently drops it on the singular. See §6.
+  **Take that permission freely**: since
+  [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the renderer matches
+  both spellings and the whole of §1 applies to either. This bullet told a run to write the plural
+  regardless until that landed; the workaround is gone. **Write the label and nothing else** —
+  the singular is matched only as a complete heading, because `Reference Ranges` is a heading a
+  clinical document really writes and a match there would center it and break the page.
 - Each entry is **one paragraph, flush left**, with a **0.5 inch hanging indent applied to the
   whole list**.
 - **Double spaced throughout, with no extra space between entries.**
@@ -130,8 +134,8 @@ and the references of a meta-analysis.
 
 ## 6. What the renderer applies, and what it does not
 
-`tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies some of
-§1 and not all of it**, and the gap is written down rather than assumed away:
+`tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies most of
+§1 now**, and what it does not is written down rather than assumed away:
 
 | §1 rule | `docx_write.py` |
 | --- | --- |
@@ -139,25 +143,47 @@ and the references of a meta-analysis.
 | 0.5 inch hanging indent on the whole reference list | applied |
 | No extra space between entries | applied |
 | `References` heading **bold** | applied |
-| `References` heading **centered** | **not applied** — it renders flush left |
-| `References` heading at **body size**, 12 pt | **not applied** — H1 renders 14 pt, H2 13 pt |
-| Reference list **starts on a new page** | **not applied** — no page break is emitted |
-| **Page numbers**, top right of every page | **not applied** — the document carries no header part |
-| The singular **`Reference`** heading gets the hanging indent | **not applied** — see below |
+| `References` heading **centered** | applied |
+| `References` heading at **body size**, 12 pt | applied — every heading level is 12 pt |
+| Reference list **starts on a new page** | applied |
+| **Page numbers**, top right of every page | applied |
+| The singular **`Reference`** heading gets the hanging indent | applied |
 
-**Every row above was measured by rendering a document and reading the XML, not inferred from the
-source.** 2026-08-18.
+**Every row above was measured by rendering a document and reading `word/document.xml`,
+`word/styles.xml` and `word/header1.xml` — not inferred from the source.** 2026-08-18, on
+[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217)'s branch. **Five of the
+nine read *not applied* earlier the same day**, and the other four were already green — this table
+is re-measured rather than inherited because a row's verdict expires when the renderer changes,
+which here was hours rather than days.
 
-**The last row is a gap this sheet created, which is why it is named rather than left for someone
-to trip over.** `docx_write.py` decides a paragraph is a reference by matching `references\b`
-against the heading, so it matches `References` and **does not match the singular `Reference`** —
-and §1 above is what blesses the singular for a one-entry list. So taking §1's permission silently
-loses the hanging indent on the only kind of list small enough for a reader to notice. **Until
-[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) lands, write
-`References` even for a single entry**, and take the plural over the indent.
+**That sentence said *every* row and *the day before*, and both were wrong.** It was caught by
+`/code-review` against the previous version of this very table, which is the check working: a
+paragraph arguing that figures must be re-derived had itself been written from memory of a table
+sitting four lines above it.
 
-**None of these is worth more than a point, and they are still real.** They are recorded here and
-filed rather than fixed, because they are renderer behavior rather than a rule about what this
-skill writes — [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217).
+**Two of the nine came out differently than the ticket asked, and both are worth knowing.** The
+`Reference` singular was not on #217 as filed — it was found by `/code-review` on the branch that
+wrote this sheet, and it is a gap **this sheet created**, because §1 above is what blesses the
+singular. And the heading-size row was filed as *"worth a decision rather than a fix"*; the
+clinician ruled it on 2026-08-18, and the answer was wider than the row — **every heading level
+now renders the way APA distinguishes them**, level 1 bold centered, level 2 bold flush left,
+level 3 bold italic flush left, level 4 bold indented.
+
+**What is still not applied**, so the list above does not read as the whole of APA:
+
+| APA rule | `docx_write.py` |
+| --- | --- |
+| A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown |
+| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | **not applied** |
+| A table carries **horizontal rules only**, no grid (§7.8) | **not applied** — a full grid is drawn |
+| APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset |
+
+The two mechanical ones are
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220). The other two are
+statements about what Markdown and this skill's inputs can express, and are recorded rather than
+filed.
+
+**None of these is worth more than a point, and they are still real.**
 **A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 8's
-sentence arriving one level down.
+sentence arriving one level down — and it is no less true now that four more rows are green, because
+what a renderer cannot check is whether the entry it indented so carefully is a real source.
