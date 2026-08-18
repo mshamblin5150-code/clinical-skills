@@ -11,9 +11,11 @@ with it when the worktree was removed.
 **Three tests, and none needs a reader.**
 
 - **F1** -- ``Primary Payment Method`` never opens a ``GAPS`` entry. It carries a
-  **declared rule** in ``reference/medatrax-fields.md``, so it is filled from that
-  rule rather than reported missing, and a GAPS entry for it is the block teaching
-  the clinician to skim.
+  **declared rule**, so it is filled from that rule rather than reported missing,
+  and a GAPS entry for it is the block teaching the clinician to skim. That rule
+  keys on the site, which makes it per-account, so #212 moved it out of
+  ``reference/medatrax-fields.md`` and into the gitignored profile; this grader
+  never reads either, and F1 is about the entry rather than about the value.
 - **F2** -- start and end times never open a ``GAPS`` entry. They are estimated by
   design and say so where they appear; *estimated* is a property of the value, not
   the absence of one.

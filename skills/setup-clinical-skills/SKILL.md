@@ -10,7 +10,7 @@ The skills in this repo carry two kinds of knowledge and only one of them travel
 
 **Universal** — how a SOAP note is structured, what drift is, that `Patient Detail` renders a visit read-only, that a positive Rovsing's sign has to be addressed. True for anyone.
 
-**Per-clinician** — which courses, how many hours, which preceptors, which sites, what the payer mix actually looks like in *their* portal, and which patient is which. None of it transfers, and all of it is currently written into [reference/medatrax-fields.md](../../reference/medatrax-fields.md) from one account.
+**Per-clinician** — which courses, how many hours, which preceptors, which sites, what the payer mix actually looks like in *their* portal, and which patient is which. None of it transfers, and it belongs in `scratch/medatrax-profile.md` rather than in [reference/medatrax-fields.md](../../reference/medatrax-fields.md), which is the file a second clinician inherits. **The preceptor and site picklists sat in the reference until [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212) moved them**, so a run before 2026-08-18 will have read one account's values as though they were the portal's.
 
 This skill collects the second kind. It is prompt-driven, not a script: explore, present what you found, confirm, then write.
 
@@ -52,7 +52,7 @@ That last command must print **both** `scratch` and `output`. It lists only the 
 
 - `scratch/` — does `medatrax-profile.md` or `identity-map.md` already exist? If so this is a re-run; read them and confirm rather than re-collect.
 - `output/` — already populated? A re-run must not overwrite finished work.
-- `reference/medatrax-fields.md` — read it. Much of what you need may already be recorded from a previous account; present it as *someone else's values to overwrite*, never as defaults to accept.
+- `reference/medatrax-fields.md` — read it. It holds the universal Medatrax behavior and no longer holds any account's picklists, so what you find there is a description of the portal rather than someone else's values. Anything per-account still in it is a defect — see step 5.
 - Is a browser tool available that reaches the clinician's real logged-in session? Portal steps need one.
 
 ### 2. Portal access

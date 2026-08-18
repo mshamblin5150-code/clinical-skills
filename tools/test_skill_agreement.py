@@ -42,6 +42,7 @@ CLINICAL_NOTE = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
 AGENTS = REPO_ROOT / "AGENTS.md"
 MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
+BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 
 
 def read(path: Path) -> str:
@@ -209,8 +210,6 @@ class BothSkillsRuleTheSameWayOnAnUnmappedPreceptor(unittest.TestCase):
         self.assertIn("not restated here on purpose", read(SETUP))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
@@ -256,9 +255,29 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         self.assertNotIn("The rules live in the reference", note)
         self.assertIn("keys on the site, which makes it per-account", note)
 
+    def test_no_consumer_still_addresses_the_payer_rule_to_the_reference(self):
+        # **The first pass of this class checked one consumer and there were
+        # three**, which is #137's partial instrument arriving on the sweep meant
+        # to prevent it. ``block_scan.py`` grades the F1 row that rests on this
+        # rule and its docstring gave the old address; ``setup-clinical-skills``
+        # step 1 asserted the per-account content was *written into* the
+        # reference, eighty lines above the rule this branch added saying it must
+        # not be. Both read as coherent alone, which is this file's whole subject.
+        self.assertNotIn(
+            "**declared rule** in ``reference/medatrax-fields.md``",
+            read(BLOCK_SCAN),
+        )
+        self.assertNotIn(
+            "all of it is currently written into", read(SETUP)
+        )
+
     def test_setup_rules_where_a_site_keyed_rule_belongs(self):
         # The durable half. Without it the next declared default keyed on a
         # placement lands back in the reference and the split breaks again.
         self.assertIn(
             "keys on a preceptor or a site is per-account", read(SETUP)
         )
+
+
+if __name__ == "__main__":
+    unittest.main()

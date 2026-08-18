@@ -392,7 +392,7 @@ The pattern is different: **most FLAG entries in this run assert an omission the
 
 **Case 3's recorded gender contradicts the shorthand.** The portal says `Gender: Female`. The shorthand says `18 yo M` and the narrative is "he can bear weight but it hurts". Every other recorded field on that visit matches — height 70, BP 139/85, RR 20, BMI 40.9 — so this is one wrong picklist, not a mismatched patient. Worth correcting in the portal; it is not a fixture question.
 
-**Primary Payment Method is not a constant.** On this day the eleven encounters carry six `Medicaid`, three `Commercial insurance/HMO/PPO` and two `Medicare` — including `Medicare` on a 23-year-old. `reference/medatrax-fields.md` previously recorded that all eleven were `Medicaid`; they are not, and the rule there has been changed to match.
+**Primary Payment Method is not a constant.** On this day the eleven encounters carry six `Medicaid`, three `Commercial insurance/HMO/PPO` and two `Medicare` — including `Medicare` on a 23-year-old. `reference/medatrax-fields.md` previously recorded that all eleven were `Medicaid`; they are not, and the rule was changed to match. **That rule has since moved** — it keys on the site, which makes it per-account, so [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212) put it in the gitignored profile. The measurement above is unaffected; only its address is.
 
 ## Still unresolved
 
