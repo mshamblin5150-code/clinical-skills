@@ -86,6 +86,22 @@ _Avoid_: test data, sample, example
 A claim in the clinician's own words about what a correct run must contain.
 _Avoid_: expectation, check, test case
 
+**Ruling cohort**:
+The assertions across one or more fixtures that express one clinician ruling and share one promotion boundary. Its members move together or not at all.
+_Avoid_: batch, group, wave
+
+**Valid score**:
+A pass or a fail on an assertion, read from output produced while the rule that assertion states was already in force. Unscoreable is not one.
+_Avoid_: result, grade, reading
+
+**Promoted assertion**:
+An assertion whose bar has become binary, kept in place as its own history and naming the enforced successor that now carries its subject.
+_Avoid_: upgraded row, migrated row, replacement
+
+**Targeted scoring**:
+Grading one assertion against every encounter it names, or against the whole set where its subject is the set. Complete evidence for that assertion, and not a run.
+_Avoid_: partial run, spot check, sample
+
 **Patient Time band**:
 The hours bucket an encounter accrues against. The one administrative field where a wrong value has a real consequence.
 _Avoid_: age group, category

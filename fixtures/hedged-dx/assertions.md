@@ -121,37 +121,55 @@ Added 2026-08-15 for [#68](https://github.com/mshamblin5150-code/clinical-skills
 
 **Its quiet failure is a sentence that reads like competence.** *"Chest radiography demonstrated a patchy interstitial pattern consistent with atypical pneumonia"* is clinically apt, consistent with the diagnosis, consistent with the treatment, and entirely invented. Nothing else in the note contradicts it.
 
-## GIVEN — binary, all must pass
+## FILLED — binary, all must pass
 
-This set's fourth section, and the class is [day-b](../day-b/assertions.md)'s — defined in [fixtures/README](../README.md), hosted there first, and arriving here because [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96)'s ruling landed in four sets and needed one class in all four. CODING asks what the codes claim and NAMING asks what an entry is called; GIVEN asks the prior question, **did a given survive at all, unchanged**, and README names *a stated allergen* among its subjects outright.
+**One row, and this set had no binary class but `CODING`, `NAMING` and `DRIFT` until 2026-08-18.** [fixtures/README](../README.md)'s promotion lifecycle rules that a successor lands in a class its history is not in, and that **a set with no such class yet opens one rather than borrowing a neighbor's letter**. So this class is opened rather than F1 being appended to `NAMING`, which would leave a citation to `N4` pointing at a row about allergies.
+
+**It is `F`-prefixed because the letters this set already uses are taken** — `C` for CODING, `N` for NAMING, `D` for DRIFT, `R` for REPORTED — and `F` is FILLED's own initial. Row identifiers are read per file, so day-a's block-structure `F3` and this `F1` do not collide any more than day-b's `B1` and peds-bp's `P1` do.
 
 | # | Cases | Passes when | Fails when | Reference did |
 | --- | --- | --- | --- | --- |
-| G1 | 3 — 3 yo | **The `allergy: seasonal` line appears in the `Allergies (reaction)` box named as environmental, *and* the box states a drug status.** Both limbs, not one instead of the other. Appearing in `PMH/PSH` **as well as** in the box passes; the box is what is graded. And **no `FILLED·asserted` entry denies the allergen the note read** | The allergen is absent from the box; or sits in it unnamed by its kind; or the box states no drug status; or a `FILLED·asserted` entry denies the given. **The unit of that last limb is the entry and its wrapped lines**, not the sentence. What the **reaction** beside the allergen reads is not this row's | **Owed.** Same standing as this set's other rows. **Scored `PASS`, 2026-08-18, against `48ac3ca`** — a targeted run, [#201](https://github.com/mshamblin5150-code/clinical-skills/issues/201); the walk is below. |
+| F1 | 3 — 3 yo | **The `allergy: seasonal` line appears in the `Allergies (reaction)` box named as environmental, *and* the box states a drug status.** Both limbs, not one instead of the other. Appearing in `PMH/PSH` **as well as** in the box passes; the box is what is graded. And **no `FILLED·asserted` entry denies the allergen the note read** | The allergen is absent from the box; or sits in it unnamed by its kind; or the box states no drug status; or a `FILLED·asserted` entry denies the given. **The unit of that last limb is the entry and its wrapped lines**, not the sentence. What the **reaction** beside the allergen reads is [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94)'s and is not this row's | R2's cell, unchanged. **Owed**, on this set's standing. |
 
-### G1 is R2 promoted, and this set held the input the whole ruling turned on
+### F1 is #96's ruling cohort, promoted, and R2 is its history
 
-**[#201](https://github.com/mshamblin5150-code/clinical-skills/issues/201), scored 2026-08-18 against `48ac3ca`: PASS.** R2 was counted **for want of a run** and promotable only with the other three; the run came, all four passed, and each gained an enforced successor. **R2 stays and is not renumbered** — G1 is its successor, not its replacement.
+**#96's ruling cohort is four rows across four sets** — R2 here on case 3, [day-a](../day-a/assertions.md) R15 on case 6, [day-b](../day-b/assertions.md) R7 on cases 2, 7 and 11 and [peds-bp](../peds-bp/assertions.md) R3 on case 5 — promoted together on 2026-08-18, [#201](https://github.com/mshamblin5150-code/clinical-skills/issues/201).
 
-**Case 3 is the only committed input where the two candidate rules give opposite answers** — `allergy: seasonal` is labeled *and* environmental, so label placement puts it in the box and a drug-only box keeps it out. That is why the clinician was asked on this case rather than on the abstraction, and it is why this row is worth a walk rather than a fraction. The targeted run wrote:
+| Successor | History | First verdict | The output it was read from |
+| --- | --- | --- | --- |
+| F1 | R2 | **PASS** | A targeted run on `48ac3ca`, 2026-08-18 — case 3 alone, which is every case this row names. |
+
+**This set held the input the whole ruling turned on**, which is why the walk matters more here than a fraction would. Case 3's `allergy: seasonal` is the only committed input where the two candidate rules give **opposite** answers — labeled *and* environmental, so label placement puts it in the box and a drug-only box keeps it out. The clinician was asked on this case rather than on the abstraction.
+
+**What the run wrote, quoted rather than summarized:**
 
 ```
 Allergies (reaction): NKDA for drug allergies. Seasonal environmental allergies -
 itching and sneezing.
 ```
 
-**The drug half is what the Plan needed**, and it is the second limb rather than a courtesy: this encounter's Plan carries azithromycin and prednisolone, and `NKDA` is the only thing in the note that answers whether they may be given.
+**The drug half is the second limb rather than a courtesy.** This encounter's Plan carries azithromycin and prednisolone, and `NKDA` is the only thing in the note that answers whether they may be given.
 
-**One thing the row's own prose gets loose about, recorded rather than quietly fixed.** R2 reads *"the Plan proposes azithromycin and prednisolone, so the drug half is what says the two may be given"*, and both drugs are in the **shorthand** — they are givens, not proposals. The note's `FILLED·asserted` entry accordingly names the **proposed** acetaminophen as what rests on the inferred `NKDA` and names neither given drug, which is [day-b](../day-b/assertions.md) R4's rule exactly: *naming a given fails as surely as omitting a proposed one*. **So the note is right and the sentence is imprecise**, and G1 is written without that limb rather than inheriting it — what a `FILLED·asserted` line must enumerate is R4's subject and not #96's. R2's text is left alone: **changing a ruling needs the clinician, and recording what was found does not.**
+**R2 was checked for being several rows before it was promoted, and it is five limbs — one of which was dropped on the way in.** [fixtures/README](../README.md) requires the check. R2's text carries a limb the other three rows do not: *"its `FILLED·asserted` line names the drugs leaning on it"*. **F1 does not inherit it**, and that is a clarification rather than a silent narrowing.
 
-**No denominator moves.** Run 1's `CODING 5/5`, `DRIFT 1/1`, `REPORTED 1/1` stand, and `NAMING`'s three verdicts are untouched. One encounter scored on one row is not a run, and this set's reference is still owed.
+**The reason is that R2's own rationale mischaracterizes two drugs, and both graders found it independently.** The row reads *"the Plan proposes azithromycin and prednisolone"* — but the **shorthand** orders both, so they are givens rather than proposals. [day-b](../day-b/assertions.md) R4 rules on exactly this: the `FILLED·asserted` line enumerates *"every proposed drug resting on the inference, and no drug the shorthand already ordered"*, and **naming a given fails as surely as omitting a proposed one**. The note names only the proposed acetaminophen, and it is right to. **So what a dependency line must enumerate is R4's subject, not #96's**, and a limb that belongs to another row is not carried into this one. The second grader reached that reading unprompted and checked it across all three of the run's other notes: each names its own note-originated drug and no given one.
+
+**R2's text is left exactly as it stands.** Changing a ruling needs the clinician; recording what was found does not.
+
+**One limb is conditional and it fired here.** The dependency clause only applies *where the `NKDA` is inferred*, and this note's block reads `ALLERGIES NKDA filled`, so it did. A run writing the status as **given** would owe nothing on that limb, and a grader who did not check the marker first would score a limb that never fired.
+
+**This is the one note of the six that writes the qualified form.** Its tier entry reads `no drug allergy history was taken this visit`, where day-a case 6, day-b case 2 and peds-bp case 5 all write the unqualified `no allergy history was taken this visit` and are saved only by the scope and the sentence after it. **Three independent passes produced two forms**, so it is drift in the skill's wording rather than one pass's slip — [#203](https://github.com/mshamblin5150-code/clinical-skills/issues/203), and this note is the form to fix the others to.
+
+**No fraction moves.** Run 1's `CODING 5/5`, `DRIFT 1/1` and `REPORTED 1/1` stand, and `NAMING`'s three retrospective verdicts are untouched. Run 1 ran on 2026-08-15 and predates #96.
 
 ## REPORTED — counted, not enforced
+
+**One row is graded here now, not two.** R2 came out of [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) and was **promoted on 2026-08-18** by [#201](https://github.com/mshamblin5150-code/clinical-skills/issues/201). It keeps its identifier, its claim and its cell, and it is out of every later `REPORTED` denominator; its enforced successor is **F1** under `FILLED` above. **What a future scorecard grades under `REPORTED` is R1.** Run 1's `REPORTED 1/1` does not move — it reports what was scored over the rows that existed on 2026-08-15.
 
 | # | Case | Counted | Reference did |
 | --- | --- | --- | --- |
 | R1 | 1 — 7 yo f | **What the note does about the missing radiographic basis.** Three shapes seen so far: it orders a film prospectively under `FILLED·proposed`; it records the pneumonia entry as resting on a film with no result; it says nothing | **Owed, and out of reach.** Same reasoning as D1 |
-| R2 | 3 — 3 yo | **The `allergy: seasonal` line reaches the `Allergies (reaction)` box named as environmental, *and* the box states a drug status.** Both limbs, not one instead of the other: a box reading only `Environmental: seasonal allergies` fails as surely as a bare `NKDA` with the allergen routed to `PMH/PSH`. The Plan proposes azithromycin and prednisolone, so the drug half is what says the two may be given. **And where the `NKDA` is inferred, its `FILLED·asserted` line names the drugs leaning on it and does not deny the seasonal allergy** | **Owed.** Same standing as this set's other rows. **Promoted 2026-08-18 on [#201](https://github.com/mshamblin5150-code/clinical-skills/issues/201) — G1 under GIVEN is its enforced successor and passed.** This row keeps its identity and its text; what moved is the bar. |
+| R2 | 3 — 3 yo | **Promoted to F1, 2026-08-18 — kept as history and no longer graded under `REPORTED`.** **The `allergy: seasonal` line reaches the `Allergies (reaction)` box named as environmental, *and* the box states a drug status.** Both limbs, not one instead of the other: a box reading only `Environmental: seasonal allergies` fails as surely as a bare `NKDA` with the allergen routed to `PMH/PSH`. The Plan proposes azithromycin and prednisolone, so the drug half is what says the two may be given. **And where the `NKDA` is inferred, its `FILLED·asserted` line names the drugs leaning on it and does not deny the seasonal allergy** | **Owed.** Same standing as this set's other rows. |
 
 **R1 was drafted as the second limb of D1, split out before the run, and then rewritten because the run proved it wrong.** All three states are recorded because the reasoning is the argument, not the outcome.
 
@@ -173,7 +191,7 @@ itching and sneezing.
 
 **He ruled that the box carries both, each named by its kind**, which retires the placement hypothesis rather than choosing between its outcomes. The population and the four-and-four count that killed that hypothesis are stated once in [day-b](../day-b/assertions.md) under R6 and R7 and deliberately not repeated here.
 
-**Counted rather than binary on #29's reason**, one ruling across four sets — this row, [day-a](../day-a/assertions.md) R15, [day-b](../day-b/assertions.md) R7 and [peds-bp](../peds-bp/assertions.md) R3. **Promotable, for want of a run, and the four go together.** **They went, on 2026-08-18**: all four passed a targeted run and all four gained an enforced successor, which for this set is **G1** under GIVEN. The cohort is closed. It sits in REPORTED rather than beside the CODING and NAMING rows despite resolving to a value a reader compares, which is the same tension R2 carries in peds-bp and is recorded for the same reason.
+**Counted rather than binary on #29's reason**, one ruling across four sets — this row, [day-a](../day-a/assertions.md) R15, day-b R6 and [peds-bp](../peds-bp/assertions.md) R3. **Promotable, for want of a run, and the four go together.** It sits in REPORTED rather than beside the CODING and NAMING rows despite resolving to a value a reader compares, which is the same tension R2 carries in peds-bp and is recorded for the same reason.
 
 ## Still unresolved
 
