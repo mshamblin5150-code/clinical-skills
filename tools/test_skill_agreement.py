@@ -41,6 +41,8 @@ BATCH_SHIFT = REPO_ROOT / "skills" / "batch-shift" / "SKILL.md"
 CLINICAL_NOTE = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
 AGENTS = REPO_ROOT / "AGENTS.md"
+MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
+BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 
 
 def read(path: Path) -> str:
@@ -206,6 +208,75 @@ class BothSkillsRuleTheSameWayOnAnUnmappedPreceptor(unittest.TestCase):
         # of two near-identical paragraphs and the other went stale; duplicating
         # the ruling again would rebuild exactly that.
         self.assertIn("not restated here on purpose", read(SETUP))
+
+
+
+
+class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
+    """#212's ruling, and the one half of it a reader can check without a name.
+
+    ``setup-clinical-skills`` states the split this repo runs on -- *this file
+    holds the universal Medatrax behavior and the profile holds everything about
+    them* -- and ``reference/medatrax-fields.md`` inlined the preceptor and site
+    picklists anyway, for the whole life of the file. That is what #212 found
+    while scanning for a public flip, and the tree was cleared on the broken
+    split rather than on de-identification: **#212 re-ruled #50 the same way**,
+    no site layer and the historical blobs stay.
+
+    **These assertions name no site and no preceptor, deliberately.** A test
+    holding the strings would put them back in the tree the ruling just emptied,
+    which is ``spelling_scan``'s mention-versus-use problem with the sign
+    flipped -- here the mention is the leak. So each check is structural: the
+    reference must *point at* the profile, and the two skills that consume the
+    rules must not send a reader to the file that no longer holds them.
+
+    What no test here can reach is a *new* per-account value arriving in the
+    reference under some other heading. #50 ruled that hole acceptable and #212
+    left it ruled; nothing below is a fourth ``phi_scan`` layer.
+    """
+
+    def test_the_reference_points_at_the_profile_for_both_picklists(self):
+        text = read(MEDATRAX)
+        self.assertIn("Preceptor and Location / Site are per-account", text)
+        self.assertIn("scratch/medatrax-profile.md", text)
+
+    def test_the_reference_keeps_the_format_it_gave_up_the_values_for(self):
+        # The move is only safe if the universal half survives it. ``Last,First``
+        # with no space is Medatrax behavior on every account, and an entry
+        # written with a space does not match the picklist.
+        self.assertIn("`Last,First` with no space", read(MEDATRAX))
+
+    def test_the_payer_rule_is_not_claimed_to_live_in_the_reference(self):
+        # ``clinical-note`` step 5 read *The rules live in the reference; do not
+        # restate them here* while one of the two rules keys on a site name. A
+        # reader following that sentence after the move finds nothing and has to
+        # guess, which is the failure #212's move would otherwise have created.
+        note = read(CLINICAL_NOTE)
+        self.assertNotIn("The rules live in the reference", note)
+        self.assertIn("keys on the site, which makes it per-account", note)
+
+    def test_no_consumer_still_addresses_the_payer_rule_to_the_reference(self):
+        # **The first pass of this class checked one consumer and there were
+        # three**, which is #137's partial instrument arriving on the sweep meant
+        # to prevent it. ``block_scan.py`` grades the F1 row that rests on this
+        # rule and its docstring gave the old address; ``setup-clinical-skills``
+        # step 1 asserted the per-account content was *written into* the
+        # reference, eighty lines above the rule this branch added saying it must
+        # not be. Both read as coherent alone, which is this file's whole subject.
+        self.assertNotIn(
+            "**declared rule** in ``reference/medatrax-fields.md``",
+            read(BLOCK_SCAN),
+        )
+        self.assertNotIn(
+            "all of it is currently written into", read(SETUP)
+        )
+
+    def test_setup_rules_where_a_site_keyed_rule_belongs(self):
+        # The durable half. Without it the next declared default keyed on a
+        # placement lands back in the reference and the split breaks again.
+        self.assertIn(
+            "keys on a preceptor or a site is per-account", read(SETUP)
+        )
 
 
 if __name__ == "__main__":
