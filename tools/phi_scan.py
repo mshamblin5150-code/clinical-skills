@@ -48,6 +48,17 @@ Known limits, stated so nobody mistakes this for a guarantee:
   *output* inherits that skill's whole context, which is wider than any site
   list and is why the list was not written. The counts and the ruling's grounds
   are stated once each over there, not here.
+
+  #212 found the same hole a second time, in ``reference/medatrax-fields.md``
+  rather than in a fixture, and ruled 2026-08-18 that **this stays true**: no
+  site layer, and the history keeps its copies, because a placement and a
+  preceptor are facts about the clinician rather than about a patient. What
+  changed is only the tree -- that file no longer carries the values, on a
+  ground that is not de-identification at all. ``skills/setup-clinical-skills``
+  already says the reference holds universal Medatrax behavior and the profile
+  holds everything about the clinician, and per-account picklists sitting in
+  the reference simply broke that split. So do not read a clean tree here as
+  this scanner having gained a layer; it has not.
 - **Binary files are skipped entirely**, so nothing inside ``reference/
   icd10cm-2026.sqlite`` is scanned. Its contents are the public ICD-10-CM
   release and carry no patient data. If a binary that could carry PHI is ever

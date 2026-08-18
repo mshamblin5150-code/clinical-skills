@@ -10,7 +10,7 @@ The skills in this repo carry two kinds of knowledge and only one of them travel
 
 **Universal** — how a SOAP note is structured, what drift is, that `Patient Detail` renders a visit read-only, that a positive Rovsing's sign has to be addressed. True for anyone.
 
-**Per-clinician** — which courses, how many hours, which preceptors, which sites, what the payer mix actually looks like in *their* portal, and which patient is which. None of it transfers, and all of it is currently written into [reference/medatrax-fields.md](../../reference/medatrax-fields.md) from one account.
+**Per-clinician** — which courses, how many hours, which preceptors, which sites, what the payer mix actually looks like in *their* portal, and which patient is which. None of it transfers, and it belongs in `scratch/medatrax-profile.md` rather than in [reference/medatrax-fields.md](../../reference/medatrax-fields.md), which is the file a second clinician inherits. **The preceptor and site picklists sat in the reference until [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212) moved them**, so a run before 2026-08-18 will have read one account's values as though they were the portal's.
 
 This skill collects the second kind. It is prompt-driven, not a script: explore, present what you found, confirm, then write.
 
@@ -52,7 +52,7 @@ That last command must print **both** `scratch` and `output`. It lists only the 
 
 - `scratch/` — does `medatrax-profile.md` or `identity-map.md` already exist? If so this is a re-run; read them and confirm rather than re-collect.
 - `output/` — already populated? A re-run must not overwrite finished work.
-- `reference/medatrax-fields.md` — read it. Much of what you need may already be recorded from a previous account; present it as *someone else's values to overwrite*, never as defaults to accept.
+- `reference/medatrax-fields.md` — read it. It holds the universal Medatrax behavior and no longer holds any account's picklists, so what you find there is a description of the portal rather than someone else's values. Anything per-account still in it is a defect — see step 5.
 - Is a browser tool available that reaches the clinician's real logged-in session? Portal steps need one.
 
 ### 2. Portal access
@@ -73,7 +73,7 @@ Ask, and record the answers rather than deriving them:
 
 ### 4. Picklists — read them, do not assume them
 
-Preceptors, sites, case types and Patient Time bands are per-account picklists. Read them off the portal and record the strings **character for character** — one account carries `Wyoming County Health Dept.` with a trailing period and `New River Health - Oak Hill` with a spaced hyphen. A near-miss string does not match.
+Preceptors, sites, case types and Patient Time bands are per-account picklists. Read them off the portal and record the strings **character for character** — on one account a site entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss string does not match.
 
 Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly.
 
@@ -90,6 +90,8 @@ Some fields are never visible at the bedside and need a declared value: `Primary
 **Measure them against this clinician's own record.** Open one full day of existing encounters and count. Do not carry another account's default across — on one account `Medicaid` was recorded as a safe constant and turned out to be six of eleven, with three Commercial and two Medicare beside it.
 
 Record the measured distribution alongside the default, and say how often the default is wrong. A default that is wrong two times in five belongs under `FILLED·asserted` for confirmation; one that is wrong one time in twenty can be filled silently. The number decides, not the habit.
+
+**A rule that keys on a preceptor or a site is per-account whatever else it looks like, and belongs in the profile rather than in the reference.** On this account `Primary Payment Method` turned out to key on the site, so the rule names two places; it sat in `reference/medatrax-fields.md` until [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212) moved it. The reference is the file another clinician inherits — a rule written there that only resolves against one account's picklist is both a leak and wrong for them.
 
 ### 6. The identity map — the part that prevents duplicates
 
