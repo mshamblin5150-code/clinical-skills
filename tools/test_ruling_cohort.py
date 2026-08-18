@@ -385,10 +385,14 @@ class TheRowTotalsAreReDerived(unittest.TestCase):
     made a test.
     """
 
-    def test_day_b_holds_thirty_nine_rows_and_says_so(self):
-        self.assertEqual(len(_row_ids(DAY_B)), 39)
+    def test_day_b_holds_forty_rows_and_says_so(self):
+        # 39 until 2026-08-18, when #200's B23 met #79's B19 through B22 in
+        # this tree. Both branches were correct about their own; neither could
+        # see the other, and this assertion is what made the merge say so.
+        self.assertEqual(len(_row_ids(DAY_B)), 40)
         self.assertIn(
-            "24 scored, 11 unscored and 4 promoted successors is 39",
+            "24 scored by run 3, 1 scored by a targeted scoring, 10 unscored "
+            "and 5 promoted successors is 40",
             DAY_B.read_text(encoding="utf-8"),
         )
 
@@ -401,7 +405,7 @@ class TheRowTotalsAreReDerived(unittest.TestCase):
         # which is the same figure stale in two files at once.
         readme = FIXTURES_README.read_text(encoding="utf-8")
         self.assertIn("**31 of 33 rows**", readme)
-        self.assertIn("**24 of 39 rows**", readme)
+        self.assertIn("**24 of 40 rows**", readme)
 
 
 class TheCoverageBoundIsStated(unittest.TestCase):
