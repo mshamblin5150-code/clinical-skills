@@ -35,6 +35,7 @@ from __future__ import annotations
 import re
 import unittest
 from pathlib import Path
+from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTEXT = REPO_ROOT / "CONTEXT.md"
@@ -54,12 +55,21 @@ ROW_ID = re.compile(r"^\| ([A-Z]\d{1,2}) \|", re.M)
 #: already holds -- day-b run 3's ``REPORTED 1/4`` and day-a run 2's four-for-
 #: four on R14 -- carried forward rather than re-measured, which is what makes
 #: this a promotion and not a re-run.
+class Member(NamedTuple):
+    """One cohort member: where it lives, what it was, what it became."""
+
+    fixture: Path
+    historical: str
+    successor: str
+    verdict: str
+
+
 COHORT = (
-    (DAY_B, "R1", "B19", "FAIL"),
-    (DAY_B, "R2", "B20", "FAIL"),
-    (DAY_B, "R3", "B21", "PASS"),
-    (DAY_B, "R4", "B22", "FAIL"),
-    (DAY_A, "R14", "A1", "PASS"),
+    Member(DAY_B, "R1", "B19", "FAIL"),
+    Member(DAY_B, "R2", "B20", "FAIL"),
+    Member(DAY_B, "R3", "B21", "PASS"),
+    Member(DAY_B, "R4", "B22", "FAIL"),
+    Member(DAY_A, "R14", "A1", "PASS"),
 )
 
 
@@ -74,7 +84,7 @@ def _row(text: str, row_id: str) -> str:
     return next((line for line in text.splitlines() if line.startswith(prefix)), "")
 
 
-def _row_ids(path: Path) -> set:
+def _row_ids(path: Path) -> set[str]:
     return set(ROW_ID.findall(path.read_text(encoding="utf-8")))
 
 
@@ -225,48 +235,63 @@ class TheCohortIsPromotedInBothSets(unittest.TestCase):
     """#29's five rows, and the five successors appended for them."""
 
     def test_each_historical_row_is_marked_and_points_at_its_successor(self):
-        for path, historical, successor, _verdict in COHORT:
-            with self.subTest(row=historical):
-                line = _row(path.read_text(encoding="utf-8"), historical)
-                self.assertTrue(line, historical + " is gone from " + path.name)
-                self.assertIn("Promoted to " + successor, line)
+        for member in COHORT:
+            with self.subTest(row=member.historical):
+                line = _row(
+                    member.fixture.read_text(encoding="utf-8"), member.historical
+                )
+                self.assertTrue(line, member.historical + " is gone")
+                self.assertIn("Promoted to " + member.successor, line)
 
     def test_each_historical_row_says_it_left_the_reported_denominator(self):
         # Marked but still counted is the arrangement that produces a denominator
         # covering the same rule twice.
-        for path, historical, _successor, _verdict in COHORT:
-            with self.subTest(row=historical):
-                line = _row(path.read_text(encoding="utf-8"), historical)
+        for member in COHORT:
+            with self.subTest(row=member.historical):
+                line = _row(
+                    member.fixture.read_text(encoding="utf-8"), member.historical
+                )
                 self.assertIn("no longer graded under `REPORTED`", line)
 
     def test_each_successor_exists_in_its_set(self):
-        for path, _historical, successor, _verdict in COHORT:
-            with self.subTest(row=successor):
+        for member in COHORT:
+            with self.subTest(row=member.successor):
                 self.assertTrue(
-                    _row(path.read_text(encoding="utf-8"), successor),
-                    successor + " is not a row in " + path.name,
+                    _row(member.fixture.read_text(encoding="utf-8"), member.successor),
+                    member.successor + " is not a row",
                 )
 
     def test_each_successor_carries_its_first_verdict(self):
         # FAIL, FAIL, PASS, FAIL, PASS -- day-b run 3's `REPORTED 1/4` and day-a
         # run 2's R14, carried forward rather than re-measured.
-        for path, historical, successor, verdict in COHORT:
-            with self.subTest(row=successor):
-                wanted = "| " + successor + " | " + historical + " | **" + verdict + "** |"
-                self.assertIn(wanted, path.read_text(encoding="utf-8"))
+        for member in COHORT:
+            with self.subTest(row=member.successor):
+                wanted = "| %s | %s | **%s** |" % (
+                    member.successor,
+                    member.historical,
+                    member.verdict,
+                )
+                self.assertIn(wanted, member.fixture.read_text(encoding="utf-8"))
 
     def test_the_successors_are_appended_rather_than_inserted(self):
-        # day-b's FILLED class ran to B18. An inserted row would redirect every
-        # citation to the rows below it.
+        """Every successor outranks every row the class already held.
+
+        Stated as an inequality rather than as ``max(...) == 22``, which was the
+        first version and would fail on a legitimate B23 while testing nothing
+        about appending. What an insert actually does is land a successor at or
+        below an existing number, and that is what this catches.
+        """
         day_b = _row_ids(DAY_B)
-        for lower in ("B17", "B18"):
-            with self.subTest(row=lower):
-                self.assertIn(lower, day_b)
-        self.assertEqual(
-            max(int(row[1:]) for row in day_b if row.startswith("B")),
-            22,
-            "day-b's FILLED class should end at B22",
-        )
+        # The eighteen rows the class held before #79. Named rather than derived,
+        # because deriving "what it held before" from the file it now holds is
+        # circular.
+        for existing in range(1, 19):
+            with self.subTest(row="B%d" % existing):
+                self.assertIn("B%d" % existing, day_b)
+        for member in COHORT:
+            if member.fixture is DAY_B:
+                with self.subTest(row=member.successor):
+                    self.assertGreater(int(member.successor[1:]), 18)
 
     def test_day_a_opens_a_filled_class_for_its_one_successor(self):
         text = DAY_A.read_text(encoding="utf-8")
@@ -306,12 +331,24 @@ class TheHistoricalRecordDidNotMove(unittest.TestCase):
             DAY_A.read_text(encoding="utf-8"),
         )
 
-    def test_no_successor_is_folded_into_a_past_binary_fraction(self):
-        # day-b's binary classes scored 7/7, 10/11 and 2/2 on run 3 over the rows
-        # that existed then. B19 through B22 did not.
-        text = DAY_B.read_text(encoding="utf-8")
-        self.assertNotIn("FILLED 14/15", text)
-        self.assertNotIn("FILLED 11/15", text)
+    def test_no_filled_fraction_is_restated_over_the_promoted_class(self):
+        """No `FILLED n/m` anywhere may have a denominator the promotion created.
+
+        The first version of this guessed two wrong fractions by name and let
+        every other wrong one through -- a check that passes for the same reason
+        a vacuous row does. This reads every fraction in the file instead: the
+        class held 11 rows reaching run 3's cases and holds 22 today, and **no
+        past run's scorecard may be rewritten over either of the numbers this
+        branch moved.**
+        """
+        denominators = {
+            int(d)
+            for d in re.findall(r"`FILLED (?:\d+)/(\d+)`", DAY_B.read_text(encoding="utf-8"))
+        }
+        self.assertTrue(denominators, "no FILLED fraction found at all")
+        for wrong in (19, 20, 21, 22):
+            with self.subTest(denominator=wrong):
+                self.assertNotIn(wrong, denominators)
 
 
 class TheRowTotalsAreReDerived(unittest.TestCase):
