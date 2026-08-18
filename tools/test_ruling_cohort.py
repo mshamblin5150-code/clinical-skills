@@ -74,6 +74,14 @@ class Member(NamedTuple):
     verdict: str
 
 
+#: The four terms the promotion policy and #200/#201's briefs are written in.
+GLOSSARY_TERMS = (
+    "**Ruling cohort**",
+    "**Valid score**",
+    "**Promoted assertion**",
+    "**Targeted scoring**",
+)
+
 COHORT = (
     Member(DAY_B, "R1", "B19", "FAIL"),
     Member(DAY_B, "R2", "B20", "FAIL"),
@@ -127,10 +135,17 @@ class TheGlossaryDefinesTheThreeTerms(unittest.TestCase):
         self.assertIn("**Promoted assertion**:", self.text)
         self.assertIn("kept in place as its own history", self.text)
 
+    def test_targeted_scoring_is_defined(self):
+        # #200 and #201 both list it as a Key Interface. It was defined only in
+        # `fixtures/README.md`, so an agent reading the glossary for the briefs'
+        # vocabulary found three of the four terms they use.
+        self.assertIn("**Targeted scoring**:", self.text)
+        self.assertIn("and not a run", self.text)
+
     def test_each_term_carries_an_avoid_line(self):
         # Every other entry in this glossary does, and the list is what stops
         # four files inventing four words for one thing.
-        for term in ("**Ruling cohort**", "**Valid score**", "**Promoted assertion**"):
+        for term in GLOSSARY_TERMS:
             with self.subTest(term=term):
                 start = self.text.index(term)
                 block = self.text[start : start + 600]

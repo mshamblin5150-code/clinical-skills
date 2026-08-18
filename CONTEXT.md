@@ -98,6 +98,10 @@ _Avoid_: result, grade, reading
 An assertion whose bar has become binary, kept in place as its own history and naming the enforced successor that now carries its subject.
 _Avoid_: upgraded row, migrated row, replacement
 
+**Targeted scoring**:
+Grading one assertion against every encounter it names, or against the whole set where its subject is the set. Complete evidence for that assertion, and not a run.
+_Avoid_: partial run, spot check, sample
+
 **Patient Time band**:
 The hours bucket an encounter accrues against. The one administrative field where a wrong value has a real consequence.
 _Avoid_: age group, category
