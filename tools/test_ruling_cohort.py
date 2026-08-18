@@ -26,6 +26,16 @@ place, and this one had gone stale in place twice already -- once inside one
 branch, and once in ``fixtures/README.md``'s own ``Sets`` column, which read
 ``31 of 31`` while day-a's own file read ``31 of 32``.
 
+**It covers two of the seven sets, deliberately, and that bound is asserted
+rather than left to be discovered.** #79 moved day-a's and day-b's totals and
+no others, and a gate over the whole ``Sets`` column is a different ticket --
+`#202 <https://github.com/mshamblin5150-code/clinical-skills/issues/202>`_, filed with the two stale figures a glob would fail on today
+(``peds-bp`` reads ``6 of 11`` and holds 12 rows; ``hedged-dx`` reads ``6 of 6``
+and holds 12). **The reason for saying so here is that the alternative is the
+defect this module cites #143 for**: an explicit list that reads as a repo-wide
+denominator gate is ``all_cases()``'s exact shape, and a silent cap reads as
+coverage. ``TheCoverageBoundIsStated`` below is what makes it noisy.
+
 **Nothing here reads a note.** It reads committed Markdown only, so it needs no
 fixtures, touches no run directory and can print anything it finds.
 """
@@ -377,6 +387,35 @@ class TheRowTotalsAreReDerived(unittest.TestCase):
         readme = FIXTURES_README.read_text(encoding="utf-8")
         self.assertIn("**31 of 33 rows**", readme)
         self.assertIn("**24 of 39 rows**", readme)
+
+
+class TheCoverageBoundIsStated(unittest.TestCase):
+    """What this module does not reach, made to fail if anyone forgets.
+
+    ``fixtures/`` holds seven sets and #79 moved two. The risk is not that the
+    other five go unchecked today -- it is that a later reader takes a green run
+    here as *the Sets column is gated*, which is `#137
+    <https://github.com/mshamblin5150-code/clinical-skills/issues/137>`_'s
+    partial instrument arriving on the table `#143
+    <https://github.com/mshamblin5150-code/clinical-skills/issues/143>`_ is
+    about.
+    """
+
+    def test_exactly_two_sets_are_pinned(self):
+        pinned = {member.fixture for member in COHORT}
+        self.assertEqual(pinned, {DAY_A, DAY_B})
+
+    def test_the_repo_holds_more_sets_than_this_module_reads(self):
+        # If this ever stops being true, the bound has closed on its own and the
+        # docstring above is the thing to correct.
+        every = set((REPO_ROOT / "fixtures").glob("*/assertions.md"))
+        self.assertGreater(len(every), 2)
+        self.assertTrue({DAY_A, DAY_B} <= every)
+
+    def test_the_docstring_names_the_ticket_that_would_close_the_bound(self):
+        # A limit recorded only in a commit message is one the next reader of
+        # this file will not find.
+        self.assertIn("issues/202", __doc__)
 
 
 if __name__ == "__main__":
