@@ -602,7 +602,7 @@ class TheRulingCohortIsClosed(unittest.TestCase):
         """
         self.assertRegex(
             self.day_b(),
-            r"What a future scorecard grades under .REPORTED. is R5 and R7",
+            r"What a future scorecard grades under .REPORTED. is R5\b",
             "REPORTED still counts the promoted row in its live denominator",
         )
 

@@ -318,13 +318,39 @@ class TheSkillStillSaysWhatWasRuled(unittest.TestCase):
 
 
 class TheRulingIsHeldAtTheSameWidthInEverySet(unittest.TestCase):
-    """Four rows, one ruling, promotable only as a group."""
+    """Four rows, one ruling, promoted only as a group -- and it was, on #201.
+
+    Both halves are pinned, because ``fixtures/README.md``'s promotion
+    lifecycle keeps the historical row rather than replacing it. ``ROWS`` is the
+    counted row each set recorded the ruling under; ``SUCCESSORS`` is the
+    enforced row each gained on 2026-08-18. A set losing either leaves the
+    ruling held at a width nobody chose: without the R row a recorded score has
+    no provenance, and without the successor the rule is enforced in three sets
+    and counted in a fourth.
+
+    The successor identifiers were checked against every branch in flight
+    before they were written, which is why day-b's is ``B24`` and not ``B23``.
+    #79 took B19 through B22 for #29's cohort and #200 took B23 for #94's on a
+    branch that had not merged. #94 and #96 both numbered their day-b row
+    ``R6`` on branches that could not see each other, and one was renumbered at
+    the merge; this is the same hazard, checked for rather than survived.
+    """
 
     ROWS = {
         "day-a": "R15",
         "day-b": "R7",
         "hedged-dx": "R2",
         "peds-bp": "R3",
+    }
+
+    #: The enforced successor each set gained, and the verdict it carries as its
+    #: first score. All four passed a targeted run on ``48ac3ca``, graded by two
+    #: independent passes per row.
+    SUCCESSORS = {
+        "day-a": ("A2", "PASS"),
+        "day-b": ("B24", "PASS"),
+        "hedged-dx": ("F1", "PASS"),
+        "peds-bp": ("P9", "PASS"),
     }
 
     def test_each_set_still_carries_its_row(self) -> None:
@@ -334,6 +360,82 @@ class TheRulingIsHeldAtTheSameWidthInEverySet(unittest.TestCase):
                     encoding="utf-8"
                 )
                 self.assertIn(f"| {row} |", text)
+
+    def test_each_set_carries_its_enforced_successor(self) -> None:
+        """The promotion, pinned the way the counted rows are."""
+        for directory, (row, _) in self.SUCCESSORS.items():
+            with self.subTest(directory):
+                text = (FIXTURES / directory / "assertions.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(f"| {row} |", text)
+
+    def test_each_historical_row_is_marked_and_points_at_its_successor(self) -> None:
+        """Read off the R row's **own table line** and nowhere else.
+
+        Written first as a whole-file ``assertIn``, which passed for the wrong
+        reason: the promotion section the same change appended contains both
+        strings, so deleting the mark left the test green. That is
+        ``test_icd10.py``'s *passes for two reasons* objection landing inside a
+        test written to enforce the promotion.
+        """
+        for directory, row in self.ROWS.items():
+            with self.subTest(directory):
+                text = (FIXTURES / directory / "assertions.md").read_text(
+                    encoding="utf-8"
+                )
+                line = next(
+                    (ln for ln in text.splitlines() if ln.startswith(f"| {row} |")),
+                    None,
+                )
+                self.assertIsNotNone(line, f"{directory} has no {row} row")
+                successor = self.SUCCESSORS[directory][0]
+                self.assertIn(f"Promoted to {successor}", line)
+                self.assertIn("no longer graded under `REPORTED`", line)
+
+    def test_each_successor_carries_its_first_verdict(self) -> None:
+        """A successor with no recorded score is a bar nobody has set."""
+        for directory, (row, verdict) in self.SUCCESSORS.items():
+            with self.subTest(directory):
+                text = (FIXTURES / directory / "assertions.md").read_text(
+                    encoding="utf-8"
+                )
+                line = next(
+                    (
+                        ln
+                        for ln in text.splitlines()
+                        if ln.startswith(f"| {row} | {self.ROWS[directory]} |")
+                    ),
+                    None,
+                )
+                self.assertIsNotNone(
+                    line, f"{directory} records no first verdict for {row}"
+                )
+                self.assertIn(f"**{verdict}**", line)
+
+    def test_the_successors_are_appended_rather_than_inserted(self) -> None:
+        """Every successor outranks every row its class already held.
+
+        day-b's is the one that carries weight: ``B24`` clears ``B23``, which
+        #200 holds on an unmerged branch, so the two cohorts cannot collide at
+        a number when they meet.
+        """
+        for directory, (row, _) in self.SUCCESSORS.items():
+            prefix = row[0]
+            number = int(row[1:])
+            text = (FIXTURES / directory / "assertions.md").read_text(encoding="utf-8")
+            existing = [
+                int(m[1:])
+                for m in re.findall(r"^\| ([A-Z]\d{1,2}) \|", text, re.M)
+                if m[0] == prefix and int(m[1:]) != number
+            ]
+            with self.subTest(directory):
+                if existing:
+                    self.assertGreater(number, max(existing))
+
+    def test_day_b_did_not_take_the_identifier_200_holds(self) -> None:
+        """#200's B23 is on a branch this one could not see. Do not take it."""
+        self.assertEqual(self.SUCCESSORS["day-b"][0], "B24")
 
     def test_each_row_cites_the_ticket(self) -> None:
         for directory in self.ROWS:
