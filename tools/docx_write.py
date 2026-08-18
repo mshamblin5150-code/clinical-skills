@@ -26,9 +26,15 @@ blank line              paragraph break
 nicety.** Every paragraph after a heading whose text begins ``References`` -- or the
 singular ``Reference``, which APA permits for a one-entry list -- is rendered with a
 0.5 inch hanging indent, which is what a reference list is. That heading also takes a
-page break and centers, because APA 7 section 2.12 starts the list on a new page under a
-bold centered label. The switch is on the *heading*, so a document with no References
-section never pays for any of it.
+page break and centers, because APA 7 starts the list on a new page under a bold centered
+label. The switch is on the *heading*, so a document with no References section never
+pays for any of it.
+
+**The APA rules themselves are owned by
+``skills/practicum-case-study/reference/apa7.md``, not by this docstring.** That sheet is
+verified against apastyle.apa.org and carries the caveat that the *Publication Manual*'s
+section numbers are pointers rather than checked claims, since the manual is not in this
+repo. Section numbers named here and in the tests are pointers on the same terms.
 
 **Page setup is APA 7 student paper**: Times New Roman 12 pt, double spaced, 1 inch
 margins, and a page number in the top right of every page -- the ``word/header1.xml``
