@@ -368,6 +368,7 @@ def _git(*args: str) -> str:
     return subprocess.run(
         ("git", "-C", str(REPO_ROOT)) + args,
         check=True, capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
     ).stdout
 
 

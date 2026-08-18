@@ -216,7 +216,7 @@ drift apart.
 
 **A claim that survives all that and is still unsourced does not go in the body.** It goes in the
 `PROPOSED` block, and if it is a number the clinician would act on, it comes out of the document
-entirely. Fanning out replaces the deferral for claims that *can* be sourced; it is not a licence to
+entirely. Fanning out replaces the deferral for claims that *can* be sourced; it is not a license to
 assert the ones that cannot.
 
 ## Tiers
