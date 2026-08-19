@@ -51,7 +51,7 @@ the subset at all; body paragraphs take no 0.5 inch first-line indent; and a tab
 drawn with a full grid rather than APA's horizontal rules. ``apa7.md`` section 6 is where
 that list is kept for a reader of the skill -- #220 tracks the two of them that are
 mechanical. **A rendered .docx is not an APA-formatted document**, which is
-``skills/practicum-case-study/SKILL.md`` step 8's sentence arriving one level down.
+``skills/practicum-case-study/SKILL.md`` step 9's sentence arriving one level down.
 
 Covered by ``tools/test_docx.py``, which writes into a temp directory and reads the
 result back with ``docx_read`` -- the round trip is the test, because a ``.docx`` that
