@@ -149,7 +149,17 @@ The paragraph that filed a ticket usually cites it, and that paragraph is a spec
 
 ### Ticket text takes standing rule 4
 
-**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Nothing checks any of them — `tools/spelling_scan.py` reads tracked Markdown, and an issue body is neither — so this one is on you, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) is where the gap is tracked. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is 28 entries wide: `judgement` and `neighbouring` are both British, both absent from it, and both shipped in ticket text on 2026-08-15 before being caught by hand.
+**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Nothing checks any of them — `tools/spelling_scan.py` reads tracked Markdown, and an issue body is neither — so this one is on you, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) is where the gap is tracked. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is narrower than the language. **Do not quote its width here** — derive it, because the figure in this sentence went stale twice on 2026-08-18 alone:
+
+```bash
+python -c "import sys; sys.path.insert(0,'tools'); import spelling_scan as s; print('TABLE', len(s.TABLE), 'FORMS', len(s.FORMS), 'ALL_FORMS', len(s.ALL_FORMS))"
+```
+
+**It prints three numbers on purpose, because there are three and picking the wrong one is how this went wrong twice.** `FORMS` is `TABLE` plus the stem changes; `ALL_FORMS` is `FORMS` plus the drug names. **The first repair of this paragraph shipped `len(FORMS) + len(STEM_CHANGES)`**, which double-counts the stem changes and prints a number the table has never held — a command that exits clean and returns a wrong answer, which is [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s own failure mode reproduced inside the fix for it. Caught by a sweep subagent before it merged.
+
+**The worked case is this sentence's own history and it is worth keeping.** It read *the table is 28 entries wide: `judgement` and `neighbouring` are both British, both absent from it, and both shipped in ticket text on 2026-08-15 before being caught by hand.* **The number was wrong when written and the examples were true.** `TABLE` was 25 at the commit that wrote it, 26 on `origin/main`, 28 today — so `28` has matched a quantity for none of its life until it accidentally matched `FORMS` this week. Two sweep agents derived the original figure as two different quantities and neither could settle which was meant, which is the tell. Then both forms were added to the table on 2026-08-18 — and the sentence had **named them as invisible without anyone checking where else they were sitting.** Both were in the committed run record at `fixtures/filled-anchor/notes/`: `neighbour` twice, `judgement` three times, uncounted since the run because the table did not hold either form.
+
+**Naming a form in prose is not adding it to the table.** A warning about ticket text is worth writing; it is not a substitute for the one-line change that makes the scanner see the form everywhere else.
 
 **Read the body back after posting**, which the `@-` trap section already asks for and which costs one command:
 
