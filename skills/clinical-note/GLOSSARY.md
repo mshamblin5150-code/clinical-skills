@@ -4,6 +4,26 @@ Expansions [clinical-note](SKILL.md) applies at step 2. Anything absent here is 
 
 > **Keep this file current.** Every unknown token that comes back from a note belongs here. The skill gets more deterministic with each line you add, and the shift-level roll-up in [batch-shift](../batch-shift/SKILL.md) exists to feed it.
 
+## Two glossaries, and this is the one that travels
+
+**A clinician's shorthand is theirs.** `hx`, `wnl`, `spo2` and `q6h` are the field's and every ER writes them; `rec 4 days`, `36in 33lb` and a typo confirmed as a token are one person's hand. **The second kind belongs in `scratch/shorthand.md`, not here** — [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 collects it, on the same terms as the voice model in step 8 and for [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s reason: the reference is the file a second clinician inherits, and an expansion that resolves against one person's habits is wrong for them rather than merely unhelpful.
+
+**A wrong expansion is not a vague note — it is a fabricated finding.** That is why this split matters more here than it did for a picklist. Reading a stranger's `dm` by this clinician's rule gives their patient a disease or deletes one, and the *Ambiguous* section below is the worked case: those rulings are grounded in **this** catalog (*"every instance in this catalog is packs per day"*), so they are evidence about one hand and not about English.
+
+**Where the two disagree, `scratch/shorthand.md` wins**, which is the rule [setup-clinical-skills](../setup-clinical-skills/SKILL.md) already states for the profile against the reference.
+
+**The tables below still hold entries that are this clinician's rather than the field's, and that is a known, ticketed defect rather than a counter-example** — [#228](https://github.com/mshamblin5150-code/clinical-skills/issues/228). The rule is stated here first because a rule with no tree behind it can still stop the next entry landing in the wrong file; a tree cleaned with no rule written down fills back up.
+
+### Collecting one
+
+**Ask for the tokens rather than a glossary.** Nobody has a list; everybody has a shift's worth of scratch. The cheapest source is the clinician's own day files — run a few encounters through and let the `unknown token` lines in the tier block, or `batch-shift`'s `NEW GLOSSARY CANDIDATES` roll-up, produce the ask. **A token that appeared twice is worth a question; one that appeared once is worth carrying verbatim.**
+
+**Get the expansion in their words and record it verbatim.** An expansion is not a definition — `rec 4 days` is *recheck in four days* because that is what he means by it, and a nearby-sounding gloss is the same class of error as a guessed preceptor surname.
+
+**Ambiguity is collected, never resolved by the collector.** Where a token has two standard readings, ask which contexts take which, and write the *tell* down beside them the way the section below does. **A per-account glossary with no tells is more dangerous than none**, because it converts a token that would have been flagged into one that is silently expanded.
+
+**A confirmed typo is an entry, not a correction.** `2/2j` earns a row because he types it, and a glossary that tidied it would fail to read the next one.
+
 ## Personal shorthand
 
 Observed in real notes. Expansions confirmed against the finished versions.
@@ -179,7 +199,7 @@ These carry more than one standard expansion and the wrong one invents a diagnos
 - `Left CVA tenderness` — costovertebral angle. A physical exam finding.
 - `family hx: Mother - CAD, DM, CVA` — cerebrovascular accident. A stroke.
 
-The tell is the neighbouring word. `CVA tenderness` is anatomical; `CVA` in a history or problem list is a stroke. Expanding a family history's `CVA` as costovertebral angle loses a stroke from the family history; expanding an exam finding as a stroke invents one. **Neither is recoverable downstream, because both read perfectly well.**
+The tell is the neighboring word. `CVA tenderness` is anatomical; `CVA` in a history or problem list is a stroke. Expanding a family history's `CVA` as costovertebral angle loses a stroke from the family history; expanding an exam finding as a stroke invents one. **Neither is recoverable downstream, because both read perfectly well.**
 
 **`dm` — diabetes mellitus, or diminished.** This one is new from the 2025 scans and it is the worst of the set, because both readings are common in this catalog and both are plausible in the same note:
 

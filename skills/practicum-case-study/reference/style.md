@@ -275,6 +275,14 @@ same topic appears in this corpus under three different years.
 
 ## 11. Voice — the things that are his and must survive
 
+**These are the mechanics, and a run can satisfy every one of them and still read as a competent
+stranger.** That happened, and it is what
+[#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213) was filed on. The list
+below was written by reading finished documents for *what they do*; the **register** — how it
+sounds — is [voice.md](voice.md), which is the method for modeling it from writing samples. Neither
+file replaces the other: these bullets bind whether or not a model exists, and a model that
+contradicted one of them would be a model of the wrong thing.
+
 - **First person and decisive.** `I would`, `I will`, `I'm going to stop`. Never *the provider
   should consider*.
 - **Missing data becomes an order, not an assumption.** The inversion from
@@ -333,7 +341,9 @@ and not nowhere. See *The prose block under each table* in §8.
 ## Still open
 
 **Nothing from the original four.** What remains is tracked rather than listed here:
-[#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213) the voice model,
+[#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213) the voice model — whose
+**method** is built and lives in [voice.md](voice.md), leaving one clinician's actual model as a
+thing that only samples can produce —
 [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) the research fan-out and
 the recency rule,
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) the two APA gaps the

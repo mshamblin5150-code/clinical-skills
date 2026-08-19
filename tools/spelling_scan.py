@@ -35,7 +35,10 @@ documents the rule as readily as anywhere else.
 
 **One exemption, and it is a directory rather than a declaration.**
 ``fixtures/filled-anchor/notes/case-*.md`` is day-b run 1 byte for byte, and the
-eight British spellings that run emitted are the evidence for issue #73. Editing
+British spellings that run emitted are the evidence for issue #73. **How many is
+``--record``'s to say and is not written here** -- adding a form to the table
+moves that count without moving the record, which happened twice on
+2026-08-18. Editing
 them would falsify the record, so they are **counted and reported, never
 refused** -- and the count is what ``test_spelling_scan`` pins, so a quiet tidy
 fails a test instead of voiding an argument. The record's own ``README.md`` is
@@ -103,6 +106,8 @@ TABLE = {
     "recognisable": "recognizable",
     "programme": "program",
     "licence": "license",
+    "neighbour": "neighbor",
+    "judgement": "judgment",
 }
 
 # Inflections whose stem changes, so the suffix rule below cannot reach them from

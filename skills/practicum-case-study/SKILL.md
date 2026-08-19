@@ -83,8 +83,10 @@ bottom of [reference/rubric.md](reference/rubric.md) and this skill does not wri
 ## The document
 
 [reference/style.md](reference/style.md) holds the house style, derived from ten graded and
-returned submissions. It is the authority on voice, on section shapes and on the normalizations.
-[reference/apa7.md](reference/apa7.md) is the authority on the reference list.
+returned submissions. It is the authority on the voice's **mechanics**, on section shapes and on
+the normalizations; [reference/voice.md](reference/voice.md) is the method for the **register**,
+which §11's mechanics turned out not to reach. [reference/apa7.md](reference/apa7.md) is the
+authority on the reference list.
 **Every section below is written, every time** — see *Three modes, and none of them subtracts a
 section* under it. The skeleton, in order:
 
@@ -297,15 +299,33 @@ about people, and that reaches for a principle rather than a protocol when the c
 hard. It is not decoration on top of the clinical content — it is *how the reasoning is carried*,
 which is why a checklist of tics cannot reproduce it.
 
-**This is not built yet.** It needs writing samples from the clinician, and the mechanism is
-[reference/voice.md](reference/voice.md), which does not exist until there are samples to build it
-from. Until it does, a run writes in the §11 mechanics and **says in the `PROPOSED` block that the
-voice is unmodeled**, rather than claiming a register it has not been given.
+**The mechanism is [reference/voice.md](reference/voice.md), and it is the method rather than the
+model.** It says how to ask for writing samples, how to read them into a register, and what never
+to imitate. **What it builds is `scratch/voice-model.md`** — gitignored, one per clinician, built
+from that clinician's own samples.
 
-**And this generalizes past one clinician.** Any user of this skill has a way of writing that a
-grader already associates with them. The mechanism should take samples from whoever is using it and
-build their `voice.md`, not his. A skill that hard-codes one person's register is a skill that makes
-everyone else sound like him.
+**The split is #212's rule one step out**, and it is why this skill does not ship a register in
+`reference/`. A rule that only resolves against one account belongs in the profile, and a register
+is that shape at its purest: it is nobody else's, it is useless to a second clinician, and shipping
+his would make every other user of this skill sound like him. A model also has to **quote**, and
+the quotes are the user's own work — which is [reference/style.md](reference/style.md)'s own
+arrangement, distilled into `reference/` from a gitignored working file that quoted ten submissions
+in full.
+
+**The samples are collected by [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 8**,
+where the rest of this clinician's per-account configuration already lives — his ruling, 2026-08-18,
+settling the one question #213 left open. [reference/voice.md](reference/voice.md) §3 is the spec
+for what to ask for and §4 is how the samples are read; that step points at both rather than
+restating either.
+
+**Look in the main checkout before concluding there is no model.** `scratch/` is gitignored and a `git worktree` has none, so a model that exists can read as missing — see *Where `scratch/` actually is* in [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Declaring an unmodeled voice against a model that was merely out of reach is a false declaration, not a safe default.
+
+**Where there is genuinely no model, the run says so.** A run that finds no `scratch/voice-model.md` writes
+in the §11 mechanics and **says in the `PROPOSED` block that the voice is unmodeled**, rather than
+claiming a register it has not been given. **The declaration is per register**, not per document —
+[reference/voice.md](reference/voice.md) §7. A model built from three MDMs and nothing else has
+modeled the clinical argument and has said nothing about how this clinician argues a position,
+which is the register #213 was filed about.
 
 ## Conventions
 
@@ -373,6 +393,14 @@ description of the case.
 In skeleton order, in his voice — [reference/style.md](reference/style.md) is the authority and the
 part that matters most is that the voice is **first person and decisive**. `I would`, `I will`,
 `I'm going to stop`. Never *the provider should consider*.
+
+**Read `scratch/voice-model.md` first, if it exists**, and write each section in the register that
+section takes — the MDM, the patient education and the reflective prose are three different voices
+and [reference/voice.md](reference/voice.md) §2 says which is which. Where the model declares a
+register unmodeled, that section is written in the §11 mechanics and the gap is declared in
+`PROPOSED`. **Where no model exists at all, this run does not stop to build one** — that needs the
+clinician and his samples, it is [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 8,
+and a case study is usually being written against a deadline. Declare it and name the skill.
 
 Two things every MDM entry carries: **the discriminator** — what in this case puts the diagnosis in
 or out, not a textbook summary of the disease — and **a citation**. Ruled-out entries end on the
@@ -467,6 +495,10 @@ Against this list, by eye — none of it is mechanical:
   [reference/apa7.md](reference/apa7.md) rather than from memory? A known reference defect does
   not leave this step in the `PROPOSED` block — it gets fixed.
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
+- **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
+  register — for each pair, which half does the draft's sentence resemble?
+  [reference/voice.md](reference/voice.md) §5. Where the model is absent or a register is
+  unmodeled, that is what `PROPOSED` declares rather than something this step can settle.
 - Does any number in the body rest on recall rather than on a source in hand?
 - Is the `PROPOSED` block complete, and is it out of the `.docx`?
 
