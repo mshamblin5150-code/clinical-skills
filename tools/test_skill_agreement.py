@@ -1489,10 +1489,19 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
     sentence -- *"On one account the figures were ..."* -- into the reference,
     which is the honest per-account form. The clinician ruled the other way:
     the reference states the **method** and the **inference** and points at
-    ``setup-clinical-skills`` step 6, so the worked reading survives in the
-    tree exactly once, in the file whose job is collecting one account's
-    setup. That keeps #235's ruling
-    intact in the file it was ruled about.
+    ``setup-clinical-skills`` step 6, so the reading survives **as a sentence
+    a reader can follow** in exactly one place, the file whose job is
+    collecting one account's setup. That keeps #235's ruling intact in the
+    file it was ruled about.
+
+    **As a sentence, and not as the figures**, which is a narrowing this
+    docstring stated for one commit by not stating it. The two integers are
+    also in three notes under ``fixtures/filled-anchor/notes/``, welded into a
+    hyphenated clause -- so *survives once* is true of the form and false of
+    the numbers, and the paragraph below saying those notes must not be edited
+    is what makes the difference matter. The same overclaim was caught in
+    ``CLAUDE.md`` by the standards axis of the review and repaired there; it
+    survived one level down, in the docstring describing the repair.
 
     **The needles are read out of ``setup-clinical-skills`` and never typed
     here.** A checker asserting the reference states no portal totals must not
