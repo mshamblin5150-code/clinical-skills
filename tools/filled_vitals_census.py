@@ -71,9 +71,10 @@ with a percentile. Its pressures clear the tilt bar, so the exit status is the
 heights and nothing else. Measured 2026-08-17 and pinned by a test.
 
 **The obvious explanation for that is wrong and was published wrong first.**
-Those twelve notes are day-b **run 1** byte for byte, written before drift row 19
-existed, so the prediction was that every height fails. Four do not. The
-prediction was made from two notes during this ticket's grilling and corrected by
+Those twelve notes are day-b **run 1** byte for byte apart from two redacted
+site names, written before drift row 19 existed, so the prediction was that
+every height fails. Four do not. The prediction was made from two notes during
+this ticket's grilling and corrected by
 running the scanner over all twelve -- issue #137's subject, and the reason the
 compliant form is worth naming: **the rule asks for something this skill has
 already produced unprompted**, which is a much better argument for it than the
