@@ -37,6 +37,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "fixtures" / "day-a" / "shorthand"
 DAY_B = REPO_ROOT / "fixtures" / "day-b" / "shorthand"
 PEDS_BP = REPO_ROOT / "fixtures" / "peds-bp" / "shorthand"
+DURATION_SPAN = REPO_ROOT / "fixtures" / "duration-span" / "shorthand"
+HEDGED_DX = REPO_ROOT / "fixtures" / "hedged-dx" / "shorthand"
 
 # day-b/shorthand/README.md states this split in prose; the numbers are here so a
 # change to either one has to be made in both places on purpose.
@@ -129,8 +131,11 @@ PEDS_BP_ANY_VITAL = (3, 5, 8)
 # writes only when there *is* something is a real absence when silent.
 #
 # The two slots the corpus can decide split opposite ways, which is the whole
-# ruling: allergies are written to say "none" eleven times out of sixteen, and
-# tobacco is written to say "none" once out of fifteen.
+# ruling: allergies are written to say "none" twelve times out of twenty, and
+# tobacco is written to say "none" once out of eighteen. Those two figures were
+# 11 of 16 and 14 of 15 until 2026-08-19, over four named sets rather than over
+# the committed inputs -- #143. The direction is what the ruling turns on and it
+# did not move.
 #
 # **Per case, not per clause.** Three cases write two allergy clauses and two
 # write two tobacco clauses; counting clauses double-counts a patient and was the
@@ -141,26 +146,49 @@ DAY_B_ALLERGY_NONE = (3, 10, 12)
 DAY_B_ALLERGY_STATED = (2, 7, 11)
 PEDS_BP_ALLERGY_NONE = (2, 9)
 PEDS_BP_ALLERGY_STATED = (5,)
+# The two sets the named enumerator could not see, ruled in on 2026-08-19 --
+# #143. Neither was built to bear on a social slot, and both write one anyway:
+# ``duration-span`` case 1 lists six drug allergens and nothing else, case 2 adds
+# a tobacco history to three more, and ``hedged-dx`` case 2 writes ``NKDA``. The
+# classification is per case and explicit for the reason ``all_fixture_shorthand``
+# gives: the glob decides who is counted, this decides what they say.
+DURATION_SPAN_ALLERGY_NONE = ()
+DURATION_SPAN_ALLERGY_STATED = (1, 2)
+HEDGED_DX_ALLERGY_NONE = (2,)  # "allergy NKDA"
+HEDGED_DX_ALLERGY_STATED = (3,)  # "allergy: seasonal"
 
 # Issue #78's split of that "names something" column, and it is the column the
 # ruling actually turns on: ``NKDA`` is *no known drug allergy*, so a patient with
 # hay fever is NKDA and a note naming one is no evidence against filling it.
 #
-# **Three of the five name nothing but an environmental allergy**, and only two
-# name a drug. The constant above carried the comment *"7's 'allergic to
-# prednisone' is the only drug one"* until 2026-08-16 and it was wrong: case 11
-# writes ``allergies: seasonal allergies, levaquin``, and levaquin is a drug. The
-# same undercount was published in ``skills/clinical-note/SKILL.md``, which said
-# one of the sixteen written statuses named a drug allergy. Two do.
-ALLERGY_DRUG_CASES = ((DAY_B, 7), (DAY_B, 11))
+# **Four of the eight name nothing but an environmental allergy**, and four name
+# a drug. The constant above carried the comment *"7's 'allergic to prednisone'
+# is the only drug one"* until 2026-08-16 and it was wrong: case 11 writes
+# ``allergies: seasonal allergies, levaquin``, and levaquin is a drug. The same
+# undercount was published in ``skills/clinical-note/SKILL.md``, which said one
+# of the written statuses named a drug allergy. **That correction took it to two
+# and it is four**, because the two sets #143 ruled in on 2026-08-19 each name
+# only drugs -- an undercount corrected once and still short, from the same
+# cause as the first time: a population read off a list rather than off the
+# tree.
+ALLERGY_DRUG_CASES = (
+    (DAY_B, 7), (DAY_B, 11), (DURATION_SPAN, 1), (DURATION_SPAN, 2),
+)
 ALLERGY_FOOD_CASES = ()  # no committed input names a food allergen; untested, not wrong
 ALLERGY_ENVIRONMENTAL_CASES = (
     (FIXTURES, 6), (DAY_B, 2), (DAY_B, 7), (DAY_B, 11), (PEDS_BP, 5),
+    (HEDGED_DX, 3),
 )
 
 DAY_A_TOBACCO_POSITIVE = (1, 2, 4, 7, 9)
 DAY_B_TOBACCO_POSITIVE = (1, 2, 3, 4, 5, 7, 8, 11, 12)
 DAY_B_TOBACCO_NEGATED = (6,)  # "no smoke, drink, drugs" -- the corpus's one denial
+# #143's two sets again. ``duration-span`` case 2 writes ``dips x 1 year, former
+# smoker`` and case 3 writes a pack count, a dip and a vape; ``hedged-dx`` case 2
+# writes ``smokes 0.5 PPD x 15 yrs``. All three are positive, and neither set
+# writes a denial -- day-b case 6 is still the corpus's only one.
+DURATION_SPAN_TOBACCO_POSITIVE = (2, 3)
+HEDGED_DX_TOBACCO_POSITIVE = (2,)
 
 
 def fixture(name: str) -> str:
@@ -176,29 +204,33 @@ OBESITY_BMI_SHORTHAND = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
 
 
 def all_fixture_shorthand():
-    """Every committed shorthand input, all six sets -- 37 as of 2026-08-16.
+    """Every committed shorthand input, read off the tree rather than listed.
 
-    Separate from ``all_committed_cases`` on purpose. That helper reads the four
-    sets the social-slot figures were measured over and is pinned at 31; this one
-    reads the tree. The gap between them is
+    **The one reader.** This module held two until 2026-08-19 --
+    ``all_committed_cases`` named four fixture directories and was pinned at 31,
+    and this one globbed. Two sets landed that the named list could not see, and
+    the assertion whose whole job was to fail when the input set changed passed
+    through both of them, because it was measuring four named sets and calling
+    them the committed inputs.
     `#143 <https://github.com/mshamblin5150-code/clinical-skills/issues/143>`_,
-    which holds the decision about which is *the* denominator. Nothing here
-    re-aims an existing figure.
+    ruled by the clinician on 2026-08-19: glob, and rule the invisible cases in.
+
+    **The glob does not decide membership on its own, and that is the answer to
+    the objection the ticket raised against it.** ``hedged-dx`` was built for a
+    hedged-diagnosis pool and a glob sweeps it into a social-slot denominator
+    whether or not anybody meant it to. So the enumeration is derived and the
+    *classification* stays explicit: ``SocialSlotsSplitTwoWays`` names every case
+    whose allergy or tobacco slot is written, and
+    ``test_no_other_committed_case_writes_either_slot`` asserts the two agree.
+    A seventh set fails that test until somebody rules its cases in, which is the
+    look the named list never forced.
+
+    Module-level rather than a method, because several classes read the same
+    denominator and instantiating a ``TestCase`` to borrow one is a trick that
+    breaks quietly across Python versions.
     """
     for path in sorted((REPO_ROOT / "fixtures").glob("*/shorthand/case-*.md")):
         yield path, path.read_text(encoding="utf-8")
-
-
-def all_committed_cases():
-    """The 31 inputs both social-slot classes count against.
-
-    Module-level rather than a method, because ``AllergyKindSplitsThreeWays``
-    reads the same denominator and instantiating a ``TestCase`` to borrow one is
-    a trick that breaks quietly across Python versions.
-    """
-    for directory in (FIXTURES, DAY_B, PEDS_BP, OBESITY_BMI_SHORTHAND):
-        for path in sorted(directory.glob("case-*.md")):
-            yield path, path.read_text(encoding="utf-8")
 
 
 def day_b(number: int) -> str:
@@ -2558,11 +2590,19 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
     "completed" a fixture's social history would leave the rows standing on
     nothing.
 
-    **These are 31 committed fixture cases, a floor on the corpus and not the
+    **These are every committed fixture case, a floor on the corpus and not the
     corpus.** They were also the figures ``SKILL.md`` and both assertion files
     quoted until 2026-08-16; those three now quote the corpus, which issue #78
     ran. Nothing here should be read as a corpus measurement -- what is pinned is
     the direction, which is what the ruling turns on.
+
+    **The population is read off the tree since 2026-08-19 and used to be four
+    directories named in a list** -- #143, and the direction survived the widening
+    unchanged: the allergy slot still mostly says nothing and the tobacco slot
+    still almost never does. What the named list cost was not a wrong ruling. It
+    was that ``test_thirty_one_committed_cases``, whose entire job was to fail
+    when the input set changed, passed through two sets landing and read as
+    though the denominator were checked.
 
     **The allergy figure this class pins is not the one the ruling rests on, and
     that is deliberate rather than an oversight.** ``NKDA`` is *no known drug
@@ -2579,21 +2619,49 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         (FIXTURES, DAY_A_ALLERGY_NONE, DAY_A_ALLERGY_STATED),
         (DAY_B, DAY_B_ALLERGY_NONE, DAY_B_ALLERGY_STATED),
         (PEDS_BP, PEDS_BP_ALLERGY_NONE, PEDS_BP_ALLERGY_STATED),
+        (DURATION_SPAN, DURATION_SPAN_ALLERGY_NONE, DURATION_SPAN_ALLERGY_STATED),
+        (HEDGED_DX, HEDGED_DX_ALLERGY_NONE, HEDGED_DX_ALLERGY_STATED),
     )
     TOBACCO_SPLIT = (
         (FIXTURES, DAY_A_TOBACCO_POSITIVE, ()),
         (DAY_B, DAY_B_TOBACCO_POSITIVE, DAY_B_TOBACCO_NEGATED),
+        (DURATION_SPAN, DURATION_SPAN_TOBACCO_POSITIVE, ()),
+        (HEDGED_DX, HEDGED_DX_TOBACCO_POSITIVE, ()),
     )
 
     def all_cases(self):
-        return all_committed_cases()
+        return all_fixture_shorthand()
 
-    def test_thirty_one_committed_cases(self):
-        """The denominator every figure below is quoted against."""
-        self.assertEqual(len(list(self.all_cases())), 31)
+    def test_the_denominator_is_every_committed_shorthand_input(self):
+        """37 across six sets, and the number is a tripwire rather than a figure.
+
+        It is here to **fail** when a seventh set lands, which is the whole of
+        #143: the assertion it replaces read four named directories, called them
+        the committed inputs, and passed through two sets landing.
+
+        A total alone would not be enough --
+        ``test_no_other_committed_case_writes_either_slot`` is the gate that
+        forces each new case to be classified, and a set where nobody writes
+        either slot (``obesity-bmi`` is one, all four blank) would clear it in
+        silence. So both are asserted: this one says who is counted, that one
+        says the split covers them.
+        """
+        cases = [p for p, _ in self.all_cases()]
+        self.assertEqual(len(cases), 37)
+        self.assertEqual(
+            sorted({p.parent.parent.name for p in cases}),
+            ["day-a", "day-b", "duration-span", "hedged-dx", "obesity-bmi",
+             "peds-bp"],
+        )
+        # Anchored on ``shorthand/`` and not one level looser, which #124 is why:
+        # ``fixtures/filled-anchor/run-2/`` holds twelve ``case-*.md`` files that
+        # are ``icd10-cpt`` **output**, so a glob written a level up reads a set
+        # of worksheets as a set of inputs. Asserted rather than left to the set
+        # names above, because a seventh set of *outputs* would satisfy those.
+        self.assertEqual({p.parent.name for p in cases}, {"shorthand"})
 
     def test_the_allergy_slot_is_written_even_to_say_none(self):
-        """The gap reading: eleven of sixteen written statuses are ``NKDA``."""
+        """The gap reading: twelve of twenty written statuses are ``NKDA``."""
         none = stated = 0
         for directory, none_cases, stated_cases in self.ALLERGY_SPLIT:
             for number in none_cases:
@@ -2608,10 +2676,10 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
                     self.assertTrue(cc.has_allergy_status(note))
                     self.assertTrue(cc.has_stated_allergy(note))
                 stated += 1
-        self.assertEqual((none, stated), (11, 5))
+        self.assertEqual((none, stated), (12, 8))
 
     def test_the_tobacco_slot_is_written_only_when_there_is_something_in_it(self):
-        """The absence reading: fourteen of fifteen written statuses are positive."""
+        """The absence reading: seventeen of eighteen written statuses are positive."""
         positive = negated = 0
         for directory, positive_cases, negated_cases in self.TOBACCO_SPLIT:
             for number in positive_cases:
@@ -2626,7 +2694,7 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
                     self.assertTrue(cc.has_tobacco_status(note))
                     self.assertFalse(cc.has_positive_tobacco(note))
                 negated += 1
-        self.assertEqual((positive, negated), (14, 1))
+        self.assertEqual((positive, negated), (17, 1))
 
     def test_no_other_committed_case_writes_either_slot(self):
         """Both case lists are exhaustive, so the denominators mean something."""
@@ -2654,7 +2722,7 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         a fixture edit, which is a real job; what it is not is a statement about
         the clinician. ``AllergyKindSplitsThreeWays::test_the_row_the_nkda_fill_rests_on``
         makes the claim this docstring thought it was making, on the drug-allergy
-        reading, where the fixtures give 14 of 16 and the corpus 195 of 284.
+        reading, where the fixtures give 16 of 20 and the corpus 195 of 284.
         """
         allergy_none = sum(
             1 for _, note in self.all_cases()
@@ -2736,11 +2804,11 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
     def test_survey_counts_both_slots(self):
         notes = [note for _, note in self.all_cases()]
         c = cc.survey(notes)
-        self.assertEqual(c.with_allergy_status, 16)
-        self.assertEqual(c.allergy_status_none, 11)
-        self.assertEqual(c.allergy_status_stated, 5)
-        self.assertEqual(c.with_tobacco_status, 15)
-        self.assertEqual(c.tobacco_positive, 14)
+        self.assertEqual(c.with_allergy_status, 20)
+        self.assertEqual(c.allergy_status_none, 12)
+        self.assertEqual(c.allergy_status_stated, 8)
+        self.assertEqual(c.with_tobacco_status, 18)
+        self.assertEqual(c.tobacco_positive, 17)
         self.assertEqual(c.tobacco_negated, 1)
 
 
@@ -2753,7 +2821,7 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
     naming a seasonal one is fully compatible with filling ``NKDA`` and is no
     evidence at all against the gap reading. The corpus run owed by #78 came back
     with **173 of 284 written allergy statuses naming something**, which fires
-    that ticket's own reopen trigger -- and three of the five committed cases in
+    that ticket's own reopen trigger -- and four of the eight committed cases in
     that column name nothing but an environmental allergy, so the trigger fires
     on a column that cannot tell the two apart. The clinician ruled on
     2026-08-16 that a note naming only environmental allergies still takes
@@ -2770,8 +2838,15 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
                 cc.has_food_allergy(note),
                 cc.has_environmental_allergy(note))
 
-    def test_the_two_drug_allergy_cases(self):
-        """day-b 7 names six drugs; day-b 11 names levaquin. Nothing else does."""
+    def test_the_drug_allergy_cases(self):
+        """day-b 7 names six drugs, day-b 11 levaquin, duration-span 1 and 2 nine
+        more between them.
+
+        *Nothing else does* is asserted by ``test_survey_counts_the_three_kinds``
+        rather than here -- it compares each counter against the length of its
+        case list over the whole glob, so a set landing with an unlisted drug
+        allergen fails there. This test only says the listed ones still read.
+        """
         for directory, number in ALLERGY_DRUG_CASES:
             with self.subTest(set=directory.parent.name, case=number):
                 self.assertTrue(cc.has_drug_allergy(case(directory, number)))
@@ -2876,8 +2951,8 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
         self.assertEqual(cc.survey([note]).allergy_denied_but_drug, 1)
 
     def test_no_committed_case_denies_and_names_a_drug(self):
-        """So the fixture figure of 14 of 16 needs no adjustment."""
-        c = cc.survey([note for _, note in all_committed_cases()])
+        """So the fixture figure of 16 of 20 needs no adjustment."""
+        c = cc.survey([note for _, note in all_fixture_shorthand()])
         self.assertEqual(c.allergy_denied_but_drug, 0)
 
     def test_a_food_allergen_is_read(self):
@@ -2891,10 +2966,15 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
                 self.assertFalse(cc.has_drug_allergy(note))
 
     def test_a_kind_never_fires_where_the_slot_says_none(self):
-        """``NKDA`` and a kind cannot both hold, or the columns do not sum."""
-        for directory, numbers in ((FIXTURES, DAY_A_ALLERGY_NONE),
-                                   (DAY_B, DAY_B_ALLERGY_NONE),
-                                   (PEDS_BP, PEDS_BP_ALLERGY_NONE)):
+        """``NKDA`` and a kind cannot both hold, or the columns do not sum.
+
+        The denial list is read off ``SocialSlotsSplitTwoWays.ALLERGY_SPLIT``
+        rather than retyped, so a set ruled in there is graded here too. It was
+        three directories named again until #143, which is the same defect at a
+        smaller radius: ``hedged-dx`` case 2 writes ``NKDA`` and no test above
+        this line looked at it.
+        """
+        for directory, numbers, _ in SocialSlotsSplitTwoWays.ALLERGY_SPLIT:
             for number in numbers:
                 with self.subTest(set=directory.parent.name, case=number):
                     self.assertEqual(self.kinds(case(directory, number)),
@@ -2908,47 +2988,104 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
         ``survey`` gates the kind counters behind ``has_stated_allergy``, which
         hides a divergence rather than preventing one.
         """
-        for path, note in all_committed_cases():
+        for path, note in all_fixture_shorthand():
             with self.subTest(case=str(path.relative_to(REPO_ROOT))):
                 if any(self.kinds(note)):
                     self.assertTrue(cc.has_stated_allergy(note))
 
     def test_survey_counts_the_three_kinds(self):
-        notes = [note for _, note in all_committed_cases()]
+        notes = [note for _, note in all_fixture_shorthand()]
         c = cc.survey(notes)
-        self.assertEqual(c.allergy_status_stated, 5)
+        self.assertEqual(c.allergy_status_stated, 8)
         self.assertEqual(c.allergy_drug, len(ALLERGY_DRUG_CASES))
         self.assertEqual(c.allergy_food, len(ALLERGY_FOOD_CASES))
         self.assertEqual(c.allergy_environmental, len(ALLERGY_ENVIRONMENTAL_CASES))
         self.assertEqual(c.allergy_unclassified, 0)
 
     def test_the_row_the_nkda_fill_rests_on(self):
-        """14 of 16 written statuses name no drug allergen, over the fixtures.
+        """16 of 20 written statuses name no drug allergen, over the fixtures.
 
         The figure ``SocialSlotsSplitTwoWays`` publishes for the same population
-        is 11 of 16, and 11 of 16 is not what ``NKDA`` is a claim about. Read on
+        is 12 of 20, and 12 of 20 is not what ``NKDA`` is a claim about. Read on
         drug allergens the fixture floor is *stronger* than the one #29 ruled on,
         not weaker -- which is why #78's reopen trigger, written against the
         undivided column, fired on a set that agrees with the ruling.
         """
-        c = cc.survey([note for _, note in all_committed_cases()])
-        self.assertEqual(c.allergy_no_drug, 14)
-        self.assertEqual(c.allergy_no_drug_worst_case, 14)  # nothing unclassified
+        c = cc.survey([note for _, note in all_fixture_shorthand()])
+        self.assertEqual(c.allergy_no_drug, 16)
+        self.assertEqual(c.allergy_no_drug_worst_case, 16)  # nothing unclassified
         self.assertGreater(c.allergy_no_drug / c.with_allergy_status, 0.5)
 
     def test_the_kinds_overlap_and_the_report_may_not_sum_them(self):
-        """Two of the five name a drug *and* an environmental allergy.
+        """Two of the eight name a drug *and* an environmental allergy.
 
         So the three columns are not a partition and adding them double-counts a
         patient -- the error ``SocialSlotsSplitTwoWays``'s own comment records
         being made once already, counting clauses instead of cases.
         """
-        notes = [note for _, note in all_committed_cases()]
+        notes = [note for _, note in all_fixture_shorthand()]
         c = cc.survey(notes)
         self.assertGreater(
             c.allergy_drug + c.allergy_food + c.allergy_environmental,
             c.allergy_status_stated,
         )
+
+
+class ThereIsOneEnumerator(unittest.TestCase):
+    """The module-level invariant #143 came down to, on its own.
+
+    It sat inside ``PpdIsPacksPerDayByShape`` while it was asserting the
+    *gap*, because that class was the first thing here to read all six sets
+    and so the natural place to say the module's own denominator was two
+    sets short. With the gap closed it is a statement about the module and
+    not about ``ppd``, and a reader looking for the rule should not have to
+    know that history to find it.
+    """
+
+    def test_this_module_defines_exactly_one_shorthand_enumerator(self):
+        """#143 closed, and the assertion turned around rather than deleted.
+
+        This asserted the *gap* -- 37 against 31, and named the two sets the
+        narrow reader could not see -- so that closing it would fail a test
+        instead of leaving two readers quietly agreeing for the wrong reason.
+
+        **What it asserts now is that there is one, by AST rather than by
+        calling anything.** The defect was never that the narrow reader returned
+        the wrong files; it was that a second reader existed and half this module
+        called it, so which denominator a figure was quoted against was a
+        question about which helper a class happened to reach for. A test
+        comparing two enumerators can only run once both exist, which is one
+        enumerator too late. ``test_console_codec.py``'s instrument, for its
+        reason.
+
+        **A floor on the shape rather than a proof**, like every AST walk in this
+        directory: the pattern is the glob's own literal, so a second reader
+        spelled some other way is invisible to it. The two tests above are what
+        catch a reader returning the wrong set however it is written.
+
+        **A ``test_`` function is not an enumerator and is skipped, which is not
+        a convenience.** The first version of this walk failed on *itself*: it
+        has to hold the glob literal in order to search for it, so it counted as
+        a second reader. That is ``spelling_scan.py``'s mention-versus-use
+        problem arriving in a check written for something else, which this
+        directory keeps hitting -- ``spelling_scan`` on the paragraph documenting
+        its own homoglyph map, ``differential_scan`` on #153,
+        ``tracker_bodies``'s ``--show`` assertion, and here. **No count of them
+        is given**, on this test's own ticket's terms: nothing re-derives one,
+        and a list of examples that has been counted reads as exhaustive when the
+        next instance lands.
+        """
+        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+        enumerators = sorted(
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and not node.name.startswith("test_")
+            and any(isinstance(sub, ast.Constant)
+                    and sub.value == "*/shorthand/case-*.md"
+                    for sub in ast.walk(node))
+        )
+        self.assertEqual(enumerators, ["all_fixture_shorthand"])
 
 
 class PpdIsPacksPerDayByShape(unittest.TestCase):
@@ -2985,19 +3122,19 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
                 yield path, note
 
     def test_the_committed_inputs_writing_a_bare_ppd(self):
-        """Twelve of them, over **all six** sets rather than the usual four.
+        """Twelve of them, over all six sets.
 
-        ``all_committed_cases`` reads day-a, day-b, peds-bp and obesity-bmi, and
-        that omission is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143):
-        the denominator those figures are quoted against is 31 while the tree
-        holds 37. This class reads all six deliberately, because the audit's
-        claim is about *every* committed input writing the token and leaving two
-        sets out would make it arbitrary. It costs two real cases --
-        ``duration-span`` and ``hedged-dx`` each write one.
+        This class read all six while ``SocialSlotsSplitTwoWays`` read four,
+        because the audit's claim is about *every* committed input writing the
+        token and leaving two sets out would have made it arbitrary. It cost two
+        real cases -- ``duration-span`` and ``hedged-dx`` each write one -- and
+        it was the first thing in this module to say out loud that the module's
+        own denominator was two sets short.
 
-        **The existing figures are not re-aimed here.** #143 holds that decision,
-        and changing a published denominator sideways inside a new test class is
-        how a figure ends up meaning two things.
+        **Both classes read the same population now**, on
+        [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143),
+        ruled 2026-08-19. The figure here did not move, because it never was the
+        narrow one.
         """
         self.assertEqual(len(list(self.bare_ppd_cases())), 12)
 
@@ -3080,20 +3217,6 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
         self.assertEqual(c.bare_ppd_no_other_token, 2)
         self.assertEqual(c.bare_ppd_alone_as_quantity, 2)
         self.assertEqual(c.bare_ppd_alone_as_skin_test, 0)
-
-    def test_the_two_denominators_differ_and_the_gap_is_named(self):
-        """37 against 31, and the two sets it is.
-
-        Asserted rather than left in prose, so #143's gap fails a test the day
-        somebody closes it instead of going quietly stale like the figure it is
-        about.
-        """
-        wide = {p for p, _ in all_fixture_shorthand()}
-        narrow = {p for p, _ in all_committed_cases()}
-        self.assertEqual(len(wide), 37)
-        self.assertEqual(len(narrow), 31)
-        self.assertEqual({p.parent.parent.name for p in wide - narrow},
-                         {"duration-span", "hedged-dx"})
 
 
 class Bands(unittest.TestCase):
