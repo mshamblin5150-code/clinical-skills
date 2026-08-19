@@ -90,7 +90,7 @@ FIXTURE_PROSE = {"README.md", "assertions.md"}
 #: because [#246](https://github.com/mshamblin5150-code/clinical-skills/issues/246)
 #: put them in one row and they are not one kind of document.**
 #:
-#: ``AGENTS.md`` is 57 lines and a contract: it tells a consumer which skills
+#: ``AGENTS.md`` is short and it is a contract: it tells a consumer which skills
 #: need which tools, and every ``step N`` in it is a genuine cross-reference. It
 #: takes **no escape hatch**, so nobody can quietly buy their way out of the one
 #: file a consumer reads.
