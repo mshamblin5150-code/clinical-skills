@@ -30,3 +30,14 @@ desktop.ini
 # Python bytecode from tools/
 __pycache__/
 *.pyc
+
+# ---------------------------------------------------------------
+# Guideline build artifacts. These hold society-copyrighted page
+# text and recommendation text in full, and the repo is public.
+# The write guards refuse a target inside a checkout -- this is the
+# second net for the one that compares against known roots and so
+# misses a sibling worktree (#176, #223). Not a substitute for them.
+# ---------------------------------------------------------------
+*-text/
+guidelines-index/
+recs-*.json

@@ -15,6 +15,59 @@ The 179 source PDFs stay outside this repo at `C:/codeing/guidelines-src`
 ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)). Nothing a
 consumer runs needs them — they need the derived facts.
 
+## The quoting posture, ruled against a public repo
+
+**Ruled 2026-08-18 by the clinician, on
+[#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223).** The paragraphs
+above were written while this repo was private, so they argued that the *format* is clean
+and never asked whether *publishing* it is. That question is now asked and answered, and
+the answer is that nothing here changes — but the judgment is written down rather than
+implied, because #223's whole point is that it had never been made.
+
+**What is quoted, measured rather than characterized.** In
+[hypertension.md](hypertension.md), the one sheet that exists today:
+
+| | |
+| --- | --- |
+| rows | 74 |
+| snippet cells, and distinct snippets among them | 74, of which **70** are distinct |
+| words across the distinct snippets | **773** |
+| longest / median / shortest snippet, in words | 15 / 11 / 6 |
+| words in the `## Populations` table, 19 rows of verbatim scope wording | **115** |
+| pages in the source guideline | **105** |
+
+Re-derive every one of those from the sheet itself — nothing here is a figure only this
+paragraph holds, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143):
+
+```bash
+python -m unittest test_threshold_sheet -k Quoting   # run from tools/
+```
+
+**Why verbatim and not paraphrase, which is the part that is not a taste call.** The
+snippet is the sheet's honesty mechanism rather than its prose. `threshold_sheet.py`'s
+tier 1 requires the number in a row's `value` to appear in that row's snippet, and tier 2
+requires the snippet to be found on the cited page of the source PDF. **Paraphrase the
+snippet and both gates stop working** — a restatement cannot be located on a page, so a
+fabricated citation stops being detectable. The verbatim string is doing evidentiary work
+that no paraphrase does, which is the fair-use factor that actually bites here.
+
+**And the attribution is per row, not per file.** Every row carries the society, the
+document, its DOI, the page, the recommendation identifier and the class of
+recommendation. A reader who doubts a row jumps to the page in one move; that jump is the
+whole reason `page` is a column.
+
+**What this does not license.** The sheet is a set of decision points, not a substitute
+for the guideline, and it says so in its own opener. Nothing here blesses committing a
+`recs-*.json` — that file holds the society's recommendation text **in full** and is what
+`guidelines_recs.py` refuses to write inside a checkout and `.gitignore` now catches
+anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
+
+**A second sheet does not get this for free.** The figures above are one topic against one
+105-page guideline. A directory of twenty sheets quoting one society is a different
+quantity question, and it is worth re-asking there rather than reading this section as
+settling the class.
+
 ## Grading a sheet
 
 ```bash

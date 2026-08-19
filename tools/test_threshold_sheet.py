@@ -722,5 +722,95 @@ class TheGraderMatchesTheFormatItDocuments(unittest.TestCase):
         self.assertIn("everywhere", readme)
 
 
+class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
+    """README.md's *quoting posture* section states how much is quoted, and #223's
+    ruling rests on those numbers -- so they are re-derived from the sheet here
+    rather than left as prose nobody checks.
+
+    That is [#143]'s shape, and this repo has now watched a figure go stale in
+    four files at once. The section says `python -m unittest test_threshold_sheet
+    -k Quoting` beside itself, so a reader is pointed at this class by name.
+    """
+
+    SHEET = "hypertension.md"
+
+    def _rows(self):
+        text = (gate.SHEET_ROOT / self.SHEET).read_text(encoding="utf-8")
+        rows, section = [], None
+        for line in text.splitlines():
+            if line.startswith("## "):
+                section = line[3:].strip()
+                continue
+            if not line.startswith("|"):
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if cells[0] in ("quantity", "key") or set(cells[0]) <= set("- "):
+                continue
+            if section == "Thresholds":
+                rows.append(cells)
+        return rows
+
+    def _readme(self) -> str:
+        return (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
+
+    def test_the_row_and_snippet_counts(self):
+        rows = self._rows()
+        snippets = [r[3] for r in rows]
+        self.assertEqual(len(rows), 74)
+        self.assertEqual(len(set(snippets)), 70)
+        readme = self._readme()
+        self.assertIn("| rows | 74 |", readme)
+        self.assertIn("**70**", readme)
+
+    def test_the_quoted_word_count(self):
+        """Distinct snippets, because a repeated one is quoted once."""
+        distinct = {r[3].strip('"') for r in self._rows()}
+        words = [len(s.split()) for s in distinct]
+        self.assertEqual(sum(words), 773)
+        self.assertEqual(max(words), 15)
+        self.assertEqual(min(words), 6)
+        self.assertEqual(sorted(words)[len(words) // 2], 11)
+        readme = self._readme()
+        self.assertIn("**773**", readme)
+        self.assertIn("15 / 11 / 6", readme)
+
+    def test_the_populations_table_word_count(self):
+        text = (gate.SHEET_ROOT / self.SHEET).read_text(encoding="utf-8")
+        section, values = None, []
+        for line in text.splitlines():
+            if line.startswith("## "):
+                section = line[3:].strip()
+                continue
+            if section == "Populations" and line.startswith("|"):
+                cells = [c.strip() for c in line.strip("|").split("|")]
+                if cells[0] in ("key",) or set(cells[0]) <= set("- "):
+                    continue
+                values.append(cells[1])
+        self.assertEqual(len(values), 19)
+        self.assertEqual(sum(len(v.split()) for v in values), 115)
+        readme = self._readme()
+        self.assertIn("**115**", readme)
+        self.assertIn("19 rows", readme)
+
+    def test_the_source_page_count_is_the_catalogs(self):
+        """105 is the catalog's `page_count` for the cited document, not a recollection."""
+        catalog = (gate.SHEET_ROOT.parent / "guidelines-catalog.md").read_text(encoding="utf-8")
+        matching = [
+            line for line in catalog.splitlines()
+            if line.startswith("|") and "jones-et-al-2025" in line
+        ]
+        self.assertEqual(len(matching), 1)
+        cells = [c.strip() for c in matching[0].strip("|").split("|")]
+        self.assertEqual(cells[6], "105")
+        self.assertIn("**105**", self._readme())
+
+    def test_the_posture_section_still_names_why_verbatim(self):
+        """The gates are the argument. A section that lost that limb is a taste claim."""
+        readme = self._readme()
+        self.assertIn("## The quoting posture", readme)
+        for claim in ("tier 1", "tier 2", "Paraphrase"):
+            self.assertIn(claim, readme, f"the posture no longer states: {claim}")
+
+
 if __name__ == "__main__":
     unittest.main()

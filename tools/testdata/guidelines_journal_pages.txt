@@ -1,3 +1,18 @@
+# Page excerpts in the shape a journal-typeset guideline PDF produces. Four pages.
+# Everything above the first page marker is preamble and is not read as a page.
+#
+# Derived, not copied -- `guidelines_ahaacc_pages.txt`'s posture, and this file
+# should have carried it from the start. The running head, the volume-and-page
+# citation and the section headings are verbatim artifacts of the real 2019
+# article, because they are exactly what `year_from_running_head`, `classify` and
+# the title rules are tested against. **No body prose is here at all**, which is
+# what #87 rules non-redistributable and what a page of AHA text would be.
+#
+# Ruled 2026-08-18 on issue #223, against a public repo rather than a private one:
+# four headings and a citation string are the artifact, not the expression. The
+# sweep that filed this found the neighboring fixture declaring the distinction
+# and this one silent -- and the silent one was the one holding real strings.
+
 %%PAGE%%
 2018 AHA/ACC Guideline on the Management of Blood Cholesterol
 A Report of the American College of Cardiology/American Heart
