@@ -340,6 +340,18 @@ class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
         self.assertIn(ledger.UNKNOWN_RECENCY, found)
         self.assertIn(ledger.STALE_UNEXCUSED, found)
 
+    def test_case_is_free_and_punctuation_is_not(self):
+        """``SOURCE`` is matched through ``normalize`` and this is not, because
+        here the keyword is a prefix with a reason after it and normalizing
+        destroys the boundary. So a hyphenated variant is a visible wrong word --
+        which is the whole posture of a fixed vocabulary."""
+        loud = replace_field(CLEAN, "RECENCY", "Nothing Newer - searched, nothing later.")
+        self.assertEqual(kinds(ledger_text(loud)), [])
+        hyphenated = replace_field(CLEAN, "RECENCY", "nothing-newer - searched, nothing later.")
+        found = kinds(ledger_text(hyphenated))
+        self.assertIn(ledger.UNKNOWN_RECENCY, found)
+        self.assertIn(ledger.STALE_UNEXCUSED, found)
+
     def test_a_missing_recency_reports_the_missing_field_and_not_a_fifth_word(self):
         found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", None)))
         self.assertIn(ledger.MISSING_FIELD, found)

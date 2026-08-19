@@ -238,9 +238,10 @@ def normalize(text: str) -> str:
 
 # Built from ``normalize`` rather than typed, so the lookup and the comparison it
 # stands in for cannot come to disagree about what a mis-keyed value looks like.
-# Built once rather than per record.
+# Built once rather than per record. ``SOURCE`` can afford this and ``RECENCY``
+# cannot: there the whole value is the keyword, here the keyword is a prefix with a
+# reason after it, and normalizing destroys the boundary between them.
 _CLASS_KEYS = frozenset(normalize(name) for name in SOURCE_CLASSES)
-_RECENCY_KEYS = frozenset(normalize(value) for value in RECENCY_VALUES)
 
 
 def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
@@ -388,7 +389,7 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
 
     recency = record.value("RECENCY")
     excuse, remainder = keyword_of(recency, RECENCY_VALUES)
-    if SUBSTANCE.search(recency) and not excuse and normalize(recency) not in _RECENCY_KEYS:
+    if SUBSTANCE.search(recency) and not excuse:
         # ``STATUS``'s reasoning and not ``SOURCE``'s: this field gates the window
         # row below it, so a fifth disposition is a record the window never read.
         found.append(Finding(UNKNOWN_RECENCY, claim, recency))
