@@ -58,6 +58,20 @@ phi-scan layers (--all):
 
 That is two of three layers dark, permanently, on the rule that matters most. **The report does not fix it — it makes it unreadable as coverage**, which is the most that was available.
 
+> **#258 has since landed and the block above is the report as it read then.** It now names the walked set as well as the layers, so its header reads `coverage` rather than `layers` and a `scanned` row sits above the three:
+>
+> ```
+> phi-scan coverage (--all):
+>   scanned        tracked files -- git ls-files; an untracked file is not scanned until the commit that tracks it
+>   path layer     NOT RUN  -- this layer tests staged paths, and there are none in this mode
+>   corpus layer   NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED
+>   shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date
+>   ** A clean result here is NOT "no PHI": the path and corpus layers did not run. **
+> ```
+>
+> **This ADR's reasoning is extended rather than falsified.** *A green check still means less than it looks like, and now says so* was true of the **layers** and silent about the **population**: the job runs `--all` with nothing staged, so the file most likely to carry a new mistake — the one being written — was invisible to the walk and nothing on the page said so. The `--all` path-layer row above even carried the words *`--all` walks tracked files*, spent on why that layer is inapplicable rather than on what the two live layers covered. Recorded here rather than edited into the text above, because an ADR is a record of what was decided and when.
+
+
 **Most of this repo is still ungraded by anything here.** Skill rules, drift rows and `assertions.md` are graded by reading; ADR 0001 exists because of that. CI will not grade a note, will not catch a rule contradicting another skill, and cannot see `.claude/skills/` drift, because the mirror is gitignored. Standing rule 4 is greppable and `spelling_scan.py` now exists with its mention-versus-use rule, but running it in CI would change its posture from advisory to blocking and was left out of scope.
 
 **A malformed workflow is the failure mode this ADR is most exposed to, and it is only half-guarded.** A syntax error means GitHub declines to run the job, so the PR page shows **no failing check at all** rather than a red one — the silent-absence failure this ADR is about, arriving through the mechanism built to fix it. `tools/test_ci_workflow.py` answers it in two tiers, because `tools/` is stdlib only and the cost argument above depends on that. The floor reads the file as text and runs everywhere, pinning the runner, the Python version, the test command and the PHI step's honesty against `CLAUDE.md`, and catching tab characters. Above it, `TheFileIsValidYaml` parses and checks the job's shape **when PyYAML happens to be importable, and skips when it is not** — which validates on the machine the commit is made from and skips on the runner, where the check would be circular anyway. **On a machine without PyYAML the tab test is the whole guard**, and neither tier can tell you the job passed. The first push is still the only end-to-end check.

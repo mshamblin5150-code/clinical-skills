@@ -823,6 +823,168 @@ class LayerReport(unittest.TestCase):
         return self._line(text, "shape")
 
 
+class TheWalkedPopulation(unittest.TestCase):
+    """#258: a clean result covers the set that was walked, and now says so.
+
+    #254 ruled that every ``git ls-files`` walk states what a clean result
+    covers, and `scan_all`'s statement landed in its docstring the way the four
+    test walks' did. It is the one walk with **user-visible output**, so the
+    honest form -- *no tracked file carries PHI* -- was written down and **not
+    on the page the reader is looking at**. CI is where that lands: the job runs
+    ``--all`` with nothing staged and prints `layer_report` beside its
+    checkmark, and that report's subject was *which layers ran* rather than
+    *what was scanned*.
+
+    **The fact was already on the page, attached to the wrong layer.** The
+    ``--all`` path-layer row read ``--all walks tracked files; nothing can be
+    staged from a gitignored directory`` -- the honest form, spent explaining
+    why the path layer is inapplicable rather than what the two live layers
+    covered.
+
+    Ruled 2026-08-19, all four of the ticket's open questions: the qualifier
+    goes **into** `layer_report`, whose subject widens from *which layers ran*
+    to *what was scanned*; it prints on **every** ``--all`` run, on
+    `phi_scan`'s own *neither door buys silence* precedent; ``spelling_scan``
+    gets the same treatment, being the walk with the recorded instance; and the
+    staged mode states its population too, so an absent row never reads as a
+    stronger claim.
+    """
+
+    def report(self, all_mode):
+        return "\n".join(ps.layer_report(set(NAMES), set(DATES), all_mode))
+
+    def scanned_row(self, text):
+        rows = [ln for ln in text.splitlines() if ln.strip().startswith("scanned")]
+        self.assertEqual(len(rows), 1, f"expected one scanned row in:\n{text}")
+        return rows[0]
+
+    def test_both_modes_name_the_set_they_walked(self):
+        """Open question 4. The staged mode's population is unsurprising, which
+        is not a reason to leave it silent: a reader who has learned to read
+        ``--all``'s row would read its absence as a stronger claim."""
+        for all_mode in (True, False):
+            with self.subTest(all_mode=all_mode):
+                self.assertTrue(self.scanned_row(self.report(all_mode)).strip())
+
+    def test_the_all_mode_row_names_tracked_files_and_what_that_excludes(self):
+        """Both limbs, on #254's reasoning: *tracked* alone is what the walk's
+        name already said, and *untracked* alone never says what a pass means."""
+        row = self.scanned_row(self.report(True))
+        self.assertRegex(row, r"(?<!un)tracked files")
+        self.assertRegex(row, r"(?i)untracked")
+
+    def test_the_staged_row_names_what_a_commit_does_not_reach(self):
+        row = self.scanned_row(self.report(False))
+        self.assertIn("staged", row)
+        self.assertRegex(row, r"(?i)not scanned")
+
+    def test_the_walked_set_is_stated_once_and_on_its_own_row(self):
+        """The ticket's own finding, made a rule: one fact, one row. Leaving the
+        clause on the path-layer row as well would restate it in the place that
+        made it unreadable -- and two copies of one claim, each editable without
+        failing anything, is #220."""
+        text = self.report(True)
+        carriers = [ln for ln in text.splitlines() if "tracked" in ln.lower()]
+        self.assertEqual(len(carriers), 1, f"expected one row about the walk in:\n{text}")
+        self.assertEqual(carriers[0], self.scanned_row(text))
+
+    def test_the_population_is_stated_before_the_layers(self):
+        """A reader meets the scope before the verdicts, which is the order the
+        claim has to be read in: every ACTIVE below is about this set."""
+        for all_mode in (True, False):
+            with self.subTest(all_mode=all_mode):
+                lines = self.report(all_mode).splitlines()
+                first_layer = next(
+                    i for i, ln in enumerate(lines) if ln.strip().startswith("path layer")
+                )
+                self.assertLess(lines.index(self.scanned_row(self.report(all_mode))),
+                                first_layer)
+
+    def test_the_header_names_what_was_scanned_rather_than_the_layers(self):
+        """Open question 1's cost, taken deliberately rather than absorbed. A
+        header still reading ``layers`` over a row that is not a layer is the
+        drift this repo refuses everywhere else."""
+        for all_mode in (True, False):
+            with self.subTest(all_mode=all_mode):
+                header = self.report(all_mode).splitlines()[0]
+                self.assertNotIn("layers", header)
+                self.assertIn("coverage", header)
+
+    def test_the_new_row_names_no_identifier(self):
+        """Counts-only holds on the widened report too. This text reaches a CI
+        step summary, which is a place people paste from."""
+        text = self.report(True) + "\n" + self.report(False)
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, text)
+
+
+class AnAllRunStatesItsCoverage(unittest.TestCase):
+    """#258 open question 2: on **every** ``--all`` run, not only a degraded one.
+
+    A clean ``--all`` printed nothing at all, so the population statement
+    reached a reader only through ``--layers`` or a dead corpus. `phi_scan`'s
+    own precedent cuts the other way -- ``PATIENT NAMES ARE NOT CHECKED`` prints
+    whether or not a door was taken, because *neither door buys silence* -- and
+    printing it conditionally would teach a reader that the silence means
+    something.
+
+    **Staged runs are untouched**, which is the same ruling read the other way:
+    the staged row exists in the report, and the report still prints there only
+    when a layer is degraded. The hook runs on every commit and this scanner
+    cannot afford noise -- `review_hint` carries that argument already.
+    """
+
+    def setUp(self):
+        self._saved = {
+            name: getattr(ps, name)
+            for name in ("corpus_identifiers", "_git", "scan_staged", "scan_all",
+                         "missing_corpus_sources")
+        }
+        self.addCleanup(self.restore)
+        ps.scan_staged = lambda index: []
+        ps.scan_all = lambda index: []
+        ps.missing_corpus_sources = lambda: []
+        ps.corpus_identifiers = lambda: (set(NAMES), set(DATES))
+        ps._git = lambda *args: ""
+
+    def restore(self):
+        for name, value in self._saved.items():
+            setattr(ps, name, value)
+
+    def run_main(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = ps.main(list(argv))
+        return status, out.getvalue(), err.getvalue()
+
+    def test_a_clean_all_run_still_states_what_it_walked(self):
+        status, _, err = self.run_main(["--all"])
+        self.assertEqual(status, 0)
+        self.assertRegex(err, r"(?i)untracked")
+
+    def test_the_statement_goes_to_stderr(self):
+        """stdout is ``--layers``' channel and the CI job pipes it into the step
+        summary; a scanning run writing there would corrupt that report."""
+        _, out, _ = self.run_main(["--all"])
+        self.assertEqual(out, "")
+
+    def test_it_is_printed_once_when_the_corpus_is_also_dead(self):
+        """Both reasons to print are live at once in CI, which is the only
+        configuration that will ever happen there. Two copies of the report is
+        the failure this test exists to catch."""
+        ps.missing_corpus_sources = lambda: ["name-index.json", "day-file-text"]
+        ps.corpus_identifiers = lambda: (set(), set())
+        _, _, err = self.run_main(["--all", ps.ALLOW_NO_CORPUS_FLAG])
+        self.assertEqual(err.count("phi-scan coverage"), 1)
+
+    def test_a_clean_staged_run_stays_silent(self):
+        """The ordinary passing commit, which must not have become noisier."""
+        status, _, err = self.run_main([])
+        self.assertEqual(status, 0)
+        self.assertEqual(err, "")
+
+
 class LayersCommandLine(unittest.TestCase):
     """``--layers`` reports and does not scan.
 
