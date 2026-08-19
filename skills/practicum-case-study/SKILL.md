@@ -558,12 +558,12 @@ sorted.
 | --- | --- |
 | The reference list headed anything but `References`, or `Reference` for a one-entry list | rename it — and since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the heading is what *applies* the hanging indent, so a wrong label changes the layout as well as the word |
 | An entry written as a bullet or a numbered item | make it a paragraph — the renderer gives a list its list style and the hanging indent is lost |
-| An entry hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing |
+| An entry carrying no year element — most often one hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing, and a line with no year is what that looks like |
 | Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
 | An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
-| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4 |
+| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading |
 | In-text year not matching the reference list year | reconcile |
 | Two entries with the same author and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3 |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |

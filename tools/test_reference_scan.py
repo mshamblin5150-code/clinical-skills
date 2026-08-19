@@ -94,9 +94,20 @@ class TheParserReadsTheListTheRendererWouldRender(unittest.TestCase):
         text = CLEAN + "\n## Appendix\n\nNot an entry at all.\n"
         self.assertEqual(len(scan.read_document(text).entries), 2)
 
-    def test_a_deeper_heading_inside_the_list_does_not_close_it(self):
+    def test_a_heading_of_any_level_closes_the_list_because_the_renderer_says_so(self):
+        """**This test asserted the opposite when it was written**, on the guess
+        that a deeper heading is a note inside the list. ``body_xml`` recomputes
+        ``in_references`` on every heading, so a ``### Note`` turns the hanging
+        indent off for everything below it -- and the scanner read both entries and
+        exited 0 while the renderer set the second one flush. Verified against the
+        renderer below rather than assumed a second time."""
         text = draft(ACOG) + "\n### Note\n\n" + UPTODATE + "\n"
-        self.assertEqual(len(scan.read_document(text).entries), 2)
+        self.assertEqual(len(scan.read_document(text).entries), 1)
+
+    def test_the_renderer_agrees_about_where_the_list_ends(self):
+        text = draft(ACOG) + "\n### Note\n\n" + UPTODATE + "\n"
+        styled = docx_write.body_xml(text).count('w:val="Reference"')
+        self.assertEqual(styled, len(scan.read_document(text).entries))
 
 
 class TheHeadingIsTheOneAPARequires(unittest.TestCase):
@@ -518,6 +529,22 @@ class TheRendererAndTheScannerAgreeOnAHeading(unittest.TestCase):
         text = BODY + "\n## Reference Ranges\n\nWBC 5 to 10.\n"
         self.assertIsNone(scan.read_document(text).heading)
 
+    def test_anything_the_renderer_styles_is_found_as_a_reference_list(self):
+        """``References and Resources`` takes the plural's prefix match, so the
+        renderer hangs the list under it. Finding the section from a hand-typed
+        list of labels answered *no reference list found* and exited 2 on a
+        document whose list renders perfectly well."""
+        text = draft(ACOG, UPTODATE, heading="## References and Resources")
+        document = scan.read_document(text)
+        self.assertEqual(document.heading, "References and Resources")
+        self.assertEqual(len(document.entries), 2)
+        self.assertIn(scan.HEADING_NOT_APA, kinds(text))
+
+    def test_a_forbidden_label_the_renderer_declines_is_still_found(self):
+        """What the import cannot reach, and why ``WRONG_HEADINGS`` survives it."""
+        self.assertFalse(docx_write.REFERENCE_HEADING.match("Works Cited"))
+        self.assertEqual(scan.read_document(draft(ACOG, UPTODATE, heading="## Works Cited")).heading, "Works Cited")
+
 
 class TheSkillSaysWhatThisChecks(unittest.TestCase):
     """``test_spelling_scan``'s rule: a scanner that has drifted from the file a
@@ -537,16 +564,26 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # One phrase per row, keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than quietly becoming a rule only
     # the scanner knows -- which is the class ``AGENTS.md`` puts this tool in.
+    #
+    # **A phrase has to describe what the scanner *does*, not the wider rule the
+    # table states**, and two of these did not when they were written: the
+    # retrieval-date row was keyed on *"a guideline, article or textbook"* when the
+    # scanner fires only on a DOI, and the no-year row was keyed on *"hard-wrapped"*
+    # when an unwrapped entry with no year fires it too. Both were **green**, so the
+    # check certified an agreement that was not one -- [#106]'s *"a wrong one stays
+    # wrong, silently, forever"* arriving inside the mechanism built against it. The
+    # table still states the wide rule, because the table is the rule; what changed
+    # is that it now says beside the wide row how far the command reaches.
     ROW_PHRASES = {
         scan.HEADING_NOT_APA: "The reference list headed anything but",
         scan.ENTRY_NOT_A_PARAGRAPH: "An entry written as a bullet or a numbered item",
-        scan.ENTRY_HAS_NO_YEAR: "An entry hard-wrapped onto a second line",
+        scan.ENTRY_HAS_NO_YEAR: "An entry carrying no year element",
         scan.CANVAS_ARTIFACT: "`Links to an external site.` welded to a URL",
         scan.LIST_NOT_SORTED: "Two entries out of alphabetical order",
         scan.MISSING_AB: "Two entries with the same author and year and no `a`/`b`",
         scan.AB_OUT_OF_TITLE_ORDER: "the letters are assigned by **title order**",
         scan.UPTODATE_NO_RETRIEVAL_DATE: "An UpToDate entry with no retrieval date",
-        scan.RETRIEVAL_DATE_ON_ARCHIVED: "A retrieval date on a guideline, article or textbook",
+        scan.RETRIEVAL_DATE_ON_ARCHIVED: "The command reaches this only where the entry carries a DOI",
         scan.RETRIEVAL_DATE_BEFORE_EXAM: "Retrieval year behind the exam year",
         scan.MALFORMED_DATE: "A missing space in a date",
         scan.UPTODATE_ITALICS: "database name unitalicized",

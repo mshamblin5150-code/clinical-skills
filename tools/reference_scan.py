@@ -27,14 +27,32 @@ of it.
 **One line is one entry, because that is what the renderer makes.**
 ``docx_write.body_xml`` sets every non-blank line as its own paragraph, so a
 hard-wrapped entry renders as two paragraphs and the second hangs on nothing. This
-parser reads the list exactly the way the renderer will, which is what lets a wrap
-be reported as a defect rather than silently absorbed.
+parser reads the list the way the renderer will, which is what lets a wrap be
+reported as a defect rather than silently absorbed.
+
+**That claim was published here before it was true, and it is the finding worth
+keeping.** It read *exactly the way the renderer will* while this parser treated a
+deeper heading as a note inside the list and ``body_xml`` ended the list on **any**
+heading -- so a list split by a ``### Note`` was read as two entries and graded
+clean while the renderer set the second one flush, with no indent. The silent layout
+failure the heading row exists for, passing as clean, under a sentence asserting it
+could not. Found by the tracker sweep on
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137), whose
+subject is a generalization made from the files a pass had open, and re-derived by
+rendering a document rather than by reading the renderer's source. There is a test
+now that asserts the two agree on where a list ends by **running both**.
 
 **And the heading matcher is imported from the renderer rather than restated.**
 Since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the
 heading is what *applies* the hanging indent, centers the label and breaks the
 page -- so a scanner holding its own copy of that rule could pass a document the
-renderer sets wrong, which is the one failure this row exists to catch.
+renderer sets wrong, which is the one failure this row exists to catch. **The
+import finds the section as well as describing it**, which it did not at first:
+detection was a hand-typed list of labels, and ``References and Resources`` -- which
+the renderer styles on the plural's prefix match -- exited 2 as *no reference list
+found* on a document whose list renders perfectly well. ``WRONG_HEADINGS`` is what
+the import cannot reach: labels APA forbids that the renderer also declines, where a
+list would otherwise be found by neither.
 
 **The rows, and where each comes from.**
 
@@ -492,14 +510,20 @@ class Scan:
 def _is_reference_heading(text: str) -> bool:
     """Whether this heading opens the document's reference list.
 
-    Both the labels APA permits and the labels it forbids, because a mislabeled
-    list that could not be *found* would report nothing and read as a clean scan.
-    ``Reference Ranges`` is in neither set, which is the heading the renderer's own
-    narrowing exists for.
+    **Anything the renderer would style is one**, which is what makes the imported
+    matcher load-bearing for finding the section and not only for describing it.
+    ``References and Resources`` takes the plural's prefix match, so the renderer
+    hangs the list under it -- and this used to answer *no reference list found* and
+    exit 2 on a document whose list renders perfectly well.
+
+    ``WRONG_HEADINGS`` is what the import cannot reach: labels APA forbids that the
+    renderer also declines to style, so a list under one of them would be found by
+    neither and report nothing. ``Reference Ranges`` is in neither set, which is the
+    heading the renderer's own narrowing exists for.
     """
     stripped = text.strip().strip("*_").strip()
     lowered = stripped.lower()
-    return any(lowered == name.lower() for name in APA_HEADINGS) or lowered in WRONG_HEADINGS
+    return bool(RENDERER_HEADING.match(stripped)) or lowered in WRONG_HEADINGS
 
 
 def read_citations(body: str) -> tuple[Citation, ...]:
@@ -542,17 +566,24 @@ def read_document(text: str) -> Document:
     """Split a draft at its reference heading and read the list one line at a time.
 
     One line is one entry because ``docx_write.body_xml`` makes one paragraph per
-    non-blank line. The list runs to the end of the file or to the next heading at
-    the same level or higher -- a deeper heading is a note inside the list.
+    non-blank line. The list runs to the end of the file or to **the next heading of
+    any level**, because that is what the renderer does: ``body_xml`` recomputes
+    ``in_references`` on every heading it meets, so a ``### Note`` inside the list
+    turns the hanging indent off for everything below it.
+
+    **This read a deeper heading as a note inside the list until the sweep on #137
+    caught it**, and the divergence was the exact silent-layout failure the heading
+    row exists for: the scanner read both entries and exited 0 while the renderer
+    set the second one flush, with no indent. The docstring above claimed parity
+    with the renderer at the time, which is what made it worth finding.
     """
     lines = text.replace("\r\n", "\n").split("\n")
     start: int | None = None
-    level = 0
     heading: str | None = None
     for index, line in enumerate(lines):
         match = MARKDOWN_HEADING.match(line)
         if match and _is_reference_heading(match.group(2)):
-            start, level, heading = index, len(match.group(1)), match.group(2).strip().strip("*_").strip()
+            start, heading = index, match.group(2).strip().strip("*_").strip()
             break
 
     if start is None:
@@ -564,11 +595,10 @@ def read_document(text: str) -> Document:
         stripped = line.strip()
         if not stripped or stripped in ("---", "***", "___"):
             continue
-        deeper = MARKDOWN_HEADING.match(line)
-        if deeper:
-            if len(deeper.group(1)) <= level:
-                break
-            continue
+        if MARKDOWN_HEADING.match(line):
+            # Any heading, at any level. ``body_xml`` recomputes ``in_references``
+            # on every one, so the renderer's list ends here whatever the depth.
+            break
         marker = LIST_MARKER.match(stripped)
         entries.append(
             Entry(
