@@ -40,6 +40,10 @@ consequence.
         16.9 x 10^9/L in normal pregnancy.
     RECENCY: nothing newer - searched 2026-08-19; no later reference-range table
         for pregnancy exists, and obstetric texts still cite this one.
+    RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
+    PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
+    REFUTATION: stands - the volume, issue and pages match the publisher's landing
+        page, and the third-trimester row is on page 1327.
 
 A field's value runs to the next field line or the next claim, so an APA entry may
 wrap the way an APA entry wraps.
@@ -93,6 +97,35 @@ wrap the way an APA entry wraps.
   an undated source carrying ``nothing newer`` or ``guideline in force`` with a
   reason stands, and one carrying neither is refused.
 
+*#231, the citation's truth half:*
+
+- **``RESOLVED`` is a URL or a bare DOI, and it says when it was opened.** The field
+  exists to put a specific in front of a reader; *"on the society website"* is not
+  one, and neither is a locator with no date beside it. The date is read off the
+  word ``read`` or ``retrieved`` rather than off any digits in the value, because a
+  URL is full of digits and one being date-shaped is not the agent saying when it
+  looked.
+- **A source cannot be read after the paper was written.** That is the second row
+  measured against ``DATE``, and the second one a dateless ledger loses.
+- **``PAGE-YEAR`` and ``REFERENCE`` agree about the year.** One rule in three rows:
+  a page year that states none against an entry that states one, a page year that is
+  a year and nothing else, and a page year that is not the entry's. **An ``n.d.``
+  entry beside a page carrying no date is the agreeing case and passes** -- refusing
+  it would refuse legitimate APA, which is the mistake ``UNDATED_REFERENCE`` was
+  corrected for once already.
+- **``REFUTATION`` is one of two dispositions with a reason after it**, and an
+  unrecognized one is a failure for ``STATUS``'s reason: it gates the row below.
+- **``refuted`` is a failure and not an outcome.** Unlike ``unsourced``, which the
+  skill routes to ``PROPOSED`` honestly, a refuted record is a **false citation
+  sitting in the ledger**: the run rewrites it or writes ``unsourced``, and never
+  drafts from it.
+- **A refutation that is the restatement pasted back** is the first agent
+  re-asserting rather than a second one checking -- ``RESTATEMENT_ECHOES_CLAIM``'s
+  trick one level up, and the only part of the pass's independence a row can reach.
+- **An unsourced record carries none of the four citation fields.** That is
+  ``UNSOURCED_WITH_CITATION_FIELD`` widened from one field to four: a locator on a record
+  that says it found nothing is the same contradiction, and it was passing.
+
 **#215's first limb reaches no row here, and that is deliberate.** *Within two years
 is the target* is a target: a ``current`` disposition on a three-year-old reference
 is not a defect, and grading it would refuse what the ruling merely prefers.
@@ -111,15 +144,53 @@ this never sees -- so a ledger of nothing but well-formed ``unsourced`` records
 exits 0, and that 0 means the records are honest rather than that the paper is. The
 count is printed for exactly that reason, and ``SKILL.md`` step 9 walks it.
 
-**And it does not verify the citation, which is #214's open question 2, deferred
-rather than answered here.** The format half has a written standard since #211 --
-``skills/practicum-case-study/reference/apa7.md``, walked by step 7 of the skill and
-by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s
-post-draft checkers. The truth half -- does the DOI or URL resolve, and does the
-year on the page match the year in the entry -- is ``threshold_sheet.py``'s tier 2
-arriving at a reference list, needs the network, and is
-[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231). **What
-this module checks is that a year is *stated*, never that it is *right*.**
+**#214's open question 2 is answered on
+[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), and the
+answer is that nothing here fetches anything.** The format half already had a written
+standard from #211 -- ``skills/practicum-case-study/reference/apa7.md``, walked by
+step 7 and by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
+For the truth half the ticket proposed ``threshold_sheet.py``'s two-tier arrangement,
+a resolver opting into the network and skipping with a banner. **Two findings killed
+it.** UpToDate is nine in ten of this corpus's references and is subscription-gated,
+so a fetch reaches a login wall rather than the topic page ``apa7.md`` section 2 takes
+the date element from -- every such entry would fail outright, or pass on a 200 from a
+login form, which is the silent-pass shape this whole directory exists to refuse. And
+**the clinician hands the topics over wholesale**, so wherever a source is in the
+evidence dump there was never anything to resolve.
+
+**So the checking moved to where the reading already happens.** The agent that
+researched a claim was on the page: it records what it opened and when
+(``RESOLVED``), and the year the page itself carries and where (``PAGE-YEAR``). A
+second agent, briefed to **refute** rather than to confirm -- because an agent asked
+*is this right?* says yes -- records what the attempt found (``REFUTATION``). All
+three are graded here, offline. **No tool in this repo touches the network**, which is
+the ticket's decision 1 settled by making it unnecessary rather than by opting out of
+it.
+
+**What that buys, and what it does not.** ``RESOLVED`` and ``PAGE-YEAR`` narrow the
+hole rather than closing it -- an agent can write a URL it never opened -- but they
+force a commitment to specifics a reader can be caught on in one click, where a
+correctly formatted APA entry is checkable only by going and looking. The refutation
+pass is the only **verification** in the arrangement -- **and it does not happen
+here.** The pass is a second agent; this module refuses a record where the pass did
+not answer, answered in a third word, or answered by pasting the restatement back.
+**No row here can see that the refuter was a different agent**, or that it opened
+anything: that is an instruction, and *what a written instruction cannot do is fail*
+binds its own successor as squarely as it bound #214.
+
+**When the pass ran is the ledger's ``DATE``, and there is deliberately no second
+date.** #231 admired ``threshold_sheet.py`` recording *the date tier 2 last really
+ran*, and the difference is that tier 2 there is skippable and months stale by
+design, while the fan-out and the refutation both run in one sitting before a word
+is drafted. ``RESOLVED``'s date is the **research** agent's, and it is bounded above
+by ``DATE`` and **not below** -- a read date years before the paper is incoherent and
+passes. Bounding it below would need a window nothing here grounds, which is
+``filled_vitals_census.py``'s reason for grading three rows and counting five.
+
+**This module states no opinion about whether a source is reputable or whether it
+says what the restatement says it says.** What it checks is that a year is *stated*,
+that two records *agree* about it, and that the pass sent to knock the citation down
+came back and said something. It opens nothing.
 
 **Counts only by default**, on ``specificity_scan.py``'s and ``block_scan.py``'s
 terms and for their reason: the ledger lives under ``scratch/`` and a claim is
@@ -131,7 +202,8 @@ clean, 1 for a violation, **2 for every way of not having scanned**: no argument
 no file, no ``## CLAIM:`` record in it, and **no ``DATE:`` header**. That last limb
 is the one that matters. The window is measured against the day the paper is
 written, so a ledger with no date was never measured by #215's rule at all, and a
-clean report would read as though it had been.
+clean report would read as though it had been. **Two rows need that date now**, not
+one: #215's window and #231's read date both compare a date to ``DATE``.
 
 **Where a violation and a missing ``DATE`` both hold, 1 wins**, on
 ``differential_scan.py``'s and ``filled_vitals_census.py``'s ordering and for their
@@ -155,7 +227,8 @@ from console_codec import use_utf8
 # under a document heading without the parser caring.
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|RECENCY)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|RECENCY"
+    r"|RESOLVED|PAGE-YEAR|REFUTATION)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 # The day the paper is written. Recency is measured against it and never against
 # the clock -- a ledger graded twice a year apart has to grade the same both times.
@@ -179,6 +252,39 @@ RECENCY_IN_FORCE = "guideline in force"
 RECENCY_VALUES = (RECENCY_CURRENT, RECENCY_WITHIN_FIVE, RECENCY_NOTHING_NEWER, RECENCY_IN_FORCE)
 EXCUSES = (RECENCY_NOTHING_NEWER, RECENCY_IN_FORCE)
 
+# #231. A locator is a URL or a bare DOI, and nothing else -- the field exists to
+# put a specific in front of a reader, and *"on the society website"* is not one.
+LOCATOR = re.compile(r"(?i)\bhttps?://\S+|\b10\.\d{4,9}/\S+")
+# Anchored on the word rather than on the shape, because a URL is full of digits
+# and one of them being date-shaped is not the agent saying when it looked.
+# ``retrieved`` beside ``read`` because ``apa7.md`` section 4 calls it a retrieval
+# date, so a run copying that word is writing the field right rather than wrong.
+#
+# **The anchor word has to be outside the URL, and the first version was not.**
+# ``https://site.org/read/2026-01-02/piece`` matched, so an archive path supplied a
+# read date the agent never wrote -- a locator grading itself as dated. The
+# lookbehind refuses a word joined to what precedes it, and the separator between
+# the word and the date may not be a slash.
+READ_DATE = re.compile(
+    r"(?i)(?<![/\-\w])(?:read|retrieved)\b[ \t]*[:\-]?[ \t]*(\d{4})-(\d{2})-(\d{2})"
+)
+# The year a page states, which is not written in parentheses the way an APA
+# entry's is -- so this is the bare form and ``YEAR`` is deliberately not reused.
+#
+# **Restricted to plausible years, and the first version was not.** A bare
+# ``\d{4}`` takes the first four-digit token, and ``PAGE-YEAR`` is documented as the
+# year *and where the page says so* -- so ``on page 1327, dated 2009`` read as the
+# year 1327 and reported a false disagreement against a correct record. A page
+# number is not in 1900-2099; a page number that is remains order-dependent, and
+# that limit is the reason the field's documented form puts the year first.
+BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
+
+# #231's two dispositions. The brief is to *refute*, so ``stands`` is the outcome
+# of a failed attempt rather than the default.
+REFUTATION_STANDS = "stands"
+REFUTATION_REFUTED = "refuted"
+REFUTATION_VALUES = (REFUTATION_STANDS, REFUTATION_REFUTED)
+
 SOURCED = "sourced"
 UNSOURCED = "unsourced"
 STATUSES = (SOURCED, UNSOURCED)
@@ -195,7 +301,7 @@ NOT_ALNUM = re.compile(r"[^0-9a-z]+")
 MISSING_FIELD = "missing-field"
 UNKNOWN_STATUS = "unknown-status"
 BARE_STATUS = "bare-status"
-UNSOURCED_WITH_REFERENCE = "unsourced-with-reference"
+UNSOURCED_WITH_CITATION_FIELD = "unsourced-with-citation-field"
 UNKNOWN_SOURCE_CLASS = "unknown-source-class"
 UNKNOWN_RECENCY = "unknown-recency"
 RESTATEMENT_ECHOES_CLAIM = "restatement-echoes-claim"
@@ -203,6 +309,16 @@ NUMERIC_CLAIM_UNQUANTIFIED = "numeric-claim-unquantified"
 UNDATED_REFERENCE = "undated-reference"
 STALE_UNEXCUSED = "stale-unexcused"
 BARE_EXCUSE = "bare-excuse"
+UNRESOLVABLE_LOCATOR = "unresolvable-locator"
+UNDATED_READ = "undated-read"
+READ_AFTER_DATE = "read-after-date"
+PAGE_YEAR_UNSTATED = "page-year-unstated"
+BARE_PAGE_YEAR = "bare-page-year"
+PAGE_YEAR_DISAGREES = "page-year-disagrees"
+UNKNOWN_REFUTATION = "unknown-refutation"
+BARE_REFUTATION = "bare-refutation"
+REFUTED_CITATION = "refuted-citation"
+REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
 
 # Every row, in report order. Kept as one tuple so the report, the counter and the
 # ticket map cannot drift into listing different sets.
@@ -210,7 +326,7 @@ KINDS = (
     MISSING_FIELD,
     UNKNOWN_STATUS,
     BARE_STATUS,
-    UNSOURCED_WITH_REFERENCE,
+    UNSOURCED_WITH_CITATION_FIELD,
     UNKNOWN_SOURCE_CLASS,
     RESTATEMENT_ECHOES_CLAIM,
     NUMERIC_CLAIM_UNQUANTIFIED,
@@ -218,6 +334,16 @@ KINDS = (
     UNDATED_REFERENCE,
     STALE_UNEXCUSED,
     BARE_EXCUSE,
+    UNRESOLVABLE_LOCATOR,
+    UNDATED_READ,
+    READ_AFTER_DATE,
+    PAGE_YEAR_UNSTATED,
+    BARE_PAGE_YEAR,
+    PAGE_YEAR_DISAGREES,
+    UNKNOWN_REFUTATION,
+    BARE_REFUTATION,
+    REFUTATION_ECHOES_RESTATEMENT,
+    REFUTED_CITATION,
 )
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
@@ -225,7 +351,7 @@ ROW_TICKET = {
     MISSING_FIELD: "#214",
     UNKNOWN_STATUS: "#214",
     BARE_STATUS: "#214",
-    UNSOURCED_WITH_REFERENCE: "#214",
+    UNSOURCED_WITH_CITATION_FIELD: "#214",
     UNKNOWN_SOURCE_CLASS: "#214",
     UNKNOWN_RECENCY: "#215",
     RESTATEMENT_ECHOES_CLAIM: "#214",
@@ -233,9 +359,34 @@ ROW_TICKET = {
     UNDATED_REFERENCE: "#215",
     STALE_UNEXCUSED: "#215",
     BARE_EXCUSE: "#215",
+    UNRESOLVABLE_LOCATOR: "#231",
+    UNDATED_READ: "#231",
+    READ_AFTER_DATE: "#231",
+    PAGE_YEAR_UNSTATED: "#231",
+    BARE_PAGE_YEAR: "#231",
+    PAGE_YEAR_DISAGREES: "#231",
+    UNKNOWN_REFUTATION: "#231",
+    BARE_REFUTATION: "#231",
+    REFUTED_CITATION: "#231",
+    REFUTATION_ECHOES_RESTATEMENT: "#231",
 }
 
-REQUIRED_WHEN_SOURCED = ("SOURCE", "REFERENCE", "RESTATEMENT", "RECENCY")
+REQUIRED_WHEN_SOURCED = (
+    "SOURCE",
+    "REFERENCE",
+    "RESTATEMENT",
+    "RECENCY",
+    "RESOLVED",
+    "PAGE-YEAR",
+    "REFUTATION",
+)
+
+# Every field that is a claim about a source. An ``unsourced`` record says there
+# is no source, so carrying any one of them is the contradiction
+# ``UNSOURCED_WITH_CITATION_FIELD`` was written for -- widened by #231 from the one
+# field to the four, because a locator on a record that found nothing is the same
+# defect and was passing.
+CITATION_FIELDS = ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION")
 
 
 def normalize(text: str) -> str:
@@ -287,6 +438,31 @@ class Record:
     def reference_year(self) -> int | None:
         match = YEAR.search(self.value("REFERENCE"))
         return int(match.group(1)) if match else None
+
+    @property
+    def page_year(self) -> int | None:
+        """The year the page itself states, per #231's ``PAGE-YEAR``.
+
+        Bare rather than parenthesized: this is what a reader copied off a cover
+        page, not an APA date element.
+        """
+        match = BARE_YEAR.search(self.value("PAGE-YEAR"))
+        return int(match.group(1)) if match else None
+
+    @property
+    def read_date(self) -> date | None:
+        """The day the agent says it opened the source, or ``None``.
+
+        A date that does not exist reads as no date at all -- the field failed to
+        say when it was read, which is the finding either way.
+        """
+        match = READ_DATE.search(self.value("RESOLVED"))
+        if not match:
+            return None
+        try:
+            return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        except ValueError:
+            return None
 
 
 @dataclass(frozen=True)
@@ -379,8 +555,9 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
     if status == UNSOURCED:
         if not SUBSTANCE.search(keyword_of(record.value("STATUS"), STATUSES)[1]):
             found.append(Finding(BARE_STATUS, claim, record.value("STATUS")))
-        if SUBSTANCE.search(record.value("REFERENCE")):
-            found.append(Finding(UNSOURCED_WITH_REFERENCE, claim, record.value("REFERENCE")))
+        for name in CITATION_FIELDS:
+            if SUBSTANCE.search(record.value(name)):
+                found.append(Finding(UNSOURCED_WITH_CITATION_FIELD, claim, f"{name}: {record.value(name)}"))
         return found
 
     for name in REQUIRED_WHEN_SOURCED:
@@ -406,6 +583,69 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
         found.append(Finding(UNKNOWN_RECENCY, claim, recency))
     if excuse in EXCUSES and not SUBSTANCE.search(remainder):
         found.append(Finding(BARE_EXCUSE, claim, recency))
+
+    # #231's first half: the agent was on the page, so it writes down where it was
+    # and when. Nothing here fetches anything -- what the row buys is a specific a
+    # reader can be caught on in one click, which an APA entry alone is not.
+    resolved = record.value("RESOLVED")
+    if SUBSTANCE.search(resolved):
+        if not LOCATOR.search(resolved):
+            found.append(Finding(UNRESOLVABLE_LOCATOR, claim, resolved))
+        read = record.read_date
+        if read is None:
+            found.append(Finding(UNDATED_READ, claim, resolved))
+        elif as_of is not None and read > as_of:
+            # The second row measured against ``DATE``, and the second one a
+            # dateless ledger loses. Reading a source after the paper was written
+            # is a record describing something that had not happened yet.
+            found.append(Finding(READ_AFTER_DATE, claim, f"read {read.isoformat()}, DATE {as_of}"))
+
+    # **One rule in three rows: the page and the entry agree about the year.** An
+    # ``n.d.`` entry beside a page that states no year is the agreeing case and
+    # passes -- refusing it would refuse legitimate APA, which is the mistake
+    # ``UNDATED_REFERENCE`` was already corrected for once.
+    stated = record.value("PAGE-YEAR")
+    if SUBSTANCE.search(stated):
+        page_year = record.page_year
+        entry_year = record.reference_year
+        cited = bool(SUBSTANCE.search(record.value("REFERENCE")))
+        if page_year is None:
+            if cited and entry_year is not None:
+                found.append(Finding(PAGE_YEAR_UNSTATED, claim, stated))
+        else:
+            # Two things rather than one, on ``BARE_EXCUSE``'s reasoning: a year
+            # alone is an assertion, a year with where it was found is a place a
+            # reader can go and look.
+            if not SUBSTANCE.search(BARE_YEAR.sub(" ", stated, count=1)):
+                found.append(Finding(BARE_PAGE_YEAR, claim, stated))
+            if cited and page_year != entry_year:
+                entry = entry_year if entry_year is not None else "no year"
+                found.append(
+                    Finding(PAGE_YEAR_DISAGREES, claim, f"{page_year} on the page, {entry} in REFERENCE")
+                )
+
+    # #231's second half, and the only row here that is verification rather than a
+    # better-shaped promise. **That the refuter was a different agent is not
+    # reachable from the record** -- ``SKILL.md`` states it, this grades the shape.
+    refutation = record.value("REFUTATION")
+    if SUBSTANCE.search(refutation):
+        verdict, reason = keyword_of(refutation, REFUTATION_VALUES)
+        if not verdict:
+            # ``STATUS``'s reasoning again: it gates the row below, so a third
+            # word is a record the refutation row never read.
+            found.append(Finding(UNKNOWN_REFUTATION, claim, refutation))
+        else:
+            if not SUBSTANCE.search(reason):
+                found.append(Finding(BARE_REFUTATION, claim, refutation))
+            elif normalize(reason) == normalize(restatement):
+                # The first agent re-asserting rather than a second one checking.
+                # ``RESTATEMENT_ECHOES_CLAIM``'s trick, one level up.
+                found.append(Finding(REFUTATION_ECHOES_RESTATEMENT, claim, refutation))
+            if verdict == REFUTATION_REFUTED:
+                # A **failure**, unlike ``unsourced``, which the skill routes to
+                # ``PROPOSED`` honestly. This is a false citation sitting in the
+                # ledger: the run rewrites the record or writes ``unsourced``.
+                found.append(Finding(REFUTED_CITATION, claim, refutation))
 
     if SUBSTANCE.search(record.value("REFERENCE")):
         year = record.reference_year
@@ -475,7 +715,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append(f"  standing past five years         {scan.standing_past_five}")
     lines.append("")
     for kind, count in scan.counts:
-        lines.append(f"  {ROW_TICKET[kind]} - {kind:<28} {count}")
+        # Wide enough for the longest kind, so the count column stays a column.
+        # ``refutation-echoes-restatement`` is 29 and overflowed 28 on the day it
+        # was added, which is the report going ragged in the one output meant to
+        # be pasted into a ticket.
+        lines.append(f"  {ROW_TICKET[kind]} - {kind:<31} {count}")
     lines.append("")
     lines.append(f"  records at fault                 {scan.failing_records}")
     if show:
@@ -510,9 +754,13 @@ def main(argv: list[str]) -> int:
     if as_of is None:
         # Printed whichever status follows, so an exit 1 below reads as a floor
         # rather than as the whole of what is wrong.
+        # **Both rows measured against the date, not just the window.** #231 added
+        # the read date, and a banner naming one of two understates the floor it
+        # exists to establish.
         print(
-            f"{path.name} carries no DATE: <YYYY-MM-DD> header, so the five-year"
-            " window was not applied to any record in it.",
+            f"{path.name} carries no DATE: <YYYY-MM-DD> header, so neither the"
+            " five-year window nor the read-date check was applied to any record"
+            " in it.",
             file=sys.stderr,
         )
     if scan.failing_records:

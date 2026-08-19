@@ -255,15 +255,15 @@ ruling is that such a claim gets researched, one agent per claim, in parallel. `
 said so. **What a written instruction cannot do is fail**, so the fan-out now writes one record per
 claim into `scratch/case-study-claims.md` and this grades them.
 
-**The rows belong to two rulings.** #214's contract: every field present, `STATUS` one
-of two branches, an `unsourced` record saying what was searched, no reference on an unsourced record,
-a restatement that is not the claim pasted back, and a numeric claim answered with a number. #215's
-amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old one
-saying why it stands, and the excuse carrying a reason. The report prints the ticket beside each row,
-and **`SKILL.md` step 3 writes every one of them out in a table** — a test keyed on the module's own tuple
-fails if a twelfth arrives without one, because `AGENTS.md` classes this as a tool a skill *names*
-rather than one it depends on, and that class is defined by the instruction being complete without
-the command.
+**The rows belong to three rulings.** #214's contract: every field present, `STATUS` one
+of two branches, an `unsourced` record saying what was searched, no citation field on an unsourced
+record, a restatement that is not the claim pasted back, and a numeric claim answered with a number.
+#215's amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old
+one saying why it stands, and the excuse carrying a reason. #231's citation rows, below. The report
+prints the ticket beside each row, and **`SKILL.md` step 3 writes every one of them out in a table** —
+a test keyed on the module's own tuple fails if the next one arrives without one, because `AGENTS.md`
+classes this as a tool a skill *names* rather than one it depends on, and that class is defined by
+the instruction being complete without the command.
 
 **An unrecognized `STATUS` is a failure, and that departs from `specificity_scan.py`'s third-branch
 rule deliberately.** There the keyword picks a message and policing a third would be inventing a
@@ -287,7 +287,9 @@ patient. **`--show` output is PHI**: read it, do not paste it.
 violation, **2 for every way of not having scanned**: no argument, no file, no `## CLAIM:` record,
 and **no `DATE:` header**. That last limb is the one that matters and it is `filled_vitals_census.py`'s
 reasoning: the five-year window is measured against the day the paper is written, so a ledger with no
-date was never measured by it and a clean report would read as though it had been. **Where a
+date was never measured by it and a clean report would read as though it had been. **Two rows need
+that date since #231**, not one — the window, and whether a source was read after the paper was
+written. **Where a
 violation and a missing `DATE` both hold, 1 wins**, on `differential_scan.py`'s ordering, and the
 banner prints beside it so the finding reads as a floor. **The first version returned 2 there** —
 found by review, and it was the one place this departed from both siblings without saying so.
@@ -298,13 +300,40 @@ argument for the first — the field gates the row below it. And `n.d.` was refu
 the clinician never made**; the escape hatch is now the one he did make, so an undated source
 carrying `nothing newer` or `guideline in force` with a reason stands.
 
-**Open question 2 is deferred rather than dropped**, and the split is written into the module
-docstring: the *format* half of verifying a citation has a written standard since #211
-([apa7.md](skills/practicum-case-study/reference/apa7.md), walked by step 7 and by #218), and the
-*truth* half — does the DOI resolve, does the page's year match the entry's — is
-`threshold_sheet.py`'s tier 2 arriving at a reference list, needs the network, and is
-[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231). **This module checks that
-a year is stated, never that it is right.**
+**Open question 2 is settled on [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231),
+and the answer is that no tool here touches the network.** The *format* half already had a written
+standard from #211 ([apa7.md](skills/practicum-case-study/reference/apa7.md), walked by step 7 and by
+#218). For the *truth* half the ticket proposed `threshold_sheet.py`'s two-tier arrangement — a
+resolver opting into the network, skipping with a banner. **Two findings killed it, and the second is
+the clinician's.** UpToDate is nine in ten of this corpus's references and is subscription-gated, so
+a fetch reaches a login wall rather than the topic page `apa7.md` §2 takes the date element from:
+every such entry would fail outright, or **pass on a 200 from a login form**, which is the silent-pass
+shape this whole directory exists to refuse. And the clinician hands the topics over wholesale, so
+wherever a source is in the evidence dump there was never anything to resolve.
+
+**So the checking moved to where the reading already happens, in two halves.** The agent that
+researched a claim was on the page, so it records what it opened and when (`RESOLVED`) and the year
+the page itself carries and where (`PAGE-YEAR`); a **second** agent, briefed to *refute* rather than
+to confirm — because an agent asked *is this right?* says yes — records what the attempt found
+(`REFUTATION`). Ten rows grade the three fields offline. The residue this reaches is the
+**non-UpToDate** references: a step-3 record only exists because the evidence dump did *not* cover
+the claim, so the sources here are the ones nobody has.
+
+**Not exempt by source class, and that was decided rather than defaulted into.** `tertiary reference`
+is UpToDate, which the clinician has wholesale — but for exactly the reason above, an UpToDate
+reference reaching *this file* is a topic he does not have. Exempting the class would exempt the
+records that need the rows most.
+
+**What the two halves buy is not the same thing.** `RESOLVED` and `PAGE-YEAR` **narrow** the hole:
+an agent can write a URL it never opened, but it has to commit to specifics a reader can be caught on
+in one click, where a correctly formatted APA entry is checkable only by going and looking. The
+refutation pass is the only **verification** in the arrangement — **and it does not happen in this
+module.** The pass is a second agent; what the module does is refuse a record where the pass did not
+answer, answered in a third word, or answered by pasting the restatement back. **No row can see that
+the refuter was a different agent**, or that it opened anything, which is #214's *what a written instruction cannot do is fail* binding its
+own successor. The one shape a row reaches is a refutation that is the restatement pasted back.
+**This module still checks that a year is stated and that two records agree about it. It opens
+nothing.**
 
 **Nothing committed can be pointed at it, and there will not be one** — a ledger is a patient record
 by `scratch/`'s own terms, which is `differential_scan.py`'s position exactly. So
