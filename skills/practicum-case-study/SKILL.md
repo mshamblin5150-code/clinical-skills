@@ -556,8 +556,13 @@ sorted.
 
 | Defect | Fix |
 | --- | --- |
+| The reference list headed anything but `References`, or `Reference` for a one-entry list | rename it — and since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the heading is what *applies* the hanging indent, so a wrong label changes the layout as well as the word |
+| An entry written as a bullet or a numbered item | make it a paragraph — the renderer gives a list its list style and the hanging indent is lost |
+| An entry hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing |
+| Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
+| An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
 | A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4 |
 | In-text year not matching the reference list year | reconcile |
 | Two entries with the same author and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3 |
@@ -571,6 +576,47 @@ sorted.
 **A citation year is looked up, never recalled.** UpToDate revises topics continuously and the same
 topic appears in one clinician's corpus under three different years. The companion document states
 each topic's own revision date — use it.
+
+**Then scan the list, because the pass that wrote an entry cannot see what is wrong with it:**
+
+```bash
+python tools/reference_scan.py output/case-studies/<stem>.md --as-of 2026-08-19
+```
+
+`--as-of` is **the exam date** — the day the paper is written. The retrieval-date row is measured
+against it and never against the clock, so a draft graded twice a year apart grades the same both
+times, and a run that omits it gets exit 2 rather than a clean report on a row that never ran. Exit
+0 is clean, 1 names how many defects, and **2 means it did not scan** — no file, no reference list
+it could find, or a heading with nothing under it. Re-run with `--show` to see which entries, and
+**that output is PHI**: read it, do not paste it.
+
+It reaches every row in the table above except one: whether an UpToDate year is the topic's revision
+year rather than the year it was read needs the companion evidence document, which the command never
+sees. And it says nothing at all about whether a source exists or says what the sentence citing it
+says. **A clean scan is not a checked reference list.**
+
+**A list it grades clean looks like this** — one entry per line, sorted, every entry cited above and
+every citation listed:
+
+```
+Nitrofurantoin is first line in the second trimester (American College of Obstetricians
+and Gynecologists, 2023), and a urine culture is drawn before the first dose (Gupta &
+Hooton, 2025).
+
+## References
+
+American College of Obstetricians and Gynecologists. (2023). Urinary tract infections in pregnancy (Practice Bulletin No. 91). https://doi.org/10.0000/illustrative-doi
+Gupta, K., & Hooton, T. M. (2025). Acute simple cystitis in adult females. *UpToDate*. Retrieved August 19, 2026, from https://www.uptodate.com/contents/acute-simple-cystitis
+```
+
+The entry lines are long and are not wrapped, which is the point rather than an oversight — the
+guideline entry takes no retrieval date and the UpToDate entry takes one, and the database name is
+italicized in the entry and plain in the sentence above it.
+
+**Every rule the command applies is written in the table above, so a harness with no Python walks
+the list by eye instead.** The command saves the reading; it is not where the rule lives. That is
+step 3's arrangement with `tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) keeps the two
+classes of tool citation apart deliberately.
 
 ### 8. Emit the document
 
@@ -592,7 +638,63 @@ is for the clinician, not for the grader.
 
 ### 9. Check
 
-Against this list, by eye — none of it is mechanical:
+**This is the second fan-out, and it runs after the draft exists.** Step 3's ran before a word was
+written and found sources; this one reads the document that was written and reports what is wrong
+with it. [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
+
+**The reason it is not just a careful reread is that a run cannot audit its own work.** The same
+recall that produced a reference entry, a differential order or an MDM discriminator produces the
+check of it, so the check has to come from somewhere that recall does not reach —
+[AGENTS.md](../../AGENTS.md)'s *a report by the pass that produced it is a baseline, not a
+verification*, and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) one level
+up. Two places qualify: a string test, where the rule is mechanical, and a **fresh reader** given
+the draft and the rule and nothing else, where it is not.
+
+**Write the check headings down before spawning anything.** `scratch/case-study-checks.md`, one
+`## CHECK:` heading per row of the table below, and nothing under them yet. That ordering is step
+3's and it is here for step 3's reason: a heading whose verdict never arrived is visible, and a
+check that was never run is not.
+
+| Check | What it reads | How |
+| --- | --- | --- |
+| the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent |
+| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, and does each source exist and say what the sentence citing it says |
+| differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above |
+| MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation |
+| the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support |
+| the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it |
+
+**One reader per row, all of them at once, and none of them is the context that wrote the draft.**
+Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
+them. **Where the harness has no subagent tool, the same briefs are worked one at a time in the main
+context, into the same file** — step 3's ruling, taken whole rather than answered a second way. The
+mechanism is the file and the brief; the parallelism is a speed property, and nothing downstream can
+tell the difference.
+
+**One record per check**, filled in under its heading:
+
+```
+CHECK: differential ordering
+VERDICT: defect
+FINDINGS: 1. is appendicitis and the patient is 24 with pelvic pain and no documented
+    hCG. Ectopic pregnancy is at 4 and has to be at 1 until the hCG is back.
+```
+
+`VERDICT` is `clean` or `defect`, and a `defect` says what and where. A heading with no `VERDICT`
+under it is a check that did not run, and the draft is not submitted on it.
+
+**A finding is fixed, not handed over.** Ruled on
+[#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211) and inherited here: the
+clinician does not get a list of citation defects to repair by hand. What goes to `PROPOSED` is only
+what a fix would require **him** to decide — a claim the evidence does not settle, a register the
+voice model does not cover. Everything else is repaired in the document before it is rendered again.
+
+**These readers see a patient record.** A finished draft is written about a patient, so a reader
+reports findings, file paths and counts, and quotes back only the sentence it is objecting to —
+[CLAUDE.md](../../CLAUDE.md)'s subagent rule, and `tools/reference_scan.py` takes the stricter half
+of it by default.
+
+Then walk this list, by eye — none of it is mechanical:
 
 - Does every item on the faculty's own to-do list have a section that answers it, **and is every
   skeleton section present regardless of what the faculty asked for**?
@@ -602,8 +704,11 @@ Against this list, by eye — none of it is mechanical:
   indication **and a prose block under it carrying class, contraindications, monitoring, adverse
   effects and guideline support**?
 - **Has the step 7 reference walk actually run**, against
-  [reference/apa7.md](reference/apa7.md) rather than from memory? A known reference defect does
-  not leave this step in the `PROPOSED` block — it gets fixed.
+  [reference/apa7.md](reference/apa7.md) rather than from memory, and does
+  `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
+  defect does not leave this step in the `PROPOSED` block — it gets fixed.
+- **Does every `## CHECK:` heading in `scratch/case-study-checks.md` carry a `VERDICT`**, and has
+  every `defect` been repaired in the document rather than reported?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
