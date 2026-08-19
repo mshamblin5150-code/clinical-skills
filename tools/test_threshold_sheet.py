@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import guidelines_extract as extract  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
 
 def header(mode: str = "exact") -> str:
@@ -123,10 +124,76 @@ class SchemaGate(unittest.TestCase):
         self.assertTrue(any("'## Sources'" in message for message in gate.gate_schema(parsed)))
 
     def test_a_symbol_font_pound_sign_in_a_value_fails(self):
-        """73 of these are in the corpus, all of them a less-or-equal sign that lost
-        its encoding. A sheet holds the fact and must not hold the mis-encoding."""
+        """A less-or-equal sign that lost its encoding. A sheet holds the fact and
+        must not hold the mis-encoding."""
         failures = gate.gate_schema(sheet(row(value="\u00a3120 mm Hg")))
         self.assertTrue(any("Symbol-font" in message for message in failures))
+
+    def test_every_slot_the_extractor_repairs_is_refused_here_too(self):
+        """#172 found the gate reaching half its own subject.
+
+        It blocked ``\u00a3`` and ``\u00b3`` and not the double dagger -- and the double
+        dagger is where 146 of the corpus's 183 greater-or-equal signs landed, so a
+        transcriber pasting ``\u20216 months`` cleared a gate written to stop exactly
+        that. The two C0 controls are worse again: invisible, and a value cell can
+        carry one with nothing on screen to see.
+
+        Derived from ``guidelines_extract.SYMBOL_FONT_OPERATORS`` rather than
+        listed, on ``test_spelling_scan.py``'s reasoning -- a sixth slot added to
+        the extractor and not here would leave this passing while the artifact it
+        guards could hold the character.
+
+        Scoped to the slots a Markdown table can carry. The two C0 controls cannot
+        reach any gate at all, and the class below is where that is written down.
+        """
+        for mapping in extract.SYMBOL_FONT_OPERATORS.values():
+            for glyph in mapping:
+                if glyph in gate.UNREACHABLE_IN_A_TABLE_CELL:
+                    continue
+                with self.subTest(glyph=f"U+{ord(glyph):04X}"):
+                    failures = gate.gate_schema(sheet(row(value=f"{glyph}120 mm Hg")))
+                    self.assertTrue(
+                        any("mis-encoding" in message for message in failures),
+                        f"U+{ord(glyph):04X} passed the value gate",
+                    )
+
+
+class TwoSlotsNoGateHereCanReach(unittest.TestCase):
+    """#172's two C0 controls, declared rather than left to be discovered.
+
+    ``U+001E`` and ``U+001F`` are the greater- and less-or-equal signs of one
+    AHA/ACC document, 38 of them. They cannot be refused in a value cell, for two
+    separate reasons that are both Python's rather than this module's -- and the
+    tests below are the evidence, not the docstring.
+
+    The exposure is narrow and this ticket is what narrowed it: the only path that
+    ever put such a character in front of a transcriber was the extracted corpus,
+    and ``guidelines_extract`` now writes ``<=`` and ``>=`` there. What is left is
+    a person pasting from a raw reader, and ``guidelines_extract.SYMBOL_FONT_OPERATORS``
+    is where that is fixed rather than here.
+
+    Not repaired in the parser, because both repairs are wider than this ticket:
+    ``strip(" \\t")`` changes what every cell in every sheet is allowed to carry,
+    and nothing about ``splitlines`` is local to this file at all.
+    """
+
+    def test_they_are_declared_as_unreachable(self):
+        self.assertEqual(gate.UNREACHABLE_IN_A_TABLE_CELL, ("\u001e", "\u001f"))
+
+    def test_the_strip_that_tidies_a_cell_eats_one_of_them(self):
+        """``str.strip()`` treats U+001C to U+001F as whitespace, so the operator
+        leaves the cell and the row reads as a bare number -- the corpus defect
+        reproduced in the artifact built to refuse it."""
+        parsed = sheet(row(value="\u001f120 mm Hg"))
+        self.assertEqual(parsed.rows[0].value, "120 mm Hg")
+        self.assertEqual(gate.gate_schema(parsed), [])
+
+    def test_the_other_is_a_line_boundary_and_takes_its_whole_row_with_it(self):
+        """``str.splitlines()`` breaks on U+001E, so the row is two half-lines and
+        neither is a table row. The sheet parses clean with the row simply gone,
+        which is worse than the value being wrong."""
+        self.assertEqual("a\u001eb".splitlines(), ["a", "b"])
+        self.assertEqual(sheet(row(value="\u001e120 mm Hg")).rows, [])
 
     def test_a_unicode_comparison_sign_in_a_value_fails(self):
         failures = gate.gate_schema(sheet(row(value="\u2265130 mm Hg")))
