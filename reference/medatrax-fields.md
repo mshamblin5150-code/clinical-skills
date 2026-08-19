@@ -39,45 +39,23 @@ Picklist strings are exact — match them character for character, here and in t
 
 **Scope.** This file currently documents Medatrax for *reading* — what the fields are, what they accept, and how a note supplies them. Entering encounters through the portal is out of scope for this pass, **not permanently**: the field table and selection rules below are written to serve entry when it lands, which is the destination of the whole toolchain.
 
-## The requirement
+## Hour requirements and deadlines
 
-Authoritative source is the program's [Practicum Hours Breakdown](https://bluefield.instructure.com/courses/5935/pages/practicum-hours-breakdown) on Canvas. Medatrax's own Objectives page says 360 for NUR 5144 and is **stale** — do not use it.
+**The program's own hours breakdown is authoritative, not Medatrax's Objectives page** — on one account that page was stale by 100 hours, so a count read off the portal was wrong by more than a third of a course. Which courses, their documented hours, any planning hedge above the documented figure, the term dates, and whether prior hours carry or the count starts from zero are all per-program. [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) step 3 collects them and `scratch/medatrax-profile.md` holds them.
 
-| Course | Documented | Planning target |
-| --- | --- | --- |
-| NUR 5144 — Prim Care Across the Lifespan | 260 | **270** |
-| NUR 5042 — Transition into Leadership | 90 | 90 |
-| | | **360 total** |
+**A course may carry an area breakdown** — family practice, pediatrics, obstetrics, gynecology, geriatrics, in hours. Those areas map onto the `Patient Time` picklist below, so the band chosen per encounter is what accrues each bucket and a wrong band misallocates the requirement. The breakdown itself is per-program and is in the profile.
 
-Ten hours are carried above the documented 260 deliberately, as a hedge against another stale page. Both courses start **2026-08-10**, due **2026-11-20** — about 14.5 weeks, so roughly 25 hours a week.
+**A course with no patient encounters logs its hours in the Time Log**, not through an encounter form, using the `Narrative: (Leadership/Education Students and Transition Entries)` field. A leadership or transition course is the usual shape — business plans, reimbursement, quality improvement — and nothing in [clinical-note](../skills/clinical-note/SKILL.md) applies to it.
 
-**The 360 starts from zero.** The 515:55 under Hours to Date is prior coursework (NUR5143, NUR5111, NUR5153) and none of it carries.
+### The documentation deadline
 
-### NUR 5144 area breakdown
+**Programs commonly impose one, and it is the constraint this whole toolchain exists to satisfy.** One program removes students from clinical until they are caught up if they fall more than a stated number of hours behind in Medatrax. Yours, its number, and its exact wording are in the profile; documenting a shift inside that window is the only acceptable outcome.
 
-| Area | Hours |
-| --- | --- |
-| Family practice across the lifespan | 150 |
-| Pediatrics | 20 |
-| Obstetrics | 20 |
-| Gynecology | 20 |
-| Geriatrics | 50 |
+*(That sentence used to be this program's handbook quoted verbatim, with the number in it. It moved on [#226](https://github.com/mshamblin5150-code/clinical-skills/issues/226), 2026-08-19, and the motivation stayed — deleting the paragraph outright would have taken the reason the tooling exists out of the file a second clinician inherits, which is what decision 1 was about.)*
 
-These map onto the `Patient Time` picklist, so the age band chosen per encounter is what accrues each bucket. Getting it wrong misallocates the requirement.
+### Evaluations
 
-### NUR 5042 is a different pipeline
-
-Transition into Leadership is business plans, leadership styles, reimbursement and quality improvement — **no patient encounters**. Its hours go in the Time Log using the **`Narrative: (Leadership/Education Students and Transition Entries)`** field. Nothing in `clinical-note` applies to it.
-
-### The 48-hour rule
-
-> If you fall more than 48 hours behind with documentation in Medatrax you will be removed from clinical until you are caught up.
-
-This is the constraint the whole toolchain exists to satisfy. A shift documented within 48 hours is the only acceptable outcome.
-
-### Evaluations for 5144
-
-One preclinical self-evaluation; **three** evaluations of the student by the preceptor; **three** of the preceptor by the student; **three** of the clinical agency by the student; one post-clinical self-evaluation. Cadence is every 90 clinical hours. With more than one preceptor, only the primary completes it.
+Count, cadence and who completes them are per-program and in the profile. The one rule that is not: **with more than one preceptor, only the primary completes the preceptor-facing evaluations.**
 
 ## Forms
 
@@ -114,7 +92,7 @@ So the reference half of a fixture set is read straight off these pages. `result
 | Total time log | 515:55 |
 | Student comments | 0 |
 
-**No structured visit data exists at all.** Diagnosis Statistics returns "No data for this selection" across all courses, and every Add Visit Data category is empty — no ICD-10, no medications, no CPT, no Clinical Experience Check. Whether the new courses require it is worth confirming, since NUR 5144 objective 25 names "documentation, billing and coding".
+**No structured visit data exists at all.** Diagnosis Statistics returns "No data for this selection" across all courses, and every Add Visit Data category is empty — no ICD-10, no medications, no CPT, no Clinical Experience Check. Whether a course requires it is worth confirming — a course objective naming "documentation, billing and coding" is what would make it mandatory, and the objective list is per-program and in the profile.
 
 Assignments: none. Time Log `Confirmed` column: unchecked on every row.
 
@@ -157,11 +135,9 @@ Obstetrical Hours            Women's Health
 
 Age decides the band; a gyn or obstetric visit overrides it — a 35-year-old seen for hormone review logs as Women's Health, not Adult.
 
-**The override has never been applied. Swept 2026-08-09: 30 of 30.**
+**The override is the one this rule is most often missed on, and it is worth auditing rather than assuming.** On one account every gynecologic and obstetric visit in the entire record sat on an age band, and neither `Women's Health` nor `Obstetrical Hours` had ever been used once — with the age rule itself applied correctly throughout, so this is a gap in the habit rather than carelessness. Where a course's area breakdown wants gynecology and obstetrics hours in their own buckets, that habit supplies none of them.
 
-Every `Gynecology` and `Obstetrics` visit in the entire record sits on an age band. Twenty-seven gynecologic visits — 23 on `Adult (18 – 60) Hours`, 4 on `Gerontology (60 and>)` — and three obstetric visits, all on `Adult`. **`Women's Health` and `Obstetrical Hours` have never been used once.** Ages ran 18 to 79 and the age rule was applied correctly throughout, so this is not carelessness; the override simply is not part of the habit.
-
-Those hours are not recoverable and do not need to be. All 30 belong to NUR5153, NUR5111 and NUR5143, and the 360 starts from zero — correcting them shuffles buckets inside closed courses. What matters is that NUR 5144 wants 20 Gynecology and 20 Obstetrics hours in their own buckets, and the habit has a perfect record of not supplying them.
+**So sweep the account's own record before trusting the band.** The result is a measurement of one portal — counts, courses and whether the hours are recoverable — and it is a per-account finding: [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) step 4 runs it and `scratch/medatrax-profile.md` holds it.
 
 **No report exposes Patient Time.** Case Type Report gives case type, date and reference; the Statistics Report has a Case Type view but no Patient Time view; Data Totals covers visit-data categories, all empty. The value appears only on `patientdetail.aspx`, one visit at a time.
 
@@ -238,7 +214,7 @@ Order matters for the pair: pick a plausible height, pick a plausible weight, th
 
 The Times convention in [clinical-note](../skills/clinical-note/SKILL.md) assigns each visit 15–40 minutes across the shift and reports every time as estimated. Estimated is a property of the value, not the absence of one, so these do not belong under GAPS — a note that lists them there is spending a slot announcing that the skill obeyed its own instruction.
 
-**Not every administrative field is equal.** `Patient Time` is the one where a wrong value has a real consequence: it feeds the NUR 5144 area breakdown, so an error there misallocates clinical hours. Payment method and race/ethnicity feed no hours bucket at all. Treat them accordingly — `Patient Time` is worth stopping for, these are not.
+**Not every administrative field is equal.** `Patient Time` is the one where a wrong value has a real consequence: it feeds the course's area breakdown, so an error there misallocates clinical hours. Payment method and race/ethnicity feed no hours bucket at all. Treat them accordingly — `Patient Time` is worth stopping for, these are not.
 
 ## Add Visit Data
 
