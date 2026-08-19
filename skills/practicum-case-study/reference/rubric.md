@@ -65,7 +65,7 @@ prose when they land at all, which is unstructured and case-dependent.
 **Write them, in a prose block under each Rx table. Ruled 2026-08-18** — the table keeps its six
 rows, and the five go underneath it as one paragraph rather than into the table or into nothing.
 The shape and the worked example are in [style.md](style.md) §8; the reasoning is in
-[SKILL.md](../SKILL.md) step 5. **Omitting them has never cost a point**, which the ruling treats
+[SKILL.md](../SKILL.md) step 6. **Omitting them has never cost a point**, which the ruling treats
 as survivable rather than as safe.
 
 ## Two explicit limits
