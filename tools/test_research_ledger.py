@@ -21,6 +21,7 @@ which is ``test_build_artifacts_ignored``'s finding.
 
 from __future__ import annotations
 
+import ast
 import io
 import tempfile
 import unittest
@@ -101,6 +102,32 @@ def with_reference(record: str, reference: str) -> str:
     match = ledger.YEAR.search(reference)
     page = f"{match.group(1)} - stated on the masthead." if match else "the page states no year."
     return replace_field(replace_field(record, "REFERENCE", reference), "PAGE-YEAR", page)
+
+
+def vocabularies_keyword_of_serves() -> dict[str, tuple[str, ...]]:
+    """Every vocabulary the module actually hands ``keyword_of``, read off its own
+    source by AST rather than typed here.
+
+    A list typed into a test goes stale the first time the module's own moves and
+    reads as coverage while it does, which is ``test_build_artifacts_ignored``'s
+    finding and this file's own opening rule. A fourth vocabulary would otherwise
+    leave the boundary loops below green while covering three of four -- the
+    passes-for-the-wrong-reason case, on ``test_console_codec``'s instrument and
+    for its reason: a substring search would have matched the ``def`` line and the
+    docstring, neither of which is a call.
+    """
+    tree = ast.parse(Path(ledger.__file__).read_text(encoding="utf-8"))
+    served: dict[str, tuple[str, ...]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        named = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if named != "keyword_of" or len(node.args) < 2:
+            continue
+        second = node.args[1]
+        if isinstance(second, ast.Name):
+            served[second.id] = getattr(ledger, second.id)
+    return served
 
 
 class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
@@ -408,6 +435,168 @@ class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
         found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", None)))
         self.assertIn(ledger.MISSING_FIELD, found)
         self.assertNotIn(ledger.UNKNOWN_RECENCY, found)
+
+
+class APrefixIsNotAWord(unittest.TestCase):
+    """#253. ``keyword_of`` matched on ``startswith`` alone, so any value whose
+    first token merely *begins with* a vocabulary word was read as that word, and
+    the rest of that token was absorbed into the remainder -- which is the field
+    the substance rows then read as a reason.
+
+    **The cases that graded *clean* are the ones to notice, and they are not the
+    one #253's title names.** ``STATUS: unsourced-but-see-below`` reported **no
+    findings at all**, its substance row satisfied by ``-but-see-below`` -- the
+    residue of the keyword it was keyed on. ``RECENCY: nothing newerish`` did the
+    same one field over, where the excuse is what the **window** reads, so an old
+    reference passed with no excuse, no reason and nothing reported.
+
+    **``RECENCY: currently under review`` is weaker than every copy of this claim
+    said, and the correction is worth more than the case.** ``current`` is not in
+    ``EXCUSES``, so the window fired on it before the fix as well; only
+    ``UNKNOWN_RECENCY`` was lost. The consequence was copied out of #253's table
+    while only its keyword column was re-derived, which is the failure this class
+    caught in that table's *second* row -- committed in the fix for it, and caught
+    afterwards by the tracker sweep. Both directions are pinned below so neither
+    the strong case nor the weak one can be restated wrongly again.
+
+    **No test in this file distinguished ``current`` from ``currently`` before
+    these**, which is why the ticket asked for them ahead of the fix: a green run
+    over the old cases proves less than it looks like it does.
+
+    **The hyphen is the one character that needed a ruling rather than a copy.**
+    ``RECENCY: nothing newer - searched 2026-08-19`` is the documented form, so a
+    **spaced** hyphen has to be a separator; a **welded** one is part of the word,
+    and no legitimate value of the vocabularies this module hands ``keyword_of``
+    opens with a welded hyphenated form -- checked against the tree rather than
+    assumed. **Which vocabularies those are is read off the module** rather than
+    listed here, so a fourth cannot arrive with the loops below still green. ``SOURCE`` is out of it entirely, matched by normalized equality
+    against ``_CLASS_KEYS``, which is also where the only hyphen inside a
+    vocabulary word lives: ``peer-reviewed``.
+    """
+
+    VOCABULARIES = vocabularies_keyword_of_serves()
+
+    def test_the_instrument_is_live(self):
+        """The two loops below are only worth anything if the walk found the
+        calls: rename ``keyword_of`` and they would pass over an empty set and
+        report as coverage. ``test_build_artifacts_ignored``'s own first version
+        passed three of four assertions against a check that said yes to
+        everything, and this is the same guard one file over."""
+        self.assertTrue(self.VOCABULARIES)
+        self.assertTrue(all(self.VOCABULARIES.values()))
+
+    def test_the_helper_keeps_the_whole_value_when_the_first_token_is_longer(self):
+        """The remainder is what the substance rows read, so absorbing ``ly under
+        review`` into it is what let the record pass wearing a reason."""
+        self.assertEqual(
+            ledger.keyword_of("currently under review", ledger.RECENCY_VALUES),
+            ("", "currently under review"),
+        )
+
+    def test_the_helper_still_splits_the_documented_form(self):
+        """The other direction, and the one a boundary rule is most likely to break:
+        every documented record writes its reason after a spaced hyphen."""
+        self.assertEqual(
+            ledger.keyword_of("nothing newer - searched 2026-08-19", ledger.RECENCY_VALUES),
+            ("nothing newer", " - searched 2026-08-19"),
+        )
+
+    def test_a_recency_under_review_is_not_a_recency_of_current(self):
+        """``UNKNOWN_RECENCY`` is the whole of what this case discriminates.
+
+        The ``STALE_UNEXCUSED`` beside it is asserted **because it fired before the
+        fix too** -- ``current`` is not an excuse, so the window always read this
+        record. Pinning it is what stops the weak case being restated as the strong
+        one a third time; the strong one is two tests below.
+        """
+        record = replace_field(CLEAN, "RECENCY", "currently under review")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.UNKNOWN_RECENCY, found)
+        self.assertIn(ledger.STALE_UNEXCUSED, found)
+
+    def test_a_welded_suffix_on_an_excuse_is_the_silent_pass(self):
+        """**This is the case the ticket was really about**, and no copy of the
+        claim named it until the sweep re-derived the table.
+
+        ``nothing newer`` and ``guideline in force`` are the two words that excuse
+        an old source, so a value merely opening with one took the window down with
+        it. Before the fix ``RECENCY: nothing newerish`` on the 2009 reference in
+        ``CLEAN`` reported **nothing at all** -- no fifth disposition, no window, no
+        bare excuse, because ``ish`` is substance. A silent clean pass on a record
+        that never said why the source stands.
+        """
+        for value in ("nothing newerish", "guideline in forceful terms"):
+            with self.subTest(recency=value):
+                found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", value)))
+                self.assertIn(ledger.UNKNOWN_RECENCY, found)
+                self.assertIn(ledger.STALE_UNEXCUSED, found)
+
+    def test_the_tickets_second_recency_row_is_wrong_and_is_kept_as_one(self):
+        """#253's table lists ``RECENCY: currency of this guideline is unclear`` as
+        grading ``current``. **It does not and never did** -- ``currency`` parts
+        from ``current`` at the seventh character, so this value was already a
+        fifth disposition before the fix and this case discriminates nothing. Kept
+        rather than deleted, because a case passing for a different reason than the
+        table beside it gives is exactly what a green run hides; re-derived here
+        rather than taken from the ticket, which is what found it."""
+        record = replace_field(CLEAN, "RECENCY", "currency of this guideline is unclear")
+        self.assertIn(ledger.UNKNOWN_RECENCY, kinds(ledger_text(record)))
+        self.assertEqual(ledger.keyword_of("currency", ledger.RECENCY_VALUES)[0], "")
+
+    def test_a_status_that_merely_begins_with_one_is_a_third_word(self):
+        """``sourcedish`` rather than the ticket's ``unsourced-but-see-below``,
+        because the two fail for different reasons and only this one reaches the
+        plain no-punctuation case; the welded hyphen has its own test below."""
+        record = replace_field(CLEAN, "STATUS", "sourcedish")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
+
+    def test_a_refutation_that_merely_begins_with_one_is_a_third_word(self):
+        """``standstill on the publisher's side`` says nothing about the citation
+        and used to pass the one verification row in the arrangement."""
+        record = replace_field(CLEAN, "REFUTATION", "standstill on the publisher's side")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.UNKNOWN_REFUTATION, found)
+        self.assertNotIn(ledger.REFUTED_CITATION, found)
+
+    def test_a_welded_hyphen_is_part_of_the_word(self):
+        """The excluded character, on the branch selector -- and the other silent
+        pass. Before the fix this record produced **no findings**: read as
+        ``unsourced``, its substance row was satisfied by ``-but-see-below``, so a
+        record saying nothing about what was searched cleared the row that exists
+        to make it say so."""
+        record = replace_field(CLEAN, "STATUS", "unsourced-but-see-below")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
+
+    def test_no_vocabulary_word_survives_a_welded_continuation(self):
+        """The ruling made runnable, across all three vocabularies at once."""
+        for name, vocabulary in self.VOCABULARIES.items():
+            for word in vocabulary:
+                with self.subTest(vocabulary=name, word=word):
+                    self.assertEqual(
+                        ledger.keyword_of(f"{word}-free and clear", vocabulary),
+                        ("", f"{word}-free and clear"),
+                    )
+
+    def test_a_spaced_hyphen_stays_a_separator(self):
+        """The other direction, and the reason the exclusion had to be ruled on
+        rather than copied: this is the form every documented record writes."""
+        for name, vocabulary in self.VOCABULARIES.items():
+            for word in vocabulary:
+                with self.subTest(vocabulary=name, word=word):
+                    self.assertEqual(
+                        ledger.keyword_of(f"{word} - a reason", vocabulary),
+                        (word, " - a reason"),
+                    )
+
+    def test_ordinary_punctuation_closes_the_keyword(self):
+        """A reason is not always introduced by a hyphen, and refusing one that is
+        not would be a new rule rather than this fix."""
+        for separator in (",", ".", ":", ";", "—"):
+            with self.subTest(separator=separator):
+                record = replace_field(
+                    CLEAN, "REFUTATION", f"stands{separator} the volume and pages match."
+                )
+                self.assertEqual(kinds(ledger_text(record)), [])
 
 
 class TheDatelessLedgerLosesTheTwoRowsMeasuredAgainstTheDate(unittest.TestCase):

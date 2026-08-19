@@ -344,16 +344,29 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     and ``VERDICT: cleanly not run`` both graded as ``clean`` and reported nothing,
     and ``VERDICT: defect-free`` graded as ``defect`` and was then failed for
     carrying no findings -- wrong in both directions, which is what a positional
-    guess costs. So the character after the keyword has to be a boundary. **The
-    same defect is latent in the sibling** -- ``RECENCY: currently under review``
-    reads as ``current`` there -- and it is filed rather than reached into from
-    here, because that module's rows have their own tests to move.
+    guess costs. So the character after the keyword has to be a boundary.
+
+    **The same defect was latent in the sibling and is fixed there now** --
+    ``STATUS: unsourced-but-see-below`` graded **clean**, the substance row
+    satisfied by the residue of its own keyword, and ``RECENCY: nothing newerish``
+    did the same one field over, standing the five-year window down on an old
+    reference with no excuse. (``RECENCY: currently under review`` is the case that
+    ticket's title names and it is the **weaker** one: ``current`` is not an excuse
+    there, so the window fired anyway and only ``UNKNOWN_RECENCY`` was lost.)
+    It was filed as
+    [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253) rather
+    than reached into from here, because that module's rows had their own tests to
+    move, and it landed with the discriminating cases written first: **no test
+    there distinguished ``current`` from ``currently``**, so a green run after the
+    change would have proved nothing on its own.
 
     This helper and ``normalize`` are **copied** from ``research_ledger.py`` rather
-    than imported, and this divergence is what made the copy the right call: a
-    shared helper would have had to grow a flag for which caller wanted the
-    boundary, and ``console_codec.py`` is this directory's only module that exists
-    to be depended on.
+    than imported, and the divergence is what made the copy the right call at the
+    time. **#253 adopted this rule there and neither module asserts the two agree
+    today**: a helper two modules happen to have written the same way is not one
+    that exists to be depended on, and a test pinning the agreement would forbid
+    the divergence the copy exists to permit. ``console_codec.py`` is this
+    directory's only module that does exist to be depended on.
     """
     stripped = value.strip()
     lowered = stripped.lower()
