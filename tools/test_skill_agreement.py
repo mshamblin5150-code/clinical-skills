@@ -1472,5 +1472,284 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
             )
 
 
+class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCase):
+    """#244's decision 1, ruled by the clinician 2026-08-19. **Not** a
+    per-account detector, and decision 3 declined to make it one.
+
+    #235 deleted seven per-account totals from ``## Current state`` and swept
+    that section rather than the file. Two survived under other headings: the
+    patient-and-visit pair in *The identity problem*, and a form count in
+    *Navigating the portal*. The pair is the harder one because it is the
+    **premise of an argument** rather than a standing -- ten more visits than
+    patients, fifteen Patient Detail pages all reading ``1 Visit(s)``,
+    therefore most of that gap is duplicates already made.
+
+    **The ruling was to abstract and point rather than to qualify in place.**
+    The ticket's own comment recommended adopting ``setup-clinical-skills``'s
+    sentence -- *"On one account the figures were ..."* -- into the reference,
+    which is the honest per-account form. The clinician ruled the other way:
+    the reference states the **method** and the **inference** and points at
+    ``setup-clinical-skills`` step 6, so the reading survives **as a sentence
+    a reader can follow** in exactly one place, the file whose job is
+    collecting one account's setup. That keeps #235's ruling intact in the
+    file it was ruled about.
+
+    **As a sentence, and not as the figures**, which is a narrowing this
+    docstring stated for one commit by not stating it. The two integers are
+    also in three notes under ``fixtures/filled-anchor/notes/``, welded into a
+    hyphenated clause -- so *survives once* is true of the form and false of
+    the numbers, and the paragraph below saying those notes must not be edited
+    is what makes the difference matter. The same overclaim was caught in
+    ``CLAUDE.md`` by the standards axis of the review and repaired there; it
+    survived one level down, in the docstring describing the repair.
+
+    **The needles are read out of ``setup-clinical-skills`` and never typed
+    here.** A checker asserting the reference states no portal totals must not
+    become a file that states them -- ``phi_scan``'s *no file may exempt
+    itself* arriving on a test, which
+    ``TheReferenceHoldsNoOneProgramsEnrollment`` above records being caught
+    twice already. Reading them from the one file allowed to carry them also
+    means the check follows a re-measurement instead of pinning a figure, which
+    is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
+
+    **The haystack is one file, and that is a safety property rather than
+    tidiness.** Those same two integers are live in three notes under
+    ``fixtures/filled-anchor/notes/``, which are day-b run 1 byte for byte
+    apart from two redacted site names and are the evidence #73 rests on. A
+    tree-wide check would fail in files nobody is allowed to fix -- exactly the
+    exposure ``tools/test_corpus_census.py`` documents at ``RETIRED_ANYWHERE``,
+    where one of these two figures is named among the bare 5xx literals those
+    notes already carry as clinical values. **A ``git grep`` of either figure
+    is not a to-do list**, and the verdicts are the finding rather than the
+    count: the hits are a preserved run record, the skill that is the pattern
+    to copy, and prose that happens to carry the digits. **No count is stated
+    here** -- #244's comment put the pair in five files, this change removed
+    one of them, and a bare ``582`` was never five to begin with.
+
+    **A green run here is not a swept file**, and the limits are the ones #244
+    decision 3 declined to move. A bare integer has no shape, so nothing here
+    generalizes to *a per-account figure*; these two are reachable only because
+    another file declares them. A restatement in words, or a differently
+    phrased form count, escapes every assertion below.
+    """
+
+    #: The worked reading, as ``setup-clinical-skills`` step 6 writes it. The
+    #: **shape** is typed and the **figures** are not, which is the whole
+    #: reason this class can assert their absence without holding them.
+    WORKED_READING = re.compile(r"\b(\d+) patients against (\d+) visits\b")
+
+    #: The form count #235's table carried as ``1. FNP: H & P``, as
+    #: *Navigating the portal* item 2 used to state it. A floor, and a low
+    #: one: it keys on the sentence rather than on the integer, so any
+    #: rephrasing that reintroduces a count escapes it.
+    COUNTED_POSTBACK = re.compile(r"\ball \d+ in a single postback\b")
+
+    def setUp(self):
+        self.reference = read(MEDATRAX)
+        self.setup_skill = read(SETUP)
+
+    def spans(self, pattern):
+        """The distinct spans ``pattern`` matches in the reference.
+
+        ``TheReferenceHoldsNoOneProgramsEnrollment.assert_reference_is_free_of``
+        above exists to justify this shape and is a method on that class; this
+        is the same reasoning rather than a second opinion -- the haystack is a
+        reference document, so a failure reports **what matched** and never the
+        file it matched in.
+        """
+        return sorted({found.group(0) for found in pattern.finditer(self.reference)})
+
+    #: The residue note #235 left in the reference for #244 to settle, keyed on
+    #: the clause that made it a *record* rather than a fix. A floor: a rewrite
+    #: that kept the sense in other words escapes it.
+    RESIDUE_NOTE = "recorded rather than fixed"
+
+    def test_the_instrument_is_live(self):
+        """Every needle below matches something, on
+        ``TheReferenceHoldsNoOneProgramsEnrollment.test_the_instrument_is_live``'s
+        reasoning and ``test_build_artifacts_ignored.py``'s before it.
+
+        **Two of these three are asserted only in the negative**, and that is
+        what makes this method load-bearing rather than ceremonial: the
+        sentences they were written against are **deleted by this very
+        change**, so nothing else in the suite exercises them again. A typo in
+        ``COUNTED_POSTBACK`` or a drifted ``RESIDUE_NOTE`` leaves its test green
+        forever and indistinguishable from a rule being kept.
+
+        **Synthetic throughout.** The positive cases are written here rather
+        than quoted from the strings this change removed -- a checker asserting
+        the reference states no portal totals must not become the file that
+        states them, which is the self-exemption the class above records being
+        caught twice.
+        """
+        self.assertTrue(
+            self.WORKED_READING.search("the figures were 111 patients against 222 visits"),
+            "WORKED_READING matches nothing, so every needle it supplies is empty "
+            "and this class passes on a reference that restates both figures",
+        )
+        self.assertTrue(
+            self.COUNTED_POSTBACK.search("clicking Search returns all 7 in a single postback."),
+            "COUNTED_POSTBACK matches nothing, so #244 decision 2 is unchecked "
+            "and a reinstated per-account count would read as clean",
+        )
+        self.assertIn(
+            self.RESIDUE_NOTE,
+            "two of the seven are recorded rather than fixed",
+            "RESIDUE_NOTE no longer matches the clause it was written against",
+        )
+        # The negative half: the behavior sentence #244 replaced the count with
+        # must not itself trip the pattern that forbids the count.
+        self.assertFalse(
+            self.COUNTED_POSTBACK.search(
+                "returns the whole matching set in a single postback rather than paging it."
+            ),
+            "COUNTED_POSTBACK fires on the countless form #244 decision 2 chose, "
+            "so the rule refuses its own remedy",
+        )
+
+    def test_setup_still_carries_the_worked_reading(self):
+        """The instrument-is-live half, and it is load-bearing rather than
+        ceremonial: every assertion below takes its needles from this match, so
+        a ``setup-clinical-skills`` that stopped stating the figures would turn
+        the whole class green while the reference kept them.
+
+        On ``test_build_artifacts_ignored.py``'s ``TheInstrumentIsLive``
+        reasoning.
+        """
+        # ``assertTrue`` rather than ``assertRegex`` throughout this class: the
+        # haystacks are two whole documents, and an assertion that prints one on
+        # failure is a failure nobody reads. Same reasoning as
+        # ``test_setup_collects_what_the_reference_now_defers`` above.
+        self.assertTrue(
+            self.WORKED_READING.search(self.setup_skill),
+            "skills/setup-clinical-skills/SKILL.md no longer states the "
+            "patient-against-visit reading, so the reference points at a step "
+            "that carries nothing and every assertion in this class is vacuous",
+        )
+
+    def test_setup_declares_the_reading_as_one_accounts(self):
+        """The pattern the reference was ruled to point at rather than copy.
+
+        A step that stated the pair flat would be the defect relocated, not the
+        honest form -- so what makes ``setup-clinical-skills`` the right home is
+        the qualifier, not the file name.
+
+        **This is a constraint on a file #244 scoped out, and it is named
+        rather than assumed harmless.** That ticket's second comment calls
+        ``setup-clinical-skills`` *"the pattern to copy, not a sixth thing to
+        fix"*. Pinning its wording is not fixing it, and the reason it is worth
+        the reach is that the reference now **points** there: a step that
+        dropped the qualifier would turn this file's abstraction into a pointer
+        at a second unqualified figure, which is the defect moved rather than
+        removed.
+        """
+        found = self.WORKED_READING.search(self.setup_skill)
+        assert found is not None  # the test above is the guard
+        opening = self.setup_skill[max(0, found.start() - 120) : found.start()]
+        self.assertTrue(
+            "On one account" in opening,
+            "skills/setup-clinical-skills/SKILL.md states the figures without "
+            "declaring them as one account's reading, which is the form "
+            "reference/medatrax-fields.md was ruled to point at",
+        )
+
+    def test_the_reference_restates_neither_figure(self):
+        """#244 decision 1. The figures are read off the file allowed to carry
+        them, never typed here -- see the class docstring.
+
+        **The cost is named rather than engineered around**: this reaches a
+        bare integer, so an unrelated future number in the reference that
+        happened to equal one of them would fail. That is the trade for a check
+        that holds no copy of what it forbids.
+        """
+        found = self.WORKED_READING.search(self.setup_skill)
+        assert found is not None  # the instrument-is-live test above is the guard
+        restated = sorted(
+            {figure for figure in found.groups() if figure in self.reference}
+        )
+        self.assertEqual(
+            restated,
+            [],
+            "reference/medatrax-fields.md restates one account's portal totals "
+            "in a file that opens 'single source of truth for the Medatrax NP "
+            "portal'. The method and the inference belong here; the worked "
+            "reading belongs in setup-clinical-skills step 6",
+        )
+
+    def test_the_reference_keeps_the_argument_it_gave_up_the_figures_for(self):
+        """The half a delete would have lost, on #235's
+        ``test_the_reference_keeps_the_why_it_gave_up_the_numbers_for``
+        reasoning.
+
+        The ticket's own objection to abstracting was that **the numbers are
+        the inference** -- the gap, the sampled Patient Detail pages, and the
+        conclusion drawn from both. Dropping the figures is the ruling; dropping
+        the argument with them is not, and a later tidy that shortened this to a
+        bare pointer would do exactly that with nothing to notice.
+        """
+        for kept in ("1 Visit(s)", "duplicates already made", "studentoverview.aspx"):
+            self.assertTrue(
+                kept in self.reference,
+                f"reference/medatrax-fields.md dropped {kept!r} along with the "
+                "figures. #244 abstracted the reading, not the argument it "
+                "supports",
+            )
+
+    def test_the_reference_points_at_the_worked_reading(self):
+        """The cross-file half. A pointer is the whole of decision 1's remedy,
+        so an abstraction that points nowhere is worse than the figure it
+        replaced: it reads as a split that was made.
+
+        ``EveryCitedStepResolvesToADeclaredStep`` above is what keeps the step
+        **number** honest; this only asserts the pointer is there at all.
+        """
+        opens = self.reference.find("### The identity problem")
+        self.assertNotEqual(
+            opens,
+            -1,
+            "reference/medatrax-fields.md has no '### The identity problem' "
+            "heading, so #244's abstracted paragraph has no section to sit in",
+        )
+        section = self.reference[opens:]
+        section = section[: section.find("\n#", 1)]
+        self.assertTrue(
+            "setup-clinical-skills" in section,
+            "reference/medatrax-fields.md abstracts the patient-against-visit "
+            "reading without naming where the worked one lives",
+        )
+
+    def test_the_navigation_example_states_no_per_account_count(self):
+        """#244 decision 2, the cheapest of the three.
+
+        The lower panel returning its whole filtered set in one postback rather
+        than paging is the behavior worth recording, and any integer carries
+        it. The one that was here happened to be one account's form count --
+        the ``1. FNP: H & P`` row of the table #235 deleted.
+        """
+        self.assertEqual(
+            self.spans(self.COUNTED_POSTBACK),
+            [],
+            "reference/medatrax-fields.md states one account's form count as "
+            "the worked example of a portal behavior any integer would carry",
+        )
+        self.assertTrue(
+            "single postback" in self.reference,
+            "reference/medatrax-fields.md dropped the no-paging behavior along "
+            "with the count. #244 decision 2 replaced the integer, not the rule",
+        )
+
+    def test_the_residue_note_does_not_outlive_the_residue(self):
+        """#235 left a paragraph in the reference naming this residue and
+        pointing here, explicitly for #244 to remove or rewrite. Leaving it
+        standing after the fix is the stale-cross-reference shape #235 was
+        itself filed about.
+        """
+        self.assertFalse(
+            self.RESIDUE_NOTE in self.reference,
+            "reference/medatrax-fields.md still says the residue is recorded "
+            "rather than fixed, after #244 fixed it",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
