@@ -444,7 +444,7 @@ searched. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` 
 and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
 it rather than against the clock. `RESOLVED` is the URL or DOI the agent actually opened and the
 day it opened it — the word `read` or `retrieved`, then an ISO date. `PAGE-YEAR` is the year the
-page itself states and where on the page it says so. `REFUTATION` is `stands` or `refuted` with the
+page itself states and where on the page it says so. `REFUTATION` is `stands`, `refuted` or `paywalled` with the
 reason after a hyphen. A field's value may wrap onto the next line.
 
 **Two of those returns are what stops a citation nobody can check, and the third is a second agent.**
@@ -467,10 +467,23 @@ because an agent asked that says yes. It looks for the document at the locator, 
 volume, the numbering and the pages, and reads whether the source says what the restatement says it
 says.
 
-It comes back `stands` or `refuted`, with the reason after a hyphen. **A `refuted` record is a
-failure and not an outcome** — unlike `unsourced`, which is honest and goes to `PROPOSED`. It means a
-false citation is sitting in the ledger, so the claim goes back through this step and comes out
-either with a sound record or as `unsourced`. It is never drafted from.
+It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
+record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to
+`PROPOSED`. It means a false citation is sitting in the ledger, so the claim goes back through this
+step and comes out either with a sound record or as `unsourced`. It is never drafted from.
+
+**`paywalled` is the third word, and it exists because a wall is not the same thing as an absence.**
+A locator that 404s, or that names a document a search cannot find, is `refuted` — the citation may
+be invented, which is the whole failure this pass is for. A live page whose title and authors match
+the entry, with the body behind a subscription, is `paywalled` and **passes**: the URL resolving to
+the right document is itself evidence the document exists, and that is most of what a fabricated
+citation cannot do. **Say what did match** — the title, the authors, the date the page shows.
+
+**It is the weakest disposition that passes, and the run says so on its own face.** The report
+counts `paywalled` records on their own line, because a set of citations all behind a wall has been
+checked far less than a clean exit suggests. The alternative — failing them — would refuse every
+UpToDate record, which is nine in ten of this corpus and the reason no resolver was built here in
+the first place.
 
 **The independence is an instruction and not a check.** Nothing in a record shows which agent wrote
 it, so the grader cannot tell a real second reading from the first agent answering itself — that is
@@ -504,7 +517,7 @@ can be several of them at once:
 | a `PAGE-YEAR` stating no year, against an entry that states one | the entry claims a year the page did not give |
 | a `PAGE-YEAR` that is a year and nothing else | a year alone is an assertion; where it was found is a place a reader can go and look |
 | a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
-| a `REFUTATION` that is neither word | it gates the row below, so a third word is a record the refutation never read |
+| a `REFUTATION` outside the three | it gates the row below, so a fourth word is a record the refutation never read |
 | a `REFUTATION` with no reason after it | *the run must have looked, and must say so*, arriving at the second pass |
 | a `REFUTATION` reading `refuted` | a false citation is sitting in the ledger: rewrite the record or write `unsourced` |
 | a `REFUTATION` that is the restatement pasted back | the first agent re-asserting rather than a second one checking |

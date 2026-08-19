@@ -657,6 +657,45 @@ class TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong(unittest.Test
         record = replace_field(CLEAN, "REFUTATION", "Stands - checked the publisher landing page.")
         self.assertEqual(kinds(ledger_text(record)), [])
 
+    def test_a_paywall_passes_because_the_wall_is_not_an_absence(self):
+        """The clinician's ruling of 2026-08-19 on #231's decision 4. A live page
+        whose title matches is evidence the document exists, which is most of what
+        a fabricated citation cannot do."""
+        record = replace_field(
+            CLEAN,
+            "REFUTATION",
+            "paywalled - the topic page loads and the title and authors match; the body"
+            " is behind the subscription.",
+        )
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_bare_paywall_is_still_the_assertion_without_the_checking(self):
+        """It passes, so what did match is the whole of its evidence."""
+        record = replace_field(CLEAN, "REFUTATION", "paywalled")
+        self.assertIn(ledger.BARE_REFUTATION, kinds(ledger_text(record)))
+
+    def test_a_paywall_is_not_a_refusal(self):
+        """The split is the ruling: *could not reach* is not *is not there*."""
+        record = replace_field(CLEAN, "REFUTATION", "paywalled - the title and authors match.")
+        self.assertNotIn(ledger.REFUTED_CITATION, kinds(ledger_text(record)))
+
+    def test_a_paywalled_record_is_counted_so_a_clean_exit_cannot_hide_it(self):
+        """**The mitigation for a weak disposition that passes.** A set all behind
+        a wall has been checked far less than exit 0 suggests, and this line is the
+        only place that shows."""
+        record = replace_field(CLEAN, "REFUTATION", "paywalled - the title and authors match.")
+        scan = ledger.survey(ledger.read_records(ledger_text(record)), AS_OF)
+        self.assertEqual((scan.behind_a_paywall, scan.failing_records), (1, 0))
+        self.assertIn("citations behind a paywall", ledger.format_report(scan, source="x.md"))
+
+    def test_a_standing_record_is_not_counted_as_paywalled(self):
+        scan = ledger.survey(ledger.read_records(ledger_text(CLEAN)), AS_OF)
+        self.assertEqual(scan.behind_a_paywall, 0)
+
+    def test_a_fourth_disposition_is_still_a_finding(self):
+        record = replace_field(CLEAN, "REFUTATION", "probably fine")
+        self.assertIn(ledger.UNKNOWN_REFUTATION, kinds(ledger_text(record)))
+
     def test_a_missing_refutation_reports_the_missing_field_and_not_a_third_word(self):
         record = replace_field(CLEAN, "REFUTATION", None)
         self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
@@ -837,7 +876,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         ledger.PAGE_YEAR_UNSTATED: "a `PAGE-YEAR` stating no year",
         ledger.BARE_PAGE_YEAR: "a `PAGE-YEAR` that is a year and nothing else",
         ledger.PAGE_YEAR_DISAGREES: "a `PAGE-YEAR` that is not the year in `REFERENCE`",
-        ledger.UNKNOWN_REFUTATION: "a `REFUTATION` that is neither word",
+        ledger.UNKNOWN_REFUTATION: "a `REFUTATION` outside the three",
         ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
         ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
         ledger.REFUTATION_ECHOES_RESTATEMENT: "a `REFUTATION` that is the restatement pasted back",

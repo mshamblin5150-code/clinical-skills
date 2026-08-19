@@ -113,12 +113,21 @@ wrap the way an APA entry wraps.
   entry beside a page carrying no date is the agreeing case and passes** -- refusing
   it would refuse legitimate APA, which is the mistake ``UNDATED_REFERENCE`` was
   corrected for once already.
-- **``REFUTATION`` is one of two dispositions with a reason after it**, and an
+- **``REFUTATION`` is one of three dispositions with a reason after it**, and an
   unrecognized one is a failure for ``STATUS``'s reason: it gates the row below.
 - **``refuted`` is a failure and not an outcome.** Unlike ``unsourced``, which the
   skill routes to ``PROPOSED`` honestly, a refuted record is a **false citation
   sitting in the ledger**: the run rewrites it or writes ``unsourced``, and never
   drafts from it.
+- **``paywalled`` passes, and it is the clinician's ruling of 2026-08-19 on the
+  ticket's decision 4.** A locator that 404s or names a document search cannot find
+  is ``refuted``; a live page whose title and authors match, body behind a
+  subscription, is ``paywalled`` -- the URL resolving to the right document is
+  itself evidence it exists, which is most of what a fabricated citation cannot do.
+  **It is the weakest disposition that passes**, so ``survey`` counts it on its own
+  line: a set of citations all behind a wall has been checked far less than exit 0
+  suggests. Failing them instead would refuse every UpToDate record, which is nine
+  in ten of this corpus and the reason no resolver was built here at all.
 - **A refutation that is the restatement pasted back** is the first agent
   re-asserting rather than a second one checking -- ``RESTATEMENT_ECHOES_CLAIM``'s
   trick one level up, and the only part of the pass's independence a row can reach.
@@ -279,11 +288,25 @@ READ_DATE = re.compile(
 # that limit is the reason the field's documented form puts the year first.
 BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
 
-# #231's two dispositions. The brief is to *refute*, so ``stands`` is the outcome
+# #231's three dispositions. The brief is to *refute*, so ``stands`` is the outcome
 # of a failed attempt rather than the default.
+#
+# **``paywalled`` is the clinician's ruling of 2026-08-19 on decision 4**, and the
+# split it makes is between *could not reach* and *is not there*. A locator that
+# 404s, or that names a document search cannot find, is ``refuted`` and fails. A
+# live page whose title and authors match, whose body sits behind a subscription,
+# **passes** -- the URL resolving to the right document is itself evidence the
+# document exists, which is most of what a fabricated citation fails to do.
+#
+# **It is a weaker check wearing a passing disposition, and that was priced rather
+# than missed.** The alternative failed every UpToDate record, which is nine in ten
+# of this corpus and the reason no resolver was built in the first place. What the
+# report does about it is count them: a run whose citations are all ``paywalled``
+# says so on its own face rather than reading as fully checked.
 REFUTATION_STANDS = "stands"
 REFUTATION_REFUTED = "refuted"
-REFUTATION_VALUES = (REFUTATION_STANDS, REFUTATION_REFUTED)
+REFUTATION_PAYWALLED = "paywalled"
+REFUTATION_VALUES = (REFUTATION_STANDS, REFUTATION_REFUTED, REFUTATION_PAYWALLED)
 
 SOURCED = "sourced"
 UNSOURCED = "unsourced"
@@ -490,6 +513,10 @@ class Scan:
     by_class: tuple[tuple[str, int], ...]
     outside_vocabulary: int
     standing_past_five: int
+    # Counted rather than graded, because ``paywalled`` passes. A run whose
+    # citations are all behind a wall has been checked much less than a clean
+    # exit suggests, and this line is the only place that shows.
+    behind_a_paywall: int
     counts: tuple[tuple[str, int], ...]
     failing_records: int
     findings: tuple[Finding, ...]
@@ -686,6 +713,11 @@ def survey(records: list[Record], as_of: date | None) -> Scan:
         standing_past_five=sum(
             1 for r in sourced if keyword_of(r.value("RECENCY"), RECENCY_VALUES)[0] in EXCUSES
         ),
+        behind_a_paywall=sum(
+            1
+            for r in sourced
+            if keyword_of(r.value("REFUTATION"), REFUTATION_VALUES)[0] == REFUTATION_PAYWALLED
+        ),
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
         failing_records=sum(1 for _, per_record in graded if per_record),
         findings=tuple(found),
@@ -713,6 +745,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append(f"    {'outside the vocabulary':<30} {scan.outside_vocabulary}")
     lines.append("")
     lines.append(f"  standing past five years         {scan.standing_past_five}")
+    lines.append(f"  citations behind a paywall       {scan.behind_a_paywall}")
     lines.append("")
     for kind, count in scan.counts:
         # Wide enough for the longest kind, so the count column stays a column.

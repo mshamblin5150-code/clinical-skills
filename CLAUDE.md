@@ -319,6 +319,14 @@ to confirm — because an agent asked *is this right?* says yes — records what
 **non-UpToDate** references: a step-3 record only exists because the evidence dump did *not* cover
 the claim, so the sources here are the ones nobody has.
 
+**A wall is not an absence, and the clinician split decision 4 on that line, 2026-08-19.** A locator
+that 404s or names a document a search cannot find is `refuted` and **fails**. A live page whose
+title and authors match the entry, body behind a subscription, is `paywalled` and **passes** — the
+URL resolving to the right document is itself evidence it exists, which is most of what a fabricated
+citation cannot do. **It is the weakest disposition that passes**, so the report counts those
+records on their own line rather than letting a clean exit stand for them. The alternative fails
+every UpToDate record, which is nine in ten of this corpus and the reason there is no resolver here.
+
 **Not exempt by source class, and that was decided rather than defaulted into.** `tertiary reference`
 is UpToDate, which the clinician has wholesale — but for exactly the reason above, an UpToDate
 reference reaching *this file* is a topic he does not have. Exempting the class would exempt the
