@@ -793,7 +793,7 @@ class DocumentClass(unittest.TestCase):
         # The three ACIP/ files are browser print-to-PDF captures of CDC schedule
         # pages. Issue #80 asks for them flagged rather than parsed as guidelines.
         self.assertEqual(
-            extract.classify(extract.clean_pages(ACIP)), extract.CLASS_PRINT_CAPTURE
+            extract.classify(extract.clean_pages(ACIP)), extract.CLASS_WEB_CAPTURE
         )
 
     def test_a_journal_pdf_is_a_guideline(self):
@@ -810,7 +810,7 @@ class DocumentClass(unittest.TestCase):
         )
         self.assertEqual(
             extract.classify(self.every_page_carries("8/12/26, 10:25 AM")),
-            extract.CLASS_PRINT_CAPTURE,
+            extract.CLASS_WEB_CAPTURE,
         )
 
     def test_the_stamp_is_recognized_with_the_page_title_folded_in_after_it(self):
@@ -820,7 +820,7 @@ class DocumentClass(unittest.TestCase):
             extract.classify(
                 self.every_page_carries("8/12/26, 10:25 AM Recommended Vaccinations | CDC")
             ),
-            extract.CLASS_PRINT_CAPTURE,
+            extract.CLASS_WEB_CAPTURE,
         )
 
     def test_a_date_and_time_part_way_through_a_line_is_prose(self):
@@ -845,7 +845,7 @@ class DocumentClass(unittest.TestCase):
         # 2-page document boilerplate, and the class must not ride on that.
         pages = self.every_page_carries("8/12/26, 10:25 AM Adult Schedule | CDC", count=2)
         self.assertEqual(extract.find_boilerplate(pages), [])
-        self.assertEqual(extract.classify(pages), extract.CLASS_PRINT_CAPTURE)
+        self.assertEqual(extract.classify(pages), extract.CLASS_WEB_CAPTURE)
 
     def test_a_stamp_on_one_page_of_many_is_not_a_capture(self):
         pages = [["body"], ["body"], ["body"], ["8/12/26, 10:25 AM Something | CDC"]]
@@ -853,6 +853,74 @@ class DocumentClass(unittest.TestCase):
 
     def test_a_document_with_no_pages_at_all_is_a_guideline(self):
         self.assertEqual(extract.classify([]), extract.CLASS_GUIDELINE)
+
+    # ------------------------------------------------------------------
+    # The recommendation-statement branch, #185
+    # ------------------------------------------------------------------
+
+    USPSTF_TITLE = [
+        "US Preventive Services Task Force Recommendation Statement",
+        "Screening for Colorectal Cancer",
+    ]
+
+    def test_a_document_that_titles_itself_a_recommendation_statement_is_one(self):
+        self.assertEqual(
+            extract.classify([self.USPSTF_TITLE, ["body"], ["body"], ["body"]]),
+            extract.CLASS_RECOMMENDATION_STATEMENT,
+        )
+
+    def test_the_title_block_is_matched_with_its_spaces_lost(self):
+        # Several USPSTF files render the line as one run of letters, which is
+        # the extraction losing the space glyphs rather than the page saying so.
+        glued = [["USPreventiveServicesTaskForceRecommendationStatement"]]
+        self.assertEqual(
+            extract.classify(glued + [["body"]] * 3),
+            extract.CLASS_RECOMMENDATION_STATEMENT,
+        )
+
+    def test_both_marks_are_required(self):
+        # "Summary of Recommendation Statements" is a table-of-contents line in
+        # four KDIGO guidelines and in the CDC opioid guideline. Matching the
+        # phrase alone classes all five wrongly.
+        for line in (
+            "Summary of Recommendation Statements",
+            "US Preventive Services Task Force",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(
+                    extract.classify([[line], ["body"], ["body"], ["body"]]),
+                    extract.CLASS_GUIDELINE,
+                )
+
+    def test_the_mark_is_read_off_the_first_page_only(self):
+        # A guideline citing a USPSTF recommendation statement in its references
+        # is not one. The document titles itself on its title page or not at all.
+        pages = [["KDIGO 2024 Clinical Practice Guideline"], ["body"], ["body"]]
+        pages.append(self.USPSTF_TITLE)
+        self.assertEqual(extract.classify(pages), extract.CLASS_GUIDELINE)
+
+    def test_a_capture_that_says_recommendation_statement_is_still_a_capture(self):
+        # The order is the whole rule. `guidelines_catalog.classify` has always
+        # read the two this way round and this adopts it: the JAMA page saved
+        # from a browser is the live case in the other direction, and a capture
+        # of a USPSTF page is the one here.
+        stamped = [
+            ["8/12/26, 10:25 AM Screening | USPSTF"] + self.USPSTF_TITLE
+        ] + [["8/12/26, 10:25 AM Screening | USPSTF", "body"] for _ in range(3)]
+        self.assertEqual(extract.classify(stamped), extract.CLASS_WEB_CAPTURE)
+
+    def test_every_value_classify_can_return_is_in_the_published_vocabulary(self):
+        # `CLASS_UNKNOWN` is deliberately outside `CLASSES` and is deliberately
+        # not reachable from here: it is what a document that was never read
+        # carries, and a document that was never read is never classified.
+        for pages in (
+            [],
+            self.every_page_carries("8/12/26, 10:25 AM Adult Schedule | CDC"),
+            [self.USPSTF_TITLE, ["body"], ["body"], ["body"]],
+            [["KDIGO 2024 Clinical Practice Guideline"], ["body"], ["body"]],
+        ):
+            with self.subTest(pages=pages[:1]):
+                self.assertIn(extract.classify(pages), extract.CLASSES)
 
 
 class OutputStaysOutOfTheRepo(unittest.TestCase):
@@ -960,7 +1028,7 @@ class WritingADocument(unittest.TestCase):
         self.assertEqual(self.record().document_class, extract.CLASS_GUIDELINE)
         self.assertEqual(
             self.record(pages=ACIP, name="ACIP/adult.pdf").document_class,
-            extract.CLASS_PRINT_CAPTURE,
+            extract.CLASS_WEB_CAPTURE,
         )
 
     def test_records_how_many_pages_came_back_empty(self):
@@ -1062,7 +1130,7 @@ class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
         # The single reason document_class is in the manifest at all: it is a
         # column on `document` and guidelines_search.py --class filters on it.
         self.assertEqual(
-            self.documents["ACIP/adult"].document_class, extract.CLASS_PRINT_CAPTURE
+            self.documents["ACIP/adult"].document_class, extract.CLASS_WEB_CAPTURE
         )
 
     def test_the_page_count_survives_the_form_feeds(self):

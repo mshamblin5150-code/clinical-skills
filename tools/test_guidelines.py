@@ -459,6 +459,49 @@ class CommandLineTests(TempCorpus):
         status, _, _ = self.run_search(["--db", str(self.db), "aortic dissection", "urine culture"])
         self.assertEqual(status, 0)
 
+    # ------------------------------------------------------------------
+    # A class no document carries is not a genuine zero, #185
+    # ------------------------------------------------------------------
+
+    def test_a_class_no_document_carries_exits_two_and_names_what_is_there(self):
+        """The whole of #185 in one status.
+
+        The catalog published ``recommendation-statement`` while the extractor
+        emitted ``print-capture``, so the filter returned an empty set and this
+        tool exited **1** -- its documented code for *nothing in the corpus
+        matches*. That is not a failure to answer, it is an affirmative
+        certification of an absence, and it was false of every USPSTF document in
+        the corpus. A caller obeying the documented convention would have taken it
+        as evidence. The counts are in ``test_class_vocabulary.py`` and deliberately
+        not restated here.
+        """
+        self.build_default_corpus()
+        status, out, err = self.run_search(
+            ["--db", str(self.db), "--class", "recommendation-statement", "cover page"]
+        )
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "", "nothing may be reported about a search that did not run")
+        self.assertIn("recommendation-statement", err)
+        self.assertIn(gi.UNCLASSIFIED, err, "the message says what the index does hold")
+
+    def test_a_class_the_index_carries_still_reports_its_hits(self):
+        self.build_default_corpus()
+        status, out, _ = self.run_search(
+            ["--db", str(self.db), "--class", gi.UNCLASSIFIED, "urine culture"]
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("IDSA/2010-uti", out)
+
+    def test_a_carried_class_with_no_hits_is_still_a_genuine_zero(self):
+        """The two limbs have to stay apart. A class the index knows about, asked a
+        question nothing answers, is 1 -- that is a real finding about the corpus."""
+        self.build_default_corpus()
+        status, out, _ = self.run_search(
+            ["--db", str(self.db), "--class", gi.UNCLASSIFIED, "aortic dissection"]
+        )
+        self.assertEqual(status, 1)
+        self.assertIn("0 match(es)", out)
+
 
 class Cp1252ConsoleTests(TempCorpus):
     """Issue #150, end to end and in a real process.

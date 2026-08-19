@@ -47,6 +47,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
+from guidelines_extract import (
+    CLASS_GUIDELINE,
+    CLASS_RECOMMENDATION_STATEMENT,
+    CLASS_WEB_CAPTURE,
+    CLASSES,
+    is_recommendation_statement,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
@@ -68,7 +75,26 @@ COLUMNS = (
 # decided by a rule below and falls back to ``guideline`` rather than to ``?``.
 NULLABLE = ("title", "topic", "population", "year")
 
-CLASSES = ("guideline", "recommendation-statement", "web-capture")
+# ``CLASSES`` is imported from ``guidelines_extract`` rather than restated here.
+# [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185): the
+# producer owns the vocabulary it emits into ``manifest.json``, which is what the
+# index stores and what ``guidelines_search.py --class`` filters on, so an auditor
+# holding its own copy can pass a catalog publishing a value the index cannot
+# answer -- which is the one failure this column's check exists to catch. Same
+# arrangement as ``reference_scan.py`` importing ``docx_write.REFERENCE_HEADING``.
+
+#: The ``class`` row in the *How to read a row* legend, and the backticked values in
+#: its second cell. Read out of the file rather than compared against a list typed
+#: here: a list goes stale the first time the legend moves and reads as coverage
+#: while it does.
+#:
+#: This is checked as well as every row's cell, and the two catch different things --
+#: [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185). A row
+#: carrying a value the index cannot answer is one document unreachable; a **legend**
+#: publishing one is an instruction to every reader to ask an unanswerable question,
+#: and no row has to be wrong for that to be true.
+LEGEND_CLASS_ROW = re.compile(r"^\|\s*`class`\s*\|(?P<values>[^|]*)\|\s*$", re.MULTILINE)
+BACKTICKED = re.compile(r"`([^`]+)`")
 
 UNSETTLED = "?"
 
@@ -91,17 +117,11 @@ ACCESS_LINE_RE = re.compile(
     r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
 )
 
-# A recommendation statement is a document that titles itself one, and in this
-# corpus that is USPSTF's document type and nobody else's. The two markers have
-# to be *both* present: "Summary of Recommendation Statements" is a table-of-
-# contents line in four KDIGO guidelines and in the CDC opioid guideline, and
-# matching the phrase alone classes all five wrongly.
-#
-# Whitespace is squashed before matching because the extractor loses the spaces
-# in some of these title blocks: several USPSTF files render the line as
-# ``USPreventiveServicesTaskForceRecommendationStatement``.
-TASK_FORCE_MARK = "taskforce"
-RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
+# The recommendation-statement test is ``guidelines_extract.is_recommendation_statement``
+# now, with ``TASK_FORCE_MARK``, ``RECOMMENDATION_STATEMENT_MARK`` and ``squash``. All
+# four were written here and moved on #185, when the extractor gained the branch that
+# needs them: two copies of a rule that must agree is what #253 cost. The reasoning
+# they carry moved with them and is not restated here.
 
 
 @dataclass(frozen=True)
@@ -274,15 +294,10 @@ def classify(pages: list[str]) -> str:
     say "recommendation statement" is still a capture.
     """
     if any(CAPTURE_STAMP_RE.search(p) and CAPTURE_URL_RE.search(p) for p in pages[:3]):
-        return "web-capture"
-    title_block = squash(pages[0] if pages else "")
-    if TASK_FORCE_MARK in title_block and RECOMMENDATION_STATEMENT_MARK in title_block:
-        return "recommendation-statement"
-    return "guideline"
-
-
-def squash(text: str) -> str:
-    return re.sub(r"\s+", "", text).lower()
+        return CLASS_WEB_CAPTURE
+    if is_recommendation_statement(pages[0] if pages else ""):
+        return CLASS_RECOMMENDATION_STATEMENT
+    return CLASS_GUIDELINE
 
 
 def year_guess(title: str, pages: list[str]) -> str:
@@ -469,6 +484,35 @@ def check(
     return failures
 
 
+def check_legend(text: str) -> list[str]:
+    """The ``class`` legend publishes exactly the vocabulary the index can answer.
+
+    Needs no corpus, which is the point: the artifacts that would otherwise settle this
+    -- the 410 MB source corpus, the extracted text, the FTS index -- all live outside
+    every checkout and are absent on most machines, so a check that needed them would
+    be a check that mostly did not run. Both vocabularies are tracked, one as this
+    legend row and one as ``guidelines_extract.CLASSES``.
+    """
+    match = LEGEND_CLASS_ROW.search(text)
+    if match is None:
+        return [
+            "no `class` row in the column legend, so the vocabulary this file "
+            "publishes cannot be read"
+        ]
+    published = set(BACKTICKED.findall(match.group("values")))
+    failures = []
+    for extra in sorted(published - set(CLASSES)):
+        failures.append(
+            f"the legend publishes class {extra!r}, which no document in the index "
+            f"can carry, so `guidelines_search.py --class {extra}` cannot be answered"
+        )
+    for missing in sorted(set(CLASSES) - published):
+        failures.append(
+            f"the legend omits class {missing!r}, which the index does carry"
+        )
+    return failures
+
+
 def check_shape(rows: list[Row], unsettled_index: dict[str, set[str]]) -> list[str]:
     """The checks that need no corpus: legal values, and every ``?`` accounted
     for in the closing comment."""
@@ -569,7 +613,9 @@ def main(argv: list[str] | None = None) -> int:
     if not catalog_path.exists():
         print(f"no catalog at {catalog_path}", file=sys.stderr)
         return 2
-    rows, unsettled_index, problems = parse_catalog(catalog_path.read_text(encoding="utf-8"))
+    text = catalog_path.read_text(encoding="utf-8")
+    rows, unsettled_index, problems = parse_catalog(text)
+    problems = problems + check_legend(text)
 
     src = Path(args.src)
     if src.is_dir():

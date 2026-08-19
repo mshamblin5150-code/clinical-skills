@@ -315,10 +315,54 @@ SPACE_GAP_FLOOR = 0.25
 MINIMUM_GAPS_FOR_BASELINE = 4
 
 CLASS_GUIDELINE = "guideline"
-CLASS_PRINT_CAPTURE = "print-capture"
+# USPSTF's document type and nobody else's in this corpus: the 90 USPSTF files each
+# title themselves one. #82 built a separate table for exactly that distinction.
+CLASS_RECOMMENDATION_STATEMENT = "recommendation-statement"
+# A browser print-to-PDF of a web page rather than a published document, which is the
+# three ACIP/ files and only those.
+CLASS_WEB_CAPTURE = "web-capture"
 # For a document that was never read. It is not a guideline; nobody knows what it
 # is, and recording it as the default class would let a failure read as a finding.
 CLASS_UNKNOWN = "unknown"
+
+#: The vocabulary a document that was **read** can carry, and the one
+#: ``reference/guidelines-catalog.md``'s ``class`` column publishes --
+#: [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185), where the
+#: two were different sets overlapping on ``guideline`` alone, so every document not
+#: classed ``guideline`` answered ``guidelines_search.py --class`` with a certified
+#: zero. **The count is stated in ``test_class_vocabulary.py`` and deliberately
+#: nowhere else**: it is a fact about a tree that no longer exists and nothing
+#: committed re-derives it.
+#:
+#: **``CLASS_UNKNOWN`` is deliberately not in it.** A document that failed to read has
+#: no ``.txt``, so ``guidelines_index.py`` never sees it and no row in the index can
+#: carry that value -- and a catalog row that did carry it would be a filter value the
+#: index cannot answer, which is the whole defect. It is a manifest value only.
+#:
+#: **``guidelines_index.UNCLASSIFIED`` is a fourth value the index can carry and this
+#: is deliberately not it either.** That one describes a *build* -- a document with no
+#: manifest entry at all -- rather than a document, so no catalog row could sensibly
+#: hold it. It is named here rather than left to be discovered, and pinned in
+#: ``test_class_vocabulary.py``.
+#:
+#: ``guidelines_catalog.py`` imports this rather than restating it, and
+#: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
+CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
+
+# A recommendation statement is a document that titles itself one. The two marks have
+# to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
+# line in four KDIGO guidelines and in the CDC opioid guideline, and matching the
+# phrase alone classes all five wrongly.
+#
+# Whitespace is squashed before matching because the extraction loses the spaces in
+# some of these title blocks: several USPSTF files render the line as
+# ``USPreventiveServicesTaskForceRecommendationStatement``.
+#
+# These live here rather than in ``guidelines_catalog.py``, which is where they were
+# written, because the producer owns the vocabulary it emits and the auditor imports
+# it. Two copies of a rule that must agree is what #253 cost.
+TASK_FORCE_MARK = "taskforce"
+RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
 
 # The three ACIP/ files are browser print-to-PDF captures of CDC schedule pages
 # rather than guideline documents, and this header is what says so. The URL and
@@ -338,7 +382,10 @@ CLASS_UNKNOWN = "unknown"
 # must never become is unanchored: a date and time part way through a sentence is
 # prose, and this must not read a guideline as a browser capture.
 #
-# All three ACIP files re-checked as print-capture under PyMuPDF on 2026-08-16.
+# All three ACIP files re-checked as web-capture under PyMuPDF on 2026-08-19.
+# The constant is named for the shape it matches -- a browser print stamp -- and the
+# class it decides is named for what the document is. #185 renamed the second and
+# deliberately left the first.
 PRINT_CAPTURE_STAMP = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}\s*[AP]M\b")
 
 # Characters that are noise or that render as something else, replaced explicitly
@@ -591,15 +638,43 @@ def margin_removals(
     return sorted(taken)
 
 
-def classify(pages: list[list[str]]) -> str:
-    """Whether this is a guideline document or a browser print-to-PDF capture.
+def squash(text: str) -> str:
+    """Whitespace out, lowercase, for matching a title block the extraction glued."""
+    return re.sub(r"\s+", "", text).lower()
 
-    Counted over the sampled pages directly rather than read off the boilerplate
-    set. Those look interchangeable on the three real captures, where the stamp is
-    on every page and clears every bar -- but reading the boilerplate set makes the
-    class a side effect of boilerplate detection, so a capture short enough to trip
-    MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page, would
-    come back a guideline with nothing saying otherwise.
+
+def is_recommendation_statement(title_block: str) -> bool:
+    """Whether a title block says the document is a USPSTF recommendation statement.
+
+    Shared with ``guidelines_catalog.classify`` by import rather than by copy, so the
+    producer and the auditor cannot come to hold different answers.
+    """
+    squashed = squash(title_block)
+    return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
+
+
+def classify(pages: list[list[str]]) -> str:
+    """Which of ``CLASSES`` this document is.
+
+    **Ordered, and the order matters**: a browser capture of a page that happens to say
+    "recommendation statement" is still a capture. ``guidelines_catalog.classify`` has
+    always read the two in that order and this adopts it.
+
+    The capture test is counted over the sampled pages directly rather than read off
+    the boilerplate set. Those look interchangeable on the three real captures, where
+    the stamp is on every page and clears every bar -- but reading the boilerplate set
+    makes the class a side effect of boilerplate detection, so a capture short enough
+    to trip MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page,
+    would come back a guideline with nothing saying otherwise.
+
+    **The recommendation-statement test reads the first page only**, which is where the
+    document titles itself, and it runs here rather than in ``guidelines_catalog.py``
+    alone because #185 ruled the producer's vocabulary is the catalog's. Running the
+    catalog's classifier over the extracted ``.txt`` corpus reproduces 90
+    recommendation statements and 86 guidelines exactly and misses all three captures
+    -- because the stamp it keys on is boilerplate and has been stripped by then. This
+    sees the pages **before** stripping, which is why both halves can live here and
+    neither could live there.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:
@@ -610,7 +685,9 @@ def classify(pages: list[list[str]]) -> str:
         if any(PRINT_CAPTURE_STAMP.match(line) for line in pages[index])
     )
     if stamped >= BOILERPLATE_THRESHOLD * len(sampled):
-        return CLASS_PRINT_CAPTURE
+        return CLASS_WEB_CAPTURE
+    if pages and is_recommendation_statement(" ".join(pages[0])):
+        return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE
 
 
@@ -1082,13 +1159,28 @@ def main(argv: list[str]) -> int:
     manifest = write_manifest(out_root, records, source_root)
 
     failures = [record for record in records if record.error]
-    captures = sum(1 for r in records if r.document_class == CLASS_PRINT_CAPTURE)
+    # Every class, not only the captures. Since #185 this is the vocabulary
+    # `reference/guidelines-catalog.md` publishes and `guidelines_search.py --class`
+    # filters on, so the breakdown is the one command that re-derives the figures
+    # CLAUDE.md states -- and a class that fell to zero is visible rather than
+    # implied by the one that did not.
+    #
+    # `CLASS_UNKNOWN` is counted here and is deliberately outside `CLASSES`, because a
+    # breakdown that did not sum to the document count would be a line inviting the
+    # reader to work out the difference -- and the missing term would be exactly the
+    # documents that failed to read. It prints only when it is non-zero, so an ordinary
+    # run is not given a column for a class it does not have.
+    counted = {cls: sum(1 for r in records if r.document_class == cls) for cls in CLASSES}
+    unread = sum(1 for r in records if r.document_class == CLASS_UNKNOWN)
+    if unread:
+        counted[CLASS_UNKNOWN] = unread
+    breakdown = ", ".join(f"{n} {cls}" for cls, n in counted.items())
 
     print()
     print(f"source      {source_root}")
     print(f"output      {out_root}")
     print(f"engine      {_engine_version()}, codec {OUTPUT_CODEC}")
-    print(f"documents   {len(records):,}  ({captures} print-capture)")
+    print(f"documents   {len(records):,}  ({breakdown})")
     print(
         f"pages       {sum(r.pages for r in records):,}  "
         f"({sum(r.empty_pages for r in records):,} with no text layer)"

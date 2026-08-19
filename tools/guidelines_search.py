@@ -31,9 +31,18 @@ the answer to that, so positional arguments repeat.
 
 **A missing index is not zero hits.** Exit status is 0 for hits, 1 for a genuine zero,
 and 2 for every way of not having searched -- no index, a file that is not one, one
-built by another schema version, or a query that would not parse. An index that had
-quietly failed to build would otherwise answer every clinical question with silence
-and look like a settled negative.
+built by another schema version, a query that would not parse, or a ``--class`` value
+no document in the index carries. An index that had quietly failed to build would
+otherwise answer every clinical question with silence and look like a settled negative.
+
+**That last limb is #185's**, and it is the same defect one level up. The catalog and
+the extractor held two ``class`` vocabularies overlapping on ``guideline`` alone, so
+``--class recommendation-statement`` exited **1** over a corpus in which every USPSTF
+document is one -- this tool affirmatively certifying an absence rather than failing to
+answer. They are one set now; what is left to reach is a typo in the flag and an index
+built before the vocabulary was reconciled, and neither of those is a finding about the
+corpus. The figures are in ``test_class_vocabulary.py`` and deliberately not restated
+here.
 
 **A crash while printing was reaching 1 through the back door, and that is what
 ``use_utf8`` is doing in ``__main__``.** On a cp1252 console the print of a hit line
@@ -212,6 +221,13 @@ def search(
     return hits
 
 
+def index_classes(connection: sqlite3.Connection) -> list[str]:
+    """Every ``document_class`` some document in this index actually carries."""
+    return sorted(
+        row[0] for row in connection.execute("SELECT DISTINCT document_class FROM document")
+    )
+
+
 def _report(connection: sqlite3.Connection, query: str, **options) -> int:
     """Print one query's hits. Returns how many there were."""
     hits = search(connection, query, **options)
@@ -236,8 +252,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--class",
         dest="document_class",
-        help="restrict to one document class from the manifest; the ACIP files are "
-        "browser captures of schedule pages rather than guidelines",
+        help="restrict to one document class; the same vocabulary "
+        "reference/guidelines-catalog.md publishes. A value no document carries "
+        "exits 2 rather than reporting a zero",
     )
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="hits per query")
     parser.add_argument(
@@ -258,6 +275,20 @@ def main(argv: list[str]) -> int:
         raw=args.fts,
     )
     try:
+        # A `--class` value no document carries is not a genuine zero, and 1 would
+        # say it was. #185, and the docstring above carries the reasoning. What is
+        # left to reach is a typo and an index built by an older extractor; both are
+        # ways of not having searched, and both are 2.
+        if args.document_class:
+            carried = index_classes(connection)
+            if args.document_class not in carried:
+                print(
+                    f"--class {args.document_class!r} is not a class any document in "
+                    f"this index carries; it holds {', '.join(carried) or 'nothing'}",
+                    file=sys.stderr,
+                )
+                return 2
+
         found = 0
         for query in args.query:
             try:

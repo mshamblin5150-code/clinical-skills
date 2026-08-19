@@ -39,6 +39,15 @@ without restriction, and `?` means it does not say. `?` is never a shorthand for
 "obviously adults" — several large cardiology and nephrology guidelines carry it
 for exactly that reason, and each one is listed at the bottom of this file.
 
+**`class` is the same vocabulary `tools/guidelines_search.py --class` takes**, so
+picking a class off this table and filtering the index with it works. It was not:
+until [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185) the
+extractor emitted `print-capture` and `unknown` where this column says `web-capture`
+and nothing, so every row below not classed `guideline` named a filter value the index
+answered with a certified zero. `tools/guidelines_catalog.py` reads the legend row
+above against the extractor's own constants — no corpus needed — and fails if the two
+sets part again.
+
 **`class` is decided by what the document is, not what it covers.**
 `recommendation-statement` is USPSTF's document type and nobody else's here: the
 90 USPSTF files each title themselves one. `web-capture` is a browser
