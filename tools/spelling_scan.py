@@ -378,6 +378,22 @@ def _git(*args: str) -> str:
 
 
 def tracked_markdown() -> list[str]:
+    """Every **tracked** ``.md``, which is the whole of what a clean result covers.
+
+    [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254).
+    The name said *tracked* and nothing said what a pass means, which is the
+    half of the statement that matters: ``git ls-files`` is the index, an
+    untracked file is not in it, and the honest form of a clean ``--all`` is
+    *no tracked file uses a listed form*.
+
+    **This walk has the recorded instance rather than the hypothetical one.**
+    ``CLAUDE.md`` carries it: ``licence`` landed in
+    ``skills/practicum-case-study/SKILL.md`` with neither net catching it --
+    the staged scan crashed inside ``staged_additions`` on a ``_git`` that had
+    raised ``UnicodeDecodeError``, and this mode *"cannot see a file until the
+    commit that makes it tracked"*. A commit is what turns this walk's blind
+    spot into its coverage, which is one commit too late to refuse it.
+    """
     return [p for p in _git("ls-files", "*.md").splitlines() if p.strip()]
 
 
