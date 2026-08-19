@@ -700,8 +700,12 @@ python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<st
 ```
 
 APA 7 page setup is applied by the renderer: Times New Roman 12 pt, double spaced, one inch
-margins, a page number top right, headings at body size in APA's own level styling, and a
-reference list that starts on a new page under a bold centered label with a hanging indent.
+margins, a page number top right, headings at body size in APA's own level styling, a 0.5 inch
+first-line indent on **body paragraphs only**, tables drawn with APA's horizontal rules rather
+than a grid, and a reference list that starts on a new page under a bold centered label with a
+hanging indent. **What *only* excludes is deliberately not enumerated here** —
+[reference/apa7.md](reference/apa7.md) §6 has it, and a partial list at a third site is what #220
+was filed over.
 [reference/apa7.md](reference/apa7.md) §6 is the list of what it does **and does not** do — read
 it rather than assuming the render finished the job. Two things it will not do for you: the label
 must be `References` or, for a single entry, exactly `Reference` — the singular is matched only as

@@ -44,14 +44,17 @@ centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
 indented. The rubric gives APA format 5 of 100 points, and this is most of what that
 line can be given mechanically -- see ``skills/practicum-case-study/reference/rubric.md``.
 
-**What it still does not do, named rather than implied by the claim above.** There is no
-title page; APA level 4 and 5 headings are run-in and Markdown cannot express one, so
-level 4 is rendered as the indented bold paragraph it otherwise is and level 5 is not in
-the subset at all; body paragraphs take no 0.5 inch first-line indent; and a table is
-drawn with a full grid rather than APA's horizontal rules. ``apa7.md`` section 6 is where
-that list is kept for a reader of the skill -- #220 tracks the two of them that are
-mechanical. **A rendered .docx is not an APA-formatted document**, which is
-``skills/practicum-case-study/SKILL.md`` step 9's sentence arriving one level down.
+Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
+horizontal rules rather than a grid -- both #220, and both carved out where APA carves
+them out: a heading, a list item, a reference entry and a table cell take no first line,
+and the one rule that is not a table edge sits on the header row's cells.
+
+**What it still does not do is ``NOT_APPLIED`` below, not this paragraph.** That list
+used to be prose here and prose again in ``apa7.md`` section 6, and a prose edit to
+either failed nothing -- so it is one object now, on ``REFERENCE_HEADING``'s precedent,
+and ``tools/test_docx.py`` asserts the sheet names the same items. **A rendered .docx is
+not an APA-formatted document**, which is ``skills/practicum-case-study/SKILL.md`` step
+9's sentence arriving one level down.
 
 Covered by ``tools/test_docx.py``, which writes into a temp directory and reads the
 result back with ``docx_read`` -- the round trip is the test, because a ``.docx`` that
@@ -70,7 +73,99 @@ from console_codec import use_utf8
 # Twips throughout. One inch is 1440.
 MARGIN = 1440
 HANGING = 720
+FIRST_LINE = 720
 LINE_DOUBLE = 480
+
+
+# What this renderer does **not** apply. One object rather than prose repeated in two
+# files -- ``skills/practicum-case-study/reference/apa7.md`` section 6 carries the same
+# list for a reader of the skill, and ``tools/test_docx.py`` asserts the two name the
+# same items. #220's own comment is why: a code regression fails a behavior test, and a
+# prose edit to either copy failed nothing, so the reader who was misled was the one who
+# checked the file nearer to hand.
+#
+# The first element is a **distinctive phrase from** the sheet's row, matched as a
+# substring -- not the phrase it opens with, which two of these are not. That is what
+# makes the comparison mechanical rather than a judgment about wording; the second
+# element is why the row is here.
+#
+# **The last two rows are not #220's**, and they were not on the sheet before it either:
+# they are a gap that ticket's repair surfaced. Section 6 claimed the renderer applied
+# *most of* section 1, which was true and vague, and rewriting it to a checkable claim
+# is what showed that two of section 1's bullets had never been on either table. Both
+# are recorded rather than filed, for the reason each row states.
+NOT_APPLIED = (
+    (
+        "title page",
+        "An APA 7 student title page is a fixed set of elements -- title, author, "
+        "affiliation, course number and name, instructor, due date -- and none of the "
+        "six is in the Markdown this is handed. Where they come from is a "
+        "``practicum-case-study`` question before it is one for this module.",
+    ),
+    (
+        "run-in",
+        "APA level 4 and 5 headings are run-in, and Markdown gives a heading its own "
+        "line. Level 4 renders as the indented bold paragraph the run-in form is "
+        "otherwise identical to, and level 5 is not in the subset at all.",
+    ),
+    (
+        "alphabetized",
+        "Sorting a reference list is an **edit to the document** rather than a format "
+        "applied to it, and this renderer changes no word it is handed. So the order "
+        "stays the author's, and ``tools/reference_scan.py`` grades it against section "
+        "1 instead -- its ``list-not-sorted`` row.",
+    ),
+    (
+        "one paragraph",
+        "Section 1 wants each entry to be one paragraph, and ``body_xml`` makes a "
+        "paragraph of every non-blank line -- so a hard-wrapped entry renders as two, "
+        "and the second hangs on nothing. Joining them is an edit on the same terms "
+        "as sorting, and it is caught as an author defect instead -- by "
+        "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
+)
+
+
+# APA 7 section 7.8: a table carries horizontal rules only. Three of them -- above the
+# header row, below the header row, below the last row -- and never a vertical one.
+# Ruled unconditional by the clinician on 2026-08-19 rather than switchable, on #217's
+# fourth row's precedent: the only consumer of this renderer is an APA document, and a
+# parameter no caller passes is a branch nothing honestly tests.
+#
+# **An edge that is off is written as an explicit ``none`` rather than omitted**, because
+# an omitted edge inherits from the table style -- and a table style is exactly what this
+# used to draw its grid from.
+def _edge(name: str, drawn: bool) -> str:
+    """One border edge, drawn or explicitly off."""
+    if drawn:
+        return '<w:{n} w:val="single" w:sz="4" w:color="000000"/>'.format(n=name)
+    return '<w:{n} w:val="none" w:sz="0" w:space="0" w:color="auto"/>'.format(n=name)
+
+
+# ``CT_TblBorders`` is a sequence: top, left, bottom, right, insideH, insideV.
+BORDERS = "<w:tblBorders>{edges}</w:tblBorders>".format(
+    edges="".join(
+        _edge(name, drawn)
+        for name, drawn in (
+            ("top", True),
+            ("left", False),
+            ("bottom", True),
+            ("right", False),
+            ("insideH", False),
+            ("insideV", False),
+        )
+    )
+)
+
+# The rule under the header is the one that is not a table edge, so it is set on that
+# row's cells. ``insideH`` would draw it between every pair of body rows as well.
+HEADER_RULE = "<w:tcBorders>{b}</w:tcBorders>".format(b=_edge("bottom", True))
+
+# The style is named for what it draws. It carried Word's built-in ``TableGrid`` name
+# while it drew a grid; keeping that name over APA borders would be a false statement
+# inside the file, and ``BORDERS`` overriding it in every ``tblPr`` would not make the
+# style itself true.
+TABLE_STYLE_ID = "APATable"
 
 CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -180,16 +275,14 @@ STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:spacing w:after="0" w:line="{line}" w:lineRule="auto"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>
 <w:basedOn w:val="Normal"/><w:pPr><w:contextualSpacing/></w:pPr></w:style>
-<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/>
-<w:tblPr><w:tblBorders>
-<w:top w:val="single" w:sz="4" w:color="000000"/><w:left w:val="single" w:sz="4" w:color="000000"/>
-<w:bottom w:val="single" w:sz="4" w:color="000000"/><w:right w:val="single" w:sz="4" w:color="000000"/>
-<w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/>
-</w:tblBorders></w:tblPr></w:style>
+<w:style w:type="table" w:styleId="{table}"><w:name w:val="APA Table"/>
+<w:tblPr>{borders}</w:tblPr></w:style>
 </w:styles>""".format(
     w=W,
     line=LINE_DOUBLE,
     hang=HANGING,
+    table=TABLE_STYLE_ID,
+    borders=BORDERS,
     h1=_heading_style(1),
     h2=_heading_style(2),
     h3=_heading_style(3),
@@ -274,12 +367,19 @@ def para(
     level: int = 0,
     page_break: bool = False,
     align: str = "",
+    first_line: bool = False,
 ) -> str:
     """One paragraph. The property order is the schema's, not a preference.
 
     ``CT_PPrBase`` is a sequence rather than a set -- ``pStyle``, ``pageBreakBefore``,
-    ``numPr``, then ``jc`` -- and Word refuses a file whose properties arrive out of
-    order. Nothing here validates that, so the order is kept by construction.
+    ``numPr``, ``ind``, then ``jc`` -- and Word refuses a file whose properties arrive
+    out of order. Nothing here validates that, so the order is kept by construction.
+
+    ``first_line`` is APA 7 section 2.24's 0.5 inch body indent, and it is a parameter
+    rather than a default on ``Normal`` because the rule has carve-outs: a heading, a
+    list item and a reference entry all take none, and the last of those would have its
+    hanging indent cancelled by one. ``body_xml`` sets it on the plain-paragraph branch
+    and nowhere else.
     """
     props = []
     if style:
@@ -292,22 +392,12 @@ def para(
                 lv=level, n=num_id
             )
         )
+    if first_line:
+        props.append('<w:ind w:firstLine="{f}"/>'.format(f=FIRST_LINE))
     if align:
         props.append('<w:jc w:val="{a}"/>'.format(a=align))
     ppr = "<w:pPr>{p}</w:pPr>".format(p="".join(props)) if props else ""
     return "<w:p>{ppr}{r}</w:p>".format(ppr=ppr, r=runs(text))
-
-
-BORDERS = (
-    "<w:tblBorders>"
-    '<w:top w:val="single" w:sz="4" w:color="000000"/>'
-    '<w:left w:val="single" w:sz="4" w:color="000000"/>'
-    '<w:bottom w:val="single" w:sz="4" w:color="000000"/>'
-    '<w:right w:val="single" w:sz="4" w:color="000000"/>'
-    '<w:insideH w:val="single" w:sz="4" w:color="000000"/>'
-    '<w:insideV w:val="single" w:sz="4" w:color="000000"/>'
-    "</w:tblBorders>"
-)
 
 
 def table(rows: list) -> str:
@@ -321,18 +411,23 @@ def table(rows: list) -> str:
         cells = []
         for column in range(width):
             text = row[column] if column < len(row) else ""
+            # ``CT_TcPrBase`` is a sequence too: ``tcW`` before ``tcBorders``.
             cells.append(
-                '<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/></w:tcPr>'
+                '<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/>{b}</w:tcPr>'
                 '<w:p><w:pPr><w:spacing w:line="240" w:lineRule="auto"/></w:pPr>'
-                "{r}</w:p></w:tc>".format(w=cell_width, r=runs(text, bold=index == 0))
+                "{r}</w:p></w:tc>".format(
+                    w=cell_width,
+                    b=HEADER_RULE if index == 0 else "",
+                    r=runs(text, bold=index == 0),
+                )
             )
         header = "<w:trPr><w:tblHeader/></w:trPr>" if index == 0 else ""
         body.append("<w:tr>{h}{c}</w:tr>".format(h=header, c="".join(cells)))
     return (
-        '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/>'
+        '<w:tbl><w:tblPr><w:tblStyle w:val="{s}"/>'
         '<w:tblW w:w="0" w:type="auto"/>{b}</w:tblPr>'
         "<w:tblGrid>{g}</w:tblGrid>{rows}</w:tbl><w:p/>"
-    ).format(b=BORDERS, g=grid, rows="".join(body))
+    ).format(s=TABLE_STYLE_ID, b=BORDERS, g=grid, rows="".join(body))
 
 
 def split_row(line: str) -> list:
@@ -409,7 +504,15 @@ def body_xml(markdown: str) -> str:
             index += 1
             continue
 
-        out.append(para(stripped, style="Reference" if in_references else ""))
+        # APA 7 section 2.24's first-line indent lands here and on no other branch:
+        # a heading, a list item and a reference entry are each carved out above.
+        out.append(
+            para(
+                stripped,
+                style="Reference" if in_references else "",
+                first_line=not in_references,
+            )
+        )
         has_content = True
         index += 1
 
