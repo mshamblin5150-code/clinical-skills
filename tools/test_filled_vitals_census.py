@@ -5,9 +5,9 @@ and against inline strings. They never touch ``scratch/`` or ``output/``.
 
 **The fixture numbers below are the evidence for issue #67**, and pinning them is
 half of what this file is for. Those twelve notes are **day-b run 1**, byte for
-byte, so the counts over them are a fact about a run that happened rather than a
-bar anything has to clear -- and a run record is exactly the kind of thing that gets quietly
-"tidied". Four of the nine filled heights are 5'10", including the 17-year-old's;
+byte apart from two redacted site names, so the counts over them are a fact
+about a run that happened rather than a bar anything has to clear -- and a run
+record is exactly the kind of thing that gets quietly "tidied". Four of the nine filled heights are 5'10", including the 17-year-old's;
 six of the nine filled pressures land not-normal against a corpus that
 splits about evenly. An edit that changed either number would void the argument in
 ``skills/clinical-note/SKILL.md`` and in ``fixtures/day-b/assertions.md`` without
@@ -584,9 +584,10 @@ class ExitStatusSeparatesNotScannedFromNothingFound(unittest.TestCase):
 class TheCommittedRunSplitsOnTheHeightRule(unittest.TestCase):
     """It exits 1, and reading that as breakage is the mistake to avoid.
 
-    ``fixtures/filled-anchor/notes`` is day-b **run 1** byte for byte, written
-    before drift row 19 existed. The obvious prediction from that is that it
-    fails the age-and-sex rule everywhere, **and it does not** -- four of the
+    ``fixtures/filled-anchor/notes`` is day-b **run 1** byte for byte apart from
+    two redacted site names, written before drift row 19 existed. The obvious
+    prediction from that is that it fails the age-and-sex rule everywhere,
+    **and it does not** -- four of the
     nine heights already name both, two of them with a percentile. So the set is
     not uniformly pre-row-19 and it is not uniform at all, which is
     [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s

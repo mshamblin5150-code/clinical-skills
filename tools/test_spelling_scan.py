@@ -13,8 +13,9 @@ with the skill would be the ``.claude/skills/`` mirror problem again: two files
 holding two answers, and no way to tell which one a reader got.
 
 **The run record's tally.** ``fixtures/filled-anchor/notes/`` is day-b run 1 byte
-for byte and keeps the British spellings that run emitted. The counts below are
-the evidence for issue #73, pinned here for the same reason
+for byte apart from two redacted site names, and keeps the British spellings
+that run emitted. The counts below are the evidence for issue #73, pinned here
+for the same reason
 ``test_filled_vitals_census`` pins #67's: an edit that "tidied" the record would
 otherwise void an argument in three files without failing anything.
 
@@ -33,7 +34,7 @@ import spelling_scan as scan
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 
-# day-b run 1, byte for byte. Issue #73.
+# day-b run 1, byte for byte apart from two redacted site names. Issue #73.
 RECORD_FORMS = 10
 RECORD_OCCURRENCES = 25
 RECORD_NOTES = 7
@@ -233,8 +234,9 @@ class TheRunRecord(unittest.TestCase):
 
     def test_the_ten_forms_are_the_ones_the_ticket_names(self):
         # **Eight until 2026-08-18, then nine, then ten within the hour.** The run
-        # record has not changed and cannot -- it is a byte-for-byte record of
-        # what a run produced. What changed is the *table*: ``neighbour`` was
+        # record has not changed and cannot -- ``fixtures/filled-anchor/notes/``
+        # is a byte-for-byte record of what a day-b run produced, apart from two
+        # redacted site names. What changed is the *table*: ``neighbour`` was
         # never a listed form, so two occurrences of it sat in these notes
         # unseen and uncounted, and adding the form to ``FORMS`` is what made
         # them visible. #73's evidence set got larger without the evidence

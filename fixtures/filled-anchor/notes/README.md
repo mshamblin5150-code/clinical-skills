@@ -6,7 +6,7 @@ This is the first set in the repo whose inputs are not shorthand, and the reason
 
 ## Where they came from
 
-**day-b run 1**, produced 2026-08-11 by `clinical-note` on the comprehensive SOAP branch, over the twelve encounters in [day-b/shorthand](../../day-b/shorthand/). The run's own working copies live in `scratch/day-b-run-1/` and are gitignored; these are byte-for-byte copies of them.
+**day-b run 1**, produced 2026-08-11 by `clinical-note` on the comprehensive SOAP branch, over the twelve encounters in [day-b/shorthand](../../day-b/shorthand/). The run's own working copies live in `scratch/day-b-run-1/` and are gitignored; these are byte-for-byte copies of them **apart from the two site names *De-identification* below records** — nine of the twelve, and the only edit ever made.
 
 **Case numbers match day-b's.** `notes/case-07.md` is the note generated from `day-b/shorthand/case-07.md`, and day-b's assertions about case 7 are assertions about the same encounter. Nothing here renumbers.
 

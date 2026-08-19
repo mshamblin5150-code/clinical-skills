@@ -394,8 +394,9 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
 
     #: **A preserved run record is evidence, not prose, and may not be edited to
     #: satisfy a scanner.** ``fixtures/filled-anchor/notes/case-*.md`` is day-b
-    #: run 1 byte for byte; ADR 0001 and issue #73 are why it stays that way, and
-    #: ``spelling_scan.py`` carries the same exemption at ``EVIDENCE_PREFIXES``.
+    #: run 1 byte for byte apart from two redacted site names; ADR 0001 and issue
+    #: #73 are why it stays that way, and ``spelling_scan.py`` carries the same
+    #: exemption at ``EVIDENCE_PREFIXES``.
     #:
     #: ``FIGURE`` cannot reach those notes -- a finished note does not write "551
     #: encounters" -- but ``RETIRED_ANYWHERE`` is a **bare** three-digit match and
