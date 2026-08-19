@@ -61,24 +61,42 @@ of restating it, for that reason.
 **``LOOKAHEAD`` is a bound and not a formality.** Two words of clinical
 vocabulary have a name's exact shape -- ``sore throat`` passes the predicate --
 so every extra line searched is another chance to file a symptom as a patient.
-Measured against the 548 curated entries on 2026-08-19: the first name-shaped
-line is the encounter's first non-blank line in 505 of them, and no deeper than
-the seventh in any. **In not one case did this parser pick a line above the one
-the index already carries**, so widening the search is what costs and narrowing
-it is what loses a patient.
+Measured 2026-08-19 by running this parser over every entry the index already
+carried: the name is the encounter's first non-blank line in the large majority,
+and never deeper than the seventh. **No figure is stated for that** -- it is
+counted against the gitignored corpus, nothing committed re-derives it, and this
+tool's own ``--write`` moves the denominator on first use, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving
+inside the module that would have stated it.
+
+**The direction is the durable half and it is the opposite of the intuition.**
+In not one case did this parser pick a line *above* the one the index already
+carries, so widening the search is what costs and narrowing it is what loses a
+patient.
 
 What it cannot reach
 --------------------
 
-**A name the predicate does not recognize.** 43 of the 548 curated entries were
-harvested from a line this rejects -- a single word, a spelling with a digit in
-it. Those get an entry with ``name: None``, which covers the encounter for the
-corpus layer's *denominator* and contributes no name to its *harvest*. That is
-not this parser being lax: ``harvested_names`` applies the same predicate to the
-window, so such a name has never been scanned for, and the only path for one is
-the curated field a human fills in. **The count of entries added without a name
-is printed on every run** for that reason, and ``harvest_review.py`` is where it
-goes next.
+**A name the predicate does not recognize** -- a single word, a spelling with a
+digit in it. A minority of the entries the index already carried were harvested
+from such a line, and the report prints that count on every run rather than this
+paragraph stating it. Such an encounter gets an entry with ``name: None``, which
+covers it for the corpus layer's *denominator* and contributes nothing to its
+*harvest*. **That is not this parser being lax**: ``harvested_names`` applies the
+same predicate to the window, so such a name has never been scanned for by
+anything, and the only path for one is the curated field a human fills in.
+``harvest_review.py`` is where it goes next.
+
+**Which harvested strings a new window adds, beyond the names.** #141 expected a
+rebuild to reopen [#12](https://github.com/mshamblin5150-code/clinical-skills/issues/12)'s
+vocabulary review, and merging answers only the *discard* half of that: nothing
+already ruled on disappears. The *addition* half does not fall out -- a window is
+the name plus the shorthand lines under it, ``harvested_names`` takes every
+name-shaped line in it, and clinical shorthand is full of two-word letters-only
+phrases. On the three encounters this was built for the addition was zero, and
+**that is a fact about those three and not a property of the mechanism**; the
+next shift can break it. So the report counts the further name-shaped lines each
+proposed window contributes, and they go to ``harvest_review.py`` like any other.
 
 **Whether a picked name is a patient's.** Nothing here reads a note. A clean run
 means every encounter has an entry, never that every entry names the right
@@ -117,18 +135,27 @@ a scanner with no names finds none -- and the same fallback here would read a
 damaged index as a cold start and write a from-scratch one over it. An index that
 is genuinely absent is a cold start and exits 1, because the corpus is uncovered
 and that is the true statement about it.
+
+**A refused write is not a refused scan.** ``refuse_target`` turning a ``--write``
+away leaves the report standing and the status at 1, because the shortfall is
+what the run found and the refusal is a note beside it. Returning 2 there was the
+first version, and it filed the strongest thing known about the run under the
+weakest heading -- ``differential_scan.py``'s ordering, caught by review.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+import corpus_census as cc
 from console_codec import use_utf8
 from repo_root import scratch_root
 
@@ -137,10 +164,28 @@ from repo_root import scratch_root
 # says *did not scan* rather than *found nothing*.
 NOT_SCANNED = 2
 
-# The delimiter. Case-insensitive because the corpus carries "Note 3", "NOte 3"
-# and "NOte 4" in one document, and a case-sensitive match silently merges
+# **The delimiter is imported, not restated**, and the first version of this
+# module restated it. ``corpus_census.NOTE_DELIMITER`` is what counts the
+# encounters every figure in this repo is measured against, so the denominator
+# printed here has to be the same denominator -- and a copy that drifts is not a
+# cosmetic defect. Measured against the copy: ``Note`` and its number split by a
+# **newline** and a number with a letter welded to it (``Note 5a``) both matched
+# the census and not the copy, so those encounters were invisible to the
+# generator *and* to the denominator at once. Coverage reads 100% while a patient
+# is unindexed -- which is this ticket's own failure mode, rebuilt inside its fix.
+# `reference_scan` importing ``REFERENCE_HEADING`` rather than keeping a copy,
+# for that reason and caught the same way.
+#
+# It is case-insensitive because the corpus carries "Note 3", "NOte 3" and
+# "NOte 4" in one document, and a case-sensitive match silently merges
 # encounters -- `batch-shift` step 3.
-NOTE_LINE = re.compile(r"(?i)^[ \t]*note[ \t]*#?[ \t]*(\d+)\b")
+NOTE_DELIMITER = cc.NOTE_DELIMITER
+
+# The number inside a matched delimiter. The delimiter carries no capture group
+# -- the census only ever splits on it -- so the one thing this module needs
+# beyond the split is read back out of the matched text rather than by holding a
+# second pattern for the whole shape.
+DELIMITER_NUMBER = re.compile(r"\d+")
 
 # How many lines an entry keeps, and how far down the encounter the name is
 # looked for. Four is the index's existing shape; the search bound is measured
@@ -230,8 +275,10 @@ class Coverage:
     covered: int
     entries: int
     orphans: int
+    unrecognized: int
     proposed: int
     proposed_named: int
+    proposed_extra_strings: int
 
     @property
     def uncovered(self) -> int:
@@ -278,17 +325,17 @@ def _split(stem: str, text: str) -> list[Encounter]:
     Text before the first delimiter is a day header and belongs to no encounter,
     which is `batch-shift` step 3's rule -- it goes nowhere rather than being
     folded into the first patient.
+
+    Worked in character offsets rather than in lines, because the delimiter is
+    the census's and the census's spans a newline between the token and its
+    number. Reading it line by line cannot see that shape at all.
     """
-    lines = text.splitlines()
-    opens = [
-        (i, int(m.group(1)))
-        for i, line in enumerate(lines)
-        if (m := NOTE_LINE.match(line))
-    ]
+    opens = list(NOTE_DELIMITER.finditer(text))
     found: list[Encounter] = []
-    for position, (start, number) in enumerate(opens):
-        end = opens[position + 1][0] if position + 1 < len(opens) else len(lines)
-        body = [line.strip() for line in lines[start + 1:end] if line.strip()]
+    for position, match in enumerate(opens):
+        end = opens[position + 1].start() if position + 1 < len(opens) else len(text)
+        number = int(DELIMITER_NUMBER.search(match.group(0)).group(0))
+        body = [line.strip() for line in text[match.end():end].splitlines() if line.strip()]
         found.append(_read_window(stem, number, body))
     return found
 
@@ -359,8 +406,22 @@ def coverage_in(entries: Sequence[dict], corpus: Corpus, found: Sequence[Encount
         covered=len(found) - len(uncovered),
         entries=len(entries),
         orphans=len(covered - keys),
+        # Counted over the entries the index already holds, so the parser's own
+        # blind spot is a printed number rather than a claim in a docstring.
+        unrecognized=sum(
+            1 for record in entries
+            if not looks_like_a_name(str(record.get("raw", "")).strip())
+        ),
         proposed=len(uncovered),
         proposed_named=sum(1 for e in uncovered if e.name),
+        # The #12 surface a merge *adds*: every further name-shaped line a
+        # proposed window carries under the name. `harvested_names` will scan for
+        # each of them, and clinical shorthand is full of two-word letters-only
+        # phrases that are not patients.
+        proposed_extra_strings=sum(
+            sum(1 for line in e.window[1:] if looks_like_a_name(line))
+            for e in uncovered
+        ),
     )
 
 
@@ -392,7 +453,7 @@ def load_index(path: Path):
     return loaded, None
 
 
-def refuse_target(path: Path):
+def refuse_target(path: Path, scratch: Path | None = None) -> str | None:
     """Why this path may not be written, or ``None``.
 
     The index is a list of patient names. It belongs under ``scratch/``, which is
@@ -405,8 +466,17 @@ def refuse_target(path: Path):
     Outside every checkout there is nothing to commit it to, which is what lets
     the tests write into a temp directory.
     """
-    target = path.resolve()
-    if "scratch" in (part.lower() for part in target.parts):
+    target = (scratch_root() if scratch is None else scratch).resolve()
+    return _refuse(path.resolve(), target)
+
+
+def _refuse(target: Path, scratch: Path) -> str | None:
+    # **The repo's own ``scratch/``, not any directory so named.** The first
+    # version tested for a path component called ``scratch`` anywhere, which
+    # blesses ``~/scratch/`` in somebody else's checkout on the strength of a
+    # coincidence. This is the directory ``phi_scan``'s path layer actually
+    # covers.
+    if target.is_relative_to(scratch):
         return None
     for parent in target.parents:
         if (parent / ".git").exists():
@@ -415,6 +485,26 @@ def refuse_target(path: Path):
                 "and not under scratch/. The index is a list of patient names."
             )
     return None
+
+
+def write_atomically(path: Path, text: str) -> None:
+    """Write through a temp file in the same directory, then replace.
+
+    **For a file whose whole argument is that curated names are never
+    destroyed**, a half-written index is the one outcome worse than a short one:
+    ``load_index`` would refuse it on the next run, correctly, and the names
+    would be gone. ``os.replace`` is atomic on the same volume, which is why the
+    temp file is made beside the target rather than in the system temp
+    directory.
+    """
+    handle, temporary = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def format_report(found: Coverage, source: str, added, show: bool = False) -> list:
@@ -435,6 +525,13 @@ def format_report(found: Coverage, source: str, added, show: bool = False) -> li
             f"  entries for no encounter     {found.orphans}   "
             "(counted, never dropped -- a name harvested from one is still a patient's)"
         )
+    # Counted, never graded, on `filled_vitals_census.py`'s arrangement: it is a
+    # standing property of the corpus rather than a defect in this run, and
+    # failing on it would refuse every index the repo has ever had.
+    lines.append(
+        f"  entries this parser could not have named   {found.unrecognized}   "
+        "(counted, not graded -- their names came from a human)"
+    )
     if found.proposed:
         nameless = found.proposed - found.proposed_named
         lines.append(
@@ -445,6 +542,10 @@ def format_report(found: Coverage, source: str, added, show: bool = False) -> li
                 f"  proposed with no name        {nameless}   "
                 "(covers the encounter, harvests nothing -- rule on it with harvest_review.py)"
             )
+        lines.append(
+            f"  further strings they harvest {found.proposed_extra_strings}   "
+            "(the #12 surface a merge adds -- rule on them with harvest_review.py)"
+        )
     if show and added:
         lines.append("")
         lines.append("  -- --show output is PHI: read it, do not paste it --")
@@ -454,20 +555,22 @@ def format_report(found: Coverage, source: str, added, show: bool = False) -> li
 
 
 def main(argv: list) -> int:
-    show = "--show" in argv
-    write = "--write" in argv
-
+    show = write = False
     # Walked rather than filtered, because ``--index``'s *value* is a path and a
     # filter that dropped it by string comparison would have to compare a
     # ``Path`` back to what was typed. ``Path("./x")`` and ``"./x"`` do not
     # compare equal, so a relative ``--index`` would have fallen through and been
     # read as the corpus directory instead.
     index = scratch_root() / "name-index.json"
-    positional: list = []
+    positional: list[str] = []
     rest = list(argv)
     while rest:
         argument = rest.pop(0)
-        if argument == "--index" and rest:
+        if argument == "--show":
+            show = True
+        elif argument == "--write":
+            write = True
+        elif argument == "--index" and rest and not rest[0].startswith("--"):
             index = Path(rest.pop(0))
         elif not argument.startswith("--"):
             positional.append(argument)
@@ -501,21 +604,27 @@ def main(argv: list) -> int:
     merged = merge(entries, found, corpus.aliases)
     added = merged[len(entries):]
 
-    if write and added:
-        problem = refuse_target(index)
-        if problem is not None:
-            print(problem, file=sys.stderr)
-            return NOT_SCANNED
-        index.write_text(json.dumps(merged, indent=1), encoding="utf-8")
+    # **A refused write does not become a refused scan**, which is what the first
+    # version did: it returned NOT_SCANNED here, before the report, so a run that
+    # had read the whole corpus and knew exactly how short the index was printed
+    # nothing and said it had not scanned. `differential_scan.py`'s ordering --
+    # returning 2 would file the strongest thing known about the run under the
+    # weakest heading. The shortfall is the finding; the refusal is a note beside
+    # it, and it is on stderr where a refusal belongs.
+    refused = refuse_target(index) if write and added else None
+    if write and added and refused is None:
+        write_atomically(index, json.dumps(merged, indent=1))
         entries = merged
 
     print("\n".join(format_report(
         coverage_in(entries, corpus, found), directory.name, added, show
     )))
-    # Flushed before the hint, so the two streams land in the order a person
+    # Flushed before the hints, so the two streams land in the order a person
     # reads them rather than in the order the buffers happen to drain.
     sys.stdout.flush()
-    if not write and added:
+    if refused is not None:
+        print(f"\n{refused}", file=sys.stderr)
+    elif not write and added:
         print(
             f"\nThe index is {len(added)} encounter(s) short. Merge them in with:\n"
             "    python tools/name_index.py --write",

@@ -51,6 +51,12 @@ def day_file(*encounters: str) -> str:
     return "day header, not an encounter\n\n" + "\n\n".join(encounters) + "\n"
 
 
+def raw_day(*lines: str) -> str:
+    """A day file written line by line, so a hostile delimiter shape can be
+    spelled out rather than assembled by ``day_file``."""
+    return "\n".join(lines) + "\n"
+
+
 def encounter(number: int, *lines: str, label: str = "Note") -> str:
     return f"{label} {number}\n" + "\n".join(lines)
 
@@ -408,11 +414,38 @@ class TheDenominatorIsTheCensusDenominator(unittest.TestCase):
 
     **The coverage figure is a fraction whose halves come from two modules**, and
     the whole claim is worthless if they disagree about what an encounter is.
-    They have separate delimiters -- the census reads a whole day file with a
-    multiline pattern, this matches line by line -- so agreement is a property to
-    assert rather than one to assume. Against the real corpus on 2026-08-19 they
-    agree exactly; here they are driven over the shapes that could part them.
+    **The delimiter is imported now and this class is why.** The first version of
+    this module held its own copy, and the first version of this class drove it
+    over six shapes the copy already agreed on -- a check that could not have
+    found what it was named for, which is this repo's own recurring shape
+    arriving inside the fix for it. A review pass supplied the two that part
+    them, and both are in the dangerous direction: the encounter is invisible to
+    the generator **and** to the denominator at once, so coverage reads 100%
+    while a patient is unindexed. That is #141's own failure mode.
+
+    The pair is asserted as one object as well, so a future copy has to answer
+    for itself in a diff rather than pass these cases by luck.
     """
+
+    def test_the_delimiter_is_the_censuss_own_object(self):
+        self.assertIs(ni.NOTE_DELIMITER, cc.NOTE_DELIMITER)
+
+    def test_a_newline_between_the_token_and_its_number(self):
+        """``Note`` and its number on two lines. The census's pattern spans the
+        break; a line-by-line copy cannot see the encounter at all, so it went
+        unindexed and uncounted at once."""
+        self.assert_agree(raw_day("hdr", "", "Note 1", "Alice Trent", "",
+                                  "Note", "5", "Bela Cortez"))
+
+    def test_a_letter_welded_to_the_number(self):
+        """``Note 5a``. The copy ended its number with a word boundary, which
+        fails between ``5`` and ``a``; the census has no such guard."""
+        self.assert_agree(raw_day("hdr", "", "Note 1", "Alice Trent", "",
+                                  "Note 5a", "Bela Cortez"))
+
+    def test_trailing_text_on_the_delimiter_line(self):
+        self.assert_agree(raw_day("hdr", "", "Note 1", "Alice Trent", "",
+                                  "Note 5 (late)", "Bela Cortez"))
 
     def setUp(self):
         self.tree = Tree(self)
@@ -471,17 +504,36 @@ class TheTargetIsUnderScratchOrOutsideEveryCheckout(unittest.TestCase):
         (self.tree.root / ".git").mkdir()
         self.assertIsNotNone(ni.refuse_target(self.tree.root / "sub" / "name-index.json"))
 
-    def test_under_scratch_inside_a_checkout_is_allowed(self):
+    def test_under_the_repos_own_scratch_is_allowed(self):
         (self.tree.root / ".git").mkdir()
-        self.assertIsNone(ni.refuse_target(self.tree.root / "scratch" / "name-index.json"))
+        scratch = self.tree.root / "scratch"
+        self.assertIsNone(
+            ni.refuse_target(scratch / "name-index.json", scratch=scratch)
+        )
 
-    def test_a_refused_target_is_two_and_writes_nothing(self):
+    def test_a_directory_merely_named_scratch_is_not_the_firewall(self):
+        """The first version tested for a path component called ``scratch``
+        anywhere, which blesses somebody else's ``~/scratch/`` on a coincidence.
+        The guard means *the directory* ``phi_scan``'s path layer covers."""
+        (self.tree.root / ".git").mkdir()
+        self.assertIsNotNone(ni.refuse_target(
+            self.tree.root / "scratch" / "name-index.json",
+            scratch=self.tree.root / "elsewhere",
+        ))
+
+    def test_a_refused_write_still_reports_the_shortfall(self):
+        """**A refused write is not a refused scan.** The run read the whole
+        corpus and knows exactly how short the index is; returning 2 would file
+        the strongest thing known about it under the weakest heading, which is
+        ``differential_scan``'s ordering. The first version did exactly that."""
         (self.tree.root / ".git").mkdir()
         target = self.tree.root / "name-index.json"
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             code = ni.main([str(self.tree.corpus), "--index", str(target), "--write"])
-        self.assertEqual(code, ni.NOT_SCANNED)
+        self.assertEqual(code, 1)
+        self.assertIn("encounters with no entry", out.getvalue())
+        self.assertIn("refusing to write", err.getvalue())
         self.assertFalse(target.exists())
 
 

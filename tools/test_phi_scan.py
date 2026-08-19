@@ -841,8 +841,9 @@ class TheCorpusLayerStatesItsDenominator(unittest.TestCase):
     def report(self, covered, encounters, missing=()):
         found = ni.Coverage(
             files=1, unique_files=1, encounters=encounters, covered=covered,
-            entries=covered, orphans=0, proposed=encounters - covered,
-            proposed_named=0,
+            entries=covered, orphans=0, unrecognized=0,
+            proposed=encounters - covered, proposed_named=0,
+            proposed_extra_strings=0,
         )
         return "\n".join(ps.layer_report(set(NAMES), set(DATES), False, list(missing), found))
 
@@ -883,6 +884,71 @@ class TheCorpusLayerStatesItsDenominator(unittest.TestCase):
         for identifier in NAMES | DATES:
             with self.subTest(identifier=identifier):
                 self.assertNotIn(identifier, text)
+
+
+class TheShortfallReachesTheCommitter(unittest.TestCase):
+    """The venue is the whole ruling, and the first version reached none of it.
+
+    #141 comment 4: *"on every commit from every worktree, which is where most
+    commits here are made."* The hook runs this scanner **bare**, so the only
+    callers of ``layer_report`` are ``--layers`` -- which a person has to type --
+    and the dead-corpus branch. A shortfall living only in that report printed on
+    no commit at all, while this repo's prose said it printed on every one. That
+    is #220's lesson: a prose claim no code change fails against.
+
+    So these drive ``main`` on the ordinary path rather than ``layer_report``,
+    which is the distinction the defect turned on.
+    """
+
+    def run_main(self, coverage):
+        """``main`` with the corpus present, the scan clean, and coverage stubbed."""
+        real = (ps.corpus_identifiers, ps.missing_corpus_sources,
+                ps.corpus_coverage, ps.scan_staged)
+        ps.corpus_identifiers = lambda: (set(NAMES), set(DATES))
+        ps.missing_corpus_sources = lambda: []
+        ps.corpus_coverage = lambda: coverage
+        ps.scan_staged = lambda index: []
+        try:
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                code = ps.main([])
+            return code, out.getvalue(), err.getvalue()
+        finally:
+            (ps.corpus_identifiers, ps.missing_corpus_sources,
+             ps.corpus_coverage, ps.scan_staged) = real
+
+    def coverage(self, covered, encounters):
+        return ni.Coverage(
+            files=1, unique_files=1, encounters=encounters, covered=covered,
+            entries=covered, orphans=0, unrecognized=0,
+            proposed=encounters - covered, proposed_named=0,
+            proposed_extra_strings=0,
+        )
+
+    def test_a_short_index_is_named_on_an_ordinary_commit(self):
+        code, out, err = self.run_main(self.coverage(548, 551))
+        self.assertIn("3 encounter(s) have no name-index entry", err)
+        self.assertIn("tools/name_index.py --write", err)
+
+    def test_a_covered_index_says_nothing_at_all(self):
+        """This scanner cannot afford noise -- ``review_hint``'s argument."""
+        code, out, err = self.run_main(self.coverage(551, 551))
+        self.assertEqual((out, err), ("", ""))
+
+    def test_the_shortfall_does_not_refuse_the_commit(self):
+        """Declared, never enforced. Ruled 2026-08-19."""
+        self.assertEqual(self.run_main(self.coverage(548, 551))[0], 0)
+
+    def test_it_says_how_many_and_never_which(self):
+        """The hook's output has to stay safe to paste -- #12's rule."""
+        err = self.run_main(self.coverage(548, 551))[2]
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, err)
+
+    def test_no_coverage_says_nothing(self):
+        """``day-file-text/`` absent: there is no denominator to have."""
+        self.assertEqual(self.run_main(None)[2], "")
 
 
 class LayersCommandLine(unittest.TestCase):

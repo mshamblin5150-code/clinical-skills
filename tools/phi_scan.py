@@ -561,19 +561,25 @@ def corpus_coverage():
     """How much of the corpus the harvest's own source speaks for, or ``None``.
 
     **The count of names is not a statement about coverage and reads as one.**
-    ``--layers`` prints `ACTIVE` and a number on every commit, on a page a reader
-    trusts, and until #141 that number said nothing about the index covering the
-    encounters it was harvested from -- an index three encounters short printed
-    exactly what a complete one printed. The vocabulary could not express it
-    either: ``missing_corpus_sources`` tests a source's presence on disk, so a
-    file that is there and short is `ACTIVE`, and there is no state between *the
-    file exists* and *the file covers the corpus*.
+    ``--layers`` prints `ACTIVE` and a number wherever it is asked for -- on a CI
+    step summary, and beside a dead corpus -- and until #141 that number said
+    nothing about the index covering the encounters it was harvested from. An
+    index three encounters short printed exactly what a complete one printed. The
+    vocabulary could not express it either: ``missing_corpus_sources`` tests a
+    source's presence on disk, so a file that is there and short is `ACTIVE`, and
+    there is no state between *the file exists* and *the file covers the corpus*.
 
     So the denominator is printed beside the numerator. Ruled 2026-08-19:
     **declared, never enforced** -- a short index states its shortfall and names
     the remedy, and refuses nothing. A refuser here would fail an ordinary
     ``git add`` on the day a shift is scanned, which is how a check gets learned
     around.
+
+    **The declaration had to reach the committer, and at first it did not.** The
+    hook runs this scanner bare, so the shortfall living in ``layer_report``
+    alone meant it printed on no commit at all while this repo's prose said it
+    printed on every one. ``shortfall_notice`` is the split that fixed it, and
+    ``main`` prints it on the ordinary path.
 
     **It reads the corpus a second time and that was measured rather than
     waved past.** ``corpus_identifiers`` already walks every day file for date
@@ -850,6 +856,30 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     return findings
 
 
+def shortfall_notice(coverage, missing: Sequence[str] = ()) -> list[str]:
+    """The lines saying the harvest's own source does not cover the corpus.
+
+    **Split out of ``layer_report`` because that report is not where a committer
+    reads.** The hook runs this scanner bare, so the only callers of
+    ``layer_report`` are ``--layers`` -- which a person has to type -- and the
+    dead-corpus branch. The first version of #141's fix put the shortfall there
+    alone and this file then claimed in prose that it printed on every commit;
+    it printed on none of them. That is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
+    lesson exactly, a prose claim no code change fails against, and two
+    independent review passes found it before it reached `main`.
+
+    Silent where a source is missing, because ``layer_report`` is already saying
+    PATIENT NAMES ARE NOT CHECKED and there is no coverage to have.
+    """
+    if coverage is None or not coverage.uncovered or missing:
+        return []
+    return [
+        f"  ** {coverage.uncovered} encounter(s) have no name-index entry: a patient "
+        "named only there is scanned for by no layer.",
+        "     Close it with `python tools/name_index.py --write`. **",
+    ]
+
+
 def layer_report(
     names: set[str], dates: set[str], all_mode: bool, missing: Sequence[str] = (),
     coverage=None,
@@ -922,14 +952,7 @@ def layer_report(
     # Its own line rather than a fourth `dead` entry: the layer ran, and saying
     # it did not would be false in the other direction. What is short is the list
     # it ran against.
-    if coverage is not None and coverage.uncovered and not missing:
-        lines.append(
-            f"  ** {coverage.uncovered} encounter(s) have no name-index entry: a patient "
-            "named only there is scanned for by no layer."
-        )
-        lines.append(
-            "     Close it with `python tools/name_index.py --write`. **"
-        )
+    lines.extend(shortfall_notice(coverage, missing))
     if dead:
         lines.append(
             f"  ** A clean result here is NOT \"no PHI\": the {' and '.join(dead)} "
@@ -1011,9 +1034,23 @@ def main(argv: list[str]) -> int:
     # conjunction let a tree with `day-file-text/` and no `name-index.json` scan
     # on dates alone and exit 0 in silence, which is checking no patient name at
     # all -- #93's harm, reintroduced by #93's fix.
+    coverage = corpus_coverage()
     dead_corpus = bool(missing)
     if dead_corpus:
-        for line in layer_report(names, dates, all_mode, missing, corpus_coverage()):
+        for line in layer_report(names, dates, all_mode, missing, coverage):
+            print(line, file=sys.stderr)
+    else:
+        # **The shortfall reaches the commit, and the full report does not.**
+        # #141's ruling is *declared, never enforced*, and a declaration nobody
+        # is shown is not one -- the hook runs this bare, so `--layers` is a mode
+        # a person has to type and CI never has a corpus to count. The first
+        # version put the line in `layer_report` alone and this file claimed in
+        # prose that it printed on every commit; it printed on none of them.
+        #
+        # Two lines and only when short, deliberately: this scanner cannot afford
+        # noise, which is `read_text_if_text`'s and `review_hint`'s argument, and
+        # a covered index says nothing at all.
+        for line in shortfall_notice(coverage, missing):
             print(line, file=sys.stderr)
 
     index = build_index(names, dates)
