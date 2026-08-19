@@ -48,6 +48,25 @@ That last command must print **both** `scratch` and `output`. It lists only the 
 
 **If either line is missing, stop and fix `.gitignore` first.** Everything below, and every note the other skills write afterwards, depends on it.
 
+### Where `scratch/` actually is
+
+**`scratch/` belongs to the checkout that owns the tree, and in a `git worktree` that is the main
+checkout rather than the worktree you are standing in.** `scratch/` is gitignored, so `git worktree`
+does not bring it — a worktree has no `scratch/` at all, and every path in this skill and in the
+skills that read it resolves relative to the main clone.
+
+**Every skill that reads a per-account file inherits this**, and it is stated once here rather than
+in each of them: `scratch/medatrax-profile.md`, `scratch/identity-map.md`, `scratch/voice-model.md`
+and `scratch/shorthand.md` are all in the main checkout.
+
+**Absent and out of reach are different findings and must not be reported the same way.** A file
+that was never collected is a gap the clinician closes; a file that exists and is one directory tree
+away is a resolution failure, and a run that reports the second as the first is
+[#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)'s defect arriving on the
+consumer path. **Look in the main checkout before concluding a per-account file does not exist**, and
+say which of the two you found. `tools/repo_root.py` is what does this for the Python tools, and it
+is not something a Markdown reader calls — which is exactly why the rule has to be written here.
+
 ### 1. Explore before asking
 
 - `scratch/` — does `medatrax-profile.md`, `identity-map.md`, `voice-model.md`, `writing-samples/` or `shorthand.md` already exist? If so this is a re-run; read them and confirm rather than re-collect. **`shorthand.md` is never finished and is extended rather than rebuilt** — see step 9. **The voice model is the one where re-collecting has a cost the clinician pays** — it is his own writing, he supplied it once, and step 8 records a refusal in the profile precisely so a later run finds it here rather than asking again.

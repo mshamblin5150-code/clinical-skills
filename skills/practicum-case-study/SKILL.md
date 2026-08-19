@@ -318,7 +318,9 @@ settling the one question #213 left open. [reference/voice.md](reference/voice.m
 for what to ask for and §4 is how the samples are read; that step points at both rather than
 restating either.
 
-**Where there is no model, the run says so.** A run that finds no `scratch/voice-model.md` writes
+**Look in the main checkout before concluding there is no model.** `scratch/` is gitignored and a `git worktree` has none, so a model that exists can read as missing — see *Where `scratch/` actually is* in [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Declaring an unmodeled voice against a model that was merely out of reach is a false declaration, not a safe default.
+
+**Where there is genuinely no model, the run says so.** A run that finds no `scratch/voice-model.md` writes
 in the §11 mechanics and **says in the `PROPOSED` block that the voice is unmodeled**, rather than
 claiming a register it has not been given. **The declaration is per register**, not per document —
 [reference/voice.md](reference/voice.md) §7. A model built from three MDMs and nothing else has

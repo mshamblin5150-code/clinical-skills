@@ -729,8 +729,20 @@ belong in a note.
 
 **Nothing in the model bends a structural rule, and the list is closed.** The tier block's grammar,
 the Medatrax field strings, the drift matrix, an ICD-10 descriptor, the template's own formatting
-instructions, and the two rules below this one — *Punctuation* and *Spelling* — are all fixed. **The
-model governs the prose between them and nothing else.** A voice model is the last thing consulted
+instructions, **row 22's welded refusal — `NOT CODED: <code> <descriptor>, <reason>`, on one line**
+— and the two rules below this one, *Punctuation* and *Spelling*, are all fixed. **The model governs
+the prose between them and nothing else.**
+
+**The refusal is on that list because the table above hands its rationale to the model, and the two
+together were a hole.** A `NOT CODED` rationale is register-1 prose and reads as the model's to
+shape; the welded form is also **the only string `tools/differential_scan.py` reads**, and
+[#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) established what happens
+when it is reshaped — hard-wrap the rationale and the refusal becomes invisible, `codes marked NOT
+CODED 0`, **exit 0, a silent pass**. So a per-account model could have rewritten the one string
+whose rewriting the scanner cannot survive, and
+[#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162) is why nothing would have
+caught it: that scanner's exit-1 path has never fired on a real run. **The reason goes in the
+clause; the clause stays welded and stays on its line.** A voice model is the last thing consulted
 and the first thing dropped: where it pulls against a rule anywhere else in this file, the rule
 wins, on [voice.md](../practicum-case-study/reference/voice.md) §9's terms.
 
@@ -869,7 +881,7 @@ It binds both branches, which is why it lives here rather than in either templat
 
 **About the output, not the input.** A British spelling arriving in the shorthand is normalized on the way out like any other spelling variant — the same treatment [GLOSSARY.md](GLOSSARY.md) gives `cetrazine`. It is not a hedge and it is not a number, so nothing in *Given* protects it.
 
-**Fourteen of the forms above were written by this repo**, and that is why the rule is here rather than assumed. Five came from [GLOSSARY.md](GLOSSARY.md)'s own expansion tables — `nebuliser`, `sulphate`, `millilitres`, `centimetres`, `caesarean` — which is where a wrong spelling does the most damage, because the skill copies an expansion into a note by design. Seven more came from a `clinical-note` run — `dyspnoea`, `fibre`, `grey`, `behaviour`, `labelled`, `recognisable`, `programme` — and the thirteenth is `licence`, in `fixtures/peds-bp/assertions.md`. All were corrected 2026-08-12 **except the run's**, which are preserved because that set is a byte-for-byte record of what a run produced and correcting it would falsify the evidence. Issue #73.
+**Most of the forms above were written by this repo**, and that is why the rule is here rather than assumed. **The tally that used to open this sentence is gone on purpose** — it read `thirteen`, then `fourteen`, and was one short of its own enumeration within the hour, which is a prose integer nothing recomputes sitting in the paragraph about figures announcing themselves. Five came from [GLOSSARY.md](GLOSSARY.md)'s own expansion tables — `nebuliser`, `sulphate`, `millilitres`, `centimetres`, `caesarean` — which is where a wrong spelling does the most damage, because the skill copies an expansion into a note by design. Seven more came from a `clinical-note` run — `dyspnoea`, `fibre`, `grey`, `behaviour`, `labelled`, `recognisable`, `programme` — and `licence` came from `fixtures/peds-bp/assertions.md`. All were corrected 2026-08-12 **except the run's**, which are preserved because that set is a byte-for-byte record of what a run produced and correcting it would falsify the evidence. Issue #73.
 
 **The fourteenth is `neighbour`, added 2026-08-18, and how it was found is the reusable part.** It sat in [GLOSSARY.md](GLOSSARY.md), in the sentence `the tell is the neighbouring word`, in a file this repo wrote, while the same repo writes `neighboring` correctly ten times in this one. **`spelling_scan.py --all` reported clean on every run, because the table did not hold the form**, which is the tool's own stated limit arriving as a real miss: *it holds the table rather than the language, so a clean scan means no listed form was used.* It was caught by eye during unrelated work, not by the scanner. **And the backticks in the sentence above are load-bearing** — this paragraph quoted the defect in italics first and the scanner failed the build, correctly: a form in running prose is a use however clearly the sentence around it is about the form. That is `spelling_scan.py`'s mention-versus-use rule working on the paragraph that documents it.
 
@@ -890,7 +902,7 @@ python tools/spelling_scan.py --record   # the preserved run record, form by for
 
 It reads Markdown only, and it holds this table rather than the language: a clean scan means no *listed* form was used. `tools/test_spelling_scan.py` parses the table above and asserts the scanner covers every row of it, so the two cannot drift apart. **The rule is complete without the command** — this table is the instruction, and skipping the scan costs a check rather than an answer.
 
-**The rule has been exercised, and until 2026-08-12 it had not been.** A rule written after the run that motivated it is a rule nothing has walked, so day-b's twelve encounters were re-run that day on `ffe9377` — twelve generating passes, shorthand pasted inline, `fixtures/` closed — and graded by `python tools/spelling_scan.py` over the output rather than by a reader. **None of the eight forms appears in 4,275 lines.** A wider hand net — the `-ise` family, the `oe` and `ae` digraphs, `-our`, `-re`, `-ence`, 46 stems in all — came back empty too.
+**The rule has been exercised, and until 2026-08-12 it had not been.** A rule written after the run that motivated it is a rule nothing has walked, so day-b's twelve encounters were re-run that day on `ffe9377` — twelve generating passes, shorthand pasted inline, `fixtures/` closed — and graded by `python tools/spelling_scan.py` over the output rather than by a reader. **None of the eight forms the table then held appears in 4,275 lines.** A wider hand net — the `-ise` family, the `oe` and `ae` digraphs, `-our`, `-re`, `-ence`, 46 stems in all — came back empty too. **The denominator has since moved to ten and the notes that run produced are gitignored and gone**, so this clean verdict cannot be re-derived in either direction — it certifies eight forms over an artifact nobody can re-grade. Kept as the dated measurement it is, and not restated as a current one.
 
 **Six of the eight were reached in their American spelling and two were not**, which is the part a bare pass would hide: `program` 12 times, `dyspnea` 8, `gray` 4, `cesarean` 4, `behavior` and `behavioral` 3 between them, `labeled` once — while `fiber` and `recognizable` appear **nowhere in the run**, so those two forms were never put under load. `programme`'s slot is the sharper case: the Medatrax `Course` row is filled in all twelve and not one of them phrases it the way the run that wrote `programme` did. **A form the run had no occasion to write has not been tested**, and a run reporting it as a pass is flattering itself — [fixtures/README](../../fixtures/README.md)'s point about a vacuous row, arriving here.
 
@@ -929,7 +941,9 @@ Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]
 
 Classify **every token** against both as expanded, verbatim, or unknown. An unknown token is carried forward as written and surfaced in the tier block — never dropped, never guessed at silently.
 
-**An absent `scratch/shorthand.md` is not an error and the fallback is safe** — the field glossary expands what it holds and everything else surfaces as an unknown token, which is the shape a reader can act on. **What is not safe is expanding one clinician's form by another's rule**, and that is the case the split exists to prevent.
+**A genuinely absent `scratch/shorthand.md` is not an error and the fallback is safe** — the field glossary expands what it holds and everything else surfaces as an unknown token, which is the shape a reader can act on. **What is not safe is expanding one clinician's form by another's rule**, and that is the case the split exists to prevent.
+
+**But check where you are standing before calling it absent.** `scratch/` is gitignored, so a `git worktree` has none at all and the file may be sitting in the main checkout — see *Where `scratch/` actually is* in [setup-clinical-skills](../setup-clinical-skills/SKILL.md). **Not-collected and not-reachable look identical from here and are not the same finding**, and the sentence above would bless the second as safely as the first. That is [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)'s silent degradation, which this repo already fixed once for `phi_scan` and has now had to fix a second time in prose a consumer reads.
 
 Completion: every token in the source is in exactly one of the three buckets.
 
