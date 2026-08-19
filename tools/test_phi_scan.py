@@ -978,19 +978,43 @@ class AnAllRunStatesItsCoverage(unittest.TestCase):
         _, _, err = self.run_main(["--all", ps.ALLOW_NO_CORPUS_FLAG])
         self.assertEqual(err.count("phi-scan coverage"), 1)
 
-    def test_a_clean_staged_run_stays_silent(self):
-        """The ordinary passing commit, which must not have become noisier."""
+    def test_a_clean_staged_run_states_its_population_and_nothing_else(self):
+        """Open question 4, and the clause it was ruled on -- *so an absent
+        banner never reads as a stronger claim*.
+
+        **The first version of this change asserted silence here**, which
+        satisfies *state it in both modes* on the letter by putting the row in
+        the staged rendering and never printing it: the ordinary commit said
+        nothing, and the row was reachable only through ``--layers`` or a
+        degraded corpus. That leaves ``--all``'s row the only one and therefore
+        the special case, which is exactly what the question was asked to
+        remove. Caught by the spec axis of ``/code-review``.
+
+        **One row and not the report**, which is where the noise argument
+        survives: the other four lines answer a question nobody asked on an
+        ordinary commit, and the full report still prints the moment a layer is
+        degraded.
+        """
         status, _, err = self.run_main([])
         self.assertEqual(status, 0)
-        self.assertEqual(err, "")
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn(ps.scanned_population(False), err)
+        self.assertNotIn("layer", err)
 
 
 class LayersCommandLine(unittest.TestCase):
     """``--layers`` reports and does not scan.
 
     Kept apart from a scanning run deliberately: the CI job prints the report as
-    its own step, so a reader can see which layers ran even when the scan itself
-    found nothing and printed nothing.
+    its own step, on the page the checkmark is attached to rather than in a log
+    nobody opens.
+
+    **The reason it was built is spent and the mode is not**, which is worth
+    saying so nobody deletes it as redundant. It existed because a clean scan
+    printed nothing at all, so the coverage had nowhere else to appear; since
+    #258 an ``--all`` scan prints the same report to **stderr**. The step
+    summary needs it on **stdout**, and a scanning run's stderr is where a
+    refusal goes -- so the two channels stay separate and the mode stays.
     """
 
     def run_main(self, argv):
@@ -1136,10 +1160,17 @@ class DidNotScan(unittest.TestCase):
         self.assertNotEqual(ps.NOT_SCANNED, 0)
 
     def test_a_live_corpus_with_no_findings_is_still_zero(self):
-        """The ordinary passing commit, which must not have become noisier."""
+        """The ordinary passing commit, which must not have become noisier.
+
+        **It costs one line since #258 and the budget is asserted rather than
+        described.** A staged run states the set it walked, because a staged run
+        that said nothing would leave ``--all``'s row the only one; what it must
+        not do is print the whole layer report on every commit, which is the
+        noise `review_hint` already argues against.
+        """
         status, _, err = self.run_main(live=True)
         self.assertEqual(status, 0)
-        self.assertEqual(err, "")
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
 
     def test_the_flag_downgrades_the_status(self):
         status, _, _ = self.run_main([ps.ALLOW_NO_CORPUS_FLAG])

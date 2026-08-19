@@ -69,7 +69,7 @@ Usage:
     python tools/phi_scan.py              # scan staged changes (what the hook runs)
     python tools/phi_scan.py --all        # scan every tracked file
     python tools/phi_scan.py --show       # reveal matches instead of redacting
-    python tools/phi_scan.py --layers     # report which layers would run; scan nothing
+    python tools/phi_scan.py --layers     # report what would be scanned and by which layers; scan nothing
 
 Exit status, and the three values mean three different things:
 
@@ -794,9 +794,13 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
 
     **Since [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)
     that statement is on the page as well as here** -- `layer_report`'s
-    ``scanned`` row, printed on every ``--all`` run. This is the only one of
-    #254's five walks with user-visible output, so it is the only one where a
-    docstring was the wrong place for the whole of it.
+    ``scanned`` row, printed on every ``--all`` run. **This walk feeds a command
+    that prints**, unlike the ones among #254's that are tests, where the only
+    reader is somebody opening the file and a docstring genuinely is the page.
+    ``spelling_scan.tracked_markdown`` is the other that prints and got the same
+    repair. **How many walks there are is still `test_ls_files_coverage.py`'s to
+    say and is not counted here**, on #143's terms and on that section's own
+    ruling -- naming the two that print is a derivation and a numeral is not.
     """
     findings: list[Finding] = []
     for path in _git("ls-files").splitlines():
@@ -815,11 +819,11 @@ def scanned_population(all_mode: bool) -> str:
 
     [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258).
     `scan_all` walks ``git ls-files``, and #254 ruled that every such walk says
-    what a clean result covers. Four of the five walks are tests, where the only
-    reader is somebody opening the file, so a docstring is the page. **This one
-    has user-visible output**, and the statement landed in its docstring anyway
-    -- so a clean ``--all`` said *no PHI* on the page and *no tracked file
-    carries PHI* somewhere else.
+    what a clean result covers. The walks among #254's that are tests have one
+    reader, somebody opening the file, so a docstring genuinely is the page.
+    **This one feeds a command that prints**, and the statement landed in its
+    docstring anyway -- so a clean ``--all`` said *no PHI* on the page and *no
+    tracked file carries PHI* somewhere else.
 
     **The fact was already computed and already printed, attached to the wrong
     layer.** The ``--all`` path-layer row opened ``--all walks tracked files``,
@@ -833,6 +837,15 @@ def scanned_population(all_mode: bool) -> str:
     read the ``--all`` row would read its absence as a stronger claim, which is
     the defect one level down.
 
+    **And that reason is why the staged row is *printed* rather than only
+    rendered.** The first version of this change added the row to both
+    renderings and left `main`'s gate alone, so an ordinary commit printed
+    nothing and the staged row was reachable only through ``--layers`` or a
+    degraded corpus. That satisfies *state it in both modes* on the letter and
+    defeats the clause the ruling was made on -- ``--all``'s row would have been
+    the only one, which is the special case the question was asked to remove.
+    Caught by the spec axis of ``/code-review``.
+
     **Lowercase, deliberately.** ``PATIENT NAMES ARE NOT CHECKED`` is shouted
     because standing rule 1 is going unenforced; a scope statement at the same
     volume would spend the register that line needs. This row is always true, on
@@ -842,7 +855,7 @@ def scanned_population(all_mode: bool) -> str:
     pattern rather than an oversight -- `research_ledger.py` and
     `checks_ledger.py` hold separate copies of one rule for the reason written
     there: adopting the rule is what is wanted, and a shared helper would forbid
-    the divergence two scanners with two populations are entitled to.
+    the divergence two scanners with different populations are entitled to.
     """
     if all_mode:
         return ("tracked files -- git ls-files; an untracked file is not scanned "
@@ -1017,14 +1030,21 @@ def main(argv: list[str]) -> int:
     # something. CI is the case: it runs this mode with nothing staged, and the
     # commit being written is the file the walk cannot see.
     #
-    # **Staged runs are unchanged, which is the same ruling read the other way.**
-    # The staged row exists in the report; what does not change is when the
-    # report prints. The hook runs on every commit and this scanner cannot
-    # afford noise -- `review_hint` carries that argument already.
+    # **A staged run states its population too, and only that.** #258 open
+    # question 4, and the clause it was ruled on -- *so an absent banner never
+    # reads as a stronger claim*. A staged run that printed nothing would leave
+    # `--all`'s row the only one and therefore the special case, which is the
+    # asymmetry the question was asked to remove. One row rather than the whole
+    # report, because the hook runs this on every commit and the other four
+    # lines are answering a question nobody asked there: `review_hint` carries
+    # that argument already, and the full report still prints the moment a layer
+    # is degraded.
     dead_corpus = bool(missing)
     if dead_corpus or all_mode:
         for line in layer_report(names, dates, all_mode, missing):
             print(line, file=sys.stderr)
+    else:
+        print(f"phi-scan: scanned {scanned_population(all_mode)}", file=sys.stderr)
 
     index = build_index(names, dates)
     findings = scan_all(index) if all_mode else scan_staged(index)

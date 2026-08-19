@@ -58,7 +58,7 @@ phi-scan layers (--all):
 
 That is two of three layers dark, permanently, on the rule that matters most. **The report does not fix it — it makes it unreadable as coverage**, which is the most that was available.
 
-> **#258 has since landed and the block above is the report as it read then.** It now names the walked set as well as the layers, so its header reads `coverage` rather than `layers` and a `scanned` row sits above the three:
+> **#258 has since landed and the block above is the report as it read then.** It named the walked set as well as the layers from that point, so its header reads `coverage` rather than `layers` and a `scanned` row sits above the three. **As read on 2026-08-19, and this block is a record of that day rather than a live quotation** — nothing here re-derives it, `tools/test_ci_workflow.py` pins the PHI step against `CLAUDE.md` and not against this file, and a later reword of `layer_report` rots it in silence:
 >
 > ```
 > phi-scan coverage (--all):

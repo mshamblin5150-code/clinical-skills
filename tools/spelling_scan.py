@@ -504,8 +504,13 @@ def scanned_population(mode: str) -> str:
 
     Not shared with ``phi_scan``'s copy of this line, on `research_ledger.py`'s
     and `checks_ledger.py`'s terms: what transfers is the rule, and a shared
-    helper would forbid the divergence two scanners with three populations
-    between them are entitled to.
+    helper would forbid the divergence two scanners with different populations
+    are entitled to.
+
+    **``--record`` needs none of this and got none**, which is a limit worth
+    naming rather than an omission. Its first printed line already names the one
+    directory it reports on, and it renders no clean verdict for a reader to
+    read as a claim about the tree.
     """
     return f"spelling-scan: scanned {POPULATIONS[mode]}."
 
@@ -540,10 +545,13 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
     # above it.** A finding is a floor rather than the whole -- so the walked
     # set is stated beside a report that found something exactly as it is beside
     # one that did not, which is `differential_scan.py`'s ordering one scanner
-    # over. The one silence kept is `--quiet` **and** clean: that flag means
-    # *print nothing when clean*, the hook runs it on every commit, and widening
-    # it into *print one line when clean* would make an advisory scanner noisy
-    # on the one path that pays for noise every time. #258.
+    # over. The one silence kept is `--quiet` **and** clean, and the reason is
+    # narrower than the hook: what the ruling qualifies is a **printed clean
+    # result**, and that pair prints none. There is nothing on the page for a
+    # reader to read as a claim about the tree, which is not true of any other
+    # combination here -- and it is the whole distinction, since `--quiet --all`
+    # has no caller in this repo and the argument cannot rest on who runs it.
+    # #258.
     if report.findings or not quiet:
         lines.append(scanned_population(mode))
     return lines
