@@ -482,8 +482,9 @@ citation cannot do. **Say what did match** — the title, the authors, the date 
 **It is the weakest disposition that passes, and the run says so on its own face.** The report
 counts `paywalled` records on their own line, because a set of citations all behind a wall has been
 checked far less than a clean exit suggests. The alternative — failing them — would refuse every
-UpToDate record, which is nine in ten of this corpus and the reason no resolver was built here in
-the first place.
+UpToDate record, and UpToDate dominates this corpus's references — see
+[style.md](reference/style.md) §10, which measures it and hedges it. That dominance is the reason no
+resolver was built here in the first place.
 
 **The independence is an instruction and not a check.** Nothing in a record shows which agent wrote
 it, so the grader cannot tell a real second reading from the first agent answering itself — that is

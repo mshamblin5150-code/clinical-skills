@@ -305,7 +305,7 @@ and the answer is that no tool here touches the network.** The *format* half alr
 standard from #211 ([apa7.md](skills/practicum-case-study/reference/apa7.md), walked by step 7 and by
 #218). For the *truth* half the ticket proposed `threshold_sheet.py`'s two-tier arrangement — a
 resolver opting into the network, skipping with a banner. **Two findings killed it, and the second is
-the clinician's.** UpToDate is nine in ten of this corpus's references and is subscription-gated, so
+the clinician's.** UpToDate **dominates** this corpus's references and is subscription-gated, so
 a fetch reaches a login wall rather than the topic page `apa7.md` §2 takes the date element from:
 every such entry would fail outright, or **pass on a 200 from a login form**, which is the silent-pass
 shape this whole directory exists to refuse. And the clinician hands the topics over wholesale, so
@@ -325,7 +325,15 @@ title and authors match the entry, body behind a subscription, is `paywalled` an
 URL resolving to the right document is itself evidence it exists, which is most of what a fabricated
 citation cannot do. **It is the weakest disposition that passes**, so the report counts those
 records on their own line rather than letting a clean exit stand for them. The alternative fails
-every UpToDate record, which is nine in ten of this corpus and the reason there is no resolver here.
+every UpToDate record, which is most of this corpus and the reason there is no resolver here.
+
+**How dominant is measured once, and deliberately not restated in the four places this reasoning
+appears.** [style.md](skills/practicum-case-study/reference/style.md) §10 puts it at *roughly* nine
+in ten across ten graded submissions, and that working set is **gitignored** — so nothing committed
+re-derives the figure and no test pins it. It is load-bearing here, being the reason no resolver was
+built and the reason `paywalled` passes, which is why the hedge travels with it. This branch first
+published it flat in five new places and was caught by its own tracker sweep: [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+shape arriving inside the change that cites #143.
 
 **Not exempt by source class, and that was decided rather than defaulted into.** `tertiary reference`
 is UpToDate, which the clinician has wholesale — but for exactly the reason above, an UpToDate

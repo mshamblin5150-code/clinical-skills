@@ -160,10 +160,12 @@ standard from #211 -- ``skills/practicum-case-study/reference/apa7.md``, walked 
 step 7 and by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
 For the truth half the ticket proposed ``threshold_sheet.py``'s two-tier arrangement,
 a resolver opting into the network and skipping with a banner. **Two findings killed
-it.** UpToDate is nine in ten of this corpus's references and is subscription-gated,
-so a fetch reaches a login wall rather than the topic page ``apa7.md`` section 2 takes
-the date element from -- every such entry would fail outright, or pass on a 200 from a
-login form, which is the silent-pass shape this whole directory exists to refuse. And
+it.** UpToDate **dominates** this corpus's references and is subscription-gated, so a
+fetch reaches a login wall rather than the topic page ``apa7.md`` section 2 takes the
+date element from -- every such entry would fail outright, or pass on a 200 from a
+login form, which is the silent-pass shape this whole directory exists to refuse.
+**The size of that dominance is stated once, in ``reference/style.md`` section 10,
+hedged and against a gitignored set that nothing committed re-derives.** And
 **the clinician hands the topics over wholesale**, so wherever a source is in the
 evidence dump there was never anything to resolve.
 
@@ -299,9 +301,9 @@ BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
 # document exists, which is most of what a fabricated citation fails to do.
 #
 # **It is a weaker check wearing a passing disposition, and that was priced rather
-# than missed.** The alternative failed every UpToDate record, which is nine in ten
-# of this corpus and the reason no resolver was built in the first place. What the
-# report does about it is count them: a run whose citations are all ``paywalled``
+# than missed.** The alternative failed every UpToDate record, and UpToDate dominates
+# this corpus -- which is the reason no resolver was built in the first place. What
+# the report does about it is count them: a run whose citations are all ``paywalled``
 # says so on its own face rather than reading as fully checked.
 REFUTATION_STANDS = "stands"
 REFUTATION_REFUTED = "refuted"
