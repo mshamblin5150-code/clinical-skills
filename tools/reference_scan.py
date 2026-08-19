@@ -132,11 +132,54 @@ surname, on year within an author, and on putting an undated work first.
 
 **Counts only by default**, on ``research_ledger.py``'s and ``block_scan.py``'s
 terms and for their reason: a finished draft lives under ``output/`` and is written
-about a patient. **``--show`` output is PHI** on ``harvest_review.py``'s terms --
-read it, do not paste it. **A reference entry carries no patient data and the rest
-of the file does**, which is #218's first open decision; the posture here is the
-stricter of the two, taken whole, because a scanner that quoted freely from one
-region of a patient record would be one edit away from quoting the other.
+about a patient. That is unchanged, and it is what makes the report the ordinary
+thing to read.
+
+**``--show`` output is safe to paste** -- ruled by the clinician on 2026-08-19,
+#218's decision 1 and the last thing that ticket was open on. **This is not a
+carve-out from standing rule 1; it is a statement about where the label attaches.**
+``CLAUDE.md``'s subagent rule attaches PHI to the *file* a subagent read, and the
+case here is different in a way that can be checked: **what the output is able to
+draw from is bounded by the code rather than by anybody's care.** Every finding
+detail is a reference entry, a heading, a date, or a cited author's surname and
+year.
+
+**There is exactly one aperture onto the body, and it is named here rather than
+left for a reader to find.** ``UNLISTED_CITATION`` and ``INTEXT_YEAR_MISMATCH``
+emit a citation key, and a key is the **first word of anything the body writes in
+the shape** ``(Word, 2024)`` -- so one capitalized token of the draft's own prose
+can reach the report. It is a citation author by construction, never the sentence
+around it, and it is the element the ruling blesses in as many words. **The width
+of that aperture is measured rather than asserted to be zero**:
+``TheReportCannotCarryTheDraftsProse`` drives a marker through it and pins that
+what comes out is one token and a year. Saying *the output cannot contain patient
+data* without this qualification would be a claim a notch stronger than the
+measurement, which is the defect this file's own header exists to warn about.
+
+**The ruling therefore rests on a property of this module, so the property is
+pinned rather than described.** ``TheReportCannotCarryTheDraftsProse`` in
+``tools/test_reference_scan.py`` runs a draft whose every body line carries a
+marker token through ``format_report(..., show=True)`` and asserts the marker never
+appears -- and ``BODY_ROWS`` below declares the rows that read the body at all, so
+a fifth one cannot arrive without firing there. Without that the ruling would erode
+the first time a sixteenth row was written.
+
+**It does not widen.** A reader spawned by ``skills/practicum-case-study/SKILL.md``
+step 9 is a language model summarizing clinical prose in its own words, with no
+equivalent guarantee available, so it still reports where and what is wrong rather
+than the sentence. Nor does it reach ``research_ledger.py``, whose records are
+claims transcribed from faculty material about a patient, or the note scanners --
+``block_scan.py``, ``specificity_scan.py``, ``differential_scan.py``,
+``anchor_scan.py`` and ``filled_vitals_census.py`` all read note text or measured
+values directly, and their ``--show`` output stays PHI.
+
+**That list is the ruling's own and not a sweep of ``tools/`` for ``--show``**,
+which would be wider: ``guidelines_recs.py``'s is restrained by copyright rather
+than by standing rule 1, and ``phi_scan.py``'s reveals its own findings rather than
+a scanned record. **And it is re-derived rather than recited** --
+``TheRulingDoesNotWiden`` reads each name off the sibling's own docstring, because
+an enumeration in prose that nothing checks is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
 
 **Exit status distinguishes not having scanned from having found nothing** -- 0
 clean, 1 for a violation, **2 for every way of not having scanned**: no argument,
@@ -325,6 +368,35 @@ KINDS = (
     UNLISTED_CITATION,
 )
 
+# The rows that read the draft's **body** rather than its reference list, declared
+# so that a fifth one cannot arrive quietly. #218's decision 1 was ruled on a
+# property of this module -- no finding detail can be a sentence of clinical prose
+# -- and every row here is a row whose detail is drawn from the one region of the
+# file that is clinical prose. Two of them emit a fixed string; the other two emit
+# a cited author's surname and a year, which is a reference element and not a
+# finding about the patient.
+#
+# ``TheReportCannotCarryTheDraftsProse`` in ``tools/test_reference_scan.py`` asserts
+# both directions against this tuple: every row named here fires on its draft, and
+# no finding marked ``where == "body"`` is missing from it. **Adding a body row
+# means firing it there**, which is where the ruling gets read again.
+#
+# **That claim was false of the first version and the correction is the reusable
+# part.** Both directions were measured against *the rows one fixture happened to
+# fire*, so a fifth body row that was neither declared here nor written into that
+# draft left every assertion green -- a check that could not have seen the thing it
+# was named for, reading as a settled negative. The completeness half is an **AST
+# walk over this module** now, on ``test_console_codec.py``'s instrument and for its
+# reason: it reads every ``Finding(...)`` call carrying a literal ``"body"``,
+# whether or not any draft reaches it. Found by ``/code-review`` on the branch that
+# landed the ruling.
+BODY_ROWS = (
+    CANVAS_ARTIFACT,
+    UPTODATE_ITALICS,
+    INTEXT_YEAR_MISMATCH,
+    UNLISTED_CITATION,
+)
+
 # Which **sheet and section** each row reads, so a reader knows where to go and
 # argue with it. The sheets own the rules; this only says which one.
 #
@@ -482,10 +554,17 @@ class Document:
 
 @dataclass(frozen=True)
 class Finding:
-    """One row failed once. ``where`` is safe to print; ``detail`` is not.
+    """One row failed once. **Both ``where`` and ``detail`` are safe to print**,
+    which is #218's decision 1 ruled on 2026-08-19 and is what ``--show`` rests on.
+
+    *This read* ``where`` is safe to print; ``detail`` is not *until that ruling,
+    and it is the sentence the ruling had to reach*: a docstring asserting the
+    opposite of what the module does is this file's own worst defect class, named
+    in its own header. Found by ``/code-review`` on the branch that landed the
+    ruling, one screen below the paragraph announcing it.
 
     ``line`` is the entry this is chargeable to, or ``None`` where it is chargeable
-    to no single entry -- the heading, and the two body rows. It is what
+    to no single entry -- the heading, and every row in ``BODY_ROWS``. It is what
     ``entries at fault`` counts, and it is a field rather than a prefix read back
     off ``where`` because a group row like ``list-not-sorted`` names two lines in
     its text and would otherwise be counted as a third entry.
@@ -829,7 +908,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append("")
     lines.append(f"  entries at fault                 {scan.entries_at_fault}")
     if show:
-        lines += ["", "  findings (PHI - read, do not paste):"]
+        lines += ["", "  findings (safe to paste):"]
         for finding in scan.findings:
             lines.append(f"    {finding.kind:<28} {finding.where}")
             lines.append(f"      {finding.detail}")
@@ -918,7 +997,7 @@ def main(argv: list[str]) -> int:
         print(
             f"{len(scan.findings)} reference defect(s) against"
             " skills/practicum-case-study/reference/apa7.md."
-            " Re-run with --show to see which, and do not paste that output.",
+            " Re-run with --show to see which.",
             file=sys.stderr,
         )
         return 1

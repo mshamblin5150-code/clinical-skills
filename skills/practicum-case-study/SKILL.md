@@ -658,8 +658,10 @@ python tools/reference_scan.py output/case-studies/<stem>.md --as-of <the exam d
 against it and never against the clock, so a draft graded twice a year apart grades the same both
 times, and a run that omits it gets exit 2 rather than a clean report on a row that never ran. Exit
 0 is clean, 1 names how many defects, and **2 means it did not scan** — no file, no reference list
-it could find, or a heading with nothing under it. Re-run with `--show` to see which entries, and
-**that output is PHI**: read it, do not paste it.
+it could find, or a heading with nothing under it. Re-run with `--show` to see which entries — and
+**that output is safe to paste**, ruled 2026-08-19 and the one command here of which that is true.
+It cannot carry a sentence of the draft: every finding it prints is a reference entry, a heading, a
+date, or a cited author's surname and year. A test pins that rather than the docstring asserting it.
 
 It reaches every row in the table above except one: whether an UpToDate year is the topic's revision
 year rather than the year it was read needs the companion evidence document, which the command never
@@ -773,13 +775,17 @@ voice model does not cover. Everything else is repaired in the document before i
 draft is written about a patient, so a reader reports **where and what is wrong** — the section, the
 entry's position, the rule it fails — and **not the sentence itself**. That costs nothing here,
 because the context reading the report is the one holding the draft and can open the line for
-itself. [CLAUDE.md](../../CLAUDE.md)'s subagent rule, taken whole rather than carved out, and
-`tools/reference_scan.py` takes the same posture by default: counts only, and `--show` is PHI.
+itself. [CLAUDE.md](../../CLAUDE.md)'s subagent rule, taken whole rather than carved out. **Ruled
+2026-08-19, and ruled unchanged**: a reader is a language model summarizing clinical prose in its
+own words, and no guarantee about what it will write is available.
 
-**Whether a reference entry deserves that posture is the clinician's to settle**, and it is
-[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s first open decision. An
-entry carries no patient data and clinical prose does; the rule as written does not distinguish
-them, so this takes the stricter reading for both until he rules — a default, not a ruling.
+**`tools/reference_scan.py` came apart from that on the same day**, which is
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s first decision settled.
+Its `--show` output is **safe to paste**, because what the code can draw on is checkable and a
+reader's wording is not: every finding it prints is a reference entry, a heading, a date, or a cited
+author's surname and year. It still prints counts only by default. **The two halves of one question
+were answered differently, and the split is about where the label attaches rather than a carve-out
+from standing rule 1.**
 
 Then walk this list, by eye — none of it is mechanical:
 
