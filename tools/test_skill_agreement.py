@@ -1472,7 +1472,6 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
             )
 
 
-
 class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCase):
     """#244's decision 1, ruled by the clinician 2026-08-19. **Not** a
     per-account detector, and decision 3 declined to make it one.
@@ -1490,8 +1489,9 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
     sentence -- *"On one account the figures were ..."* -- into the reference,
     which is the honest per-account form. The clinician ruled the other way:
     the reference states the **method** and the **inference** and points at
-    step 6, so the worked reading survives in the tree exactly once, in the
-    file whose job is collecting one account's setup. That keeps #235's ruling
+    ``setup-clinical-skills`` step 6, so the worked reading survives in the
+    tree exactly once, in the file whose job is collecting one account's
+    setup. That keeps #235's ruling
     intact in the file it was ruled about.
 
     **The needles are read out of ``setup-clinical-skills`` and never typed
@@ -1511,8 +1511,11 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
     exposure ``tools/test_corpus_census.py`` documents at ``RETIRED_ANYWHERE``,
     where one of these two figures is named among the bare 5xx literals those
     notes already carry as clinical values. **A ``git grep`` of either figure
-    is not a to-do list**: five files hold it, one is the defect, one is the
-    pattern to copy, and three must not be touched.
+    is not a to-do list**, and the verdicts are the finding rather than the
+    count: the hits are a preserved run record, the skill that is the pattern
+    to copy, and prose that happens to carry the digits. **No count is stated
+    here** -- #244's comment put the pair in five files, this change removed
+    one of them, and a bare ``582`` was never five to begin with.
 
     **A green run here is not a swept file**, and the limits are the ones #244
     decision 3 declined to move. A bare integer has no shape, so nothing here
@@ -1535,6 +1538,65 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
     def setUp(self):
         self.reference = read(MEDATRAX)
         self.setup_skill = read(SETUP)
+
+    def spans(self, pattern):
+        """The distinct spans ``pattern`` matches in the reference.
+
+        ``TheReferenceHoldsNoOneProgramsEnrollment.assert_reference_is_free_of``
+        above exists to justify this shape and is a method on that class; this
+        is the same reasoning rather than a second opinion -- the haystack is a
+        reference document, so a failure reports **what matched** and never the
+        file it matched in.
+        """
+        return sorted({found.group(0) for found in pattern.finditer(self.reference)})
+
+    #: The residue note #235 left in the reference for #244 to settle, keyed on
+    #: the clause that made it a *record* rather than a fix. A floor: a rewrite
+    #: that kept the sense in other words escapes it.
+    RESIDUE_NOTE = "recorded rather than fixed"
+
+    def test_the_instrument_is_live(self):
+        """Every needle below matches something, on
+        ``TheReferenceHoldsNoOneProgramsEnrollment.test_the_instrument_is_live``'s
+        reasoning and ``test_build_artifacts_ignored.py``'s before it.
+
+        **Two of these three are asserted only in the negative**, and that is
+        what makes this method load-bearing rather than ceremonial: the
+        sentences they were written against are **deleted by this very
+        change**, so nothing else in the suite exercises them again. A typo in
+        ``COUNTED_POSTBACK`` or a drifted ``RESIDUE_NOTE`` leaves its test green
+        forever and indistinguishable from a rule being kept.
+
+        **Synthetic throughout.** The positive cases are written here rather
+        than quoted from the strings this change removed -- a checker asserting
+        the reference states no portal totals must not become the file that
+        states them, which is the self-exemption the class above records being
+        caught twice.
+        """
+        self.assertTrue(
+            self.WORKED_READING.search("the figures were 111 patients against 222 visits"),
+            "WORKED_READING matches nothing, so every needle it supplies is empty "
+            "and this class passes on a reference that restates both figures",
+        )
+        self.assertTrue(
+            self.COUNTED_POSTBACK.search("clicking Search returns all 7 in a single postback."),
+            "COUNTED_POSTBACK matches nothing, so #244 decision 2 is unchecked "
+            "and a reinstated per-account count would read as clean",
+        )
+        self.assertIn(
+            self.RESIDUE_NOTE,
+            "two of the seven are recorded rather than fixed",
+            "RESIDUE_NOTE no longer matches the clause it was written against",
+        )
+        # The negative half: the behavior sentence #244 replaced the count with
+        # must not itself trip the pattern that forbids the count.
+        self.assertFalse(
+            self.COUNTED_POSTBACK.search(
+                "returns the whole matching set in a single postback rather than paging it."
+            ),
+            "COUNTED_POSTBACK fires on the countless form #244 decision 2 chose, "
+            "so the rule refuses its own remedy",
+        )
 
     def test_setup_still_carries_the_worked_reading(self):
         """The instrument-is-live half, and it is load-bearing rather than
@@ -1562,6 +1624,15 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
         A step that stated the pair flat would be the defect relocated, not the
         honest form -- so what makes ``setup-clinical-skills`` the right home is
         the qualifier, not the file name.
+
+        **This is a constraint on a file #244 scoped out, and it is named
+        rather than assumed harmless.** That ticket's second comment calls
+        ``setup-clinical-skills`` *"the pattern to copy, not a sixth thing to
+        fix"*. Pinning its wording is not fixing it, and the reason it is worth
+        the reach is that the reference now **points** there: a step that
+        dropped the qualifier would turn this file's abstraction into a pointer
+        at a second unqualified figure, which is the defect moved rather than
+        removed.
         """
         found = self.WORKED_READING.search(self.setup_skill)
         assert found is not None  # the test above is the guard
@@ -1646,9 +1717,8 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
         it. The one that was here happened to be one account's form count --
         the ``1. FNP: H & P`` row of the table #235 deleted.
         """
-        counted = sorted({found.group(0) for found in self.COUNTED_POSTBACK.finditer(self.reference)})
         self.assertEqual(
-            counted,
+            self.spans(self.COUNTED_POSTBACK),
             [],
             "reference/medatrax-fields.md states one account's form count as "
             "the worked example of a portal behavior any integer would carry",
@@ -1666,10 +1736,11 @@ class TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace(unittest.TestCas
         itself filed about.
         """
         self.assertFalse(
-            "recorded rather than fixed" in self.reference,
+            self.RESIDUE_NOTE in self.reference,
             "reference/medatrax-fields.md still says the residue is recorded "
             "rather than fixed, after #244 fixed it",
         )
+
 
 if __name__ == "__main__":
     unittest.main()
