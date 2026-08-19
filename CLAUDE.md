@@ -273,6 +273,44 @@ rule the skill does not state. Here it picks **which tests run** — so a record
 `STATUS: pending` skips every row below it and prints as clean, which is the silent-pass shape the
 whole directory exists for.
 
+**The rows sit in four helpers now and the branching sits in `record_findings`, and the reason the
+ticket asking for it was wrong is the reusable part.** [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242)
+argued against the split on the ground that *every other scanner here keeps one grader function*,
+naming `specificity_scan`, `differential_scan`, `block_scan` and `anchor_scan` — every one of which
+grades a handful of rows and exports no `KINDS` tuple at all. **The sibling with a comparable row
+count is `reference_scan.py`, which the ticket did not check and which had already split five ways**,
+so the house pattern being traded away was one the house had already left. That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
+a further time, inside a ticket filed by `/code-review`. **The counts are deliberately not restated
+here** — the modules say them, and a table of function lengths in prose is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+the day someone edits a function.
+
+**What could not move is the control flow**, and that is where the ticket's six-block reading breaks:
+a record with no recognized `STATUS` is graded on nothing below it, and an `unsourced` one on a
+different set entirely, so the branch stays in `record_findings`. **#215's two blocks became one
+helper rather than two**, because the second reads the vocabulary split the first derives — the
+sharing the ticket counted as separate. **The findings are sorted by `KINDS` now** instead of
+appended in call order, so which helper a row lives in is invisible and the seam can move again; that
+is `reference_scan.py`'s arrangement whole. **Within a record, which is the honest width** — `survey`
+concatenates one sorted list per record, so a ledger's findings are grouped by record rather than
+globally sorted, and should be. The first version of the test for this asserted the global property
+and passed on a one-record fixture, which is a claim wider than what it measured. Both directions of the partition are pinned
+by an AST walk rather than by what a fixture happens to fire, on `test_console_codec.py`'s instrument
+and for its reason.
+
+**What the split makes visible is which rows need the date** — two helpers take `as_of` and each
+spends it on one row, so the exit-2 banner's claim about a dateless ledger is readable off two
+signatures. A test drives one ledger both ways and asserts the difference is exactly those two.
+
+**`UNRESOLVABLE_LOCATOR` has a limit of its own, documented rather than tightened, and #242 is where
+it was found.** A DOI is a registrant prefix and a free-form suffix, so `pp. 10.1327/1400` is a page
+range wearing the shape and passes the row. It is not narrowable — a real bare DOI arrives with no
+scheme and no `doi:` prefix to key on, so refusing the coincidence would refuse the field's own
+documented form. **It only ever weakens the weaker half of a pair**: the row says *this is not a
+locator*, never *this locator is good*, nothing here opens anything, and `UNDATED_READ` and
+`REFUTATION` still ask when the page was opened and what the second agent found there. Written down
+because every other limit in this module was and this one was not, and pinned by a test so it is a
+known behavior rather than an accident.
+
 **The numbers are deliberately not compared, and that is the sharpest limit.** The restatement is
 written in the source's own terms *by design*, so a claim about a white count of 15,000 is rightly
 answered with a range in `10^9/L`, and a digit-matching test would refuse the correct answer. What
