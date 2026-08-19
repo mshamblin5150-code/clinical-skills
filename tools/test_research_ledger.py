@@ -144,11 +144,12 @@ class AHeadingWhoseAnswerNeverArrivedIsAFinding(unittest.TestCase):
     leaked reads.
 
     This tool has no expected record count, so three records where eight claims
-    went out would grade clean and the run would draft. ``SKILL.md`` step 3 closes
-    that by writing the headings down **before** spawning anything and keeping one
-    writer -- and then a lost answer is a heading with no ``STATUS``, which already
-    fails. **The fix is an ordering rather than a row**, and this pins the
-    consequence the ordering depends on.
+    went out would grade clean and the run would draft.
+    ``skills/practicum-case-study/SKILL.md`` step 3 closes that by writing the
+    headings down **before** spawning anything and keeping one writer -- and then
+    a lost answer is a heading with no ``STATUS``, which already fails. **The fix
+    is an ordering rather than a row**, and this pins the consequence the
+    ordering depends on.
     """
 
     def test_a_bare_heading_fails(self):
@@ -630,7 +631,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertEqual([f.kind for f in ledger.record_findings(records[0], as_of)], [])
 
     def _worked_example(self) -> str:
-        """The fenced block in step 3 that shows a record.
+        """The fenced block in ``practicum-case-study`` step 3 that shows a record.
 
         Walked line by line rather than matched with one regex: a non-greedy
         pattern over the whole file happily opens on the *closing* fence of the

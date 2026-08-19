@@ -24,8 +24,8 @@ claims were sent out would grade clean and the run would draft.
 shared-artifact channel, with lost writes where that ticket has leaked reads.
 **Writing the headings first is what closes it rather than a new row**: a heading
 whose answer never arrived carries no ``STATUS``, and a record with no ``STATUS``
-already fails. ``SKILL.md`` step 3 orders it that way and a test below pins the
-consequence.
+already fails. ``skills/practicum-case-study/SKILL.md`` step 3 orders it that way
+and a test below pins the consequence.
 
 **The record shape**, one per claim, in a Markdown file under ``scratch/``::
 
@@ -109,12 +109,13 @@ clean scan here is not a walked claim.
 unsourced does not go in the body* is #214's rule and it is about the draft, which
 this never sees -- so a ledger of nothing but well-formed ``unsourced`` records
 exits 0, and that 0 means the records are honest rather than that the paper is. The
-count is printed for exactly that reason, and ``SKILL.md`` step 9 walks it.
+count is printed for exactly that reason, and ``skills/practicum-case-study/SKILL.md``
+step 9 walks it.
 
 **And it does not verify the citation, which is #214's open question 2, deferred
 rather than answered here.** The format half has a written standard since #211 --
-``skills/practicum-case-study/reference/apa7.md``, walked by step 7 of the skill and
-by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s
+``skills/practicum-case-study/reference/apa7.md``, walked by ``practicum-case-study``
+step 7 and by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s
 post-draft checkers. The truth half -- does the DOI or URL resolve, and does the
 year on the page match the year in the entry -- is ``threshold_sheet.py``'s tier 2
 arriving at a reference list, needs the network, and is

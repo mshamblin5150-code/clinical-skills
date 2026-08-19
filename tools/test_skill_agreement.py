@@ -162,11 +162,15 @@ def step_citations(text: str, owner: str | None, names: list[str]) -> Iterator[C
     and each was added because a real line demanded it.
 
     **A file outside ``skills/`` with nothing beside the citation is unresolved,
-    and stays that way.** ``anchor_scan.py`` says ``step-4`` six times meaning
-    ``icd10-cpt``, and no rule here can know that. The alternative is a guess,
+    and stays that way.** ``anchor_scan.py`` said ``step-4`` six times meaning
+    ``icd10-cpt``, and no rule here could know that. The alternative is a guess,
     and ``differential_scan.py``'s first version is what a positional guess
     costs: it failed in both directions. Unresolved citations are counted and
-    reported; they are never failed.
+    reported; they are never failed -- which is what made
+    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238)'s
+    repair safe to make: naming the skill beside those six converted them with no
+    change here. What is left unresolved is ``fixtures/`` prose and the repo-root
+    documents.
     """
     beside = re.compile("(" + "|".join(re.escape(name) for name in names) + r")\S*\s*$")
     anywhere = re.compile("|".join(re.escape(name) for name in names))
@@ -241,6 +245,25 @@ def graded_files() -> list[Path]:
             continue
         kept.append(path)
     return kept
+
+
+def walk_citations() -> list[tuple[Path, Citation]]:
+    """Every ``step N`` in every graded file, paired with the file it is in.
+
+    Three tests in ``EveryCitedStepResolvesToADeclaredStep`` want this walk under
+    different filters -- the per-limb floors, the unresolved report, and #238's
+    ``tools/`` rule -- and the third is what made repeating it worth removing.
+    ``stale_citations`` deliberately does **not** use this: it takes ``declared``
+    as a parameter so the check can be pointed at a renumbering that has not
+    happened, and deriving the skill names from that map rather than from the
+    tree is the whole of how that works.
+    """
+    names = skill_names()
+    return [
+        (path, cite)
+        for path in graded_files()
+        for cite in step_citations(read(path), owning_skill(path, names), names)
+    ]
 
 
 def stale_citations(declared: dict[str, set[int]]) -> list[str]:
@@ -931,7 +954,12 @@ class TheStepResolverIsLive(unittest.TestCase):
         self.assertEqual(cites[-1].skill, "setup-clinical-skills")
 
     def test_a_bare_citation_outside_a_skill_stays_unresolved(self) -> None:
-        """``anchor_scan.py``'s ``step-4`` means ``icd10-cpt`` and nothing here can know it."""
+        """``anchor_scan.py``'s ``step-4`` meant ``icd10-cpt`` and nothing here could know it.
+
+        The line is that module's, as it stood before #238 named the skill beside
+        it. Kept verbatim: the shape is what this grades, and a repaired tree is
+        not a reason to stop testing the shape it was repaired out of.
+        """
         cite, = self.resolve("# Step 4's heading. The lookbehind is load-bearing.", None)
         self.assertIsNone(cite.skill)
 
@@ -961,13 +989,20 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
     citation**, which is ``differential_scan.py``'s *a clean scan is not a walked
     row* arriving on a cross-reference.
 
-    **A minority of citations are unresolved and are never failed.** They are the
-    ones in ``tools/`` and at the repo root with no skill named beside them --
-    ``anchor_scan.py`` alone says ``step-4`` six times meaning ``icd10-cpt``, and
-    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238) is
-    where that is priced. Guessing would have been the alternative, and this
-    class asserts a floor on each limb below so that a resolver quietly falling
-    back to *unresolved* for everything cannot read as a clean run.
+    **A minority of citations are unresolved and are never failed.** Guessing
+    would have been the alternative, and this class asserts a floor on each limb
+    below so that a resolver quietly falling back to *unresolved* for everything
+    cannot read as a clean run.
+
+    **``tools/`` is no longer among them, and that half is now a rule.**
+    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238)
+    priced the repair -- ``anchor_scan.py`` alone said ``step-4`` six times
+    meaning ``icd10-cpt`` -- and it was prose, not a parser change.
+    ``test_every_citation_in_tools_resolves`` keeps it, because a reword that
+    dropped a name would put those citations back out of reach in silence. What
+    stays unresolved is ``fixtures/`` prose and the repo-root documents, and the
+    fixture half is left deliberately: several of those sentences name a skill
+    **as it stood at run time**.
 
     **No count is stated here, and the reason is that the first draft's went
     stale before it was merged.** It read *38 unresolved* against a tree that had
@@ -1028,11 +1063,9 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         The floors were not, which is the argument for stating a bound rather
         than a measurement.
         """
-        names = skill_names()
         seen = {"beside": 0, "carried": 0, "owner": 0, "unresolved": 0}
-        for path in graded_files():
-            for cite in step_citations(read(path), owning_skill(path, names), names):
-                seen[cite.how if cite.skill else "unresolved"] += 1
+        for _path, cite in walk_citations():
+            seen[cite.how if cite.skill else "unresolved"] += 1
         for limb, floor in (("beside", 20), ("carried", 5), ("owner", 25)):
             with self.subTest(limb=limb):
                 self.assertGreaterEqual(seen[limb], floor)
@@ -1042,18 +1075,66 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
 
         A floor on ``unresolved`` would assert that the gap persists, so teaching
         ``anchor_scan.py`` to name ``icd10-cpt`` beside its six ``step-4``
-        mentions -- which is exactly the repair #233 invites -- would turn the
-        suite red for an improvement. The three limbs above are what keep a
-        resolver that quietly resolved *nothing* from reading as a clean run.
+        mentions -- which is exactly the repair #233 invited -- would have turned
+        the suite red for an improvement. **#238 then made that repair**, so this
+        is no longer a hypothetical: an early draft carrying a floor here would
+        have gone red on it. The three limbs above are what keep a resolver that
+        quietly resolved *nothing* from reading as a clean run.
         """
-        names = skill_names()
-        unresolved = [
-            cite
-            for path in graded_files()
-            for cite in step_citations(read(path), owning_skill(path, names), names)
-            if cite.skill is None
-        ]
+        unresolved = [cite for _path, cite in walk_citations() if cite.skill is None]
         self.assertEqual([cite for cite in unresolved if cite.how != "owner"], [])
+
+    def test_every_citation_in_tools_resolves(self) -> None:
+        """#238: a ``tools/`` module names the skill whose step it cites.
+
+        **The repair was prose, and nothing held it.** A bare ``step-4`` cited a
+        skill whose steps could be renumbered tomorrow with nothing to notice,
+        because unresolved is never failed. Naming the skill once per paragraph
+        converted every such citation in the directory with **no change to the
+        resolver**, which is why #238 priced it as cheap -- and it is why a
+        reword dropping a name would put them straight back, in silence. So the
+        state is pinned rather than described. **The ticket enumerated ten in
+        three modules and the directory held more**; no figure is repeated here,
+        because the count moves with the next docstring anybody writes.
+
+        **Scoped to ``tools/`` because that is where #238 stopped.** The
+        citations still unresolved are in ``fixtures/`` prose and the repo-root
+        documents. The fixture half is left deliberately: several of those
+        sentences name a skill **as it stood at run time**, and rewording one to
+        resolve risks making a historical statement read as a current one. That
+        is a judgment rather than a mechanical fix, and it is not this test's.
+
+        **What it costs, stated because it is real.** A ``tools/`` docstring
+        writing *step 2 of the rebuild* -- a step of something that is not a
+        skill at all -- fails here, and the only remedy is a reword. Every
+        ``step N`` in ``tools/`` today is a skill's step, so the rule costs
+        nothing now; it is a bet that the next one will be too, and the ticket's
+        own *not worth doing at all* fork is the argument against it.
+        """
+        walked = [path for path in graded_files() if path.parent == REPO_ROOT / "tools"]
+        cites = [
+            (path, cite)
+            for path, cite in walk_citations()
+            if path.parent == REPO_ROOT / "tools"
+        ]
+        # The instrument is live, on ``test_build_artifacts_ignored.py``'s
+        # reasoning: a directory filter that selected nothing, or a directory
+        # that stopped citing steps at all, would report a clean run and be
+        # indistinguishable from one. ``anchor_scan.py`` is named because it is
+        # the module #238 was filed over, and the floors are far under today's.
+        self.assertGreater(len(walked), 20, "the tools/ filter selected too little")
+        self.assertGreater(len(cites), 10, "no step citation in tools/ was read at all")
+        self.assertIn(REPO_ROOT / "tools" / "anchor_scan.py", walked)
+        self.assertEqual(
+            [
+                f"{path.relative_to(REPO_ROOT).as_posix()}:{cite.line} step {cite.number}"
+                for path, cite in cites
+                if cite.skill is None
+            ],
+            [],
+            "a 'step N' in tools/ names no skill, so nothing checks it survives a "
+            "renumbering. Name the skill beside the words -- once per paragraph is enough",
+        )
 
     def test_a_citation_to_a_step_that_does_not_exist_is_caught(self) -> None:
         """#214's renumbering, run backwards. This is the whole evidence for the class.

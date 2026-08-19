@@ -11,11 +11,11 @@ and that sentence is the whole of what this scans.
 **Two tests, and neither needs a reader.**
 
 - **The mark and the listing agree.** Every code carrying ``SOURCE: filled`` in the
-  proposed list appears in the step-4 block, and every code the block lists carries
-  ``SOURCE: filled`` on its entry. Either direction alone is the failure: a heading
-  does not survive a line being copied out of the list, and a mark with no block
-  entry is a disclosure the clinician's summary never shows. This is A1's, A2's and
-  A5's fail condition with the reading taken out of it.
+  proposed list appears in ``icd10-cpt`` step 4's block, and every code that block
+  lists carries ``SOURCE: filled`` on its entry. Either direction alone is the
+  failure: a heading does not survive a line being copied out of the list, and a
+  mark with no block entry is a disclosure the clinician's summary never shows.
+  This is A1's, A2's and A5's fail condition with the reading taken out of it.
 - **A pediatric ``Z68.5-`` may not claim a lookup.** That code is a CDC
   growth-chart percentile and this repo ships the codes without the charts, so the
   band is **recalled** however carefully the number was verified. A worksheet
@@ -54,13 +54,13 @@ marked code, no listed code and no pediatric band in any worksheet read.**
 Extractor limits worth knowing before quoting a number:
 
 - **A listing is a line whose code is pinned by a dash**, ``<code> - <value>``,
-  which is step 4's own form. It is deliberately not a substring search over the
-  block: ``fixtures/filled-anchor``'s *Still unresolved* names the hazard, a run
-  writing *"Z68.25 needs no SOURCE line, the inputs were given"* **inside** the
-  block and putting the string exactly where a substring search looks. A run that
-  lists its codes some other way -- a table, a prose paragraph -- reads here as
-  having listed nothing, and every mark it carries then fails. That is a floor on
-  the shapes this reads, not a floor on the exit status.
+  which is ``icd10-cpt`` step 4's own form. It is deliberately not a substring
+  search over the block: ``fixtures/filled-anchor``'s *Still unresolved* names the
+  hazard, a run writing *"Z68.25 needs no SOURCE line, the inputs were given"*
+  **inside** the block and putting the string exactly where a substring search
+  looks. A run that lists its codes some other way -- a table, a prose paragraph
+  -- reads here as having listed nothing, and every mark it carries then fails.
+  That is a floor on the shapes this reads, not a floor on the exit status.
 - **An entry opens on a line beginning ``ICD-10``, ``CPT`` or ``HCPCS``** followed
   by a code and a descriptor, and a ``SOURCE`` or ``CONFIDENCE`` line pairs with
   the most recent entry above it -- ``specificity_scan.py``'s pairing, for its
@@ -117,9 +117,9 @@ NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
 FILLED = re.compile(r"(?i)\bfilled\b")
 VERIFIED = re.compile(r"(?i)\bverified\b")
 
-# Step 4's heading. The lookbehind is the load-bearing part: ``NOT CODED, ANCHOR
-# WAS FILLED`` is the pre-#46 heading, and reading it as this block would score a
-# run that refused every filled anchor as one that marked them all.
+# ``icd10-cpt`` step 4's heading. The lookbehind is the load-bearing part: ``NOT
+# CODED, ANCHOR WAS FILLED`` is the pre-#46 heading, and reading it as this block
+# would score a run that refused every filled anchor as one that marked them all.
 BLOCK_HEADING = re.compile(r"(?i)(?<!not )\bcoded,[ \t]*anchor[ \t]+was[ \t]+filled\b")
 
 # Any other ``--- ... ---`` or Markdown heading closes the block.
@@ -198,7 +198,7 @@ class Scan:
 
 
 def _block_lines(text: str) -> tuple[list[str], bool]:
-    """The step-4 block's lines, and whether its heading was found at all."""
+    """The ``icd10-cpt`` step-4 block's lines, and whether its heading was found."""
     lines = text.splitlines()
     collected: list[str] = []
     found = False
@@ -279,7 +279,7 @@ def read_worksheet(text: str) -> Worksheet:
 def worksheet_findings(sheet: Worksheet) -> list[Finding]:
     """The two tests, applied to one worksheet."""
     found = [
-        Finding(UNLISTED_MARK, code, "carries SOURCE: filled, absent from the step-4 block")
+        Finding(UNLISTED_MARK, code, "carries SOURCE: filled, absent from the icd10-cpt step-4 block")
         for code in sorted(sheet.marked - sheet.listed)
     ]
     found += [
@@ -319,16 +319,16 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = [
         f"anchor scan over {source}",
         "",
-        f"  worksheets read                  {scan.worksheets}",
-        f"    with a step-4 filled block     {scan.with_block}",
-        f"  codes proposed for entry         {scan.proposed}",
-        f"    carrying SOURCE: filled        {scan.marked}",
-        f"  codes listed in the block        {scan.listed}",
-        f"  pediatric Z68.5- bands           {scan.pediatric_bands}",
+        f"  worksheets read                    {scan.worksheets}",
+        f"    with an icd10-cpt step-4 block   {scan.with_block}",
+        f"  codes proposed for entry           {scan.proposed}",
+        f"    carrying SOURCE: filled          {scan.marked}",
+        f"  codes listed in the block          {scan.listed}",
+        f"  pediatric Z68.5- bands             {scan.pediatric_bands}",
         "",
-        f"  A1/A2/A5 - marked, not listed    {scan.unlisted_marks}",
-        f"  A1/A2/A5 - listed, not marked    {scan.unmarked_listings}",
-        f"  A1 - pediatric claims a lookup   {scan.pediatric_claiming_lookup}",
+        f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}",
+        f"  A1/A2/A5 - listed, not marked      {scan.unmarked_listings}",
+        f"  A1 - pediatric claims a lookup     {scan.pediatric_claiming_lookup}",
     ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
