@@ -317,7 +317,7 @@ Built <date> from <n> samples. Registers covered: 1 (n=<x>), 2 (n=<y>), 3 (n=<z>
 ## Open questions for the clinician       <- the §6 defect-or-trait calls
 ```
 
-**Where a run reads it.** [SKILL.md](../SKILL.md) step 4, before drafting, and step 8, where the
+**Where a run reads it.** [SKILL.md](../SKILL.md) step 5, before drafting, and step 9, where the
 draft is read back against the discriminating pairs.
 
 **Where there is no model.** A run that finds no `scratch/voice-model.md` writes in the §11

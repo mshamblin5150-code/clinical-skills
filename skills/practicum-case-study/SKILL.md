@@ -43,7 +43,7 @@ weighting.
 used to read *the ordering of a differential matters more than the tidiness of a citation*, which a
 run could read as permission to hand back a document with known reference-list defects still in it.
 **Ruled 2026-08-18, in the clinician's words:** *ordering the differential is very important, but
-that shouldn't take the place of tidiness.* So step 6 runs on every document, and a defect it finds
+that shouldn't take the place of tidiness.* So step 7 runs on every document, and a defect it finds
 is **fixed before the document is handed over** rather than listed in `PROPOSED` for him to fix by
 hand. [reference/apa7.md](reference/apa7.md) is the written rule it runs against — without one,
 *"fix the reference list"* is a wish rather than a check.
@@ -206,7 +206,9 @@ needs to be fanned out to a research agent."* The reasoning is that a graded pap
 unsourced claim costs points, and handing the clinician a list of things to look up moves the work
 rather than doing it.
 
-So: spawn a research subagent per unsourced claim, in parallel. What it must return:
+So: spawn a research subagent per unsourced claim, in parallel. **Step 3 is the mechanism** — the
+brief each agent is sent, the ledger they all write into, and the command that grades it. What one
+agent must return:
 
 - **A reputable source.** A society guideline, a peer-reviewed paper, a government body, or a
   tertiary clinical reference. Not a content farm and not a summary of a summary.
@@ -238,10 +240,10 @@ barium-enema study that has never been replicated, because replicating it means 
 default** — a recency filter returning the least recent answer available. The run cut the sentence,
 which was correct under the rule as written and wrong.
 
-[#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215) carries the reasoning;
-[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) is where this rule and the
-fan-out that applies it get built together, because a rule split from its enforcement is how the two
-drift apart.
+[#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215) carries the reasoning, and
+[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) built this rule and the
+fan-out that applies it together, because a rule split from its enforcement is how the two drift
+apart. `tools/research_ledger.py` is where the two meet — see step 3.
 
 **A claim that survives all that and is still unsourced does not go in the body.** It goes in the
 `PROPOSED` block, and if it is a number the clinician would act on, it comes out of the document
@@ -382,13 +384,121 @@ pointing at a section.
 `--normalize`, as above. Index it by topic before drafting, so the MDM cites what is in hand rather
 than what sounds right.
 
-### 3. Write the Sanity Check
+### 3. Research what the evidence does not cover
+
+**This is the fan-out, and it runs before a word of the body is drafted.** List the clinical claims
+the document is going to rest on — every differential's discriminator, every threshold, every dose,
+every number said out loud to the patient — and strike the ones the companion evidence, the USPSTF
+table, the threshold sheets or the guideline corpus already cover. **What is left is the work of
+this step**, and *What none of that reaches gets researched, not deferred* above is the rule it
+applies.
+
+**Write the claim list down before spawning anything.** `scratch/case-study-claims.md`, its `DATE`
+header and one `## CLAIM:` heading per claim, and nothing under them yet. That ordering is what
+makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
+refuses a record with no `STATUS`.
+
+**One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
+the three returns and the recency rule above — a reputable source in one of four classes, a full
+APA 7 reference, and the claim restated in the source's own terms. Tell it the source classes by
+name, because a returned source outside them is a finding rather than an answer.
+
+**They return their record; they do not write it.** One writer to the ledger, and it is the context
+that spawned them, filling each heading in as its answer comes back. **N agents appending to one
+Markdown file lose records to each other**, and a ledger holding three of eight claims because two
+appends collided would grade clean and let the run draft —
+[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s shared-artifact channel
+with the sign flipped. Where the harness returns nothing usable, write one file per claim and
+concatenate; what is not allowed is two writers on one file.
+
+**One record per claim**, filled in under its heading:
+
+```
+DATE: 2026-08-19
+
+## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.
+STATUS: sourced
+SOURCE: peer-reviewed
+REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009). Pregnancy and
+    laboratory studies. Obstetrics and Gynecology, 114(6), 1326-1331.
+RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to 16.9 x 10^9/L in
+    normal pregnancy.
+RECENCY: nothing newer - searched 2026-08-19, no later reference-range table for pregnancy exists.
+```
+
+`STATUS` is `sourced` or `unsourced`, and an `unsourced` record says on the same line what was
+searched. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` or
+`tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
+`guideline in force`, and the last two carry the reason after a hyphen — *the run must have looked,
+and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
+it rather than against the clock. A field's value may wrap onto the next line.
+
+**The ledger is gitignored**, because `scratch/` is, and that is where a case study's working
+material belongs — not in a tracked notes directory. Where the harness ships a general research
+skill, borrow the fan-out from it and change that one thing: they write findings into the repo,
+and a case study's working material is a patient record.
+
+**What makes a record bad, in full, so this can be walked without running anything.** A record
+can be several of them at once:
+
+| The record | Why |
+| --- | --- |
+| a field missing or empty | a record missing its restatement is a citation nobody checked |
+| a `STATUS` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
+| an `unsourced` with nothing said about what was searched | anybody can write `unsourced`; nobody writes *searched PubMed, IDSA and UpToDate* without having looked |
+| an `unsourced` record carrying a `REFERENCE` | the two contradict, and nothing can tell which was meant |
+| a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
+| a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
+| a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
+| a claim carrying a number whose restatement carries none | *"the source discusses leukocytosis in pregnancy"* against a claim about 15,000 cells |
+| a reference stating no year | `n.d.` is legitimate APA and cannot be measured for recency — unless an excuse with a reason stands in for the year |
+| a reference more than five years before `DATE` with no excuse | the amended rule above |
+| an excuse with no reason after it | *the run must have looked, and must say so* |
+
+**Two things are deliberately not on that list.** *Within two years is the target* is a target, so a
+`current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
+**not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
+
+**Then grade it, and do not draft until it is clean:**
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md
+```
+
+Exit 0 is clean, 1 names how many records failed, and **2 means it did not scan** — no file, no
+records, or no `DATE` header. Re-run with `--show` to see which records, and **that output is PHI**:
+read it, do not paste it. What the command checks and what it cannot are in its module docstring;
+the short version is that it can see a missing field, an unexcused old reference and a restatement
+that is the claim pasted back, and it **cannot** see whether the source is reputable or whether it
+says what the record claims it says. **A clean scan is not a checked claim.**
+
+**Every rule the command applies is written above, so a harness with no Python walks the ledger by
+eye instead.** The command saves the reading; it is not where the rule lives. That is
+`icd10-cpt`'s arrangement with `tools/specificity_scan.py`, and [AGENTS.md](../../AGENTS.md) keeps
+the two classes of tool citation apart deliberately.
+
+**Where the harness has no subagent tool, the same briefs are worked one at a time in the main
+context, into the same ledger.** The mechanism is the ledger and the brief; the parallelism is a
+speed property, and the grader cannot tell the difference. This settles
+[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s open question 1, and
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218) takes the same answer
+rather than inventing a second one. **Where the harness cannot research at all** — no subagent, no
+search, nothing to read — the record is written `STATUS: unsourced` with that said plainly, and the
+deferral behavior is what is left: the claim goes to `PROPOSED` and, if it is a number, out of the
+document. Deferral is the floor when research is impossible, never the choice when it is merely
+work.
+
+**A claim found unsourced in the middle of drafting goes back through this step**, not into the body
+with `verify this` against it. That was the first run's behavior and it is what this step exists to
+replace.
+
+### 4. Write the Sanity Check
 
 Four confirmations, one per line, each ending `- confirmed`, then `Sanity Check completed -
 proceed`. The four are the module or case number, which video, the hyperlink, and a one-line
 description of the case.
 
-### 4. Draft the body
+### 5. Draft the body
 
 In skeleton order, in his voice — [reference/style.md](reference/style.md) is the authority and the
 part that matters most is that the voice is **first person and decisive**. `I would`, `I will`,
@@ -407,7 +517,7 @@ or out, not a textbook summary of the disease — and **a citation**. Ruled-out 
 verdict, and the strongest form in the corpus promotes the verdict to the entry's own header line
 with the reasoning underneath.
 
-### 5. Write the prescriptions
+### 6. Write the prescriptions
 
 The fixed six-row table in [reference/style.md](reference/style.md), one per drug, including the
 home medications that are being continued unchanged. The patient cell is a placeholder and the date
@@ -431,7 +541,7 @@ point in the document.
 **Omitting them has never cost a point, which is not the same as being safe** — it is the mode
 finding again, one section down. See *Three modes, and none of them subtracts a section* above.
 
-### 6. Fix the references
+### 7. Fix the references
 
 **APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
@@ -462,7 +572,7 @@ sorted.
 topic appears in one clinician's corpus under three different years. The companion document states
 each topic's own revision date — use it.
 
-### 7. Emit the document
+### 8. Emit the document
 
 Write the Markdown to `output/case-studies/`, then render it:
 
@@ -480,7 +590,7 @@ a complete heading, so `Reference Ranges` is safe and `Reference List` is not a 
 **Strip the `PROPOSED` block from the `.docx`**, or render from a copy that does not carry it: it
 is for the clinician, not for the grader.
 
-### 8. Check
+### 9. Check
 
 Against this list, by eye — none of it is mechanical:
 
@@ -491,7 +601,7 @@ Against this list, by eye — none of it is mechanical:
 - Does every drug in the Plan have a prescription table, and every table a `Sig` ending in an
   indication **and a prose block under it carrying class, contraindications, monitoring, adverse
   effects and guideline support**?
-- **Has the step 6 reference walk actually run**, against
+- **Has the step 7 reference walk actually run**, against
   [reference/apa7.md](reference/apa7.md) rather than from memory? A known reference defect does
   not leave this step in the `PROPOSED` block — it gets fixed.
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
@@ -500,6 +610,13 @@ Against this list, by eye — none of it is mechanical:
   [reference/voice.md](reference/voice.md) §5. Where the model is absent or a register is
   unmodeled, that is what `PROPOSED` declares rather than something this step can settle.
 - Does any number in the body rest on recall rather than on a source in hand?
+- **Does every claim researched in step 3 read the way its ledger record says the source reads?**
+  `tools/research_ledger.py` exiting 0 says the records are well formed and says nothing about
+  whether the source supports the claim — that comparison is this step's, one record at a time, and
+  it is the limb [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) calls the
+  one that matters most.
+- **Is every `unsourced` ledger record accounted for** — in `PROPOSED` if it is a claim, and out of
+  the document entirely if it is a number the clinician would act on?
 - Is the `PROPOSED` block complete, and is it out of the `.docx`?
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
