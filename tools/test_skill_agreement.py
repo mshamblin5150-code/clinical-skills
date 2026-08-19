@@ -1110,13 +1110,24 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         ``step N`` in ``tools/`` today is a skill's step, so the rule costs
         nothing now; it is a bet that the next one will be too, and the ticket's
         own *not worth doing at all* fork is the argument against it.
+
+        **The whole subtree, and ``tools/testdata/`` carved out of it.** The
+        first version tested ``path.parent`` and so reached the top level only:
+        a ``tools/<subdir>/module.py`` would have escaped in silence, with both
+        floors below still green, and it costs nothing today because no graded
+        file sits below ``tools/`` bar one -- which is exactly why nobody would
+        have noticed. ``tools/testdata/`` is then excluded on ``graded_files``'s
+        own reasoning about ``fixtures/``: a sample of a catalog is a record of
+        what one looks like, and editing it to name a skill would falsify the
+        sample rather than fix a citation. It holds no ``step N`` today; the
+        carve-out is for the sample that arrives tomorrow.
         """
-        walked = [path for path in graded_files() if path.parent == REPO_ROOT / "tools"]
-        cites = [
-            (path, cite)
-            for path, cite in walk_citations()
-            if path.parent == REPO_ROOT / "tools"
-        ]
+        def in_scope(path: Path) -> bool:
+            tools = REPO_ROOT / "tools"
+            return tools in path.parents and (tools / "testdata") not in path.parents
+
+        walked = [path for path in graded_files() if in_scope(path)]
+        cites = [(path, cite) for path, cite in walk_citations() if in_scope(path)]
         # The instrument is live, on ``test_build_artifacts_ignored.py``'s
         # reasoning: a directory filter that selected nothing, or a directory
         # that stopped citing steps at all, would report a clean run and be
