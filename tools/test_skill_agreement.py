@@ -162,11 +162,15 @@ def step_citations(text: str, owner: str | None, names: list[str]) -> Iterator[C
     and each was added because a real line demanded it.
 
     **A file outside ``skills/`` with nothing beside the citation is unresolved,
-    and stays that way.** ``anchor_scan.py`` says ``step-4`` six times meaning
-    ``icd10-cpt``, and no rule here can know that. The alternative is a guess,
+    and stays that way.** ``anchor_scan.py`` said ``step-4`` six times meaning
+    ``icd10-cpt``, and no rule here could know that. The alternative is a guess,
     and ``differential_scan.py``'s first version is what a positional guess
     costs: it failed in both directions. Unresolved citations are counted and
-    reported; they are never failed.
+    reported; they are never failed -- which is what made
+    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238)'s
+    repair safe to make: naming the skill beside those six converted them with no
+    change here. What is left unresolved is ``fixtures/`` prose and the repo-root
+    documents.
     """
     beside = re.compile("(" + "|".join(re.escape(name) for name in names) + r")\S*\s*$")
     anywhere = re.compile("|".join(re.escape(name) for name in names))
@@ -241,6 +245,25 @@ def graded_files() -> list[Path]:
             continue
         kept.append(path)
     return kept
+
+
+def walk_citations() -> list[tuple[Path, Citation]]:
+    """Every ``step N`` in every graded file, paired with the file it is in.
+
+    Three tests in ``EveryCitedStepResolvesToADeclaredStep`` want this walk under
+    different filters -- the per-limb floors, the unresolved report, and #238's
+    ``tools/`` rule -- and the third is what made repeating it worth removing.
+    ``stale_citations`` deliberately does **not** use this: it takes ``declared``
+    as a parameter so the check can be pointed at a renumbering that has not
+    happened, and deriving the skill names from that map rather than from the
+    tree is the whole of how that works.
+    """
+    names = skill_names()
+    return [
+        (path, cite)
+        for path in graded_files()
+        for cite in step_citations(read(path), owning_skill(path, names), names)
+    ]
 
 
 def stale_citations(declared: dict[str, set[int]]) -> list[str]:
@@ -931,7 +954,12 @@ class TheStepResolverIsLive(unittest.TestCase):
         self.assertEqual(cites[-1].skill, "setup-clinical-skills")
 
     def test_a_bare_citation_outside_a_skill_stays_unresolved(self) -> None:
-        """``anchor_scan.py``'s ``step-4`` means ``icd10-cpt`` and nothing here can know it."""
+        """``anchor_scan.py``'s ``step-4`` meant ``icd10-cpt`` and nothing here could know it.
+
+        The line is that module's, as it stood before #238 named the skill beside
+        it. Kept verbatim: the shape is what this grades, and a repaired tree is
+        not a reason to stop testing the shape it was repaired out of.
+        """
         cite, = self.resolve("# Step 4's heading. The lookbehind is load-bearing.", None)
         self.assertIsNone(cite.skill)
 
@@ -961,13 +989,20 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
     citation**, which is ``differential_scan.py``'s *a clean scan is not a walked
     row* arriving on a cross-reference.
 
-    **A minority of citations are unresolved and are never failed.** They are the
-    ones in ``tools/`` and at the repo root with no skill named beside them --
-    ``anchor_scan.py`` alone says ``step-4`` six times meaning ``icd10-cpt``, and
-    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238) is
-    where that is priced. Guessing would have been the alternative, and this
-    class asserts a floor on each limb below so that a resolver quietly falling
-    back to *unresolved* for everything cannot read as a clean run.
+    **A minority of citations are unresolved and are never failed.** Guessing
+    would have been the alternative, and this class asserts a floor on each limb
+    below so that a resolver quietly falling back to *unresolved* for everything
+    cannot read as a clean run.
+
+    **``tools/`` is no longer among them, and that half is now a rule.**
+    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238)
+    priced the repair -- ``anchor_scan.py`` alone said ``step-4`` six times
+    meaning ``icd10-cpt`` -- and it was prose, not a parser change.
+    ``test_every_citation_in_tools_resolves`` keeps it, because a reword that
+    dropped a name would put those citations back out of reach in silence. What
+    stays unresolved is ``fixtures/`` prose and the repo-root documents, and the
+    fixture half is left deliberately: several of those sentences name a skill
+    **as it stood at run time**.
 
     **No count is stated here, and the reason is that the first draft's went
     stale before it was merged.** It read *38 unresolved* against a tree that had
@@ -1028,11 +1063,9 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         The floors were not, which is the argument for stating a bound rather
         than a measurement.
         """
-        names = skill_names()
         seen = {"beside": 0, "carried": 0, "owner": 0, "unresolved": 0}
-        for path in graded_files():
-            for cite in step_citations(read(path), owning_skill(path, names), names):
-                seen[cite.how if cite.skill else "unresolved"] += 1
+        for _path, cite in walk_citations():
+            seen[cite.how if cite.skill else "unresolved"] += 1
         for limb, floor in (("beside", 20), ("carried", 5), ("owner", 25)):
             with self.subTest(limb=limb):
                 self.assertGreaterEqual(seen[limb], floor)
@@ -1042,18 +1075,77 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
 
         A floor on ``unresolved`` would assert that the gap persists, so teaching
         ``anchor_scan.py`` to name ``icd10-cpt`` beside its six ``step-4``
-        mentions -- which is exactly the repair #233 invites -- would turn the
-        suite red for an improvement. The three limbs above are what keep a
-        resolver that quietly resolved *nothing* from reading as a clean run.
+        mentions -- which is exactly the repair #233 invited -- would have turned
+        the suite red for an improvement. **#238 then made that repair**, so this
+        is no longer a hypothetical: an early draft carrying a floor here would
+        have gone red on it. The three limbs above are what keep a resolver that
+        quietly resolved *nothing* from reading as a clean run.
         """
-        names = skill_names()
-        unresolved = [
-            cite
-            for path in graded_files()
-            for cite in step_citations(read(path), owning_skill(path, names), names)
-            if cite.skill is None
-        ]
+        unresolved = [cite for _path, cite in walk_citations() if cite.skill is None]
         self.assertEqual([cite for cite in unresolved if cite.how != "owner"], [])
+
+    def test_every_citation_in_tools_resolves(self) -> None:
+        """#238: a ``tools/`` module names the skill whose step it cites.
+
+        **The repair was prose, and nothing held it.** A bare ``step-4`` cited a
+        skill whose steps could be renumbered tomorrow with nothing to notice,
+        because unresolved is never failed. Naming the skill once per paragraph
+        converted every such citation in the directory with **no change to the
+        resolver**, which is why #238 priced it as cheap -- and it is why a
+        reword dropping a name would put them straight back, in silence. So the
+        state is pinned rather than described. **The ticket enumerated ten in
+        three modules and the directory held more**; no figure is repeated here,
+        because the count moves with the next docstring anybody writes.
+
+        **Scoped to ``tools/`` because that is where #238 stopped.** The
+        citations still unresolved are in ``fixtures/`` prose and the repo-root
+        documents. The fixture half is left deliberately: several of those
+        sentences name a skill **as it stood at run time**, and rewording one to
+        resolve risks making a historical statement read as a current one. That
+        is a judgment rather than a mechanical fix, and it is not this test's.
+
+        **What it costs, stated because it is real.** A ``tools/`` docstring
+        writing *step 2 of the rebuild* -- a step of something that is not a
+        skill at all -- fails here, and the only remedy is a reword. Every
+        ``step N`` in ``tools/`` today is a skill's step, so the rule costs
+        nothing now; it is a bet that the next one will be too, and the ticket's
+        own *not worth doing at all* fork is the argument against it.
+
+        **The whole subtree, and ``tools/testdata/`` carved out of it.** The
+        first version tested ``path.parent`` and so reached the top level only:
+        a ``tools/<subdir>/module.py`` would have escaped in silence, with both
+        floors below still green, and it costs nothing today because no graded
+        file sits below ``tools/`` bar one -- which is exactly why nobody would
+        have noticed. ``tools/testdata/`` is then excluded on ``graded_files``'s
+        own reasoning about ``fixtures/``: a sample of a catalog is a record of
+        what one looks like, and editing it to name a skill would falsify the
+        sample rather than fix a citation. It holds no ``step N`` today; the
+        carve-out is for the sample that arrives tomorrow.
+        """
+        def in_scope(path: Path) -> bool:
+            tools = REPO_ROOT / "tools"
+            return tools in path.parents and (tools / "testdata") not in path.parents
+
+        walked = [path for path in graded_files() if in_scope(path)]
+        cites = [(path, cite) for path, cite in walk_citations() if in_scope(path)]
+        # The instrument is live, on ``test_build_artifacts_ignored.py``'s
+        # reasoning: a directory filter that selected nothing, or a directory
+        # that stopped citing steps at all, would report a clean run and be
+        # indistinguishable from one. ``anchor_scan.py`` is named because it is
+        # the module #238 was filed over, and the floors are far under today's.
+        self.assertGreater(len(walked), 20, "the tools/ filter selected too little")
+        self.assertGreater(len(cites), 10, "no step citation in tools/ was read at all")
+        self.assertIn(REPO_ROOT / "tools" / "anchor_scan.py", walked)
+        self.assertEqual(
+            [
+                f"{path.relative_to(REPO_ROOT).as_posix()}:{cite.line} step {cite.number}"
+                for path, cite in cites
+                if cite.skill is None
+            ],
+            [],
+            "a 'step N' in tools/ names no skill, so nothing checks it survives a "
+            "renumbering. Name the skill beside the words -- once per paragraph is enough",
+        )
 
     def test_a_citation_to_a_step_that_does_not_exist_is_caught(self) -> None:
         """#214's renumbering, run backwards. This is the whole evidence for the class.
@@ -1097,10 +1189,21 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
     the name vocabulary
     [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)
     declined to build and #212 re-ruled. **That ruling stands and nothing here
-    reverses it.** What this class reaches is three *literal* shapes that can
+    reverses it.** What this class reaches is four *literal* shapes that can
     never be universal Medatrax behavior: a course code, a learning-management
-    vendor's host, and a term date. It catches #226's own material arriving
-    back, and nothing wider.
+    vendor's host, a term date, and an accumulated hours total. The first three
+    catch #226's own material arriving back; the fourth is
+    [#235](https://github.com/mshamblin5150-code/clinical-skills/issues/235)'s,
+    and it reaches one figure of the seven that ticket removed because it is
+    the only one with a shape. Nothing wider.
+
+    **A per-account *figure* still has no shape in general, and #235 measured
+    that rather than assuming it.** Of three candidates it weighed, a
+    sampled-day breakdown (``eight of eleven``) sits on 28 lines of legitimate
+    fixture prose and was refused; a totals table row was keyable but escapable
+    by writing the same figure as a sentence, and was refused too. Only the
+    hours shape survived. **One shape having been found does not make the class
+    a per-account detector**, and #222's ceiling is where it was.
 
     **A green run here is not a read file**, and what it passes is the larger
     half. The block #226 emptied out of ``reference/medatrax-fields.md`` also
@@ -1121,7 +1224,7 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
     itself* arriving on a test, and it was caught by the standards axis of the
     review rather than by anything here.
 
-    **Two of the three patterns are narrower than their names**, and the
+    **Three of the four patterns are narrower than their names**, and every
     narrowing is measured rather than guessed:
 
     - A four-digit number reading as a year, or zero-padded, is **not** a course
@@ -1139,12 +1242,21 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
       only because the reference is the sole haystack. Within 40 characters and
       no sentence break, it fires on **zero** lines tree-wide and still catches
       the shape the block was written in. Measured 2026-08-19.
+    - An hours total needs **three** hour digits, not two. The per-pattern
+      figures and the false alarm this one does *not* exclude are on
+      ``ACCUMULATED_HOURS`` itself, where the regex a reader is checking sits.
 
     ``test_the_instrument_is_live`` carries a positive case for every pattern
     and a negative for every false alarm above, on
-    ``test_build_artifacts_ignored.py``'s reasoning -- three patterns that
+    ``test_build_artifacts_ignored.py``'s reasoning -- four patterns that
     matched nothing would report a clean file and be indistinguishable from
-    three patterns aimed at the wrong thing.
+    four patterns aimed at the wrong thing.
+
+    **Every false-alarm case is quoted verbatim from the tracked tree**, and
+    that is not decoration: a case stitched together from a real clause and an
+    invented one reads as a measured false alarm while being a sentence nobody
+    wrote. Three such cases shipped in #235's first draft and were caught by
+    the standards axis of the review.
     """
 
     #: Letters then four digits, excluding a year and a zero-padded number.
@@ -1159,6 +1271,36 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
         re.IGNORECASE,
     )
 
+    #: An accumulated hours total, as the portal renders one under *Hours to
+    #: Date* or *Total time log*. Three or more hour digits, and the
+    #: narrowing is measured rather than guessed. **Over every tracked file
+    #: at the base commit**, two digits sits on **84** lines and almost all
+    #: are real -- a visit time is ``0:35``, a shift is ``12:00``, a recorded
+    #: portal time is ``19:20``. Three digits sits on **3**: the two
+    #: [#235](https://github.com/mshamblin5150-code/clinical-skills/issues/235)
+    #: removed, and one that is **not** an hours total at all.
+    #:
+    #: **The haystack is named because a first draft of this line measured a
+    #: different one.** It read *67 tree-wide*, counted over ``*.md`` only,
+    #: and the sentence claiming *tree-wide* read exactly like one that had
+    #: been. That is ``guidelines_extract``'s retired N=3 boundary arriving
+    #: on a regex -- a figure measured against the wrong input is not
+    #: distinguishable from a right one by looking at it. Caught by the
+    #: standards axis of the review. Re-derived 2026-08-19.
+    #:
+    #: **The third hit is a false alarm this pattern does not exclude**, and
+    #: it is named rather than engineered around: ``Ann Intern Med.
+    #: 2015;162:35-45`` in ``tools/testdata/uspstf/``, a volume-and-page
+    #: citation. It costs nothing because the haystack is one reference file
+    #: that carries no journal citation -- checked, not assumed -- and a
+    #: narrowing to exclude it would be tuning against a file the check
+    #: never reads.
+    #:
+    #: **A floor, and a low one**: a bare count of visits is an integer and
+    #: has no shape at all, which is why this limb is not a per-account
+    #: detector and #222's ceiling is not moved by it.
+    ACCUMULATED_HOURS = re.compile(r"\b\d{3,}:[0-5]\d\b")
+
     #: A term word, then within 40 characters and no sentence break, a date.
     TERM_DATE = re.compile(
         r"\b(?:start|starts|starting|due|deadline|semester|end date|term date)\b"
@@ -1169,7 +1311,7 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
     def assert_reference_is_free_of(self, pattern, holds, remedy):
         """Assert ``reference/medatrax-fields.md`` matches ``pattern`` nowhere.
 
-        One helper for all three limbs rather than three near-identical bodies,
+        One helper for all four limbs rather than four near-identical bodies,
         and it reports the **matched spans** rather than the whole file: the
         haystack is a reference document, and a failure that prints it is a
         failure nobody reads.
@@ -1190,18 +1332,35 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
         self.assertTrue(self.LMS_HOST.search("https://example.moodle.org/course/view.php"))
         self.assertTrue(self.TERM_DATE.search("Both courses start **2019-01-07**, due **2019-05-03**."))
         self.assertTrue(self.TERM_DATE.search("Documentation deadline 2019-05-10."))
+        # Synthetic hours, deliberately not the two #235 removed -- see the
+        # docstring. A checker asserting the reference states no hours total
+        # must not become the one file that states one.
+        self.assertTrue(self.ACCUMULATED_HOURS.search("| Total time log | 100:00 |"))
+        self.assertTrue(self.ACCUMULATED_HOURS.search("Hours to Date reads 987:04."))
 
-        # And every false alarm the review found, each of which is real text
-        # somewhere in this tree.
+        # And every false alarm the review found. **Each case below is quoted
+        # verbatim from the tracked tree** -- checked, not remembered. A first
+        # version of the two hours cases stitched a real clause to an invented
+        # one and to a hyphen where the source writes an en dash, which reads
+        # as a measured false alarm and is a sentence nobody ever wrote.
         for citation in ("ADR 0001", "AHA/ACC 2025", "GOLD 2026", "ADA 2026", "IDSA 2023"):
             self.assertIsNone(
                 self.COURSE_CODE.search(citation),
                 f"{citation} is a citation or an ADR link, not a course code",
             )
         self.assertIsNone(self.LMS_HOST.search("the program's hours breakdown on Canvas."))
+        for duration in (
+            "Visit Time 0:35 = 08:35 - 08:00, both estimated.",
+            "0:30 to 0:45 across one sampled day, a flat 0:15 across another",
+            "The portal has case 10 at 19:20–19:50",
+        ):
+            self.assertIsNone(
+                self.ACCUMULATED_HOURS.search(duration),
+                f"a clock time or a visit duration is not an hours total: {duration}",
+            )
         for measurement in (
-            "## Current state (read 2026-08-09)",
-            "read field by field on 2026-08-09 and carry six Medicaid",
+            "The offsets are one-based over the LF form, measured 2026-08-11",
+            "The reference was read 2026-08-11",
             "**#69 was ruled on 2026-08-16 and moved no digit, so one of the two remains.**",
         ):
             self.assertIsNone(
@@ -1224,6 +1383,30 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
             "links one institution's learning-management system",
             "the authoritative-source rule is universal and belongs here; the "
             "URL is per-program and belongs in the profile",
+        )
+
+    def test_the_reference_states_no_hours_to_date_total(self):
+        """#235's decision 4, ruled 2026-08-19, and it reaches one figure.
+
+        #226 moved the **ruling** about the hours-to-date figure to the profile
+        and left the figure itself thirty lines above where its explanation had
+        been -- an unexplained account-specific integer where an explained one
+        had stood, which is worse than either end state. This is the only one
+        of that section's seven totals with a shape, and it is the one the
+        ticket calls the sharp one.
+
+        **The figure is not quoted here, and that is the rule rather than
+        fastidiousness.** A first version of this docstring named it, which put
+        the removed string back into the repo inside the check built to keep it
+        out -- the same self-exemption the class docstring above records being
+        caught once already, arriving one method lower.
+        """
+        self.assert_reference_is_free_of(
+            self.ACCUMULATED_HOURS,
+            "states an hours-to-date total, which is what one account had "
+            "accrued on one afternoon rather than Medatrax behavior",
+            "the figure and the ruling about what it does and does not carry "
+            "both belong in scratch/medatrax-profile.md",
         )
 
     def test_the_reference_states_no_term_date(self):

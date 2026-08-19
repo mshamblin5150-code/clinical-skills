@@ -570,10 +570,10 @@ class SurveyFilesCase(unittest.TestCase):
 class SurveyFilesCountsFilesNotEncounters(SurveyFilesCase):
     """The claim clinical-note step 1 rests on, made re-derivable. Issue #16.
 
-    Step 1 quotes no share deliberately, and says instead that whole day files
-    state no age at all. Nothing printed that until this existed, which left the
-    replacement claim exactly as unverifiable as the 353-encounter one it
-    replaced.
+    ``clinical-note`` step 1 quotes no share deliberately, and says instead that
+    whole day files state no age at all. Nothing printed that until this
+    existed, which left the replacement claim exactly as unverifiable as the
+    353-encounter one it replaced.
     """
 
     def test_a_file_with_no_age_anywhere_counts(self):

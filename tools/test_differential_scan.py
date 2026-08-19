@@ -610,8 +610,8 @@ class ProseAboutTheRuleIsNotAnEntry(unittest.TestCase):
         self.assertEqual(note.unwelded_marks, 0)
 
     def test_the_worksheet_block_heading_is_not_a_bare_mark(self):
-        # ``--- NOT CODED, NOTHING ESTABLISHED IT ---`` is step 4's block
-        # heading. Without the carve-out any worksheet exits 2 on its own
+        # ``--- NOT CODED, NOTHING ESTABLISHED IT ---`` is ``icd10-cpt`` step 4's
+        # block heading. Without the carve-out any worksheet exits 2 on its own
         # scaffolding while every refusal under it is welded and readable.
         note = ds.read_note(WORKSHEET_FORM)
         self.assertEqual(note.unwelded_marks, 0)

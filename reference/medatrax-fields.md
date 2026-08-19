@@ -80,25 +80,21 @@ So the reference half of a fixture set is read straight off these pages. `result
 
 **View the form. Do not fetch its HTML.** Requesting the page and parsing the markup looks equivalent and is not: what a submitted note actually contains is what the *rendered* fields hold, and treating the served HTML as the answer is how a field that populates after load gets silently recorded as empty. Open the page, read the field values off it. The caution that makes this tempting — autosave — is the paragraph above, and it does not apply. And: **paging a report grid past its last page throws an Application Error** that requires backing out to the home page. Never guess a page index — walk the pager.
 
-## Current state (read 2026-08-09)
+## What the portal does with an empty account
 
-| | |
-| --- | --- |
-| Total new patients | 582 |
-| Total visits | 592 |
-| `2. FNP: Comprehensive Soap Note` | 587 |
-| `1. FNP: H & P` | 19 |
-| Total patient time | 221:56 |
-| Total time log | 515:55 |
-| Student comments | 0 |
+**No structured visit data need exist at all**, and how the portal reports that is the part worth recording. Diagnosis Statistics returns "No data for this selection" across all courses rather than an empty table, and every Add Visit Data category comes back empty — no ICD-10, no medications, no CPT, no Clinical Experience Check. A reader who takes that message for a filter problem will go looking for the filter. Assignments and the Time Log `Confirmed` column behave the same way: absent and unchecked read identically to not-yet-loaded.
 
-**No structured visit data exists at all.** Diagnosis Statistics returns "No data for this selection" across all courses, and every Add Visit Data category is empty — no ICD-10, no medications, no CPT, no Clinical Experience Check. Whether a course requires it is worth confirming — a course objective naming "documentation, billing and coding" is what would make it mandatory, and the objective list is per-program and in the profile.
+Whether a course *requires* structured visit data is worth confirming — a course objective naming "documentation, billing and coding" is what would make it mandatory, and the objective list is per-program and in the profile.
 
-Assignments: none. Time Log `Confirmed` column: unchecked on every row.
+**Seven totals used to sit here and were deleted rather than moved** — new patients, visits, the per-form counts, patient time, hours to date, student comments — on [#235](https://github.com/mshamblin5150-code/clinical-skills/issues/235)'s ruling of 2026-08-19. Not one was Medatrax behavior; they were what one account held on one afternoon, in a file that opens *single source of truth for the Medatrax NP portal*. **Deleted and not moved, which was the decision rather than the default**: each is re-derivable in a single page load from the account it belongs to, and `scratch/medatrax-profile.md` already carries a later and more carefully reasoned form count than the one here — so relocating a staler figure beside it would have planted two totals that disagree with nothing to reconcile them.
+
+**The hours-to-date figure was the sharp one.** [#226](https://github.com/mshamblin5150-code/clinical-skills/issues/226) moved the *ruling* about what that figure does and does not carry to the profile and left the figure thirty lines above where its explanation had been — so the file held an unexplained account-specific integer where it had held an explained one, which is worse than either end state. Naming it again to explain its removal would put it straight back, so this paragraph points and does not quote. `tools/test_skill_agreement.py` refuses an hours-to-date total anywhere in this file, and that limb reaches one shape rather than the class: a bare count of visits is an integer and has none.
+
+**Two of the seven still appear elsewhere in this file, and that is recorded rather than fixed** — the patient-and-visit totals in *Duplicate patients* and the H&P count in *Navigating the portal*, both of which use the figure to make an argument about how the portal behaves rather than to report a standing. Whether the argument survives abstracting the number is the `Primary Payment Method` question below, and it was not the one #235 ruled on — it is [#244](https://github.com/mshamblin5150-code/clinical-skills/issues/244). **This section was swept and the file was not**, which is the same partial instrument #235 was filed about, arriving inside #235.
 
 ## Picklists — exact strings
 
-**Preceptor and Location / Site are per-account, and their values are deliberately not recorded here.** They are names — eight people and four places on this program — and [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) already rules the split this file lives under: *this file holds the universal Medatrax behavior and the profile holds everything about them.* Both lists sit in `scratch/medatrax-profile.md` under *Picklists*, which is gitignored. Read them off the portal for a new account rather than inheriting someone else's.
+**Preceptor and Location / Site are per-account, and their values are deliberately not recorded here.** They are names — a per-account list of people and places — and [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) already rules the split this file lives under: *this file holds the universal Medatrax behavior and the profile holds everything about them.* Both lists sit in `scratch/medatrax-profile.md` under *Picklists*, which is gitignored. Read them off the portal for a new account rather than inheriting someone else's.
 
 The **format** is the universal part and is what belongs here: `Preceptor` is `Last,First` with no space, and the Time Log renders that same value with a space.
 
@@ -186,7 +182,7 @@ Some fields are administrative and never appear in bedside shorthand. Without a 
 
 **Primary Payment Method — a site, age and status pattern, corrected on sight.**
 
-Payer data is not visible at the bedside. The value is *declared*, not derived — but it is not a constant either. The flat `Medicaid` default that used to sit here was wrong close to two times in five: all eleven encounters on a sampled day were read field by field on 2026-08-09 and carry **six `Medicaid`, three `Commercial insurance/HMO/PPO`, two `Medicare`** — including `Medicare` on a 23-year-old.
+Payer data is not visible at the bedside. The value is *declared*, not derived — but it is not a constant either. The flat `Medicaid` default that used to sit here was **wrong close to two times in five**, measured field by field across every encounter of one account's sampled day rather than estimated. The ratio is what belongs here, because it is what decides the handling: a default wrong two times in five goes under `FILLED·asserted` for confirmation, and one wrong once in twenty could be filled silently. **The reading it came from is per-account and is recorded twice** — `scratch/medatrax-profile.md` under *Declared field defaults*, and `fixtures/day-a/assertions.md`, which is committed and so survives a clone that has no profile. Neither is re-derivable without the account: it was read off the portal, not computed.
 
 **The rule keys on the site, so the rule is per-account and lives with the picklist.** It is in `scratch/medatrax-profile.md` under *Declared field defaults*, read off the clinician's own entries, and it fits 16 of the 18 H&P encounters and most of the SOAP comparison set. **What generalizes is that the site is a key at all, not the mapping** — [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) step 5 says to measure this against the account's own record rather than carry another one's across, and a payer table is exactly the field that ruling was written about.
 
@@ -200,7 +196,7 @@ Still `FILLED·asserted`, still a starting value that genuinely needs a glance, 
 
 Unlike payer, this one is observable — the clinician saw the patient. It simply never gets written down.
 
-**The default is wrong about once in four.** On a sampled day, eight of eleven encounters were `Caucasian/White` and three `African American/Black`. Treat it as a starting value that genuinely needs a glance, not one that is usually safe to wave through — which is why it is filled under `FILLED·asserted` rather than written straight into the field.
+**The default is wrong about once in four**, measured the same way as the payer default above — every encounter of one account's sampled day, read field by field rather than estimated. **Unlike the payer reading, the breakdown behind this one is recorded in the profile only** and nowhere committed, so a clone without a profile has the ratio and not its working. Treat it as a starting value that genuinely needs a glance, not one that is usually safe to wave through — which is why it is filled under `FILLED·asserted` rather than written straight into the field.
 
 **Blood pressure, Respiratory Rate, Height and BMI — filled, not left blank.**
 

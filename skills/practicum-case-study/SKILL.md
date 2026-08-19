@@ -399,9 +399,16 @@ makes a lost answer visible: a heading whose record never arrived has no `STATUS
 refuses a record with no `STATUS`.
 
 **One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
-the three returns and the recency rule above — a reputable source in one of four classes, a full
-APA 7 reference, and the claim restated in the source's own terms. Tell it the source classes by
-name, because a returned source outside them is a finding rather than an answer.
+**five returns** and the recency rule above — a reputable source in one of four classes, a full
+APA 7 reference, the claim restated in the source's own terms, **the locator it actually opened with
+the date it opened it, and the year the page itself carries with where the page says so**. Tell it
+the source classes by name, because a returned source outside them is a finding rather than an
+answer.
+
+**The last two are not extra bookkeeping**, and a run that treats them as optional writes a ledger
+the grader refuses: they are what turns *"I found a source"* into something the clinician can audit
+in one click. See the two paragraphs under the record shape below, and note that a **sixth** return
+comes from a different agent afterwards.
 
 **They return their record; they do not write it.** One writer to the ledger, and it is the context
 that spawned them, filling each heading in as its answer comes back. **N agents appending to one
@@ -424,6 +431,10 @@ REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009). Preg
 RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to 16.9 x 10^9/L in
     normal pregnancy.
 RECENCY: nothing newer - searched 2026-08-19, no later reference-range table for pregnancy exists.
+RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
+PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
+REFUTATION: stands - the volume, issue and pages match the publisher's landing page, and the
+    third-trimester row is on page 1327.
 ```
 
 `STATUS` is `sourced` or `unsourced`, and an `unsourced` record says on the same line what was
@@ -431,7 +442,54 @@ searched. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` 
 `tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
 `guideline in force`, and the last two carry the reason after a hyphen — *the run must have looked,
 and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
-it rather than against the clock. A field's value may wrap onto the next line.
+it rather than against the clock. `RESOLVED` is the URL or DOI the agent actually opened and the
+day it opened it — the word `read` or `retrieved`, then an ISO date. `PAGE-YEAR` is the year the
+page itself states and where on the page it says so. `REFUTATION` is `stands`, `refuted` or `paywalled` with the
+reason after a hyphen. A field's value may wrap onto the next line.
+
+**Two of those returns are what stops a citation nobody can check, and the third is a second agent.**
+A reference in correct APA form is not evidence that the document exists — an invented one looks
+like scholarship, which is exactly why *a wrong citation is worse than no citation: it survives
+review.*
+
+**`RESOLVED` and `PAGE-YEAR` come back from the agent that did the research.** It was on the page,
+so it writes down what it opened, when, and the year the page itself carries along with where the
+page says so. **No tool here touches the network** — the fetching already happened during the
+research, and what these two fields do is turn it into something the clinician can audit in one
+click instead of a claim nobody can check. `PAGE-YEAR` has to agree with the year in `REFERENCE`;
+where a source genuinely carries no date, `REFERENCE` reads `n.d.` and `PAGE-YEAR` says the page
+states none, and the two agree that way.
+
+**Then a refutation pass, by a second agent — not the one that wrote the record.** One per sourced
+claim, all at once, into the same ledger by the same one writer. The brief is adversarial: *here is
+a reference and a restatement,* ***try to prove it wrong****.* Not *check whether this is right*,
+because an agent asked that says yes. It looks for the document at the locator, checks the year, the
+volume, the numbering and the pages, and reads whether the source says what the restatement says it
+says.
+
+It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
+record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to
+`PROPOSED`. It means a false citation is sitting in the ledger, so the claim goes back through this
+step and comes out either with a sound record or as `unsourced`. It is never drafted from.
+
+**`paywalled` is the third word, and it exists because a wall is not the same thing as an absence.**
+A locator that 404s, or that names a document a search cannot find, is `refuted` — the citation may
+be invented, which is the whole failure this pass is for. A live page whose title and authors match
+the entry, with the body behind a subscription, is `paywalled` and **passes**: the URL resolving to
+the right document is itself evidence the document exists, and that is most of what a fabricated
+citation cannot do. **Say what did match** — the title, the authors, the date the page shows.
+
+**It is the weakest disposition that passes, and the run says so on its own face.** The report
+counts `paywalled` records on their own line, because a set of citations all behind a wall has been
+checked far less than a clean exit suggests. The alternative — failing them — would refuse every
+UpToDate record, and UpToDate dominates this corpus's references — see
+[style.md](reference/style.md) §10, which measures it and hedges it. That dominance is the reason no
+resolver was built here in the first place.
+
+**The independence is an instruction and not a check.** Nothing in a record shows which agent wrote
+it, so the grader cannot tell a real second reading from the first agent answering itself — that is
+*what a written instruction cannot do is fail* arriving at its own successor. The one shape the
+grader does reach is a refutation that is the restatement pasted back.
 
 **The ledger is gitignored**, because `scratch/` is, and that is where a case study's working
 material belongs — not in a tracked notes directory. Where the harness ships a general research
@@ -446,7 +504,7 @@ can be several of them at once:
 | a field missing or empty | a record missing its restatement is a citation nobody checked |
 | a `STATUS` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
 | an `unsourced` with nothing said about what was searched | anybody can write `unsourced`; nobody writes *searched PubMed, IDSA and UpToDate* without having looked |
-| an `unsourced` record carrying a `REFERENCE` | the two contradict, and nothing can tell which was meant |
+| an `unsourced` record carrying a `REFERENCE`, `RESOLVED`, `PAGE-YEAR` or `REFUTATION` | the two contradict, and nothing can tell which was meant |
 | a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
 | a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
 | a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
@@ -454,6 +512,16 @@ can be several of them at once:
 | a reference stating no year | `n.d.` is legitimate APA and cannot be measured for recency — unless an excuse with a reason stands in for the year |
 | a reference more than five years before `DATE` with no excuse | the amended rule above |
 | an excuse with no reason after it | *the run must have looked, and must say so* |
+| a `RESOLVED` that is not a URL or a DOI | the field exists to put a specific in front of a reader, and *on the society website* is not one |
+| a `RESOLVED` that does not say when it was read | a topic page changes under its citation, so when matters as much as where |
+| a locator read after the paper was written | a record describing a reading that had not happened yet |
+| a `PAGE-YEAR` stating no year, against an entry that states one | the entry claims a year the page did not give |
+| a `PAGE-YEAR` that is a year and nothing else | a year alone is an assertion; where it was found is a place a reader can go and look |
+| a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
+| a `REFUTATION` outside the three | it gates the row below, so a fourth word is a record the refutation never read |
+| a `REFUTATION` with no reason after it | *the run must have looked, and must say so*, arriving at the second pass |
+| a `REFUTATION` reading `refuted` | a false citation is sitting in the ledger: rewrite the record or write `unsourced` |
+| a `REFUTATION` that is the restatement pasted back | the first agent re-asserting rather than a second one checking |
 
 **Two things are deliberately not on that list.** *Within two years is the target* is a target, so a
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
@@ -468,9 +536,12 @@ python tools/research_ledger.py scratch/case-study-claims.md
 Exit 0 is clean, 1 names how many records failed, and **2 means it did not scan** — no file, no
 records, or no `DATE` header. Re-run with `--show` to see which records, and **that output is PHI**:
 read it, do not paste it. What the command checks and what it cannot are in its module docstring;
-the short version is that it can see a missing field, an unexcused old reference and a restatement
-that is the claim pasted back, and it **cannot** see whether the source is reputable or whether it
-says what the record claims it says. **A clean scan is not a checked claim.**
+the short version is that it can see a missing field, an unexcused old reference, a restatement
+that is the claim pasted back, a locator that is not one and a page year that disagrees with the
+entry — and it **cannot** see whether the source is reputable, whether it says what the record
+claims it says, or whether the refutation came from a second agent at all.
+**A clean scan is not a checked claim** — the refutation pass is what checks a claim, and this
+command only grades that the pass answered.
 
 **Every rule the command applies is written above, so a harness with no Python walks the ledger by
 eye instead.** The command saves the reading; it is not where the rule lives. That is
