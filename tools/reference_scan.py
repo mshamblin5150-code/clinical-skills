@@ -103,21 +103,38 @@ list would otherwise be found by neither.
 - **Every entry is cited in the body**, and the ruling is delete rather than cite.
 - **Every citation is listed.**
 
-**What it cannot reach, and it is a great deal.** Whether the source exists,
-whether it says what the sentence citing it says, and whether the year on the page
-is the year in the entry. That last one is
-[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231) and is
-**answered pre-draft rather than here** -- and it turned out to need **no network
-at all**, which is the opposite of what this paragraph said when it was written.
-``research_ledger.py`` grades a ``PAGE-YEAR`` the researching agent read off the
-page against the year in the entry, and a ``REFUTATION`` a second agent returns
-from trying to knock the citation down. So neither module sprouts a URL fetcher,
-and the reason is that nothing here needed one: UpToDate is subscription-gated, so
-a fetch would reach a login wall and **pass on a 200**. Whether an UpToDate year is
-the topic's revision year rather than the year it was read needs the companion
-evidence document, which this never sees. **A clean scan is not a checked reference
-list**, ``skills/practicum-case-study/SKILL.md`` step 7 says so beside the
-command, and a test asserts that sentence is still there.
+**What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
+used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to
+either failed nothing --
+[#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), which is
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
+``docx_write.NOT_APPLIED`` finding arriving one artifact over. It is one object now,
+and ``tools/test_reference_scan.py`` asserts the sheet names the same items in both
+directions. The reasons live on the rows; what belongs here is the shape of the
+answer rather than a second copy of it.
+
+**#241 ruled the first of those rows a reading permanently rather than leaving it
+open**, and the option it declined is the part worth keeping. The proposal was to
+join each entry to its ``research_ledger.py`` record and read the ``SOURCE`` class
+off it -- the only candidate needing no new authored data, since a record's
+``REFERENCE`` field *is* the APA entry and the author-year key is already computed
+on both sides. **Which classes would settle the question is
+``SOURCE_CLASS_SETTLES_RETRIEVAL_DATE``'s to say and is deliberately not counted
+here**; too few of them do, and a row keyed on a class that spans both answers
+would fail a **correct** entry. It would also cover only entries that came from a
+research claim -- never one taken from the threshold sheets, the USPSTF table or
+the guideline corpus, which are struck before the fan-out and are squarely in the
+class that takes no retrieval date.
+
+**What makes that a ruling rather than a shrug is that the reading is graded.**
+``skills/practicum-case-study/SKILL.md`` step 9 names the row and
+``checks_ledger.EXPECTED_CHECKS`` expects it by name, so a run returning no verdict
+on it fails. That is
+[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a
+written instruction cannot do is fail*, and it is the objection option 3 had to
+answer before it could be closed rather than deferred. **A clean scan is still not
+a checked reference list**, ``skills/practicum-case-study/SKILL.md`` step 7 says so
+beside the command, and a test asserts that sentence is still there.
 
 Three parser limits worth knowing before quoting a count. **Author matching is on
 the first word of the entry against the first word of the citation** -- so two
@@ -426,6 +443,92 @@ ROW_SECTION = {
     UNCITED_ENTRY: "apa7 5",
     UNLISTED_CITATION: "apa7 5",
 }
+
+
+# What a reader does because this command cannot, and
+# [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) is why it is
+# an object rather than a paragraph. ``apa7.md`` section 7 carried this list for a
+# reader of the skill and this module's docstring carried it for a reader of the code,
+# and a **prose** edit to either failed nothing -- so the reader who was misled was the
+# one who checked the file nearer to hand. That is #220's finding about
+# ``docx_write.NOT_APPLIED`` arriving one artifact over, and the repair is copied whole
+# rather than reinvented: one object, and a test asserts the sheet names the same items
+# in both directions.
+#
+# **The first row is what #241 was filed over, and it is ruled a reading permanently
+# rather than left open.** The ticket's own option 2 was a cross-check against
+# ``research_ledger.py``'s ``SOURCE`` class -- the only candidate needing no new
+# authored data, since a record's ``REFERENCE`` field *is* the APA entry. Which classes
+# would settle the question is ``SOURCE_CLASS_SETTLES_RETRIEVAL_DATE`` below rather than
+# a count in this comment, and the answer is that too few of them do: a row keyed on a
+# class that spans both answers would fail a **correct** entry, and **a guessed answer
+# here is worse than a blank one** -- ``guidelines_catalog.py --draft``'s refusal to
+# derive a population, arriving at a second artifact. It would also reach only entries
+# that came from a research claim, never one taken from the threshold sheets, the
+# USPSTF table or the guideline corpus, which are struck before the fan-out and are
+# squarely in the class that takes no retrieval date.
+#
+# **What makes this more than a note is that the reading is graded.**
+# ``skills/practicum-case-study/SKILL.md`` step 9 names the row and
+# ``checks_ledger.EXPECTED_CHECKS`` expects it, so a run that returns no verdict on that
+# row fails. #214's *what a written instruction cannot do is fail*, which is the
+# objection option 3 had to answer before it could be ruled rather than deferred.
+
+
+# Whether knowing a ``research_ledger.py`` ``SOURCE`` class settles whether a retrieval
+# date belongs. **This is #241's declined option, kept as an object rather than as a
+# sentence**, because the sentence was a count -- *of the four classes only two map* --
+# restated in three files with nothing re-deriving it, which is
+# [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving
+# inside the commit whose whole subject is a list that was copied into two. Caught by
+# ``/code-review`` and by the tracker sweep independently, and the sharper form of the
+# finding is theirs: that commit deliberately withheld ``len(NOT_REACHED)`` on #143's
+# terms and then stated the number beside it.
+#
+# **The class strings are literals here and are not imported**, which is the ruling
+# showing up in the dependency graph: declining option 2 means this module does not
+# reach for the ledger. ``tools/test_reference_scan.py`` asserts these keys are exactly
+# ``research_ledger.SOURCE_CLASSES``, so a fifth class fails the suite rather than
+# quietly leaving a ruling that was made over four.
+SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
+    # A journal article is archived, always. Section 4 names it outright.
+    "peer-reviewed": True,
+    # Section 4 names the guideline PDF outright too.
+    "society guideline": True,
+    # A USPSTF statement takes none; a public-health page designed to change takes one.
+    "government": False,
+    # UpToDate takes one and a textbook takes none, and both are this class.
+    "tertiary reference": False,
+}
+
+NOT_REACHED = (
+    (
+        "unwarranted retrieval date",
+        "Section 4 says a society guideline PDF, a journal article, a USPSTF statement "
+        "and a textbook take no retrieval date. This refuses one only on an entry "
+        "carrying a **DOI** -- the work stating that an archived version of itself "
+        "exists, which is section 4's own test failing, and the only signal in an entry "
+        "string that says so unambiguously. Nothing in a URL distinguishes a stable PDF "
+        "from a page designed to change.",
+    ),
+    (
+        "UpToDate last update year",
+        "Section 2's date element is the topic's own last update year rather than the "
+        "year it was read, and the same topic appears in one clinician's corpus under "
+        "three different years. Which is which is in the companion evidence document, "
+        "which this command never sees.",
+    ),
+    (
+        "the source exists and says so",
+        "Whether an entry is a real source, and whether it says what the sentence citing "
+        "it says. That is "
+        "[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231) and it "
+        "is answered before the draft exists rather than here: ``research_ledger.py`` "
+        "grades a year an agent read off the page and a refutation a second agent "
+        "returned. Neither module sprouts a URL fetcher, and not because the work was "
+        "deferred -- a fetch reaches UpToDate's login wall and passes on a 200.",
+    ),
+)
 
 
 def normalize(text: str) -> str:
