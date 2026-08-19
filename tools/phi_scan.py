@@ -653,14 +653,31 @@ def declares_synthetic(text: str) -> bool:
     return SYNTHETIC_PRAGMA_LINE.search(_pragma_window(text)) is not None
 
 
+def scan_lines(
+    text: str, path: str, index: CorpusIndex, shapes: bool
+) -> list[Finding]:
+    """Every line of ``text``, with the shape layer decided by the caller.
+
+    Split out of `scan_text` for ``tracker_scan``, and the split is the whole
+    point rather than tidiness: a **file** may declare ``phi-scan: synthetic``
+    and switch the shape layer off, and an issue body or a commit message may
+    not. Those are text nobody can be trusted to have written under this repo's
+    rules -- a ticket about the ``dob`` shape quotes one, which is exactly how
+    the pragma would arrive there -- so that caller passes ``shapes=True`` and
+    the decision is never read out of the text being scanned.
+
+    The corpus layer is not a parameter, here or anywhere. No caller may switch
+    it off.
+    """
+    findings: list[Finding] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        findings.extend(_scan_line(line, path, number, index, shapes))
+    return findings
+
+
 def scan_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
     """Corpus layer always runs. Shape layer runs unless the file opts out."""
-    findings: list[Finding] = []
-    shapes_apply = not declares_synthetic(text)
-
-    for number, line in enumerate(text.splitlines(), start=1):
-        findings.extend(_scan_line(line, path, number, index, shapes_apply))
-    return findings
+    return scan_lines(text, path, index, shapes=not declares_synthetic(text))
 
 
 def staged_paths() -> list[str]:

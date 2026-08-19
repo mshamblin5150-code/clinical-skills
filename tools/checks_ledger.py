@@ -34,9 +34,14 @@ command, and a test asserts that sentence is still there.
 A field's value runs to the next field line or the next heading, so a finding may
 wrap the way a finding wraps.
 
-**What it checks.** Every row belongs to #240 and every one is already written
-into ``skills/practicum-case-study/SKILL.md`` step 9 -- this grades what that step
-states rather than adding a rule to it.
+**What it checks.** Every row is written into
+``skills/practicum-case-study/SKILL.md`` step 9, so this grades what that step
+states rather than holding a rule of its own. All but one belong to #240 and
+``ROW_TICKET`` says which is which -- **how many there are is ``KINDS``'s to say
+and is deliberately not counted here**, on
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
+The exception is #255's, and it is the one place that sentence had to be earned
+rather than inherited -- see the row below.
 
 - **Every check the table names is present.** A reader that never returned leaves
   a hole, and it is visible only if somebody counts headings against verdicts.
@@ -64,6 +69,12 @@ states rather than adding a rule to it.
   in ``practicum-case-study`` step 9 does not put it, so a reader looking for the
   finding has nowhere fixed to look. An earlier draft here accepted both and was
   caught reading looser than the ticket it implements.
+- **A ``clean`` on one of two checks carries a ``FINDINGS`` too.**
+  [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
+  is the row above's test applied to the other verdict:
+  ``research_ledger.py``'s ``BARE_STATUS`` argument, one skill over. Anybody can
+  write ``clean``; nobody writes *"walked all five MDM entries, each names a
+  discriminator from this case"* without having walked them.
 
 **The expected set is the one place this is stronger than its sibling.**
 ``research_ledger.py`` has no expected count and says so, so three records where
@@ -81,23 +92,55 @@ of its own has failed nothing, and a *misspelled* one is already caught from the
 other direction by the row above. Grading it would refuse the first and report the
 second twice.
 
-**One shape the ticket names is deliberately not a row.** ``VERDICT: clean`` with
-an empty ``FINDINGS`` is
+**The sixth row is the one this module did not inherit, and the distinction is
+worth keeping.** ``VERDICT: clean`` with an empty ``FINDINGS`` is
 [#182](https://github.com/mshamblin5150-code/clinical-skills/issues/182)'s *a
-block satisfies the gate by existing*, and it is **not reachable from a string
-test**: a check that ran and found nothing writes exactly what a check that
-reported nothing writes. #240 says so itself in naming it -- *indistinguishable*.
-Requiring a clean check to say what it examined would reach it, and that is a
-change to what the step asks a reader to write rather than a grader of what it
-already asks, so it is not made here.
+block satisfies the gate by existing* -- **not reachable from a string test**,
+because a check that ran and found nothing writes exactly what a check that
+reported nothing writes. #240 named it *indistinguishable* and declined to grade
+it, correctly: the only thing that reaches it is requiring the ``clean`` to say
+what it examined, and that is a **change to what the step asks a reader to write**
+rather than a grader of what it already asks. #240's brief was a grader, and the
+line between the two is what this whole directory is careful about. So it went to
+the clinician as #255 and came back ruled, and the step now asks for it -- which
+is what makes grading it the same kind of row as the five above rather than a rule
+this module invented.
+
+**Some rows and not every row**, which is #255's third option rather than its
+headline, and both halves of that are load-bearing. ``SUBSTANTIATED_CLEAN`` names
+the checks where a wrong ``clean`` is most expensive; everywhere else the shape is
+still exactly what #240 declared, and the by-eye reading in
+``skills/practicum-case-study/SKILL.md`` step 9 is still the only thing that
+reaches it. ``the reference list`` is the clearest of the ones left out -- it is
+graded by ``reference_scan.py``, so its ``clean`` is a command's exit status and
+there was never a reader to have walked anything. ``filled_vitals_census.py``'s
+arrangement, and **the report names the graded rows on every run** rather than
+only when the row fires, because *say which is which* is the clause a report drops
+in silence.
+
+**What it buys is a shape rather than a reading**, and that was priced rather than
+glossed. A lazy reader satisfies it with one stock sentence --
+``specificity_scan.py``'s R2 limit, inherited here as it is by every substance
+test in this directory. What changes is that two records per run stop being
+unfalsifiable and become checkable by eye, which is what the walk in
+``skills/practicum-case-study/SKILL.md`` step 9 is for and previously had
+nothing to work with.
+
+**No count of rows or of graded checks appears in this docstring, and both used to.**
+``KINDS`` and ``SUBSTANTIATED_CLEAN`` are the ones that know, a floor is all any
+test pins, and a seventh row would have left six sentences here wrong at once --
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving
+inside the change that cites it, which this file records happening three times
+already.
 
 **What it cannot reach, and it is most of the file.** Every verdict is a reading.
 Whether the differential's ``1.`` really is what would kill first, whether an MDM
 entry's discriminator is from this case, whether the reader looked at the draft at
 all -- none of it is in the record, and a well-formed ``clean`` from a reader that
-skimmed is indistinguishable from one that read. **A clean scan is not a checked
-draft**, ``skills/practicum-case-study/SKILL.md`` says so beside the command, and
-a test asserts that sentence is still there.
+skimmed is indistinguishable from one that read. **#255 narrows that on two rows
+and does not close it**: a stock clause is still a clause. **A clean scan is not
+a checked draft**, ``skills/practicum-case-study/SKILL.md`` says so beside the
+command, and a test asserts that sentence is still there.
 
 **Nor does it reach the repair.** *A finding is fixed, not handed over* is #211's
 rule inherited by that step, and it is about the document, which this never sees.
@@ -163,6 +206,25 @@ EXPECTED_CHECKS = (
     "the faculty's own to-do list",
 )
 
+# The two checks where a ``clean`` has to say what it examined --
+# [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
+# is that ticket's **third option** rather than its headline. The argument is
+# ``research_ledger.py``'s ``BARE_STATUS``, one skill over: anybody can write
+# ``clean``; nobody writes *"walked all nine entries against apa7.md section 3;
+# all nine hang, all nine alphabetize"* without having walked them.
+#
+# **Some rows rather than every row, and the asymmetry is the ruling.** These are
+# the checks where a wrong ``clean`` is most expensive, and the clinician declined
+# to require it of the rest -- which keeps it off ``the reference list``, the one
+# row graded by a command rather than by a reader, where a ``clean`` is a tool's
+# exit status and there is nothing for a reader to have walked.
+# ``filled_vitals_census.py``'s arrangement exactly: grade some rows, count the
+# rest, and have the report say which is which.
+SUBSTANTIATED_CLEAN = (
+    "differential ordering",
+    "MDM completeness",
+)
+
 CLEAN = "clean"
 DEFECT = "defect"
 VERDICTS = (CLEAN, DEFECT)
@@ -188,6 +250,7 @@ DUPLICATE_CHECK = "duplicate-check"
 MISSING_VERDICT = "missing-verdict"
 UNKNOWN_VERDICT = "unknown-verdict"
 DEFECT_WITHOUT_FINDINGS = "defect-without-findings"
+CLEAN_WITHOUT_FINDINGS = "clean-without-findings"
 
 # Every row, in report order. One tuple, so the report, the counter and the ticket
 # map cannot drift into listing different sets.
@@ -197,6 +260,7 @@ KINDS = (
     MISSING_VERDICT,
     UNKNOWN_VERDICT,
     DEFECT_WITHOUT_FINDINGS,
+    CLEAN_WITHOUT_FINDINGS,
 )
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
@@ -212,6 +276,7 @@ ROW_TICKET = {
     MISSING_VERDICT: "#240",
     UNKNOWN_VERDICT: "#240",
     DEFECT_WITHOUT_FINDINGS: "#240",
+    CLEAN_WITHOUT_FINDINGS: "#255",
 }
 
 # Wide enough for the longest kind, so the count column stays a column and lines
@@ -242,6 +307,29 @@ def normalize(text: str) -> str:
 # Built from ``normalize`` rather than typed, so the lookup and the comparison it
 # stands in for cannot come to disagree about what an off-table heading looks like.
 _EXPECTED_KEYS = {normalize(name): name for name in EXPECTED_CHECKS}
+
+def graded_keys(names: tuple[str, ...]) -> frozenset[str]:
+    """Normalized lookup keys for checks a row grades, refusing any that is not a check.
+
+    **A typo raises here rather than becoming a silent no-op row.** A check graded
+    for a string no heading in the file can ever match reports nothing forever and
+    reads exactly like a rule that is running -- which is the failure this whole
+    directory exists to refuse, arriving in the grader's own vocabulary.
+    ``ROW_TICKET``'s reasoning, at the one other place in this module where a name
+    is typed twice.
+
+    **A function rather than a bare module-level check** so the raise can be
+    exercised. A guard whose only test re-asserts the property it protects is a
+    guard nothing would notice the loss of.
+    """
+    keys = frozenset(normalize(name) for name in names)
+    unknown = keys - set(_EXPECTED_KEYS)
+    if unknown:
+        raise ValueError(f"not a check the table names: {sorted(unknown)}")
+    return keys
+
+
+_SUBSTANTIATED_KEYS = graded_keys(SUBSTANTIATED_CLEAN)
 
 
 def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
@@ -310,6 +398,15 @@ class Scan:
 
     records: int
     clean: int
+    # The ``clean`` records split by **whether their check has to say what it
+    # walked**, and never by whether they did: a bare clean on such a row is counted
+    # in ``clean_required`` and failed by the row below. That is what lets the
+    # report name which rows carry the requirement rather than leaving a reader to
+    # infer it from a row that counted nothing -- ``filled_vitals_census``'s
+    # grade-some-count-the-rest arrangement, and the clause of it a report drops in
+    # silence.
+    clean_required: int
+    clean_not_required: int
     defect: int
     unrecognized_verdict: int
     expected: int
@@ -354,6 +451,17 @@ def read_records(text: str) -> list[Record]:
     return records
 
 
+def _must_say_what_it_walked(record: Record) -> bool:
+    """Is this a ``clean`` on a check whose ``clean`` has to carry a ``FINDINGS``?
+
+    **Whether the row applies, never whether the record satisfied it**, and the
+    name says *must* for that reason. The report's two counts are rows and not
+    records that complied; a label reading ``saying what it walked`` reported a
+    bare ``clean`` as having done the one thing it had not.
+    """
+    return record.verdict == CLEAN and normalize(record.check) in _SUBSTANTIATED_KEYS
+
+
 def record_findings(record: Record) -> list[Finding]:
     """Every row this record fails. A record can fail more than one."""
     found: list[Finding] = []
@@ -376,6 +484,11 @@ def record_findings(record: Record) -> list[Finding]:
         # reader looking for the finding has nowhere fixed to look. #240 asks for
         # ``FINDINGS`` with substance and an earlier draft here read it looser.
         found.append(Finding(DEFECT_WITHOUT_FINDINGS, check, record.value("VERDICT")))
+    if _must_say_what_it_walked(record) and not SUBSTANCE.search(record.value("FINDINGS")):
+        # #255, on the checks ``SUBSTANTIATED_CLEAN`` names. The row above's test,
+        # applied to the other verdict and where a wrong one is most expensive. The
+        # two cannot both fire: ``verdict`` is one word.
+        found.append(Finding(CLEAN_WITHOUT_FINDINGS, check, record.value("VERDICT")))
     return found
 
 
@@ -420,6 +533,10 @@ def survey(records: list[Record]) -> Scan:
     return Scan(
         records=len(records),
         clean=sum(1 for r in records if r.verdict == CLEAN),
+        clean_required=sum(1 for r in records if _must_say_what_it_walked(r)),
+        clean_not_required=sum(
+            1 for r in records if r.verdict == CLEAN and not _must_say_what_it_walked(r)
+        ),
         defect=sum(1 for r in records if r.verdict == DEFECT),
         unrecognized_verdict=sum(1 for r in records if not r.verdict),
         expected=len(EXPECTED_CHECKS),
@@ -447,6 +564,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  check records read               {scan.records}",
         f"    clean                          {scan.clean}",
+        # **"must say", not "says".** These two count the *rows*, not the
+        # records that complied -- a bare clean on a graded row is counted
+        # here and failed below, and a label reading ``saying what it walked``
+        # would have reported it as having done so. Caught by rendering the
+        # report over a file of bare cleans rather than by reading the code.
+        f"      must say what it walked      {scan.clean_required}",
+        f"      not graded for it            {scan.clean_not_required}",
         f"    defect                         {scan.defect}",
         f"    neither verdict                {scan.unrecognized_verdict}",
         "",
@@ -462,6 +586,15 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines.append("")
         lines.append("  no heading for (named from the skill's own table, not from the file):")
         lines += [f"    {name}" for name in scan.missing]
+    # Printed on every run rather than only when the row fires, because *say which
+    # is which* is the half of the grade-some-count-the-rest arrangement a report
+    # can drop in silence -- and a reader who cannot see which rows carry the
+    # requirement reads four ungraded cleans as four checked ones. These strings
+    # are ``SUBSTANTIATED_CLEAN`` members, so they are this module's own text on
+    # exactly the terms the missing-check list is.
+    lines.append("")
+    lines.append("  a clean must say what it walked on (named from this module's own tuple):")
+    lines += [f"    {name}" for name in SUBSTANTIATED_CLEAN]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
         for finding in scan.findings:
@@ -492,8 +625,15 @@ def main(argv: list[str]) -> int:
     scan = survey(records)
     print(format_report(scan, source=path.name, show=show))
     if scan.failing_checks:
+        # **The tickets are derived from the rows that fired, never named here.**
+        # This read ``the #240 record contract`` until #255 added a row belonging to
+        # another ticket, at which point a file failing only the new row was told it
+        # had breached one that had nothing to say about it. A citation typed into a
+        # message is a figure with a different shape, and it goes stale the same way.
+        tickets = sorted({ROW_TICKET[kind] for kind, count in scan.counts if count})
         print(
-            f"{scan.failing_checks} check(s) fail the #240 record contract."
+            f"{scan.failing_checks} check(s) fail the record contract"
+            f" ({', '.join(tickets)})."
             " Re-run with --show to see which, and do not paste that output.",
             file=sys.stderr,
         )
