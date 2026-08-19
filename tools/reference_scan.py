@@ -598,6 +598,22 @@ class Entry:
         return first_word(self.text)
 
     @property
+    def authors(self) -> str:
+        """Everything before the year element, which is the author string section
+        3's ``a``/``b`` rule is scoped to.
+
+        **``key`` is the *first* surname and stays that way** -- it is what an
+        in-text citation is matched on, where APA names one author and ``et al.``
+        -- and these are two different questions. Grouping the letters on ``key``
+        answered the citation-matching one: ``Hsu, K.`` and
+        ``Hsu, K., & Khosropour, C.`` in one year were read as an author who had
+        failed to letter two works, when APA requires neither to carry a letter
+        and ``(Hsu, 2026)`` and ``(Hsu & Khosropour, 2026)`` already differ.
+        """
+        match = ENTRY_YEAR.search(self.text)
+        return normalize(self.text[: match.start()] if match else self.text)
+
+    @property
     def is_uptodate(self) -> bool:
         """The database name as a word, or its host in a URL. One property rather
         than the same disjunction written twice, once in a row and once in a count,
@@ -888,9 +904,15 @@ def _order_findings(entries: tuple[Entry, ...]) -> list[Finding]:
 def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
     """The two ``a``/``b`` rows, section 3.
 
-    Grouped on the author key and the bare year, so the undisambiguated and the
-    disambiguated halves of one author-year fall in the same group and the two rows
-    below never both fire on it.
+    Grouped on the **full author string** and the bare year, so the undisambiguated
+    and the disambiguated halves of one author-year fall in the same group and the
+    two rows below never both fire on it.
+
+    **The author string and not ``Entry.key``, which is the first surname alone.**
+    Section 3 scopes the rule to *the same authors*, so two works sharing only a
+    first author need no letters, and grouping on ``key`` failed a correct list --
+    see ``Entry.authors``. The detail still prints the first surname, which is the
+    shape the row has always printed and is what section 5's rows print too.
     """
     found: list[Finding] = []
     groups: dict[tuple[str, str], list[Entry]] = {}
@@ -898,9 +920,9 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
         if not entry.year:
             continue
         bare = year_key(entry.year).rstrip("abcdefghijklmnopqrstuvwxyz")
-        groups.setdefault((entry.key, bare), []).append(entry)
+        groups.setdefault((entry.authors, bare), []).append(entry)
 
-    for (key, bare), members in groups.items():
+    for (_authors, bare), members in groups.items():
         if len(members) < 2:
             continue
         lettered = [e for e in members if year_key(e.year) != bare]
@@ -909,7 +931,7 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
                 Finding(
                     MISSING_AB,
                     f"{len(members)} entries, lines {members[0].line} onward",
-                    f"{key} {bare}",
+                    f"{members[0].key} {bare}",
                     members[0].line,
                 )
             )

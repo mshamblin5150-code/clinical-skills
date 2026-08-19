@@ -221,6 +221,37 @@ class SameAuthorSameYearTakesALetter(unittest.TestCase):
         text = draft(plain_a, plain_b, body="# Case\n\nBoth (Hooton, 2025).\n")
         self.assertIn(scan.MISSING_AB, kinds(text))
 
+    def test_a_shared_first_author_with_different_coauthors_takes_no_letter(self):
+        """[apa7.md](../skills/practicum-case-study/reference/apa7.md) section 3
+        scopes the rule to *the same authors*, and APA 8.19 with it. ``Hsu, K.``
+        and ``Hsu, K., & Khosropour, C.`` are two author strings, and
+        ``(Hsu, 2026)`` and ``(Hsu & Khosropour, 2026)`` already tell them apart
+        in text, so there is nothing for a letter to disambiguate.
+
+        **Lettering them would be the error rather than the fix**, which is what
+        makes this worth a row of its own: the scanner grouped on the first
+        surname alone, so it was stricter than the sheet it implements, and a run
+        that trusted it would write ``2026a``/``2026b`` onto two entries APA
+        requires to carry neither. A checker that refuses a correct entry and
+        teaches the next run to write a wrong one is the shape this directory
+        exists to refuse.
+
+        Found by pointing the command at a real draft on
+        [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215),
+        not by a fixture -- ``block_scan.py``'s and ``threshold_sheet.py``'s
+        lesson again.
+        """
+        solo = (
+            "Hsu, K. (2026). Clinical manifestations. *UpToDate*. Retrieved "
+            "August 19, 2026, from https://www.uptodate.com/contents/ccc"
+        )
+        joint = (
+            "Hsu, K., & Khosropour, C. (2026). Treatment. *UpToDate*. Retrieved "
+            "August 19, 2026, from https://www.uptodate.com/contents/ddd"
+        )
+        body = "# Case\n\nOne (Hsu, 2026) and two (Hsu & Khosropour, 2026).\n"
+        self.assertNotIn(scan.MISSING_AB, kinds(draft(solo, joint, body=body)))
+
     def test_letters_in_title_order_pass(self):
         a = self.A.replace("*UpToDate*", "Acute cystitis. *UpToDate*")
         b = self.B.replace("*UpToDate*", "Bacteriuria. *UpToDate*")
