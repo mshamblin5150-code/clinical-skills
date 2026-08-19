@@ -935,6 +935,7 @@ class TheRulingDoesNotWiden(unittest.TestCase):
     # than a scanned record.
     STAYS_PHI = (
         "research_ledger.py",
+        "checks_ledger.py",
         "block_scan.py",
         "specificity_scan.py",
         "differential_scan.py",
@@ -955,19 +956,45 @@ class TheRulingDoesNotWiden(unittest.TestCase):
                 docstring = ast.get_docstring(ast.parse(source)) or ""
                 self.assertIn("``--show`` output is PHI", " ".join(docstring.split()))
 
-    def test_the_ledgers_own_line_in_the_skill_is_not_swept_up(self):
-        """**#218's build spec names this line and says leave it exactly as it
-        is.** The ledger in ``practicum-case-study`` step 3 holds a claim
-        transcribed from faculty material about a patient, which has no equivalent
-        guarantee. Asserting it in ``research_ledger.py`` would have guarded a
-        different file: a sweep over the skill is what would take it, and the skill
-        is where it lives.
+    #: Every command in ``practicum-case-study`` whose ``--show`` output is PHI, in
+    #: the order the skill names them. **This was pinned at one and the ruling was
+    #: never about the count** -- #240 gave ``practicum-case-study`` step 9's
+    #: fan-out a grader whose records
+    #: are the same readers' prose one file later, and the first version of this
+    #: test read that second correct line as the widening it exists to refuse.
+    PHI_COMMANDS_IN_THE_SKILL = ("research_ledger.py", "checks_ledger.py")
+
+    def test_every_phi_line_in_the_skill_belongs_to_a_tool_that_stays_phi(self):
+        """**#218's build spec names the ledger's line and says leave it exactly as
+        it is.** A ledger record in ``practicum-case-study`` step 3 holds a claim
+        transcribed from faculty material about a patient, and a checks record in
+        step 9 holds a reader's own words about the draft; neither has this
+        scanner's guarantee. Asserting it in ``research_ledger.py`` would have
+        guarded a different file: a sweep over the skill is what would take it, and
+        the skill is where it lives.
+
+        **Whitespace is normalized because the line is hard-wrapped**, which is
+        ``test_run_record_claim``'s finding -- a phrase broken across two lines is
+        invisible to a check written against the single-line form.
         """
-        skill = SKILL.read_text(encoding="utf-8")
-        self.assertEqual(skill.count("**that output is PHI**"), 1)
-        ledger, _, rest = skill.partition("**that output is PHI**")
-        self.assertIn("research_ledger.py", ledger.rsplit("###", 1)[-1])
-        self.assertTrue(rest.lstrip(":\r\n ").startswith("read it, do not paste it."))
+        skill = " ".join(SKILL.read_text(encoding="utf-8").split())
+        sections = skill.split("**that output is PHI**")
+        self.assertEqual(
+            len(sections) - 1,
+            len(self.PHI_COMMANDS_IN_THE_SKILL),
+            "a PHI line in the skill belongs to no command on the ruling's list",
+        )
+        for before, after, command in zip(sections, sections[1:], self.PHI_COMMANDS_IN_THE_SKILL):
+            with self.subTest(command=command):
+                self.assertIn(command, before.rsplit("###", 1)[-1])
+                self.assertTrue(after.lstrip(": ").startswith("read it, do not paste it."))
+
+    def test_this_scanners_own_line_in_the_skill_is_the_other_ruling(self):
+        """The half #218 settled the other way, asserted beside the half it did
+        not: a sweep that took every ``--show`` line to one answer would fail one
+        of these two tests whichever answer it took."""
+        skill = " ".join(SKILL.read_text(encoding="utf-8").split())
+        self.assertIn("Its `--show` output is **safe to paste**", skill)
 
 
 if __name__ == "__main__":

@@ -765,6 +765,40 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
 `VERDICT` is `clean` or `defect`, and a `defect` says what and where. A heading with no `VERDICT`
 under it is a check that did not run, and the draft is not submitted on it.
 
+**What makes a record bad, in full, so this can be walked without running anything.** A check can
+be several of them at once:
+
+| The record | Why |
+| --- | --- |
+| a heading the table names that is not in the file | a reader that was never spawned, or one whose record was lost |
+| two records under one check | two verdicts and nothing says which was meant — the shape a second writer leaves |
+| a heading with no `VERDICT` under it | a reader that never returned, and the field every rule below it needs |
+| a `VERDICT` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
+| a `defect` with nothing said about what and where | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it |
+
+**One shape is deliberately not on that list.** A `clean` verdict with no findings under it is what a
+check that ran and found nothing writes, and it is also what a check that reported nothing writes —
+nothing in the file tells them apart, so nothing grades it. That is the gap
+[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) names and leaves open, and
+it is why the reading below still happens.
+
+**Then grade it, and do not submit until it is clean:**
+
+```bash
+python tools/checks_ledger.py scratch/case-study-checks.md
+```
+
+Exit 0 is clean, 1 names how many checks failed, and **2 means it did not scan** — no file, or no
+`## CHECK:` record in it. Re-run with `--show` to see which, and **that output is PHI**: read it, do
+not paste it. **A clean scan is not a checked draft** — every verdict in that file is a reading, and
+this command only grades that the reading was recorded. A well-formed `clean` from a reader that
+skimmed is what a well-formed `clean` from a reader that read looks like.
+
+**Every rule the command applies is written above, so a harness with no Python walks the file by
+eye instead.** The command saves the reading; it is not where the rule lives — step 3's arrangement
+with `tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) keeps the two classes of tool
+citation apart deliberately.
+
 **A finding is fixed, not handed over.** Ruled on
 [#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211) and inherited here: the
 clinician does not get a list of citation defects to repair by hand. What goes to `PROPOSED` is only
@@ -800,8 +834,10 @@ Then walk this list, by eye — none of it is mechanical:
   [reference/apa7.md](reference/apa7.md) rather than from memory, and does
   `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
   defect does not leave this step in the `PROPOSED` block — it gets fixed.
-- **Does every `## CHECK:` heading in `scratch/case-study-checks.md` carry a `VERDICT`**, and has
-  every `defect` been repaired in the document rather than reported?
+- **Does `python tools/checks_ledger.py scratch/case-study-checks.md` exit 0**, and has every
+  `defect` been repaired in the document rather than reported? The command settles the record
+  shape — a heading nobody filled in, a third verdict word, a bare `defect`. Whether the verdict is
+  *right* is the one thing it cannot see, and that is what the readings above are.
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
