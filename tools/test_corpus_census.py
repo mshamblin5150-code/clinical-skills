@@ -163,8 +163,12 @@ HEDGED_DX_ALLERGY_STATED = (3,)  # "allergy: seasonal"
 # ruling actually turns on: ``NKDA`` is *no known drug allergy*, so a patient with
 # hay fever is NKDA and a note naming one is no evidence against filling it.
 #
-# **Four of the eight name nothing but an environmental allergy**, and four name
-# a drug. The constant above carried the comment *"7's 'allergic to prednisone'
+# **Most of this column names nothing but an environmental allergy, and a
+# minority name a drug.** The figures are `corpus_census.py`'s docstring's and
+# are deliberately not repeated here, on #143's terms -- they moved when #143
+# widened the denominator, and this comment would be a fourth place for them to
+# go stale in. What is pinned here is the *membership*, per case, below. The
+# constant above carried the comment *"7's 'allergic to prednisone'
 # is the only drug one"* until 2026-08-16 and it was wrong: case 11 writes
 # ``allergies: seasonal allergies, levaquin``, and levaquin is a drug. The same
 # undercount was published in ``skills/clinical-note/SKILL.md``, which said one
@@ -2651,21 +2655,22 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         #143: the assertion it replaces read four named directories, called them
         the committed inputs, and passed through two sets landing.
 
-        A total alone would not be enough --
-        ``test_no_other_committed_case_writes_either_slot`` is the gate that
-        forces each new case to be classified, and a set where nobody writes
-        either slot (``obesity-bmi`` is the one that does, and every one of its
-        cases is blank in both) would clear it in silence. So both are asserted: this one says who is counted, that one
-        says the split covers them.
+        **A total alone would not be enough**, and neither would the gate alone.
+        ``test_no_other_committed_case_writes_either_slot`` forces each new case
+        to be classified -- but a set writing neither slot in any of its cases
+        satisfies it silently, and ``obesity-bmi`` is exactly such a set today.
+        So both are asserted: this one says who is counted, that one says the
+        split covers them.
 
-        **The ``shorthand/`` anchor is not asserted here and #124 is why it
-        would be worth asserting.** ``fixtures/filled-anchor/run-2/`` holds
-        twelve ``case-*.md`` files that are ``icd10-cpt`` **output**, so a glob
-        written one level looser reads worksheets as inputs. What holds the
-        anchor is ``ThereIsOneEnumerator``, which pins the glob's literal by
-        equality; a check here would be a second reading of the same string and
-        could only fail on an edit that one catches first. A check that cannot
-        fail is this repo's own named defect, so it is named instead.
+        **The ``shorthand/`` anchor is deliberately not asserted here.** It
+        matters -- ``fixtures/filled-anchor/run-2/`` holds ``case-*.md`` files
+        that are ``icd10-cpt`` **output**, so a glob written one level looser
+        reads worksheets as inputs, which is #124. What holds it is
+        ``ThereIsOneEnumerator``, pinning the glob's literal by equality. A
+        check here would be a second reading of that same string and could only
+        fail on an edit that one catches first, and a check that cannot fail is
+        this repo's own named defect. So the anchor is written down rather than
+        asserted twice.
         """
         cases = [p for p, _ in self.all_cases()]
         self.assertEqual(len(cases), 37)
@@ -2836,9 +2841,11 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
     naming a seasonal one is fully compatible with filling ``NKDA`` and is no
     evidence at all against the gap reading. The corpus run owed by #78 came back
     with **173 of 284 written allergy statuses naming something**, which fires
-    that ticket's own reopen trigger -- and four of the eight committed cases in
-    that column name nothing but an environmental allergy, so the trigger fires
-    on a column that cannot tell the two apart. The clinician ruled on
+    that ticket's own reopen trigger -- and most of the committed cases in that
+    column name nothing but an environmental allergy, so the trigger fires on a
+    column that cannot tell the two apart. The figure is stated in
+    ``corpus_census.py``'s docstring and re-derived by
+    ``test_allergy_reaction.py``; it is not restated here. The clinician ruled on
     2026-08-16 that a note naming only environmental allergies still takes
     ``NKDA``, and named **food** as the third category to separate.
 
@@ -3031,7 +3038,7 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
         self.assertGreater(c.allergy_no_drug / c.with_allergy_status, 0.5)
 
     def test_the_kinds_overlap_and_the_report_may_not_sum_them(self):
-        """Two of the eight name a drug *and* an environmental allergy.
+        """Some name a drug *and* an environmental allergy, which is the point.
 
         So the three columns are not a partition and adding them double-counts a
         patient -- the error ``SocialSlotsSplitTwoWays``'s own comment records
@@ -3093,7 +3100,7 @@ class ThereIsOneEnumerator(unittest.TestCase):
         enumerators = sorted(
             node.name
             for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and not node.name.startswith("test_")
             and any(isinstance(sub, ast.Constant)
                     and sub.value == "*/shorthand/case-*.md"
