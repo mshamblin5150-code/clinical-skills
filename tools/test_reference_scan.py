@@ -21,6 +21,7 @@ matcher, and this asserts they still do.
 
 from __future__ import annotations
 
+import ast
 import io
 import tempfile
 import unittest
@@ -68,6 +69,19 @@ CLEAN = draft(ACOG, UPTODATE)
 def kinds(text: str, as_of: date | None = AS_OF) -> list[str]:
     """The finding kinds one draft produces, in order."""
     return [f.kind for f in scan.findings(scan.read_document(text), as_of)]
+
+
+def shown_report(text: str, as_of: date | None = AS_OF) -> str:
+    """One draft's ``--show`` report, which is the string #218's ruling is about.
+
+    One helper rather than the ``read_document`` / ``survey`` / ``format_report``
+    chain written out at each call site: the rows below differ in the draft they
+    pass and never in how the report is built, and three copies of the chain is
+    three places for one of them to stop being the thing ``--show`` prints.
+    """
+    return scan.format_report(
+        scan.survey(scan.read_document(text), as_of), source="case.md", show=True
+    )
 
 
 class TheParserReadsTheListTheRendererWouldRender(unittest.TestCase):
@@ -660,6 +674,299 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         found = [b for b in blocks if scan.read_document(b).entries]
         self.assertEqual(len(found), 1, "expected exactly one worked reference list")
         return found[0]
+
+
+# One token, salted onto every non-blank line of ``LEAKY``'s body. Lowercase and
+# meaningless, so ``citation_key`` refuses it as an author and it cannot be carried
+# into a finding by the two body rows that do name one -- which is what makes its
+# absence from the report a statement about the code rather than about this string.
+MARKER = "qxmarkerxq"
+
+# Every non-blank line carries the marker, and no citation encloses one: a marker
+# inside a parenthesis would be read as the first word of the author and would drop
+# the citation it was put there to leave alone.
+LEAKY_BODY = """\
+# Case Study qxmarkerxq
+
+## Subjective qxmarkerxq
+
+The patient reports dysuria for three days qxmarkerxq
+
+## Medical Decision Making qxmarkerxq
+
+Nitrofurantoin is first line in the second trimester (American College of Obstetricians and Gynecologists, 2023). qxmarkerxq
+
+A urine culture is drawn before the first dose (Gupta & Hooton, 2019). qxmarkerxq
+
+Stewardship review is standing practice (Chen, 2024), and the two reviews disagree (Diaz, 2022a, 2022b). qxmarkerxq
+
+Pathways were followed (Ibarra, 2020), and one source is cited nowhere (Nobody, 2020). qxmarkerxq
+
+The topic was read on *UpToDate* the same morning. qxmarkerxq
+
+Course material arrived with Links to an external site. attached. qxmarkerxq
+"""
+
+# One line per entry, chosen so every kind in ``KINDS`` fires at least once. The
+# comment above each names the row it is there for.
+LEAKY_ENTRIES = (
+    # entry-not-a-paragraph -- a bullet, which the renderer gives the list style.
+    "- American College of Obstetricians and Gynecologists. (2023). Urinary tract "
+    "infections in pregnancy. https://doi.org/10.1000/acog.91",
+    # entry-has-no-year, and canvas-artifact inside an entry.
+    "Bauer, R. Managing pyelonephritis in pregnancy. Links to an external site.",
+    # missing-ab -- one author, one year, no letters.
+    "Chen, L. (2024). Antibiotic stewardship in obstetric care. Journal of Care, 12(3), 45-59.",
+    "Chen, L. (2024). Bacteriuria screening intervals. Journal of Care, 12(4), 61-70.",
+    # ab-out-of-title-order, and the one list-not-sorted pair.
+    "Diaz, M. (2022b). Alpha review of cystitis. Journal of Care, 1, 1-9.",
+    "Diaz, M. (2022a). Zebra review of cystitis. Journal of Care, 2, 10-19.",
+    # uptodate-no-retrieval-date, uptodate-italics in an entry, and the entry the
+    # body cites under a year it does not carry.
+    "Gupta, K., & Hooton, T. M. (2025). Acute simple cystitis in adult females. "
+    "UpToDate. https://www.uptodate.com/contents/cystitis",
+    # retrieval-date-on-archived, retrieval-date-before-exam, and uncited-entry.
+    "Hooton, T. M. (2021). Recurrent urinary tract infection in women. Journal of "
+    "Medicine, 8(2), 100-115. https://doi.org/10.1000/jm.8.2 Retrieved August 1, "
+    "2026, from https://example.org/hooton",
+    # malformed-date -- a real month with no space after it.
+    "Ibarra, P. (2020). Pyelonephritis pathways. Clinical Notes, 4(1), 5-12. "
+    "Retrieved August19, 2026, from https://example.org/ibarra",
+)
+
+# heading-not-apa comes from the label. The section is still found, because
+# ``Works Cited`` is one of the labels APA forbids and a document really uses.
+LEAKY = draft(*LEAKY_ENTRIES, body=LEAKY_BODY, heading="## Works Cited")
+
+
+class TheReportCannotCarryTheDraftsProse(unittest.TestCase):
+    """#218's decision 1, ruled 2026-08-19: ``--show`` output is safe to paste.
+
+    **The ruling rests on a property of the code, so the property gets a test or
+    the ruling erodes the first time a sixteenth row arrives.** Every finding
+    detail is a reference entry, a heading, a date, or a cited author's surname and
+    year, and none of them can be a sentence of clinical prose. That is what this
+    measures, against a draft whose every body line carries a token nothing in the
+    reference list contains.
+
+    ``test_build_artifacts_ignored.TheInstrumentIsLive`` is the precedent for the
+    liveness rows here and the reason for them: its first version passed three of
+    four assertions against a check that said yes to everything. A leak test over a
+    draft that fires nothing passes for exactly that wrong reason.
+
+    **The one aperture onto the body is exercised rather than avoided.** A citation
+    key is the first word of anything the body writes as ``(Word, 2024)``, so one
+    capitalized token of prose can reach the report -- and
+    ``test_the_one_aperture_is_one_token_wide`` drives the marker through it and
+    pins that what comes out is a token and a year rather than the sentence. Naming
+    the limit and leaving it unmeasured is what the module's own header warns
+    about.
+    """
+
+    def setUp(self):
+        self.document = scan.read_document(LEAKY)
+        self.findings = scan.findings(self.document, AS_OF)
+        self.report = shown_report(LEAKY)
+
+    def test_the_marker_is_really_in_the_draft_and_only_in_its_body(self):
+        """The leak row is vacuous if the body was never salted -- and it would be
+        measuring the wrong thing if the reference list carried the token too."""
+        self.assertGreaterEqual(self.document.body.count(MARKER), 8)
+        self.assertNotIn(MARKER, "\n".join(e.text for e in self.document.entries))
+
+    def test_the_instrument_is_live(self):
+        """**A floor, not an equality.** A row added to ``KINDS`` that this draft
+        does not happen to fire is not a reason for this to go red."""
+        fired = {f.kind for f in self.findings}
+        self.assertGreaterEqual(len(fired), 12, sorted(fired))
+
+    def test_every_declared_body_row_actually_fires(self):
+        """The half of liveness that binds a future row.
+
+        A body row this draft does not fire is a row the leak test never
+        exercises, so a sixteenth one cannot arrive without being fired here.
+        """
+        fired = {f.kind for f in self.findings if f.where == "body"}
+        self.assertLessEqual(set(scan.BODY_ROWS), fired, sorted(fired))
+
+    def test_the_shown_report_carries_no_body_prose(self):
+        """The ruling itself, measured rather than argued."""
+        self.assertNotIn(MARKER, self.report)
+
+    def test_the_shown_report_really_printed_its_findings(self):
+        """And the row above is not passing because ``--show`` printed nothing."""
+        self.assertIn("findings", self.report)
+        for finding in self.findings:
+            with self.subTest(kind=finding.kind):
+                self.assertIn(finding.detail, self.report)
+
+    def test_the_one_aperture_is_one_token_wide(self):
+        """**The limit the ruling is stated against, measured rather than named.**
+
+        A citation key is the first word of anything shaped ``(Word, 2024)``, so a
+        capitalized body token does reach the report. What this pins is how much
+        comes with it: the token and its year, and none of the sentence holding
+        them. Saying the report can carry nothing of the body would be a claim a
+        notch stronger than the code, which is the defect this file's subject
+        module warns about in its own header.
+        """
+        sentence = (
+            "The patient's daughter Qxmarkerxq was at the bedside for the whole"
+            " admission and gave the history (Qxmarkerxq, 2031)."
+        )
+        report = shown_report(draft(ACOG, UPTODATE, body=BODY + "\n" + sentence + "\n"))
+        self.assertIn("qxmarkerxq 2031", report)
+        for word in ("daughter", "bedside", "admission", "gave the history"):
+            with self.subTest(word=word):
+                self.assertNotIn(word, report)
+
+
+class NoBodyRowCanArriveUndeclared(unittest.TestCase):
+    """``BODY_ROWS`` is complete, read off the module rather than off a fixture.
+
+    **The class above measures only the rows one draft happens to fire**, so a
+    fifth body row that was neither declared nor written into ``LEAKY`` would leave
+    every assertion there green -- a check that could not have seen the thing it is
+    named for, answering like a settled negative. This is the completeness half,
+    and it is ``test_console_codec.py``'s instrument for ``test_console_codec.py``'s
+    reason: an AST walk sees a call no draft reaches.
+    """
+
+    def setUp(self):
+        source = (REPO_ROOT / "tools" / "reference_scan.py").read_text(encoding="utf-8")
+        self.tree = ast.parse(source)
+
+    def _body_calls(self) -> list[ast.Call]:
+        """Every ``Finding(...)`` whose ``where`` is the literal ``"body"``.
+
+        ``where`` is read positionally and by keyword, because either spelling
+        constructs the same finding and a walk that saw only one would be the
+        partial instrument this class exists to replace.
+        """
+        found: list[ast.Call] = []
+        for node in ast.walk(self.tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not (isinstance(node.func, ast.Name) and node.func.id == "Finding"):
+                continue
+            where: ast.expr | None = node.args[1] if len(node.args) > 1 else None
+            for keyword in node.keywords:
+                if keyword.arg == "where":
+                    where = keyword.value
+            if isinstance(where, ast.Constant) and where.value == "body":
+                found.append(node)
+        return found
+
+    def test_the_walk_found_the_calls(self):
+        """``TheInstrumentIsLive``'s row. A walk matching nothing passes the row
+        below for the one reason that must not count."""
+        self.assertGreaterEqual(len(self._body_calls()), len(scan.BODY_ROWS))
+
+    def test_every_body_finding_in_the_module_is_declared(self):
+        """**The row that matters.** A fifth row reading the draft's prose cannot
+        arrive quietly, whether or not any test fires it."""
+        for call in self._body_calls():
+            kind = call.args[0]
+            with self.subTest(line=call.lineno):
+                self.assertIsInstance(kind, ast.Name, "a body row named by something other than a constant")
+                self.assertIn(getattr(scan, kind.id), scan.BODY_ROWS)
+
+
+class TheModuleSaysTheRulingRatherThanTheDefault(unittest.TestCase):
+    """The ruling landed in three places in ``reference_scan`` itself.
+
+    ``test_spelling_scan``'s reasoning: a module whose printed posture disagrees
+    with the ruling is worse than none, because a reader takes the printed line.
+    """
+
+    def test_the_show_header_no_longer_calls_its_own_output_phi(self):
+        report = shown_report(LEAKY)
+        self.assertIn("findings (safe to paste):", report)
+        self.assertNotIn("findings (PHI - read, do not paste):", report)
+
+    def test_the_exit_message_no_longer_forbids_pasting(self):
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.md"
+            path.write_text(LEAKY, encoding="utf-8")
+            with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+                status = scan.main([str(path), "--as-of", AS_OF.isoformat()])
+        self.assertEqual(status, 1)
+        self.assertIn("--show", stderr.getvalue())
+        self.assertNotIn("do not paste", stderr.getvalue())
+
+    def test_the_docstring_records_the_ruling_and_names_the_test_that_pins_it(self):
+        for phrase in (
+            "2026-08-19",
+            "safe to paste",
+            "TheReportCannotCarryTheDraftsProse",
+            "Counts only by default",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, scan.__doc__ or "")
+
+    def test_the_findings_own_docstring_agrees_that_a_detail_may_be_printed(self):
+        """The sentence the ruling had to reach and first missed: ``Finding``'s
+        docstring said ``detail`` was not safe to print, one screen below the
+        paragraph announcing that it was.
+
+        **Asserted on the claim the docstring now makes, not on the absence of the
+        old string** -- the retired sentence is quoted there on purpose, and a test
+        keyed on its absence would refuse the file for recording its own history.
+        """
+        self.assertIn(
+            "Both ``where`` and ``detail`` are safe to print",
+            " ".join((scan.Finding.__doc__ or "").split()),
+        )
+
+
+class TheRulingDoesNotWiden(unittest.TestCase):
+    """What #218 ruled about this scanner, it ruled about nothing else.
+
+    The module docstring and ``CLAUDE.md`` both enumerate what stays PHI. **An
+    enumeration in prose is a claim nothing re-derives** -- which is
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) -- so
+    each name on it is read off the file it names.
+    """
+
+    # The ruling's own list, and deliberately not a sweep of ``tools/`` for
+    # ``--show``: ``guidelines_recs.py`` is restrained by copyright rather than by
+    # standing rule 1, and ``phi_scan.py``'s ``--show`` reveals the findings rather
+    # than a scanned record.
+    STAYS_PHI = (
+        "research_ledger.py",
+        "block_scan.py",
+        "specificity_scan.py",
+        "differential_scan.py",
+        "anchor_scan.py",
+        "filled_vitals_census.py",
+    )
+
+    def test_every_sibling_named_in_the_docstring_still_declares_its_show_phi(self):
+        """Read off each sibling's **docstring**, which is the sentence a widening
+        would have to edit. Five of the six also print ``PHI - read, do not paste``
+        in a ``--show`` header and ``filled_vitals_census`` does not, so asserting
+        the header would have graded five modules and skipped one -- found by
+        pointing this at the tree rather than by reading five of them."""
+        for name in self.STAYS_PHI:
+            with self.subTest(module=name):
+                self.assertIn(name, scan.__doc__ or "")
+                source = (REPO_ROOT / "tools" / name).read_text(encoding="utf-8")
+                docstring = ast.get_docstring(ast.parse(source)) or ""
+                self.assertIn("``--show`` output is PHI", " ".join(docstring.split()))
+
+    def test_the_ledgers_own_line_in_the_skill_is_not_swept_up(self):
+        """**#218's build spec names this line and says leave it exactly as it
+        is.** Step 3's ledger holds a claim transcribed from faculty material about
+        a patient, which has no equivalent guarantee. Asserting it in
+        ``research_ledger.py`` would have guarded a different file: a sweep over
+        the skill is what would take it, and the skill is where it lives.
+        """
+        skill = SKILL.read_text(encoding="utf-8")
+        self.assertEqual(skill.count("**that output is PHI**"), 1)
+        ledger, _, rest = skill.partition("**that output is PHI**")
+        self.assertIn("research_ledger.py", ledger.rsplit("###", 1)[-1])
+        self.assertTrue(rest.lstrip(":\r\n ").startswith("read it, do not paste it."))
 
 
 if __name__ == "__main__":
