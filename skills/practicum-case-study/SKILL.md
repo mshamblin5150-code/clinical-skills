@@ -580,7 +580,7 @@ each topic's own revision date — use it.
 **Then scan the list, because the pass that wrote an entry cannot see what is wrong with it:**
 
 ```bash
-python tools/reference_scan.py output/case-studies/<stem>.md --as-of 2026-08-19
+python tools/reference_scan.py output/case-studies/<stem>.md --as-of <the exam date>
 ```
 
 `--as-of` is **the exam date** — the day the paper is written. The retrieval-date row is measured
@@ -671,13 +671,22 @@ context, into the same file** — step 3's ruling, taken whole rather than answe
 mechanism is the file and the brief; the parallelism is a speed property, and nothing downstream can
 tell the difference.
 
+**They return their record; they do not write it.** One writer to the checks file, and it is the
+context that spawned them, filling each heading in as its verdict comes back — step 3's rule and
+[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s, arriving at the second
+fan-out. **N readers appending to one Markdown file lose records to each other**, and this file has
+no grader in front of it, so a lost verdict is caught by the eye-walk below or not at all. Where the
+harness returns nothing usable, write one file per check and concatenate; what is not allowed is two
+writers on one file.
+
 **One record per check**, filled in under its heading:
 
 ```
-CHECK: differential ordering
+## CHECK: differential ordering
 VERDICT: defect
-FINDINGS: 1. is appendicitis and the patient is 24 with pelvic pain and no documented
-    hCG. Ectopic pregnancy is at 4 and has to be at 1 until the hCG is back.
+FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient of
+    childbearing age with pelvic pain and no documented hCG. The pregnancy-related
+    emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
 `VERDICT` is `clean` or `defect`, and a `defect` says what and where. A heading with no `VERDICT`
@@ -689,10 +698,17 @@ clinician does not get a list of citation defects to repair by hand. What goes t
 what a fix would require **him** to decide — a claim the evidence does not settle, a register the
 voice model does not cover. Everything else is repaired in the document before it is rendered again.
 
-**These readers see a patient record.** A finished draft is written about a patient, so a reader
-reports findings, file paths and counts, and quotes back only the sentence it is objecting to —
-[CLAUDE.md](../../CLAUDE.md)'s subagent rule, and `tools/reference_scan.py` takes the stricter half
-of it by default.
+**These readers see a patient record, and what they may report back is the strict form.** A finished
+draft is written about a patient, so a reader reports **where and what is wrong** — the section, the
+entry's position, the rule it fails — and **not the sentence itself**. That costs nothing here,
+because the context reading the report is the one holding the draft and can open the line for
+itself. [CLAUDE.md](../../CLAUDE.md)'s subagent rule, taken whole rather than carved out, and
+`tools/reference_scan.py` takes the same posture by default: counts only, and `--show` is PHI.
+
+**Whether a reference entry deserves that posture is the clinician's to settle**, and it is
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s first open decision. An
+entry carries no patient data and clinical prose does; the rule as written does not distinguish
+them, so this takes the stricter reading for both until he rules — a default, not a ruling.
 
 Then walk this list, by eye — none of it is mechanical:
 

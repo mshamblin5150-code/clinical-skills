@@ -192,6 +192,13 @@ The two mechanical ones are
 statements about what Markdown and this skill's inputs can express, and are recorded rather than
 filed.
 
+**None of these is worth more than a point, and they are still real.**
+**A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
+sentence arriving one level down — and it is no less true now that four more rows are green, because
+what a renderer cannot check is whether the entry it indented so carefully is a real source.
+
+---
+
 ## 7. What a command reads off this sheet, and what stays a reading
 
 `tools/reference_scan.py` grades a finished draft's reference list against most of the sections
@@ -214,8 +221,3 @@ evidence document, which the command never sees. And whether an entry is a real 
 the sentence citing it says is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)
 — it needs the network, and it is deliberately not grown into either that command or
 `tools/research_ledger.py`, because one URL fetcher in this repo is already one more than none.
-
-**None of these is worth more than a point, and they are still real.**
-**A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
-sentence arriving one level down — and it is no less true now that four more rows are green, because
-what a renderer cannot check is whether the entry it indented so carefully is a real source.
