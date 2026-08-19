@@ -704,6 +704,45 @@ It fails closed: no hit, no name.
 
 That rule used to end *"say it where it is genuinely unknown and would matter; otherwise write the inference"*, and the escape hatch is deleted rather than narrowed. **Every slot is genuinely unknown** — that is the premise the whole section starts from — so a clause excusing the hedge wherever the value is unknown excused it everywhere, and *would matter* is what a run decides for itself right before writing `tobacco status not documented this visit`. Nothing is lost: a slot whose value the encounter cannot ground is the unclassifiable case above, and it takes the grounding rule rather than a hedge. Issue #29.
 
+### Voice
+
+**Where `scratch/voice-model.md` exists, it governs the prose this skill writes.** His ruling,
+2026-08-18: the voice applies to output, not only to a case study. The model is per-account and
+lives in `scratch/`, so it is already in reach of every skill here — what this section settles is
+**how much of it applies where**.
+
+[practicum-case-study/reference/voice.md](../practicum-case-study/reference/voice.md) §2 names three
+registers. A note is not a case study and does not take all three:
+
+| Register | In a note | Where |
+| --- | --- | --- |
+| 1 — clinical argument | **Yes** | Assessment, the differential's reasoning, a `NOT CODED` rationale |
+| 2 — spoken patient education | **Yes** | Patient education, return precautions, discharge instructions |
+| 3 — reflective and argumentative | **No** | Nowhere in a note |
+
+**Register 3 is excluded, and that is a ruling rather than an omission.** It is where the metaphor
+and the aphorism live, and a chart is not the place for either — another clinician reads a note to
+find out what happened, and a figure of speech between them and a finding is a cost with no
+benefit. **The exclusion is about the register, not about force**: register 1's flat verdict and
+register 2's *state the cost, then say do it anyway* are the strongest things in the model and both
+belong in a note.
+
+**Nothing in the model bends a structural rule, and the list is closed.** The tier block's grammar,
+the Medatrax field strings, the drift matrix, an ICD-10 descriptor, the template's own formatting
+instructions, and the two rules below this one — *Punctuation* and *Spelling* — are all fixed. **The
+model governs the prose between them and nothing else.** A voice model is the last thing consulted
+and the first thing dropped: where it pulls against a rule anywhere else in this file, the rule
+wins, on [voice.md](../practicum-case-study/reference/voice.md) §9's terms.
+
+**Punctuation is the live conflict and it is already decided.** His own prose is full of em dashes;
+the rule below forbids them in a note body. **The rule wins**, and this is exactly why the model is
+consulted last — a register is how the reasoning sounds, not which glyph carries a pause.
+
+**Where there is no model, nothing changes.** This skill's existing conventions are the whole
+answer and no run declares anything, because a note has no `PROPOSED` block to declare it in and a
+tier block is for claims about the patient. **That is the one place this differs from
+`practicum-case-study`**, which declares an unmodeled voice because it has somewhere to put it.
+
 ### Punctuation
 
 Three characters that never reach the finished note, given unprompted as absolutes — *"i would never"*, *"i never"*:
@@ -822,6 +861,7 @@ It binds both branches, which is why it lives here rather than in either templat
 | `millilitre`, `centimetre`, `litre`, `fibre` | `milliliter`, `centimeter`, `liter`, `fiber` |
 | `grey`, `behaviour`, `colour`, `tumour`, `favour` | `gray`, `behavior`, `color`, `tumor`, `favor` |
 | `labelled`, `recognisable`, `programme`, `licence` | `labeled`, `recognizable`, `program`, `license` |
+| `neighbour` | `neighbor` |
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not `paracetamol`, `epinephrine` not `adrenaline`, `albuterol` not `salbutamol`, `ferrous sulfate` not `ferrous sulphate`. A clinician reading the other name has to translate it before they can check the dose.
 
@@ -829,7 +869,11 @@ It binds both branches, which is why it lives here rather than in either templat
 
 **About the output, not the input.** A British spelling arriving in the shorthand is normalized on the way out like any other spelling variant — the same treatment [GLOSSARY.md](GLOSSARY.md) gives `cetrazine`. It is not a hedge and it is not a number, so nothing in *Given* protects it.
 
-**Thirteen of the forms above were written by this repo**, and that is why the rule is here rather than assumed. Five came from [GLOSSARY.md](GLOSSARY.md)'s own expansion tables — `nebuliser`, `sulphate`, `millilitres`, `centimetres`, `caesarean` — which is where a wrong spelling does the most damage, because the skill copies an expansion into a note by design. Seven more came from a `clinical-note` run — `dyspnoea`, `fibre`, `grey`, `behaviour`, `labelled`, `recognisable`, `programme` — appearing **20 times across six of the twelve** notes in `fixtures/filled-anchor/notes/`, which also repeats `caesarean`. The thirteenth is `licence`, in `fixtures/peds-bp/assertions.md`. All were corrected 2026-08-12 **except the run's**, which are preserved because that set is a byte-for-byte record of what a run produced and correcting it would falsify the evidence. Issue #73.
+**Fourteen of the forms above were written by this repo**, and that is why the rule is here rather than assumed. Five came from [GLOSSARY.md](GLOSSARY.md)'s own expansion tables — `nebuliser`, `sulphate`, `millilitres`, `centimetres`, `caesarean` — which is where a wrong spelling does the most damage, because the skill copies an expansion into a note by design. Seven more came from a `clinical-note` run — `dyspnoea`, `fibre`, `grey`, `behaviour`, `labelled`, `recognisable`, `programme` — and the thirteenth is `licence`, in `fixtures/peds-bp/assertions.md`. All were corrected 2026-08-12 **except the run's**, which are preserved because that set is a byte-for-byte record of what a run produced and correcting it would falsify the evidence. Issue #73.
+
+**The fourteenth is `neighbour`, added 2026-08-18, and how it was found is the reusable part.** It sat in [GLOSSARY.md](GLOSSARY.md), in the sentence `the tell is the neighbouring word`, in a file this repo wrote, while the same repo writes `neighboring` correctly ten times in this one. **`spelling_scan.py --all` reported clean on every run, because the table did not hold the form**, which is the tool's own stated limit arriving as a real miss: *it holds the table rather than the language, so a clean scan means no listed form was used.* It was caught by eye during unrelated work, not by the scanner. **And the backticks in the sentence above are load-bearing** — this paragraph quoted the defect in italics first and the scanner failed the build, correctly: a form in running prose is a use however clearly the sentence around it is about the form. That is `spelling_scan.py`'s mention-versus-use rule working on the paragraph that documents it.
+
+**Adding it moved the preserved run record's figures without the record moving**, and the two facts have to be kept apart. `--record` now reads **9 forms, 22 occurrences, 7 of the twelve** notes, where it read 8, 20 and 6 — the extra being `neighbour` in `case-04` and `case-07`, which have been sitting there since the run and were invisible for the same reason. **The run produced exactly what it always produced; the instrument got one form better.** `tools/test_spelling_scan.py` pins all three figures, which is why the change announced itself rather than passing quietly.
 
 **That run wrote both spellings of most of them**, which is what makes the record evidence of drift rather than of a register: `cesarean` eight times against `caesarean` twice, `dyspnea` seven against `dyspnoea` three, `program` nine against `programme` twice, `fiber` three against `fibre` four. **Nobody reading one note would see it** — the same shape as [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67), and the same reason twelve outputs had to be put in front of one reader.
 
@@ -877,7 +921,11 @@ Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]
 
 ### 2. Expand the shorthand
 
-Classify **every token** against [GLOSSARY.md](GLOSSARY.md) as expanded, verbatim, or unknown. An unknown token is carried forward as written and surfaced in the tier block — never dropped, never guessed at silently.
+**Read `scratch/shorthand.md` first if it exists**, then [GLOSSARY.md](GLOSSARY.md). Two glossaries: this clinician's own forms and the field's, and **where they disagree the per-account file wins**. [GLOSSARY.md](GLOSSARY.md)'s *Two glossaries* section is the rule, and [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 is where the per-account one gets collected.
+
+Classify **every token** against both as expanded, verbatim, or unknown. An unknown token is carried forward as written and surfaced in the tier block — never dropped, never guessed at silently.
+
+**An absent `scratch/shorthand.md` is not an error and the fallback is safe** — the field glossary expands what it holds and everything else surfaces as an unknown token, which is the shape a reader can act on. **What is not safe is expanding one clinician's form by another's rule**, and that is the case the split exists to prevent.
 
 Completion: every token in the source is in exactly one of the three buckets.
 

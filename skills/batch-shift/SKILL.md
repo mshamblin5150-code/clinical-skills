@@ -194,7 +194,7 @@ python tools/filled_vitals_census.py <the run directory>
 
 It counts declared-filled values only, prints no value unless `--show` asks, and exits non-zero when two notes share a filled body. **Its output is for you, not for the shift document** — the roll-up is working output, and [step 7](#7-offer-the-shift-document) already says which half of that leaves the machine.
 
-The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding to [GLOSSARY.md](../clinical-note/GLOSSARY.md) — offer to add them, and the next shift needs less input than this one.
+The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding — offer to add them, and the next shift needs less input than this one. **They go to `scratch/shorthand.md`, not to [GLOSSARY.md](../clinical-note/GLOSSARY.md)**, unless the token is one the whole field writes: a form harvested from one clinician's day file is that clinician's until something says otherwise. [GLOSSARY.md](../clinical-note/GLOSSARY.md)'s *Two glossaries* section is the rule, and this roll-up is the instrument [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 points back at for growing the per-account file.
 
 ### 7. Offer the shift document
 

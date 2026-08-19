@@ -102,9 +102,16 @@ is a patient record. Three rules, and they are the ones
 
 - Samples live under `scratch/` and nowhere else. Standing rule 1 in
   [AGENTS.md](../../../AGENTS.md).
-- **A quote from a sample never leaves `scratch/`.** Not into a ticket, not into a commit message,
-  not into a summary handed back in conversation. That is also why the model is gitignored — a
-  model that could not quote would be a list of adjectives, and §1 is about why that fails.
+- **A quote from a sample never goes anywhere the author is not the audience.** Not into a ticket,
+  not into a commit message, not into a file outside `scratch/`, not into a summary for anyone but
+  him. That is also why the model is gitignored — a model that could not quote would be a list of
+  adjectives, and §1 is about why that fails.
+  **The rule names the audience rather than the channel, and it was rewritten the first time it
+  ran.** It read *never leaves `scratch/`, not into a summary handed back in conversation* — which
+  forbids [setup-clinical-skills](../../setup-clinical-skills/SKILL.md) step 9, where the clinician
+  confirms the model by reading his own quoted sentences back. **Showing an author his own words is
+  not disclosure**, and §9 says that confirmation is the only verification a voice model has. A rule
+  that forbade the one check would have left the model unverifiable and looked like caution.
 - **Ask before reading, and say what will be read.** A clinician handing over eight documents has
   agreed to a voice model, not to a general read of his writing.
 
@@ -169,6 +176,24 @@ written by the build is the build grading its own imitation, which is
 [ADR 0001](../../../docs/adr/0001-fixture-asserts-on-named-findings.md)'s reasoning: a report by
 the pass that produced it is a baseline, not a verification.
 
+### The paired version — where both halves are attested
+
+**Look for two versions of one document, because a corpus that has them carries its own control
+group.** A draft and a cleaned-up draft, a delivery script and a prose reflow, a `Mark 2`. The diff
+between them is the strongest pair available: **same author, same claim, same audience**, one
+distinctive and one not — so the generic half is evidence rather than the build's guess at what a
+stranger would write.
+
+**This was not predicted; it was found by running the method, and the first corpus it ran on held
+three of them.** In one, the cleaned draft of a public-safety talk replaced a line establishing the
+speaker's standing with a correct, complete and entirely anonymous sentence — **deleting the most
+characteristic line in the document.** That is #213's whole finding, committed on the author's own
+file, before any model existed to get it wrong.
+
+**So a smoothing pass is the adversary this file is written against, and a paired document is a
+recording of one.** Where the samples contain a pair, build the register-defining pairs from it
+first.
+
 ---
 
 ## 6. The trap — samples teach how he talks, not what he got wrong
@@ -191,6 +216,22 @@ So the build does two things:
   sentence fragment, a comma splice, an idiosyncratic capitalization: each of those is register in
   one writer and a slip in another, and the build does not get to rule on it. §12's list is the
   settled part. **Anything not on it is a question rather than a finding.**
+
+### The mirror of the trap — a sample somebody else helped write
+
+**A sample may be co-written, and a model built from one imitates the co-author.** §12's trap is
+reproducing the author's errors; this is reproducing a stranger's competence, and it is harder to
+see because the result reads *better* rather than worse.
+
+**The tell is a document that is markedly more generic than its neighbors** — reaching for a
+figure the rest of the corpus never uses, running longer sentences with fewer of the author's
+constructions in them, or losing the lexicon that identifies him. It is the smoothed half of §5's
+pair arriving on its own, with no raw version beside it to prove what was taken out.
+
+**Ask rather than infer, and exclude while asking.** A suspected sample is dropped from every
+feature count until the clinician says, because a co-written document averaged into a model moves
+every observation in it toward the mean — which is the direction the model exists to move away
+from. Record in the model that it was excluded and why, so the answer can put it back.
 
 ---
 
@@ -221,7 +262,7 @@ against the last one:
 Built <date> from <n> samples. Registers covered: 1 (n=<x>), 2 (n=<y>), 3 (n=<z>).
 
 ## Sample index
-| File | Register | Graded work? | Date written |
+| File | Register | Graded work? | Date written |   <- and any excluded under §6, with why
 
 ## Register 1 — clinical argument
 ### Observations            <- each with its quote, and the samples it appears in

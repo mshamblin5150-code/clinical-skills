@@ -366,7 +366,8 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         # §9 says a model cannot be verified by the run that built it, which
         # makes step 9 the only verification that exists.
         setup = read(SETUP)
-        self.assertIn("scratch/voice-model.md`, and let the clinician edit", setup)
+        self.assertIn("`scratch/voice-model.md` and `scratch/shorthand.md`", setup)
+        self.assertIn("Let the clinician edit before writing", setup)
         self.assertIn("this step is the whole verification", setup)
 
     def test_a_rerun_looks_for_the_model_before_it_asks(self):
@@ -374,7 +375,35 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         # clinician is asked for writing he already handed over, or asked again
         # after declining -- and the refusal step 8 records in the profile is
         # only ever read here.
-        self.assertIn("`voice-model.md` or `writing-samples/`", read(SETUP))
+        self.assertIn("`writing-samples/` or `shorthand.md` already exist", read(SETUP))
+
+    def test_the_quote_rule_names_its_audience_rather_than_its_channel(self):
+        # **The first build of a real model is what caught this.** The rule read
+        # *never leaves scratch/, not into a summary handed back in conversation*,
+        # which forbids the step 9 confirmation outright -- and §9 says that
+        # confirmation is the only verification a voice model has. A rule that
+        # bans the one check reads as caution and leaves the model unverifiable.
+        #
+        # **The first version of this test failed on the file it was written
+        # for**, and the reason is worth keeping: it asserted the retired
+        # wording was absent, and the paragraph recording the retirement quotes
+        # it. That is ``spelling_scan.py``'s mention-versus-use distinction
+        # arriving in an assertion -- a rule stated and a rule quoted as retired
+        # are not the same string in the same role. So the check is that the new
+        # rule is stated and that the old one appears only in its retirement.
+        voice = read(CASE_STUDY_VOICE)
+        self.assertIn("never goes anywhere the author is not the audience", voice)
+        self.assertIn("It read *never leaves", voice)
+
+    def test_the_paired_version_and_the_co_written_sample_are_both_written_down(self):
+        # Two things the samples taught the method rather than the other way
+        # round, and neither was predicted. A paired document yields a pair whose
+        # generic half is **attested** rather than composed; a co-written one
+        # models the co-author, which is §6's trap with the sign flipped and is
+        # harder to see because the result reads better rather than worse.
+        voice = read(CASE_STUDY_VOICE)
+        self.assertIn("where both halves are attested", voice)
+        self.assertIn("a sample somebody else helped write", voice)
 
     def test_the_defect_list_is_cited_rather_than_copied(self):
         # #143: a list restated in two files goes stale in one of them. §12 owns
