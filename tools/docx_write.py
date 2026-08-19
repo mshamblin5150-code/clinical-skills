@@ -439,6 +439,36 @@ def is_rule(line: str) -> bool:
     return bool(cells) and all(re.fullmatch(r":?-{2,}:?", c) for c in cells if c)
 
 
+def table_first_cells(block: str) -> list:
+    """The first cell of every row of the first Markdown table in ``block``.
+
+    **One reader of a documentation table, not two.** Both
+    ``tools/test_docx.py`` and ``tools/test_reference_scan.py`` bind a list in a
+    reference sheet to a declared object in code -- ``NOT_APPLIED`` against
+    ``apa7.md`` section 6, ``reference_scan.NOT_REACHED`` against its section 7 --
+    and each had its own copy of this loop, comment included, until #241's review
+    caught the second one being written. That is the duplication those very classes
+    exist to refuse, so the loop lives here beside the ``split_row`` it is built on.
+
+    The header row sits above the ``---`` rule and is a column label rather than an
+    item; counting it would put every such table one ahead forever.
+    """
+    cells, started = [], False
+    for line in block.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            if started:
+                break
+            continue
+        if is_rule(line):
+            started = True
+            continue
+        first = split_row(line)[0]
+        if started and first:
+            cells.append(first.replace("**", ""))
+    return cells
+
+
 def body_xml(markdown: str) -> str:
     """Convert the Markdown subset to the payload of a ``w:body`` element."""
     lines = markdown.replace("\r\n", "\n").split("\n")

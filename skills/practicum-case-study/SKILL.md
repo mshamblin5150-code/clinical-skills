@@ -634,7 +634,7 @@ sorted.
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
 | An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
-| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading |
+| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
 | Two entries with the same author and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3 |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
@@ -735,16 +735,16 @@ check that was never run is not.
 | Check | What it reads | How | A `clean` says what it walked |
 | --- | --- | --- | --- |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
-| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, and does each source exist and say what the sentence citing it says | no |
+| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
 | the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
-is two rows rather than six.** On a row marked *yes* a `clean` verdict has to say what the reader
-walked, and `tools/checks_ledger.py` fails a bare one. Those are the two rows where a wrong `clean`
-is most expensive; on the other four a bare `clean` still passes, which is the gap below. **Brief
+is some rows rather than every row.** On a row marked *yes* a `clean` verdict has to say what the
+reader walked, and `tools/checks_ledger.py` fails a bare one. Those are the rows where a wrong
+`clean` is most expensive; everywhere else a bare `clean` still passes, which is the gap below. **Brief
 the two readers accordingly** — they report what they examined whichever verdict they return, and
 the clause is one sentence written by an agent that has just walked the thing.
 
@@ -798,21 +798,20 @@ be several of them at once:
 | a heading with no `VERDICT` under it | a reader that never returned, and the field every rule below it needs |
 | a `VERDICT` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
 | a `defect` with no `FINDINGS` under it, or an empty one | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it. The field and not just the words — a reason typed after the keyword says the same thing where nobody looking for it will look |
-| a `clean` with no `FINDINGS` under it, on a row the table above marks *yes* | the same test on the other verdict. Anybody can write `clean`; nobody writes *"walked all five MDM entries, each names a discriminator from this case"* without having walked them. [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is two rows rather than six — the other four are counted and not graded, and the report says which is which |
+| a `clean` with no `FINDINGS` under it, on a row the table above marks *yes* | the same test on the other verdict. Anybody can write `clean`; nobody writes *"walked all five MDM entries, each names a discriminator from this case"* without having walked them. [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is some rows rather than every row — the rest are counted and not graded, and the report names which |
 
 **That last row was off the list entirely until
-[#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for two of the
-six rather than for all six.** A `clean` with nothing under it is what a check that ran and found
+[#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for some of
+the rows rather than for all of them.** A `clean` with nothing under it is what a check that ran and found
 nothing writes, and it is also what a check that reported nothing writes — nothing in the file tells
 them apart, which is the gap
 [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) named and left open. **There
 is no better string test to reach it with**; what reaches it is requiring the `clean` to say what it
 walked, and that is a change to what this step asks a reader to write rather than a grader of what it
-already asked. Ruled on differential ordering and MDM completeness, and **ruled against the other
-four** — so on those the shape is still exactly what #240 declared, and
-the reading below is still the only thing that reaches it. `the reference list` is the clearest of
-the four: it is graded by a command, so its `clean` is an exit status and there was never a reader to
-have walked anything.
+already asked. Ruled on differential ordering and MDM completeness, and **ruled against the rest**—
+so on those the shape is still exactly what #240 declared, and the reading below is still the only
+thing that reaches it. `the reference list` is the clearest of the ones left out: it is graded by a
+command, so its `clean` is an exit status and there was never a reader to have walked anything.
 
 **Which two, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
 these two at *70 of the rubric's 100 points*, and [reference/rubric.md](reference/rubric.md) does
