@@ -16,8 +16,9 @@ rather than typed here, on ``test_ci_workflow.py``'s reasoning: a list of names
 copied into a test goes stale the first time a default moves, and reads as
 coverage while it does. **The third is typed, and it is the weak one** --
 ``guidelines_recs.py`` has no default ``--json`` path to derive from, so
-``recs-<stem>.json`` is read off ``threshold_sheet.py``'s tier-2 lookup by a human
-and restated below. A rename there would leave this passing.
+``recs-<source key>.json`` is read off ``threshold_sheet.py``'s COVERAGE lookup by
+a human and restated below. A rename there would leave this passing -- and #177
+renamed it, from ``recs-<sheet stem>.json``, with this file left green throughout.
 
 **Every query is a file path and never a directory with a trailing slash**, and
 ``TheInstrumentIsLive`` is why. Asked about ``tools/``, ``git check-ignore``
@@ -130,10 +131,13 @@ class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
         )
 
     def test_a_recommendation_dump(self) -> None:
-        """``threshold_sheet.py`` looks for ``recs-<stem>.json``, so that is the shape.
+        """``threshold_sheet.py`` looks for ``recs-<source key>.json``, so that is the
+        shape.
 
         ``guidelines_recs.py`` has no default ``--json`` path -- the naming
-        convention lives on the reading side, at ``threshold_sheet.py``'s tier 2.
+        convention lives on the reading side, in ``threshold_sheet.bind_recs``. It
+        used to say *tier 2* here, which was wrong about which gate reads the file:
+        tier 2 opens the PDFs, COVERAGE opens this.
         """
         self.assertTrue(
             _check_ignore("recs-some-guideline.json"),
