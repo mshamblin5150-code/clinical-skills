@@ -29,15 +29,30 @@ opens*, with the second reader being another Markdown file rather than a tool.
 sentence.** A test asserting a paragraph verbatim fails on every rewrite and
 teaches the next session to delete it; these assert the load-bearing clause, so
 the prose around them stays free.
+
+**One class here is not a named pair, and it is the reason the file grew a
+walker.** [#233](https://github.com/mshamblin5150-code/clinical-skills/issues/233)
+is the same defect with the second document unknown in advance: a skill's steps
+are numbered headings and other files cite them **by number**, so inserting a
+step silently redirects every citation. The pairs above are enumerated because
+somebody noticed them; this one cannot be, because the whole point is that
+nobody notices. So ``EveryCitedStepResolvesToADeclaredStep`` walks the tracked
+tree instead of naming files, and the ruling it asserts -- *a cited step
+exists* -- is the one thing about a cross-reference that holds without reading
+either end.
 """
 
 from __future__ import annotations
 
 import re
+import subprocess
 import unittest
 from pathlib import Path
+from typing import Iterator, NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+SELF = Path(__file__).resolve()
+SKILLS_DIR = REPO_ROOT / "skills"
 BATCH_SHIFT = REPO_ROOT / "skills" / "batch-shift" / "SKILL.md"
 CLINICAL_NOTE = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
@@ -51,6 +66,201 @@ CASE_STUDY_VOICE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" /
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+#: A skill's own step heading -- ``### 4. Draft the body``. Two to four hashes
+#: because the skills are not uniform about depth and the number is the subject.
+STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
+
+#: A citation of one. ``steps?`` for the plural opener of *steps 1 and 2*, which
+#: this reads as a citation of 1 and misses the 2 -- a floor rather than a
+#: ceiling, on ``differential_scan.py``'s terms. The separator admits any
+#: whitespace so a **hard-wrapped** citation is still seen. That costs nothing
+#: today -- it finds not one match the single-space form misses, measured
+#: 2026-08-19 -- and ``test_run_record_claim`` is where a wrapped phrase went
+#: unread by the very check written to find it.
+STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
+
+#: Under ``fixtures/``, these two names are prose about a run and everything
+#: else is the run. See ``graded_files``.
+FIXTURE_PROSE = {"README.md", "assertions.md"}
+
+
+def skill_names() -> list[str]:
+    """Every ``skills/<name>/`` holding a ``SKILL.md``, longest name first.
+
+    Longest first so an alternation cannot match a shorter name inside a longer
+    one. No pair overlaps today; the ordering is here so that a sixth skill
+    called ``clinical-note-lite`` could not quietly resolve as ``clinical-note``.
+    """
+    names = [path.name for path in SKILLS_DIR.iterdir() if (path / "SKILL.md").is_file()]
+    return sorted(names, key=lambda name: (-len(name), name))
+
+
+def declared_steps(name: str) -> set[int]:
+    """The numbered step headings ``skills/<name>/SKILL.md`` declares."""
+    return {
+        int(found.group(1))
+        for line in read(SKILLS_DIR / name / "SKILL.md").splitlines()
+        for found in [STEP_HEADING.match(line)]
+        if found
+    }
+
+
+def paragraphs(text: str) -> Iterator[tuple[int, str]]:
+    """Blocks of consecutive non-blank lines, with the line each one opens on.
+
+    The paragraph is the resolution scope rather than the line, because this
+    repo hard-wraps its prose: a subject named at the end of one line is carried
+    by the next, and a line-scoped reader would drop it.
+    """
+    block: list[str] = []
+    start = 1
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.strip():
+            if not block:
+                start = number
+            block.append(line)
+        elif block:
+            yield start, "\n".join(block)
+            block = []
+    if block:
+        yield start, "\n".join(block)
+
+
+class Citation(NamedTuple):
+    """One ``step N``, and whose step N it turned out to be."""
+
+    line: int
+    number: int
+    skill: str | None
+    how: str
+
+
+def step_citations(text: str, owner: str | None, names: list[str]) -> Iterator[Citation]:
+    """Every ``step N`` in ``text``, resolved to the skill it names -- or to nothing.
+
+    **Three limbs, and they are how a person reads one rather than a heuristic.**
+
+    - ``beside`` -- a skill is named immediately before the words, with nothing
+      but its own link or path punctuation in between. ``[clinical-note](../
+      clinical-note/SKILL.md) step 5`` and ```icd10-cpt`` step 4`` are both this,
+      and it is the only limb that can name a skill other than the file's own.
+    - ``carried`` -- a bare ``step N`` continues the subject of the citation
+      before it, **unless another skill has been named in between**. That last
+      clause is the whole of it: *"[clinical-note] step 2 and [batch-shift], for
+      step 9's shorthand"* is ``setup-clinical-skills``'s own step 9, and
+      dropping the clause resolves it to ``batch-shift`` and fails a correct line.
+    - ``owner`` -- otherwise, the skill whose directory the file sits in.
+
+    **Both simpler rules were tried against the tree first and both failed.**
+    Nearest-name-anywhere fails two correct lines in
+    ``setup-clinical-skills/SKILL.md``; adjacency with no carry fails
+    ``clinical-note/GLOSSARY.md``'s *"on the same terms as the voice model in
+    step 8"*, which continues a ``setup-clinical-skills`` subject set earlier in
+    the same sentence. Three limbs is what it took to reach zero false alarms,
+    and each was added because a real line demanded it.
+
+    **A file outside ``skills/`` with nothing beside the citation is unresolved,
+    and stays that way.** ``anchor_scan.py`` says ``step-4`` six times meaning
+    ``icd10-cpt``, and no rule here can know that. The alternative is a guess,
+    and ``differential_scan.py``'s first version is what a positional guess
+    costs: it failed in both directions. Unresolved citations are counted and
+    reported; they are never failed.
+    """
+    beside = re.compile("(" + "|".join(re.escape(name) for name in names) + r")\S*\s*$")
+    anywhere = re.compile("|".join(re.escape(name) for name in names))
+    for start, block in paragraphs(text):
+        previous: str | None = None
+        end = 0
+        for found in STEP_CITATION.finditer(block):
+            before = block[: found.start()]
+            adjacent = beside.search(before)
+            if adjacent:
+                skill, how = adjacent.group(1), "beside"
+            elif previous and not anywhere.search(block[end : found.start()]):
+                skill, how = previous, "carried"
+            else:
+                skill, how = owner, "owner"
+            previous, end = skill, found.end()
+            yield Citation(start + before.count("\n"), int(found.group(1)), skill, how)
+
+
+def owning_skill(path: Path, names: list[str]) -> str | None:
+    """The skill whose directory ``path`` sits in, if any."""
+    try:
+        parts = path.resolve().relative_to(SKILLS_DIR).parts
+    except ValueError:
+        return None
+    return parts[0] if parts and parts[0] in names else None
+
+
+def graded_files() -> list[Path]:
+    """Tracked ``.md`` and ``.py``, minus the preserved run records.
+
+    **``fixtures/`` is excluded bar its own prose, and the reason is that a
+    record cannot be edited to fix a stale citation.** A note under
+    ``fixtures/filled-anchor/notes/`` cites the skill **as it stood when the run
+    happened** -- that is what makes it evidence -- so grading one would refuse a
+    faithful record, and the only repair available would be to falsify it. The
+    two prose names are graded because they are maintained documents *about* a
+    run, and a stale ``step 7`` in one is an ordinary defect.
+
+    **The default under ``fixtures/`` is to exclude**, so a new kind of record
+    lands outside the check rather than inside it. What that costs is measured:
+    140 of the 164 citations under ``fixtures/`` are in records, and every one of
+    them is unresolved anyway -- so today the exclusion drops nothing the
+    resolver could have graded. It is here for the record that arrives tomorrow
+    naming its skill.
+
+    **This module is dropped too, and it is the only other exclusion.** The
+    resolver's own test cases are deliberately hostile strings -- a link labelled
+    for one skill pointing at another, a citation to a step that does not exist
+    -- and grading them would fail the file for containing its own fixtures. The
+    cost is real and narrow: a genuine ``step N`` citation written into the prose
+    *here* is the one the tree-wide walk cannot see. It is asserted below rather
+    than only described, because ``test_run_record_claim.py`` carried this exact
+    exemption in its docstring for one round while the walk had no filter wired.
+    """
+    finished = subprocess.run(
+        ["git", "ls-files", "--cached", "--", "*.md", "*.py"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
+    kept = []
+    for line in finished.stdout.splitlines():
+        if not line.strip():
+            continue
+        path = REPO_ROOT / line
+        if line.startswith("fixtures/") and path.name not in FIXTURE_PROSE:
+            continue
+        if path.resolve() == SELF:
+            continue
+        kept.append(path)
+    return kept
+
+
+def stale_citations(declared: dict[str, set[int]]) -> list[str]:
+    """Every resolved ``step N`` naming a step ``declared`` does not hold.
+
+    ``declared`` is a parameter rather than a lookup so the check can be pointed
+    at a **renumbering that has not happened**. Asserting the tree is clean today
+    proves the walk found nothing; asserting it goes red when a step is taken
+    away proves the walk would find something. Only the second is evidence.
+    """
+    names = sorted(declared, key=lambda name: (-len(name), name))
+    stale = []
+    for path in graded_files():
+        owner = owning_skill(path, names)
+        for cite in step_citations(read(path), owner, names):
+            if cite.skill is None or cite.number in declared[cite.skill]:
+                continue
+            where = path.relative_to(REPO_ROOT).as_posix()
+            stale.append(f"{where}:{cite.line} cites {cite.skill} step {cite.number} ({cite.how})")
+    return stale
 
 
 def names_the_same_field(claimed: str, field: str) -> bool:
@@ -612,6 +822,271 @@ class TheReferenceDeclaresWhichFieldsItHoldsValuesFor(unittest.TestCase):
                         "reference/medatrax-fields.md holds its values as universal. "
                         "One of the two files is wrong",
                     )
+
+
+class TheStepResolverIsLive(unittest.TestCase):
+    """A resolver that named nothing would pass every assertion in the class below.
+
+    Each case here is a shape taken off the real tree rather than invented, and
+    the two marked *false alarm* are lines a simpler rule failed. They are the
+    reason the resolver has three limbs instead of one.
+    """
+
+    NAMES = ["setup-clinical-skills", "practicum-case-study", "clinical-note", "batch-shift"]
+
+    def resolve(self, text: str, owner: str | None = None) -> list[Citation]:
+        return list(step_citations(text, owner, self.NAMES))
+
+    def test_a_step_heading_is_read_and_a_numbered_list_is_not(self) -> None:
+        """The hashes are load-bearing, and a list item must not inflate the set.
+
+        Relax ``STEP_HEADING`` to tolerate a missing ``#`` and every ordinary
+        numbered list in a ``SKILL.md`` registers as a declared step. The set
+        inflates, and every stale citation then resolves clean -- the silent-pass
+        shape, arriving through the half of the check nobody looks at.
+        """
+        self.assertEqual(declared_steps("icd10-cpt"), {1, 2, 3, 4, 5})
+        self.assertEqual(declared_steps("setup-clinical-skills") & {0}, {0})
+        for not_a_heading in ("1. Read the chart", "  ### 2. Indented", "##### 3. Too deep"):
+            with self.subTest(line=not_a_heading):
+                self.assertIsNone(STEP_HEADING.match(not_a_heading))
+        self.assertEqual(STEP_HEADING.match("### 4. Draft the body").group(1), "4")
+
+    def test_a_link_beside_the_words_names_the_skill(self) -> None:
+        cite, = self.resolve("See [batch-shift](../batch-shift/SKILL.md) step 6.", "clinical-note")
+        self.assertEqual((cite.skill, cite.number, cite.how), ("batch-shift", 6, "beside"))
+
+    def test_a_backticked_name_beside_the_words_names_the_skill(self) -> None:
+        """``anchor_scan.py`` and ``corpus_census.py`` cite this way, from ``tools/``."""
+        cite, = self.resolve("``clinical-note`` step 1 rests on whole day files.")
+        self.assertEqual((cite.skill, cite.how), ("clinical-note", "beside"))
+
+    def test_a_bare_path_beside_the_words_names_the_skill(self) -> None:
+        """``docx_write.py``'s form, and it is one of the citations #233 was filed over."""
+        cite, = self.resolve("``skills/practicum-case-study/SKILL.md`` step 9's sentence.")
+        self.assertEqual((cite.skill, cite.number), ("practicum-case-study", 9))
+
+    def test_a_bare_citation_takes_the_skill_whose_file_it_is(self) -> None:
+        cite, = self.resolve("| **Neither** | Report it -- see step 4 |", "batch-shift")
+        self.assertEqual((cite.skill, cite.how), ("batch-shift", "owner"))
+
+    def test_a_second_citation_carries_the_first_ones_subject(self) -> None:
+        """``voice.md``'s *"step 5, before drafting, and step 9"*.
+
+        The first resolves by ``owner`` rather than ``beside``, and that is the
+        point of the case: a **relative** link back to the skill's own file
+        spells no skill name anywhere, so only the directory settles it. The
+        second then carries the first's subject.
+        """
+        first, second = self.resolve(
+            "[SKILL.md](../SKILL.md) step 5, before drafting, and step 9, where the draft is read.",
+            "practicum-case-study",
+        )
+        self.assertEqual((first.skill, first.how), ("practicum-case-study", "owner"))
+        self.assertEqual((second.skill, second.how), ("practicum-case-study", "carried"))
+
+    def test_a_relative_self_link_is_not_a_named_skill(self) -> None:
+        """``[SKILL.md](../SKILL.md)`` names nothing, so outside ``skills/`` it is unresolved."""
+        cite, = self.resolve("[SKILL.md](../SKILL.md) step 5, before drafting.", None)
+        self.assertIsNone(cite.skill)
+
+    def test_the_subject_carries_across_a_hard_wrap(self) -> None:
+        """The paragraph is the scope, so a wrapped line does not restart it."""
+        first, second = self.resolve(
+            "[setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 collects it,\n"
+            "on the same terms as the voice model in step 8.",
+            "clinical-note",
+        )
+        self.assertEqual(first.skill, "setup-clinical-skills")
+        self.assertEqual((second.skill, second.line, second.how), ("setup-clinical-skills", 2, "carried"))
+
+    def test_a_hard_wrapped_citation_is_still_read(self) -> None:
+        """No line in the tree wraps between the word and the number. One will."""
+        cite, = self.resolve("...which is [batch-shift](../batch-shift/SKILL.md) step\n3.", "clinical-note")
+        self.assertEqual((cite.skill, cite.number), ("batch-shift", 3))
+
+    def test_a_name_in_between_breaks_the_carry(self) -> None:
+        """False alarm 1, from ``setup-clinical-skills/SKILL.md``.
+
+        *"[clinical-note] step 2 and [batch-shift], for step 9's shorthand"* --
+        the ``step 9`` is ``setup``'s own, and both a nearest-name rule and a
+        carry with no interruption clause resolve it to a skill with 7 steps and
+        fail a correct line.
+        """
+        first, second = self.resolve(
+            "**Hard** -- [clinical-note](../clinical-note/SKILL.md) step 2 and "
+            "[batch-shift](../batch-shift/SKILL.md), for step 9's shorthand.",
+            "setup-clinical-skills",
+        )
+        self.assertEqual(first.skill, "clinical-note")
+        self.assertEqual((second.skill, second.how), ("setup-clinical-skills", "owner"))
+
+    def test_a_sentence_boundary_does_not_carry_a_stale_subject(self) -> None:
+        """False alarm 2, the other ``setup-clinical-skills`` line a nearest-name rule failed."""
+        cites = self.resolve(
+            "[clinical-note](../clinical-note/SKILL.md) expands shorthand at step 2. Read it\n"
+            "before asking; it is not restated here, on step 8's arrangement.",
+            "setup-clinical-skills",
+        )
+        self.assertEqual(cites[-1].skill, "setup-clinical-skills")
+
+    def test_a_bare_citation_outside_a_skill_stays_unresolved(self) -> None:
+        """``anchor_scan.py``'s ``step-4`` means ``icd10-cpt`` and nothing here can know it."""
+        cite, = self.resolve("# Step 4's heading. The lookbehind is load-bearing.", None)
+        self.assertIsNone(cite.skill)
+
+    def test_the_plural_opener_is_a_floor_and_says_so(self) -> None:
+        """*steps 1 and 2* is read as a citation of 1. The 2 is missed, deliberately."""
+        self.assertEqual([c.number for c in self.resolve("if steps 1 and 2 move", "batch-shift")], [1])
+
+
+class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
+    """#233: a ``step N`` citation must point at a step that exists.
+
+    **Two renumberings in a week, and correctness rested on somebody
+    remembering.** ``setup-clinical-skills``'s silently redirected ``voice.md``'s
+    citation; ``practicum-case-study``'s on #214 moved seven citations across
+    five files and all seven re-derive correct only because the author went
+    looking with a ``grep``. Nothing required that, and nothing would have failed
+    if one had been missed. A reader following *"see step 7"* to the wrong step
+    gets a coherent, wrong answer, which is worse than landing on nothing.
+
+    **What it reaches, and the gap is the sharper half.** It catches a citation
+    to a step that does not exist. It cannot catch a citation to a step that
+    still exists and now **means something else** -- insert a step at the top and
+    every number below it shifts, and only citations at or above the old maximum
+    come back missing. On #214, steps 3 to 8 became 4 to 9: the four ``step 9``
+    citations would have fired and the ``step 5``, ``6`` and ``7`` ones would
+    have resolved silently to the wrong step. **A green run here is not a walked
+    citation**, which is ``differential_scan.py``'s *a clean scan is not a walked
+    row* arriving on a cross-reference.
+
+    **A minority of citations are unresolved and are never failed.** They are the
+    ones in ``tools/`` and at the repo root with no skill named beside them --
+    ``anchor_scan.py`` alone says ``step-4`` six times meaning ``icd10-cpt``, and
+    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238) is
+    where that is priced. Guessing would have been the alternative, and this
+    class asserts a floor on each limb below so that a resolver quietly falling
+    back to *unresolved* for everything cannot read as a clean run.
+
+    **No count is stated here, and the reason is that the first draft's went
+    stale before it was merged.** It read *38 unresolved* against a tree that had
+    120 resolved; merging ``origin/main`` the same day -- #226 and #228, neither
+    of which has anything to do with this ticket -- moved both, because every
+    paragraph either adds carries a citation or does not. That is
+    [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)
+    exactly: **a measurement's expiry date is the next commit to the thing it
+    measures**, and here the thing measured is the whole tracked tree. Anything
+    wanting the live numbers runs this module's own ``step_citations`` over
+    ``graded_files()``, which is one loop and cannot go stale.
+    """
+
+    def declared(self) -> dict[str, set[int]]:
+        return {name: declared_steps(name) for name in skill_names()}
+
+    def test_the_walk_reaches_the_repo(self) -> None:
+        files = graded_files()
+        self.assertGreater(len(files), 50, "git ls-files returned too little to be a checkout")
+        self.assertIn(REPO_ROOT / "CLAUDE.md", files)
+        self.assertIn(CASE_STUDY_VOICE, files)
+
+    def test_the_walk_grades_fixture_prose_and_not_the_records(self) -> None:
+        """A record cites the skill as it stood at run time and may not be edited."""
+        walked = {path.relative_to(REPO_ROOT).as_posix() for path in graded_files()}
+        self.assertIn("fixtures/README.md", walked)
+        self.assertIn("fixtures/filled-anchor/assertions.md", walked)
+        self.assertNotIn("fixtures/filled-anchor/notes/case-01.md", walked)
+        self.assertNotIn("fixtures/filled-anchor/run-2/case-01.md", walked)
+
+    def test_the_walk_drops_this_module_and_only_this_module(self) -> None:
+        """Asserted rather than described, on ``test_run_record_claim.py``'s lesson."""
+        walked = graded_files()
+        self.assertNotIn(SELF, [path.resolve() for path in walked])
+        self.assertIn(REPO_ROOT / "tools" / "test_run_record_claim.py", walked)
+
+    def test_every_skill_declares_steps(self) -> None:
+        """A heading pattern that matched nothing would grade every citation clean.
+
+        The floor is 3 and not the 5 the shortest skill happens to declare today.
+        ``icd10-cpt`` has exactly five steps, so a floor of 5 would go red the
+        first time somebody folded its E/M step into the one above -- a content
+        decision with nothing to do with #233, reported as a broken regex.
+        """
+        for name in skill_names():
+            with self.subTest(skill=name):
+                self.assertGreaterEqual(len(declared_steps(name)), 3)
+
+    def test_each_limb_of_the_resolver_carries_real_citations(self) -> None:
+        """Floors, not counts. A limb that stopped firing must not read as clean.
+
+        **Deliberately well below what the tree holds**, and the margin is the
+        whole design: a figure pinned at the measurement is
+        [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+        and would fail on the next paragraph anybody writes. That is not
+        hypothetical here -- the numbers this docstring first quoted were stale
+        within the day, moved by a merge from two tickets unrelated to this one.
+        The floors were not, which is the argument for stating a bound rather
+        than a measurement.
+        """
+        names = skill_names()
+        seen = {"beside": 0, "carried": 0, "owner": 0, "unresolved": 0}
+        for path in graded_files():
+            for cite in step_citations(read(path), owning_skill(path, names), names):
+                seen[cite.how if cite.skill else "unresolved"] += 1
+        for limb, floor in (("beside", 20), ("carried", 5), ("owner", 25)):
+            with self.subTest(limb=limb):
+                self.assertGreaterEqual(seen[limb], floor)
+
+    def test_the_unresolved_limb_is_reported_and_never_floored(self) -> None:
+        """The gap is counted, and deliberately has **no** floor under it.
+
+        A floor on ``unresolved`` would assert that the gap persists, so teaching
+        ``anchor_scan.py`` to name ``icd10-cpt`` beside its six ``step-4``
+        mentions -- which is exactly the repair #233 invites -- would turn the
+        suite red for an improvement. The three limbs above are what keep a
+        resolver that quietly resolved *nothing* from reading as a clean run.
+        """
+        names = skill_names()
+        unresolved = [
+            cite
+            for path in graded_files()
+            for cite in step_citations(read(path), owning_skill(path, names), names)
+            if cite.skill is None
+        ]
+        self.assertEqual([cite for cite in unresolved if cite.how != "owner"], [])
+
+    def test_a_citation_to_a_step_that_does_not_exist_is_caught(self) -> None:
+        """#214's renumbering, run backwards. This is the whole evidence for the class.
+
+        Take ``practicum-case-study`` back to the eight steps it had before #214
+        and the four surviving ``step 9`` citations come back stale -- in
+        ``apa7.md``, ``style.md``, ``voice.md`` and ``tools/docx_write.py``, which
+        is four of the five files the ticket names.
+        """
+        declared = self.declared()
+        declared["practicum-case-study"] = declared["practicum-case-study"] - {9}
+        stale = stale_citations(declared)
+        self.assertGreaterEqual(len(stale), 4)
+        for expected in (
+            "skills/practicum-case-study/reference/apa7.md",
+            "skills/practicum-case-study/reference/style.md",
+            "skills/practicum-case-study/reference/voice.md",
+            "tools/docx_write.py",
+        ):
+            with self.subTest(file=expected):
+                self.assertTrue(
+                    any(line.startswith(expected + ":") for line in stale),
+                    f"{expected} cites practicum-case-study step 9 and was not caught",
+                )
+
+    def test_no_citation_in_the_tree_is_stale(self) -> None:
+        stale = stale_citations(self.declared())
+        self.assertEqual(
+            stale,
+            [],
+            "a 'step N' citation points at a step its skill does not declare. "
+            "Either the citation or the skill's numbering moved and the other did not",
+        )
 
 
 class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):

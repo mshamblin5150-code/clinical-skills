@@ -399,9 +399,16 @@ makes a lost answer visible: a heading whose record never arrived has no `STATUS
 refuses a record with no `STATUS`.
 
 **One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
-the three returns and the recency rule above — a reputable source in one of four classes, a full
-APA 7 reference, and the claim restated in the source's own terms. Tell it the source classes by
-name, because a returned source outside them is a finding rather than an answer.
+**five returns** and the recency rule above — a reputable source in one of four classes, a full
+APA 7 reference, the claim restated in the source's own terms, **the locator it actually opened with
+the date it opened it, and the year the page itself carries with where the page says so**. Tell it
+the source classes by name, because a returned source outside them is a finding rather than an
+answer.
+
+**The last two are not extra bookkeeping**, and a run that treats them as optional writes a ledger
+the grader refuses: they are what turns *"I found a source"* into something the clinician can audit
+in one click. See the two paragraphs under the record shape below, and note that a **sixth** return
+comes from a different agent afterwards.
 
 **They return their record; they do not write it.** One writer to the ledger, and it is the context
 that spawned them, filling each heading in as its answer comes back. **N agents appending to one
@@ -424,6 +431,10 @@ REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009). Preg
 RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to 16.9 x 10^9/L in
     normal pregnancy.
 RECENCY: nothing newer - searched 2026-08-19, no later reference-range table for pregnancy exists.
+RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
+PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
+REFUTATION: stands - the volume, issue and pages match the publisher's landing page, and the
+    third-trimester row is on page 1327.
 ```
 
 `STATUS` is `sourced` or `unsourced`, and an `unsourced` record says on the same line what was
@@ -431,7 +442,54 @@ searched. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` 
 `tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
 `guideline in force`, and the last two carry the reason after a hyphen — *the run must have looked,
 and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
-it rather than against the clock. A field's value may wrap onto the next line.
+it rather than against the clock. `RESOLVED` is the URL or DOI the agent actually opened and the
+day it opened it — the word `read` or `retrieved`, then an ISO date. `PAGE-YEAR` is the year the
+page itself states and where on the page it says so. `REFUTATION` is `stands`, `refuted` or `paywalled` with the
+reason after a hyphen. A field's value may wrap onto the next line.
+
+**Two of those returns are what stops a citation nobody can check, and the third is a second agent.**
+A reference in correct APA form is not evidence that the document exists — an invented one looks
+like scholarship, which is exactly why *a wrong citation is worse than no citation: it survives
+review.*
+
+**`RESOLVED` and `PAGE-YEAR` come back from the agent that did the research.** It was on the page,
+so it writes down what it opened, when, and the year the page itself carries along with where the
+page says so. **No tool here touches the network** — the fetching already happened during the
+research, and what these two fields do is turn it into something the clinician can audit in one
+click instead of a claim nobody can check. `PAGE-YEAR` has to agree with the year in `REFERENCE`;
+where a source genuinely carries no date, `REFERENCE` reads `n.d.` and `PAGE-YEAR` says the page
+states none, and the two agree that way.
+
+**Then a refutation pass, by a second agent — not the one that wrote the record.** One per sourced
+claim, all at once, into the same ledger by the same one writer. The brief is adversarial: *here is
+a reference and a restatement,* ***try to prove it wrong****.* Not *check whether this is right*,
+because an agent asked that says yes. It looks for the document at the locator, checks the year, the
+volume, the numbering and the pages, and reads whether the source says what the restatement says it
+says.
+
+It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
+record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to
+`PROPOSED`. It means a false citation is sitting in the ledger, so the claim goes back through this
+step and comes out either with a sound record or as `unsourced`. It is never drafted from.
+
+**`paywalled` is the third word, and it exists because a wall is not the same thing as an absence.**
+A locator that 404s, or that names a document a search cannot find, is `refuted` — the citation may
+be invented, which is the whole failure this pass is for. A live page whose title and authors match
+the entry, with the body behind a subscription, is `paywalled` and **passes**: the URL resolving to
+the right document is itself evidence the document exists, and that is most of what a fabricated
+citation cannot do. **Say what did match** — the title, the authors, the date the page shows.
+
+**It is the weakest disposition that passes, and the run says so on its own face.** The report
+counts `paywalled` records on their own line, because a set of citations all behind a wall has been
+checked far less than a clean exit suggests. The alternative — failing them — would refuse every
+UpToDate record, and UpToDate dominates this corpus's references — see
+[style.md](reference/style.md) §10, which measures it and hedges it. That dominance is the reason no
+resolver was built here in the first place.
+
+**The independence is an instruction and not a check.** Nothing in a record shows which agent wrote
+it, so the grader cannot tell a real second reading from the first agent answering itself — that is
+*what a written instruction cannot do is fail* arriving at its own successor. The one shape the
+grader does reach is a refutation that is the restatement pasted back.
 
 **The ledger is gitignored**, because `scratch/` is, and that is where a case study's working
 material belongs — not in a tracked notes directory. Where the harness ships a general research
@@ -446,7 +504,7 @@ can be several of them at once:
 | a field missing or empty | a record missing its restatement is a citation nobody checked |
 | a `STATUS` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
 | an `unsourced` with nothing said about what was searched | anybody can write `unsourced`; nobody writes *searched PubMed, IDSA and UpToDate* without having looked |
-| an `unsourced` record carrying a `REFERENCE` | the two contradict, and nothing can tell which was meant |
+| an `unsourced` record carrying a `REFERENCE`, `RESOLVED`, `PAGE-YEAR` or `REFUTATION` | the two contradict, and nothing can tell which was meant |
 | a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
 | a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
 | a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
@@ -454,6 +512,16 @@ can be several of them at once:
 | a reference stating no year | `n.d.` is legitimate APA and cannot be measured for recency — unless an excuse with a reason stands in for the year |
 | a reference more than five years before `DATE` with no excuse | the amended rule above |
 | an excuse with no reason after it | *the run must have looked, and must say so* |
+| a `RESOLVED` that is not a URL or a DOI | the field exists to put a specific in front of a reader, and *on the society website* is not one |
+| a `RESOLVED` that does not say when it was read | a topic page changes under its citation, so when matters as much as where |
+| a locator read after the paper was written | a record describing a reading that had not happened yet |
+| a `PAGE-YEAR` stating no year, against an entry that states one | the entry claims a year the page did not give |
+| a `PAGE-YEAR` that is a year and nothing else | a year alone is an assertion; where it was found is a place a reader can go and look |
+| a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
+| a `REFUTATION` outside the three | it gates the row below, so a fourth word is a record the refutation never read |
+| a `REFUTATION` with no reason after it | *the run must have looked, and must say so*, arriving at the second pass |
+| a `REFUTATION` reading `refuted` | a false citation is sitting in the ledger: rewrite the record or write `unsourced` |
+| a `REFUTATION` that is the restatement pasted back | the first agent re-asserting rather than a second one checking |
 
 **Two things are deliberately not on that list.** *Within two years is the target* is a target, so a
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
@@ -468,9 +536,12 @@ python tools/research_ledger.py scratch/case-study-claims.md
 Exit 0 is clean, 1 names how many records failed, and **2 means it did not scan** — no file, no
 records, or no `DATE` header. Re-run with `--show` to see which records, and **that output is PHI**:
 read it, do not paste it. What the command checks and what it cannot are in its module docstring;
-the short version is that it can see a missing field, an unexcused old reference and a restatement
-that is the claim pasted back, and it **cannot** see whether the source is reputable or whether it
-says what the record claims it says. **A clean scan is not a checked claim.**
+the short version is that it can see a missing field, an unexcused old reference, a restatement
+that is the claim pasted back, a locator that is not one and a page year that disagrees with the
+entry — and it **cannot** see whether the source is reputable, whether it says what the record
+claims it says, or whether the refutation came from a second agent at all.
+**A clean scan is not a checked claim** — the refutation pass is what checks a claim, and this
+command only grades that the pass answered.
 
 **Every rule the command applies is written above, so a harness with no Python walks the ledger by
 eye instead.** The command saves the reading; it is not where the rule lives. That is
@@ -556,9 +627,14 @@ sorted.
 
 | Defect | Fix |
 | --- | --- |
+| The reference list headed anything but `References`, or `Reference` for a one-entry list | rename it — and since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the heading is what *applies* the hanging indent, so a wrong label changes the layout as well as the word |
+| An entry written as a bullet or a numbered item | make it a paragraph — the renderer gives a list its list style and the hanging indent is lost |
+| An entry carrying no year element — most often one hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing, and a line with no year is what that looks like |
+| Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
-| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4 |
+| An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
+| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading |
 | In-text year not matching the reference list year | reconcile |
 | Two entries with the same author and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3 |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
@@ -571,6 +647,47 @@ sorted.
 **A citation year is looked up, never recalled.** UpToDate revises topics continuously and the same
 topic appears in one clinician's corpus under three different years. The companion document states
 each topic's own revision date — use it.
+
+**Then scan the list, because the pass that wrote an entry cannot see what is wrong with it:**
+
+```bash
+python tools/reference_scan.py output/case-studies/<stem>.md --as-of <the exam date>
+```
+
+`--as-of` is **the exam date** — the day the paper is written. The retrieval-date row is measured
+against it and never against the clock, so a draft graded twice a year apart grades the same both
+times, and a run that omits it gets exit 2 rather than a clean report on a row that never ran. Exit
+0 is clean, 1 names how many defects, and **2 means it did not scan** — no file, no reference list
+it could find, or a heading with nothing under it. Re-run with `--show` to see which entries, and
+**that output is PHI**: read it, do not paste it.
+
+It reaches every row in the table above except one: whether an UpToDate year is the topic's revision
+year rather than the year it was read needs the companion evidence document, which the command never
+sees. And it says nothing at all about whether a source exists or says what the sentence citing it
+says. **A clean scan is not a checked reference list.**
+
+**A list it grades clean looks like this** — one entry per line, sorted, every entry cited above and
+every citation listed:
+
+```
+Nitrofurantoin is first line in the second trimester (American College of Obstetricians
+and Gynecologists, 2023), and a urine culture is drawn before the first dose (Gupta &
+Hooton, 2025).
+
+## References
+
+American College of Obstetricians and Gynecologists. (2023). Urinary tract infections in pregnancy (Practice Bulletin No. 91). https://doi.org/10.0000/illustrative-doi
+Gupta, K., & Hooton, T. M. (2025). Acute simple cystitis in adult females. *UpToDate*. Retrieved August 19, 2026, from https://www.uptodate.com/contents/acute-simple-cystitis
+```
+
+The entry lines are long and are not wrapped, which is the point rather than an oversight — the
+guideline entry takes no retrieval date and the UpToDate entry takes one, and the database name is
+italicized in the entry and plain in the sentence above it.
+
+**Every rule the command applies is written in the table above, so a harness with no Python walks
+the list by eye instead.** The command saves the reading; it is not where the rule lives. That is
+step 3's arrangement with `tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) keeps the two
+classes of tool citation apart deliberately.
 
 ### 8. Emit the document
 
@@ -592,7 +709,79 @@ is for the clinician, not for the grader.
 
 ### 9. Check
 
-Against this list, by eye — none of it is mechanical:
+**This is the second fan-out, and it runs after the draft exists.** Step 3's ran before a word was
+written and found sources; this one reads the document that was written and reports what is wrong
+with it. [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
+
+**The reason it is not just a careful reread is that a run cannot audit its own work.** The same
+recall that produced a reference entry, a differential order or an MDM discriminator produces the
+check of it, so the check has to come from somewhere that recall does not reach —
+[AGENTS.md](../../AGENTS.md)'s *a report by the pass that produced it is a baseline, not a
+verification*, and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) one level
+up. Two places qualify: a string test, where the rule is mechanical, and a **fresh reader** given
+the draft and the rule and nothing else, where it is not.
+
+**Write the check headings down before spawning anything.** `scratch/case-study-checks.md`, one
+`## CHECK:` heading per row of the table below, and nothing under them yet. That ordering is step
+3's and it is here for step 3's reason: a heading whose verdict never arrived is visible, and a
+check that was never run is not.
+
+| Check | What it reads | How |
+| --- | --- | --- |
+| the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent |
+| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, and does each source exist and say what the sentence citing it says |
+| differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above |
+| MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation |
+| the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support |
+| the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it |
+
+**One reader per row, all of them at once, and none of them is the context that wrote the draft.**
+Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
+them. **Where the harness has no subagent tool, the same briefs are worked one at a time in the main
+context, into the same file** — step 3's ruling, taken whole rather than answered a second way. The
+mechanism is the file and the brief; the parallelism is a speed property, and nothing downstream can
+tell the difference.
+
+**They return their record; they do not write it.** One writer to the checks file, and it is the
+context that spawned them, filling each heading in as its verdict comes back — step 3's rule and
+[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s, arriving at the second
+fan-out. **N readers appending to one Markdown file lose records to each other**, and this file has
+no grader in front of it, so a lost verdict is caught by the eye-walk below or not at all. Where the
+harness returns nothing usable, write one file per check and concatenate; what is not allowed is two
+writers on one file.
+
+**One record per check**, filled in under its heading:
+
+```
+## CHECK: differential ordering
+VERDICT: defect
+FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient of
+    childbearing age with pelvic pain and no documented hCG. The pregnancy-related
+    emergency is at 4 and has to be at 1 until the hCG is back.
+```
+
+`VERDICT` is `clean` or `defect`, and a `defect` says what and where. A heading with no `VERDICT`
+under it is a check that did not run, and the draft is not submitted on it.
+
+**A finding is fixed, not handed over.** Ruled on
+[#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211) and inherited here: the
+clinician does not get a list of citation defects to repair by hand. What goes to `PROPOSED` is only
+what a fix would require **him** to decide — a claim the evidence does not settle, a register the
+voice model does not cover. Everything else is repaired in the document before it is rendered again.
+
+**These readers see a patient record, and what they may report back is the strict form.** A finished
+draft is written about a patient, so a reader reports **where and what is wrong** — the section, the
+entry's position, the rule it fails — and **not the sentence itself**. That costs nothing here,
+because the context reading the report is the one holding the draft and can open the line for
+itself. [CLAUDE.md](../../CLAUDE.md)'s subagent rule, taken whole rather than carved out, and
+`tools/reference_scan.py` takes the same posture by default: counts only, and `--show` is PHI.
+
+**Whether a reference entry deserves that posture is the clinician's to settle**, and it is
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s first open decision. An
+entry carries no patient data and clinical prose does; the rule as written does not distinguish
+them, so this takes the stricter reading for both until he rules — a default, not a ruling.
+
+Then walk this list, by eye — none of it is mechanical:
 
 - Does every item on the faculty's own to-do list have a section that answers it, **and is every
   skeleton section present regardless of what the faculty asked for**?
@@ -602,8 +791,11 @@ Against this list, by eye — none of it is mechanical:
   indication **and a prose block under it carrying class, contraindications, monitoring, adverse
   effects and guideline support**?
 - **Has the step 7 reference walk actually run**, against
-  [reference/apa7.md](reference/apa7.md) rather than from memory? A known reference defect does
-  not leave this step in the `PROPOSED` block — it gets fixed.
+  [reference/apa7.md](reference/apa7.md) rather than from memory, and does
+  `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
+  defect does not leave this step in the `PROPOSED` block — it gets fixed.
+- **Does every `## CHECK:` heading in `scratch/case-study-checks.md` carry a `VERDICT`**, and has
+  every `defect` been repaired in the document rather than reported?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?

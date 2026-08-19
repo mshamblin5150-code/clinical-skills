@@ -196,3 +196,28 @@ filed.
 **A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
 sentence arriving one level down — and it is no less true now that four more rows are green, because
 what a renderer cannot check is whether the entry it indented so carefully is a real source.
+
+---
+
+## 7. What a command reads off this sheet, and what stays a reading
+
+`tools/reference_scan.py` grades a finished draft's reference list against most of the sections
+above — the label in §1, the sorting in §1, the `a`/`b` ordering in §3, where a retrieval date
+belongs and where it is a defect in §4, the italics in §2, and both directions of §5. **This sheet
+owns the rules and that command is a second *reader* of it, never a second copy**, which is why a
+row it applies is written out in [SKILL.md](../SKILL.md) step 7 as well: a harness with no Python
+walks the table by eye and reaches the same verdict.
+
+**§4 is the section it reads most narrowly, and the narrowing is in one direction.** It requires a
+retrieval date on an UpToDate entry, and it refuses one only on an entry carrying a **DOI** — the
+work stating that an archived version of itself exists, which is §4's own test failing. A society
+guideline PDF also takes no retrieval date, and nothing in a URL distinguishes one from a page
+designed to change, so **an unwarranted retrieval date on a guideline or a textbook is a defect this
+sheet names and no command catches.**
+
+**Two more things it cannot reach, and both are named where they matter rather than assumed away.**
+§2's rule that the UpToDate date element is the topic's **last update** year needs the companion
+evidence document, which the command never sees. And whether an entry is a real source saying what
+the sentence citing it says is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)
+— it needs the network, and it is deliberately not grown into either that command or
+`tools/research_ledger.py`, because one URL fetcher in this repo is already one more than none.
