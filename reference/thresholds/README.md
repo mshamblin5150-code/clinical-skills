@@ -274,9 +274,12 @@ not left to be discovered:
   anyone should be able to commit by accident. **Named here rather than smoothed over**,
   because the cost lands on someone editing prose who has done nothing wrong.
 - **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
-- **A `bound` source is warned about and never refused**, so most of the corpus can
-  only ever be warned about. `tools/guidelines_recs.py --json` reports which mode a
-  document yields, and that is the number to look at before trusting a clean run.
+- **A `bound` source is warned about and never refused.** `tools/guidelines_recs.py
+  --json` reports which mode a document yields, and that is the number to look at
+  before trusting a clean run. **This bullet used to close *so most of the corpus can
+  only ever be warned about*, and #173 made that false without touching the sentence**
+  — the majority of the corpus is `exact` now. The standing figure is the table below
+  and is deliberately not restated here.
 - **One topic has a sheet.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
