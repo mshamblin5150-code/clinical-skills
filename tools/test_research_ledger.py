@@ -46,6 +46,10 @@ REFERENCE: Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies.
 RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to
     16.9 x 10^9/L in normal pregnancy.
 RECENCY: nothing newer - searched 2026-08-19, no later reference-range table exists.
+RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
+PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
+REFUTATION: stands - the volume, issue and pages match the publisher's landing
+    page, and the third-trimester row is on page 1327.
 """
 
 
@@ -83,6 +87,20 @@ def replace_field(record: str, name: str, value: str | None) -> str:
             skipping = False
         out.append(line)
     return "\n".join(out) + "\n"
+
+
+def with_reference(record: str, reference: str) -> str:
+    """Set the reference and move ``PAGE-YEAR`` with it.
+
+    **#231 coupled the two**: the year on the page has to agree with the year in
+    the entry, so a fixture that ages one and leaves the other reports a
+    disagreement rather than the row it meant to test. Every fixture below that
+    changes a reference year goes through here, which is why none of them has to
+    know the coupling exists.
+    """
+    match = ledger.YEAR.search(reference)
+    page = f"{match.group(1)} - stated on the masthead." if match else "the page states no year."
+    return replace_field(replace_field(record, "REFERENCE", reference), "PAGE-YEAR", page)
 
 
 class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
@@ -189,7 +207,7 @@ class AnUnsourcedRecordSaysWhatWasSearched(unittest.TestCase):
         text = ledger_text(
             self._record("unsourced - nothing found.", "Someone, A. (2024). A thing. Journal.")
         )
-        self.assertEqual(kinds(text), [ledger.UNSOURCED_WITH_REFERENCE])
+        self.assertEqual(kinds(text), [ledger.UNSOURCED_WITH_CITATION_FIELD])
 
     def test_an_unsourced_record_is_counted_so_the_run_knows(self):
         text = ledger_text(self._record("unsourced - searched three databases."))
@@ -297,7 +315,7 @@ class TheRecencyRuleIsTheAmendedOne(unittest.TestCase):
     """
 
     def _aged(self, year: int, recency: str) -> str:
-        record = replace_field(CLEAN, "REFERENCE", f"Someone, A. ({year}). A study. Journal, 1(1), 1-9.")
+        record = with_reference(CLEAN, f"Someone, A. ({year}). A study. Journal, 1(1), 1-9.")
         return ledger_text(replace_field(record, "RECENCY", recency))
 
     def test_an_old_source_with_no_excuse_is_a_finding(self):
@@ -321,15 +339,21 @@ class TheRecencyRuleIsTheAmendedOne(unittest.TestCase):
         self.assertIn(ledger.STALE_UNEXCUSED, kinds(self._aged(AS_OF.year - 6, "within five")))
 
     def test_the_window_is_measured_against_the_ledger_date_not_the_clock(self):
-        """A ledger graded twice, a year apart, has to grade the same both times."""
-        text = self._aged(2019, "current")
+        """A ledger graded twice, a year apart, has to grade the same both times.
+
+        **The read date moves back with the earlier grading date**, because #231's
+        row is measured against ``DATE`` too: a ledger regraded as of 2024 cannot
+        also say its source was read in 2026. That is the fixture being made
+        coherent, not the row being worked around.
+        """
+        text = self._aged(2019, "current").replace("read 2026-08-19", "read 2023-11-02")
         self.assertEqual(kinds(text, date(2024, 1, 1)), [])
         self.assertIn(ledger.STALE_UNEXCUSED, kinds(text, date(2026, 1, 1)))
 
     def test_an_ab_disambiguated_year_still_parses(self):
         """``2019a`` is the form ``reference/apa7.md`` section 3 requires."""
-        record = replace_field(
-            CLEAN, "REFERENCE", "Someone, A. (2024a). A thing. Journal, 1(1), 1-9."
+        record = with_reference(
+            CLEAN, "Someone, A. (2024a). A thing. Journal, 1(1), 1-9."
         )
         self.assertEqual(ledger.read_records(ledger_text(record))[0].reference_year, 2024)
 
@@ -352,7 +376,7 @@ class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
             value = f"{name} - searched, nothing later." if excuse else name
             record = replace_field(CLEAN, "RECENCY", value)
             if not excuse:
-                record = replace_field(record, "REFERENCE", recent)
+                record = with_reference(record, recent)
             with self.subTest(recency=name):
                 self.assertEqual(kinds(ledger_text(record)), [])
 
@@ -362,7 +386,7 @@ class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
 
     def test_a_fifth_disposition_on_an_old_source_also_reports_the_window(self):
         """The two rows are different failures and both are true of that record."""
-        record = replace_field(CLEAN, "REFERENCE", "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
+        record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
         record = replace_field(record, "RECENCY", "probably fine")
         found = kinds(ledger_text(record))
         self.assertIn(ledger.UNKNOWN_RECENCY, found)
@@ -386,9 +410,13 @@ class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
         self.assertNotIn(ledger.UNKNOWN_RECENCY, found)
 
 
-class TheWindowIsTheOneRowADatelessLedgerLoses(unittest.TestCase):
+class TheDatelessLedgerLosesTheTwoRowsMeasuredAgainstTheDate(unittest.TestCase):
+    """The five-year window, and #231's read-date. Both compare a date to ``DATE``
+    and neither can run without one. **This class was named for one row** and the
+    second arrived with #231, which is a claim in a name going stale."""
+
     def test_an_old_source_is_not_reported_without_a_date_to_measure_against(self):
-        record = replace_field(CLEAN, "REFERENCE", "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
+        record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
         record = replace_field(record, "RECENCY", "current")
         self.assertIn(ledger.STALE_UNEXCUSED, kinds(ledger_text(record)))
         self.assertEqual(kinds(ledger_text(record, stamp=""), None), [])
@@ -412,12 +440,12 @@ class AnUndatedReferenceIsRefusedUnlessAnExcuseStandsInForTheYear(unittest.TestC
     def test_n_d_with_nothing_said_about_it_is_a_finding(self):
         """The recency rule cannot be applied to it, and a row that could not be
         graded reads exactly like a row that passed."""
-        record = replace_field(CLEAN, "REFERENCE", self.UNDATED)
+        record = with_reference(CLEAN, self.UNDATED)
         record = replace_field(record, "RECENCY", "current")
         self.assertIn(ledger.UNDATED_REFERENCE, kinds(ledger_text(record)))
 
     def test_n_d_with_an_excuse_and_a_reason_stands(self):
-        record = replace_field(CLEAN, "REFERENCE", self.UNDATED)
+        record = with_reference(CLEAN, self.UNDATED)
         record = replace_field(
             record, "RECENCY", "nothing newer - the page states no revision date and CDC issues none."
         )
@@ -425,7 +453,7 @@ class AnUndatedReferenceIsRefusedUnlessAnExcuseStandsInForTheYear(unittest.TestC
 
     def test_a_bare_excuse_does_not_buy_the_hatch(self):
         """Otherwise ``nothing newer`` alone would clear two rows at once."""
-        record = replace_field(CLEAN, "REFERENCE", self.UNDATED)
+        record = with_reference(CLEAN, self.UNDATED)
         record = replace_field(record, "RECENCY", "nothing newer")
         found = kinds(ledger_text(record))
         self.assertIn(ledger.BARE_EXCUSE, found)
@@ -435,6 +463,278 @@ class AnUndatedReferenceIsRefusedUnlessAnExcuseStandsInForTheYear(unittest.TestC
         found = kinds(ledger_text(replace_field(CLEAN, "REFERENCE", None)))
         self.assertIn(ledger.MISSING_FIELD, found)
         self.assertNotIn(ledger.UNDATED_REFERENCE, found)
+
+
+class TheAgentWritesDownWhatItRead(unittest.TestCase):
+    """#231's first half. **No network in ``tools/``**: the agent that found the
+    source was already on the page, so it records the locator and the date it
+    read, and the grader compares them offline.
+
+    **This narrows the hole rather than closing it.** An agent can write a URL it
+    never opened. What the field buys is a specific a reader can be caught on in
+    one click, where an APA entry alone is checkable only by going and looking --
+    and a fabricated entry in correct APA form is the failure #214 calls the one
+    that matters most, because it survives review.
+
+    **Deliberately not exempt by source class.** ``tertiary reference`` is
+    UpToDate, whose topics the clinician hands over wholesale -- but a claim only
+    reaches this ledger because the evidence dump did **not** cover it, so an
+    UpToDate reference here is a topic nobody has. Exempting the class would
+    exempt the records that need the row most.
+    """
+
+    def test_a_url_is_a_locator(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://www.acog.org/clinical/x - read 2026-08-19")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_bare_doi_is_a_locator(self):
+        record = replace_field(CLEAN, "RESOLVED", "10.1097/AOG.0000000000002528 - read 2026-08-19")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_prose_about_having_looked_is_not_a_locator(self):
+        """The whole point is a specific the clinician can click."""
+        record = replace_field(CLEAN, "RESOLVED", "found it on the society website - read 2026-08-19")
+        self.assertIn(ledger.UNRESOLVABLE_LOCATOR, kinds(ledger_text(record)))
+
+    def test_a_locator_with_no_read_date_is_a_finding(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://doi.org/10.1097/AOG.1")
+        self.assertIn(ledger.UNDATED_READ, kinds(ledger_text(record)))
+
+    def test_a_date_inside_the_url_is_not_the_read_date(self):
+        """Anchored on the word, because a URL is full of digits and one of them
+        being date-shaped is not the agent saying when it looked."""
+        record = replace_field(CLEAN, "RESOLVED", "https://example.org/2026-08-19/topic")
+        self.assertIn(ledger.UNDATED_READ, kinds(ledger_text(record)))
+
+    def test_the_anchor_word_inside_the_url_is_not_the_read_date_either(self):
+        """**The test above passed for the wrong reason** and this is the case it
+        missed: an archive path spells the anchor word itself, so the locator
+        supplied a read date the agent never wrote and graded itself as dated.
+        Found by review, reproduced, then fixed."""
+        record = replace_field(CLEAN, "RESOLVED", "https://site.org/read/2026-01-02/piece")
+        self.assertIn(ledger.UNDATED_READ, kinds(ledger_text(record)))
+
+    def test_a_slash_between_the_word_and_the_date_is_not_a_separator(self):
+        self.assertIsNone(ledger.READ_DATE.search("read/2026-01-02"))
+        self.assertIsNotNone(ledger.READ_DATE.search("- read 2026-01-02"))
+        self.assertIsNotNone(ledger.READ_DATE.search("read: 2026-01-02"))
+
+    def test_retrieved_is_accepted_beside_read(self):
+        """``apa7.md`` section 4 calls it a retrieval date, so a run copying that
+        word is writing the field correctly rather than wrongly."""
+        record = replace_field(CLEAN, "RESOLVED", "https://doi.org/10.1/x - retrieved 2026-08-19")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_source_read_after_the_paper_was_written_is_a_finding(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://doi.org/10.1/x - read 2026-09-02")
+        self.assertIn(ledger.READ_AFTER_DATE, kinds(ledger_text(record)))
+
+    def test_reading_it_the_day_the_paper_is_written_is_not(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://doi.org/10.1/x - read 2026-08-19")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_read_date_is_not_graded_without_a_ledger_date_to_measure_against(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://doi.org/10.1/x - read 2026-09-02")
+        self.assertEqual(kinds(ledger_text(record, stamp=""), None), [])
+
+    def test_a_missing_resolved_reports_the_missing_field_and_not_a_bad_locator(self):
+        record = replace_field(CLEAN, "RESOLVED", None)
+        self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
+
+
+class ThePageYearIsCheckedAgainstTheEntry(unittest.TestCase):
+    """The year the page states, against the year the APA entry states. This is
+    the row a fabricated citation has to get past, and it is why the field is two
+    things rather than one: a year alone is an assertion, a year with where it was
+    found is a place a reader can go and look."""
+
+    def test_a_matching_year_passes(self):
+        self.assertEqual(kinds(ledger_text(CLEAN)), [])
+
+    def test_a_disagreeing_year_is_what_the_field_exists_for(self):
+        record = replace_field(CLEAN, "PAGE-YEAR", "2011 - stated on the article masthead.")
+        self.assertIn(ledger.PAGE_YEAR_DISAGREES, kinds(ledger_text(record)))
+
+    def test_a_stated_page_year_against_an_n_d_entry_disagrees(self):
+        """The page gave a year, so the entry should not read ``n.d.``"""
+        record = replace_field(CLEAN, "REFERENCE", "Someone, A. (n.d.). A topic. UpToDate.")
+        self.assertIn(ledger.PAGE_YEAR_DISAGREES, kinds(ledger_text(record)))
+
+    def test_an_n_d_entry_beside_a_page_that_states_no_year_agrees(self):
+        """The two say the same thing, and refusing it would refuse legitimate
+        APA -- the mistake ``UNDATED_REFERENCE`` was corrected for once already."""
+        record = with_reference(CLEAN, "Someone, A. (n.d.). A topic. UpToDate.")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_page_year_stating_no_year_against_a_dated_entry_is_a_finding(self):
+        record = replace_field(CLEAN, "PAGE-YEAR", "the cover page did not say")
+        self.assertIn(ledger.PAGE_YEAR_UNSTATED, kinds(ledger_text(record)))
+
+    def test_a_bare_year_is_the_assertion_without_the_looking(self):
+        record = replace_field(CLEAN, "PAGE-YEAR", "2009")
+        self.assertIn(ledger.BARE_PAGE_YEAR, kinds(ledger_text(record)))
+
+    def test_a_bare_year_that_agrees_is_not_also_read_as_disagreeing(self):
+        record = replace_field(CLEAN, "PAGE-YEAR", "2009")
+        self.assertNotIn(ledger.PAGE_YEAR_DISAGREES, kinds(ledger_text(record)))
+
+    def test_a_page_number_before_the_year_is_not_read_as_the_year(self):
+        """**A four-digit page number is the shape that broke this**, and the
+        field's own documented form invites it -- it asks for the year *and where
+        the page says so*, and nothing requires the year first. ``on page 1327,
+        dated 2009`` read as the year 1327 and failed a correct record. Found by
+        review, reproduced, then narrowed to plausible years."""
+        record = replace_field(CLEAN, "PAGE-YEAR", "on page 1327, dated 2009")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_page_number_that_is_itself_a_plausible_year_still_wins(self):
+        """The limit that remains, pinned rather than claimed away: 1900-2099
+        narrows the shape, it does not order the field."""
+        record = replace_field(CLEAN, "PAGE-YEAR", "on page 2019, dated 2009")
+        self.assertIn(ledger.PAGE_YEAR_DISAGREES, kinds(ledger_text(record)))
+
+    def test_a_missing_page_year_reports_the_missing_field_and_not_a_disagreement(self):
+        record = replace_field(CLEAN, "PAGE-YEAR", None)
+        self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
+
+
+class TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong(unittest.TestCase):
+    """#231's second half, and the only row in this module that is verification
+    rather than a better-shaped promise.
+
+    **An agent asked *is this right?* says yes.** So the brief is to refute, and
+    the record carries what the attempt found. A ``refuted`` record is a
+    **failure** and not an outcome -- unlike ``unsourced``, which the skill routes
+    to ``PROPOSED`` honestly. A refuted citation is a false one sitting in the
+    ledger, and the run rewrites the record or writes ``unsourced``; it does not
+    draft from it.
+
+    **What no row here reaches is that the refuter was a different agent.** *What
+    a written instruction cannot do is fail* is #214's own sentence and it binds
+    its own successor -- ``SKILL.md`` states the independence and the grader
+    grades the record. One shape it does reach: a refutation that is the
+    restatement pasted back is the first agent re-asserting rather than a second
+    one checking, which is ``RESTATEMENT_ECHOES_CLAIM``'s trick one level up.
+    """
+
+    def test_a_disposition_with_a_reason_passes(self):
+        self.assertEqual(kinds(ledger_text(CLEAN)), [])
+
+    def test_a_refuted_citation_is_a_failure_and_not_an_outcome(self):
+        record = replace_field(CLEAN, "REFUTATION", "refuted - 114(6) ends at page 1300.")
+        self.assertIn(ledger.REFUTED_CITATION, kinds(ledger_text(record)))
+
+    def test_a_third_disposition_is_a_finding(self):
+        """``STATUS``'s reasoning and not ``SOURCE``'s: it gates the row below."""
+        record = replace_field(CLEAN, "REFUTATION", "probably fine")
+        self.assertIn(ledger.UNKNOWN_REFUTATION, kinds(ledger_text(record)))
+
+    def test_a_third_disposition_does_not_also_report_the_row_it_skipped(self):
+        record = replace_field(CLEAN, "REFUTATION", "probably fine")
+        self.assertNotIn(ledger.REFUTED_CITATION, kinds(ledger_text(record)))
+
+    def test_a_bare_disposition_is_the_assertion_without_the_checking(self):
+        record = replace_field(CLEAN, "REFUTATION", "stands")
+        self.assertIn(ledger.BARE_REFUTATION, kinds(ledger_text(record)))
+
+    def test_a_bare_refutation_on_a_refuted_record_reports_both(self):
+        record = replace_field(CLEAN, "REFUTATION", "refuted")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.BARE_REFUTATION, found)
+        self.assertIn(ledger.REFUTED_CITATION, found)
+
+    def test_the_restatement_pasted_back_is_the_first_agent_reasserting(self):
+        restatement = ledger.read_records(ledger_text(CLEAN))[0].value("RESTATEMENT")
+        record = replace_field(CLEAN, "REFUTATION", "stands - " + restatement)
+        self.assertIn(ledger.REFUTATION_ECHOES_RESTATEMENT, kinds(ledger_text(record)))
+
+    def test_a_real_second_reading_passes(self):
+        record = replace_field(
+            CLEAN, "REFUTATION", "stands - the volume and pages match the publisher landing page."
+        )
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_case_is_free(self):
+        record = replace_field(CLEAN, "REFUTATION", "Stands - checked the publisher landing page.")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_paywall_passes_because_the_wall_is_not_an_absence(self):
+        """The clinician's ruling of 2026-08-19 on #231's decision 4. A live page
+        whose title matches is evidence the document exists, which is most of what
+        a fabricated citation cannot do."""
+        record = replace_field(
+            CLEAN,
+            "REFUTATION",
+            "paywalled - the topic page loads and the title and authors match; the body"
+            " is behind the subscription.",
+        )
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_bare_paywall_is_still_the_assertion_without_the_checking(self):
+        """It passes, so what did match is the whole of its evidence."""
+        record = replace_field(CLEAN, "REFUTATION", "paywalled")
+        self.assertIn(ledger.BARE_REFUTATION, kinds(ledger_text(record)))
+
+    def test_a_paywall_is_not_a_refusal(self):
+        """The split is the ruling: *could not reach* is not *is not there*."""
+        record = replace_field(CLEAN, "REFUTATION", "paywalled - the title and authors match.")
+        self.assertNotIn(ledger.REFUTED_CITATION, kinds(ledger_text(record)))
+
+    def test_a_paywalled_record_is_counted_so_a_clean_exit_cannot_hide_it(self):
+        """**The mitigation for a weak disposition that passes.** A set all behind
+        a wall has been checked far less than exit 0 suggests, and this line is the
+        only place that shows."""
+        record = replace_field(CLEAN, "REFUTATION", "paywalled - the title and authors match.")
+        scan = ledger.survey(ledger.read_records(ledger_text(record)), AS_OF)
+        self.assertEqual((scan.behind_a_paywall, scan.failing_records), (1, 0))
+        self.assertIn("citations behind a paywall", ledger.format_report(scan, source="x.md"))
+
+    def test_a_standing_record_is_not_counted_as_paywalled(self):
+        scan = ledger.survey(ledger.read_records(ledger_text(CLEAN)), AS_OF)
+        self.assertEqual(scan.behind_a_paywall, 0)
+
+    def test_a_fourth_disposition_is_still_a_finding(self):
+        record = replace_field(CLEAN, "REFUTATION", "probably fine")
+        self.assertIn(ledger.UNKNOWN_REFUTATION, kinds(ledger_text(record)))
+
+    def test_a_missing_refutation_reports_the_missing_field_and_not_a_third_word(self):
+        record = replace_field(CLEAN, "REFUTATION", None)
+        self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
+
+
+class AnUnsourcedRecordCarriesNoneOfTheCitationFields(unittest.TestCase):
+    """``UNSOURCED_WITH_CITATION_FIELD``'s reasoning, widened by #231: a record saying
+    it found no source may not carry a locator, a page year or a refutation
+    either. The two statements contradict, and nothing else in the file can tell
+    which was meant."""
+
+    def _unsourced(self) -> str:
+        record = replace_field(
+            CLEAN, "STATUS", "unsourced - searched PubMed, IDSA and UpToDate, nothing addresses it."
+        )
+        for name in ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION"):
+            record = replace_field(record, name, None)
+        return record
+
+    def test_an_unsourced_record_with_no_citation_fields_passes(self):
+        self.assertEqual(kinds(ledger_text(self._unsourced())), [])
+
+    def test_each_citation_field_contradicts_it_on_its_own(self):
+        for name, value in (
+            ("REFERENCE", "Someone, A. (2020). A study. Journal, 1(1), 1-9."),
+            ("RESOLVED", "https://doi.org/10.1/x - read 2026-08-19"),
+            ("PAGE-YEAR", "2020 - on the masthead."),
+            ("REFUTATION", "stands - checked the landing page."),
+        ):
+            with self.subTest(field=name):
+                record = replace_field(self._unsourced(), "RECENCY", value)
+                record = record.replace("RECENCY:", name + ":")
+                self.assertEqual(kinds(ledger_text(record)), [ledger.UNSOURCED_WITH_CITATION_FIELD])
+
+    def test_the_citation_fields_are_not_required_of_it(self):
+        """An unsourced record has no citation, so asking it to refute one would
+        refuse the honest outcome the ``PROPOSED`` block exists for."""
+        self.assertEqual(kinds(ledger_text(self._unsourced())), [])
 
 
 class TheReportCarriesNoClaimTextWithoutShow(unittest.TestCase):
@@ -515,9 +815,13 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             with redirect_stdout(out), redirect_stderr(err):
                 ledger.main([str(path)])
         self.assertIn("no DATE:", err.getvalue())
+        # Both rows measured against the date, not just the window. A banner
+        # naming one of two understates the floor it exists to establish.
+        self.assertIn("five-year window", err.getvalue())
+        self.assertIn("read-date", err.getvalue())
         self.assertIn("NO DATE HEADER", out.getvalue())
 
-    def test_a_dateless_ledger_still_grades_the_nine_rows_that_do_not_need_it(self):
+    def test_a_dateless_ledger_still_grades_every_row_that_does_not_need_it(self):
         text = ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp="")
         self.assertEqual(kinds(text, None), [ledger.UNKNOWN_SOURCE_CLASS])
 
@@ -559,7 +863,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         ledger.MISSING_FIELD: "a field missing or empty",
         ledger.UNKNOWN_STATUS: "a `STATUS` that is neither word",
         ledger.BARE_STATUS: "an `unsourced` with nothing said about what was searched",
-        ledger.UNSOURCED_WITH_REFERENCE: "an `unsourced` record carrying a `REFERENCE`",
+        ledger.UNSOURCED_WITH_CITATION_FIELD: "an `unsourced` record carrying a `REFERENCE`",
         ledger.UNKNOWN_SOURCE_CLASS: "a `SOURCE` outside the four",
         ledger.UNKNOWN_RECENCY: "a `RECENCY` outside the four",
         ledger.RESTATEMENT_ECHOES_CLAIM: "a `RESTATEMENT` that is the claim pasted back",
@@ -567,6 +871,16 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         ledger.UNDATED_REFERENCE: "a reference stating no year",
         ledger.STALE_UNEXCUSED: "more than five years before `DATE` with no excuse",
         ledger.BARE_EXCUSE: "an excuse with no reason after it",
+        ledger.UNRESOLVABLE_LOCATOR: "a `RESOLVED` that is not a URL or a DOI",
+        ledger.UNDATED_READ: "a `RESOLVED` that does not say when it was read",
+        ledger.READ_AFTER_DATE: "read after the paper was written",
+        ledger.PAGE_YEAR_UNSTATED: "a `PAGE-YEAR` stating no year",
+        ledger.BARE_PAGE_YEAR: "a `PAGE-YEAR` that is a year and nothing else",
+        ledger.PAGE_YEAR_DISAGREES: "a `PAGE-YEAR` that is not the year in `REFERENCE`",
+        ledger.UNKNOWN_REFUTATION: "a `REFUTATION` outside the three",
+        ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
+        ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
+        ledger.REFUTATION_ECHOES_RESTATEMENT: "a `REFUTATION` that is the restatement pasted back",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
@@ -592,6 +906,22 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         for name in ledger.STATUSES:
             with self.subTest(status=name):
                 self.assertIn(f"`{name}`", self.skill)
+
+    def test_the_skill_declares_the_refutation_vocabulary(self):
+        for name in ledger.REFUTATION_VALUES:
+            with self.subTest(refutation=name):
+                self.assertIn(f"`{name}`", self.skill)
+
+    def test_the_skill_sends_a_different_agent_to_refute(self):
+        """The independence is the whole of #231's second half and no row here
+        can see it, so the instruction has to carry it."""
+        self.assertIn("not the one that wrote the record", self.skill)
+        self.assertIn("try to prove it wrong", self.skill)
+
+    def test_the_skill_says_the_refutation_pass_needs_no_network_in_tools(self):
+        """#231's decision 1: nothing in ``tools/`` touches the network, and the
+        reason is that the agent is already on the page."""
+        self.assertIn("No tool here touches the network", self.skill)
 
     def test_the_skill_carries_the_amended_recency_rule_and_not_the_retired_one(self):
         """#215's correction. The retired version cut a correct claim for being

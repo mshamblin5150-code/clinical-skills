@@ -105,11 +105,16 @@ list would otherwise be found by neither.
 
 **What it cannot reach, and it is a great deal.** Whether the source exists,
 whether it says what the sentence citing it says, and whether the year on the page
-is the year in the entry -- that last is
-[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), needs the
-network, and is deliberately not grown here so that this and
-``research_ledger.py`` do not both sprout a URL fetcher. Whether an UpToDate year
-is the topic's revision year rather than the year it was read needs the companion
+is the year in the entry. That last one is
+[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231) and is
+**answered pre-draft rather than here** -- and it turned out to need **no network
+at all**, which is the opposite of what this paragraph said when it was written.
+``research_ledger.py`` grades a ``PAGE-YEAR`` the researching agent read off the
+page against the year in the entry, and a ``REFUTATION`` a second agent returns
+from trying to knock the citation down. So neither module sprouts a URL fetcher,
+and the reason is that nothing here needed one: UpToDate is subscription-gated, so
+a fetch would reach a login wall and **pass on a 200**. Whether an UpToDate year is
+the topic's revision year rather than the year it was read needs the companion
 evidence document, which this never sees. **A clean scan is not a checked reference
 list**, ``skills/practicum-case-study/SKILL.md`` step 7 says so beside the
 command, and a test asserts that sentence is still there.
