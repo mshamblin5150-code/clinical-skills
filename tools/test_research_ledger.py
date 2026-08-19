@@ -21,6 +21,8 @@ which is ``test_build_artifacts_ignored``'s finding.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import io
 import tempfile
 import unittest
@@ -101,6 +103,32 @@ def with_reference(record: str, reference: str) -> str:
     match = ledger.YEAR.search(reference)
     page = f"{match.group(1)} - stated on the masthead." if match else "the page states no year."
     return replace_field(replace_field(record, "REFERENCE", reference), "PAGE-YEAR", page)
+
+
+def vocabularies_keyword_of_serves() -> dict[str, tuple[str, ...]]:
+    """Every vocabulary the module actually hands ``keyword_of``, read off its own
+    source by AST rather than typed here.
+
+    A list typed into a test goes stale the first time the module's own moves and
+    reads as coverage while it does, which is ``test_build_artifacts_ignored``'s
+    finding and this file's own opening rule. A fourth vocabulary would otherwise
+    leave the boundary loops below green while covering three of four -- the
+    passes-for-the-wrong-reason case, on ``test_console_codec``'s instrument and
+    for its reason: a substring search would have matched the ``def`` line and the
+    docstring, neither of which is a call.
+    """
+    tree = ast.parse(Path(ledger.__file__).read_text(encoding="utf-8"))
+    served: dict[str, tuple[str, ...]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        named = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if named != "keyword_of" or len(node.args) < 2:
+            continue
+        second = node.args[1]
+        if isinstance(second, ast.Name):
+            served[second.id] = getattr(ledger, second.id)
+    return served
 
 
 class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
@@ -408,6 +436,168 @@ class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
         found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", None)))
         self.assertIn(ledger.MISSING_FIELD, found)
         self.assertNotIn(ledger.UNKNOWN_RECENCY, found)
+
+
+class APrefixIsNotAWord(unittest.TestCase):
+    """#253. ``keyword_of`` matched on ``startswith`` alone, so any value whose
+    first token merely *begins with* a vocabulary word was read as that word, and
+    the rest of that token was absorbed into the remainder -- which is the field
+    the substance rows then read as a reason.
+
+    **The cases that graded *clean* are the ones to notice, and they are not the
+    one #253's title names.** ``STATUS: unsourced-but-see-below`` reported **no
+    findings at all**, its substance row satisfied by ``-but-see-below`` -- the
+    residue of the keyword it was keyed on. ``RECENCY: nothing newerish`` did the
+    same one field over, where the excuse is what the **window** reads, so an old
+    reference passed with no excuse, no reason and nothing reported.
+
+    **``RECENCY: currently under review`` is weaker than every copy of this claim
+    said, and the correction is worth more than the case.** ``current`` is not in
+    ``EXCUSES``, so the window fired on it before the fix as well; only
+    ``UNKNOWN_RECENCY`` was lost. The consequence was copied out of #253's table
+    while only its keyword column was re-derived, which is the failure this class
+    caught in that table's *second* row -- committed in the fix for it, and caught
+    afterwards by the tracker sweep. Both directions are pinned below so neither
+    the strong case nor the weak one can be restated wrongly again.
+
+    **No test in this file distinguished ``current`` from ``currently`` before
+    these**, which is why the ticket asked for them ahead of the fix: a green run
+    over the old cases proves less than it looks like it does.
+
+    **The hyphen is the one character that needed a ruling rather than a copy.**
+    ``RECENCY: nothing newer - searched 2026-08-19`` is the documented form, so a
+    **spaced** hyphen has to be a separator; a **welded** one is part of the word,
+    and no legitimate value of the vocabularies this module hands ``keyword_of``
+    opens with a welded hyphenated form -- checked against the tree rather than
+    assumed. **Which vocabularies those are is read off the module** rather than
+    listed here, so a fourth cannot arrive with the loops below still green. ``SOURCE`` is out of it entirely, matched by normalized equality
+    against ``_CLASS_KEYS``, which is also where the only hyphen inside a
+    vocabulary word lives: ``peer-reviewed``.
+    """
+
+    VOCABULARIES = vocabularies_keyword_of_serves()
+
+    def test_the_instrument_is_live(self):
+        """The two loops below are only worth anything if the walk found the
+        calls: rename ``keyword_of`` and they would pass over an empty set and
+        report as coverage. ``test_build_artifacts_ignored``'s own first version
+        passed three of four assertions against a check that said yes to
+        everything, and this is the same guard one file over."""
+        self.assertTrue(self.VOCABULARIES)
+        self.assertTrue(all(self.VOCABULARIES.values()))
+
+    def test_the_helper_keeps_the_whole_value_when_the_first_token_is_longer(self):
+        """The remainder is what the substance rows read, so absorbing ``ly under
+        review`` into it is what let the record pass wearing a reason."""
+        self.assertEqual(
+            ledger.keyword_of("currently under review", ledger.RECENCY_VALUES),
+            ("", "currently under review"),
+        )
+
+    def test_the_helper_still_splits_the_documented_form(self):
+        """The other direction, and the one a boundary rule is most likely to break:
+        every documented record writes its reason after a spaced hyphen."""
+        self.assertEqual(
+            ledger.keyword_of("nothing newer - searched 2026-08-19", ledger.RECENCY_VALUES),
+            ("nothing newer", " - searched 2026-08-19"),
+        )
+
+    def test_a_recency_under_review_is_not_a_recency_of_current(self):
+        """``UNKNOWN_RECENCY`` is the whole of what this case discriminates.
+
+        The ``STALE_UNEXCUSED`` beside it is asserted **because it fired before the
+        fix too** -- ``current`` is not an excuse, so the window always read this
+        record. Pinning it is what stops the weak case being restated as the strong
+        one a third time; the strong one is two tests below.
+        """
+        record = replace_field(CLEAN, "RECENCY", "currently under review")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.UNKNOWN_RECENCY, found)
+        self.assertIn(ledger.STALE_UNEXCUSED, found)
+
+    def test_a_welded_suffix_on_an_excuse_is_the_silent_pass(self):
+        """**This is the case the ticket was really about**, and no copy of the
+        claim named it until the sweep re-derived the table.
+
+        ``nothing newer`` and ``guideline in force`` are the two words that excuse
+        an old source, so a value merely opening with one took the window down with
+        it. Before the fix ``RECENCY: nothing newerish`` on the 2009 reference in
+        ``CLEAN`` reported **nothing at all** -- no fifth disposition, no window, no
+        bare excuse, because ``ish`` is substance. A silent clean pass on a record
+        that never said why the source stands.
+        """
+        for value in ("nothing newerish", "guideline in forceful terms"):
+            with self.subTest(recency=value):
+                found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", value)))
+                self.assertIn(ledger.UNKNOWN_RECENCY, found)
+                self.assertIn(ledger.STALE_UNEXCUSED, found)
+
+    def test_the_tickets_second_recency_row_is_wrong_and_is_kept_as_one(self):
+        """#253's table lists ``RECENCY: currency of this guideline is unclear`` as
+        grading ``current``. **It does not and never did** -- ``currency`` parts
+        from ``current`` at the seventh character, so this value was already a
+        fifth disposition before the fix and this case discriminates nothing. Kept
+        rather than deleted, because a case passing for a different reason than the
+        table beside it gives is exactly what a green run hides; re-derived here
+        rather than taken from the ticket, which is what found it."""
+        record = replace_field(CLEAN, "RECENCY", "currency of this guideline is unclear")
+        self.assertIn(ledger.UNKNOWN_RECENCY, kinds(ledger_text(record)))
+        self.assertEqual(ledger.keyword_of("currency", ledger.RECENCY_VALUES)[0], "")
+
+    def test_a_status_that_merely_begins_with_one_is_a_third_word(self):
+        """``sourcedish`` rather than the ticket's ``unsourced-but-see-below``,
+        because the two fail for different reasons and only this one reaches the
+        plain no-punctuation case; the welded hyphen has its own test below."""
+        record = replace_field(CLEAN, "STATUS", "sourcedish")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
+
+    def test_a_refutation_that_merely_begins_with_one_is_a_third_word(self):
+        """``standstill on the publisher's side`` says nothing about the citation
+        and used to pass the one verification row in the arrangement."""
+        record = replace_field(CLEAN, "REFUTATION", "standstill on the publisher's side")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.UNKNOWN_REFUTATION, found)
+        self.assertNotIn(ledger.REFUTED_CITATION, found)
+
+    def test_a_welded_hyphen_is_part_of_the_word(self):
+        """The excluded character, on the branch selector -- and the other silent
+        pass. Before the fix this record produced **no findings**: read as
+        ``unsourced``, its substance row was satisfied by ``-but-see-below``, so a
+        record saying nothing about what was searched cleared the row that exists
+        to make it say so."""
+        record = replace_field(CLEAN, "STATUS", "unsourced-but-see-below")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
+
+    def test_no_vocabulary_word_survives_a_welded_continuation(self):
+        """The ruling made runnable, across all three vocabularies at once."""
+        for name, vocabulary in self.VOCABULARIES.items():
+            for word in vocabulary:
+                with self.subTest(vocabulary=name, word=word):
+                    self.assertEqual(
+                        ledger.keyword_of(f"{word}-free and clear", vocabulary),
+                        ("", f"{word}-free and clear"),
+                    )
+
+    def test_a_spaced_hyphen_stays_a_separator(self):
+        """The other direction, and the reason the exclusion had to be ruled on
+        rather than copied: this is the form every documented record writes."""
+        for name, vocabulary in self.VOCABULARIES.items():
+            for word in vocabulary:
+                with self.subTest(vocabulary=name, word=word):
+                    self.assertEqual(
+                        ledger.keyword_of(f"{word} - a reason", vocabulary),
+                        (word, " - a reason"),
+                    )
+
+    def test_ordinary_punctuation_closes_the_keyword(self):
+        """A reason is not always introduced by a hyphen, and refusing one that is
+        not would be a new rule rather than this fix."""
+        for separator in (",", ".", ":", ";", "—"):
+            with self.subTest(separator=separator):
+                record = replace_field(
+                    CLEAN, "REFUTATION", f"stands{separator} the volume and pages match."
+                )
+                self.assertEqual(kinds(ledger_text(record)), [])
 
 
 class TheDatelessLedgerLosesTheTwoRowsMeasuredAgainstTheDate(unittest.TestCase):
@@ -985,6 +1175,325 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertEqual(len(found), 1, "expected exactly one worked ledger example")
         return found[0]
 
+
+class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
+    """#242's seam, pinned in code rather than described.
+
+    **Both directions, and by AST rather than by what a fixture happens to fire.**
+    That is ``test_reference_scan``'s ``BODY_ROWS`` instrument adopted for its
+    reason: measuring a partition against the rows one record trips proves only
+    that the record trips them, and a row that landed in the wrong helper without
+    being written into that fixture leaves every assertion green.
+
+    What it buys is that the seam cannot rot quietly. A #231 row appended inside
+    ``_recency_findings`` fails here, and so does a #215 row appended inside
+    ``_citation_findings`` -- which is the shape a later ticket would introduce by
+    reaching for the value nearest to hand.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        source = Path(ledger.__file__).read_text(encoding="utf-8")
+        cls.tree = ast.parse(source)
+
+    def _kinds_constructed_in(self, function: str) -> set[str]:
+        """Every ``Finding(KIND, ...)`` built inside one function, by name.
+
+        Reads the first positional argument only, which is where ``Finding``'s
+        ``kind`` sits. A row built any other way is invisible here -- nothing in
+        this module does, and ``test_the_kinds_are_all_accounted_for`` is what
+        would notice if one started.
+        """
+        found: set[str] = set()
+        for node in ast.walk(self.tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != function:
+                continue
+            for call in ast.walk(node):
+                if not isinstance(call, ast.Call):
+                    continue
+                if not isinstance(call.func, ast.Name) or call.func.id != "Finding":
+                    continue
+                self.assertTrue(call.args, f"a Finding with no kind in {function}")
+                kind = call.args[0]
+                self.assertIsInstance(kind, ast.Name, f"a computed kind in {function}")
+                found.add(getattr(ledger, kind.id))
+        return found
+
+    def _rows_for(self, ticket: str) -> set[str]:
+        return {kind for kind, owner in ledger.ROW_TICKET.items() if owner == ticket}
+
+    def test_the_citation_helper_holds_every_231_row_and_nothing_else(self):
+        self.assertEqual(self._kinds_constructed_in("_citation_findings"), self._rows_for("#231"))
+
+    def test_the_recency_helper_holds_every_215_row_and_nothing_else(self):
+        self.assertEqual(self._kinds_constructed_in("_recency_findings"), self._rows_for("#215"))
+
+    def test_the_branching_helper_holds_only_the_rows_the_branch_decides(self):
+        """``record_findings`` keeps the two rows no helper can own: a claim with
+        no text, and a status the branch below cannot read."""
+        self.assertEqual(
+            self._kinds_constructed_in("record_findings"),
+            {ledger.MISSING_FIELD, ledger.UNKNOWN_STATUS},
+        )
+
+    OWNERS = (
+        "record_findings",
+        "_unsourced_findings",
+        "_contract_findings",
+        "_recency_findings",
+        "_citation_findings",
+    )
+
+    def test_every_row_is_built_in_one_of_the_five(self):
+        """Without this the partitions above are claims about the functions they
+        happened to name, and a sixth grader could hold rows none of them see."""
+        built: set[str] = set()
+        for name in self.OWNERS:
+            built |= self._kinds_constructed_in(name)
+        self.assertEqual(built, set(ledger.KINDS))
+
+    def test_no_finding_is_built_anywhere_else(self):
+        """The other direction, and the one the first version of this class was
+        missing. A ``Finding`` constructed in ``survey`` or in ``format_report``
+        would leave every assertion above green while grading from outside the
+        seam entirely."""
+        inside = {
+            id(call)
+            for node in ast.walk(self.tree)
+            if isinstance(node, ast.FunctionDef) and node.name in self.OWNERS
+            for call in ast.walk(node)
+        }
+        stray = [
+            node.lineno
+            for node in ast.walk(self.tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Finding"
+            and id(node) not in inside
+        ]
+        self.assertEqual(stray, [], f"Finding built outside the five graders, lines {stray}")
+
+    def test_the_citation_helper_grades_a_record_on_its_own(self):
+        """The seam is a real one: called with nothing but the record and the
+        date, it returns what ``record_findings`` returns for those rows."""
+        record = replace_field(CLEAN, "RESOLVED", "on the society website - read 2026-08-19")
+        record = replace_field(record, "REFUTATION", "probably fine")
+        parsed = ledger.read_records(ledger_text(record))[0]
+        alone = {f.kind for f in ledger._citation_findings(parsed, AS_OF)}
+        whole = {f.kind for f in ledger.record_findings(parsed, AS_OF)}
+        self.assertEqual(alone, {ledger.UNRESOLVABLE_LOCATOR, ledger.UNKNOWN_REFUTATION})
+        self.assertEqual(alone, whole & self._rows_for("#231"))
+
+    def test_the_echo_row_reads_the_restatement_off_the_record(self):
+        """**The one value that used to cross the seam.** ``_citation_findings``
+        re-reads ``RESTATEMENT`` rather than being handed it, so calling it alone
+        catches the refutation pasting the restatement back."""
+        restatement = ledger.read_records(ledger_text(CLEAN))[0].value("RESTATEMENT")
+        record = replace_field(CLEAN, "REFUTATION", f"stands - {restatement}")
+        parsed = ledger.read_records(ledger_text(record))[0]
+        self.assertIn(
+            ledger.REFUTATION_ECHOES_RESTATEMENT,
+            [f.kind for f in ledger._citation_findings(parsed, AS_OF)],
+        )
+
+
+class ExactlyTwoRowsAreMeasuredAgainstTheDate(unittest.TestCase):
+    """#242's stated payoff. The exit-2 banner claims a dateless ledger loses the
+    window and the read date and nothing else; before the split that claim was
+    readable only by reading the whole grader, and nothing asserted it.
+
+    **The behavioral half is the one that counts.** A signature can take ``as_of``
+    and ignore it, so the test drives one ledger both ways and diffs.
+    """
+
+    def _both_ways(self, record: str) -> tuple[set[str], set[str]]:
+        text = ledger_text(record)
+        dated = set(kinds(text, AS_OF))
+        undated = set(kinds(ledger_text(record, stamp=""), None))
+        return dated, undated
+
+    def test_the_window_and_the_read_date_are_the_whole_of_what_a_date_buys(self):
+        record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
+        record = replace_field(record, "RECENCY", "current")
+        record = replace_field(record, "RESOLVED", "https://doi.org/10.1/x - read 2027-01-01")
+        dated, undated = self._both_ways(record)
+        self.assertEqual(
+            dated - undated, {ledger.STALE_UNEXCUSED, ledger.READ_AFTER_DATE}
+        )
+        self.assertEqual(undated - dated, set())
+
+    def test_a_clean_record_is_clean_both_ways(self):
+        dated, undated = self._both_ways(CLEAN)
+        self.assertEqual(dated, set())
+        self.assertEqual(undated, set())
+
+    def test_only_two_helpers_take_the_date(self):
+        """The signatures are where a reader sees it. #214's rows are measured
+        against no date at all, which is why ``_contract_findings`` takes none."""
+        takes = {
+            name
+            for name in ("_unsourced_findings", "_contract_findings", "_recency_findings", "_citation_findings")
+            if "as_of" in inspect.signature(getattr(ledger, name)).parameters
+        }
+        self.assertEqual(takes, {"_recency_findings", "_citation_findings"})
+
+
+class TheFindingsComeBackInReportOrder(unittest.TestCase):
+    """#242 sorted them by ``KINDS``, so where a helper is called is not something
+    ``--show`` can see. The counts were already ordered that way and the finding
+    list was not, which is two orderings of one tuple in one report."""
+
+    # The module's own lookup rather than a second copy of it. A dict rebuilt here
+    # would agree with ``KINDS`` while saying nothing about what the module sorts by,
+    # which is the whole claim -- ``test_build_artifacts_ignored``'s finding.
+    ORDER = ledger._KIND_ORDER
+
+    def test_the_lookup_the_module_sorts_by_is_kinds(self):
+        """The tests above take their order from ``_KIND_ORDER`` rather than
+        rebuilding it, so one assertion has to hold it to ``KINDS`` -- otherwise a
+        lookup and a report tuple that had drifted apart would agree with each
+        other and every ordering test would be green about the wrong sequence."""
+        self.assertEqual(
+            self.ORDER, {kind: index for index, kind in enumerate(ledger.KINDS)}
+        )
+
+    def _other(self) -> str:
+        """A second record, failing a row that sorts *before* the first record's.
+
+        That is what makes the grouping visible: concatenated, the two records'
+        runs interleave out of ``KINDS`` order, and sorted they would not.
+        """
+        record = replace_field(CLEAN, "CLAIM", None)
+        record = record.replace(
+            "## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.",
+            "## CLAIM: A second claim, whose source class is not in the vocabulary.",
+        )
+        record = replace_field(record, "RESTATEMENT", "The source gives a range.")
+        return replace_field(record, "SOURCE", "a blog post")
+
+    def _many(self) -> str:
+        """One record failing rows from all three rulings at once."""
+        record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
+        record = replace_field(record, "RECENCY", "current")
+        record = replace_field(record, "SOURCE", "a blog post")
+        record = replace_field(record, "RESOLVED", "on the society website")
+        record = replace_field(record, "REFUTATION", "refuted - the DOI 404s.")
+        return record
+
+    def test_a_record_failing_several_rulings_comes_back_in_kinds_order(self):
+        found = kinds(ledger_text(self._many()))
+        self.assertGreater(len(found), 3, "the fixture should trip rows from all three rulings")
+        self.assertEqual(found, sorted(found, key=lambda k: self.ORDER[k]))
+
+    def test_a_row_appended_out_of_report_order_comes_back_in_it(self):
+        """**The discriminator, and the fixture above is not one.** Most records
+        trip their rows in an order that already agrees with ``KINDS``, so a test
+        built from one would pass with the sort deleted -- which is what the first
+        version of this class did. ``_recency_findings`` appends ``BARE_EXCUSE``
+        before ``UNDATED_REFERENCE`` and ``KINDS`` lists them the other way, so a
+        record tripping both is the one shape that tells the two apart."""
+        record = replace_field(CLEAN, "RECENCY", "nothing newer")
+        record = with_reference(record, "Someone, A. (n.d.). A study. Journal.")
+        self.assertEqual(
+            kinds(ledger_text(record)),
+            [ledger.UNDATED_REFERENCE, ledger.BARE_EXCUSE],
+        )
+
+    def test_the_survey_orders_within_a_record_and_groups_by_record(self):
+        """**The ordering is per record, and ``--show`` is grouped rather than
+        sorted.** ``survey`` concatenates one sorted list per record, so a two-record
+        ledger's findings are not globally in ``KINDS`` order and should not be --
+        a reader wants one record's rows together. What the sort buys is that within
+        a record, which helper appended a row is invisible.
+
+        **The first version of this test asserted the global property** and passed
+        because its fixture held one record: a claim wider than what it measured,
+        which is the shape this repo keeps catching. The second record is here so
+        the narrower claim is the one being made.
+        """
+        text = ledger_text(self._many(), self._other(), stamp="2026-08-19")
+        records = ledger.read_records(text)
+        self.assertEqual(len(records), 2, "the fixture should hold two records")
+        scan = ledger.survey(records, AS_OF)
+
+        for record in records:
+            run = [f.kind for f in scan.findings if f.claim == record.claim]
+            self.assertTrue(run, "each record in this fixture should fail something")
+            self.assertEqual(run, sorted(run, key=lambda k: self.ORDER[k]))
+
+        listed = [f.kind for f in scan.findings]
+        self.assertNotEqual(
+            listed,
+            sorted(listed, key=lambda k: self.ORDER[k]),
+            "this fixture should show that the whole list is grouped, not sorted",
+        )
+
+    def test_the_counts_and_the_findings_name_the_same_rows(self):
+        """Two views of one tuple. The counts are in ``KINDS`` order because
+        ``survey`` builds them by walking ``KINDS``; the findings name the same set."""
+        scan = ledger.survey(ledger.read_records(ledger_text(self._many(), self._other())), AS_OF)
+        self.assertEqual(
+            [kind for kind, count in scan.counts if count],
+            sorted({f.kind for f in scan.findings}, key=lambda k: self.ORDER[k]),
+        )
+
+
+class TheDoiBranchOfTheLocatorMatchesAPageRange(unittest.TestCase):
+    """#242's second finding, documented rather than tightened.
+
+    A DOI is a registrant prefix and a free-form suffix, so a page range wearing
+    that shape matches. **Pinned as a known behavior rather than left to be
+    rediscovered**, which is the whole of what the ticket asked for -- every other
+    limit in this module is written down and this one was not.
+    """
+
+    def test_a_page_range_shaped_like_a_doi_matches(self):
+        self.assertTrue(ledger.LOCATOR.search("pp. 10.1327/1400 vol"))
+        self.assertTrue(ledger.LOCATOR.search("10.1097/AOG.0b013e3181c2bde8"))
+
+    def test_prose_with_no_locator_shape_still_fails_the_row(self):
+        """The row it serves is unweakened where it matters: *"on the society
+        website"* is what the field was written to refuse, and still is."""
+        record = replace_field(CLEAN, "RESOLVED", "on the society website - read 2026-08-19")
+        self.assertIn(ledger.UNRESOLVABLE_LOCATOR, kinds(ledger_text(record)))
+
+    def test_the_sibling_rows_still_ask_the_record_for_the_rest(self):
+        """**Why it is affordable.** The locator row says *this is not a locator*,
+        never *this locator is good*, and it is one of three. A ``RESOLVED`` full
+        of page numbers passes this row and is still asked when the page was
+        opened."""
+        record = replace_field(CLEAN, "RESOLVED", "pp. 10.1327/1400")
+        found = kinds(ledger_text(record))
+        self.assertNotIn(ledger.UNRESOLVABLE_LOCATOR, found)
+        self.assertIn(ledger.UNDATED_READ, found)
+
+    LIMIT = "registrant prefix and a free-form suffix"
+    TICKET = "clinical-skills/issues/242"
+
+    def test_the_module_writes_the_limit_down(self):
+        """``test_spelling_scan``'s reasoning: a limit a reader cannot find reads
+        as coverage.
+
+        **The ticket is matched as its URL and not as three digits.** A bare
+        ``242`` matches a year, a count or a line number, which is the
+        substring-versus-AST trap ``test_console_codec`` was rewritten to avoid.
+        """
+        source = Path(ledger.__file__).read_text(encoding="utf-8")
+        self.assertIn(self.LIMIT, source)
+        self.assertIn(self.TICKET, source)
+
+    def test_the_repo_level_copy_says_the_same_thing(self):
+        """**#220's shape, and this limit is written in three places.** Beside the
+        pattern, in the module docstring, and in ``CLAUDE.md``'s *Research ledger*
+        section -- and a prose edit to any one of them failed nothing, so the two
+        could disagree and the reader misled was whichever one they opened.
+
+        This binds the repo-level copy to the module's own words. What it cannot
+        reach is whether either copy is *true*; that is the behavior tests above.
+        """
+        doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn(self.LIMIT, doc)
+        self.assertIn(self.TICKET, doc)
 
 if __name__ == "__main__":
     unittest.main()

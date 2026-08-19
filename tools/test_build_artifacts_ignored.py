@@ -154,6 +154,20 @@ class TheNetDoesNotSwallowWhatIsCommitted(unittest.TestCase):
     """
 
     def test_every_tracked_file_is_still_visible(self) -> None:
+        """No **tracked** file is hidden by ``.gitignore``, and that is the whole claim.
+
+        [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)
+        names this walk beside two others as reporting a clean result about a
+        tree it cannot fully see. **It is the one of the three that is already
+        honest in its name**, and worth saying why rather than leaving the
+        reader to re-derive it: the subject is files git is carrying, so
+        ``--cached`` is the population and not a sample of it.
+
+        **Widening it is a tautology rather than a stronger check.**
+        ``--others --exclude-standard`` means *untracked and not ignored*, so
+        every path it added would pass this assertion by definition. There is
+        no version of this test that sees more by seeing untracked files.
+        """
         finished = subprocess.run(
             ["git", "ls-files", "--cached"],
             cwd=REPO_ROOT,

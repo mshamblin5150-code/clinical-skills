@@ -331,6 +331,22 @@ def graded_files() -> list[Path]:
     *here* is the one the tree-wide walk cannot see. It is asserted below rather
     than only described, because ``test_run_record_claim.py`` carried this exact
     exemption in its docstring for one round while the walk had no filter wired.
+
+    **Tracked, which is the whole of what a clean result covers.**
+    [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254):
+    ``git ls-files`` is the index, an untracked file is not in it, and the
+    honest form of a green ``EveryCitedStepResolvesToADeclaredStep`` is *no
+    tracked file cites a step that does not exist*.
+
+    **This walk is the one #254 was filed over.** ``tools/checks_ledger.py``
+    landed on #240's branch with two ``step N`` citations naming no skill,
+    ``test_every_citation_in_tools_resolves`` was on that branch's base, and the
+    suite ran green three times at 1788 tests before the ``git add`` that made
+    the file visible here. A review agent found it; this walk could not have.
+
+    **The window stays open, ruled on 2026-08-19.** Widening to ``--others
+    --exclude-standard`` closes it and was declined -- CI catches it at push and
+    the next local run catches it after the stage.
     """
     finished = subprocess.run(
         ["git", "ls-files", "--cached", "--", "*.md", "*.py"],

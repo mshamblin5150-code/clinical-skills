@@ -139,6 +139,34 @@ wrap the way an APA entry wraps.
 is the target* is a target: a ``current`` disposition on a three-year-old reference
 is not a defect, and grading it would refuse what the ruling merely prefers.
 
+**The rows sit in four helpers, and the branching sits in ``record_findings``.**
+[#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242), which filed
+one 129-line grader against the four scanners that keep one -- and did not check
+``reference_scan.py``, the only sibling with a comparable row count, which had
+already split five ways. What could not move is the control flow: a record with no
+recognized ``STATUS`` is graded on nothing below it, and an ``unsourced`` one on a
+different set entirely. **A record's findings are sorted by ``KINDS`` now** rather
+than appended in call order, so which helper a row lives in is invisible and the
+seam can move again without ``--show`` changing shape. **Within a record**, which is
+the honest width: ``survey`` concatenates one sorted list per record, so a ledger's
+findings are grouped by record rather than globally sorted -- and should be, since a
+reader wants one record's rows together.
+
+**What the split makes visible is which rows need the date.** Two helpers take
+``as_of`` and each spends it on one row -- ``STALE_UNEXCUSED`` and
+``READ_AFTER_DATE`` -- so the exit-2 banner's claim about a dateless ledger is
+readable off two signatures instead of off the whole grader. A test drives one ledger
+both ways and asserts the difference is exactly those two.
+
+**``UNRESOLVABLE_LOCATOR``'s own limit, since #242.** A DOI is a registrant prefix
+and a free-form suffix, so ``pp. 10.1327/1400`` is a page range wearing the shape
+and passes the row. It is not narrowable -- a real bare DOI arrives with no scheme
+and no ``doi:`` prefix to key on -- and it only ever weakens the weaker half of a
+pair: the row says *this is not a locator*, never *this locator is good*, and
+``UNDATED_READ`` and ``REFUTATION`` still ask when the page was opened and what was
+found there. Documented rather than tightened, and pinned by a test, because every
+other limit in this module is written down and this one was not.
+
 **What it cannot reach, and this is most of the ticket.** Whether the source is
 reputable, whether it says what the restatement says it says, and whether the
 numbers agree. **The last one is not an oversight**: the restatement is written in
@@ -267,6 +295,20 @@ EXCUSES = (RECENCY_NOTHING_NEWER, RECENCY_IN_FORCE)
 
 # #231. A locator is a URL or a bare DOI, and nothing else -- the field exists to
 # put a specific in front of a reader, and *"on the society website"* is not one.
+#
+# **The DOI branch matches text that is not a DOI, and that is documented rather
+# than tightened** -- [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242).
+# A DOI is a registrant prefix and a free-form suffix, so ``pp. 10.1327/1400 vol``
+# is a page range wearing the shape and matches. It is not narrowable from here: a
+# real bare DOI arrives with no scheme and no ``doi:`` prefix to key on, so refusing
+# the coincidence would refuse the field's own documented form.
+#
+# **It only ever weakens a row that is already the weaker half of a pair.**
+# ``UNRESOLVABLE_LOCATOR`` says *this is not a locator*, never *this locator is
+# good* -- nothing here opens anything -- and the value has to carry substance
+# before the row runs at all. So the cost is a ``RESOLVED`` full of page numbers
+# passing one row, while ``UNDATED_READ`` still asks it when the page was opened
+# and ``REFUTATION`` still asks what the second agent found there.
 LOCATOR = re.compile(r"(?i)\bhttps?://\S+|\b10\.\d{4,9}/\S+")
 # Anchored on the word rather than on the shape, because a URL is full of digits
 # and one of them being date-shaped is not the agent saying when it looked.
@@ -325,6 +367,10 @@ SUBSTANCE = re.compile(r"[0-9A-Za-z]")
 DIGIT = re.compile(r"[0-9]")
 NOT_ALNUM = re.compile(r"[^0-9a-z]+")
 
+# #253. What may follow a vocabulary keyword, so a prefix is not read as a word.
+# The hyphen is excluded deliberately -- see ``keyword_of``.
+BOUNDARY = re.compile(r"[^0-9A-Za-z-]|$")
+
 MISSING_FIELD = "missing-field"
 UNKNOWN_STATUS = "unknown-status"
 BARE_STATUS = "bare-status"
@@ -372,6 +418,11 @@ KINDS = (
     REFUTATION_ECHOES_RESTATEMENT,
     REFUTED_CITATION,
 )
+
+# Report order as a lookup, built from ``KINDS`` rather than typed beside it. Every
+# helper appends in whatever order its own rules read best, and ``record_findings``
+# sorts once -- so which helper a row lives in is not something the report can see.
+_KIND_ORDER = {kind: index for index, kind in enumerate(KINDS)}
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROW_TICKET = {
@@ -438,11 +489,57 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
 
     Longest first, so ``guideline in force`` is not read as an unrecognized value
     that happens to begin with a shorter one.
+
+    **A prefix is not a word**, and this limb is
+    [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253).
+    Matching on ``startswith`` alone read any value whose first token merely
+    *began with* a vocabulary word as that word, and absorbed the rest of the token
+    into the remainder -- which is the field the substance rows then read as a
+    reason.
+
+    **The values that graded *clean* are the ones that matter, and they are not the
+    one #253's title names.** ``STATUS: unsourced-but-see-below`` produced **no
+    findings at all**: the substance row was satisfied by ``-but-see-below``, the
+    residue of the very keyword it was keyed on, so a record saying nothing about
+    what was searched passed the row that exists to make it say so. ``RECENCY:
+    nothing newerish`` and ``RECENCY: guideline in forceful terms`` did the same
+    one field over, and there the excuse is what the **window** reads -- so an old
+    reference with no excuse and no reason passed with nothing reported.
+
+    **``RECENCY: currently under review`` is a weaker case than the ticket, this
+    docstring and the commit that landed them all said, and the correction is the
+    finding.** ``current`` is not in ``EXCUSES``, so the window fired on that value
+    before the fix and fires now; ``BARE_EXCUSE`` can never fire on it at all. What
+    the prefix bug suppressed there is ``UNKNOWN_RECENCY`` alone. The wrong
+    consequence was copied out of #253's table while only its *keyword* column was
+    re-derived -- the same failure this work caught in that table's second row,
+    committed in the fix for it, and caught by the tracker sweep afterwards.
+    ``REFUTATION: standstill on the publisher's side`` is the defect on the one
+    verification row.
+
+    **The hyphen is excluded from the boundary, and that was ruled rather than
+    copied from the sibling.** ``RECENCY: nothing newer - searched 2026-08-19`` is
+    the documented form, so a **spaced** hyphen is a separator; a **welded** one is
+    part of the word. No legitimate value of the vocabularies this helper serves
+    opens with a welded hyphenated form -- checked against the tree, not assumed,
+    and ``test_research_ledger`` reads which vocabularies those are off this
+    module rather than listing them. ``SOURCE`` is outside this helper, matched by
+    normalized equality against ``_CLASS_KEYS``, which is also where the corpus's
+    only hyphen *inside* a vocabulary word lives: ``peer-reviewed``.
+
+    **This adopted the sibling's rule rather than sharing its code.**
+    ``checks_ledger.py`` ruled the boundary first and keeps its own **copy**, which
+    the two modules' docstrings both argue for. **Whether the two agree today is
+    deliberately not asserted anywhere** -- a claim of present identity is
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) the
+    moment either module moves, and pinning it in a test would forbid the very
+    divergence the copy exists to permit. ``console_codec.py`` is this directory's
+    only module that exists to be depended on.
     """
     stripped = value.strip()
     lowered = stripped.lower()
     for word in sorted(vocabulary, key=len, reverse=True):
-        if lowered.startswith(word):
+        if lowered.startswith(word) and BOUNDARY.match(lowered[len(word) :]):
             return word, stripped[len(word) :]
     return "", stripped
 
@@ -562,34 +659,31 @@ def read_records(text: str) -> list[Record]:
     return records
 
 
-def record_findings(record: Record, as_of: date | None) -> list[Finding]:
-    """Every row this record fails. A record can fail several.
+def _unsourced_findings(record: Record) -> list[Finding]:
+    """#214's unsourced branch: the reason, and the four fields it may not carry.
 
-    ``as_of`` of ``None`` means the ledger stated no date, so the window row is
-    skipped and every other row still runs -- ``differential_scan.py``'s ordering,
-    where a finding outranks an incomplete scan.
+    An ``unsourced`` record is not a failure -- ``skills/practicum-case-study/SKILL.md``
+    step 3 routes it to ``PROPOSED``. What is refused is one that says it found
+    nothing while carrying a claim about a source.
     """
-    found: list[Finding] = []
     claim = record.claim
+    found: list[Finding] = []
+    if not SUBSTANCE.search(keyword_of(record.value("STATUS"), STATUSES)[1]):
+        found.append(Finding(BARE_STATUS, claim, record.value("STATUS")))
+    for name in CITATION_FIELDS:
+        if SUBSTANCE.search(record.value(name)):
+            found.append(Finding(UNSOURCED_WITH_CITATION_FIELD, claim, f"{name}: {record.value(name)}"))
+    return found
 
-    if not SUBSTANCE.search(claim):
-        found.append(Finding(MISSING_FIELD, claim, "CLAIM"))
 
-    status = record.status
-    if not status:
-        # Unlike an unrecognized ``SPECIFICITY`` keyword, this one is a failure:
-        # the branch decides which tests below run, so a record wearing a third
-        # word is graded on nothing at all and prints as clean.
-        found.append(Finding(UNKNOWN_STATUS, claim, record.value("STATUS")))
-        return found
+def _contract_findings(record: Record) -> list[Finding]:
+    """#214's rows for a sourced record: the fields, the class, the restatement.
 
-    if status == UNSOURCED:
-        if not SUBSTANCE.search(keyword_of(record.value("STATUS"), STATUSES)[1]):
-            found.append(Finding(BARE_STATUS, claim, record.value("STATUS")))
-        for name in CITATION_FIELDS:
-            if SUBSTANCE.search(record.value(name)):
-                found.append(Finding(UNSOURCED_WITH_CITATION_FIELD, claim, f"{name}: {record.value(name)}"))
-        return found
+    Takes no ``as_of``. Nothing #214 asks of a record is measured against a date,
+    and the signature is where that is visible.
+    """
+    claim = record.claim
+    found: list[Finding] = []
 
     for name in REQUIRED_WHEN_SOURCED:
         if not SUBSTANCE.search(record.value(name)):
@@ -605,6 +699,25 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
             found.append(Finding(RESTATEMENT_ECHOES_CLAIM, claim, restatement))
         if DIGIT.search(claim) and not DIGIT.search(restatement):
             found.append(Finding(NUMERIC_CLAIM_UNQUANTIFIED, claim, restatement))
+    return found
+
+
+def _recency_findings(record: Record, as_of: date | None) -> list[Finding]:
+    """#215's four rows: the disposition, the excuse, the year, the window.
+
+    **The two blocks are one helper because they are one rule read twice.** The
+    vocabulary keyword and its remainder are computed here and read by both -- the
+    window row asks whether an excuse stands, which is the same ``keyword_of`` split
+    the disposition row grades. Cutting between them would hand the second block a
+    value it did not derive, which is the sharing
+    [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242) found
+    and the reason the seam is here rather than at the six blocks it counted.
+
+    One row here reads ``as_of``: ``STALE_UNEXCUSED``. ``None`` means the ledger
+    stated no date, so the window is skipped and the other three still run.
+    """
+    claim = record.claim
+    found: list[Finding] = []
 
     recency = record.value("RECENCY")
     excuse, remainder = keyword_of(recency, RECENCY_VALUES)
@@ -615,9 +728,42 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
     if excuse in EXCUSES and not SUBSTANCE.search(remainder):
         found.append(Finding(BARE_EXCUSE, claim, recency))
 
+    if SUBSTANCE.search(record.value("REFERENCE")):
+        year = record.reference_year
+        excused = excuse in EXCUSES and SUBSTANCE.search(remainder)
+        if year is None:
+            # ``n.d.`` is legitimate APA. What is refused is an undated source with
+            # nothing said about why it stands -- the clinician's own escape hatch,
+            # rather than a blanket rule he never made.
+            if not excused:
+                found.append(Finding(UNDATED_REFERENCE, claim, record.value("REFERENCE")))
+        elif as_of is not None and as_of.year - year > ORDINARY_WINDOW_YEARS and excuse not in EXCUSES:
+            detail = f"{year}, RECENCY: {recency}"
+            found.append(Finding(STALE_UNEXCUSED, claim, detail))
+    return found
+
+
+def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
+    """#231's ten rows: the locator, the page year, the refutation.
+
+    **Self-contained, which is what made the seam worth cutting on
+    [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242).** These
+    rows share nothing with #214's and #215's but the record itself -- the echo row
+    re-reads ``RESTATEMENT`` off the record rather than being handed it, so no value
+    crosses the boundary.
+
+    One row here reads ``as_of``: ``READ_AFTER_DATE``. With ``_recency_findings``'s
+    window that is **every** row in the module measured against a date, and the two
+    signatures are where a reader sees it.
+
+    Nothing here fetches anything. What the rows buy is a commitment to specifics a
+    reader can be caught on in one click, which an APA entry alone is not.
+    """
+    claim = record.claim
+    found: list[Finding] = []
+
     # #231's first half: the agent was on the page, so it writes down where it was
-    # and when. Nothing here fetches anything -- what the row buys is a specific a
-    # reader can be caught on in one click, which an APA entry alone is not.
+    # and when.
     resolved = record.value("RESOLVED")
     if SUBSTANCE.search(resolved):
         if not LOCATOR.search(resolved):
@@ -657,7 +803,8 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
 
     # #231's second half, and the only row here that is verification rather than a
     # better-shaped promise. **That the refuter was a different agent is not
-    # reachable from the record** -- ``SKILL.md`` states it, this grades the shape.
+    # reachable from the record** -- ``skills/practicum-case-study/SKILL.md`` step 3
+    # states it, this grades the shape.
     refutation = record.value("REFUTATION")
     if SUBSTANCE.search(refutation):
         verdict, reason = keyword_of(refutation, REFUTATION_VALUES)
@@ -668,7 +815,7 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
         else:
             if not SUBSTANCE.search(reason):
                 found.append(Finding(BARE_REFUTATION, claim, refutation))
-            elif normalize(reason) == normalize(restatement):
+            elif normalize(reason) == normalize(record.value("RESTATEMENT")):
                 # The first agent re-asserting rather than a second one checking.
                 # ``RESTATEMENT_ECHOES_CLAIM``'s trick, one level up.
                 found.append(Finding(REFUTATION_ECHOES_RESTATEMENT, claim, refutation))
@@ -677,20 +824,55 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
                 # ``PROPOSED`` honestly. This is a false citation sitting in the
                 # ledger: the run rewrites the record or writes ``unsourced``.
                 found.append(Finding(REFUTED_CITATION, claim, refutation))
-
-    if SUBSTANCE.search(record.value("REFERENCE")):
-        year = record.reference_year
-        excused = excuse in EXCUSES and SUBSTANCE.search(remainder)
-        if year is None:
-            # ``n.d.`` is legitimate APA. What is refused is an undated source with
-            # nothing said about why it stands -- the clinician's own escape hatch,
-            # rather than a blanket rule he never made.
-            if not excused:
-                found.append(Finding(UNDATED_REFERENCE, claim, record.value("REFERENCE")))
-        elif as_of is not None and as_of.year - year > ORDINARY_WINDOW_YEARS and excuse not in EXCUSES:
-            detail = f"{year}, RECENCY: {recency}"
-            found.append(Finding(STALE_UNEXCUSED, claim, detail))
     return found
+
+
+def record_findings(record: Record, as_of: date | None) -> list[Finding]:
+    """Every row this record fails, in ``KINDS`` order. A record can fail several.
+
+    ``as_of`` of ``None`` means the ledger stated no date, so the window row and the
+    read-date row are skipped and every other row still runs --
+    ``differential_scan.py``'s ordering, where a finding outranks an incomplete scan.
+
+    **The rows live in four helpers and the branching lives here**, on
+    ``reference_scan.py``'s arrangement -- the sibling with a comparable row count,
+    and the one
+    [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242) did not
+    check when it wrote that every other scanner keeps one grader. What stays here is
+    the control flow the helpers cannot be written without: a record with no
+    recognized ``STATUS`` is graded on nothing below it, and an ``unsourced`` one is
+    graded on a different set entirely.
+
+    **Sorted by ``KINDS`` rather than by append order**, so where a helper is called
+    is not something a reader of this record's findings can see. The counts were
+    already ordered that way and the finding list was not, and this is what lets a
+    seam move again without a report changing shape.
+
+    **Per record, and ``survey`` does not re-sort across them.** A ledger's findings
+    stay grouped by the record that raised them, which is what ``--show`` should
+    print; the guarantee here is about one record's rows and no wider.
+    """
+    found: list[Finding] = []
+    claim = record.claim
+
+    if not SUBSTANCE.search(claim):
+        found.append(Finding(MISSING_FIELD, claim, "CLAIM"))
+
+    status = record.status
+    if not status:
+        # Unlike an unrecognized ``SPECIFICITY`` keyword, this one is a failure:
+        # the branch decides which tests below run, so a record wearing a third
+        # word is graded on nothing at all and prints as clean.
+        found.append(Finding(UNKNOWN_STATUS, claim, record.value("STATUS")))
+    elif status == UNSOURCED:
+        found += _unsourced_findings(record)
+    else:
+        found += _contract_findings(record)
+        found += _recency_findings(record, as_of)
+        found += _citation_findings(record, as_of)
+
+    # Stable, so two findings of one kind keep the order their helper appended them in.
+    return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
 
 
 def survey(records: list[Record], as_of: date | None) -> Scan:
