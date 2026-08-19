@@ -614,5 +614,205 @@ class TheReferenceDeclaresWhichFieldsItHoldsValuesFor(unittest.TestCase):
                     )
 
 
+class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
+    """#226's ruling of 2026-08-19. **Not** a per-account detector.
+
+    #222 ruled the same day that the prose-and-table shape is a person's job,
+    because telling one account's site name from a universal payer string needs
+    the name vocabulary
+    [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)
+    declined to build and #212 re-ruled. **That ruling stands and nothing here
+    reverses it.** What this class reaches is three *literal* shapes that can
+    never be universal Medatrax behavior: a course code, a learning-management
+    vendor's host, and a term date. It catches #226's own material arriving
+    back, and nothing wider.
+
+    **A green run here is not a read file**, and what it passes is the larger
+    half. The block #226 emptied out of ``reference/medatrax-fields.md`` also
+    carried an hours table, a planning target above the documented figure, a
+    prior-coursework ruling, a five-row area breakdown and an evaluation
+    cadence -- five kinds of per-program **figure**, none of which has a shape a
+    regex can key on, and all of which stay a reader's job. *Field selection
+    rules* is a reader's job too. **No count of them is stated here**: the
+    ticket's own enumeration and a draft of this docstring disagreed on it,
+    which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+    arriving inside the paragraph arguing for honest proportion.
+
+    **Every pattern is exercised against synthetic material, never against the
+    strings the ticket removed.** A checker asserting the reference holds no LMS
+    host must not become the one file that holds one -- which a first version of
+    this class did, with the real institution's host and both real term dates
+    typed into its own assertions. That is ``phi_scan``'s *no file may exempt
+    itself* arriving on a test, and it was caught by the standards axis of the
+    review rather than by anything here.
+
+    **Two of the three patterns are narrower than their names**, and the
+    narrowing is measured rather than guessed:
+
+    - A four-digit number reading as a year, or zero-padded, is **not** a course
+      code. Without that the pattern fires on ``ADR 0001``, ``AHA/ACC 2025``,
+      ``GOLD 2026``, ``ADA 2026`` and ``IDSA 2023`` -- society-plus-year
+      citations and this repo's own ADR links, seven distinct shapes across the
+      tracked tree. What it costs is a course genuinely numbered ``0100`` or
+      ``2026``, which is invisible.
+    - A term date is a date with a term word **beside** it, not merely on the
+      same line. A bare ISO date cannot be the trigger at all -- this repo
+      writes ``read 2026-08-09`` and ``measured 2026-08-11`` everywhere, which
+      is ``phi_scan.py``'s own reason for not flagging one in its shape layer.
+      Same-line proximity was not enough either: it fired on seven lines across
+      the tree including **this ticket's own new prose in CLAUDE.md**, green
+      only because the reference is the sole haystack. Within 40 characters and
+      no sentence break, it fires on **zero** lines tree-wide and still catches
+      the shape the block was written in. Measured 2026-08-19.
+
+    ``test_the_instrument_is_live`` carries a positive case for every pattern
+    and a negative for every false alarm above, on
+    ``test_build_artifacts_ignored.py``'s reasoning -- three patterns that
+    matched nothing would report a clean file and be indistinguishable from
+    three patterns aimed at the wrong thing.
+    """
+
+    #: Letters then four digits, excluding a year and a zero-padded number.
+    COURSE_CODE = re.compile(r"\b[A-Z]{3,4} ?(?!19\d\d\b|20\d\d\b|0)\d{4}\b")
+
+    #: Vendor hosts, never a bare product name. An earlier draft matched
+    #: ``canvas\.`` and would have fired on any sentence ending in the word
+    #: *Canvas*, which is a check that has to be worked around on the day it
+    #: lands. A floor: a vendor not listed here is invisible.
+    LMS_HOST = re.compile(
+        r"\b(?:instructure|blackboard|brightspace|canvaslms|moodle|d2l)\.[a-z]{2,}",
+        re.IGNORECASE,
+    )
+
+    #: A term word, then within 40 characters and no sentence break, a date.
+    TERM_DATE = re.compile(
+        r"\b(?:start|starts|starting|due|deadline|semester|end date|term date)\b"
+        r"[^.]{0,40}?\b20\d{2}-\d{2}-\d{2}\b",
+        re.IGNORECASE,
+    )
+
+    def assert_reference_is_free_of(self, pattern, holds, remedy):
+        """Assert ``reference/medatrax-fields.md`` matches ``pattern`` nowhere.
+
+        One helper for all three limbs rather than three near-identical bodies,
+        and it reports the **matched spans** rather than the whole file: the
+        haystack is a reference document, and a failure that prints it is a
+        failure nobody reads.
+        """
+        found = sorted({match.group(0) for match in pattern.finditer(read(MEDATRAX))})
+        self.assertEqual(
+            found, [], f"reference/medatrax-fields.md {holds}. {remedy}: {found}"
+        )
+
+    def test_the_instrument_is_live(self):
+        # Synthetic throughout -- see the docstring. The vendor host is real
+        # because the pattern is about vendors; the institution in front of it
+        # is not.
+        self.assertTrue(self.COURSE_CODE.search("ABC 1234 - a course, across the lifespan"))
+        self.assertTrue(self.COURSE_CODE.search("prior coursework (ABC1234, ABC1235)"))
+        self.assertTrue(self.LMS_HOST.search("https://example.instructure.com/courses/1/pages/x"))
+        self.assertTrue(self.LMS_HOST.search("https://learn.blackboard.com/hours"))
+        self.assertTrue(self.LMS_HOST.search("https://example.moodle.org/course/view.php"))
+        self.assertTrue(self.TERM_DATE.search("Both courses start **2019-01-07**, due **2019-05-03**."))
+        self.assertTrue(self.TERM_DATE.search("Documentation deadline 2019-05-10."))
+
+        # And every false alarm the review found, each of which is real text
+        # somewhere in this tree.
+        for citation in ("ADR 0001", "AHA/ACC 2025", "GOLD 2026", "ADA 2026", "IDSA 2023"):
+            self.assertIsNone(
+                self.COURSE_CODE.search(citation),
+                f"{citation} is a citation or an ADR link, not a course code",
+            )
+        self.assertIsNone(self.LMS_HOST.search("the program's hours breakdown on Canvas."))
+        for measurement in (
+            "## Current state (read 2026-08-09)",
+            "read field by field on 2026-08-09 and carry six Medicaid",
+            "**#69 was ruled on 2026-08-16 and moved no digit, so one of the two remains.**",
+        ):
+            self.assertIsNone(
+                self.TERM_DATE.search(measurement),
+                "a measurement date is not a term date",
+            )
+
+    def test_the_reference_names_no_course(self):
+        self.assert_reference_is_free_of(
+            self.COURSE_CODE,
+            "names a course code, which is one clinician's enrollment rather "
+            "than Medatrax behavior",
+            "setup-clinical-skills step 3 collects it and "
+            "scratch/medatrax-profile.md holds it",
+        )
+
+    def test_the_reference_links_no_learning_management_system(self):
+        self.assert_reference_is_free_of(
+            self.LMS_HOST,
+            "links one institution's learning-management system",
+            "the authoritative-source rule is universal and belongs here; the "
+            "URL is per-program and belongs in the profile",
+        )
+
+    def test_the_reference_states_no_term_date(self):
+        self.assert_reference_is_free_of(
+            self.TERM_DATE,
+            "states a term date",
+            "course start and end dates are collected by setup-clinical-skills "
+            "step 3 and live in scratch/medatrax-profile.md",
+        )
+
+    def test_the_reference_keeps_the_why_it_gave_up_the_numbers_for(self):
+        """Decision 1's whole point, and the half a delete would have lost.
+
+        The documentation deadline is described across this repo as *the
+        constraint the whole toolchain exists to satisfy*. Moving the number to
+        the profile is the ruling; moving the motivation with it is not, and a
+        later tidy that shortened the abstracted block to a bare pointer would
+        do exactly that with nothing to notice.
+        """
+        text = read(MEDATRAX)
+        self.assertIn("the constraint this whole toolchain exists to satisfy", text)
+        self.assertIn("area breakdown", text)
+        self.assertIn("Objectives page", text)
+
+    def test_setup_collects_what_the_reference_now_defers(self):
+        """The cross-file half. A pointer at a step that collects nothing is
+        worse than the leak it replaced, because it reads as a split that was
+        made.
+
+        **Scoped to the collecting steps, and that is not tidiness.** Checking
+        the whole file passed ``evaluation`` on step 2's sentence about the
+        ``evaluations.medatrax.com`` host -- green for the wrong reason, on a
+        fact step 3 did not collect until #226 added it.
+        """
+        setup = read(SETUP)
+        start = setup.find("### 3. Program and hours")
+        self.assertNotEqual(
+            start, -1, "setup-clinical-skills has no step 3 heading to read from"
+        )
+        end = setup.find("### 5.", start + 1)
+        self.assertNotEqual(
+            end,
+            -1,
+            "setup-clinical-skills has no step 5 heading, so steps 3 and 4 have "
+            "no end. Renumbering a step redirects every citation to it -- see "
+            "that skill's own step 10",
+        )
+        collecting = setup[start:end]
+        for asked in (
+            "hour requirement",
+            "area breakdown",
+            "start and end dates",
+            "documentation deadline",
+            "evaluation schedule",
+            "Women's Health",
+        ):
+            # ``assertTrue`` rather than ``assertIn``: the haystack is two whole
+            # steps, and a failure that prints them is a failure nobody reads.
+            self.assertTrue(
+                asked in collecting,
+                f"reference/medatrax-fields.md defers {asked!r} to "
+                "setup-clinical-skills steps 3 and 4, which do not collect it",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

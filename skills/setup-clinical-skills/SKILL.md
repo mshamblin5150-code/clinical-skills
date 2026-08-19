@@ -89,12 +89,15 @@ Ask, and record the answers rather than deriving them:
 - Whether prior hours carry, or the count starts from zero.
 - Course start and end dates, and any documentation deadline. One program removes students from clinical if they fall more than 48 hours behind.
 - The minimum number of H&P forms before SOAP becomes the clinician's choice.
+- The evaluation schedule: how many self, preceptor and agency evaluations the course wants, and the cadence they fall due on — one program's is every 90 clinical hours. [reference/medatrax-fields.md](../../reference/medatrax-fields.md) holds the one part of this that is universal, which is that only the primary preceptor completes them where there is more than one.
 
 ### 4. Picklists — read them, do not assume them
 
 Preceptors and sites are per-account picklists. Read them off the portal and record the strings **character for character** — on one account a site entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss string does not match.
 
 *(This sentence named case types and the Patient Time bands as well, until 2026-08-18. Medatrax renders both of those dropdowns the same on every account, so [reference/medatrax-fields.md](../../reference/medatrax-fields.md) holds their values and declares them in its own inventory. What is per-account is the program's **hour breakdown across** those bands, which step 3 collects — a different fact, in a different file. Neither file was wrong on its own page, which is why it took a check that reads both: [#222](https://github.com/mshamblin5150-code/clinical-skills/issues/222).)*
+
+**Sweep the account's own record for the `Patient Time` override, and record what you find.** The bands themselves are universal and [reference/medatrax-fields.md](../../reference/medatrax-fields.md) holds them; what is per-account is whether this clinician has ever applied the rule that a gynecologic or obstetric visit overrides the age band and logs as `Women's Health` or `Obstetrical Hours`. **Why it is worth the sweep rather than an assumption is stated there and not restated here**, on step 4's arrangement with `batch-shift` above — the short version is that one account had never applied it once. Count this account's, since a course's area breakdown may want those hours in their own buckets, and record whether the misfiled hours are recoverable alongside the count.
 
 Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly.
 
