@@ -622,10 +622,21 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
     the name vocabulary
     [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)
     declined to build and #212 re-ruled. **That ruling stands and nothing here
-    reverses it.** What this class reaches is three *literal* shapes that can
+    reverses it.** What this class reaches is four *literal* shapes that can
     never be universal Medatrax behavior: a course code, a learning-management
-    vendor's host, and a term date. It catches #226's own material arriving
-    back, and nothing wider.
+    vendor's host, a term date, and an accumulated hours total. The first three
+    catch #226's own material arriving back; the fourth is
+    [#235](https://github.com/mshamblin5150-code/clinical-skills/issues/235)'s,
+    and it reaches one figure of the seven that ticket removed because it is
+    the only one with a shape. Nothing wider.
+
+    **A per-account *figure* still has no shape in general, and #235 measured
+    that rather than assuming it.** Of three candidates it weighed, a
+    sampled-day breakdown (``eight of eleven``) sits on 28 lines of legitimate
+    fixture prose and was refused; a totals table row was keyable but escapable
+    by writing the same figure as a sentence, and was refused too. Only the
+    hours shape survived. **One shape having been found does not make the class
+    a per-account detector**, and #222's ceiling is where it was.
 
     **A green run here is not a read file**, and what it passes is the larger
     half. The block #226 emptied out of ``reference/medatrax-fields.md`` also
@@ -646,7 +657,7 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
     itself* arriving on a test, and it was caught by the standards axis of the
     review rather than by anything here.
 
-    **Two of the three patterns are narrower than their names**, and the
+    **Three of the four patterns are narrower than their names**, and every
     narrowing is measured rather than guessed:
 
     - A four-digit number reading as a year, or zero-padded, is **not** a course
@@ -664,12 +675,21 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
       only because the reference is the sole haystack. Within 40 characters and
       no sentence break, it fires on **zero** lines tree-wide and still catches
       the shape the block was written in. Measured 2026-08-19.
+    - An hours total needs **three** hour digits, not two. The per-pattern
+      figures and the false alarm this one does *not* exclude are on
+      ``ACCUMULATED_HOURS`` itself, where the regex a reader is checking sits.
 
     ``test_the_instrument_is_live`` carries a positive case for every pattern
     and a negative for every false alarm above, on
-    ``test_build_artifacts_ignored.py``'s reasoning -- three patterns that
+    ``test_build_artifacts_ignored.py``'s reasoning -- four patterns that
     matched nothing would report a clean file and be indistinguishable from
-    three patterns aimed at the wrong thing.
+    four patterns aimed at the wrong thing.
+
+    **Every false-alarm case is quoted verbatim from the tracked tree**, and
+    that is not decoration: a case stitched together from a real clause and an
+    invented one reads as a measured false alarm while being a sentence nobody
+    wrote. Three such cases shipped in #235's first draft and were caught by
+    the standards axis of the review.
     """
 
     #: Letters then four digits, excluding a year and a zero-padded number.
@@ -684,6 +704,36 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
         re.IGNORECASE,
     )
 
+    #: An accumulated hours total, as the portal renders one under *Hours to
+    #: Date* or *Total time log*. Three or more hour digits, and the
+    #: narrowing is measured rather than guessed. **Over every tracked file
+    #: at the base commit**, two digits sits on **84** lines and almost all
+    #: are real -- a visit time is ``0:35``, a shift is ``12:00``, a recorded
+    #: portal time is ``19:20``. Three digits sits on **3**: the two
+    #: [#235](https://github.com/mshamblin5150-code/clinical-skills/issues/235)
+    #: removed, and one that is **not** an hours total at all.
+    #:
+    #: **The haystack is named because a first draft of this line measured a
+    #: different one.** It read *67 tree-wide*, counted over ``*.md`` only,
+    #: and the sentence claiming *tree-wide* read exactly like one that had
+    #: been. That is ``guidelines_extract``'s retired N=3 boundary arriving
+    #: on a regex -- a figure measured against the wrong input is not
+    #: distinguishable from a right one by looking at it. Caught by the
+    #: standards axis of the review. Re-derived 2026-08-19.
+    #:
+    #: **The third hit is a false alarm this pattern does not exclude**, and
+    #: it is named rather than engineered around: ``Ann Intern Med.
+    #: 2015;162:35-45`` in ``tools/testdata/uspstf/``, a volume-and-page
+    #: citation. It costs nothing because the haystack is one reference file
+    #: that carries no journal citation -- checked, not assumed -- and a
+    #: narrowing to exclude it would be tuning against a file the check
+    #: never reads.
+    #:
+    #: **A floor, and a low one**: a bare count of visits is an integer and
+    #: has no shape at all, which is why this limb is not a per-account
+    #: detector and #222's ceiling is not moved by it.
+    ACCUMULATED_HOURS = re.compile(r"\b\d{3,}:[0-5]\d\b")
+
     #: A term word, then within 40 characters and no sentence break, a date.
     TERM_DATE = re.compile(
         r"\b(?:start|starts|starting|due|deadline|semester|end date|term date)\b"
@@ -694,7 +744,7 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
     def assert_reference_is_free_of(self, pattern, holds, remedy):
         """Assert ``reference/medatrax-fields.md`` matches ``pattern`` nowhere.
 
-        One helper for all three limbs rather than three near-identical bodies,
+        One helper for all four limbs rather than four near-identical bodies,
         and it reports the **matched spans** rather than the whole file: the
         haystack is a reference document, and a failure that prints it is a
         failure nobody reads.
@@ -715,18 +765,35 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
         self.assertTrue(self.LMS_HOST.search("https://example.moodle.org/course/view.php"))
         self.assertTrue(self.TERM_DATE.search("Both courses start **2019-01-07**, due **2019-05-03**."))
         self.assertTrue(self.TERM_DATE.search("Documentation deadline 2019-05-10."))
+        # Synthetic hours, deliberately not the two #235 removed -- see the
+        # docstring. A checker asserting the reference states no hours total
+        # must not become the one file that states one.
+        self.assertTrue(self.ACCUMULATED_HOURS.search("| Total time log | 100:00 |"))
+        self.assertTrue(self.ACCUMULATED_HOURS.search("Hours to Date reads 987:04."))
 
-        # And every false alarm the review found, each of which is real text
-        # somewhere in this tree.
+        # And every false alarm the review found. **Each case below is quoted
+        # verbatim from the tracked tree** -- checked, not remembered. A first
+        # version of the two hours cases stitched a real clause to an invented
+        # one and to a hyphen where the source writes an en dash, which reads
+        # as a measured false alarm and is a sentence nobody ever wrote.
         for citation in ("ADR 0001", "AHA/ACC 2025", "GOLD 2026", "ADA 2026", "IDSA 2023"):
             self.assertIsNone(
                 self.COURSE_CODE.search(citation),
                 f"{citation} is a citation or an ADR link, not a course code",
             )
         self.assertIsNone(self.LMS_HOST.search("the program's hours breakdown on Canvas."))
+        for duration in (
+            "Visit Time 0:35 = 08:35 - 08:00, both estimated.",
+            "0:30 to 0:45 across one sampled day, a flat 0:15 across another",
+            "The portal has case 10 at 19:20–19:50",
+        ):
+            self.assertIsNone(
+                self.ACCUMULATED_HOURS.search(duration),
+                f"a clock time or a visit duration is not an hours total: {duration}",
+            )
         for measurement in (
-            "## Current state (read 2026-08-09)",
-            "read field by field on 2026-08-09 and carry six Medicaid",
+            "The offsets are one-based over the LF form, measured 2026-08-11",
+            "The reference was read 2026-08-11",
             "**#69 was ruled on 2026-08-16 and moved no digit, so one of the two remains.**",
         ):
             self.assertIsNone(
@@ -749,6 +816,30 @@ class TheReferenceHoldsNoOneProgramsEnrollment(unittest.TestCase):
             "links one institution's learning-management system",
             "the authoritative-source rule is universal and belongs here; the "
             "URL is per-program and belongs in the profile",
+        )
+
+    def test_the_reference_states_no_hours_to_date_total(self):
+        """#235's decision 4, ruled 2026-08-19, and it reaches one figure.
+
+        #226 moved the **ruling** about the hours-to-date figure to the profile
+        and left the figure itself thirty lines above where its explanation had
+        been -- an unexplained account-specific integer where an explained one
+        had stood, which is worse than either end state. This is the only one
+        of that section's seven totals with a shape, and it is the one the
+        ticket calls the sharp one.
+
+        **The figure is not quoted here, and that is the rule rather than
+        fastidiousness.** A first version of this docstring named it, which put
+        the removed string back into the repo inside the check built to keep it
+        out -- the same self-exemption the class docstring above records being
+        caught once already, arriving one method lower.
+        """
+        self.assert_reference_is_free_of(
+            self.ACCUMULATED_HOURS,
+            "states an hours-to-date total, which is what one account had "
+            "accrued on one afternoon rather than Medatrax behavior",
+            "the figure and the ruling about what it does and does not carry "
+            "both belong in scratch/medatrax-profile.md",
         )
 
     def test_the_reference_states_no_term_date(self):
