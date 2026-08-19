@@ -2,12 +2,12 @@
 
     python tools/specificity_scan.py <a run directory> [--show]
 
-``fixtures/filled-anchor`` **C5** is this, and [#56] is why it exists. The skill's
-step-3 template used to read ``SPECIFICITY: <complete | needs: ...>``, so a bare
-``complete`` was compliant output -- and a run that never opened a code produced
-the identical line to one that opened every code and found no axis left. The two
-are indistinguishable on the page, which is the same silent-failure shape the
-whole ``filled-anchor`` set exists for.
+``fixtures/filled-anchor`` **C5** is this, and [#56] is why it exists. The
+``icd10-cpt`` step-3 template used to read ``SPECIFICITY: <complete | needs: ...>``,
+so a bare ``complete`` was compliant output -- and a run that never opened a code
+produced the identical line to one that opened every code and found no axis left.
+The two are indistinguishable on the page, which is the same silent-failure shape
+the whole ``filled-anchor`` set exists for.
 
 **Two tests, and neither needs a reader.**
 
