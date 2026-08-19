@@ -20,6 +20,12 @@ patients/
 .claude/skills
 .codex/
 
+# Worktrees. A worktree is a checkout and never belongs in its parent; the only
+# thing keeping one out of `git status` was `.git/info/exclude`, which git does
+# not clone -- so on a fresh clone the tooling scratch under here was visible and
+# committable. #178.
+.claude/worktrees/
+
 # OS / editor
 Thumbs.db
 desktop.ini

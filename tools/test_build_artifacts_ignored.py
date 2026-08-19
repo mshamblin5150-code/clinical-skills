@@ -64,6 +64,34 @@ def _check_ignore(relative: str) -> bool:
     return finished.returncode == 0
 
 
+def _ignore_source(relative: str) -> str | None:
+    """Which file holds the rule that ignores ``relative``, if any.
+
+    **``_check_ignore`` is not enough for a rule this repo is adding**, because
+    ``.git/info/exclude`` can already cover the same path on the machine the test
+    runs on -- and that file being neither tracked nor cloned is the entire defect
+    [#178]'s comment 8 records. The first version of
+    ``AWorktreeIsNotPartOfItsParent`` asserted only that git ignored the path, and
+    it **passed with the ``.gitignore`` line deleted**: a machine-local exclude
+    read as though it were the committed rule. That is this file's own
+    ``TheInstrumentIsLive`` lesson arriving one class later, and the fix is to ask
+    git *which* file answered rather than whether one did.
+    """
+    finished = subprocess.run(
+        ["git", "check-ignore", "--no-index", "-v", "--", relative],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if finished.returncode != 0 or not finished.stdout.strip():
+        return None
+    # `<source>:<line>:<pattern>	<path>`. The source is a Windows path here, so
+    # it carries a colon of its own -- the split comes off the tab first and then
+    # off the *last* two colons rather than the first.
+    return finished.stdout.strip().split("	", 1)[0].rsplit(":", 2)[0]
+
+
 class TheInstrumentIsLive(unittest.TestCase):
     """A path nothing covers must come back not-ignored, or the rest proves nothing."""
 
@@ -88,6 +116,61 @@ class TheInstrumentIsLive(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertTrue(_check_ignore(path))
+
+
+class AWorktreeIsNotPartOfItsParent(unittest.TestCase):
+    """[#178]: the only rule covering ``.claude/worktrees/`` was one git never clones.
+
+    ``.git/info/exclude`` is not tracked and not cloned, so on this machine the
+    tooling scratch under a worktree was invisible and on a fresh clone the same
+    run left it untracked, visible and one ``git add -A`` from being committed --
+    which for this repo's tooling means society-derived threshold text, and
+    ``phi_scan`` will never flag it because guideline text is not PHI.
+
+    **This does not reach the worse half of that finding and is not claimed to.**
+    A generator whose ``OUT`` points at a path under a tracked directory writes a
+    **modification to a tracked file**, which no ignore rule suppresses. That
+    stays a write guard's job, on ``guidelines_extract.check_outside_repo``'s
+    terms.
+    """
+
+    def _assert_gitignore_covers(self, relative: str) -> None:
+        """The rule has to come from ``.gitignore`` and from nowhere else.
+
+        ``.git/info/exclude`` covers this prefix on the maintainer's machine, so an
+        assertion that git merely ignores the path is satisfied by the very file
+        whose absence from a clone is the defect being fixed.
+        """
+        source = _ignore_source(relative)
+        self.assertIsNotNone(source, f"nothing ignores {relative}")
+        # The repo root's own `.gitignore` and not merely a file of that name: a
+        # nested one somewhere in the tree would satisfy a name comparison while
+        # saying nothing about the rule a fresh clone gets. `check-ignore` runs
+        # with `cwd=REPO_ROOT` and names an in-tree source relative to it, so that
+        # is what the path resolves against -- an absolute answer, which is what
+        # `.git/info/exclude` comes back as, survives the join unchanged.
+        self.assertEqual(
+            (REPO_ROOT / source).resolve(),
+            (REPO_ROOT / ".gitignore").resolve(),
+            f"{relative} is ignored by {source}, which a fresh clone does not have",
+        )
+
+    def test_a_worktrees_own_checkout_is_ignored(self) -> None:
+        self._assert_gitignore_covers(".claude/worktrees/some-branch/README.md")
+
+    def test_the_artifact_that_prompted_it(self) -> None:
+        """A regenerated threshold sheet under a dead worktree path -- the shape
+        ``build_htn_sheet.py`` writes, and the one that reads as a curated
+        artifact rather than as scratch."""
+        self._assert_gitignore_covers(
+            ".claude/worktrees/gone/reference/thresholds/hypertension.md"
+        )
+
+    def test_it_does_not_reach_the_real_reference_directory(self) -> None:
+        """The rule is about the worktree prefix and nothing else. A committed
+        sheet at its real path must stay visible, or the net would hide the
+        artifact it exists to protect."""
+        self.assertFalse(_check_ignore("reference/thresholds/hypertension.md"))
 
 
 class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
