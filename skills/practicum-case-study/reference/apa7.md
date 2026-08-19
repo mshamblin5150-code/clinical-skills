@@ -218,6 +218,15 @@ sheet names and no command catches.**
 **Two more things it cannot reach, and both are named where they matter rather than assumed away.**
 §2's rule that the UpToDate date element is the topic's **last update** year needs the companion
 evidence document, which the command never sees. And whether an entry is a real source saying what
-the sentence citing it says is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)
-— it needs the network, and it is deliberately not grown into either that command or
-`tools/research_ledger.py`, because one URL fetcher in this repo is already one more than none.
+the sentence citing it says is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231),
+which is **answered before the draft exists rather than here**: `tools/research_ledger.py` grades the
+year an agent read off the page against the year in the entry, and a refutation a second agent
+returns from trying to knock the citation down. **It needed no network**, which is the opposite of
+what this sentence said when it was written — a fetch reaches UpToDate's login wall and passes on a
+200, which is the silent-pass shape this directory exists to refuse. So neither command sprouts a URL
+fetcher, and not because the work was deferred.
+
+**This was the third copy of that claim and the one the correction missed.** `reference_scan.py` and
+`CLAUDE.md` were both fixed when #218 and #231 met; a sheet under `skills/` was outside what that
+sweep had open, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
+again. Found by the merge rather than by either branch.
