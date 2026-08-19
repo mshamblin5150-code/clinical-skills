@@ -16,6 +16,17 @@ tool works the same briefs serially into the same file, and the grader cannot te
 the difference -- which is the point. ``SKILL.md`` says so where it names this
 command, and a test here asserts that sentence is still there.
 
+**One writer, and the claim list goes in before the agents go out.** N agents
+appending to one Markdown file lose records to each other, and this tool has no
+expected count to measure a short ledger against -- so three records where eight
+claims were sent out would grade clean and the run would draft.
+[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s
+shared-artifact channel, with lost writes where that ticket has leaked reads.
+**Writing the headings first is what closes it rather than a new row**: a heading
+whose answer never arrived carries no ``STATUS``, and a record with no ``STATUS``
+already fails. ``SKILL.md`` step 3 orders it that way and a test below pins the
+consequence.
+
 **The record shape**, one per claim, in a Markdown file under ``scratch/``::
 
     DATE: 2026-08-19

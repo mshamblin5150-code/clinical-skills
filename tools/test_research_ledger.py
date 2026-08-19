@@ -139,6 +139,33 @@ class AStatusIsOneOfTwoBranches(unittest.TestCase):
         self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
 
 
+class AHeadingWhoseAnswerNeverArrivedIsAFinding(unittest.TestCase):
+    """#206's shared-artifact channel, with lost writes where that ticket has
+    leaked reads.
+
+    This tool has no expected record count, so three records where eight claims
+    went out would grade clean and the run would draft. ``SKILL.md`` step 3 closes
+    that by writing the headings down **before** spawning anything and keeping one
+    writer -- and then a lost answer is a heading with no ``STATUS``, which already
+    fails. **The fix is an ordering rather than a row**, and this pins the
+    consequence the ordering depends on.
+    """
+
+    def test_a_bare_heading_fails(self):
+        text = ledger_text("## CLAIM: A claim whose agent never came back.\n")
+        self.assertEqual(kinds(text), [ledger.UNKNOWN_STATUS])
+
+    def test_a_short_ledger_is_only_visible_because_the_headings_were_written_first(self):
+        """Three answered claims out of eight: clean if the five lost headings were
+        never written, refused if they were."""
+        answered = ledger_text(CLEAN, CLEAN, CLEAN)
+        self.assertEqual(kinds(answered), [])
+        with_headings = ledger_text(
+            CLEAN, CLEAN, CLEAN, *[f"## CLAIM: Claim {n}.\n" for n in range(4, 9)]
+        )
+        self.assertEqual(kinds(with_headings), [ledger.UNKNOWN_STATUS] * 5)
+
+
 class AnUnsourcedRecordSaysWhatWasSearched(unittest.TestCase):
     """The claim goes to ``PROPOSED``, so the record is not a failure -- but a
     bare keyword is the assertion without the looking."""
@@ -571,6 +598,12 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("stands where nothing newer exists", self.skill)
         self.assertNotIn("five years the outside limit", self.skill)
         self.assertNotIn("written as historical or dropped", self.skill)
+
+    def test_the_skill_keeps_one_writer_on_the_ledger(self):
+        """#206. Two writers on one file lose records, and the grader has no
+        expected count to notice a short ledger with."""
+        self.assertIn("They return their record; they do not write it", self.skill)
+        self.assertIn("Write the claim list down before spawning anything", self.skill)
 
     def test_the_skill_writes_down_the_fallback_for_a_harness_without_subagents(self):
         """#214's open question 1, and #218 takes the same answer."""

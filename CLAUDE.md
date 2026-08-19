@@ -242,7 +242,7 @@ Covered by `tools/test_docx.py`, one file for the pair the way `test_icd10.py` c
 
 ### Research ledger
 
-The four scanners above read a finished run. This one reads a `practicum-case-study` run's
+The five tools above that take `<a run directory>` read a finished run. This one reads a `practicum-case-study` run's
 **working file**, before the draft exists, and it is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) — the research fan-out made a mechanism rather than an instruction.
 
 ```bash
@@ -255,12 +255,12 @@ ruling is that such a claim gets researched, one agent per claim, in parallel. `
 said so. **What a written instruction cannot do is fail**, so the fan-out now writes one record per
 claim into `scratch/case-study-claims.md` and this grades them.
 
-**Eleven rows, and they belong to two rulings.** #214's contract: every field present, `STATUS` one
+**The rows belong to two rulings.** #214's contract: every field present, `STATUS` one
 of two branches, an `unsourced` record saying what was searched, no reference on an unsourced record,
 a restatement that is not the claim pasted back, and a numeric claim answered with a number. #215's
 amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old one
 saying why it stands, and the excuse carrying a reason. The report prints the ticket beside each row,
-and **`SKILL.md` step 3 writes all eleven out in a table** — a test keyed on the module's own tuple
+and **`SKILL.md` step 3 writes every one of them out in a table** — a test keyed on the module's own tuple
 fails if a twelfth arrives without one, because `AGENTS.md` classes this as a tool a skill *names*
 rather than one it depends on, and that class is defined by the instruction being complete without
 the command.

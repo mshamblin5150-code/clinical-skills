@@ -393,12 +393,25 @@ table, the threshold sheets or the guideline corpus already cover. **What is lef
 this step**, and *What none of that reaches gets researched, not deferred* above is the rule it
 applies.
 
+**Write the claim list down before spawning anything.** `scratch/case-study-claims.md`, its `DATE`
+header and one `## CLAIM:` heading per claim, and nothing under them yet. That ordering is what
+makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
+refuses a record with no `STATUS`.
+
 **One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
 the three returns and the recency rule above — a reputable source in one of four classes, a full
 APA 7 reference, and the claim restated in the source's own terms. Tell it the source classes by
 name, because a returned source outside them is a finding rather than an answer.
 
-**They all write into one ledger**, `scratch/case-study-claims.md`, one record per claim:
+**They return their record; they do not write it.** One writer to the ledger, and it is the context
+that spawned them, filling each heading in as its answer comes back. **N agents appending to one
+Markdown file lose records to each other**, and a ledger holding three of eight claims because two
+appends collided would grade clean and let the run draft —
+[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s shared-artifact channel
+with the sign flipped. Where the harness returns nothing usable, write one file per claim and
+concatenate; what is not allowed is two writers on one file.
+
+**One record per claim**, filled in under its heading:
 
 ```
 DATE: 2026-08-19
@@ -425,8 +438,8 @@ material belongs — not in a tracked notes directory. Where the harness ships a
 skill, borrow the fan-out from it and change that one thing: they write findings into the repo,
 and a case study's working material is a patient record.
 
-**What makes a record bad, in full, so this can be walked without running anything.** Eleven
-things, and a record can be several of them:
+**What makes a record bad, in full, so this can be walked without running anything.** A record
+can be several of them at once:
 
 | The record | Why |
 | --- | --- |
