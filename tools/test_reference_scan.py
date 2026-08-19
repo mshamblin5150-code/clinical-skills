@@ -957,10 +957,11 @@ class TheRulingDoesNotWiden(unittest.TestCase):
 
     def test_the_ledgers_own_line_in_the_skill_is_not_swept_up(self):
         """**#218's build spec names this line and says leave it exactly as it
-        is.** Step 3's ledger holds a claim transcribed from faculty material about
-        a patient, which has no equivalent guarantee. Asserting it in
-        ``research_ledger.py`` would have guarded a different file: a sweep over
-        the skill is what would take it, and the skill is where it lives.
+        is.** The ledger in ``practicum-case-study`` step 3 holds a claim
+        transcribed from faculty material about a patient, which has no equivalent
+        guarantee. Asserting it in ``research_ledger.py`` would have guarded a
+        different file: a sweep over the skill is what would take it, and the skill
+        is where it lives.
         """
         skill = SKILL.read_text(encoding="utf-8")
         self.assertEqual(skill.count("**that output is PHI**"), 1)
