@@ -92,6 +92,13 @@ Four rules carry it, and **two of them the corpus does not currently follow**:
 then lettering them in that order.** They are not assigned by which one was cited first, by page
 order, or by which one was found first.
 
+- **The same *authors*, not the same first author.** The rule is scoped to an identical author
+  string. `Hsu, K. (2026)` and `Hsu, K., & Khosropour, C. (2026)` are two author strings, and
+  `(Hsu, 2026)` and `(Hsu & Khosropour, 2026)` already tell them apart in text — so **neither takes
+  a letter, and adding one is the defect.** `tools/reference_scan.py` reads the rule this way, and
+  it did not at first: it grouped on the first surname alone, which is the right key for matching
+  an in-text citation and the wrong one here. It failed a correct list *and* would have taught a
+  run to write `2026a`/`2026b` onto two entries APA requires to carry neither.
 - **Ignore a leading `A`, `An` or `The` in either title** when alphabetizing.
 - The year–letter combination is used in **both** the in-text citation **and** the reference list
   entry. Fixing one and not the other is the defect, not the fix.

@@ -610,6 +610,25 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_the_skill_names_the_exam_date_argument(self):
         self.assertIn("--as-of", self.skill)
 
+    def test_both_files_scope_the_ab_rule_to_the_same_authors(self):
+        """The sheet is the authority and this module is *a second reader of it*,
+        so the narrowing has to be readable in the sheet rather than only in the
+        code that implements it.
+
+        [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s
+        arrangement and [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
+        reason: the scope lived in ``reference_scan.py`` and ``CLAUDE.md`` for the
+        length of one commit while ``apa7.md`` section 3 still read *same author*
+        and ``skills/practicum-case-study/SKILL.md`` step 7's defect table still
+        said *the same author*, so a harness walking that table by eye reached the
+        **opposite** verdict on the same pair the command had just been fixed to
+        pass. A prose edit to either copy failed nothing.
+        """
+        for name, text in (("apa7.md", self.apa7), ("SKILL.md", self.skill)):
+            with self.subTest(file=name):
+                self.assertIn("same *authors*, not the same first author", text)
+                self.assertIn("Khosropour", text)
+
     # One phrase per row, keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than quietly becoming a rule only
     # the scanner knows -- which is the class ``AGENTS.md`` puts this tool in.
@@ -629,7 +648,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.ENTRY_HAS_NO_YEAR: "An entry carrying no year element",
         scan.CANVAS_ARTIFACT: "`Links to an external site.` welded to a URL",
         scan.LIST_NOT_SORTED: "Two entries out of alphabetical order",
-        scan.MISSING_AB: "Two entries with the same author and year and no `a`/`b`",
+        scan.MISSING_AB: "Two entries with the same authors and year and no `a`/`b`",
         scan.AB_OUT_OF_TITLE_ORDER: "the letters are assigned by **title order**",
         scan.UPTODATE_NO_RETRIEVAL_DATE: "An UpToDate entry with no retrieval date",
         scan.RETRIEVAL_DATE_ON_ARCHIVED: "The command reaches this only where the entry carries a DOI",
