@@ -15,6 +15,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from random import Random
 
+import name_index as ni
 import phi_scan as ps
 
 NAMES = {"Jordan Vance", "Priya Raman"}
@@ -821,6 +822,67 @@ class LayerReport(unittest.TestCase):
 
     def shape_line(self, text):
         return self._line(text, "shape")
+
+
+class TheCorpusLayerStatesItsDenominator(unittest.TestCase):
+    """A name count is not a coverage claim and read as one until #141.
+
+    The index is harvested from the corpus and need not cover it, so an index
+    three encounters short printed exactly what a complete one printed --
+    ``ACTIVE`` and a number, on a page a reader trusts. The vocabulary could not
+    express the difference either: ``missing_corpus_sources`` tests a source's
+    presence on disk, so a file that is there and short is ``ACTIVE``.
+
+    **Declared, never enforced**, ruled 2026-08-19. These assert the line and
+    the absence of a status change together, because either alone is the wrong
+    ruling.
+    """
+
+    def report(self, covered, encounters, missing=()):
+        found = ni.Coverage(
+            files=1, unique_files=1, encounters=encounters, covered=covered,
+            entries=covered, orphans=0, proposed=encounters - covered,
+            proposed_named=0,
+        )
+        return "\n".join(ps.layer_report(set(NAMES), set(DATES), False, list(missing), found))
+
+    def test_a_complete_index_states_both_numbers(self):
+        self.assertIn("3 of 3 encounters indexed", self.report(3, 3))
+
+    def test_a_short_index_states_both_numbers(self):
+        self.assertIn("1 of 3 encounters indexed", self.report(1, 3))
+
+    def test_a_short_index_names_the_shortfall_and_its_remedy(self):
+        text = self.report(1, 3)
+        self.assertIn("2 encounter(s) have no name-index entry", text)
+        self.assertIn("tools/name_index.py --write", text)
+
+    def test_a_complete_index_says_nothing_further(self):
+        self.assertNotIn("no name-index entry", self.report(3, 3))
+
+    def test_a_shortfall_does_not_claim_the_layer_did_not_run(self):
+        """The layer ran. What is short is the list it ran against, so this is
+        its own line and never a fourth entry in the dead-layer warning."""
+        self.assertNotIn('NOT "no PHI"', self.report(1, 3))
+
+    def test_an_absent_source_beats_a_shortfall(self):
+        """A missing ``name-index.json`` has no coverage to state, and PATIENT
+        NAMES ARE NOT CHECKED is the stronger thing to say about that run."""
+        text = self.report(1, 3, ["name-index.json"])
+        self.assertIn("PATIENT NAMES ARE NOT CHECKED", text)
+        self.assertNotIn("no name-index entry", text)
+
+    def test_no_coverage_leaves_the_line_as_it_was(self):
+        """``day-file-text/`` absent: there is no denominator to have."""
+        text = "\n".join(ps.layer_report(set(NAMES), set(DATES), False))
+        self.assertIn("ACTIVE", text)
+        self.assertNotIn("encounters indexed", text)
+
+    def test_it_reports_counts_and_never_an_identifier(self):
+        text = self.report(1, 3)
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, text)
 
 
 class LayersCommandLine(unittest.TestCase):

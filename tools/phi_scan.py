@@ -98,6 +98,7 @@ from pathlib import Path
 from typing import NamedTuple, Sequence
 
 from console_codec import use_utf8
+from name_index import coverage as index_coverage, looks_like_a_name
 from repo_root import scratch_root
 
 # The tree being committed from -- this worktree. `_git` runs here and `scan_all`
@@ -419,19 +420,28 @@ def _load_json(path: Path, fallback):
 def harvest_entries() -> list[dict]:
     """The raw name-index records, or [] where there is no corpus.
 
-    **The index does not cover the corpus, and this is where that starts.** It
-    carries one entry per encounter and holds 548 of the 551 the census counts;
-    the three with no entry each put something other than the patient's name on
-    the line after ``Note N``, which is the shape ``batch-shift`` step 3 warns a
-    one-line parser loses. So a patient named *only* in one of those three is in
-    no entry, no name of theirs is harvested, and the corpus layer never scans
-    for it. Measured 2026-08-15, issue #63.
+    **The index need not cover the corpus, and this is where that starts.** It
+    carries one entry per encounter, and an encounter with no entry contributes
+    no name -- so a patient named *only* there is in no entry, no name of theirs
+    is harvested, and the corpus layer never scans for it. The shape layer does
+    not catch a name. Issue #63, measured 2026-08-15, and #141.
 
-    Narrower than the hole the README states -- there the name is nowhere in the
-    corpus, here it is in the corpus and the harvest did not reach it -- and it
-    closes the same way, by rebuilding the index with a window rather than a
-    line. **No generator for it is committed**, only this consumer and
-    ``harvest_review.py``, so nothing here can rebuild it.
+    Narrower than the hole the module docstring states -- there the name is
+    nowhere in the corpus, here it is in the corpus and the harvest did not reach
+    it. **The three encounters this was written about each put something other
+    than the patient's name on the line after ``Note N``**, which is the shape
+    `batch-shift` step 3 warns a one-line parser loses.
+
+    **It has a producer now**, ``name_index.py``, which reads a window rather
+    than a line and merges the missing encounters in. So the gap is closeable by
+    running something -- and it re-opens every time a shift is scanned and the
+    index is not regenerated, which is why ``corpus_coverage`` prints the
+    denominator on every run rather than this docstring stating a figure.
+
+    **Still the fallback for a file that will not parse**, deliberately: a
+    scanner with no names is a scanner that finds none, which is the safe
+    direction here. ``name_index.load_index`` refuses that same file instead,
+    because writing over an index whose contents are unknown is not.
     """
     return _load_json(SCRATCH / "name-index.json", [])
 
@@ -468,11 +478,12 @@ def name_position_names(entries: Sequence[dict]) -> set[str]:
     is the shorthand that follows, and a string appearing only there has no
     positional evidence that it is a name at all.
 
-    **548 is a count of entries, not of encounters.** The corpus holds 551, and
-    ``batch-shift`` step 3 carries the reconciliation and what the gap costs;
-    ``harvest_entries`` above says what it costs *here*. Both are worth the
-    reminder because the same 548 sat in two skill files as the catalog's size
-    until 2026-08-15. Issue #63.
+    **The index's size is a count of entries, not of encounters**, and the two
+    were the same number in two skill files until 2026-08-15. `batch-shift` step
+    3 carries the reconciliation and what the gap costs; ``harvest_entries``
+    above says what it costs *here*, and ``corpus_coverage`` prints both figures
+    rather than any of us restating one. Issue #63, and #141 for the producer
+    that closes it.
     """
     found: set[str] = set()
     for entry in entries:
@@ -546,6 +557,39 @@ def missing_corpus_sources() -> list[str]:
     return absent
 
 
+def corpus_coverage():
+    """How much of the corpus the harvest's own source speaks for, or ``None``.
+
+    **The count of names is not a statement about coverage and reads as one.**
+    ``--layers`` prints `ACTIVE` and a number on every commit, on a page a reader
+    trusts, and until #141 that number said nothing about the index covering the
+    encounters it was harvested from -- an index three encounters short printed
+    exactly what a complete one printed. The vocabulary could not express it
+    either: ``missing_corpus_sources`` tests a source's presence on disk, so a
+    file that is there and short is `ACTIVE`, and there is no state between *the
+    file exists* and *the file covers the corpus*.
+
+    So the denominator is printed beside the numerator. Ruled 2026-08-19:
+    **declared, never enforced** -- a short index states its shortfall and names
+    the remedy, and refuses nothing. A refuser here would fail an ordinary
+    ``git add`` on the day a shift is scanned, which is how a check gets learned
+    around.
+
+    **It reads the corpus a second time and that was measured rather than
+    waved past.** ``corpus_identifiers`` already walks every day file for date
+    literals, and this walks them again for their ``Note N`` lines; the corpus is
+    a third of a megabyte and a full read costs about five milliseconds, so the
+    ticket's *phi_scan deliberately does not read the corpus twice* is a real
+    objection with a small answer. The alternative -- folding coverage into
+    ``corpus_identifiers`` -- would widen a two-value return that
+    ``tracker_scan`` also calls.
+    """
+    day_files = SCRATCH / "day-file-text"
+    if not day_files.is_dir():
+        return None
+    return index_coverage(harvest_entries(), day_files)
+
+
 def kept_names(harvested: set[str]) -> set[str]:
     """The harvested strings the corpus layer will actually scan for.
 
@@ -613,11 +657,13 @@ def prune_covered(names: set[str]) -> set[str]:
     return {name for name, _ in survivors}
 
 
-def _looks_like_a_name(text: str) -> bool:
-    return bool(
-        len(text) > 5
-        and re.fullmatch(r"[A-Za-z][A-Za-z'\-]+(?: [A-Za-z][A-Za-z'\-.]+){1,2}", text)
-    )
+# **The predicate lives in `name_index` and this is the same object.** The
+# generator that fills the index and the harvest that reads it have to recognize
+# the same shape: one that found a name this rejects would write a `name` field
+# nothing here ever scans for -- an entry covering an encounter and protecting
+# nobody. `reference_scan` importing `REFERENCE_HEADING` from the renderer, for
+# that reason. Kept under this name because it is what the harvest reads.
+_looks_like_a_name = looks_like_a_name
 
 
 def _pragma_window(text: str) -> str:
@@ -806,6 +852,7 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
 
 def layer_report(
     names: set[str], dates: set[str], all_mode: bool, missing: Sequence[str] = (),
+    coverage=None,
 ) -> list[str]:
     """What ran and what did not, one line per layer. #86 decision 2.
 
@@ -854,6 +901,14 @@ def layer_report(
         dead.append("corpus")
     elif names or dates:
         corpus = f"ACTIVE   -- {len(names)} name(s), {len(dates)} date literal(s) from scratch/"
+        # **The denominator, because the numerator reads as coverage and is not.**
+        # #141: the index is harvested from the corpus and may not cover it, and
+        # a name count says nothing about that. `corpus_coverage` carries why
+        # this is declared and never enforced.
+        if coverage is not None:
+            corpus += (
+                f"; {coverage.covered} of {coverage.encounters} encounters indexed"
+            )
     else:
         corpus = "NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED"
         dead.append("corpus")
@@ -864,6 +919,17 @@ def layer_report(
         f"  corpus layer   {corpus}",
         "  shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date",
     ]
+    # Its own line rather than a fourth `dead` entry: the layer ran, and saying
+    # it did not would be false in the other direction. What is short is the list
+    # it ran against.
+    if coverage is not None and coverage.uncovered and not missing:
+        lines.append(
+            f"  ** {coverage.uncovered} encounter(s) have no name-index entry: a patient "
+            "named only there is scanned for by no layer."
+        )
+        lines.append(
+            "     Close it with `python tools/name_index.py --write`. **"
+        )
     if dead:
         lines.append(
             f"  ** A clean result here is NOT \"no PHI\": the {' and '.join(dead)} "
@@ -927,7 +993,7 @@ def main(argv: list[str]) -> int:
     # step -- a clean scan prints nothing, which is the moment the reader most
     # needs to be told what was not looked at.
     if "--layers" in argv:
-        for line in layer_report(names, dates, all_mode, missing):
+        for line in layer_report(names, dates, all_mode, missing, corpus_coverage()):
             print(line)
         return 0
 
@@ -947,7 +1013,7 @@ def main(argv: list[str]) -> int:
     # all -- #93's harm, reintroduced by #93's fix.
     dead_corpus = bool(missing)
     if dead_corpus:
-        for line in layer_report(names, dates, all_mode, missing):
+        for line in layer_report(names, dates, all_mode, missing, corpus_coverage()):
             print(line, file=sys.stderr)
 
     index = build_index(names, dates)
