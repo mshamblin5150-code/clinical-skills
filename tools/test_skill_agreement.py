@@ -85,6 +85,54 @@ STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
 #: else is the run. See ``graded_files``.
 FIXTURE_PROSE = {"README.md", "assertions.md"}
 
+#: The two documents at the repo root that cite steps, and whether either may
+#: declare a citation no skill name can resolve. **Ruled separately, 2026-08-19,
+#: because [#246](https://github.com/mshamblin5150-code/clinical-skills/issues/246)
+#: put them in one row and they are not one kind of document.**
+#:
+#: ``AGENTS.md`` is short and it is a contract: it tells a consumer which skills
+#: need which tools, and every ``step N`` in it is a genuine cross-reference. It
+#: takes **no escape hatch**, so nobody can quietly buy their way out of the one
+#: file a consumer reads.
+#:
+#: ``CLAUDE.md`` is an order of magnitude longer and is where every checker in
+#: this repo gets described, so it is structurally where **every**
+#: rule's mention-versus-use problem lands, and this file already records three
+#: earlier instances: ``spelling_scan`` died on the paragraph documenting its own
+#: homoglyph map, ``differential_scan``
+#: [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) broke
+#: on prose describing the row it grades, and two files exempted themselves from
+#: ``phi_scan`` by explaining its pragma near the top. The three citations
+#: declared there today are the fourth instance, not an anomaly.
+#:
+#: **No figure is stated for that asymmetry, and a draft of this docstring stated
+#: two.** One counted ``CLAUDE.md``'s own lines, which the very commit writing it
+#: changed; the other quoted a match count with no pattern beside it, so two
+#: sweeps re-deriving it reasonably got different numbers. Both are
+#: [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+#: arriving inside the change whose subject is #143.
+#: ``TheTwoRootDocumentsAreNotOneKind`` pins the asymmetry as a **floor** instead,
+#: and holds the pattern in code so *describes a checker* means one thing.
+
+#: What *describes a checker* means, in code rather than left to a reader's grep.
+CHECKER_PROSE = re.compile(r"scanner|parser|resolver|regex", re.IGNORECASE)
+ROOT_DOCUMENTS = ((REPO_ROOT / "AGENTS.md", False), (REPO_ROOT / "CLAUDE.md", True))
+
+#: The narrow opt-out #246 named as the honest remedy, and it declares a
+#: **count** rather than opening a hole. On its own line, comment punctuation
+#: aside, on ``phi_scan.py``'s reasoning -- a marker mentioned mid-sentence is
+#: not a marker -- and it covers the **next paragraph only**, on
+#: ``spelling_scan.py``'s: the unit is the span, so no document can exempt itself.
+EXEMPT_MARKER = re.compile(r"<!--\s*unresolved-step-citations:\s*(\d+)\s*-->")
+
+#: How many citations the hatch may hold in the one document that has it. A
+#: ceiling and not a measurement: without one the marker is a wholesale opt-out
+#: and the gate is theater. Deliberately close to what is declared today, so the
+#: next one has to be argued for in a diff rather than typed. The count is not
+#: restated in prose anywhere: it would go stale one short of this ceiling, which
+#: is the one window where nothing here would fire.
+EXEMPT_CEILING = 4
+
 
 def skill_names() -> list[str]:
     """Every ``skills/<name>/`` holding a ``SKILL.md``, longest name first.
@@ -128,6 +176,62 @@ def paragraphs(text: str) -> Iterator[tuple[int, str]]:
         yield start, "\n".join(block)
 
 
+class Exemption(NamedTuple):
+    """One ``unresolved-step-citations`` marker and the paragraph it covers."""
+
+    marker: int
+    first: int
+    last: int
+    declared: int
+
+
+def exemptions(text: str) -> list[Exemption]:
+    """Every marker in ``text``, paired with the line range of the next paragraph.
+
+    **A count rather than a license, and that is the whole of why this is not a
+    hole.** #246 asked whether the repo root could take #238's rule, and three
+    paragraphs of ``CLAUDE.md``'s own section *about* citations say no: each
+    **quotes** a citation -- ``GLOSSARY.md``'s line, offered as the evidence for
+    the ``carried`` limb, and two forms quoted **because they do not resolve**.
+    Naming a skill beside any of them would falsify the quotation, which is
+    ``differential_scan.py``'s
+    [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) --
+    *describing the rule broke the tool that checks the rule* -- arriving on a
+    document instead of a parser.
+
+    **So the marker declares how many the paragraph holds**, and a further
+    citation wandering into an exempted paragraph fails exactly as it would
+    anywhere else. A bare *ignore this paragraph* would not, and that is the
+    difference between an opt-out and an off switch.
+
+    **On its own line and blank-line separated from what it covers.** Glue it to
+    the paragraph and ``paragraphs`` reads the two as one block, which this
+    declines to match -- so the paragraph stays graded. That is the safe
+    direction to be wrong in, and it is ``phi_scan.py``'s own-line pragma rule
+    rather than a new one.
+
+    **A marker with nothing under it covers itself**, so it reports zero against
+    a declared count and goes red. A stale marker left behind by a rewrite is a
+    license nobody is using, and this is the only thing that ever notices.
+    """
+    blocks = list(paragraphs(text))
+    found = []
+    for index, (start, block) in enumerate(blocks):
+        if "\n" in block:
+            continue
+        matched = EXEMPT_MARKER.fullmatch(block.strip())
+        if not matched:
+            continue
+        declared = int(matched.group(1))
+        if index + 1 == len(blocks):
+            found.append(Exemption(start, start, start, declared))
+            continue
+        next_start, next_block = blocks[index + 1]
+        last = next_start + next_block.count("\n")
+        found.append(Exemption(start, next_start, last, declared))
+    return found
+
+
 class Citation(NamedTuple):
     """One ``step N``, and whose step N it turned out to be."""
 
@@ -169,8 +273,10 @@ def step_citations(text: str, owner: str | None, names: list[str]) -> Iterator[C
     reported; they are never failed -- which is what made
     [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238)'s
     repair safe to make: naming the skill beside those six converted them with no
-    change here. What is left unresolved is ``fixtures/`` prose and the repo-root
-    documents.
+    change here. **The repo root followed on
+    [#246](https://github.com/mshamblin5150-code/clinical-skills/issues/246)**, on
+    the same terms and at the same price bar a handful of quotations -- see
+    ``ROOT_DOCUMENTS``. What is left unresolved is ``fixtures/`` prose.
     """
     beside = re.compile("(" + "|".join(re.escape(name) for name in names) + r")\S*\s*$")
     anywhere = re.compile("|".join(re.escape(name) for name in names))
@@ -284,6 +390,56 @@ def stale_citations(declared: dict[str, set[int]]) -> list[str]:
             where = path.relative_to(REPO_ROOT).as_posix()
             stale.append(f"{where}:{cite.line} cites {cite.skill} step {cite.number} ({cite.how})")
     return stale
+
+
+def undeclared_citations(text: str, names: list[str], hatch: bool) -> list[str]:
+    """Every ``step N`` in a repo-root document that no skill name and no marker covers.
+
+    A parameter rather than a file walk, on ``stale_citations``'s reasoning: the
+    gate can then be pointed at text the tree does not hold. Asserting the two
+    root documents are clean today proves the walk found nothing; pointing it at
+    a bare citation and watching it complain proves it would find something.
+
+    **The count is enforced in both directions and that is the point of it.** A
+    marker declaring fewer than the paragraph holds means a citation arrived
+    unnoticed; declaring more means a rewrite left a license nobody is using.
+    Both are reported, because a marker is a statement about a paragraph and a
+    stale statement is what this whole class of check exists to refuse.
+
+    **``hatch`` is False for ``AGENTS.md`` and the marker becomes a complaint in
+    its own right**, rather than merely being unnecessary there. Silence would
+    make the hatch available to that file the moment somebody typed one; a file
+    with no legitimate use for a specimen citation should say so when one
+    arrives, which is ``skills_mirror.py``'s *a stale mirror has no legitimate
+    form* applied to an escape hatch. See ``ROOT_DOCUMENTS`` for why the two
+    documents are ruled apart.
+
+    **Required rather than defaulted**, because a default here picks a policy
+    for whoever forgets the argument -- and the permissive branch is the one a
+    forgetful call would have got. Two call sites, both explicit.
+    """
+    cites = list(step_citations(text, None, names))
+    spans = exemptions(text)
+    unresolved = [cite for cite in cites if cite.skill is None]
+    complaints = []
+    # A marker declaring nothing covers nothing, so the citations beneath it are
+    # still loose. Letting the span suppress them would make ``: 0`` the widest
+    # license in the file rather than the narrowest -- an off switch reached by
+    # typing the smallest number, which is the shape this marker exists to refuse.
+    covering = [span for span in spans if span.declared >= 1] if hatch else []
+    for cite in unresolved:
+        if not any(span.first <= cite.line <= span.last for span in covering):
+            complaints.append(f"{cite.line}: step {cite.number} names no skill")
+    for span in spans:
+        if not hatch:
+            complaints.append(f"{span.marker}: this document takes no exemption marker")
+            continue
+        held = len([c for c in unresolved if span.first <= c.line <= span.last])
+        if span.declared < 1:
+            complaints.append(f"{span.marker}: a marker declaring nothing exempts nothing")
+        elif held != span.declared:
+            complaints.append(f"{span.marker}: declares {span.declared}, paragraph holds {held}")
+    return sorted(complaints, key=lambda line: int(line.split(":")[0]))
 
 
 def names_the_same_field(claimed: str, field: str) -> bool:
@@ -968,6 +1124,156 @@ class TheStepResolverIsLive(unittest.TestCase):
         self.assertEqual([c.number for c in self.resolve("if steps 1 and 2 move", "batch-shift")], [1])
 
 
+class TheTwoRootDocumentsAreNotOneKind(unittest.TestCase):
+    """The evidence ``ROOT_DOCUMENTS``' split rests on, pinned rather than stated.
+
+    #246 put ``AGENTS.md`` and ``CLAUDE.md`` in one row and they were ruled
+    apart, which makes the asymmetry between them load-bearing: it is the whole
+    argument for one document taking an escape hatch and the other refusing one.
+    **A self-serving ruling whose evidence is a figure nobody re-derives is the
+    weakest shape this repo has**, and a draft of that docstring shipped exactly
+    that -- a line count already wrong when written, and a match count with no
+    pattern beside it.
+
+    **Floors, on ``test_each_limb_of_the_resolver_carries_real_citations``'s
+    reasoning**, and deliberately far under today's measurement so the next
+    paragraph anybody appends cannot move them. What they assert is the *kind*
+    of difference, not its size: a short contract against a long file that
+    describes machinery.
+    """
+
+    def counts(self, path: Path) -> tuple[int, int]:
+        lines = read(path).splitlines()
+        return len(lines), sum(1 for line in lines if CHECKER_PROSE.search(line))
+
+    def test_the_consumer_document_is_the_short_one(self) -> None:
+        long_lines, _ = self.counts(REPO_ROOT / "CLAUDE.md")
+        short_lines, _ = self.counts(REPO_ROOT / "AGENTS.md")
+        self.assertGreater(long_lines, short_lines * 5)
+
+    def test_only_the_maintainer_document_describes_the_checkers(self) -> None:
+        """The half that matters: mention-versus-use lands where checkers are written up."""
+        _, long_prose = self.counts(REPO_ROOT / "CLAUDE.md")
+        _, short_prose = self.counts(REPO_ROOT / "AGENTS.md")
+        # The instrument is live. A pattern matching nothing would satisfy the
+        # ratio below vacuously, which is the silent-pass shape this whole
+        # directory exists to refuse.
+        self.assertGreater(short_prose, 0, "CHECKER_PROSE matched nothing in AGENTS.md")
+        self.assertGreater(long_prose, short_prose * 5)
+
+
+class TheExemptionMarkerIsNarrow(unittest.TestCase):
+    """#246's escape hatch, exercised against text the tree does not hold.
+
+    **The gate above asserts the two root documents are clean, which proves the
+    walk found nothing.** These cases point ``undeclared_citations`` at a bare
+    citation, a miscounted marker and a stale one, and watch it complain. Only
+    the second is evidence, which is ``stale_citations``'s own argument arriving
+    on the check built beside it.
+
+    **Every hostile string here is synthetic**, and it has to be: this module is
+    dropped from ``graded_files`` precisely so its own test material cannot fail
+    the tree, and a marker typed into a real document to exercise a test would
+    be a license granted for the test's benefit.
+    """
+
+    NAMES = ["setup-clinical-skills", "practicum-case-study", "clinical-note", "batch-shift"]
+    MARKER = "<!-- unresolved-step-citations: 1 -->"
+
+    def complain(self, *blocks: str) -> list[str]:
+        return undeclared_citations("\n\n".join(blocks), self.NAMES, hatch=True)
+
+    def test_a_bare_citation_at_the_root_is_caught(self) -> None:
+        """The whole reason the gate exists. ``owner`` is None outside ``skills/``."""
+        self.assertEqual(self.complain("a reader following step 7 lands elsewhere"), 
+                         ["1: step 7 names no skill"])
+
+    def test_naming_the_skill_beside_the_words_clears_it(self) -> None:
+        """#238's repair, and the price #246 assumed for all twelve."""
+        self.assertEqual(self.complain("walked by `practicum-case-study` step 7"), [])
+
+    def test_a_declared_citation_is_exempt_and_only_within_its_paragraph(self) -> None:
+        """The marker covers the next paragraph and stops there.
+
+        A span running to the end of the document would swallow every citation
+        below it, which is ``differential_scan.py``'s refusal clause bug exactly
+        -- the mirror of the hole the thing exists to close.
+        """
+        self.assertEqual(
+            self.complain(self.MARKER, "quoted: *'see step 7'*", "and later, a bare step 4"),
+            ["5: step 4 names no skill"],
+        )
+
+    def test_a_second_citation_wandering_into_an_exempt_paragraph_is_caught(self) -> None:
+        """A count, not a license. This is the difference between an opt-out and an off switch."""
+        self.assertEqual(
+            self.complain(self.MARKER, "quoted: *'see step 7'*, and also a fresh step 4"),
+            ["1: declares 1, paragraph holds 2"],
+        )
+
+    def test_a_marker_left_behind_by_a_rewrite_is_caught(self) -> None:
+        """A license nobody is using, and nothing else would ever notice."""
+        self.assertEqual(
+            self.complain(self.MARKER, "this paragraph cites nothing at all"),
+            ["1: declares 1, paragraph holds 0"],
+        )
+
+    def test_a_marker_with_nothing_under_it_covers_itself(self) -> None:
+        """So it reports zero against its own declaration rather than reaching forward."""
+        self.assertEqual(self.complain("a bare step 4", self.MARKER),
+                         ["1: step 4 names no skill", "3: declares 1, paragraph holds 0"])
+
+    def test_a_marker_glued_to_its_paragraph_is_not_read_as_one(self) -> None:
+        """``paragraphs`` reads the two as one block, and the paragraph stays graded.
+
+        The safe direction to be wrong in, and it is ``phi_scan.py``'s own-line
+        pragma rule rather than a new one.
+        """
+        glued = self.MARKER + "\nquoted: *'see step 7'*"
+        self.assertEqual(self.complain(glued), ["2: step 7 names no skill"])
+
+    def test_a_marker_mentioned_mid_sentence_is_not_a_marker(self) -> None:
+        """Otherwise a paragraph explaining the marker exempts itself by explaining it.
+
+        Two files once did exactly that to ``phi_scan`` merely by documenting
+        its pragma near the top, and ``CLAUDE.md``'s section about this rule is
+        the one paragraph in the repo most likely to try it.
+        """
+        prose = "declare it with an " + self.MARKER + " line, or the bare step 7 fails"
+        self.assertEqual(self.complain(prose), ["1: step 7 names no skill"])
+
+    def test_the_consumer_document_takes_no_marker_even_a_correct_one(self) -> None:
+        """``AGENTS.md``'s half of the split ruling, and it is asserted rather than described.
+
+        A marker that would have been perfectly well-formed in ``CLAUDE.md`` is
+        a complaint here **and** leaves the citation beneath it loose. Reporting
+        only the second would let the hatch drift into the consumer document one
+        silent marker at a time; reporting only the first would let the marker be
+        deleted and the citation stay hidden.
+        """
+        self.assertEqual(
+            undeclared_citations(
+                self.MARKER + "\n\nquoted: *'see step 7'*", self.NAMES, hatch=False
+            ),
+            ["1: this document takes no exemption marker", "3: step 7 names no skill"],
+        )
+
+    def test_the_maintainer_document_takes_the_same_marker(self) -> None:
+        """The other half. Same text, same parser, one ruling apart."""
+        self.assertEqual(
+            undeclared_citations(
+                self.MARKER + "\n\nquoted: *'see step 7'*", self.NAMES, hatch=True
+            ),
+            [],
+        )
+
+    def test_a_marker_declaring_nothing_exempts_nothing(self) -> None:
+        self.assertEqual(
+            self.complain("<!-- unresolved-step-citations: 0 -->", "a bare step 4"),
+            ["1: a marker declaring nothing exempts nothing", "3: step 4 names no skill"],
+        )
+
+
 class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
     """#233: a ``step N`` citation must point at a step that exists.
 
@@ -999,10 +1305,11 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
     priced the repair -- ``anchor_scan.py`` alone said ``step-4`` six times
     meaning ``icd10-cpt`` -- and it was prose, not a parser change.
     ``test_every_citation_in_tools_resolves`` keeps it, because a reword that
-    dropped a name would put those citations back out of reach in silence. What
-    stays unresolved is ``fixtures/`` prose and the repo-root documents, and the
-    fixture half is left deliberately: several of those sentences name a skill
-    **as it stood at run time**.
+    dropped a name would put those citations back out of reach in silence. **The
+    repo root followed on #246**, ruled apart into a document that takes no escape
+    hatch and one that takes a counted three. What stays unresolved is
+    ``fixtures/`` prose, left deliberately: several of those sentences name a
+    skill **as it stood at run time**.
 
     **No count is stated here, and the reason is that the first draft's went
     stale before it was merged.** It read *38 unresolved* against a tree that had
@@ -1146,6 +1453,87 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
             "a 'step N' in tools/ names no skill, so nothing checks it survives a "
             "renumbering. Name the skill beside the words -- once per paragraph is enough",
         )
+
+    def test_every_citation_at_the_repo_root_resolves(self) -> None:
+        """#246: ``CLAUDE.md`` and ``AGENTS.md`` name the skill whose step they cite.
+
+        **The two documents with the most to lose and, until this, no gate at
+        all.** ``AGENTS.md`` is what a consumer reads and nothing else;
+        ``CLAUDE.md`` is what every session in this repo reads first. A ``step
+        7`` pointing at the wrong step does more damage in either than anywhere
+        under ``tools/``.
+
+        **The root is the one row with a growth rate, and that is the argument
+        for gating it rather than sweeping it.** #238's table put the root at 5;
+        re-derived at its own parent commit it was 10, and the growth was all in
+        ``CLAUDE.md``, from two tickets with nothing to do with citations. It
+        then grew again to 12 while #246 sat open. A sweep repairs a number; only
+        a gate holds it, and #244 is the near miss that says naming the skill is
+        easy to forget rather than expensive.
+
+        **The price was *not* #238's, and finding that out is what this ticket
+        bought.** The ticket priced the repair as *name the skill once per
+        paragraph, no parser change*, and that held for nine of the twelve --
+        eight renamed and one de-cited, because *"a reader following a
+        cross-reference"* says what *"see step 7"* said. The other three are in
+        ``CLAUDE.md``'s section about this rule and every one is a **quotation**:
+        ``GLOSSARY.md``'s line, quoted as the evidence for the ``carried`` limb;
+        *step 2 of the rebuild*, which this file already calls a deliberate
+        demonstration; and the apostrophe form #238 caught at the merge, quoted
+        **because it does not resolve**. Naming a skill beside any of them
+        falsifies the quotation. That is ``differential_scan.py``'s #153 --
+        *describing the rule broke the tool that checks the rule* -- arriving on
+        a document, and it is why the marker exists.
+
+        **The marker is #246's own remedy and deliberately not the one it
+        refused.** The ticket weighed ``spelling_scan.py``'s mention-versus-use
+        rule and rejected it: this repo writes ``step 4`` in backticks meaning a
+        real citation all over the tree, so a punctuation heuristic would stop
+        grading the citations most likely to be precise. What it named instead
+        was *a narrow opt-out marker*, and ``exemptions`` is that -- a declared
+        **count**, so a new citation wandering into an exempted paragraph fails
+        exactly as it would anywhere else.
+
+        **Ruled apart rather than together, which #246 did not propose.**
+        ``AGENTS.md`` takes no marker at all; ``CLAUDE.md`` takes up to
+        ``EXEMPT_CEILING``. The two documents fail differently and the reasoning
+        is on ``ROOT_DOCUMENTS``.
+
+        **``docs/adr/`` is outside this and that is the ticket's scoping, not an
+        oversight.** #246 argued the repo-root two; the ADR row is one citation
+        in a ratified record, and it is left where #238 left it.
+        """
+        names = skill_names()
+        for path, hatch in ROOT_DOCUMENTS:
+            with self.subTest(document=path.name):
+                text = read(path)
+                # The instrument is live, on ``test_build_artifacts_ignored.py``'s
+                # reasoning: a document that stopped citing steps at all would
+                # report a clean run and be indistinguishable from one. The floor
+                # is far under what either file holds.
+                self.assertGreater(
+                    len(list(step_citations(text, None, names))),
+                    1,
+                    f"no step citation in {path.name} was read at all",
+                )
+                self.assertEqual(
+                    undeclared_citations(text, names, hatch),
+                    [],
+                    f"{path.name}: a 'step N' names no skill, so nothing checks it "
+                    "survives a renumbering. Name the skill beside the words -- once "
+                    "per paragraph is enough. Where the citation is a quotation that "
+                    "must not resolve, and only in CLAUDE.md, declare it with an "
+                    "'<!-- unresolved-step-citations: N -->' line above the paragraph",
+                )
+                if not hatch:
+                    continue
+                self.assertLessEqual(
+                    sum(span.declared for span in exemptions(text)),
+                    EXEMPT_CEILING,
+                    "the escape hatch is meant to be narrow, and the argument for it "
+                    "is that the paragraphs needing it are few and nameable. Past the "
+                    "ceiling it is a wholesale opt-out and this gate is theater",
+                )
 
     def test_a_citation_to_a_step_that_does_not_exist_is_caught(self) -> None:
         """#214's renumbering, run backwards. This is the whole evidence for the class.
