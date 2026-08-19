@@ -124,6 +124,16 @@ Assignments: none. Time Log `Confirmed` column: unchecked on every row.
 
 The **format** is the universal part and is what belongs here: `Preceptor` is `Last,First` with no space, and the Time Log renders that same value with a space.
 
+**This file holds values for exactly these fields, and `tools/test_skill_agreement.py` enforces the list:** Interaction Level · Race/Ethnicity · Gender · Age unit · Marital status at first contact · Primary Payment Method · Case Type · Patient Time
+
+Every one of those is a Medatrax dropdown that renders the same on every account. A ninth arriving anywhere in this file is either a genuine platform field — in which case it goes in the sentence above, and the diff says so in a line whose whole subject is *is this universal?* — or it is one account leaking back in, which is what this file did for its entire life until [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212).
+
+**The check reads the whole file, not this section**, because the hole [#222](https://github.com/mshamblin5150-code/clinical-skills/issues/222) was filed on is a per-account value arriving *under some other heading* — and a check bounded to this one is escapable by adding a heading, which a first version of it was.
+
+**So no paragraph anywhere in this file may open with a bold span ending in a colon.** That is the field-label form, and the check reads one as a picklist it was not told about — the sentence below tripped it while being written. Bluntness is the point: a parse that tried to tell a label from a sentence would be a judgment, and a judgment is the seam a ninth picklist comes through.
+
+**What that check does not reach is a value**, and there are two shapes of it. A per-account value appended to a field it has already been told about — a site name at the end of the `Case Type` list — reads as a declared field and passes. And a rule keyed on a site or a preceptor written as prose or as a table is the shape the `Primary Payment Method` rule had, which is the other half of what #212 found. Both need the name vocabulary [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50) declined to build and #212 re-ruled. **A green suite is not a read file** — *Field selection rules* below is still a person's job.
+
 **Interaction Level:** `Level 0` … `Level 5`. Every existing entry is Level 5, the top of the scale.
 
 **Race/Ethnicity:** African American/Black · Asian · Bi-racial · Caucasian/White · Hispanic/Latino · Native American/Alaskan · Other · Pacific Islander
@@ -138,7 +148,7 @@ The **format** is the universal part and is what belongs here: `Preceptor` is `L
 
 **Case Type:** Cardiovascular · Dermatology · Endocrine Disorders · ENT · GI · GU · Mental Health · Musculoskeletal · Neurological · Opthalmic · Physical · Respiratory · Obstetrics · Gynecology
 
-**Patient Time** — the hours bucket, derivable from age:
+**Patient Time:** the hours bucket, derivable from age:
 
 ```
 Pediatric (0 – 17) Hours     Adult (18 – 60) Hours     Gerontology (60 and>) Hours
@@ -155,7 +165,7 @@ Those hours are not recoverable and do not need to be. All 30 belong to NUR5153,
 
 **No report exposes Patient Time.** Case Type Report gives case type, date and reference; the Statistics Report has a Case Type view but no Patient Time view; Data Totals covers visit-data categories, all empty. The value appears only on `patientdetail.aspx`, one visit at a time.
 
-**To audit a specific visit fast:** `patList:txtSearch` on `/login/patient.aspx` accepts a Patient Reference and returns that single visit at `Select$0`. That is what makes a per-visit sweep possible without walking twelve pages of fifty.
+To audit a specific visit fast, `patList:txtSearch` on `/login/patient.aspx` accepts a Patient Reference and returns that single visit at `Select$0`. That is what makes a per-visit sweep possible without walking twelve pages of fifty.
 
 ## Per-encounter fields (`patientedit.aspx`)
 

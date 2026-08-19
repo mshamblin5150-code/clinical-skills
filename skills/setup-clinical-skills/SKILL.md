@@ -92,7 +92,9 @@ Ask, and record the answers rather than deriving them:
 
 ### 4. Picklists — read them, do not assume them
 
-Preceptors, sites, case types and Patient Time bands are per-account picklists. Read them off the portal and record the strings **character for character** — on one account a site entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss string does not match.
+Preceptors and sites are per-account picklists. Read them off the portal and record the strings **character for character** — on one account a site entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss string does not match.
+
+*(This sentence named case types and the Patient Time bands as well, until 2026-08-18. Medatrax renders both of those dropdowns the same on every account, so [reference/medatrax-fields.md](../../reference/medatrax-fields.md) holds their values and declares them in its own inventory. What is per-account is the program's **hour breakdown across** those bands, which step 3 collects — a different fact, in a different file. Neither file was wrong on its own page, which is why it took a check that reads both: [#222](https://github.com/mshamblin5150-code/clinical-skills/issues/222).)*
 
 Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly.
 
