@@ -1,7 +1,8 @@
 # Guideline catalog
 
 One row per document in the guideline corpus: 179 PDFs across nine societies,
-roughly 6,800 pages. **The corpus itself is not in this repo** and is not going
+**7,733 pages**, which is the sum of this file's own `page_count` column and
+not a separate claim. **The corpus itself is not in this repo** and is not going
 to be — 410 MB, most of it society-copyrighted, and a consumer needs the derived
 facts rather than the sources. It lives at `C:/codeing/guidelines-src`. Issue
 [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87).
