@@ -962,7 +962,7 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("sheet", type=Path, nargs="?", help="the sheet to grade")
-    parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/")
+    parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/ (resolves from --recs-root; takes no --recs)")
     parser.add_argument(
         "--quiet",
         action="store_true",
