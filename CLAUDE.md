@@ -512,6 +512,24 @@ python tools/threshold_sheet.py --all
 
 **What no gate here reaches is written in the README and in the module docstring, the same day they were built.** The largest: **a sheet whose numbers are all real and all filed under the wrong heading passes every gate in the directory.**
 
+### Build artifacts stay out of the tree, and now there are two nets
+
+Three tools write outside every checkout and each carries its own guard — [#176](https://github.com/mshamblin5150-code/clinical-skills/issues/176). `.gitignore` now covers the same artifacts by name, and the split of labor is the point: **a guard refuses the write, and the ignore rule only stops the result being committed if a guard is missed.** Neither replaces the other.
+
+```
+*-text/
+guidelines-index/
+recs-*.json
+```
+
+**The reason it was worth adding is a change of premise rather than a new defect.** `guidelines_index.py`'s guard compares against known roots — this worktree and the clone that owns it — so it misses a **sibling worktree and any other repo nearby**, which the `.git`-walk in `guidelines_extract.py` and `guidelines_recs.py` catch. In a private repo a mis-typed `--out` was clutter, and #176's *"Not urgent"* was ruled on that footing. Public, the same slip is publication of society-copyrighted page text, and `phi_scan` will never flag it because guideline text is not PHI. Re-priced on [#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223), 2026-08-18; **the consolidation itself stays debt**, because it is the half that does not reduce exposure.
+
+**`tools/test_build_artifacts_ignored.py` derives two of the three names from the tools' own defaults** rather than repeating them — `guidelines_extract.default_output` and `guidelines_index.default_database`. A list typed into a test goes stale the first time a default moves and reads as coverage while it does. **The third is typed and the test says so**: `guidelines_recs.py` has no default `--json` path to derive from, so `recs-<stem>.json` is read off `threshold_sheet.py`'s tier-2 lookup by hand, and a rename there would leave the check passing.
+
+**Its first version passed three of four assertions against a check that says yes to everything**, and that is the part worth keeping. `git check-ignore` asked about `tools/` answers *ignored*, citing a blank line in `.gitignore` — so any query written with a **trailing slash** comes back true. Every query is a file path now, and `TheInstrumentIsLive` asserts an uncovered path comes back false before anything else runs. This repo's recurring shape with the sign flipped: not a search that could not have worked answering like a settled negative, but one answering like a settled positive. **Which blank line is deliberately not stated** — the draft of this paragraph said 29, and the block above pushed it to 33 in the same commit, so the figure was stale before it was committed. **The PHI firewall itself is asserted rather than described**: `scratch/`, `output/`, `cases/` and `patients/` all match their own lines on real file paths, in `TheInstrumentIsLive`.
+
+**One rule that is deliberately absent**: a bare `*.sqlite`. It would catch a stray index anywhere and it would also hide `reference/icd10cm-2026.sqlite`, which is committed on purpose. `TheNetDoesNotSwallowWhatIsCommitted` walks `git ls-files` and asserts no tracked file is ignored, so a wider pattern fails rather than quietly hiding one.
+
 ### Continuous integration
 
 `.github/workflows/checks.yml`, one job, on `windows-latest` at Python `3.14` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md). It runs the suite and `phi_scan --all`, and it installs nothing.

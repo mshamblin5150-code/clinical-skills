@@ -305,5 +305,39 @@ class Rendering(unittest.TestCase):
         self.assertEqual(parsed, original)
 
 
+class TheHeaderAgreesWithTheColumnBeneathIt(unittest.TestCase):
+    """The catalog's opening paragraph states a corpus size, and nothing checked it.
+
+    It read *"roughly 6,800 pages"* while the `page_count` column it sits above
+    summed to **7,733** -- a 933-page contradiction inside one file, in the one
+    committed artifact three other tickets read. Found in the tracker sweep on
+    #223's branch, 2026-08-18, and it is [#106]'s own subject arriving in the half
+    that ticket puts under *Not in scope*: the column is re-derived on every
+    `guidelines_catalog.py` run and the prose beside it was checked by nothing.
+
+    **The header states the derived figure now, so this asserts agreement rather
+    than a constant.** A corpus refresh moves both together or fails here.
+    """
+
+    CATALOG = TESTDATA.parent.parent / "reference" / "guidelines-catalog.md"
+
+    def _rows(self) -> list[list[str]]:
+        rows = []
+        for line in self.CATALOG.read_text(encoding="utf-8").splitlines():
+            if line.startswith("|") and ".pdf" in line:
+                rows.append([cell.strip() for cell in line.strip("|").split("|")])
+        return rows
+
+    def test_the_document_count_in_the_header_is_the_number_of_rows(self):
+        rows = self._rows()
+        self.assertEqual(len(rows), 179)
+        self.assertIn(f"{len(rows)} PDFs", self.CATALOG.read_text(encoding="utf-8"))
+
+    def test_the_page_total_in_the_header_is_the_column_sum(self):
+        total = sum(int(cells[6]) for cells in self._rows())
+        self.assertEqual(total, 7733)
+        self.assertIn(f"{total:,} pages", self.CATALOG.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

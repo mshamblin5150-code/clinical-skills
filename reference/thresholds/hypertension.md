@@ -7,6 +7,14 @@ guideline** and not a clinical instruction: every row is a fact this repo restat
 and choosing among them is the clinician's. Graded by `tools/threshold_sheet.py`;
 what that grader cannot see is written out in [README.md](README.md).
 
+**Every `snippet` cell is verbatim AHA/ACC text, deliberately.** It is what the citation
+gates check against — paraphrase it and a fabricated citation stops being detectable — and
+that trade was ruled against a public repo on 2026-08-18,
+[#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223). How much is
+quoted, and why it is not a taste call, is measured in
+[README.md](README.md#the-quoting-posture-ruled-against-a-public-repo) and re-derived from
+this file by a test, so the figures cannot go stale here.
+
 
 ## Sources
 

@@ -10,6 +10,15 @@ that date, not recalled. A rule this sheet does not cover is looked up the same 
 is looked up, never recalled**, which is [SKILL.md](../SKILL.md)'s anchor discipline arriving at
 the reference list.
 
+**The two fenced examples are APA's own, and they stay.** Ruled 2026-08-18 on
+[#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223), against a public
+repo rather than a private one. This sheet reproduces **no APA prose at all** — the only
+verbatim third-party strings in it are the 22-word UpToDate reference in §2 and the
+19-word `2019a`/`2019b` pair in §3, both from the free rule pages, both with their
+publishers already elided, and both *format demonstrations*: a reference format described
+in a sentence is not a reference format. Everything else here is this repo's own wording
+with a section pointer beside it.
+
 **The *Publication Manual* section numbers are what those pages cite, and are not themselves
 checked here** — the manual is not in this repo and cannot be. They are a pointer for anyone who
 holds a copy, and the claim being made is only that the site said so on the date above. Treating

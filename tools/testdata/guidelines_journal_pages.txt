@@ -1,3 +1,23 @@
+# Page excerpts in the shape a journal-typeset guideline PDF produces. Four pages.
+# Everything above the first page marker is preamble and is not read as a page.
+#
+# Derived, not copied -- `guidelines_ahaacc_pages.txt`'s posture, and this file
+# should have carried it from the start. The running head, the volume-and-page
+# citation and the section headings are verbatim artifacts of the real article --
+# the 2018 AHA/ACC cholesterol guideline, published in Circulation in 2019, which
+# is why both years appear and why `year_guess` and `year_from_running_head` give
+# different answers here on purpose. They are exactly what those two rules, and
+# `classify`, are tested against. **No body prose is here at all**, which is
+# what #87 rules non-redistributable and what a page of AHA text would be.
+#
+# **No clinician ruling stands behind this header, and that is the honest form.**
+# Issue #223's four rulings were about the threshold sheet, the catalog, apa7.md
+# and #176; this file was not among them. It came out of that ticket's sweep,
+# which found the neighboring fixture declaring the distinction and this one
+# silent -- and the silent one was the one holding real strings. Four headings and
+# a citation are plainly the artifact rather than the expression, so what is
+# recorded here is a declaration, not a judgment someone else made.
+
 %%PAGE%%
 2018 AHA/ACC Guideline on the Management of Blood Cholesterol
 A Report of the American College of Cardiology/American Heart
