@@ -96,11 +96,17 @@ Extractor limits worth knowing before quoting a number:
   matches a written history, so each slot's other reading is a complement --
   which is why a note carrying an allergy denial *and* a stated allergen reads as
   a denial, and a note carrying a tobacco history *and* a denial reads as a
-  history. **Both are absent from every committed input** -- no number, because
-  the claim is that the population is empty and the denominator moves every time
-  a fixture set lands. ``SocialSlotsSplitTwoWays`` re-derives it: the written
-  column equals the two readings summed, over the glob rather than over a list.
-  Issue #143. **These two slots are
+  history. **Both are absent from every committed input**, and no number is
+  quoted for that because the claim is that the population is empty -- the
+  denominator behind it moved every time a fixture set landed, which is issue
+  #143. **Only one limb of it is pinned, and the sentence says which**: the
+  allergy-denial-plus-named-drug shape is counted by
+  ``allergy_denied_but_drug``, which
+  ``AllergyKindSplitsThreeWays::test_no_committed_case_denies_and_names_a_drug``
+  asserts is 0 over the glob. The tobacco limb, and the allergy limb for an
+  environmental or food allergen, are **readings** taken over the inputs and
+  re-derived by nothing -- a kind fires only where the slot named something, so
+  no counter here can see one sitting inside a denial. **These two slots are
   the only ones measurable at all** -- and only one of them, tobacco, is a social
   slot; the allergy line is a heading of its own in both branch templates. No
   count of the unmeasurable remainder is quoted here, because the two templates
@@ -117,7 +123,10 @@ Extractor limits worth knowing before quoting a number:
   corpus and its own reopen trigger fired -- 173 of 284 written statuses naming
   something, against a fixture floor of 8 of 20 -- and the trigger fired on a
   count that could not tell a drug allergen from a seasonal one. Four of those
-  eight fixture cases name nothing but an environmental allergy. ``ALLERGY_DRUG``,
+  eight fixture cases name nothing but an environmental allergy. **That pair is
+  stated here and nowhere else in this module, and it is re-derived rather than
+  typed** -- ``test_allergy_reaction.py`` counts both halves off the tree and
+  fails when either moves. Issue #143. ``ALLERGY_DRUG``,
   ``ALLERGY_FOOD`` and ``ALLERGY_ENVIRONMENTAL`` split it; the three are the
   categories the clinician named on 2026-08-16, and they are **not a partition**
   -- two of the eight name a drug *and* an environmental allergen, so the report
@@ -631,9 +640,12 @@ ALLERGY_NONE = re.compile(
 # note naming a seasonal allergy is fully compatible with filling ``NKDA`` and is
 # no evidence at all against the gap reading. The corpus run #78 was owed came
 # back **173 of 284 written statuses naming something**, which fires that
-# ticket's own reopen trigger -- against a fixture floor of 8 of 20, four of
-# whose eight name nothing but an environmental allergy. So the trigger fired on a
-# count that could not tell the two apart. The clinician ruled on 2026-08-16 that
+# ticket's own reopen trigger -- against a fixture floor where most of the column
+# names nothing but an environmental allergy. **The figures are in this module's
+# docstring and deliberately not repeated here**, on #143's terms: they moved when
+# #143 widened the denominator, and this comment is a third place for them to go
+# stale in. So the trigger fired on a count that could not tell the two apart.
+# The clinician ruled on 2026-08-16 that
 # an environmental-only note still takes ``NKDA``, and named **food** as the
 # third category, which is what ``DAVID`` checks.
 #
@@ -1458,8 +1470,10 @@ def survey(notes: list[str]) -> Census:
         if has_allergy_status(note):
             allergy_n += 1
             allergy_none_n += not has_stated_allergy(note)
-            # Not a partition: two of the eight committed cases name a drug
-            # *and* an environmental allergen, so these three never get summed.
+            # Not a partition: some committed cases name a drug *and* an
+            # environmental allergen, so these three never get summed. No count
+            # here -- it is the docstring's, and #143 is what a third copy
+            # becomes.
             allergy_drug_n += has_drug_allergy(note)
             allergy_food_n += has_food_allergy(note)
             allergy_env_n += has_environmental_allergy(note)

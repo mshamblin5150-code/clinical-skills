@@ -148,10 +148,12 @@ PEDS_BP_ALLERGY_NONE = (2, 9)
 PEDS_BP_ALLERGY_STATED = (5,)
 # The two sets the named enumerator could not see, ruled in on 2026-08-19 --
 # #143. Neither was built to bear on a social slot, and both write one anyway:
-# ``duration-span`` case 1 lists six drug allergens and nothing else, case 2 adds
-# a tobacco history to three more, and ``hedged-dx`` case 2 writes ``NKDA``. The
+# ``duration-span`` case 1 lists drug allergens and nothing else, case 2 adds a
+# tobacco history to more of them, and ``hedged-dx`` case 2 writes ``NKDA``. The
 # classification is per case and explicit for the reason ``all_fixture_shorthand``
-# gives: the glob decides who is counted, this decides what they say.
+# gives: the glob decides who is counted, this decides what they say. **How many
+# allergens each names is deliberately not written down** -- nothing re-derives
+# such a number and it is #143's own shape.
 DURATION_SPAN_ALLERGY_NONE = ()
 DURATION_SPAN_ALLERGY_STATED = (1, 2)
 HEDGED_DX_ALLERGY_NONE = (2,)  # "allergy NKDA"
@@ -224,6 +226,16 @@ def all_fixture_shorthand():
     ``test_no_other_committed_case_writes_either_slot`` asserts the two agree.
     A seventh set fails that test until somebody rules its cases in, which is the
     look the named list never forced.
+
+    **It globs the filesystem and not ``git ls-files``, and that is declared
+    rather than fixed** -- [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)'s
+    rule, and here it runs the opposite way to that ticket's walks. Those report
+    clean about a tree they cannot fully see; this one sees *more* than the
+    index, so an untracked stray under a ``shorthand/`` directory joins the
+    denominator and fails the count. That is the safe direction -- it is loud,
+    and the shapes it can reach are a file somebody has not staged yet -- but the
+    two populations are not the same one, and prose elsewhere re-derives this
+    figure with ``git ls-files``.
 
     Module-level rather than a method, because several classes read the same
     denominator and instantiating a ``TestCase`` to borrow one is a trick that
@@ -2642,9 +2654,18 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         A total alone would not be enough --
         ``test_no_other_committed_case_writes_either_slot`` is the gate that
         forces each new case to be classified, and a set where nobody writes
-        either slot (``obesity-bmi`` is one, all four blank) would clear it in
-        silence. So both are asserted: this one says who is counted, that one
+        either slot (``obesity-bmi`` is the one that does, and every one of its
+        cases is blank in both) would clear it in silence. So both are asserted: this one says who is counted, that one
         says the split covers them.
+
+        **The ``shorthand/`` anchor is not asserted here and #124 is why it
+        would be worth asserting.** ``fixtures/filled-anchor/run-2/`` holds
+        twelve ``case-*.md`` files that are ``icd10-cpt`` **output**, so a glob
+        written one level looser reads worksheets as inputs. What holds the
+        anchor is ``ThereIsOneEnumerator``, which pins the glob's literal by
+        equality; a check here would be a second reading of the same string and
+        could only fail on an edit that one catches first. A check that cannot
+        fail is this repo's own named defect, so it is named instead.
         """
         cases = [p for p, _ in self.all_cases()]
         self.assertEqual(len(cases), 37)
@@ -2653,12 +2674,6 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
             ["day-a", "day-b", "duration-span", "hedged-dx", "obesity-bmi",
              "peds-bp"],
         )
-        # Anchored on ``shorthand/`` and not one level looser, which #124 is why:
-        # ``fixtures/filled-anchor/run-2/`` holds twelve ``case-*.md`` files that
-        # are ``icd10-cpt`` **output**, so a glob written a level up reads a set
-        # of worksheets as a set of inputs. Asserted rather than left to the set
-        # names above, because a seventh set of *outputs* would satisfy those.
-        self.assertEqual({p.parent.name for p in cases}, {"shorthand"})
 
     def test_the_allergy_slot_is_written_even_to_say_none(self):
         """The gap reading: twelve of twenty written statuses are ``NKDA``."""
@@ -2839,8 +2854,7 @@ class AllergyKindSplitsThreeWays(unittest.TestCase):
                 cc.has_environmental_allergy(note))
 
     def test_the_drug_allergy_cases(self):
-        """day-b 7 names six drugs, day-b 11 levaquin, duration-span 1 and 2 nine
-        more between them.
+        """day-b 7, day-b 11, and both of ``duration-span``'s first two.
 
         *Nothing else does* is asserted by ``test_survey_counts_the_three_kinds``
         rather than here -- it compares each counter against the length of its
