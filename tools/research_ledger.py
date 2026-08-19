@@ -24,7 +24,7 @@ claims were sent out would grade clean and the run would draft.
 shared-artifact channel, with lost writes where that ticket has leaked reads.
 **Writing the headings first is what closes it rather than a new row**: a heading
 whose answer never arrived carries no ``STATUS``, and a record with no ``STATUS``
-already fails. ``SKILL.md`` step 3 orders it that way and a test below pins the
+already fails. ``practicum-case-study``'s ``SKILL.md`` step 3 orders it that way and a test below pins the
 consequence.
 
 **The record shape**, one per claim, in a Markdown file under ``scratch/``::
@@ -151,13 +151,15 @@ clean scan here is not a walked claim.
 unsourced does not go in the body* is #214's rule and it is about the draft, which
 this never sees -- so a ledger of nothing but well-formed ``unsourced`` records
 exits 0, and that 0 means the records are honest rather than that the paper is. The
-count is printed for exactly that reason, and ``SKILL.md`` step 9 walks it.
+count is printed for exactly that reason, and ``practicum-case-study``'s ``SKILL.md``
+step 9 walks it.
 
 **#214's open question 2 is answered on
 [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), and the
 answer is that nothing here fetches anything.** The format half already had a written
 standard from #211 -- ``skills/practicum-case-study/reference/apa7.md``, walked by
-step 7 and by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
+``practicum-case-study``'s ``SKILL.md`` step 7 and by
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
 For the truth half the ticket proposed ``threshold_sheet.py``'s two-tier arrangement,
 a resolver opting into the network and skipping with a banner. **Two findings killed
 it.** UpToDate **dominates** this corpus's references and is subscription-gated, so a
@@ -189,8 +191,8 @@ not answer, answered in a third word, or answered by pasting the restatement bac
 anything: that is an instruction, and *what a written instruction cannot do is fail*
 binds its own successor as squarely as it bound #214.
 
-**When the pass ran is the ledger's ``DATE``, and there is deliberately no second
-date.** #231 admired ``threshold_sheet.py`` recording *the date tier 2 last really
+**Per record, when the source was read is ``RESOLVED``'s own date; what there is
+deliberately no second date for is the ledger.** #231 admired ``threshold_sheet.py`` recording *the date tier 2 last really
 ran*, and the difference is that tier 2 there is skippable and months stale by
 design, while the fan-out and the refutation both run in one sitting before a word
 is drafted. ``RESOLVED``'s date is the **research** agent's, and it is bounded above
