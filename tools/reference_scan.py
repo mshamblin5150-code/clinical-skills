@@ -111,8 +111,8 @@ network, and is deliberately not grown here so that this and
 ``research_ledger.py`` do not both sprout a URL fetcher. Whether an UpToDate year
 is the topic's revision year rather than the year it was read needs the companion
 evidence document, which this never sees. **A clean scan is not a checked reference
-list**, ``SKILL.md`` step 7 says so beside the command, and a test asserts that
-sentence is still there.
+list**, ``skills/practicum-case-study/SKILL.md`` step 7 says so beside the
+command, and a test asserts that sentence is still there.
 
 Three parser limits worth knowing before quoting a count. **Author matching is on
 the first word of the entry against the first word of the citation** -- so two
