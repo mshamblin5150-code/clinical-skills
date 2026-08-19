@@ -36,6 +36,8 @@ The same `--body-file -` works for `gh issue comment` and `gh issue edit`. Singl
 
 This ate the bodies of #7 and #8 before it was spotted; both had to be reconstructed from `scratch/rule-amendments.md`, and #7's grilling ran off its title alone.
 
+**The same trap has a second door, and it cost four comment bodies on 2026-08-19.** `gh api`'s `-f` takes a **literal** value and never resolves `@`; only `-F` does. So `-f body=@-` is not a stdin read that failed, it is a successful write of the two characters `@-`, and `gh` exits 0. Use `-F body=@-`, or `--input -` with a JSON document, which cannot be misread as a literal at all.
+
 **Verify after creating anything with a long body:**
 
 ```bash
@@ -43,6 +45,28 @@ gh issue view <number> --json body --jq '.body' | head -5
 ```
 
 A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit <number> --body-file -`.
+
+### And a command that grades it
+
+**The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for the shapes a lost body arrives in: the literal `@-`, an empty or whitespace-only body, and a body that is one bare `@token` — what `--body @notes.md` writes.
+
+```bash
+gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > scratch/tracker-issues.json
+gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > scratch/tracker-comments.json
+python tools/tracker_bodies.py scratch/tracker-issues.json scratch/tracker-comments.json
+```
+
+**It opens no socket**, on `tracker_scan.py`'s terms — the fetch is a documented `gh` command whose output is a file. Into `scratch/` for that tool's reason too: the harvest is the tracker's entire text, and `scratch/` is the PHI firewall's own directory. **Its report names a URL and a row name and never a body**, so its output is safe to paste, and there is no `--show` to widen it.
+
+**It is also the read-back**, because it takes a single JSON object as well as a list — one command, and it catches the shape `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure:
+
+```bash
+gh issue view <number> --json number,body,url | python tools/tracker_bodies.py /dev/stdin
+```
+
+**Do not grade this with `gh issue list`, and that is #130's own finding rather than a preference.** That command **`gh issue list` excludes pull requests**. Two of the eight lost bodies in this repo are pull requests — #98 and #71 — so every sweep that ran #130's reproduce command re-derived *six, not eight* and concluded the ticket's title was stale. The title was right; the instrument could not see two of its members and had no way to say so. The `issues` REST endpoint returns both, and a `pull_request` key is which.
+
+**A clean scan is not a body worth reading.** Every row here asks whether text landed, and none reads what it says — a body truncated at a shell metacharacter, or the right words about the wrong ticket, is a body with text in it and passes. Double-encoded bodies are [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s and are deliberately not a row here.
 
 ## Pull requests as a triage surface
 
