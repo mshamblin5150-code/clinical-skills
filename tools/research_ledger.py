@@ -448,14 +448,27 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     Matching on ``startswith`` alone read any value whose first token merely
     *began with* a vocabulary word as that word, and absorbed the rest of the token
     into the remainder -- which is the field the substance rows then read as a
-    reason. ``RECENCY: currently under review`` is the one that matters: a record
-    saying the source's currency has **not** been established graded as one
-    asserting it is current, so the window stood down and ``BARE_EXCUSE`` did not
-    fire either, ``ly under review`` being substance. A field that gates the row
-    below it, wearing a word it does not mean, which is what ``UNKNOWN_RECENCY``
-    was added for. ``STATUS: unsourced-but-see-below`` and ``REFUTATION:
-    standstill on the publisher's side`` are the same defect on the branch
-    selector and on the one verification row.
+    reason.
+
+    **The values that graded *clean* are the ones that matter, and they are not the
+    one #253's title names.** ``STATUS: unsourced-but-see-below`` produced **no
+    findings at all**: the substance row was satisfied by ``-but-see-below``, the
+    residue of the very keyword it was keyed on, so a record saying nothing about
+    what was searched passed the row that exists to make it say so. ``RECENCY:
+    nothing newerish`` and ``RECENCY: guideline in forceful terms`` did the same
+    one field over, and there the excuse is what the **window** reads -- so an old
+    reference with no excuse and no reason passed with nothing reported.
+
+    **``RECENCY: currently under review`` is a weaker case than the ticket, this
+    docstring and the commit that landed them all said, and the correction is the
+    finding.** ``current`` is not in ``EXCUSES``, so the window fired on that value
+    before the fix and fires now; ``BARE_EXCUSE`` can never fire on it at all. What
+    the prefix bug suppressed there is ``UNKNOWN_RECENCY`` alone. The wrong
+    consequence was copied out of #253's table while only its *keyword* column was
+    re-derived -- the same failure this work caught in that table's second row,
+    committed in the fix for it, and caught by the tracker sweep afterwards.
+    ``REFUTATION: standstill on the publisher's side`` is the defect on the one
+    verification row.
 
     **The hyphen is excluded from the boundary, and that was ruled rather than
     copied from the sibling.** ``RECENCY: nothing newer - searched 2026-08-19`` is

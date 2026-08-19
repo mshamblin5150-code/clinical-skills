@@ -443,12 +443,21 @@ class APrefixIsNotAWord(unittest.TestCase):
     the rest of that token was absorbed into the remainder -- which is the field
     the substance rows then read as a reason.
 
-    ``RECENCY: currently under review`` is the one to notice. A record saying the
-    source's currency has **not** been established graded as one asserting it is
-    current: the five-year window stood down, and ``BARE_EXCUSE`` did not fire
-    either, ``ly under review`` being substance. That is the shape
-    ``UNKNOWN_RECENCY`` was added for one review earlier -- a field that gates the
-    row below it, wearing a word it does not mean.
+    **The cases that graded *clean* are the ones to notice, and they are not the
+    one #253's title names.** ``STATUS: unsourced-but-see-below`` reported **no
+    findings at all**, its substance row satisfied by ``-but-see-below`` -- the
+    residue of the keyword it was keyed on. ``RECENCY: nothing newerish`` did the
+    same one field over, where the excuse is what the **window** reads, so an old
+    reference passed with no excuse, no reason and nothing reported.
+
+    **``RECENCY: currently under review`` is weaker than every copy of this claim
+    said, and the correction is worth more than the case.** ``current`` is not in
+    ``EXCUSES``, so the window fired on it before the fix as well; only
+    ``UNKNOWN_RECENCY`` was lost. The consequence was copied out of #253's table
+    while only its keyword column was re-derived, which is the failure this class
+    caught in that table's *second* row -- committed in the fix for it, and caught
+    afterwards by the tracker sweep. Both directions are pinned below so neither
+    the strong case nor the weak one can be restated wrongly again.
 
     **No test in this file distinguished ``current`` from ``currently`` before
     these**, which is why the ticket asked for them ahead of the fix: a green run
@@ -493,12 +502,34 @@ class APrefixIsNotAWord(unittest.TestCase):
         )
 
     def test_a_recency_under_review_is_not_a_recency_of_current(self):
-        """The consequence is the window, not the word: graded as ``current`` the
-        old reference below was never measured at all."""
+        """``UNKNOWN_RECENCY`` is the whole of what this case discriminates.
+
+        The ``STALE_UNEXCUSED`` beside it is asserted **because it fired before the
+        fix too** -- ``current`` is not an excuse, so the window always read this
+        record. Pinning it is what stops the weak case being restated as the strong
+        one a third time; the strong one is two tests below.
+        """
         record = replace_field(CLEAN, "RECENCY", "currently under review")
         found = kinds(ledger_text(record))
         self.assertIn(ledger.UNKNOWN_RECENCY, found)
         self.assertIn(ledger.STALE_UNEXCUSED, found)
+
+    def test_a_welded_suffix_on_an_excuse_is_the_silent_pass(self):
+        """**This is the case the ticket was really about**, and no copy of the
+        claim named it until the sweep re-derived the table.
+
+        ``nothing newer`` and ``guideline in force`` are the two words that excuse
+        an old source, so a value merely opening with one took the window down with
+        it. Before the fix ``RECENCY: nothing newerish`` on the 2009 reference in
+        ``CLEAN`` reported **nothing at all** -- no fifth disposition, no window, no
+        bare excuse, because ``ish`` is substance. A silent clean pass on a record
+        that never said why the source stands.
+        """
+        for value in ("nothing newerish", "guideline in forceful terms"):
+            with self.subTest(recency=value):
+                found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", value)))
+                self.assertIn(ledger.UNKNOWN_RECENCY, found)
+                self.assertIn(ledger.STALE_UNEXCUSED, found)
 
     def test_the_tickets_second_recency_row_is_wrong_and_is_kept_as_one(self):
         """#253's table lists ``RECENCY: currency of this guideline is unclear`` as
@@ -528,8 +559,11 @@ class APrefixIsNotAWord(unittest.TestCase):
         self.assertNotIn(ledger.REFUTED_CITATION, found)
 
     def test_a_welded_hyphen_is_part_of_the_word(self):
-        """The excluded character, on the branch selector -- where being read as
-        ``unsourced`` decides which rows run at all."""
+        """The excluded character, on the branch selector -- and the other silent
+        pass. Before the fix this record produced **no findings**: read as
+        ``unsourced``, its substance row was satisfied by ``-but-see-below``, so a
+        record saying nothing about what was searched cleared the row that exists
+        to make it say so."""
         record = replace_field(CLEAN, "STATUS", "unsourced-but-see-below")
         self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
 

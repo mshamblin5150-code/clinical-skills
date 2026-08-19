@@ -259,8 +259,12 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     guess costs. So the character after the keyword has to be a boundary.
 
     **The same defect was latent in the sibling and is fixed there now** --
-    ``RECENCY: currently under review`` read as ``current``, so the five-year
-    window stood down on a record saying the currency had not been established.
+    ``STATUS: unsourced-but-see-below`` graded **clean**, the substance row
+    satisfied by the residue of its own keyword, and ``RECENCY: nothing newerish``
+    did the same one field over, standing the five-year window down on an old
+    reference with no excuse. (``RECENCY: currently under review`` is the case that
+    ticket's title names and it is the **weaker** one: ``current`` is not an excuse
+    there, so the window fired anyway and only ``UNKNOWN_RECENCY`` was lost.)
     It was filed as
     [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253) rather
     than reached into from here, because that module's rows had their own tests to
