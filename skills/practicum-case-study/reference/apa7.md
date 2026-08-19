@@ -143,9 +143,9 @@ and the references of a meta-analysis.
 
 ## 6. What the renderer applies, and what it does not
 
-`tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies the
-whole of §1 now**, plus the two rules from elsewhere in the manual that a renderer can reach, and
-what it does not is written down rather than assumed away:
+`tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies every
+§1 rule that is a matter of *format*** — plus the two rules from elsewhere in the manual that a
+renderer can reach — and what it does not is written down rather than assumed away:
 
 | APA rule | `docx_write.py` |
 | --- | --- |
@@ -176,19 +176,27 @@ switch. An APA table is not the only kind of table a Markdown document can hold,
 consumer of this renderer is an APA document — and a parameter no caller passes is a branch
 nothing honestly tests.
 
-**Every row above was measured by rendering a document and reading `word/document.xml`,
-`word/styles.xml` and `word/header1.xml` — not inferred from the source.** 2026-08-18, on
-[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217)'s branch. **Five of the
+**The nine rows above those two were measured the same way, on a different day** — by rendering
+a document and reading `word/document.xml`, `word/styles.xml` and `word/header1.xml`, not inferred
+from the source. 2026-08-18, on
+[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217)'s branch. **Five of those
 nine read *not applied* earlier the same day**, and the other four were already green — this table
 is re-measured rather than inherited because a row's verdict expires when the renderer changes,
 which here was hours rather than days.
+
+**Both dates have to stay attached to their own rows, and that is not a pedantry.** A single
+*"every row above was measured"* sentence is what this paragraph said until #220 added two rows
+above it, at which point it silently dated 2026-08-19 measurements to 2026-08-18 and called eleven
+rows nine — [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape,
+inside the paragraph two lines below that exists to record it happening once already. Caught by
+`/code-review` on #220's branch, by both of its axes independently.
 
 **That sentence said *every* row and *the day before*, and both were wrong.** It was caught by
 `/code-review` against the previous version of this very table, which is the check working: a
 paragraph arguing that figures must be re-derived had itself been written from memory of a table
 sitting four lines above it.
 
-**Two of the nine came out differently than the ticket asked, and both are worth knowing.** The
+**Two of those nine came out differently than the ticket asked, and both are worth knowing.** The
 `Reference` singular was not on #217 as filed — it was found by `/code-review` on the branch that
 wrote this sheet, and it is a gap **this sheet created**, because §1 above is what blesses the
 singular. And the heading-size row was filed as *"worth a decision rather than a fix"*; the
@@ -202,11 +210,21 @@ level 3 bold italic flush left, level 4 bold indented.
 | --- | --- |
 | A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown |
 | APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset |
+| The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row |
+| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [SKILL.md](../SKILL.md) step 7 catches it as an author defect |
 
-**Both of what is left is a statement about what Markdown and this skill's inputs can express**,
-rather than a fix somebody has not got to — which is what #220 closing leaves. The title page is a
-`practicum-case-study` question about where six course values come from before it is a renderer
-question, and it is recorded here rather than filed.
+**The last two rows are not #220's, and they were on neither table before it** — they are a gap
+that ticket's repair surfaced. This paragraph used to say the renderer applied *most of* §1, which
+was true and vague; rewriting it into a claim a reader can check is what showed that two of §1's
+bullets had never been recorded in either direction. **The lesson is the one #220 is about**: an
+unfalsifiable summary hides a gap exactly as well as a wrong list does, and nothing had to go
+stale for it to happen.
+
+**Each of the four is a statement about what this renderer is *for*** rather than a fix somebody
+has not got to. The title page is a `practicum-case-study` question about where six course values
+come from before it is a renderer question; the run-in heading is a limit of Markdown; and the
+last two are the same ruling twice — **a renderer formats, it does not rewrite**. All four are
+recorded here rather than filed.
 
 **This table is no longer a second copy of a list, and that is #220's other half.** The same list
 sat in `tools/docx_write.py`'s docstring, and a **prose** edit to either failed nothing — a code

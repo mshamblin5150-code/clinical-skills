@@ -84,11 +84,16 @@ LINE_DOUBLE = 480
 # prose edit to either copy failed nothing, so the reader who was misled was the one who
 # checked the file nearer to hand.
 #
-# The first element is the phrase the sheet's row opens with, which is what makes the
-# comparison mechanical rather than a judgment about wording; the second is why the row
-# is here. **Neither of these is mechanical**, which is what is left after #220 -- one
-# needs six values that are not in the Markdown, the other needs a Markdown that can
-# express a run-in heading.
+# The first element is a **distinctive phrase from** the sheet's row, matched as a
+# substring -- not the phrase it opens with, which two of these are not. That is what
+# makes the comparison mechanical rather than a judgment about wording; the second
+# element is why the row is here.
+#
+# **The last two rows are not #220's**, and they were not on the sheet before it either:
+# they are a gap that ticket's repair surfaced. Section 6 claimed the renderer applied
+# *most of* section 1, which was true and vague, and rewriting it to a checkable claim
+# is what showed that two of section 1's bullets had never been on either table. Both
+# are recorded rather than filed, for the reason each row states.
 NOT_APPLIED = (
     (
         "title page",
@@ -103,6 +108,21 @@ NOT_APPLIED = (
         "line. Level 4 renders as the indented bold paragraph the run-in form is "
         "otherwise identical to, and level 5 is not in the subset at all.",
     ),
+    (
+        "alphabetized",
+        "Sorting a reference list is an **edit to the document** rather than a format "
+        "applied to it, and this renderer changes no word it is handed. So the order "
+        "stays the author's, and ``tools/reference_scan.py`` grades it against section "
+        "1 instead -- its ``list-not-sorted`` row.",
+    ),
+    (
+        "one paragraph",
+        "Section 1 wants each entry to be one paragraph, and ``body_xml`` makes a "
+        "paragraph of every non-blank line -- so a hard-wrapped entry renders as two, "
+        "and the second hangs on nothing. Joining them is an edit on the same terms "
+        "as sorting, and it is caught as an author defect instead -- by "
+        "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
 )
 
 
@@ -115,22 +135,31 @@ NOT_APPLIED = (
 # **An edge that is off is written as an explicit ``none`` rather than omitted**, because
 # an omitted edge inherits from the table style -- and a table style is exactly what this
 # used to draw its grid from.
-EDGE_RULE = '<w:{edge} w:val="single" w:sz="4" w:color="000000"/>'
-EDGE_NONE = '<w:{edge} w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+def _edge(name: str, drawn: bool) -> str:
+    """One border edge, drawn or explicitly off."""
+    if drawn:
+        return '<w:{n} w:val="single" w:sz="4" w:color="000000"/>'.format(n=name)
+    return '<w:{n} w:val="none" w:sz="0" w:space="0" w:color="auto"/>'.format(n=name)
+
 
 # ``CT_TblBorders`` is a sequence: top, left, bottom, right, insideH, insideV.
-BORDERS = "<w:tblBorders>{top}{left}{bottom}{right}{h}{v}</w:tblBorders>".format(
-    top=EDGE_RULE.format(edge="top"),
-    left=EDGE_NONE.format(edge="left"),
-    bottom=EDGE_RULE.format(edge="bottom"),
-    right=EDGE_NONE.format(edge="right"),
-    h=EDGE_NONE.format(edge="insideH"),
-    v=EDGE_NONE.format(edge="insideV"),
+BORDERS = "<w:tblBorders>{edges}</w:tblBorders>".format(
+    edges="".join(
+        _edge(name, drawn)
+        for name, drawn in (
+            ("top", True),
+            ("left", False),
+            ("bottom", True),
+            ("right", False),
+            ("insideH", False),
+            ("insideV", False),
+        )
+    )
 )
 
 # The rule under the header is the one that is not a table edge, so it is set on that
 # row's cells. ``insideH`` would draw it between every pair of body rows as well.
-HEADER_RULE = "<w:tcBorders>{b}</w:tcBorders>".format(b=EDGE_RULE.format(edge="bottom"))
+HEADER_RULE = "<w:tcBorders>{b}</w:tcBorders>".format(b=_edge("bottom", True))
 
 # The style is named for what it draws. It carried Word's built-in ``TableGrid`` name
 # while it drew a grid; keeping that name over APA borders would be a false statement
