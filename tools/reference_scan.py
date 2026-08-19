@@ -168,7 +168,11 @@ the first time a sixteenth row was written.
 step 9 is a language model summarizing clinical prose in its own words, with no
 equivalent guarantee available, so it still reports where and what is wrong rather
 than the sentence. Nor does it reach ``research_ledger.py``, whose records are
-claims transcribed from faculty material about a patient, or the note scanners --
+claims transcribed from faculty material about a patient, nor
+``checks_ledger.py``, whose records are those same readers' findings written down
+-- the same prose, one file later, and
+[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) put a
+grader in front of it rather than a new ruling about it. Nor the note scanners --
 ``block_scan.py``, ``specificity_scan.py``, ``differential_scan.py``,
 ``anchor_scan.py`` and ``filled_vitals_census.py`` all read note text or measured
 values directly, and their ``--show`` output stays PHI.
