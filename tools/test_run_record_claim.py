@@ -158,6 +158,24 @@ def bare_claim_lines(text: str) -> list[int]:
 
 
 def tracked_prose() -> list[Path]:
+    """Tracked ``.md`` and ``.py``, which is the whole of what a clean result covers.
+
+    [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254).
+    ``git ls-files`` is the index, so an untracked file is not in it, and the
+    honest form of a clean run of ``EveryClaimCarriesTheException`` is *no
+    tracked file states the claim bare*.
+
+    **This module holds the worked instance of its own blind spot**, and the
+    docstring above tells it: the suite passed at 1455 while this file was
+    untracked, and ``git add`` turned the same tree red. The statement here is
+    the part that was missing -- the incident was recorded and the walk still
+    reported like a tree-wide negative.
+
+    **The window stays open, which is #254's ruling rather than an omission.**
+    Widening this to ``--others --exclude-standard`` was priced and declined; a
+    file written this session is graded after it is staged, by CI at push, and
+    by the next local run.
+    """
     finished = subprocess.run(
         ["git", "ls-files", "--cached", "--", "*.md", "*.py"],
         cwd=REPO_ROOT,

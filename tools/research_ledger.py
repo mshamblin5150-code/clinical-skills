@@ -367,6 +367,10 @@ SUBSTANCE = re.compile(r"[0-9A-Za-z]")
 DIGIT = re.compile(r"[0-9]")
 NOT_ALNUM = re.compile(r"[^0-9a-z]+")
 
+# #253. What may follow a vocabulary keyword, so a prefix is not read as a word.
+# The hyphen is excluded deliberately -- see ``keyword_of``.
+BOUNDARY = re.compile(r"[^0-9A-Za-z-]|$")
+
 MISSING_FIELD = "missing-field"
 UNKNOWN_STATUS = "unknown-status"
 BARE_STATUS = "bare-status"
@@ -485,11 +489,57 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
 
     Longest first, so ``guideline in force`` is not read as an unrecognized value
     that happens to begin with a shorter one.
+
+    **A prefix is not a word**, and this limb is
+    [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253).
+    Matching on ``startswith`` alone read any value whose first token merely
+    *began with* a vocabulary word as that word, and absorbed the rest of the token
+    into the remainder -- which is the field the substance rows then read as a
+    reason.
+
+    **The values that graded *clean* are the ones that matter, and they are not the
+    one #253's title names.** ``STATUS: unsourced-but-see-below`` produced **no
+    findings at all**: the substance row was satisfied by ``-but-see-below``, the
+    residue of the very keyword it was keyed on, so a record saying nothing about
+    what was searched passed the row that exists to make it say so. ``RECENCY:
+    nothing newerish`` and ``RECENCY: guideline in forceful terms`` did the same
+    one field over, and there the excuse is what the **window** reads -- so an old
+    reference with no excuse and no reason passed with nothing reported.
+
+    **``RECENCY: currently under review`` is a weaker case than the ticket, this
+    docstring and the commit that landed them all said, and the correction is the
+    finding.** ``current`` is not in ``EXCUSES``, so the window fired on that value
+    before the fix and fires now; ``BARE_EXCUSE`` can never fire on it at all. What
+    the prefix bug suppressed there is ``UNKNOWN_RECENCY`` alone. The wrong
+    consequence was copied out of #253's table while only its *keyword* column was
+    re-derived -- the same failure this work caught in that table's second row,
+    committed in the fix for it, and caught by the tracker sweep afterwards.
+    ``REFUTATION: standstill on the publisher's side`` is the defect on the one
+    verification row.
+
+    **The hyphen is excluded from the boundary, and that was ruled rather than
+    copied from the sibling.** ``RECENCY: nothing newer - searched 2026-08-19`` is
+    the documented form, so a **spaced** hyphen is a separator; a **welded** one is
+    part of the word. No legitimate value of the vocabularies this helper serves
+    opens with a welded hyphenated form -- checked against the tree, not assumed,
+    and ``test_research_ledger`` reads which vocabularies those are off this
+    module rather than listing them. ``SOURCE`` is outside this helper, matched by
+    normalized equality against ``_CLASS_KEYS``, which is also where the corpus's
+    only hyphen *inside* a vocabulary word lives: ``peer-reviewed``.
+
+    **This adopted the sibling's rule rather than sharing its code.**
+    ``checks_ledger.py`` ruled the boundary first and keeps its own **copy**, which
+    the two modules' docstrings both argue for. **Whether the two agree today is
+    deliberately not asserted anywhere** -- a claim of present identity is
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) the
+    moment either module moves, and pinning it in a test would forbid the very
+    divergence the copy exists to permit. ``console_codec.py`` is this directory's
+    only module that exists to be depended on.
     """
     stripped = value.strip()
     lowered = stripped.lower()
     for word in sorted(vocabulary, key=len, reverse=True):
-        if lowered.startswith(word):
+        if lowered.startswith(word) and BOUNDARY.match(lowered[len(word) :]):
             return word, stripped[len(word) :]
     return "", stripped
 
