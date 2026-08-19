@@ -29,8 +29,11 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
+import ast
+
 import checks_ledger
 import docx_write
+import research_ledger
 import reference_scan as scan
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -997,6 +1000,7 @@ class TheRulingDoesNotWiden(unittest.TestCase):
         skill = " ".join(SKILL.read_text(encoding="utf-8").split())
         self.assertIn("Its `--show` output is **safe to paste**", skill)
 
+
 class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
     """[#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241),
     and it is ``TheTwoCopiesOfWhatTheRendererApplies`` one artifact over.
@@ -1008,10 +1012,14 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
     sheet's copy stopped being a copy by becoming ``NOT_REACHED``, one object, and this
     asserts the two name the same items in both directions.
 
-    **The rows are read with the renderer's own row splitter**, which is
-    ``docx_write.split_row`` and is what ``reference_scan`` already imports its heading
-    matcher from. A second table parser here would be the copy this class exists to
-    refuse.
+    **The rows are read with ``docx_write.table_first_cells``**, which is where the
+    loop lives because this class first carried its own copy of it -- the same loop as
+    ``TheTwoCopiesOfWhatTheRendererApplies``, comment included, under a docstring
+    asserting that a second table parser here would be the copy this class exists to
+    refuse. Caught by ``/code-review``, which is the arrangement working: a docstring
+    asserting the opposite of what the code does is this file's own worst defect class,
+    named in ``reference_scan``'s header, and it arrived here in the change that quotes
+    it.
 
     **What it does not reach is whether a row's verdict is true.** An item moved out of
     ``NOT_REACHED`` while the command still cannot reach it passes every assertion here,
@@ -1020,30 +1028,20 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
     """
 
     def section_seven(self):
-        text = APA7.read_text(encoding="utf-8")
-        return text[text.index("## 7.") :]
+        """Section 7 alone, bracketed rather than run to the end of the file.
 
-    def first_cells(self, block):
-        """The first cell of every row of the first Markdown table in ``block``."""
-        cells, started = [], False
-        for line in block.splitlines():
-            line = line.strip()
-            if not line.startswith("|"):
-                if started:
-                    break
-                continue
-            # The header row sits above the ``---`` rule and is a column label rather
-            # than an item -- counting it would put the table one ahead forever.
-            if docx_write.is_rule(line):
-                started = True
-                continue
-            first = docx_write.split_row(line)[0]
-            if started and first:
-                cells.append(first.replace("**", ""))
-        return cells
+        The twin in ``tools/test_docx.py`` brackets section 6 with section 7. This ran
+        to the end because section 7 is last today, which is a fact about the sheet
+        rather than about the rule -- an eighth section would have silently widened
+        what this reads. Caught by review.
+        """
+        text = APA7.read_text(encoding="utf-8")
+        block = text[text.index("## 7.") :]
+        nxt = block.find(chr(10) + "## ", 1)
+        return block if nxt == -1 else block[:nxt]
 
     def rows(self):
-        return self.first_cells(self.section_seven())
+        return docx_write.table_first_cells(self.section_seven())
 
     def test_the_table_is_found(self):
         """The instrument is live: a parser finding nothing would pass every row
@@ -1077,6 +1075,74 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
         leave the pair agreeing about a shorter list.
         """
         self.assertIn("unwarranted retrieval date", dict(scan.NOT_REACHED))
+
+
+
+class TheDeclinedOptionIsPinnedToTheClassesItWasRuledOver(unittest.TestCase):
+    """#241 declined a cross-check against ``research_ledger.py``'s ``SOURCE`` class,
+    and the reason was a count: too few of the classes settle whether a retrieval date
+    belongs.
+
+    **That count was written into three files as prose and nothing re-derived it** --
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving
+    inside the commit whose subject is a list copied into two, and found by
+    ``/code-review`` and the tracker sweep independently. The sharper form is theirs:
+    the same commit deliberately withheld ``len(NOT_REACHED)`` on #143's terms and then
+    stated the number beside it, so the discipline was applied to one figure and missed
+    on its neighbour in the same paragraph.
+
+    **The repair is the mapping becoming an object and no file stating a number.** This
+    is what makes it re-derivable: a fifth ``SOURCE`` class fails here rather than
+    leaving a ruling that was made over four standing unqualified in three files.
+    """
+
+    def test_the_keys_are_exactly_the_ledgers_source_classes(self):
+        """A fifth class, or a renamed one, fails rather than passing quietly.
+
+        Both directions, because either alone leaves a hole: a class the ledger gained
+        and this never heard of, or one this names that the ledger has dropped.
+        """
+        self.assertEqual(
+            set(scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE),
+            set(research_ledger.SOURCE_CLASSES),
+        )
+
+    def test_the_classes_that_span_both_answers_are_the_reason_it_was_declined(self):
+        """The ruling's own premise, asserted rather than described.
+
+        ``government`` covers a USPSTF statement, which takes no retrieval date, and a
+        public-health page designed to change, which takes one. ``tertiary reference``
+        covers UpToDate, which takes one, and a textbook, which takes none. A row keyed
+        on either fails a correct entry, which is why option 2 was declined.
+        """
+        for spanning in ("government", "tertiary reference"):
+            with self.subTest(source_class=spanning):
+                self.assertFalse(scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE[spanning])
+
+    def test_at_least_one_class_would_have_settled_it(self):
+        """The instrument is live, and it is also the honest half of the ruling.
+
+        Declining option 2 is not the claim that no class maps -- some do, which is why
+        the ticket was worth grilling rather than closing on sight. A mapping that said
+        *no* would make the decline trivial and this row would stop meaning anything.
+        """
+        self.assertTrue(any(scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE.values()))
+
+    def test_the_module_does_not_import_the_ledger(self):
+        """Declining option 2 shows up in the dependency graph, not only in prose.
+
+        The class strings are literals in ``reference_scan``; the join this ticket
+        declined is exactly the import that would have made them a lookup.
+        """
+        source = (REPO_ROOT / "tools" / "reference_scan.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(a.name for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module)
+        self.assertNotIn("research_ledger", imported)
 
 
 class TheReadingTheCommandCannotDoIsAGradedCheck(unittest.TestCase):

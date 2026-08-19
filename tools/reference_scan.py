@@ -118,15 +118,13 @@ open**, and the option it declined is the part worth keeping. The proposal was t
 join each entry to its ``research_ledger.py`` record and read the ``SOURCE`` class
 off it -- the only candidate needing no new authored data, since a record's
 ``REFERENCE`` field *is* the APA entry and the author-year key is already computed
-on both sides. Of the four classes only ``peer-reviewed`` and ``society guideline``
-map onto section 4's list without exception: ``government`` covers a USPSTF
-statement, which takes no retrieval date, and a public-health page designed to
-change, which takes one; ``tertiary reference`` covers UpToDate and a textbook,
-which take opposite answers. **A row keyed on either would fail a correct entry**,
-and it would cover only entries that came from a research claim -- never one taken
-from the threshold sheets, the USPSTF table or the guideline corpus, which are
-struck before the fan-out and are squarely in the class that takes no retrieval
-date.
+on both sides. **Which classes would settle the question is
+``SOURCE_CLASS_SETTLES_RETRIEVAL_DATE``'s to say and is deliberately not counted
+here**; too few of them do, and a row keyed on a class that spans both answers
+would fail a **correct** entry. It would also cover only entries that came from a
+research claim -- never one taken from the threshold sheets, the USPSTF table or
+the guideline corpus, which are struck before the fan-out and are squarely in the
+class that takes no retrieval date.
 
 **What makes that a ruling rather than a shrug is that the reading is graded.**
 ``skills/practicum-case-study/SKILL.md`` step 9 names the row and
@@ -459,20 +457,50 @@ ROW_SECTION = {
 #
 # **The first row is what #241 was filed over, and it is ruled a reading permanently
 # rather than left open.** The ticket's own option 2 was a cross-check against
-# ``research_ledger.py``'s ``SOURCE`` class, and it was priced and declined: of the four
-# classes only ``peer-reviewed`` and ``society guideline`` map onto section 4's list
-# without exception. ``government`` covers a USPSTF statement, which takes no retrieval
-# date, and a public-health page designed to change, which takes one; ``tertiary
-# reference`` covers UpToDate and a textbook, which take opposite answers. A row keyed on
-# either would fail a correct entry, and **a guessed answer here is worse than a blank
-# one** -- ``guidelines_catalog.py --draft``'s refusal to derive a population, arriving
-# at a second artifact.
+# ``research_ledger.py``'s ``SOURCE`` class -- the only candidate needing no new
+# authored data, since a record's ``REFERENCE`` field *is* the APA entry. Which classes
+# would settle the question is ``SOURCE_CLASS_SETTLES_RETRIEVAL_DATE`` below rather than
+# a count in this comment, and the answer is that too few of them do: a row keyed on a
+# class that spans both answers would fail a **correct** entry, and **a guessed answer
+# here is worse than a blank one** -- ``guidelines_catalog.py --draft``'s refusal to
+# derive a population, arriving at a second artifact. It would also reach only entries
+# that came from a research claim, never one taken from the threshold sheets, the
+# USPSTF table or the guideline corpus, which are struck before the fan-out and are
+# squarely in the class that takes no retrieval date.
 #
 # **What makes this more than a note is that the reading is graded.**
 # ``skills/practicum-case-study/SKILL.md`` step 9 names the row and
-# ``checks_ledger.EXPECTED_CHECKS`` expects it, so a run that returns no verdict on it
-# fails. #214's *what a written instruction cannot do is fail*, which is the objection
-# option 3 had to answer before it could be ruled rather than deferred.
+# ``checks_ledger.EXPECTED_CHECKS`` expects it, so a run that returns no verdict on that
+# row fails. #214's *what a written instruction cannot do is fail*, which is the
+# objection option 3 had to answer before it could be ruled rather than deferred.
+
+
+# Whether knowing a ``research_ledger.py`` ``SOURCE`` class settles whether a retrieval
+# date belongs. **This is #241's declined option, kept as an object rather than as a
+# sentence**, because the sentence was a count -- *of the four classes only two map* --
+# restated in three files with nothing re-deriving it, which is
+# [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving
+# inside the commit whose whole subject is a list that was copied into two. Caught by
+# ``/code-review`` and by the tracker sweep independently, and the sharper form of the
+# finding is theirs: that commit deliberately withheld ``len(NOT_REACHED)`` on #143's
+# terms and then stated the number beside it.
+#
+# **The class strings are literals here and are not imported**, which is the ruling
+# showing up in the dependency graph: declining option 2 means this module does not
+# reach for the ledger. ``tools/test_reference_scan.py`` asserts these keys are exactly
+# ``research_ledger.SOURCE_CLASSES``, so a fifth class fails the suite rather than
+# quietly leaving a ruling that was made over four.
+SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
+    # A journal article is archived, always. Section 4 names it outright.
+    "peer-reviewed": True,
+    # Section 4 names the guideline PDF outright too.
+    "society guideline": True,
+    # A USPSTF statement takes none; a public-health page designed to change takes one.
+    "government": False,
+    # UpToDate takes one and a textbook takes none, and both are this class.
+    "tertiary reference": False,
+}
+
 NOT_REACHED = (
     (
         "unwarranted retrieval date",

@@ -256,7 +256,7 @@ walks the table by eye and reaches the same verdict.
 sheet states that no command grades, so a run walks it by eye — and since
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) the walk is not left to
 memory either: [SKILL.md](../SKILL.md) step 9 names the row `the reference list, the part no command
-reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdict on these fails.
+reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdict on that row fails. **One row and one verdict for all three**, which is the honest width of it — a run that read only the UpToDate years and wrote `clean` discharges the row, and no command can tell. What the grader catches is a run that never looked at all.
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
@@ -275,11 +275,21 @@ to it, and stays a behavior test's job.
 
 **#241's first row was ruled a reading rather than left open, and the option it declined is worth
 recording.** The proposal was to join each entry to its `tools/research_ledger.py` record and read
-the `SOURCE` class off it. Of the four classes only `peer-reviewed` and `society guideline` map onto
-§4's list without exception: `government` covers a USPSTF statement, which takes no retrieval date,
-and a public-health page designed to change, which takes one, and `tertiary reference` covers
-UpToDate and a textbook, which take opposite answers. A row keyed on either would fail a **correct**
-entry, and a guessed answer here is worse than a blank one.
+the `SOURCE` class off it. `peer-reviewed` and `society guideline` map onto §4's list cleanly;
+`government` covers a USPSTF statement, which takes no retrieval date, and a public-health page
+designed to change, which takes one, and `tertiary reference` covers UpToDate and a textbook, which
+take opposite answers. A row keyed on either of those two would fail a **correct** entry, and a
+guessed answer here is worse than a blank one.
+
+**How many of the classes settle it is `reference_scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE`'s to
+say, and is deliberately not counted here.** This paragraph stated the number, and so did
+`CLAUDE.md` and the module's own docstring — one figure in three files with nothing re-deriving it,
+which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving inside
+the change whose subject is a list that had been copied into two. Caught by `/code-review` and by
+the tracker sweep independently; the sharper form is theirs, that the same change withheld the row
+count beside it on #143's terms and then stated this one. A test asserts that mapping's keys are
+exactly `research_ledger.SOURCE_CLASSES`, so a fifth class fails rather than leaving a ruling made
+over four standing unqualified.
 
 **This was the third copy of that claim and the one the correction missed.** `reference_scan.py` and
 `CLAUDE.md` were both fixed when #218 and #231 met; a sheet under `skills/` was outside what that
