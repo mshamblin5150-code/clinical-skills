@@ -112,6 +112,21 @@ HEADER = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </w:hdr>""".format(w=W)
 
 
+# The heading that turns a section into the reference list. APA permits the
+# singular for a one-entry list, and matching only the plural silently dropped the
+# hanging indent on the one list small enough for a reader to notice. **The two
+# spellings do not get the same rule**: the plural keeps its prefix match, because
+# no ordinary heading opens with it, while the singular has to be the whole heading
+# -- ``Reference Ranges`` is a lab heading, and since a match now also centers and
+# breaks the page, a wrong one is louder than a stray indent.
+#
+# **It is a module constant rather than an inline pattern because
+# ``reference_scan.py`` imports it.** Since #217 this heading is what *applies* the
+# indent, so a scanner holding its own copy of the rule could pass a document this
+# renderer sets wrong -- #218, and a test asserts the two are one object.
+REFERENCE_HEADING = re.compile(r"references\b|reference\s*$", re.I)
+
+
 # APA 7 sets every heading at body size and distinguishes the levels by weight,
 # centering and indent instead -- section 2.27. Level 4 is a run-in heading in the
 # manual, which Markdown cannot express because ``#### x`` owns its own line; it is
@@ -350,14 +365,9 @@ def body_xml(markdown: str) -> str:
         if heading:
             level = len(heading.group(1))
             text = heading.group(2).strip()
-            # APA permits the singular for a one-entry list, and matching only the
-            # plural silently dropped the hanging indent on the one list small enough
-            # for a reader to notice. The two spellings do not get the same rule: the
-            # plural keeps its prefix match, because no ordinary heading opens with it,
-            # while the singular has to be the whole heading -- ``Reference Ranges`` is
-            # a lab heading, and since a match now also centers and breaks the page, a
-            # wrong one is louder than a stray indent.
-            in_references = bool(re.match(r"references\b|reference\s*$", text, re.I))
+            # ``REFERENCE_HEADING`` above carries the rule and why it is a module
+            # constant rather than an inline pattern.
+            in_references = bool(REFERENCE_HEADING.match(text))
             out.append(
                 para(
                     text,
