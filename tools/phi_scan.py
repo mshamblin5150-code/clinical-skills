@@ -773,6 +773,25 @@ def read_text_if_text(path: Path) -> str | None:
 
 
 def scan_all(index: CorpusIndex) -> list[Finding]:
+    """Every **tracked** file, which is the whole of what a clean result covers.
+
+    [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254).
+    ``git ls-files`` is the index, so an untracked file is not in it -- and the
+    honest form of a clean ``--all`` is *no tracked file carries PHI*, never
+    *this tree carries none*. A file is invisible to this mode until the commit
+    that makes it tracked.
+
+    **Tracked is the right set to audit and that is not the same as being the
+    whole tree.** ``--all`` exists to check what is already committed, and the
+    staged paths are the pre-commit mode's job -- so between them nothing
+    reaches a commit unread. What has no second net is **CI**, which runs this
+    mode with nothing staged and two of three layers already dark.
+
+    Its own blind spot is recorded rather than only reasoned about:
+    ``spelling_scan``'s ``--all`` is this walk's twin, and ``CLAUDE.md`` records
+    ``licence`` landing in a skill file because the staged scan had crashed and
+    this mode could not see the file until the commit that made it tracked.
+    """
     findings: list[Finding] = []
     for path in _git("ls-files").splitlines():
         full = REPO_ROOT / path
