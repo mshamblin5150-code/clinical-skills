@@ -23,7 +23,7 @@ command, and a test here asserts that sentence is still there.
     ## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.
     STATUS: sourced
     SOURCE: peer-reviewed
-    REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., and Cunningham, F. G. (2009).
+    REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009).
         Pregnancy and laboratory studies. Obstetrics and Gynecology, 114(6), 1326-1331.
     RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to
         16.9 x 10^9/L in normal pregnancy.
@@ -62,9 +62,12 @@ wrap the way an APA entry wraps.
 
 *#215, the recency rule as amended:*
 
-- **A reference states a year.** ``n.d.`` is legitimate APA and is refused here,
-  because the recency rule cannot be applied to it and a row that could not be
-  graded reads exactly like a row that passed.
+- **``RECENCY`` is one of four dispositions**, and an unrecognized one is a failure
+  for ``STATUS``'s reason rather than ``SOURCE``'s: it gates the row below it, so a
+  record reading ``RECENCY: probably fine`` is never measured against the window at
+  all. **This row was missing from the first version of this module** and was found
+  by review, which is the same argument arriving at the field it was first written
+  for and not at the field beside it.
 - **Past five years, the record says why it stands.** ``nothing newer`` or
   ``guideline in force``, and nothing else excuses it. The first version of this
   rule cut a correct 2018 refutation and left a 1932 teaching standing by default;
@@ -72,6 +75,16 @@ wrap the way an APA entry wraps.
 - **The excuse carries a reason**, on the same footing as the status. *The run must
   have looked, and must say so* is #215's own wording, and a bare ``nothing newer``
   is the assertion without the looking.
+- **A reference states a year, unless an excuse stands in for one.** ``n.d.`` is
+  legitimate APA, and the recency rule cannot be applied to it -- a row that could
+  not be graded reads exactly like a row that passed. **Refusing it outright would
+  be a rule the clinician never made**, so the escape hatch is the one he did make:
+  an undated source carrying ``nothing newer`` or ``guideline in force`` with a
+  reason stands, and one carrying neither is refused.
+
+**#215's first limb reaches no row here, and that is deliberate.** *Within two years
+is the target* is a target: a ``current`` disposition on a three-year-old reference
+is not a defect, and grading it would refuse what the ruling merely prefers.
 
 **What it cannot reach, and this is most of the ticket.** Whether the source is
 reputable, whether it says what the restatement says it says, and whether the
@@ -81,6 +94,22 @@ answered with a range in ``10^9/L``, and a test comparing the digits would refus
 the correct answer. Judging a restatement against its source is a reading, and a
 clean scan here is not a walked claim.
 
+**Nor does it reach the document.** *A claim that survives the fan-out still
+unsourced does not go in the body* is #214's rule and it is about the draft, which
+this never sees -- so a ledger of nothing but well-formed ``unsourced`` records
+exits 0, and that 0 means the records are honest rather than that the paper is. The
+count is printed for exactly that reason, and ``SKILL.md`` step 9 walks it.
+
+**And it does not verify the citation, which is #214's open question 2, deferred
+rather than answered here.** The format half has a written standard since #211 --
+``skills/practicum-case-study/reference/apa7.md``, walked by step 7 of the skill and
+by [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s
+post-draft checkers. The truth half -- does the DOI or URL resolve, and does the
+year on the page match the year in the entry -- is ``threshold_sheet.py``'s tier 2
+arriving at a reference list, needs the network, and is
+[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231). **What
+this module checks is that a year is *stated*, never that it is *right*.**
+
 **Counts only by default**, on ``specificity_scan.py``'s and ``block_scan.py``'s
 terms and for their reason: the ledger lives under ``scratch/`` and a claim is
 transcribed from faculty material about a patient. **``--show`` output is PHI** on
@@ -89,9 +118,16 @@ transcribed from faculty material about a patient. **``--show`` output is PHI** 
 **Exit status distinguishes not having scanned from having found nothing** -- 0
 clean, 1 for a violation, **2 for every way of not having scanned**: no argument,
 no file, no ``## CLAIM:`` record in it, and **no ``DATE:`` header**. That last limb
-is the one that matters. Recency is graded against the day the paper is written, so
-a ledger with no date cannot be measured by the rule #215 exists for, and every
-other row would print clean beside a rule that never ran.
+is the one that matters. The window is measured against the day the paper is
+written, so a ledger with no date was never measured by #215's rule at all, and a
+clean report would read as though it had been.
+
+**Where a violation and a missing ``DATE`` both hold, 1 wins**, on
+``differential_scan.py``'s and ``filled_vitals_census.py``'s ordering and for their
+reason: returning 2 would file the strongest thing known about the ledger under the
+weakest heading. The banner prints either way, so an exit 1 over a dateless ledger
+reads as a floor rather than the whole. **The first version of this module returned
+2 there**, which is the one place it departed from both siblings without saying so.
 """
 
 from __future__ import annotations
@@ -150,6 +186,7 @@ UNKNOWN_STATUS = "unknown-status"
 BARE_STATUS = "bare-status"
 UNSOURCED_WITH_REFERENCE = "unsourced-with-reference"
 UNKNOWN_SOURCE_CLASS = "unknown-source-class"
+UNKNOWN_RECENCY = "unknown-recency"
 RESTATEMENT_ECHOES_CLAIM = "restatement-echoes-claim"
 NUMERIC_CLAIM_UNQUANTIFIED = "numeric-claim-unquantified"
 UNDATED_REFERENCE = "undated-reference"
@@ -166,6 +203,7 @@ KINDS = (
     UNKNOWN_SOURCE_CLASS,
     RESTATEMENT_ECHOES_CLAIM,
     NUMERIC_CLAIM_UNQUANTIFIED,
+    UNKNOWN_RECENCY,
     UNDATED_REFERENCE,
     STALE_UNEXCUSED,
     BARE_EXCUSE,
@@ -178,6 +216,7 @@ ROW_TICKET = {
     BARE_STATUS: "#214",
     UNSOURCED_WITH_REFERENCE: "#214",
     UNKNOWN_SOURCE_CLASS: "#214",
+    UNKNOWN_RECENCY: "#215",
     RESTATEMENT_ECHOES_CLAIM: "#214",
     NUMERIC_CLAIM_UNQUANTIFIED: "#214",
     UNDATED_REFERENCE: "#215",
@@ -195,6 +234,13 @@ def normalize(text: str) -> str:
     about paraphrase, and paraphrase is exactly what the restatement is for.
     """
     return " ".join(NOT_ALNUM.sub(" ", text.lower()).split())
+
+
+# Built from ``normalize`` rather than typed, so the lookup and the comparison it
+# stands in for cannot come to disagree about what a mis-keyed value looks like.
+# Built once rather than per record.
+_CLASS_KEYS = frozenset(normalize(name) for name in SOURCE_CLASSES)
+_RECENCY_KEYS = frozenset(normalize(value) for value in RECENCY_VALUES)
 
 
 def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
@@ -242,9 +288,13 @@ class Finding:
 
 @dataclass(frozen=True)
 class Scan:
-    """Counts over one ledger, plus the findings ``--show`` prints."""
+    """Counts over one ledger, plus the findings ``--show`` prints.
 
-    as_of: date
+    ``as_of`` is ``None`` where the ledger carried no ``DATE:`` header. Nine of the
+    ten rows still grade; the window does not, and the report says so.
+    """
+
+    as_of: date | None
     records: int
     sourced: int
     unsourced: int
@@ -293,8 +343,13 @@ def read_records(text: str) -> list[Record]:
     return records
 
 
-def record_findings(record: Record, as_of: date) -> list[Finding]:
-    """Every row this record fails. A record can fail several."""
+def record_findings(record: Record, as_of: date | None) -> list[Finding]:
+    """Every row this record fails. A record can fail several.
+
+    ``as_of`` of ``None`` means the ledger stated no date, so the window row is
+    skipped and every other row still runs -- ``differential_scan.py``'s ordering,
+    where a finding outranks an incomplete scan.
+    """
     found: list[Finding] = []
     claim = record.claim
 
@@ -321,7 +376,7 @@ def record_findings(record: Record, as_of: date) -> list[Finding]:
             found.append(Finding(MISSING_FIELD, claim, name))
 
     source = normalize(record.value("SOURCE"))
-    if source and source not in [normalize(name) for name in SOURCE_CLASSES]:
+    if source and source not in _CLASS_KEYS:
         found.append(Finding(UNKNOWN_SOURCE_CLASS, claim, record.value("SOURCE")))
 
     restatement = record.value("RESTATEMENT")
@@ -331,29 +386,40 @@ def record_findings(record: Record, as_of: date) -> list[Finding]:
         if DIGIT.search(claim) and not DIGIT.search(restatement):
             found.append(Finding(NUMERIC_CLAIM_UNQUANTIFIED, claim, restatement))
 
-    excuse, remainder = keyword_of(record.value("RECENCY"), RECENCY_VALUES)
+    recency = record.value("RECENCY")
+    excuse, remainder = keyword_of(recency, RECENCY_VALUES)
+    if SUBSTANCE.search(recency) and not excuse and normalize(recency) not in _RECENCY_KEYS:
+        # ``STATUS``'s reasoning and not ``SOURCE``'s: this field gates the window
+        # row below it, so a fifth disposition is a record the window never read.
+        found.append(Finding(UNKNOWN_RECENCY, claim, recency))
     if excuse in EXCUSES and not SUBSTANCE.search(remainder):
-        found.append(Finding(BARE_EXCUSE, claim, record.value("RECENCY")))
+        found.append(Finding(BARE_EXCUSE, claim, recency))
 
     if SUBSTANCE.search(record.value("REFERENCE")):
         year = record.reference_year
+        excused = excuse in EXCUSES and SUBSTANCE.search(remainder)
         if year is None:
-            found.append(Finding(UNDATED_REFERENCE, claim, record.value("REFERENCE")))
-        elif as_of.year - year > ORDINARY_WINDOW_YEARS and excuse not in EXCUSES:
-            detail = f"{year}, RECENCY: {record.value('RECENCY')}"
+            # ``n.d.`` is legitimate APA. What is refused is an undated source with
+            # nothing said about why it stands -- the clinician's own escape hatch,
+            # rather than a blanket rule he never made.
+            if not excused:
+                found.append(Finding(UNDATED_REFERENCE, claim, record.value("REFERENCE")))
+        elif as_of is not None and as_of.year - year > ORDINARY_WINDOW_YEARS and excuse not in EXCUSES:
+            detail = f"{year}, RECENCY: {recency}"
             found.append(Finding(STALE_UNEXCUSED, claim, detail))
     return found
 
 
-def survey(records: list[Record], as_of: date) -> Scan:
+def survey(records: list[Record], as_of: date | None) -> Scan:
     """Count across one ledger.
 
-    Takes parsed records rather than a path, so a ``Scan`` never learns a filename
-    -- a ledger's stem names the course, the module and the date.
+    Takes parsed records rather than paths, so the counts carry no provenance of
+    their own. The ledger's **name** is printed by ``format_report`` the way every
+    sibling prints a run directory's -- the name, never the path.
     """
-    found = [f for record in records for f in record_findings(record, as_of)]
+    graded = [(record, record_findings(record, as_of)) for record in records]
+    found = [f for _, per_record in graded for f in per_record]
     sourced = [r for r in records if r.status == SOURCED]
-    classes = [normalize(name) for name in SOURCE_CLASSES]
     return Scan(
         as_of=as_of,
         records=len(records),
@@ -364,12 +430,12 @@ def survey(records: list[Record], as_of: date) -> Scan:
             (name, sum(1 for r in sourced if normalize(r.value("SOURCE")) == normalize(name)))
             for name in SOURCE_CLASSES
         ),
-        outside_vocabulary=sum(1 for r in sourced if normalize(r.value("SOURCE")) not in classes),
+        outside_vocabulary=sum(1 for r in sourced if normalize(r.value("SOURCE")) not in _CLASS_KEYS),
         standing_past_five=sum(
             1 for r in sourced if keyword_of(r.value("RECENCY"), RECENCY_VALUES)[0] in EXCUSES
         ),
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
-        failing_records=sum(1 for r in records if record_findings(r, as_of)),
+        failing_records=sum(1 for _, per_record in graded if per_record),
         findings=tuple(found),
     )
 
@@ -380,7 +446,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # Windows console where anything outside cp1252 reads like corruption in the
     # one output meant to be pasted.
     lines = [
-        f"research ledger over {source}, as of {scan.as_of.isoformat()}",
+        f"research ledger over {source}, as of {scan.as_of.isoformat()}"
+        if scan.as_of
+        else f"research ledger over {source}, NO DATE HEADER - the window was not graded",
         "",
         f"  claim records read               {scan.records}",
         f"    sourced                        {scan.sourced}",
@@ -419,29 +487,33 @@ def main(argv: list[str]) -> int:
         print(f"no ledger file named {path.name}", file=sys.stderr)
         return 2
     text = path.read_text(encoding="utf-8", errors="replace")
-    stamp = DATE_HEADER.search(text)
-    if not stamp:
-        print(
-            f"{path.name} carries no DATE: <YYYY-MM-DD> header, so the recency rule"
-            " cannot be applied and nothing in it was graded against it.",
-            file=sys.stderr,
-        )
-        return 2
     records = read_records(text)
     if not records:
         print(f"no claim records found in {path.name}", file=sys.stderr)
         return 2
-    as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3)))
+    stamp = DATE_HEADER.search(text)
+    as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
     scan = survey(records, as_of)
     print(format_report(scan, source=path.name, show=show))
-    if scan.failing_records:
+    if as_of is None:
+        # Printed whichever status follows, so an exit 1 below reads as a floor
+        # rather than as the whole of what is wrong.
         print(
-            f"\n{scan.failing_records} record(s) fail the #214 fan-out contract."
+            f"{path.name} carries no DATE: <YYYY-MM-DD> header, so the five-year"
+            " window was not applied to any record in it.",
+            file=sys.stderr,
+        )
+    if scan.failing_records:
+        # 1 outranks the missing header, on ``differential_scan.py``'s ordering:
+        # returning 2 would file the strongest thing known about this ledger under
+        # the weakest heading.
+        print(
+            f"{scan.failing_records} record(s) fail the #214 fan-out contract."
             " Re-run with --show to see which, and do not paste that output.",
             file=sys.stderr,
         )
         return 1
-    return 0
+    return 2 if as_of is None else 0
 
 
 if __name__ == "__main__":

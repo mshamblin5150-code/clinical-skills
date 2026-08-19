@@ -55,7 +55,7 @@ def ledger_text(*records: str, stamp: str = "2026-08-19") -> str:
     return header + "\n".join(records)
 
 
-def kinds(text: str, as_of: date = AS_OF) -> list[str]:
+def kinds(text: str, as_of: date | None = AS_OF) -> list[str]:
     """The finding kinds one ledger produces, in order."""
     records = ledger.read_records(text)
     return [f.kind for record in records for f in ledger.record_findings(record, as_of)]
@@ -306,12 +306,90 @@ class TheRecencyRuleIsTheAmendedOne(unittest.TestCase):
         self.assertEqual(ledger.read_records(ledger_text(record))[0].reference_year, 2024)
 
 
-class AnUndatedReferenceIsRefused(unittest.TestCase):
-    def test_n_d_is_a_finding_even_though_apa_permits_it(self):
+class ARecencyDispositionComesFromTheVocabulary(unittest.TestCase):
+    """``STATUS``'s reasoning arriving at the field beside it, which is where the
+    first version of this module did not put it.
+
+    ``RECENCY`` gates the window row, so a fifth disposition is a record the
+    window never read -- the same argument that makes an unrecognized ``STATUS``
+    a failure rather than a counted curiosity. Found by review.
+    """
+
+    def test_every_declared_disposition_passes(self):
+        """Each against a reference the disposition is honest about, so a failure
+        here is the vocabulary and never the window."""
+        recent = "Someone, A. (2025). A study. Journal, 1(1), 1-9."
+        for name in ledger.RECENCY_VALUES:
+            excuse = name in ledger.EXCUSES
+            value = f"{name} - searched, nothing later." if excuse else name
+            record = replace_field(CLEAN, "RECENCY", value)
+            if not excuse:
+                record = replace_field(record, "REFERENCE", recent)
+            with self.subTest(recency=name):
+                self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_fifth_disposition_is_a_finding(self):
+        record = replace_field(CLEAN, "RECENCY", "probably fine, did not look")
+        self.assertIn(ledger.UNKNOWN_RECENCY, kinds(ledger_text(record)))
+
+    def test_a_fifth_disposition_on_an_old_source_also_reports_the_window(self):
+        """The two rows are different failures and both are true of that record."""
+        record = replace_field(CLEAN, "REFERENCE", "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
+        record = replace_field(record, "RECENCY", "probably fine")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.UNKNOWN_RECENCY, found)
+        self.assertIn(ledger.STALE_UNEXCUSED, found)
+
+    def test_a_missing_recency_reports_the_missing_field_and_not_a_fifth_word(self):
+        found = kinds(ledger_text(replace_field(CLEAN, "RECENCY", None)))
+        self.assertIn(ledger.MISSING_FIELD, found)
+        self.assertNotIn(ledger.UNKNOWN_RECENCY, found)
+
+
+class TheWindowIsTheOneRowADatelessLedgerLoses(unittest.TestCase):
+    def test_an_old_source_is_not_reported_without_a_date_to_measure_against(self):
+        record = replace_field(CLEAN, "REFERENCE", "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
+        record = replace_field(record, "RECENCY", "current")
+        self.assertIn(ledger.STALE_UNEXCUSED, kinds(ledger_text(record)))
+        self.assertEqual(kinds(ledger_text(record, stamp=""), None), [])
+
+    def test_every_other_row_still_fires(self):
+        for value, kind in (
+            ("a blog post", ledger.UNKNOWN_SOURCE_CLASS),
+            ("", ledger.MISSING_FIELD),
+        ):
+            with self.subTest(source=value):
+                text = ledger_text(replace_field(CLEAN, "SOURCE", value), stamp="")
+                self.assertIn(kind, kinds(text, None))
+
+
+class AnUndatedReferenceIsRefusedUnlessAnExcuseStandsInForTheYear(unittest.TestCase):
+    """``n.d.`` is legitimate APA, so refusing it outright would be a rule the
+    clinician never made. The escape hatch is the one he did make."""
+
+    UNDATED = "Nobody, N. (n.d.). Fundal height. Some Site."
+
+    def test_n_d_with_nothing_said_about_it_is_a_finding(self):
         """The recency rule cannot be applied to it, and a row that could not be
         graded reads exactly like a row that passed."""
-        record = replace_field(CLEAN, "REFERENCE", "Nobody, N. (n.d.). Fundal height. Some Site.")
+        record = replace_field(CLEAN, "REFERENCE", self.UNDATED)
+        record = replace_field(record, "RECENCY", "current")
         self.assertIn(ledger.UNDATED_REFERENCE, kinds(ledger_text(record)))
+
+    def test_n_d_with_an_excuse_and_a_reason_stands(self):
+        record = replace_field(CLEAN, "REFERENCE", self.UNDATED)
+        record = replace_field(
+            record, "RECENCY", "nothing newer - the page states no revision date and CDC issues none."
+        )
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_a_bare_excuse_does_not_buy_the_hatch(self):
+        """Otherwise ``nothing newer`` alone would clear two rows at once."""
+        record = replace_field(CLEAN, "REFERENCE", self.UNDATED)
+        record = replace_field(record, "RECENCY", "nothing newer")
+        found = kinds(ledger_text(record))
+        self.assertIn(ledger.BARE_EXCUSE, found)
+        self.assertIn(ledger.UNDATED_REFERENCE, found)
 
     def test_a_missing_reference_reports_the_missing_field_and_not_the_year(self):
         found = kinds(ledger_text(replace_field(CLEAN, "REFERENCE", None)))
@@ -376,11 +454,32 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         all -- and every other row would print clean beside a rule that never ran."""
         self.assertEqual(self._run(ledger_text(CLEAN, stamp="")), 2)
 
-    def test_a_dateless_ledger_that_would_also_fail_still_exits_two(self):
-        """Nothing was graded, so there is no finding to report as one."""
+    def test_a_finding_outranks_a_missing_date_header(self):
+        """``differential_scan``'s ordering: returning 2 here would file the
+        strongest thing known about the ledger under the weakest heading. The
+        first version of this module returned 2, which is the one place it
+        departed from both siblings without saying so."""
         self.assertEqual(
-            self._run(ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp="")), 2
+            self._run(ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp="")), 1
         )
+
+    def test_the_missing_date_banner_prints_beside_the_exit_one(self):
+        """So the finding reads as a floor rather than as the whole."""
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "case-study-claims.md"
+            path.write_text(
+                ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp=""),
+                encoding="utf-8",
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                ledger.main([str(path)])
+        self.assertIn("no DATE:", err.getvalue())
+        self.assertIn("NO DATE HEADER", out.getvalue())
+
+    def test_a_dateless_ledger_still_grades_the_nine_rows_that_do_not_need_it(self):
+        text = ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp="")
+        self.assertEqual(kinds(text, None), [ledger.UNKNOWN_SOURCE_CLASS])
 
     def test_the_exit_one_message_names_no_claim(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -412,6 +511,32 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         for name in ("STATUS", *ledger.REQUIRED_WHEN_SOURCED):
             with self.subTest(field=name):
                 self.assertIn(f"{name}:", example)
+
+    # One phrase per row. Keyed on the module's own tuple, so a row added without
+    # a sentence in the skill fails here rather than quietly becoming a rule only
+    # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
+    ROW_PHRASES = {
+        ledger.MISSING_FIELD: "a field missing or empty",
+        ledger.UNKNOWN_STATUS: "a `STATUS` that is neither word",
+        ledger.BARE_STATUS: "an `unsourced` with nothing said about what was searched",
+        ledger.UNSOURCED_WITH_REFERENCE: "an `unsourced` record carrying a `REFERENCE`",
+        ledger.UNKNOWN_SOURCE_CLASS: "a `SOURCE` outside the four",
+        ledger.UNKNOWN_RECENCY: "a `RECENCY` outside the four",
+        ledger.RESTATEMENT_ECHOES_CLAIM: "a `RESTATEMENT` that is the claim pasted back",
+        ledger.NUMERIC_CLAIM_UNQUANTIFIED: "whose restatement carries none",
+        ledger.UNDATED_REFERENCE: "a reference stating no year",
+        ledger.STALE_UNEXCUSED: "more than five years before `DATE` with no excuse",
+        ledger.BARE_EXCUSE: "an excuse with no reason after it",
+    }
+
+    def test_the_skill_writes_out_every_row_the_grader_applies(self):
+        """``AGENTS.md`` classes this tool as one a skill *names* rather than one
+        it depends on, and that class is defined by the instruction being complete
+        without the command. A row only the scanner knows breaks it."""
+        for kind in ledger.KINDS:
+            with self.subTest(row=kind):
+                self.assertIn(kind, self.ROW_PHRASES, "row is not written into the skill")
+                self.assertIn(self.ROW_PHRASES[kind], self.skill)
 
     def test_the_skill_declares_the_source_vocabulary(self):
         for name in ledger.SOURCE_CLASSES:

@@ -55,9 +55,9 @@ if __name__ == "__main__":
 
 **`errors="replace"` carries as much of the fix as the encoding does.** A console that genuinely will not move off its codec still has to print a legible line with a `?` in it rather than raise, because the thing being protected is the exit status and not the glyph.
 
-**Called from `__main__`, never at import, and that is the shape rather than a habit.** Reconfiguring `sys.stdout` is a decision about a process; a module that made it on import would make it for every test importing it and for every tool importing another. `tools/test_console_codec.py` **parses every module in `tools/` and asserts the ones with a command line call it** — **21** of them today. The check is an AST walk and not a substring search, because the first version was a substring search and `console_codec.py` passed it on the usage example in its own docstring: a module with no command line at all, graded as having one. That is `spelling_scan`'s mention-versus-use distinction arriving uninvited, and it is why a sixteenth tool cannot quietly skip the line.
+**Called from `__main__`, never at import, and that is the shape rather than a habit.** Reconfiguring `sys.stdout` is a decision about a process; a module that made it on import would make it for every test importing it and for every tool importing another. `tools/test_console_codec.py` **parses every module in `tools/` and asserts the ones with a command line call it** — **22** of them today. The check is an AST walk and not a substring search, because the first version was a substring search and `console_codec.py` passed it on the usage example in its own docstring: a module with no command line at all, graded as having one. That is `spelling_scan`'s mention-versus-use distinction arriving uninvited, and it is why a sixteenth tool cannot quietly skip the line.
 
-**It reads 21 today, and `docx_read.py` and `docx_write.py` are the two most recent — written on one branch against a base that already carried this rule, so neither could arrive the way the sixteenth and seventeenth did. It read 19, and it read 17, and #83 added two at once — `guidelines_recs.py` and `threshold_sheet.py`, on one branch, so neither could arrive the way the fifteenth and sixteenth did.** The seventeenth did, though, and that is the story worth keeping: `tools/block_scan.py` was written on [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120)'s branch against a base commit that predates this rule, so it could not have imported a helper that did not exist. **Its branch's suite passed at 824 tests and origin/main's passed, and the merge failed** — `block_scan.py does not import the helper` — which is the paragraph below happening a second time, one merge later, on the mechanism built to stop it. The check works; what it cannot do is fire before the two branches meet.
+**It reads 22 today, and `research_ledger.py` is the most recent — written on a base that already carried this rule, so it could not arrive the way the sixteenth and seventeenth did. It read 21, and `docx_read.py` and `docx_write.py` were the two before it, on one branch against a base that already carried the rule too. It read 19, and it read 17, and #83 added two at once — `guidelines_recs.py` and `threshold_sheet.py`, on one branch, so neither could arrive the way the fifteenth and sixteenth did.** The seventeenth did, though, and that is the story worth keeping: `tools/block_scan.py` was written on [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120)'s branch against a base commit that predates this rule, so it could not have imported a helper that did not exist. **Its branch's suite passed at 824 tests and origin/main's passed, and the merge failed** — `block_scan.py does not import the helper` — which is the paragraph below happening a second time, one merge later, on the mechanism built to stop it. The check works; what it cannot do is fire before the two branches meet.
 
 **It read 15, and the sixteenth arrived the same day from the other direction.** `tools/anchor_scan.py` was written on [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124)'s branch while this rule was being written on #150's, and the two merged an hour apart. **Neither branch's suite failed; the merged tree's did** — the new tool did not import a helper that did not exist when it was written, and nothing either side ran could have seen it. That is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment*, arriving on the mechanism built to make a fifteenth tool impossible to miss and catching the sixteenth one commit late.
 
@@ -239,6 +239,79 @@ python tools/docx_write.py <in.md> <out.docx>
 `docx_read` prints whatever the document held and there is no `--show`, because there is nothing general to redact — the caller knows what it opened. Where that is faculty material about a patient, its output is PHI on `harvest_review.py`'s terms.
 
 Covered by `tools/test_docx.py`, one file for the pair the way `test_icd10.py` covers its builder and reader together. **The round trip is the test**: a `.docx` Word refuses to open is byte-for-byte indistinguishable from a good one until Word opens it, and there is no Word here — so what the tests assert is that the archive carries the parts the format requires, that every part parses as XML, and that the reader gets back what the writer was given. That catches the failure that actually happens, an unescaped `&` or a malformed part, and does not catch the one that cannot be checked without Word.
+
+### Research ledger
+
+The four scanners above read a finished run. This one reads a `practicum-case-study` run's
+**working file**, before the draft exists, and it is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) — the research fan-out made a mechanism rather than an instruction.
+
+```bash
+python tools/research_ledger.py <a ledger file>
+```
+
+**The ticket's own framing is what shaped it.** The first run wrote four unsourced claims into a
+graded document and listed them in `PROPOSED` with **verify this** against each; the clinician's
+ruling is that such a claim gets researched, one agent per claim, in parallel. `SKILL.md` already
+said so. **What a written instruction cannot do is fail**, so the fan-out now writes one record per
+claim into `scratch/case-study-claims.md` and this grades them.
+
+**Eleven rows, and they belong to two rulings.** #214's contract: every field present, `STATUS` one
+of two branches, an `unsourced` record saying what was searched, no reference on an unsourced record,
+a restatement that is not the claim pasted back, and a numeric claim answered with a number. #215's
+amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old one
+saying why it stands, and the excuse carrying a reason. The report prints the ticket beside each row,
+and **`SKILL.md` step 3 writes all eleven out in a table** — a test keyed on the module's own tuple
+fails if a twelfth arrives without one, because `AGENTS.md` classes this as a tool a skill *names*
+rather than one it depends on, and that class is defined by the instruction being complete without
+the command.
+
+**An unrecognized `STATUS` is a failure, and that departs from `specificity_scan.py`'s third-branch
+rule deliberately.** There the keyword picks a message and policing a third would be inventing a
+rule the skill does not state. Here it picks **which tests run** — so a record reading
+`STATUS: pending` skips every row below it and prints as clean, which is the silent-pass shape the
+whole directory exists for.
+
+**The numbers are deliberately not compared, and that is the sharpest limit.** The restatement is
+written in the source's own terms *by design*, so a claim about a white count of 15,000 is rightly
+answered with a range in `10^9/L`, and a digit-matching test would refuse the correct answer. What
+the row can reach is that a numeric claim came back **quantified at all** — the wrong-citation
+failure at its most expensive, and the one form of it a string test sees. Whether the source is
+reputable and whether it says what the record says it says are both readings. **A clean scan is not
+a checked claim**, and `skills/practicum-case-study/SKILL.md` says so beside the command.
+
+**Counts only by default**, on `specificity_scan.py`'s and `block_scan.py`'s terms and for their
+reason: the ledger lives under `scratch/` and a claim is transcribed from faculty material about a
+patient. **`--show` output is PHI**: read it, do not paste it.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a
+violation, **2 for every way of not having scanned**: no argument, no file, no `## CLAIM:` record,
+and **no `DATE:` header**. That last limb is the one that matters and it is `filled_vitals_census.py`'s
+reasoning: the five-year window is measured against the day the paper is written, so a ledger with no
+date was never measured by it and a clean report would read as though it had been. **Where a
+violation and a missing `DATE` both hold, 1 wins**, on `differential_scan.py`'s ordering, and the
+banner prints beside it so the finding reads as a floor. **The first version returned 2 there** —
+found by review, and it was the one place this departed from both siblings without saying so.
+
+**Two more rows came out of that review and are worth keeping.** An unrecognized `RECENCY` was
+passing silently while an unrecognized `STATUS` failed, and the argument for the second is the
+argument for the first — the field gates the row below it. And `n.d.` was refused outright, **a rule
+the clinician never made**; the escape hatch is now the one he did make, so an undated source
+carrying `nothing newer` or `guideline in force` with a reason stands.
+
+**Open question 2 is deferred rather than dropped**, and the split is written into the module
+docstring: the *format* half of verifying a citation has a written standard since #211
+([apa7.md](skills/practicum-case-study/reference/apa7.md), walked by step 7 and by #218), and the
+*truth* half — does the DOI resolve, does the page's year match the entry's — is
+`threshold_sheet.py`'s tier 2 arriving at a reference list, needs the network, and is
+[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231). **This module checks that
+a year is stated, never that it is right.**
+
+**Nothing committed can be pointed at it, and there will not be one** — a ledger is a patient record
+by `scratch/`'s own terms, which is `differential_scan.py`'s position exactly. So
+`tools/test_research_ledger.py` builds synthetic ledgers, and the one thing it reads from the tree is
+**the skill's own worked example, which it runs the scanner over**. A documented record shape the
+grader would refuse teaches the next run to write a ledger that fails, and every substring test in
+that class would still be green.
 
 ### Skills mirror
 

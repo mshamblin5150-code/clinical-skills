@@ -425,6 +425,27 @@ material belongs — not in a tracked notes directory. Where the harness ships a
 skill, borrow the fan-out from it and change that one thing: they write findings into the repo,
 and a case study's working material is a patient record.
 
+**What makes a record bad, in full, so this can be walked without running anything.** Eleven
+things, and a record can be several of them:
+
+| The record | Why |
+| --- | --- |
+| a field missing or empty | a record missing its restatement is a citation nobody checked |
+| a `STATUS` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
+| an `unsourced` with nothing said about what was searched | anybody can write `unsourced`; nobody writes *searched PubMed, IDSA and UpToDate* without having looked |
+| an `unsourced` record carrying a `REFERENCE` | the two contradict, and nothing can tell which was meant |
+| a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
+| a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
+| a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
+| a claim carrying a number whose restatement carries none | *"the source discusses leukocytosis in pregnancy"* against a claim about 15,000 cells |
+| a reference stating no year | `n.d.` is legitimate APA and cannot be measured for recency — unless an excuse with a reason stands in for the year |
+| a reference more than five years before `DATE` with no excuse | the amended rule above |
+| an excuse with no reason after it | *the run must have looked, and must say so* |
+
+**Two things are deliberately not on that list.** *Within two years is the target* is a target, so a
+`current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
+**not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
+
 **Then grade it, and do not draft until it is clean:**
 
 ```bash
