@@ -467,23 +467,7 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
         return text[text.index("## 6.") : text.index("## 7.")]
 
     def first_cells(self, block):
-        """The first cell of every row of the first Markdown table in ``block``."""
-        cells, started = [], False
-        for line in block.splitlines():
-            line = line.strip()
-            if not line.startswith("|"):
-                if started:
-                    break
-                continue
-            # The header row sits above the ``---`` rule and is a column label rather
-            # than an item -- counting it would put the table one ahead forever.
-            if docx_write.is_rule(line):
-                started = True
-                continue
-            first = docx_write.split_row(line)[0]
-            if started and first:
-                cells.append(first.replace("**", ""))
-        return cells
+        return docx_write.table_first_cells(block)
 
     def applied(self):
         return self.first_cells(self.section_six().split(self.SPLIT)[0])

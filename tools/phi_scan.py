@@ -653,14 +653,31 @@ def declares_synthetic(text: str) -> bool:
     return SYNTHETIC_PRAGMA_LINE.search(_pragma_window(text)) is not None
 
 
+def scan_lines(
+    text: str, path: str, index: CorpusIndex, shapes: bool
+) -> list[Finding]:
+    """Every line of ``text``, with the shape layer decided by the caller.
+
+    Split out of `scan_text` for ``tracker_scan``, and the split is the whole
+    point rather than tidiness: a **file** may declare ``phi-scan: synthetic``
+    and switch the shape layer off, and an issue body or a commit message may
+    not. Those are text nobody can be trusted to have written under this repo's
+    rules -- a ticket about the ``dob`` shape quotes one, which is exactly how
+    the pragma would arrive there -- so that caller passes ``shapes=True`` and
+    the decision is never read out of the text being scanned.
+
+    The corpus layer is not a parameter, here or anywhere. No caller may switch
+    it off.
+    """
+    findings: list[Finding] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        findings.extend(_scan_line(line, path, number, index, shapes))
+    return findings
+
+
 def scan_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
     """Corpus layer always runs. Shape layer runs unless the file opts out."""
-    findings: list[Finding] = []
-    shapes_apply = not declares_synthetic(text)
-
-    for number, line in enumerate(text.splitlines(), start=1):
-        findings.extend(_scan_line(line, path, number, index, shapes_apply))
-    return findings
+    return scan_lines(text, path, index, shapes=not declares_synthetic(text))
 
 
 def staged_paths() -> list[str]:
@@ -756,6 +773,25 @@ def read_text_if_text(path: Path) -> str | None:
 
 
 def scan_all(index: CorpusIndex) -> list[Finding]:
+    """Every **tracked** file, which is the whole of what a clean result covers.
+
+    [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254).
+    ``git ls-files`` is the index, so an untracked file is not in it -- and the
+    honest form of a clean ``--all`` is *no tracked file carries PHI*, never
+    *this tree carries none*. A file is invisible to this mode until the commit
+    that makes it tracked.
+
+    **Tracked is the right set to audit and that is not the same as being the
+    whole tree.** ``--all`` exists to check what is already committed, and the
+    staged paths are the pre-commit mode's job -- so between them nothing
+    reaches a commit unread. What has no second net is **CI**, which runs this
+    mode with nothing staged and two of three layers already dark.
+
+    Its own blind spot is recorded rather than only reasoned about:
+    ``spelling_scan``'s ``--all`` is this walk's twin, and ``CLAUDE.md`` records
+    ``licence`` landing in a skill file because the staged scan had crashed and
+    this mode could not see the file until the commit that made it tracked.
+    """
     findings: list[Finding] = []
     for path in _git("ls-files").splitlines():
         full = REPO_ROOT / path
