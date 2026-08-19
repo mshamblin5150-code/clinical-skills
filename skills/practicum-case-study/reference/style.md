@@ -178,7 +178,7 @@ contraindications, monitoring, adverse effects, and the guideline supporting the
 prescription and reads as one; the five added fields are graded reasoning, and graded reasoning
 belongs in prose. **Omitting them has never cost a point across ten submissions**, which is
 evidence that the omission is survivable rather than that it is right — the same finding the mode
-ruling rests on. See [SKILL.md](../SKILL.md) step 5.
+ruling rests on. See [SKILL.md](../SKILL.md) step 6.
 
 ## 9. Ordering is the graded axis
 
@@ -233,7 +233,7 @@ below is a ruling rather than a description.
   first place.
 
 **A question the skeleton already answers still gets an entry here.** The section exists so that
-every item on the faculty's own list can be pointed at, which is [SKILL.md](../SKILL.md) step 8's
+every item on the faculty's own list can be pointed at, which is [SKILL.md](../SKILL.md) step 9's
 first check.
 
 ## 10. References — APA 7

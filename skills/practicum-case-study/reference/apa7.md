@@ -25,7 +25,7 @@ holds a copy, and the claim being made is only that the site said so on the date
 them as verified would be the thing this sheet exists to stop.
 
 **What this sheet is for.** *APA Format and Scholarly Writing* is 5 of the 100 points, and
-[SKILL.md](../SKILL.md) requires the reference walk in step 6 to run on every document. That
+[SKILL.md](../SKILL.md) requires the reference walk in step 7 to run on every document. That
 instruction needs a written rule behind it, or *"fix the reference list"* is a wish rather than a
 check. **Ruled 2026-08-18**, and the words that settled it were the clinician's: *ordering the
 differential is very important, but that shouldn't take the place of tidiness.*
@@ -193,6 +193,6 @@ statements about what Markdown and this skill's inputs can express, and are reco
 filed.
 
 **None of these is worth more than a point, and they are still real.**
-**A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 8's
+**A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
 sentence arriving one level down — and it is no less true now that four more rows are green, because
 what a renderer cannot check is whether the entry it indented so carefully is a real source.
