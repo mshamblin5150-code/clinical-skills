@@ -291,6 +291,279 @@ class TheHomoglyphFold(unittest.TestCase):
             self.assertNotEqual(key, value)
 
 
+def rendered_parts(markdown):
+    """Render a document and read the parts back **out of the archive**.
+
+    ``body_xml`` and ``STYLES`` are what the module *would* write; this is what a reader
+    of the file actually gets, and the two are only the same while ``write_docx`` puts
+    each one where it says it does. #220's own comment names the difference -- section 6's
+    rows were measured by rendering a document and reading ``word/document.xml``, and a
+    test asserting against the source's output has not used that instrument. It is also
+    this file's standing rule: *the round trip is the test*.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "parts.docx"
+        docx_write.write_docx(markdown, path)
+        with zipfile.ZipFile(path) as archive:
+            return {n: archive.read(n).decode("utf-8") for n in archive.namelist()}
+
+
+class TheBodyFirstLineIndent(unittest.TestCase):
+    """APA 7 section 2.24 -- every body paragraph, and only a body paragraph.
+
+    The rule has carve-outs and each one is a separate branch of ``body_xml``: a heading
+    takes none, a reference entry takes the *hanging* indent instead and a first line
+    would cancel it, a list item draws its indent from ``numbering.xml``, and a table
+    cell is not a body paragraph at all.
+
+    Read out of the rendered archive rather than off ``body_xml``, which is how section
+    6's rows were measured and is what makes this a check on the artifact.
+    """
+
+    def document(self, markdown):
+        return rendered_parts(markdown)["word/document.xml"]
+
+    def test_a_plain_paragraph_takes_the_half_inch_first_line(self):
+        xml = self.document("She is 16 weeks pregnant.\n")
+        self.assertIn('<w:ind w:firstLine="{f}"/>'.format(f=docx_write.FIRST_LINE), xml)
+
+    def test_the_indent_is_half_an_inch(self):
+        self.assertEqual(docx_write.FIRST_LINE, 720)
+
+    def test_a_heading_takes_none(self):
+        self.assertNotIn("w:firstLine", self.document("# Assessment\n"))
+
+    def test_a_reference_entry_takes_none(self):
+        """The ``Reference`` style already sets ``w:ind``; a first line would cancel it."""
+        xml = self.document("# References\n\nRoss, J. (2025). Pelvic disease.\n")
+        self.assertIn('<w:pStyle w:val="Reference"/>', xml)
+        self.assertNotIn("w:firstLine", xml)
+
+    def test_a_list_item_takes_none(self):
+        """Word draws a list item's indent from ``numbering.xml``."""
+        for markdown in ("- Order NAAT\n", "1. Order NAAT\n"):
+            xml = self.document(markdown)
+            self.assertIn('<w:pStyle w:val="ListParagraph"/>', xml, markdown)
+            self.assertNotIn("w:firstLine", xml, markdown)
+
+    def test_a_table_cell_takes_none(self):
+        xml = self.document("| Drug | Dose |\n| --- | --- |\n| Rocephin | 500 mg |\n")
+        self.assertNotIn("w:firstLine", xml)
+
+    def test_exactly_one_paragraph_of_a_mixed_document_takes_it(self):
+        """The whole rule in one assertion, on a document carrying every branch."""
+        xml = self.document(
+            "# Assessment\n\nShe is 16 weeks pregnant.\n\n- Order NAAT\n\n"
+            "| Drug | Dose |\n| --- | --- |\n| Rocephin | 500 mg |\n\n"
+            "# References\n\nRoss, J. (2025). Pelvic disease.\n"
+        )
+        self.assertEqual(xml.count("w:firstLine"), 1)
+
+    def test_the_indent_is_written_before_the_alignment(self):
+        """``CT_PPrBase`` is a sequence: ``numPr``, then ``ind``, then ``jc``.
+
+        No branch of ``body_xml`` asks for all three today, which is exactly why this
+        drives ``para`` directly -- the order is a guarantee of the constructor rather
+        than an accident of which callers happen to exist.
+        """
+        xml = docx_write.para("x", num_id=1, first_line=True, align="center")
+        seen = [xml.index(tag) for tag in ("<w:numPr>", "<w:ind ", "<w:jc ")]
+        self.assertEqual(seen, sorted(seen))
+
+
+class TheTableRules(unittest.TestCase):
+    """APA 7 section 7.8 -- horizontal rules only, and never a vertical one.
+
+    Three rules and no more: above the header, below the header, below the last row.
+    A full grid is what this drew until #220, and the clinician ruled it unconditional
+    on 2026-08-19 rather than switchable, because the only consumer of this renderer is
+    an APA document.
+
+    Read out of the rendered archive, on ``TheBodyFirstLineIndent``'s reasoning -- and
+    here it buys something specific, since the table's borders are set in two parts that
+    ship in two different files.
+    """
+
+    ROWS = "| Drug | Dose |\n| --- | --- |\n| Rocephin | 500 mg |\n| Doxycycline | 100 mg |\n"
+
+    def setUp(self):
+        self.parts = rendered_parts(self.ROWS)
+        self.document = self.parts["word/document.xml"]
+        self.styles = self.parts["word/styles.xml"]
+
+    def test_no_vertical_rule_is_drawn_anywhere(self):
+        for edge in ("insideV", "left", "right"):
+            self.assertNotIn('<w:{e} w:val="single"'.format(e=edge), self.document, edge)
+
+    def test_the_table_is_closed_top_and_bottom(self):
+        self.assertIn('<w:top w:val="single"', self.document)
+        self.assertIn('<w:bottom w:val="single"', self.document)
+
+    def test_no_rule_runs_between_the_body_rows(self):
+        self.assertNotIn('<w:insideH w:val="single"', self.document)
+
+    def test_the_header_row_carries_a_rule_beneath_it(self):
+        """The one rule that is not a table edge, so it is set on the header's cells."""
+        header = self.document[: self.document.index("Rocephin")]
+        self.assertIn("<w:tcBorders>", header)
+        self.assertIn('<w:bottom w:val="single"', header.rsplit("<w:tcBorders>", 1)[-1])
+
+    def test_no_body_cell_carries_a_rule(self):
+        self.assertNotIn("<w:tcBorders>", self.document[self.document.index("Rocephin") :])
+
+    def test_the_cell_properties_are_in_schema_order(self):
+        """``CT_TcPrBase`` is a sequence: ``tcW`` before ``tcBorders``."""
+        cell = self.document[self.document.index("<w:tc>") :]
+        self.assertLess(cell.index("<w:tcW "), cell.index("<w:tcBorders>"))
+
+    def test_the_table_style_draws_no_grid_either(self):
+        """``BORDERS`` overrides the style, so a grid left in it is a latent grid."""
+        style = self.styles[self.styles.index('w:type="table"') :]
+        for edge in ("insideV", "insideH", "left", "right"):
+            self.assertNotIn('<w:{e} w:val="single"'.format(e=edge), style, edge)
+
+    def test_the_style_is_not_called_table_grid_any_more(self):
+        """A style named ``Table Grid`` that draws no grid is a lie inside the file."""
+        self.assertNotIn("TableGrid", self.styles)
+        self.assertNotIn("TableGrid", self.document)
+
+    def test_the_table_names_a_style_the_shipped_styles_part_declares(self):
+        """The two halves ship in different parts, which is what reading the zip buys."""
+        named = re.search(r'<w:tblStyle w:val="([^"]+)"/>', self.document).group(1)
+        self.assertIn('w:type="table" w:styleId="{s}"'.format(s=named), self.styles)
+
+    def test_a_header_only_table_is_still_closed(self):
+        xml = rendered_parts("| Drug | Dose |\n| --- | --- |\n")["word/document.xml"]
+        self.assertIn('<w:top w:val="single"', xml)
+        self.assertIn('<w:bottom w:val="single"', xml)
+
+
+class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
+    """#220's own comment: the list lives in two files and nothing pinned them together.
+
+    ``apa7.md`` section 6 carries it for a reader of the skill and ``docx_write.py``
+    carries it for a reader of the code, and a **prose** edit to either failed nothing
+    -- so the reader who was misled is the one who checked the file nearer to hand.
+    The repair is ``REFERENCE_HEADING``'s: the docstring's copy stopped being a copy by
+    becoming ``NOT_APPLIED``, one object, and this asserts the sheet names the same
+    items.
+
+    **Both of section 6's tables are read**, which the comment asked for and the first
+    version of this class did not do -- it parsed the *not applied* table alone, so a row
+    sitting in both tables at once, or wrongly promoted into the applied one, was
+    invisible to it.
+
+    **What it does not reach** is whether a row's verdict is *true*. A row moved to the
+    *applied* table while the renderer still does not apply it passes every assertion
+    here, and stays a behavior test's job -- ``TheBodyFirstLineIndent`` and
+    ``TheTableRules`` are the two this ticket added.
+    """
+
+    SHEET = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+    SPLIT = "still not applied"
+
+    def section_six(self):
+        text = (self.SHEET / "reference" / "apa7.md").read_text(encoding="utf-8")
+        return text[text.index("## 6.") : text.index("## 7.")]
+
+    def first_cells(self, block):
+        """The first cell of every row of the first Markdown table in ``block``."""
+        cells, started = [], False
+        for line in block.splitlines():
+            line = line.strip()
+            if not line.startswith("|"):
+                if started:
+                    break
+                continue
+            # The header row sits above the ``---`` rule and is a column label rather
+            # than an item -- counting it would put the table one ahead forever.
+            if docx_write.is_rule(line):
+                started = True
+                continue
+            first = docx_write.split_row(line)[0]
+            if started and first:
+                cells.append(first.replace("**", ""))
+        return cells
+
+    def applied(self):
+        return self.first_cells(self.section_six().split(self.SPLIT)[0])
+
+    def not_applied(self):
+        return self.first_cells(self.section_six().split(self.SPLIT)[1])
+
+    def test_both_tables_are_found(self):
+        """The instrument is live: a parser finding nothing would pass every row below."""
+        self.assertTrue(self.applied())
+        self.assertTrue(self.not_applied())
+
+    def test_every_item_the_module_names_is_a_row_on_the_sheet(self):
+        rows = self.not_applied()
+        for key, _ in docx_write.NOT_APPLIED:
+            self.assertEqual(len([r for r in rows if key in r]), 1, key)
+
+    def test_the_sheet_names_nothing_the_module_does_not(self):
+        self.assertEqual(len(self.not_applied()), len(docx_write.NOT_APPLIED))
+
+    def test_no_item_sits_in_both_tables(self):
+        """A row promoted by editing one table and not the other is the failure here."""
+        applied = " ".join(self.applied())
+        for key, _ in docx_write.NOT_APPLIED:
+            self.assertNotIn(key, applied, key)
+
+    def test_the_two_rows_this_ticket_applied_are_in_the_applied_table(self):
+        """#220's rows, asserted where they are rather than only where they are not."""
+        applied = " ".join(self.applied()).lower()
+        for landed in ("first-line indent", "horizontal rules"):
+            self.assertIn(landed, applied, landed)
+
+    def test_every_entry_carries_a_key_and_a_reason(self):
+        """The reason is what a reader of the code reads in place of the old prose."""
+        for key, reason in docx_write.NOT_APPLIED:
+            self.assertTrue(key.strip(), key)
+            self.assertGreater(len(reason.split()), 8, key)
+
+
+class TheRendererClaimsInStepSeven(unittest.TestCase):
+    """#220's third comment: a fourth copy of renderer behavior, pinned by nothing.
+
+    ``skills/practicum-case-study/SKILL.md`` step 7's defect table explains two of its
+    defects by stating what the renderer does, and only the heading rule was pinned --
+    by importing
+    ``REFERENCE_HEADING`` rather than restating it. These two were prose with nothing
+    behind them, and the comment named them as in scope here.
+
+    Both directions are asserted, because either alone reads as agreement: the sentence
+    is still in the table, **and** the renderer still behaves the way it says. A reword
+    fails the first and a behavior change fails the second.
+    """
+
+    SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+    LIST_STYLE = "the renderer gives a list its list style and the hanging indent is lost"
+    ONE_PER_LINE = "the renderer sets every non-blank line as its own paragraph"
+
+    def skill_text(self):
+        return (self.SKILL / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_the_defect_table_still_states_both(self):
+        text = self.skill_text()
+        self.assertIn(self.LIST_STYLE, text)
+        self.assertIn(self.ONE_PER_LINE, text)
+
+    def test_a_bullet_in_the_reference_list_really_loses_the_hanging_indent(self):
+        xml = rendered_parts("# References\n\n- Ross, J. (2025). Pelvic disease.\n")[
+            "word/document.xml"
+        ]
+        self.assertIn('<w:pStyle w:val="ListParagraph"/>', xml)
+        self.assertNotIn('<w:pStyle w:val="Reference"/>', xml)
+
+    def test_a_hard_wrapped_entry_really_becomes_two_paragraphs(self):
+        xml = rendered_parts("# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n")[
+            "word/document.xml"
+        ]
+        self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
+
+
 class NotHavingRead(unittest.TestCase):
     """Exit 2 is every way of not having read, on ``guidelines_search.py``'s convention."""
 
