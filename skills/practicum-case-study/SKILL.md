@@ -732,14 +732,21 @@ the draft and the rule and nothing else, where it is not.
 3's and it is here for step 3's reason: a heading whose verdict never arrived is visible, and a
 check that was never run is not.
 
-| Check | What it reads | How |
-| --- | --- | --- |
-| the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent |
-| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, and does each source exist and say what the sentence citing it says |
-| differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above |
-| MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation |
-| the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support |
-| the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it |
+| Check | What it reads | How | A `clean` says what it walked |
+| --- | --- | --- | --- |
+| the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
+| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, and does each source exist and say what the sentence citing it says | no |
+| differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
+| MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
+| the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
+| the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
+
+**The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
+is two rows rather than six.** On a row marked *yes* a `clean` verdict has to say what the reader
+walked, and `tools/checks_ledger.py` fails a bare one. Those are the two rows where a wrong `clean`
+is most expensive; on the other four a bare `clean` still passes, which is the gap below. **Brief
+the two readers accordingly** — they report what they examined whichever verdict they return, and
+the clause is one sentence written by an agent that has just walked the thing.
 
 **One reader per row, all of them at once, and none of them is the context that wrote the draft.**
 Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
@@ -768,8 +775,18 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
     emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
-`VERDICT` is `clean` or `defect`, and a `defect` says what and where. A heading with no `VERDICT`
+`VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the two rows the table
+above marks, a `clean` says what it walked** — the same field and the same substance test, and it
+is the only thing in the file that stands against a reader who skimmed. A heading with no `VERDICT`
 under it is a check that did not run, and the draft is not submitted on it.
+
+```
+## CHECK: MDM completeness
+VERDICT: clean
+FINDINGS: Walked all five MDM entries. Each names a discriminator from this case — the
+    36-hour onset, the absent rebound, the prior appendectomy — and each carries a
+    citation.
+```
 
 **What makes a record bad, in full, so this can be walked without running anything.** A check can
 be several of them at once:
@@ -781,12 +798,42 @@ be several of them at once:
 | a heading with no `VERDICT` under it | a reader that never returned, and the field every rule below it needs |
 | a `VERDICT` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
 | a `defect` with no `FINDINGS` under it, or an empty one | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it. The field and not just the words — a reason typed after the keyword says the same thing where nobody looking for it will look |
+| a `clean` with no `FINDINGS` under it, on a row the table above marks *yes* | the same test on the other verdict. Anybody can write `clean`; nobody writes *"walked all five MDM entries, each names a discriminator from this case"* without having walked them. [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is two rows rather than six — the other four are counted and not graded, and the report says which is which |
 
-**One shape is deliberately not on that list.** A `clean` verdict with no findings under it is what a
-check that ran and found nothing writes, and it is also what a check that reported nothing writes —
-nothing in the file tells them apart, so nothing grades it. That is the gap
-[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) names and leaves open, and
-it is why the reading below still happens.
+**That last row was off the list entirely until
+[#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for two of the
+six rather than for all six.** A `clean` with nothing under it is what a check that ran and found
+nothing writes, and it is also what a check that reported nothing writes — nothing in the file tells
+them apart, which is the gap
+[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) named and left open. **There
+is no better string test to reach it with**; what reaches it is requiring the `clean` to say what it
+walked, and that is a change to what this step asks a reader to write rather than a grader of what it
+already asked. Ruled on differential ordering and MDM completeness, and **ruled against the other
+four** — so on those the shape is still exactly what #240 declared, and
+the reading below is still the only thing that reaches it. `the reference list` is the clearest of
+the four: it is graded by a command, so its `clean` is an exit status and there was never a reader to
+have walked anything.
+
+**Which two, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
+these two at *70 of the rubric's 100 points*, and [reference/rubric.md](reference/rubric.md) does
+not: *Differential Diagnoses and Clinical Reasoning* scores **15** and *Medical Decision Making*
+**10**, so the two criteria these rows name carry **25** between them. **Which criteria compose the
+70 is not stated here and cannot be**: [reference/rubric.md](reference/rubric.md) asserts that
+figure without enumerating it, and 31 different seven-criterion subsets of its table sum to 70 — so
+any count named beside it would be a number satisfiable 31 ways, which is not a claim. What the
+table does settle is that *Comprehensive Treatment Plan* at **20** is the single heaviest criterion
+on the sheet, and `the Rx blocks` is the row that reads it — one of the ones left out. **The ruling
+stands on the 25.**
+
+**A draft of this paragraph said *the whole clinical-judgment cluster of seven criteria* and that
+was the same defect one sentence later** — a figure nothing re-derives, introduced by the sentence
+correcting a figure nothing re-derives. [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+arriving inside its own repair, which this repo has now recorded happening four times.
+
+**What the new row buys is a shape, not a reading**, and that was priced rather than glossed. A lazy
+reader can satisfy it with one stock sentence — `specificity_scan.py`'s limit, inherited here — so it
+converts two records per run from unfalsifiable to *checkable by eye*, which is what the walk below
+is for and previously had nothing to work with.
 
 **Then grade it, and do not submit until it is clean:**
 
@@ -842,8 +889,10 @@ Then walk this list, by eye — none of it is mechanical:
   defect does not leave this step in the `PROPOSED` block — it gets fixed.
 - **Does `python tools/checks_ledger.py scratch/case-study-checks.md` exit 0**, and has every
   `defect` been repaired in the document rather than reported? The command settles the record
-  shape — a heading nobody filled in, a third verdict word, a bare `defect`. Whether the verdict is
-  *right* is the one thing it cannot see, and that is what the readings above are.
+  shape, and **the defect table above is the list** — this line used to name three of its rows and
+  went stale the moment #255 added one, which is the shape that table exists to keep out of prose.
+  Whether the verdict is *right* is the one thing it cannot see, and that is what the readings
+  above are.
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
