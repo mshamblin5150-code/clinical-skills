@@ -29,6 +29,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
+import checks_ledger
 import docx_write
 import reference_scan as scan
 
@@ -995,6 +996,142 @@ class TheRulingDoesNotWiden(unittest.TestCase):
         of these two tests whichever answer it took."""
         skill = " ".join(SKILL.read_text(encoding="utf-8").split())
         self.assertIn("Its `--show` output is **safe to paste**", skill)
+
+class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
+    """[#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241),
+    and it is ``TheTwoCopiesOfWhatTheRendererApplies`` one artifact over.
+
+    ``apa7.md`` section 7 carries *what stays a reading* for a reader of the skill and
+    this module carries it for a reader of the code, and until #241 a **prose** edit to
+    either failed nothing -- so the reader who was misled was the one who checked the
+    file nearer to hand. #220's repair is copied whole rather than reinvented: the
+    sheet's copy stopped being a copy by becoming ``NOT_REACHED``, one object, and this
+    asserts the two name the same items in both directions.
+
+    **The rows are read with the renderer's own row splitter**, which is
+    ``docx_write.split_row`` and is what ``reference_scan`` already imports its heading
+    matcher from. A second table parser here would be the copy this class exists to
+    refuse.
+
+    **What it does not reach is whether a row's verdict is true.** An item moved out of
+    ``NOT_REACHED`` while the command still cannot reach it passes every assertion here,
+    and stays a behavior test's job -- ``ARetrievalDateBelongsWhereAPAPutsOne`` is where
+    the section 4 rows are actually exercised.
+    """
+
+    def section_seven(self):
+        text = APA7.read_text(encoding="utf-8")
+        return text[text.index("## 7.") :]
+
+    def first_cells(self, block):
+        """The first cell of every row of the first Markdown table in ``block``."""
+        cells, started = [], False
+        for line in block.splitlines():
+            line = line.strip()
+            if not line.startswith("|"):
+                if started:
+                    break
+                continue
+            # The header row sits above the ``---`` rule and is a column label rather
+            # than an item -- counting it would put the table one ahead forever.
+            if docx_write.is_rule(line):
+                started = True
+                continue
+            first = docx_write.split_row(line)[0]
+            if started and first:
+                cells.append(first.replace("**", ""))
+        return cells
+
+    def rows(self):
+        return self.first_cells(self.section_seven())
+
+    def test_the_table_is_found(self):
+        """The instrument is live: a parser finding nothing would pass every row
+        below, which is ``TheInstrumentIsLive``'s reasoning in
+        ``test_build_artifacts_ignored.py`` and this file's own ``NoBodyRowCanArriveUndeclared``."""
+        self.assertTrue(self.rows())
+
+    def test_every_item_the_module_names_is_a_row_on_the_sheet(self):
+        rows = self.rows()
+        for key, _ in scan.NOT_REACHED:
+            # ``subTest`` because a bare loop stops at the earliest mismatch and reports
+            # one key as though it were the only one -- which it did while this was
+            # being written, and a partial report reads here as a complete one.
+            with self.subTest(key=key):
+                self.assertEqual(len([r for r in rows if key in r]), 1, key)
+
+    def test_the_sheet_names_nothing_the_module_does_not(self):
+        self.assertEqual(len(self.rows()), len(scan.NOT_REACHED))
+
+    def test_every_entry_carries_a_key_and_a_reason(self):
+        """The reason is what a reader of the code reads in place of the old prose."""
+        for key, reason in scan.NOT_REACHED:
+            self.assertTrue(key.strip(), key)
+            self.assertGreater(len(reason.split()), 8, key)
+
+    def test_the_unwarranted_retrieval_date_is_one_of_them(self):
+        """#241's own row, asserted where it is rather than only where it is not.
+
+        This is the item the ticket was filed over, and a sweep that quietly dropped it
+        from ``NOT_REACHED`` while the command still cannot reach it would otherwise
+        leave the pair agreeing about a shorter list.
+        """
+        self.assertIn("unwarranted retrieval date", dict(scan.NOT_REACHED))
+
+
+class TheReadingTheCommandCannotDoIsAGradedCheck(unittest.TestCase):
+    """#241's ruling: the direction stays a reading, and the reading is accountable.
+
+    Option 3 was *rule it closed and say so where it is checked*, which is a prose claim
+    in two files. What makes it more than that is
+    [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240), which
+    landed a grader over ``skills/practicum-case-study/SKILL.md`` step 9's fan-out: the
+    row is in ``checks_ledger.EXPECTED_CHECKS``, so a run that returns no verdict on it
+    fails rather than passing quietly. **This asserts the chain end to end** -- the sheet
+    names the reading, the step names it in the row's reader column, and the grader
+    expects that row by name.
+
+    Rename the row in either file and this fails, which is the one way the arrangement
+    could rot without anybody noticing.
+    """
+
+    ROW = "the reference list, the part no command reaches"
+
+    def test_the_grader_still_expects_the_row_by_name(self):
+        self.assertIn(self.ROW, checks_ledger.EXPECTED_CHECKS)
+
+    def row_line(self):
+        """The ``skills/practicum-case-study/SKILL.md`` step 9 table row, as one physical line.
+
+        A table row is one line in this file, so the row and its reader column are read
+        together and no cell of the row below can satisfy the assertion.
+        """
+        for line in SKILL.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("|") and self.ROW in stripped:
+                return stripped
+        return None
+
+    def test_the_step_names_the_row(self):
+        self.assertIsNotNone(
+            self.row_line(),
+            "skills/practicum-case-study/SKILL.md step 9 no longer carries the row",
+        )
+
+    def test_the_rows_reader_column_names_the_retrieval_direction(self):
+        """The one-line edit #241 is, asserted rather than described.
+
+        Before #241 that column scoped the reading to the UpToDate year and to whether a
+        source exists and says what cites it. The unwarranted retrieval date was named in
+        ``apa7.md`` section 7 and in no step a run walks, so nothing failed when a run
+        never looked.
+        """
+        line = self.row_line()
+        self.assertIsNotNone(
+            line,
+            "skills/practicum-case-study/SKILL.md step 9 no longer carries the row",
+        )
+        self.assertIn("retrieval date", line)
 
 
 if __name__ == "__main__":

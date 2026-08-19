@@ -252,23 +252,34 @@ owns the rules and that command is a second *reader* of it, never a second copy*
 row it applies is written out in [SKILL.md](../SKILL.md) step 7 as well: a harness with no Python
 walks the table by eye and reaches the same verdict.
 
-**§4 is the section it reads most narrowly, and the narrowing is in one direction.** It requires a
-retrieval date on an UpToDate entry, and it refuses one only on an entry carrying a **DOI** — the
-work stating that an archived version of itself exists, which is §4's own test failing. A society
-guideline PDF also takes no retrieval date, and nothing in a URL distinguishes one from a page
-designed to change, so **an unwarranted retrieval date on a guideline or a textbook is a defect this
-sheet names and no command catches.**
+**What stays a reading, and it is a list rather than a paragraph now.** Each row is a rule this
+sheet states that no command grades, so a run walks it by eye — and since
+[#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) the walk is not left to
+memory either: [SKILL.md](../SKILL.md) step 9 names the row `the reference list, the part no command
+reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdict on these fails.
 
-**Two more things it cannot reach, and both are named where they matter rather than assumed away.**
-§2's rule that the UpToDate date element is the topic's **last update** year needs the companion
-evidence document, which the command never sees. And whether an entry is a real source saying what
-the sentence citing it says is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231),
-which is **answered before the draft exists rather than here**: `tools/research_ledger.py` grades the
-year an agent read off the page against the year in the entry, and a refutation a second agent
-returns from trying to knock the citation down. **It needed no network**, which is the opposite of
-what this sentence said when it was written — a fetch reaches UpToDate's login wall and passes on a
-200, which is the silent-pass shape this directory exists to refuse. So neither command sprouts a URL
-fetcher, and not because the work was deferred.
+| What stays a reading | Why no command reaches it |
+| --- | --- |
+| An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only where the entry carries a **DOI** — the work stating an archived version of itself exists, which is §4's own test failing. Nothing in a URL distinguishes a stable PDF from a page designed to change |
+| **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
+| **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
+
+**That table is `reference_scan.NOT_REACHED` and this is not a second copy of it**, which is
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one
+artifact over: the same list sat in this sheet and in the module's docstring, and a **prose** edit
+to either failed nothing, so the reader who was misled was the one who checked the file nearer to
+hand. `tools/test_reference_scan.py` asserts the two name the same items in both directions. **What
+that cannot reach is whether a row's verdict is true** — an item deleted from the table while the
+command still cannot reach it fails, but one moved out while the command gained no row is invisible
+to it, and stays a behavior test's job.
+
+**#241's first row was ruled a reading rather than left open, and the option it declined is worth
+recording.** The proposal was to join each entry to its `tools/research_ledger.py` record and read
+the `SOURCE` class off it. Of the four classes only `peer-reviewed` and `society guideline` map onto
+§4's list without exception: `government` covers a USPSTF statement, which takes no retrieval date,
+and a public-health page designed to change, which takes one, and `tertiary reference` covers
+UpToDate and a textbook, which take opposite answers. A row keyed on either would fail a **correct**
+entry, and a guessed answer here is worse than a blank one.
 
 **This was the third copy of that claim and the one the correction missed.** `reference_scan.py` and
 `CLAUDE.md` were both fixed when #218 and #231 met; a sheet under `skills/` was outside what that
