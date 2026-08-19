@@ -36,9 +36,13 @@ implied, because #223's whole point is that it had never been made.
 | words in the `## Populations` table, 19 rows of verbatim scope wording | **115** |
 | pages in the source guideline | **105** |
 
-Re-derive every one of those from the sheet itself — nothing here is a figure only this
-paragraph holds, which is
-[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143):
+**Every row above is re-derived by a test, and none of them is a figure only this
+paragraph holds** — which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). The first five
+come from the sheet, read through `threshold_sheet.parse` rather than a reader of the
+test's own; **the page count comes from [guidelines-catalog.md](../guidelines-catalog.md)**,
+because the sheet does not carry it and a remembered page count is exactly the sort of
+figure that goes stale:
 
 ```bash
 python -m unittest test_threshold_sheet -k Quoting   # run from tools/

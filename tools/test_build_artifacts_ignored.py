@@ -11,17 +11,28 @@ what re-priced #176's *"Not urgent"*.
 **This is the second net and not a replacement for the guards.** A guard refuses
 the write; this only stops the result being committed if one is missed.
 
-The artifact names are **derived from the tools' own defaults** rather than typed
-here, on ``test_ci_workflow.py``'s reasoning: a list of names copied into a test
-goes stale the first time a default moves, and reads as coverage while it does.
+Two of the three artifact names are **derived from the tools' own defaults**
+rather than typed here, on ``test_ci_workflow.py``'s reasoning: a list of names
+copied into a test goes stale the first time a default moves, and reads as
+coverage while it does. **The third is typed, and it is the weak one** --
+``guidelines_recs.py`` has no default ``--json`` path to derive from, so
+``recs-<stem>.json`` is read off ``threshold_sheet.py``'s tier-2 lookup by a human
+and restated below. A rename there would leave this passing.
 
 **Every query is a file path and never a directory with a trailing slash**, and
 ``TheInstrumentIsLive`` is why. Asked about ``tools/``, ``git check-ignore``
-answers *ignored* and cites the blank line 29 -- so the first version of this file
+answers *ignored* and cites a blank line -- so the first version of this file
 passed three of its four assertions against a check that says yes to everything.
 That is this repo's recurring shape with the sign flipped: not a search that could
 not have worked answering like a settled negative, but one answering like a
 settled positive.
+
+**Which blank line is deliberately not named here.** The first draft said line 29,
+and the ``.gitignore`` block this same commit adds pushed it to 33 -- a figure
+stale inside the commit that wrote it, which is [#143] happening in the paragraph
+warning about it. The durable claim is that a trailing-slash query matches
+something and a file path does not, and ``TheInstrumentIsLive`` asserts that
+rather than restating it.
 """
 
 from __future__ import annotations
@@ -62,9 +73,21 @@ class TheInstrumentIsLive(unittest.TestCase):
     def test_a_tracked_directorys_contents_are_not_ignored(self) -> None:
         self.assertFalse(_check_ignore("tools/guidelines_extract.py"))
 
-    def test_a_rule_that_is_really_there_does_fire(self) -> None:
-        """Standing rule 1's own line, so a broken query cannot read as a pass."""
-        self.assertTrue(_check_ignore("scratch/day-file-text/anything.md"))
+    def test_the_phi_firewall_lines_do_fire(self) -> None:
+        """Standing rule 1's own lines, so a broken query cannot read as a pass.
+
+        All four, because the firewall is what a wrong answer here would hide, and
+        because a claim about it elsewhere should rest on an assertion rather than
+        on one of the four being spot-checked.
+        """
+        for path in (
+            "scratch/day-file-text/anything.md",
+            "output/a-finished-note.md",
+            "cases/anything.md",
+            "patients/anything.md",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(_check_ignore(path))
 
 
 class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
