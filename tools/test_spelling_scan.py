@@ -34,8 +34,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 
 # day-b run 1, byte for byte. Issue #73.
-RECORD_FORMS = 9
-RECORD_OCCURRENCES = 22
+RECORD_FORMS = 10
+RECORD_OCCURRENCES = 25
 RECORD_NOTES = 7
 
 
@@ -231,18 +231,25 @@ class TheRunRecord(unittest.TestCase):
         self.assertEqual(evidence.occurrences, RECORD_OCCURRENCES)
         self.assertEqual(len(evidence.files), RECORD_NOTES)
 
-    def test_the_nine_forms_are_the_ones_the_ticket_names(self):
-        # **Eight until 2026-08-18, and the ninth is the pin working.** The run
+    def test_the_ten_forms_are_the_ones_the_ticket_names(self):
+        # **Eight until 2026-08-18, then nine, then ten within the hour.** The run
         # record has not changed and cannot -- it is a byte-for-byte record of
         # what a run produced. What changed is the *table*: ``neighbour`` was
         # never a listed form, so two occurrences of it sat in these notes
         # unseen and uncounted, and adding the form to ``FORMS`` is what made
         # them visible. #73's evidence set got larger without the evidence
         # moving, which is the distinction this class exists to hold.
+        #
+        # **``judgement`` is the tenth and it was named in the repo's own docs
+        # the whole time.** ``docs/agents/issue-tracker.md`` lists it beside
+        # ``neighbouring`` as a British form the table does not hold -- written
+        # to warn about ticket text, while three occurrences sat in these
+        # committed notes. **A form documented as invisible is still invisible**,
+        # and naming one in prose is not the same as adding it to the table.
         self.assertEqual(
             sorted(self.report.evidence.forms),
-            ["behaviour", "caesarean", "dyspnoea", "fibre", "grey", "labelled",
-             "neighbour", "programme", "recognisable"],
+            ["behaviour", "caesarean", "dyspnoea", "fibre", "grey", "judgement",
+             "labelled", "neighbour", "programme", "recognisable"],
         )
 
     def test_no_tracked_markdown_uses_a_british_spelling(self):

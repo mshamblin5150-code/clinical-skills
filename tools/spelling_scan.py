@@ -104,6 +104,7 @@ TABLE = {
     "programme": "program",
     "licence": "license",
     "neighbour": "neighbor",
+    "judgement": "judgment",
 }
 
 # Inflections whose stem changes, so the suffix rule below cannot reach them from

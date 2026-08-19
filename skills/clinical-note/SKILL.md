@@ -861,7 +861,7 @@ It binds both branches, which is why it lives here rather than in either templat
 | `millilitre`, `centimetre`, `litre`, `fibre` | `milliliter`, `centimeter`, `liter`, `fiber` |
 | `grey`, `behaviour`, `colour`, `tumour`, `favour` | `gray`, `behavior`, `color`, `tumor`, `favor` |
 | `labelled`, `recognisable`, `programme`, `licence` | `labeled`, `recognizable`, `program`, `license` |
-| `neighbour` | `neighbor` |
+| `neighbour`, `judgement` | `neighbor`, `judgment` |
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not `paracetamol`, `epinephrine` not `adrenaline`, `albuterol` not `salbutamol`, `ferrous sulfate` not `ferrous sulphate`. A clinician reading the other name has to translate it before they can check the dose.
 
@@ -873,7 +873,11 @@ It binds both branches, which is why it lives here rather than in either templat
 
 **The fourteenth is `neighbour`, added 2026-08-18, and how it was found is the reusable part.** It sat in [GLOSSARY.md](GLOSSARY.md), in the sentence `the tell is the neighbouring word`, in a file this repo wrote, while the same repo writes `neighboring` correctly ten times in this one. **`spelling_scan.py --all` reported clean on every run, because the table did not hold the form**, which is the tool's own stated limit arriving as a real miss: *it holds the table rather than the language, so a clean scan means no listed form was used.* It was caught by eye during unrelated work, not by the scanner. **And the backticks in the sentence above are load-bearing** — this paragraph quoted the defect in italics first and the scanner failed the build, correctly: a form in running prose is a use however clearly the sentence around it is about the form. That is `spelling_scan.py`'s mention-versus-use rule working on the paragraph that documents it.
 
-**Adding it moved the preserved run record's figures without the record moving**, and the two facts have to be kept apart. `--record` now reads **9 forms, 22 occurrences, 7 of the twelve** notes, where it read 8, 20 and 6 — the extra being `neighbour` in `case-04` and `case-07`, which have been sitting there since the run and were invisible for the same reason. **The run produced exactly what it always produced; the instrument got one form better.** `tools/test_spelling_scan.py` pins all three figures, which is why the change announced itself rather than passing quietly.
+**Adding it moved the preserved run record's figures without the record moving**, and the two facts have to be kept apart. **The run produced exactly what it always produced; the instrument got better.** `tools/test_spelling_scan.py` pins all three figures, which is why each change announced itself rather than passing quietly.
+
+**The fifteenth is `judgement`, added the same day, and it was named in this repo's own documentation the whole time.** [docs/agents/issue-tracker.md](../../docs/agents/issue-tracker.md) lists it beside `neighbouring` as a British form the table does not hold — written to warn about **ticket text**, which nothing scans. **Both were also sitting in the committed run record**, which that sentence did not say and nobody checked: `judgement` three times in `case-07` and `case-08`. **Naming a form in prose is not adding it to the table**, and a form documented as invisible is still invisible.
+
+**So the record's figures moved twice in one session**, 8 forms / 20 occurrences / 6 notes, then 9 / 22 / 7, then **10 / 25 / 7** — `case-07` and `case-08` were already in the set, so the tenth form added occurrences without adding a note. Re-derive with `python tools/spelling_scan.py --record` rather than quoting this sentence; that is the whole reason the command prints the breakdown.
 
 **That run wrote both spellings of most of them**, which is what makes the record evidence of drift rather than of a register: `cesarean` eight times against `caesarean` twice, `dyspnea` seven against `dyspnoea` three, `program` nine against `programme` twice, `fiber` three against `fibre` four. **Nobody reading one note would see it** — the same shape as [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67), and the same reason twelve outputs had to be put in front of one reader.
 
