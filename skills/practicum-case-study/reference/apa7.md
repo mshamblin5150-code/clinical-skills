@@ -143,10 +143,11 @@ and the references of a meta-analysis.
 
 ## 6. What the renderer applies, and what it does not
 
-`tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies most of
-§1 now**, and what it does not is written down rather than assumed away:
+`tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies the
+whole of §1 now**, plus the two rules from elsewhere in the manual that a renderer can reach, and
+what it does not is written down rather than assumed away:
 
-| §1 rule | `docx_write.py` |
+| APA rule | `docx_write.py` |
 | --- | --- |
 | Times New Roman 12 pt, double spaced, 1 inch margins | applied |
 | 0.5 inch hanging indent on the whole reference list | applied |
@@ -157,6 +158,23 @@ and the references of a meta-analysis.
 | Reference list **starts on a new page** | applied |
 | **Page numbers**, top right of every page | applied |
 | The singular **`Reference`** heading gets the hanging indent | applied |
+| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none |
+| A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row |
+
+**The last two rows are [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220),
+landed 2026-08-19, and they were measured the same way the nine above them were** — a document
+rendered and its `word/document.xml` and `word/styles.xml` read, not the renderer's source. What
+that read: exactly one paragraph of a document carrying a heading, a body paragraph, two list
+items, a three-column table and a reference entry took `w:ind w:firstLine`, and it was the body
+one; the table's `tblBorders` came back `single` on top and bottom and `none` on all four of
+`left`, `right`, `insideH` and `insideV`, with the rule under the header set on that row's cells,
+where `insideH` would have drawn it between every pair of body rows as well.
+
+**The table row was a decision rather than a fix**, on the same footing as the heading-size row
+below, and the clinician ruled it on 2026-08-19: **horizontal rules unconditionally**, not a
+switch. An APA table is not the only kind of table a Markdown document can hold, but the only
+consumer of this renderer is an APA document — and a parameter no caller passes is a branch
+nothing honestly tests.
 
 **Every row above was measured by rendering a document and reading `word/document.xml`,
 `word/styles.xml` and `word/header1.xml` — not inferred from the source.** 2026-08-18, on
@@ -183,19 +201,27 @@ level 3 bold italic flush left, level 4 bold indented.
 | APA rule | `docx_write.py` |
 | --- | --- |
 | A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown |
-| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | **not applied** |
-| A table carries **horizontal rules only**, no grid (§7.8) | **not applied** — a full grid is drawn |
 | APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset |
 
-The two mechanical ones are
-[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220). The other two are
-statements about what Markdown and this skill's inputs can express, and are recorded rather than
-filed.
+**Both of what is left is a statement about what Markdown and this skill's inputs can express**,
+rather than a fix somebody has not got to — which is what #220 closing leaves. The title page is a
+`practicum-case-study` question about where six course values come from before it is a renderer
+question, and it is recorded here rather than filed.
+
+**This table is no longer a second copy of a list, and that is #220's other half.** The same list
+sat in `tools/docx_write.py`'s docstring, and a **prose** edit to either failed nothing — a code
+regression fails a behavior test, so the direction that was uncovered was the one where the two
+files quietly disagree and the reader who is misled is the one who checked the file nearer to hand.
+It is `docx_write.NOT_APPLIED` now, one object, on `REFERENCE_HEADING`'s precedent, and
+`tools/test_docx.py` asserts this table names the same items in both directions. **What that
+cannot reach is whether a row's verdict is true** — a row moved into the *applied* table above
+while the renderer still does not apply it is invisible to it, and stays a behavior test's job.
 
 **None of these is worth more than a point, and they are still real.**
 **A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
-sentence arriving one level down — and it is no less true now that four more rows are green, because
-what a renderer cannot check is whether the entry it indented so carefully is a real source.
+sentence arriving one level down — and it is no less true for the rows that went green above,
+because what a renderer cannot check is whether the entry it indented so carefully is a real
+source.
 
 ---
 

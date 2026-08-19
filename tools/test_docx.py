@@ -291,6 +291,190 @@ class TheHomoglyphFold(unittest.TestCase):
             self.assertNotEqual(key, value)
 
 
+class TheBodyFirstLineIndent(unittest.TestCase):
+    """APA 7 section 2.24 -- every body paragraph, and only a body paragraph.
+
+    The rule has three carve-outs and each one is a separate branch of ``body_xml``:
+    a heading takes none, a reference entry takes the *hanging* indent instead and a
+    first line would cancel it, and a table cell is not a body paragraph at all. A
+    list item is a fourth, because Word draws its indent from the numbering part.
+    """
+
+    def test_a_plain_paragraph_takes_the_half_inch_first_line(self):
+        xml = docx_write.body_xml("She is 16 weeks pregnant.\n")
+        self.assertIn('<w:ind w:firstLine="{f}"/>'.format(f=docx_write.FIRST_LINE), xml)
+
+    def test_the_indent_is_half_an_inch(self):
+        self.assertEqual(docx_write.FIRST_LINE, 720)
+
+    def test_a_heading_takes_none(self):
+        xml = docx_write.body_xml("# Assessment\n")
+        self.assertNotIn("w:firstLine", xml)
+
+    def test_a_reference_entry_takes_none(self):
+        """The ``Reference`` style already sets ``w:ind``; a first line would cancel it."""
+        xml = docx_write.body_xml("# References\n\nRoss, J. (2025). Pelvic disease.\n")
+        self.assertIn('<w:pStyle w:val="Reference"/>', xml)
+        self.assertNotIn("w:firstLine", xml)
+
+    def test_a_list_item_takes_none(self):
+        """Word draws a list item's indent from ``numbering.xml``."""
+        for markdown in ("- Order NAAT\n", "1. Order NAAT\n"):
+            xml = docx_write.body_xml(markdown)
+            self.assertIn('<w:pStyle w:val="ListParagraph"/>', xml, markdown)
+            self.assertNotIn("w:firstLine", xml, markdown)
+
+    def test_a_table_cell_takes_none(self):
+        xml = docx_write.body_xml("| Drug | Dose |\n| --- | --- |\n| Rocephin | 500 mg |\n")
+        self.assertNotIn("w:firstLine", xml)
+
+    def test_the_indent_is_written_before_the_alignment(self):
+        """``CT_PPrBase`` is a sequence: ``numPr``, then ``ind``, then ``jc``.
+
+        No branch of ``body_xml`` asks for all three today, which is exactly why this
+        drives ``para`` directly -- the order is a guarantee of the constructor rather
+        than an accident of which callers happen to exist.
+        """
+        xml = docx_write.para("x", num_id=1, first_line=True, align="center")
+        seen = [xml.index(tag) for tag in ("<w:numPr>", "<w:ind ", "<w:jc ")]
+        self.assertEqual(seen, sorted(seen))
+
+
+class TheTableRules(unittest.TestCase):
+    """APA 7 section 7.8 -- horizontal rules only, and never a vertical one.
+
+    Three rules and no more: above the header, below the header, below the last row.
+    A full grid is what this drew until #220, and the clinician ruled it unconditional
+    on 2026-08-19 rather than switchable, because the only consumer of this renderer
+    is an APA document.
+    """
+
+    ROWS = "| Drug | Dose |\n| --- | --- |\n| Rocephin | 500 mg |\n| Doxycycline | 100 mg |\n"
+
+    def table(self):
+        return docx_write.body_xml(self.ROWS)
+
+    def test_no_vertical_rule_is_drawn_anywhere(self):
+        xml = self.table()
+        for edge in ("insideV", "left", "right"):
+            self.assertNotIn('<w:{e} w:val="single"'.format(e=edge), xml, edge)
+
+    def test_the_table_is_closed_top_and_bottom(self):
+        xml = self.table()
+        self.assertIn('<w:top w:val="single"', xml)
+        self.assertIn('<w:bottom w:val="single"', xml)
+
+    def test_no_rule_runs_between_the_body_rows(self):
+        xml = self.table()
+        self.assertNotIn('<w:insideH w:val="single"', xml)
+
+    def test_the_header_row_carries_a_rule_beneath_it(self):
+        """The one rule that is not a table edge, so it is set on the header's cells."""
+        xml = self.table()
+        header = xml[: xml.index("Rocephin")]
+        self.assertIn("<w:tcBorders>", header)
+        self.assertIn('<w:bottom w:val="single"', header.rsplit("<w:tcBorders>", 1)[-1])
+
+    def test_no_body_cell_carries_a_rule(self):
+        xml = self.table()
+        body = xml[xml.index("Rocephin") :]
+        self.assertNotIn("<w:tcBorders>", body)
+
+    def test_the_cell_properties_are_in_schema_order(self):
+        """``CT_TcPrBase`` is a sequence: ``tcW`` before ``tcBorders``."""
+        cell = self.table()
+        cell = cell[cell.index("<w:tc>") :]
+        self.assertLess(cell.index("<w:tcW "), cell.index("<w:tcBorders>"))
+
+    def test_the_table_style_draws_no_grid_either(self):
+        """``BORDERS`` overrides the style, so a grid left in it is a latent grid."""
+        style = docx_write.STYLES[docx_write.STYLES.index('w:type="table"') :]
+        for edge in ("insideV", "insideH", "left", "right"):
+            self.assertNotIn('<w:{e} w:val="single"'.format(e=edge), style, edge)
+
+    def test_the_style_is_not_called_table_grid_any_more(self):
+        """A style named ``Table Grid`` that draws no grid is a lie inside the file."""
+        self.assertNotIn("TableGrid", docx_write.STYLES)
+        self.assertNotIn("TableGrid", self.table())
+
+    def test_the_table_still_names_the_style_it_ships(self):
+        declared = re.search(r'w:type="table" w:styleId="([^"]+)"', docx_write.STYLES).group(1)
+        self.assertIn('<w:tblStyle w:val="{s}"/>'.format(s=declared), self.table())
+
+    def test_a_header_only_table_is_still_closed(self):
+        xml = docx_write.body_xml("| Drug | Dose |\n| --- | --- |\n")
+        self.assertIn('<w:top w:val="single"', xml)
+        self.assertIn('<w:bottom w:val="single"', xml)
+
+
+class TheTwoCopiesOfWhatIsNotApplied(unittest.TestCase):
+    """#220's own comment: the list lives in two files and nothing pinned them together.
+
+    ``apa7.md`` section 6 carries it for a reader of the skill and ``docx_write.py``
+    carries it for a reader of the code, and a **prose** edit to either failed nothing
+    -- so the reader who was misled is the one who checked the file nearer to hand.
+    The repair is ``REFERENCE_HEADING``'s: the docstring's copy stopped being a copy by
+    becoming ``NOT_APPLIED``, one object, and this asserts the sheet names the same
+    items.
+
+    **What it does not reach** is whether a row's verdict is *true*. A row that moved to
+    the sheet's *applied* table while the renderer still does not apply it is invisible
+    here, and stays a behavior test's job -- ``TheBodyFirstLineIndent`` and
+    ``TheTableRules`` are the two this ticket added.
+    """
+
+    SHEET = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+    def rows(self):
+        """The first cell of every row of section 6's *what is still not applied* table."""
+        text = (self.SHEET / "reference" / "apa7.md").read_text(encoding="utf-8")
+        section = text[text.index("## 6.") :]
+        section = section[section.index("still not applied") :]
+        cells, started = [], False
+        for line in section.splitlines():
+            line = line.strip()
+            if not line.startswith("|"):
+                if started:
+                    break
+                continue
+            # The header row is above the ``---`` rule and is a column label rather
+            # than an item -- counting it would put the table one ahead forever.
+            if docx_write.is_rule(line):
+                started = True
+                continue
+            first = docx_write.split_row(line)[0]
+            if started and first:
+                cells.append(first.replace("**", ""))
+        return cells
+
+    def test_the_sheet_really_has_that_table(self):
+        """The instrument is live: a parser finding nothing would pass every row below."""
+        self.assertTrue(self.rows())
+
+    def test_every_item_the_module_names_is_a_row_on_the_sheet(self):
+        rows = self.rows()
+        for key, _ in docx_write.NOT_APPLIED:
+            matched = [row for row in rows if key in row]
+            self.assertEqual(len(matched), 1, key)
+
+    def test_the_sheet_names_nothing_the_module_does_not(self):
+        self.assertEqual(len(self.rows()), len(docx_write.NOT_APPLIED))
+
+    def test_every_entry_carries_a_key_and_a_reason(self):
+        """The reason is what a reader of the code reads in place of the old prose."""
+        for key, reason in docx_write.NOT_APPLIED:
+            self.assertTrue(key.strip(), key)
+            self.assertGreater(len(reason.split()), 8, key)
+
+    def test_the_two_rows_this_ticket_applied_are_named_by_neither(self):
+        """#220's rows moved to the *applied* table, so they may not sit in either copy."""
+        rows = " ".join(self.rows()).lower()
+        keys = " ".join(key for key, _ in docx_write.NOT_APPLIED).lower()
+        for gone in ("first-line indent", "horizontal rules"):
+            self.assertNotIn(gone, rows, gone)
+            self.assertNotIn(gone, keys, gone)
+
+
 class NotHavingRead(unittest.TestCase):
     """Exit 2 is every way of not having read, on ``guidelines_search.py``'s convention."""
 
