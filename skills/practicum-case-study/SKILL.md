@@ -747,10 +747,12 @@ tell the difference.
 **They return their record; they do not write it.** One writer to the checks file, and it is the
 context that spawned them, filling each heading in as its verdict comes back — step 3's rule and
 [#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s, arriving at the second
-fan-out. **N readers appending to one Markdown file lose records to each other**, and this file has
-no grader in front of it, so a lost verdict is caught by the eye-walk below or not at all. Where the
-harness returns nothing usable, write one file per check and concatenate; what is not allowed is two
-writers on one file.
+fan-out. **N readers appending to one Markdown file lose records to each other**, and since
+[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) the grader below catches
+one that landed on top of another — two records under one check, where the file can hold one
+answer. What it cannot catch is a write that landed on nothing, so the ordering rule above is still
+what makes a lost verdict visible. Where the harness returns nothing usable, write one file per
+check and concatenate; what is not allowed is two writers on one file.
 
 **One record per check**, filled in under its heading:
 
@@ -774,7 +776,7 @@ be several of them at once:
 | two records under one check | two verdicts and nothing says which was meant — the shape a second writer leaves |
 | a heading with no `VERDICT` under it | a reader that never returned, and the field every rule below it needs |
 | a `VERDICT` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
-| a `defect` with nothing said about what and where | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it |
+| a `defect` with no `FINDINGS` under it, or an empty one | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it. The field and not just the words — a reason typed after the keyword says the same thing where nobody looking for it will look |
 
 **One shape is deliberately not on that list.** A `clean` verdict with no findings under it is what a
 check that ran and found nothing writes, and it is also what a check that reported nothing writes —

@@ -179,6 +179,14 @@ class TwoRecordsForOneCheckIsAWriteThatLandedTwice(unittest.TestCase):
         found = list(checks.survey(checks.read_records(text)).findings)
         self.assertEqual(len(found), 1)
 
+    def test_every_finding_of_a_triple_names_the_same_total(self):
+        """An earlier draft decremented as it went, so the second finding of a
+        triple read ``2 records`` -- a count that was false about the file, in the
+        one output a reader is told to trust."""
+        one = "## CHECK: MDM completeness\nVERDICT: clean\n"
+        found = checks.survey(checks.read_records(whole_file() + "\n" + one + "\n" + one)).findings
+        self.assertEqual([f.detail for f in found], ["3 records", "3 records"])
+
     def test_a_repeat_outside_the_table_is_still_two_verdicts(self):
         extra = "## CHECK: the voice model\nVERDICT: clean\n"
         text = whole_file() + "\n" + extra + "\n" + extra
@@ -238,7 +246,30 @@ class AVerdictIsOneOfTwoWords(unittest.TestCase):
 
     def test_both_declared_words_pass(self):
         self.assertEqual(self.a_verdict("clean"), [])
-        self.assertEqual(self.a_verdict("defect - the third entry names no discriminator"), [])
+        self.assertEqual(
+            kinds(
+                whole_file().replace(
+                    "## CHECK: MDM completeness\nVERDICT: clean\n",
+                    "## CHECK: MDM completeness\nVERDICT: defect\nFINDINGS: entry 3 names none\n",
+                )
+            ),
+            [],
+        )
+
+    def test_a_prefix_of_a_declared_word_is_not_that_word(self):
+        """``startswith`` alone is what the sibling matches on, and it is not safe
+        for these two words. Every one of these reported nothing, or reported the
+        wrong thing, before the boundary went in."""
+        self.assertEqual(self.a_verdict("cleanish"), [checks.UNKNOWN_VERDICT])
+        self.assertEqual(self.a_verdict("cleanly not run"), [checks.UNKNOWN_VERDICT])
+        self.assertEqual(self.a_verdict("defect-free"), [checks.UNKNOWN_VERDICT])
+        self.assertEqual(self.a_verdict("defective reasoning throughout"), [checks.UNKNOWN_VERDICT])
+
+    def test_the_boundary_is_not_a_space_only(self):
+        """A hyphen, a colon or a comma after the keyword is an ordinary form and
+        none of them is a letter."""
+        self.assertEqual(self.a_verdict("clean: every entry carries a citation"), [])
+        self.assertEqual(self.a_verdict("clean, checked twice"), [])
 
     def test_a_third_word_is_a_finding(self):
         self.assertEqual(self.a_verdict("mostly fine"), [checks.UNKNOWN_VERDICT])
@@ -274,14 +305,16 @@ class ADefectSaysWhatAndWhere(unittest.TestCase):
     def test_a_findings_field_with_substance_passes(self):
         self.assertEqual(self.a_defect("entry 2 names no discriminator"), [])
 
-    def test_the_reason_may_sit_on_the_verdict_line_instead(self):
-        """The vocabulary is a keyword with a remainder after it, so a defect that
-        says what and where on its own line has not withheld anything."""
+    def test_a_reason_on_the_verdict_line_is_not_the_findings_field(self):
+        """**#240 asks for `FINDINGS` with substance and an earlier draft here read
+        it looser**, accepting a reason typed after the keyword. It says the same
+        thing somewhere the record shape does not put it, so a reader looking for
+        the finding has nowhere fixed to look."""
         text = whole_file().replace(
             "## CHECK: MDM completeness\nVERDICT: clean\n",
             "## CHECK: MDM completeness\nVERDICT: defect - entry 2 names no discriminator\n",
         )
-        self.assertEqual(kinds(text), [])
+        self.assertEqual(kinds(text), [checks.DEFECT_WITHOUT_FINDINGS])
 
     def test_a_clean_check_is_not_asked_for_findings(self):
         """**Named in #240 and deliberately not a row.** A check that ran and
@@ -442,7 +475,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.DUPLICATE_CHECK: "two records under one check",
         checks.MISSING_VERDICT: "a heading with no `VERDICT`",
         checks.UNKNOWN_VERDICT: "a `VERDICT` that is neither word",
-        checks.DEFECT_WITHOUT_FINDINGS: "a `defect` with nothing said about what and where",
+        checks.DEFECT_WITHOUT_FINDINGS: "a `defect` with no `FINDINGS` under it",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
