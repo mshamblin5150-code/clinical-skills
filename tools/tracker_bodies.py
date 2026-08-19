@@ -1,11 +1,19 @@
 """Grade a tracker harvest for bodies that were lost at filing time.
 
-[#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130). Eight
-records in this repo carry a body that is the literal two characters ``@-`` --
-what ``gh`` writes when a heredoc collapses, or when ``gh api -f body=@-`` is
-typed for ``-F``. **`gh` exits 0 every time.** The ticket is created, labeled
+[#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130). Records
+in this repo carry a body that is the literal two characters ``@-`` -- what
+``gh`` writes when a heredoc collapses, or when ``gh api -f body=@-`` is typed
+for ``-F``. **`gh` exits 0 every time.** The ticket is created, labeled
 correctly, and looks fine in ``gh issue list``; nothing in the loop can tell a
 successful write of the wrong thing from a successful write of the right thing.
+
+**How many there are is what this command prints, and it was eight on
+2026-08-19.** The figure is dated wherever it is written rather than stated flat,
+because the harvest it is counted from is gitignored, nothing committed
+re-derives it, and a ninth arriving moves it -- which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). Two
+other files carry it and both do so as the *denominator* of the finding below,
+where dropping it would cost the finding its meaning.
 
 **Decision 2 of that ticket was answered in prose four days before it was
 asked** -- ``docs/agents/issue-tracker.md`` has carried both ``--body-file -``
@@ -23,7 +31,14 @@ Harvest first, then scan::
         > scratch/tracker-issues.json
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\
         > scratch/tracker-comments.json
+    gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" \\
+        > scratch/tracker-reviews.json
     python tools/tracker_bodies.py scratch/tracker-*.json
+
+**Three surfaces, which is `tracker_scan.py`'s set and not a subset of it.** The
+review-comment endpoint is the one easiest to leave out, and it carries bodies
+like any other. It holds no lost body today; a harvest that omitted it would
+report that as a clean scan of it rather than as not having read it.
 
 **It opens no socket**, which is `tracker_scan.py`'s ruling adopted whole and
 `research_ledger.py`'s before it: the fetch is a documented ``gh`` command whose
@@ -35,13 +50,16 @@ tracker's entire text, and ``scratch/`` is the PHI firewall's own directory.
 
 **The ``issues`` REST payload and never ``gh issue list``, which is the ticket's
 own finding rather than a preference.** That command excludes pull requests. Two
-of the eight lost bodies are pull requests -- #98 and #71 -- so **every sweep
-that ran #130's own reproduce command re-derived *six, not eight* and concluded
-the title was stale.** The title was right; the instrument could not see two of
-its members, and it said six with no way to know it. That is this repo's
-recurring shape once more: a search that could not have worked, answering like a
-settled negative. The REST endpoint returns both, and a ``pull_request`` key is
-which.
+of the eight it found on 2026-08-19 are pull requests -- #98 and #71 -- so
+**every sweep that ran #130's own reproduce command re-derived *six, not eight*
+and concluded
+the title was stale.** Its **count** was right -- the *three are still open*
+half
+really had gone stale, which is what made the whole title easy to dismiss -- and
+the instrument could not see two of its members, and said six with no way to
+know it. That is this repo's recurring shape once more: a search that could not
+have worked, answering like a settled negative. The REST endpoint returns both,
+and a ``pull_request`` key is which.
 
 **`tracker_scan.records_from_github` cannot be reused, and the reason is
 exact:** it drops a body that is empty or whitespace -- correct for a PHI scan,
@@ -72,16 +90,34 @@ driving a marker through every aperture rather than argued.
 - **A record edited to remove its body after filing** reads identically to one
   that never had one.
 
+**It is also the read-back, and ``-`` is how.** ``records_from_github`` takes a
+single JSON object as well as a list, so ``gh issue view <n> --json
+number,body,url | python tools/tracker_bodies.py -`` grades one record the
+moment it is filed -- which catches what ``--jq '.body | length'`` does not,
+since a lost body has a length of 2 and reads as a number rather than as a
+failure.
+
+**Nothing runs any of this, and that limit is declared rather than left to be
+found.** #130's decision 2 asked whether the documented step is enough or needs
+enforcing, and comment 16 grounded it: *nothing mechanical checks a body*, and
+``tools/hooks/`` holds only ``pre-commit``. **That sentence is still true.** A
+hook cannot help -- a commit is not a filing, and the tracker is not in the tree
+-- so this narrows the gap to *a check exists and somebody has to run it* and
+does not close it. **A command nobody runs is a written instruction with extra
+steps**, which is #214's own thesis pointed back at this module.
+
 **A clean scan is not a body worth reading**, ``docs/agents/issue-tracker.md``
 says so beside the command, and a test asserts that sentence is still there.
 
 Exit status distinguishes not having scanned from having found nothing -- 0
 clean, 1 for a lost body, **2 for every way of not having scanned**: no
-argument, a harvest file absent or unreadable, a payload that is neither a JSON
-list nor a JSON object, and **no record in any file read**. That last limb is
-the one that matters and it is `differential_scan.py`'s reasoning: an empty
-payload would otherwise report zero lost bodies and read exactly like a tracker
-that has none.
+argument, **an argument this module does not have**, a harvest file absent or
+unreadable, a payload that is neither a JSON list nor a JSON object, and **no
+record in any file read**. That last limb is the one that matters and it is
+`differential_scan.py`'s reasoning: an empty payload would otherwise report zero
+lost bodies and read exactly like a tracker that has none. **One unreadable file
+among several is a 2 and not a partial scan**, which is the same rule one level
+up.
 """
 
 from __future__ import annotations
@@ -128,8 +164,13 @@ ROW_TICKET = {
     LITERAL_AT_PATH: "#130",
 }
 
-# Wide enough for the longest kind, so the count column stays a column.
+# Wide enough for the longest kind and the longest surface, so both stay
+# columns. ``research_ledger.py`` learned this the hard way: a row one
+# character over the pad went ragged in the one output meant to be pasted.
 KIND_COLUMN = 18
+SURFACE_COLUMN = 13
+# The report's own label column, wide enough for the longest surface plural.
+COUNT_COLUMN = 29
 
 # The exact two characters, and nothing that merely contains them. A body
 # *about* the trap quotes it by nature -- this module's own docstring does -- so
@@ -149,9 +190,9 @@ LONE_AT_TOKEN = re.compile(r"\A@\S+\Z")
 class Record(NamedTuple):
     """One tracker record's body, with a label a reader can open."""
 
-    source: str
+    harvest: str
     label: str
-    record_kind: str
+    surface: str
     body: str | None
 
 
@@ -160,7 +201,7 @@ class Finding(NamedTuple):
 
     kind: str
     label: str
-    record_kind: str
+    surface: str
 
 
 class Scan(NamedTuple):
@@ -201,9 +242,9 @@ def records_from_github(data: object, source: str) -> list[Record]:
             continue
         body = item.get("body")
         records.append(Record(
-            source=source,
+            harvest=source,
             label=_label(item, source),
-            record_kind=_surface(item),
+            surface=_surface(item),
             body=body if isinstance(body, str) else None,
         ))
     return records
@@ -236,6 +277,28 @@ def _label(item: dict, source: str) -> str:
     return f"{source}#{number}" if number else source
 
 
+STDIN = "-"
+
+
+def read_stdin(stream=None) -> list[Record]:
+    """The read-back limb: one record piped straight from ``gh issue view``.
+
+    **``-`` and never a path to a device.** The documented form was
+    ``/dev/stdin``, which does not exist on the platform every commit here is
+    made from -- ``Path('/dev/stdin').is_file()`` is ``False``, so the module
+    answered *no harvest file named dev/stdin* and exited 2. A documented
+    command that cannot run is worse than none, because it reads as a checked
+    one; caught by review before it merged, and it is why this is a named
+    argument rather than a path the caller has to spell.
+    """
+    raw = (stream if stream is not None else sys.stdin).read()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise HarvestError(f"standard input: {error.msg}") from error
+    return records_from_github(data, "standard input")
+
+
 def load_harvest(paths: Sequence[Path]) -> list[Record]:
     """Every record across every file.
 
@@ -246,13 +309,21 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
     records: list[Record] = []
     for path in paths:
         try:
-            raw = path.read_text(encoding="utf-8")
+            # ``errors="replace"`` is #150's rule at the input end of the same
+            # boundary, and it is load-bearing rather than tidy here.
+            # ``UnicodeDecodeError`` is a ``ValueError`` and not an ``OSError``,
+            # so a bare read let it escape ``main`` -- and a traceback exits
+            # **1**, which this module's contract reads as *a lost body found*.
+            # A replaced byte fails ``json.loads`` instead, which is a 2.
+            raw = path.read_text(encoding="utf-8", errors="replace")
         except OSError as error:
-            raise HarvestError(f"{path.name}: {error}") from error
+            # ``strerror`` and not ``str(error)``: the latter carries the full
+            # path, and a harvest sits under ``scratch/``.
+            raise HarvestError(f"{path.name}: {error.strerror or 'unreadable'}") from error
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as error:
-            raise HarvestError(f"{path.name}: {error}") from error
+            raise HarvestError(f"{path.name}: {error.msg}") from error
         records.extend(records_from_github(data, path.name))
     return records
 
@@ -276,11 +347,11 @@ def grade(records: Sequence[Record]) -> list[Finding]:
     for record in records:
         text = (record.body or "").strip()
         if text == AT_DASH:
-            found.append(Finding(LOST_AT_DASH, record.label, record.record_kind))
+            found.append(Finding(LOST_AT_DASH, record.label, record.surface))
         elif not text:
-            found.append(Finding(EMPTY_BODY, record.label, record.record_kind))
+            found.append(Finding(EMPTY_BODY, record.label, record.surface))
         elif LONE_AT_TOKEN.match(text):
-            found.append(Finding(LITERAL_AT_PATH, record.label, record.record_kind))
+            found.append(Finding(LITERAL_AT_PATH, record.label, record.surface))
     return found
 
 
@@ -289,7 +360,7 @@ def survey(records: Sequence[Record]) -> Scan:
     return Scan(
         records=len(records),
         by_surface=tuple(
-            (surface, sum(1 for r in records if r.record_kind == surface))
+            (surface, sum(1 for r in records if r.surface == surface))
             for surface in (ISSUE, PULL, COMMENT)
         ),
         counts=tuple(
@@ -315,7 +386,7 @@ def format_report(scan: Scan, source: str) -> str:
         f"  records read                   {scan.records}",
     ]
     for surface, count in scan.by_surface:
-        lines.append(f"    {surface + 's':<29}{count}")
+        lines.append(f"    {surface + 's':<{COUNT_COLUMN}}{count}")
     lines.append("")
     for kind, count in scan.counts:
         lines.append(f"  {ROW_TICKET[kind]} - {kind:<{KIND_COLUMN}} {count}")
@@ -327,43 +398,63 @@ def format_report(scan: Scan, source: str) -> str:
         for finding in scan.findings:
             lines.append(
                 f"    {finding.kind:<{KIND_COLUMN}} "
-                f"{finding.record_kind:<13} {finding.label}"
+                f"{finding.surface:<{SURFACE_COLUMN}} {finding.label}"
             )
     return "\n".join(lines)
 
 
-def main(argv: list[str]) -> int:
+USAGE = "usage: tracker_bodies.py <a gh api harvest .json> [more ...] | -"
+
+
+def main(argv: list[str], stdin=None) -> int:
     """``argv`` is the argument list without the program name."""
-    paths = [Path(a) for a in argv if not a.startswith("--")]
-    if not paths:
-        print(
-            "usage: tracker_bodies.py <a gh api harvest .json> [more ...]",
-            file=sys.stderr,
-        )
+    # **Every unrecognized argument is refused rather than filtered out**, and
+    # that is not tidiness. The first version dropped anything starting with
+    # ``--`` from the path list, so ``--show`` was accepted, ignored, and
+    # answered with the ordinary report and the ordinary status -- a caller
+    # believing it had asked for something. On a module whose central claim is
+    # that no such flag exists, a silent no-op is the one behavior worse than
+    # an error.
+    unknown = [a for a in argv if a.startswith("-") and a != STDIN]
+    if unknown:
+        print(f"unknown option {' '.join(unknown)}\n{USAGE}", file=sys.stderr)
         return NOT_SCANNED
-    missing = [p for p in paths if not p.is_file()]
-    if missing:
-        # The name, never the path: a harvest sits under ``scratch/``.
-        print(
-            "no harvest file named " + ", ".join(p.name for p in missing),
-            file=sys.stderr,
-        )
+    if not argv:
+        print(USAGE, file=sys.stderr)
         return NOT_SCANNED
-    try:
-        records = load_harvest(paths)
-    except HarvestError as error:
-        print(str(error), file=sys.stderr)
-        return NOT_SCANNED
+    if STDIN in argv:
+        if len(argv) > 1:
+            print(f"- reads one payload and takes no other argument\n{USAGE}",
+                  file=sys.stderr)
+            return NOT_SCANNED
+        source = "standard input"
+        try:
+            records = read_stdin(stdin)
+        except HarvestError as error:
+            print(str(error), file=sys.stderr)
+            return NOT_SCANNED
+    else:
+        paths = [Path(a) for a in argv]
+        missing = [p for p in paths if not p.is_file()]
+        if missing:
+            # The name, never the path: a harvest sits under ``scratch/``.
+            print(
+                "no harvest file named " + ", ".join(p.name for p in missing),
+                file=sys.stderr,
+            )
+            return NOT_SCANNED
+        source = ", ".join(p.name for p in paths)
+        try:
+            records = load_harvest(paths)
+        except HarvestError as error:
+            print(str(error), file=sys.stderr)
+            return NOT_SCANNED
     if not records:
         # The limb that matters. An empty payload would otherwise report zero
         # lost bodies and read exactly like a tracker that has none.
-        print(
-            "no record in " + ", ".join(p.name for p in paths),
-            file=sys.stderr,
-        )
+        print(f"no record in {source}", file=sys.stderr)
         return NOT_SCANNED
     scan = survey(records)
-    source = ", ".join(p.name for p in paths)
     print(format_report(scan, source=source))
     if scan.findings:
         print(

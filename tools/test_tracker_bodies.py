@@ -170,11 +170,11 @@ class PullRequestsAreRead(unittest.TestCase):
 
     def test_the_report_says_which_surface_a_record_came_from(self):
         records = read(harvest(issue(71, "@-", pull=True), issue(6, "@-")))
-        self.assertEqual({r.record_kind for r in records}, {tb.PULL, tb.ISSUE})
+        self.assertEqual({r.surface for r in records}, {tb.PULL, tb.ISSUE})
 
     def test_a_comment_is_its_own_surface(self):
         records = read(harvest(comment(1, "@-")))
-        self.assertEqual(records[0].record_kind, tb.COMMENT)
+        self.assertEqual(records[0].surface, tb.COMMENT)
 
 
 class WhatAHarvestMayBe(unittest.TestCase):
@@ -269,11 +269,13 @@ class TheRowsAreOneTuple(unittest.TestCase):
     def test_kinds_are_distinct(self):
         self.assertEqual(len(tb.KINDS), len(set(tb.KINDS)))
 
-    def test_every_finding_the_module_builds_is_a_declared_kind(self):
-        """An AST walk, on ``test_console_codec``'s instrument and for its reason.
+    def rows_the_module_builds(self) -> set:
+        """Every row a ``Finding(...)`` call in the module actually constructs.
 
-        A fourth row that was written but never declared would leave every
-        assertion above green while the report counted it nowhere.
+        An AST walk, on ``test_console_codec``'s instrument and for its reason: a
+        substring search over the source is satisfied by the docstring that
+        *describes* the row. The call is matched by the name at the end of the
+        dotted path, so a qualified ``tb.Finding(...)`` is read as one too.
         """
         tree = ast.parse(MODULE.read_text(encoding="utf-8"))
         declared = {node.targets[0].id: node.value.value
@@ -284,7 +286,10 @@ class TheRowsAreOneTuple(unittest.TestCase):
                     and isinstance(node.value.value, str)}
         built = set()
         for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Finding"):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name != "Finding":
                 continue
             first = node.args[0] if node.args else next(
                 (kw.value for kw in node.keywords if kw.arg == "kind"), None)
@@ -292,8 +297,22 @@ class TheRowsAreOneTuple(unittest.TestCase):
                 built.add(declared.get(first.id))
             elif isinstance(first, ast.Constant):
                 built.add(first.value)
+        return built
+
+    def test_every_finding_the_module_builds_is_a_declared_kind(self):
+        """A row written but never declared would be counted nowhere."""
+        built = self.rows_the_module_builds()
         self.assertTrue(built, "no Finding(...) call found -- the walk is dead")
         self.assertLessEqual(built, set(tb.KINDS))
+
+    def test_every_declared_kind_is_a_row_the_module_builds(self):
+        """The other direction, which the first version of this class lacked.
+
+        A row declared in ``KINDS`` that nothing constructs prints a permanent
+        zero and reads as a rule being enforced. ``reference_scan``'s standard is
+        that both directions are asserted, and only one of them was.
+        """
+        self.assertEqual(self.rows_the_module_builds(), set(tb.KINDS))
 
     def test_the_counts_line_up_with_the_kinds(self):
         records = read(harvest(issue(6, "@-"), issue(7, ""), issue(8, "@f.md")))
@@ -327,6 +346,50 @@ class TheCommandLine(unittest.TestCase):
             path = Path(tmp) / "t.json"
             path.write_text("not json", encoding="utf-8")
             self.assertEqual(self.run_main(str(path))[0], tb.NOT_SCANNED)
+
+    def test_a_harvest_that_is_not_utf8_did_not_scan(self):
+        """#150's defect, which this module had.
+
+        ``UnicodeDecodeError`` is a ``ValueError`` and not an ``OSError``, so a
+        bare ``read_text`` let it escape ``main`` -- and the traceback exits
+        **1**, which this module's contract reads as *a lost body found*. The
+        documented harvest is a shell redirection, which is exactly where a
+        UTF-16 payload comes from.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "t.json"
+            payload = json.dumps(harvest(issue(6, "@-")))
+            path.write_bytes(b"\xff\xfe" + payload.encode("utf-16-le"))
+            self.assertEqual(self.run_main(str(path))[0], tb.NOT_SCANNED)
+
+    def test_an_unknown_flag_did_not_scan(self):
+        """A flag this module does not have must not be swallowed.
+
+        The first version filtered every ``--`` argument out of the path list,
+        so ``--show`` was accepted and ignored -- the ordinary report, the
+        ordinary status, and a caller believing it had asked for something. A
+        silent no-op is the one behavior worse than an error here, since the
+        module's own claim is that no such flag exists.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(Path(tmp), "t.json", harvest(issue(6, "@-")))
+            status, _, err = self.run_main("--show", str(path))
+            self.assertEqual(status, tb.NOT_SCANNED)
+            self.assertIn("--show", err)
+
+    def test_an_unreadable_file_names_it_without_its_path(self):
+        """A harvest sits under ``scratch/``, so the report names the file only.
+
+        ``str(OSError)`` carries the full path, which is what the first version
+        printed beside a comment promising it did not.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "t.json"
+            path.write_bytes(b"\x00\x01\x02")
+            good = self.write(Path(tmp), "g.json", harvest(issue(6, "@-")))
+            _, _, err = self.run_main(str(good), str(path))
+            self.assertIn("t.json", err)
+            self.assertNotIn(tmp, err)
 
     def test_a_harvest_with_no_record_did_not_scan(self):
         """The limb that matters.
@@ -365,6 +428,39 @@ class TheCommandLine(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             good = self.write(Path(tmp), "a.json", harvest(issue(6, "@-")))
             status, _, _ = self.run_main(str(good), str(Path(tmp) / "gone.json"))
+            self.assertEqual(status, tb.NOT_SCANNED)
+
+    def test_dash_reads_one_payload_from_standard_input(self):
+        """The read-back, driven rather than documented.
+
+        ``issue-tracker.md`` first spelled this ``/dev/stdin``, which is not a
+        file on the platform every commit here is made from -- the module
+        answered *no harvest file named dev/stdin* and exited 2, so a documented
+        command could not run and read as a checked one. Caught by review.
+        """
+        payload = io.StringIO(json.dumps({"number": 6, "body": "@-",
+                                          "url": "https://github.com/O/R/issues/6"}))
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = tb.main(["-"], stdin=payload)
+        self.assertEqual(status, tb.FOUND)
+        self.assertIn("https://github.com/O/R/issues/6", out.getvalue())
+
+    def test_a_clean_record_on_standard_input_is_zero(self):
+        payload = io.StringIO(json.dumps({"number": 6, "body": "A real body."}))
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(tb.main(["-"], stdin=payload), tb.CLEAN)
+
+    def test_standard_input_that_is_not_json_did_not_scan(self):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            status = tb.main(["-"], stdin=io.StringIO("not json"))
+        self.assertEqual(status, tb.NOT_SCANNED)
+
+    def test_dash_takes_no_other_argument(self):
+        """Rather than silently reading one and ignoring the other."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(Path(tmp), "t.json", harvest(issue(6, "@-")))
+            status, _, _ = self.run_main("-", str(path))
             self.assertEqual(status, tb.NOT_SCANNED)
 
     def test_the_report_names_the_record_a_reader_has_to_open(self):
