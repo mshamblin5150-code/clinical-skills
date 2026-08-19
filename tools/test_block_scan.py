@@ -350,9 +350,10 @@ class TheCommittedNotesReadClean(unittest.TestCase):
     """The one real set this can be pointed at, pinned.
 
     ``fixtures/filled-anchor/notes`` is a committed set of finished
-    ``clinical-note`` output — `day-b` run 1 byte for byte — so unlike a run
-    directory it is not a patient record and not going to vanish.
-    ``CLAUDE.md``'s *Differential scan* sets the precedent for recording what a
+    ``clinical-note`` output — `day-b` run 1 byte for byte apart from two
+    redacted site names — so unlike a run directory it is not a patient record
+    and not going to vanish. ``CLAUDE.md``'s *Differential scan* sets the
+    precedent for recording what a
     scanner does against it and pinning the figure with a test.
 
     **This is the test that would have caught both parser bugs.** Before the
