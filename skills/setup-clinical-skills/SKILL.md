@@ -1,6 +1,6 @@
 ---
 name: setup-clinical-skills
-description: Configure this repo for one clinician's Medatrax account and program — portal access, program hours, picklists, declared field defaults, and the patient identity map. Run once before first use of the other clinical skills.
+description: Configure this repo for one clinician's Medatrax account and program — portal access, program hours, picklists, declared field defaults, the patient identity map, and the writing samples the case-study voice model is built from. Run once before first use of the other clinical skills.
 disable-model-invocation: true
 ---
 
@@ -50,7 +50,7 @@ That last command must print **both** `scratch` and `output`. It lists only the 
 
 ### 1. Explore before asking
 
-- `scratch/` — does `medatrax-profile.md` or `identity-map.md` already exist? If so this is a re-run; read them and confirm rather than re-collect.
+- `scratch/` — does `medatrax-profile.md`, `identity-map.md`, `voice-model.md` or `writing-samples/` already exist? If so this is a re-run; read them and confirm rather than re-collect. **The voice model is the one where re-collecting has a cost the clinician pays** — it is his own writing, he supplied it once, and step 8 records a refusal in the profile precisely so a later run finds it here rather than asking again.
 - `output/` — already populated? A re-run must not overwrite finished work.
 - `reference/medatrax-fields.md` — read it. It holds the universal Medatrax behavior and no longer holds any account's picklists, so what you find there is a description of the portal rather than someone else's values. Anything per-account still in it is a defect — see step 5.
 - Is a browser tool available that reaches the clinician's real logged-in session? Portal steps need one.
@@ -116,9 +116,38 @@ Write the map's format and location into `scratch/medatrax-profile.md` so the ot
 - The naming convention, and whether the preceptor appears in the filename, in a header, or both.
 - Typical shift start and length, which the Times convention uses to estimate visit times.
 
-### 8. Confirm, then write
+### 8. Writing samples — for the case-study voice model
 
-Show a draft of `scratch/medatrax-profile.md` and `scratch/identity-map.md` and let the clinician edit before writing. Then write both, and tell them:
+[practicum-case-study](../practicum-case-study/SKILL.md) writes a graded document that has to sound
+like the person submitting it, and a run that satisfied every mechanic in the house style still read
+as a competent stranger — [#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213).
+The fix is a **voice model built from that clinician's own writing samples**, and this is where they
+are collected: a register is per-account whatever else it looks like, on step 5's rule.
+
+**[skills/practicum-case-study/reference/voice.md](../practicum-case-study/reference/voice.md) §3 is
+the spec for the ask** — how many samples, which registers, what kind of writing, and the consent
+rules that a picklist does not raise. **It is not restated here on purpose**, the way step 4 does
+not restate [batch-shift](../batch-shift/SKILL.md)'s lookup order, so the two cannot drift apart.
+Read it before asking, then read §4 to build the model.
+
+Three things belong to this step rather than to that sheet:
+
+- **It is skippable and says so.** A clinician who never writes a case study needs no voice model,
+  and the other skills do not read one. Offer it, take a no, and record the no in the profile so a
+  re-run does not ask again.
+- **The samples and the model are gitignored.** Samples go to `scratch/writing-samples/`, the built
+  model to `scratch/voice-model.md`. Standing rule 1, and the same reason the identity map never
+  leaves the machine — except that here it is the clinician's own work rather than a patient's.
+- **A re-run reads what exists.** Where `scratch/voice-model.md` is already there, confirm its
+  build date and its per-register coverage rather than re-collecting. **Coverage is the thing to
+  look at**, not the sample count: a model covering the clinical registers and not the reflective
+  one is the case #213 was filed about, and it is the state a first pass most often lands in.
+
+### 9. Confirm, then write
+
+Show a draft of `scratch/medatrax-profile.md`, `scratch/identity-map.md` and — where step 8 built one — `scratch/voice-model.md`, and let the clinician edit before writing. Then write them, and tell them:
+
+**The voice model is the one that cannot be confirmed any other way.** The profile and the identity map are read back against the portal and the day files, and a wrong cell is findable later. A register is not: [voice.md](../practicum-case-study/reference/voice.md) §9 says a model cannot be verified by the run that built it, and *"this reads like you"* from that run is worth nothing. **So this step is the whole verification** — show the discriminating pairs and the per-register coverage, and ask him directly whether the quoted half sounds like him. A refusal, or a register he says the model has wrong, is recorded in the profile rather than argued with.
 
 - That finished notes and case studies are written to `output/`, working material to `scratch/`, and that both are gitignored — so nothing they produce ever reaches GitHub.
 - That the pre-commit hook from step 0 is now armed in this clone only, and a clone on another machine needs `git config core.hooksPath tools/hooks` again.
@@ -133,3 +162,5 @@ Following the same split as [ADR 0001](../../docs/adr/0001-fixture-asserts-on-na
 **Hard dependency — wrong without it, not merely vague.** Any skill emitting a Medatrax entry block, choosing a `Patient Time` band, naming a preceptor or site, or matching a patient to an existing record. That is [clinical-note](../clinical-note/SKILL.md) step 5 and [batch-shift](../batch-shift/SKILL.md) step 6.
 
 **Soft dependency.** The note body itself. A SOAP note is a SOAP note; it is sharper with the program's rubric in view and it does not become wrong without it.
+
+**Soft, and the failure is visible rather than silent** — [practicum-case-study](../practicum-case-study/SKILL.md), for step 8's voice model. A case study written without one is clinically correct and reads as a stranger's, which is a real cost and not a wrong document. The run declares the voice unmodeled in its `PROPOSED` block rather than claiming a register it was never given, so the gap arrives labeled.

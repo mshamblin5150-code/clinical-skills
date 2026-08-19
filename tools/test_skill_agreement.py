@@ -43,6 +43,9 @@ SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
 AGENTS = REPO_ROOT / "AGENTS.md"
 MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
 BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
+CASE_STUDY = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
+CASE_STUDY_STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+CASE_STUDY_VOICE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice.md"
 
 
 def read(path: Path) -> str:
@@ -277,6 +280,109 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         self.assertIn(
             "keys on a preceptor or a site is per-account", read(SETUP)
         )
+
+
+class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
+    """#213's build, on the rule #212 settled and this class already pins above.
+
+    **The ticket asked for one file and the answer is two**, so the thing most
+    likely to go wrong later is a tidy that collapses them back. ``voice.md`` is
+    the *method* and travels in ``reference/``; the *model* it builds is
+    ``scratch/voice-model.md``, gitignored, one per clinician. Shipping a
+    register in ``reference/`` would make every other user of the skill sound
+    like this one, **which #213 names as worse than no model at all** -- so the
+    failure is not a leak the way the picklists were, it is a skill that is
+    silently wrong for everybody except its author.
+
+    **Three files have to agree and each reads as coherent alone**, which is this
+    module's whole subject. ``SKILL.md`` sends a run to the model, ``style.md``
+    §11 sends a reader from the mechanics to the register, and ``voice.md`` says
+    which of the two it is. A single-file reader sees no contradiction in any
+    arrangement of them.
+
+    **Nothing here quotes a sample or names the clinician**, on
+    ``ThePerAccountPicklistsAreNotInTheReference``'s reasoning one step out: a
+    test holding a line of his writing would put it in the tree that the split
+    exists to keep it out of.
+    """
+
+    def test_the_method_travels_and_the_model_does_not(self):
+        voice = read(CASE_STUDY_VOICE)
+        self.assertIn("This file is the method. It is not the model.", voice)
+        self.assertIn("scratch/voice-model.md", voice)
+
+    def test_the_skill_sends_a_run_to_the_gitignored_model(self):
+        # Not to ``reference/voice.md``, which holds no register and never will.
+        self.assertIn("scratch/voice-model.md", read(CASE_STUDY))
+
+    def test_the_unmodeled_declaration_survives_the_build(self):
+        # The rule predates the file and is the one thing a run does when there
+        # are no samples. A build that quietly dropped it would leave a run
+        # claiming a register it was never given.
+        for path in (CASE_STUDY, CASE_STUDY_VOICE):
+            self.assertIn("the voice is unmodeled", read(path))
+
+    def test_the_declaration_is_per_register(self):
+        # ``voice.md`` §7. A whole-document declaration reads as complete
+        # coverage the moment one register is modeled, which is this repo's most
+        # repeated defect wearing a new hat.
+        self.assertIn("declaration is per register", read(CASE_STUDY))
+        self.assertIn("fewer than two samples", read(CASE_STUDY_VOICE))
+
+    def test_the_style_sheet_hands_the_register_off_rather_than_claiming_it(self):
+        # §11 was written by reading finished documents for what they *do*, and
+        # a run satisfied every bullet while reading as a stranger. The sheet has
+        # to say so where the bullets are, or the next reader takes the list for
+        # the whole answer -- which is exactly what happened.
+        style = read(CASE_STUDY_STYLE)
+        self.assertIn("These are the mechanics", style)
+        self.assertIn("[voice.md](voice.md)", style)
+
+    def test_setup_is_the_collector_and_does_not_restate_the_spec(self):
+        # The clinician's ruling of 2026-08-18 on the one question #213 left
+        # open. It is the same shape step 4 of ``setup`` already runs on with
+        # ``batch-shift``'s lookup order -- **collecting the answer and deciding
+        # what to ask for are two jobs**, and #90 is what happens when one rule
+        # gets written into both files. So ``setup`` must point at the spec, and
+        # must not carry the counts that would go stale against it.
+        setup = read(SETUP)
+        self.assertIn("practicum-case-study/reference/voice.md", setup)
+        self.assertIn("not restated here on purpose", setup)
+        self.assertNotIn("Ask for 5 at minimum", setup)
+
+    def test_the_skill_names_the_collector_rather_than_collecting(self):
+        # The other direction. A run drafting against a deadline that stopped to
+        # elicit eight writing samples would be doing setup's job at the worst
+        # possible moment, and the clinician may not even be at the keyboard.
+        case_study = read(CASE_STUDY)
+        self.assertIn("setup-clinical-skills", case_study)
+        self.assertIn("this run does not stop to build one", case_study)
+
+    def test_the_model_is_confirmed_by_the_clinician_before_it_is_written(self):
+        # **Caught in review, on this branch, after the collector ruling landed.**
+        # Step 8 added a third artifact and steps 1 and 9 still enumerated two,
+        # so the model was built with no re-run check in front of it and no
+        # confirmation behind it. That is the wrong artifact to drop: ``voice.md``
+        # §9 says a model cannot be verified by the run that built it, which
+        # makes step 9 the only verification that exists.
+        setup = read(SETUP)
+        self.assertIn("scratch/voice-model.md`, and let the clinician edit", setup)
+        self.assertIn("this step is the whole verification", setup)
+
+    def test_a_rerun_looks_for_the_model_before_it_asks(self):
+        # Step 1 owns re-run detection. Without the model on its list a returning
+        # clinician is asked for writing he already handed over, or asked again
+        # after declining -- and the refusal step 8 records in the profile is
+        # only ever read here.
+        self.assertIn("`voice-model.md` or `writing-samples/`", read(SETUP))
+
+    def test_the_defect_list_is_cited_rather_than_copied(self):
+        # #143: a list restated in two files goes stale in one of them. §12 owns
+        # the mechanical defects; ``voice.md`` §6 is the rule that a model must
+        # not imitate them, which is a different claim and needs no second copy.
+        voice = read(CASE_STUDY_VOICE)
+        self.assertIn("deliberately not restated here", voice)
+        self.assertNotIn("isvery commonand", voice)
 
 
 if __name__ == "__main__":
