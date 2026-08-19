@@ -442,9 +442,15 @@ Write the Markdown to `output/case-studies/`, then render it:
 python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx
 ```
 
-APA 7 page setup — Times New Roman 12 pt, double spaced, one inch margins, hanging indents on the
-reference list — is applied by the renderer. **Strip the `PROPOSED` block from the `.docx`**, or
-render from a copy that does not carry it: it is for the clinician, not for the grader.
+APA 7 page setup is applied by the renderer: Times New Roman 12 pt, double spaced, one inch
+margins, a page number top right, headings at body size in APA's own level styling, and a
+reference list that starts on a new page under a bold centered label with a hanging indent.
+[reference/apa7.md](reference/apa7.md) §6 is the list of what it does **and does not** do — read
+it rather than assuming the render finished the job. Two things it will not do for you: the label
+must be `References` or, for a single entry, exactly `Reference` — the singular is matched only as
+a complete heading, so `Reference Ranges` is safe and `Reference List` is not a reference list.
+**Strip the `PROPOSED` block from the `.docx`**, or render from a copy that does not carry it: it
+is for the clinician, not for the grader.
 
 ### 8. Check
 
@@ -464,5 +470,5 @@ Against this list, by eye — none of it is mechanical:
 - Does any number in the body rest on recall rather than on a source in hand?
 - Is the `PROPOSED` block complete, and is it out of the `.docx`?
 
-**A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens
-and the reference list hangs. It cannot read a differential.
+**A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
+the page numbers land and the reference list hangs on its own page. It cannot read a differential.
