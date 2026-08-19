@@ -233,38 +233,41 @@ feature count until the clinician says, because a co-written document averaged i
 every observation in it toward the mean — which is the direction the model exists to move away
 from. Record in the model that it was excluded and why, so the answer can put it back.
 
-### Damping — the answer that came back, and it is not the one the question expected
+### Damping — the answer that came back, and the correction that mattered more
 
 **The first time this was asked, the answer was neither yes nor no.** Two documents were held out as
 possibly co-written. They were the author's own, damped on purpose, with a reason he stated: he is
-intense, he is often misunderstood, and he had used an assistant to **tame himself** for a reader he
+intense, he is often misunderstood, and he had used an assistant to **tame himself** for readers he
 expected to misread him.
 
-**So a quieter document is not automatically a document that lost its voice.** It may be its author
-choosing a lower setting, and **a model that reads damping as absence will restore intensity its
-author deliberately removed** — putting the volume back up for exactly the audience he turned it
-down for. That is a worse failure than a flat draft, because it is confident and it is his name on
-it.
+**That was read as a register to model, and the author corrected it within the hour.** The reading
+was *he damps for academic audiences, so a graded paper takes the damped setting.* His answer:
+*"i don't want this to be tame because that is not me, those were outliers … i am who i am and i
+make no apology for it."*
 
-**Damping is not erasure, and telling them apart is what §5's pairs are for.** What an author's own
-damping removes is **volume**. What a smoothing pass removes is **identity** — and the worked case
-is a line that was neither loud nor coarse, merely his, and went anyway.
+> **The default is full voice. Damping is not a register — it is what happened to two documents, and
+> their author disowns the result.**
 
-> **Damp the intensity to the audience. Never damp the identity.**
+**What survives the correction is the distinction, which is the useful half.** Damping removes
+**volume**; a smoothing pass removes **identity**; those are different failures. **What does not
+survive is treating a damped sample as a target.**
 
-**This is the resolution of #213 rather than a footnote to it.** A run read as a competent stranger,
-and the fix is not more intensity — a graded paper may be precisely the context its author would
-damp for. **The fix is the identity**, which no audience ever required him to remove.
+**Intensity is only ever reduced against a constraint the author names**, and a real constraint is
+specific and carries its own floor. The worked case is one clause — *keep the edge, not the
+profanity*, against a religious university — where the author named the subtraction and stated the
+limit in the same breath. **That is one thing removed with an explicit floor under it, and it is the
+opposite of a general instruction to soften.** An inferred constraint is not a constraint; ask.
 
-**So the model records the setting as well as the register.** Where an author damps, ask what for,
-and write the constraint down: an institution, a faculty reader, a professional register, a reader
-who has misread them before. **A constraint is per-account and it is a fact about the audience
-rather than about the writing** — it belongs beside the register in `scratch/voice-model.md`, and it
-binds every document written into that context.
+**The damped documents stay in the corpus on the other side of the ledger.** They are the **generic
+half** of §5's pairs — the competent stranger's version, written by the author himself, which is
+better evidence than a generic half the build composed. That is the one place a damped sample
+belongs, and it is the opposite of the role the first reading gave it.
 
-**Its most useful samples may be the damped ones.** They are the closest thing the corpus holds to
-the target document — the author writing at the setting the deliverable wants — which is the
-opposite of the liability they first looked like.
+**The failure this subsection exists to prevent runs one way and is the worse one.** A model that
+treats damping as a register produces a tame draft **and can cite the author's own corpus in its
+defense** — which is harder to argue with than a flat draft that has no defense at all. #213 was
+filed because a run read as a competent stranger; a rule licensing that from the author's own files
+would have closed the ticket by institutionalizing it.
 
 ---
 

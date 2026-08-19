@@ -405,18 +405,22 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         self.assertIn("where both halves are attested", voice)
         self.assertIn("a sample somebody else helped write", voice)
 
-    def test_damping_is_distinguished_from_erasure(self):
-        # **The sharpest thing the first real build produced, and it came from
-        # the clinician rather than from the samples.** Two documents were held
-        # out as possibly co-written and were his, damped on purpose for a reader
-        # he expected to misread him. A model that reads damping as absence turns
-        # the volume back up for exactly the audience it was turned down for --
-        # confidently, with his name on it. The distinction is the resolution of
-        # #213 and not a footnote: the first run's defect was lost identity, not
-        # lost intensity, and a graded paper may be a context its author damps
-        # for.
+    def test_the_default_is_full_voice_and_damping_is_not_a_register(self):
+        # **This rule was written backwards first and the clinician reversed it
+        # within the hour**, which is why it is pinned rather than left to prose.
+        # Two damped documents were read as evidence of a register he uses for
+        # academic audiences, and the correction was *"i don't want this to be
+        # tame because that is not me, those were outliers."*
+        #
+        # **The failure it now guards runs one way and is the worse one.** A
+        # model that treats damping as a register produces a tame draft **and can
+        # cite the author's own corpus in its defense** -- which is #213 closed by
+        # institutionalizing the defect it was filed on. So the assertion is on
+        # the default, on the named-constraint limb that is the only way down
+        # from it, and on the damped samples being pairs rather than targets.
         voice = read(CASE_STUDY_VOICE)
-        self.assertIn("Damp the intensity to the audience. Never damp the identity.", voice)
+        self.assertIn("The default is full voice", voice)
+        self.assertIn("Intensity is only ever reduced against a constraint the author names", voice)
         self.assertIn("Constraints on the setting", voice)
 
     def test_the_defect_list_is_cited_rather_than_copied(self):
