@@ -177,6 +177,13 @@ re-run reads and extends it.
 
 ### 10. Confirm, then write
 
+**Other files cite these steps by number, so inserting one silently redirects every citation.**
+Step 9 was added on 2026-08-18 and this step moved from 9 to 10; one reference in
+[voice.md](../practicum-case-study/reference/voice.md) pointed at the wrong step until a sweep found
+it. **Append where you can, and where a step genuinely belongs in the middle, grep for `step <n>`
+across `skills/` and `tools/` before finishing.** That is `clinical-note`'s *append, never insert*
+rule for drift rows, arriving on a numbered process.
+
 Show a draft of `scratch/medatrax-profile.md`, `scratch/identity-map.md`, and — where steps 8 and 9 produced them — `scratch/voice-model.md` and `scratch/shorthand.md`. Let the clinician edit before writing. Then write them, and tell them:
 
 **The voice model is the one that cannot be confirmed any other way.** The profile and the identity map are read back against the portal and the day files, and a wrong cell is findable later. A register is not: [voice.md](../practicum-case-study/reference/voice.md) §9 says a model cannot be verified by the run that built it, and *"this reads like you"* from that run is worth nothing. **So this step is the whole verification** — show the discriminating pairs and the per-register coverage, and ask him directly whether the quoted half sounds like him. A refusal, or a register he says the model has wrong, is recorded in the profile rather than argued with.

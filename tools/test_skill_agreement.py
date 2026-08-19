@@ -364,7 +364,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         # so the model was built with no re-run check in front of it and no
         # confirmation behind it. That is the wrong artifact to drop: ``voice.md``
         # §9 says a model cannot be verified by the run that built it, which
-        # makes step 9 the only verification that exists.
+        # makes *Confirm, then write* the only verification that exists.
         setup = read(SETUP)
         self.assertIn("`scratch/voice-model.md` and `scratch/shorthand.md`", setup)
         self.assertIn("Let the clinician edit before writing", setup)
@@ -380,7 +380,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
     def test_the_quote_rule_names_its_audience_rather_than_its_channel(self):
         # **The first build of a real model is what caught this.** The rule read
         # *never leaves scratch/, not into a summary handed back in conversation*,
-        # which forbids the step 9 confirmation outright -- and §9 says that
+        # which forbids the *Confirm, then write* step outright -- and §9 says that
         # confirmation is the only verification a voice model has. A rule that
         # bans the one check reads as caution and leaves the model unverifiable.
         #
@@ -404,6 +404,20 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         voice = read(CASE_STUDY_VOICE)
         self.assertIn("where both halves are attested", voice)
         self.assertIn("a sample somebody else helped write", voice)
+
+    def test_damping_is_distinguished_from_erasure(self):
+        # **The sharpest thing the first real build produced, and it came from
+        # the clinician rather than from the samples.** Two documents were held
+        # out as possibly co-written and were his, damped on purpose for a reader
+        # he expected to misread him. A model that reads damping as absence turns
+        # the volume back up for exactly the audience it was turned down for --
+        # confidently, with his name on it. The distinction is the resolution of
+        # #213 and not a footnote: the first run's defect was lost identity, not
+        # lost intensity, and a graded paper may be a context its author damps
+        # for.
+        voice = read(CASE_STUDY_VOICE)
+        self.assertIn("Damp the intensity to the audience. Never damp the identity.", voice)
+        self.assertIn("Constraints on the setting", voice)
 
     def test_the_defect_list_is_cited_rather_than_copied(self):
         # #143: a list restated in two files goes stale in one of them. §12 owns

@@ -108,8 +108,8 @@ is a patient record. Three rules, and they are the ones
   adjectives, and §1 is about why that fails.
   **The rule names the audience rather than the channel, and it was rewritten the first time it
   ran.** It read *never leaves `scratch/`, not into a summary handed back in conversation* — which
-  forbids [setup-clinical-skills](../../setup-clinical-skills/SKILL.md) step 9, where the clinician
-  confirms the model by reading his own quoted sentences back. **Showing an author his own words is
+  forbids [setup-clinical-skills](../../setup-clinical-skills/SKILL.md)'s *Confirm, then write*
+  step, where the clinician confirms the model by reading his own quoted sentences back. **Showing an author his own words is
   not disclosure**, and §9 says that confirmation is the only verification a voice model has. A rule
   that forbade the one check would have left the model unverifiable and looked like caution.
 - **Ask before reading, and say what will be read.** A clinician handing over eight documents has
@@ -233,6 +233,39 @@ feature count until the clinician says, because a co-written document averaged i
 every observation in it toward the mean — which is the direction the model exists to move away
 from. Record in the model that it was excluded and why, so the answer can put it back.
 
+### Damping — the answer that came back, and it is not the one the question expected
+
+**The first time this was asked, the answer was neither yes nor no.** Two documents were held out as
+possibly co-written. They were the author's own, damped on purpose, with a reason he stated: he is
+intense, he is often misunderstood, and he had used an assistant to **tame himself** for a reader he
+expected to misread him.
+
+**So a quieter document is not automatically a document that lost its voice.** It may be its author
+choosing a lower setting, and **a model that reads damping as absence will restore intensity its
+author deliberately removed** — putting the volume back up for exactly the audience he turned it
+down for. That is a worse failure than a flat draft, because it is confident and it is his name on
+it.
+
+**Damping is not erasure, and telling them apart is what §5's pairs are for.** What an author's own
+damping removes is **volume**. What a smoothing pass removes is **identity** — and the worked case
+is a line that was neither loud nor coarse, merely his, and went anyway.
+
+> **Damp the intensity to the audience. Never damp the identity.**
+
+**This is the resolution of #213 rather than a footnote to it.** A run read as a competent stranger,
+and the fix is not more intensity — a graded paper may be precisely the context its author would
+damp for. **The fix is the identity**, which no audience ever required him to remove.
+
+**So the model records the setting as well as the register.** Where an author damps, ask what for,
+and write the constraint down: an institution, a faculty reader, a professional register, a reader
+who has misread them before. **A constraint is per-account and it is a fact about the audience
+rather than about the writing** — it belongs beside the register in `scratch/voice-model.md`, and it
+binds every document written into that context.
+
+**Its most useful samples may be the damped ones.** They are the closest thing the corpus holds to
+the target document — the author writing at the setting the deliverable wants — which is the
+opposite of the liability they first looked like.
+
 ---
 
 ## 7. Partial coverage is declared, never generalized
@@ -261,6 +294,7 @@ against the last one:
 
 Built <date> from <n> samples. Registers covered: 1 (n=<x>), 2 (n=<y>), 3 (n=<z>).
 
+## Constraints on the setting     <- §6 damping: institution, faculty reader, audience
 ## Sample index
 | File | Register | Graded work? | Date written |   <- and any excluded under §6, with why
 
