@@ -144,7 +144,7 @@ Show the first and last line of each encounter verbatim — that is what lets th
 
 **So the default must not reach step 5 disguised as a choice.** Print it as a default and let the clinician overturn it on the confirm — a shift that resumes on this block has a branch the clinician has *seen*, which is the thing step 5's *the branch the user named* assumes and cannot check.
 
-**A run got this wrong and it is on the record.** `fixtures/day-a` run 2 was given the shorthand without being told which branch to take, and some of its passes chose the FNP H&P unprompted — reasoning from the first-six rule with no course context to check it against — and had to be discarded and regenerated. Nothing was wrong with their reasoning; a mixed-branch shift is simply not scoreable against a row that names one branch's fields. **The count is in [fixtures/day-a/assertions.md](../../fixtures/day-a/assertions.md) and deliberately not repeated here** — it was measured against a directory under `scratch/`, so nothing committed re-derives it, and [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is what one unre-derivable figure copied into many files becomes. #90.
+**A run can reason correctly and still choose the wrong branch when nobody states it.** A mixed-branch shift is not scoreable against a row that names one branch's fields, so confirm the branch before splitting the encounters. The run evidence and count remain in the withheld fixture record. #90.
 
 Resume only on the clinician's confirmation or correction.
 

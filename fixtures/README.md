@@ -135,6 +135,16 @@ The section above says which counted rows are **promotable**: the ones counted f
 
 Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta instead of a judgment call.
 
+### Keep required instructions blind
+
+**Every file a generating pass must read is part of its prompt, whether or not the runner opened anything under `fixtures/`.** Required instructions may link to this general policy, but they never name a concrete fixture set, input, case, run, assertion row, score or set-derived count. They never quote or paraphrase a fixture input, output or verdict. Put that evidence in the set's withheld `assertions.md` or README, or in the issue that records the ruling.
+
+**A worked example in required instructions is synthetic.** Preserve the rule's teaching shape while changing the clinical particulars so the example belongs to no committed fixture. A reviewer checks semantic resemblance when such an example changes; `tools/test_blind_fixture_instructions.py` enforces only the mechanical boundary around concrete fixture identities and does not pretend to recognize a disguised answer.
+
+**The clinician's real `scratch/shorthand.md` is withheld from a fixture-generating pass too.** It may contain expansions collected from the same day files the fixtures came from. Run with that file absent or replace it for the run with an explicitly synthetic glossary; the field glossary remains the safe fallback. This restriction belongs to fixture generation only and does not add a review step to ordinary note or day-file work.
+
+**Cleanup does not make an old run blind retroactively.** Preserve kept output, recorded scores and their existing contamination qualifications exactly as historical evidence. Only a later run generated under this rule can supply new blind evidence.
+
 **A first run graded by whoever wrote it is a baseline, not a pass.** The same objection that disqualified the drift-matrix verdicts in [ADR 0001](../docs/adr/0001-fixture-asserts-on-named-findings.md) applies to any run scored by the pass that produced it. Asserting against the output text rather than a self-report is what makes the score checkable at all — someone else can re-read the same text and disagree. Until someone does, the number's job is to give the next run something to differ from.
 
 **So separate the two passes, and it is cheap enough that there is no excuse not to.** day-b and peds-bp were both run this way on 2026-08-11: subagents wrote the notes with the assertion files withheld, a fresh pass graded the output text against them, and the orchestrating pass re-derived every row from the output files having authored none of them. What it bought was immediate — **each set failed a row**, and in both cases the note's own drift matrix had reported that row as a pass, once citing Plan text the Plan did not contain. That is ADR 0001's argument happening rather than being made, twice in one sitting.

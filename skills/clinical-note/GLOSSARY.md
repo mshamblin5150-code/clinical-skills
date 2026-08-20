@@ -64,7 +64,7 @@ Expansions [clinical-note](SKILL.md) applies at step 2. Anything absent here is 
 | `hfa` | hydrofluoroalkane — a metered-dose inhaler propellant, so `albuterol hfa` is the inhaler |
 | `duoneb` | ipratropium-albuterol nebulizer solution |
 
-**A named peritoneal sign is never a throwaway.** Rovsing's, psoas, obturator, Murphy's and McBurney's all appear below, and a positive one recorded in a note whose abdomen is otherwise normal — as in day-a case 5 — is a contradiction the note has to resolve out loud, not a token to expand and move past. **The spellings a given clinician reaches for are theirs** and live in `scratch/shorthand.md`; the sign is the field's.
+**A named peritoneal sign is never a throwaway.** Rovsing's, psoas, obturator, Murphy's and McBurney's all appear below, and a positive one recorded in a note whose abdomen is otherwise normal is a contradiction the note has to resolve out loud, not a token to expand and move past. **The spellings a given clinician reaches for are theirs** and live in `scratch/shorthand.md`; the sign is the field's.
 
 ### Conditions and history
 
