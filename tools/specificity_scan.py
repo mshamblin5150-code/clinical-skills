@@ -9,7 +9,7 @@ produced the identical line to one that opened every code and found no axis left
 The two are indistinguishable on the page, which is the same silent-failure shape
 the whole ``filled-anchor`` set exists for.
 
-**Two tests, and neither needs a reader.**
+**One enforced test, plus one advisory count.**
 
 - **A flag carries substance beyond its keyword.** ``complete`` and ``needs:``
   both fail; ``complete -- I10 has no further axis`` and ``needs: site`` both
@@ -17,13 +17,12 @@ the whole ``filled-anchor`` set exists for.
   has no further axis"* without having looked at ``Z98.51``'s axes; anybody can
   write ``complete``. **This reaches both branches deliberately** -- a ``needs:``
   naming no axis is the same defect wearing the other keyword.
-- **A descriptor saying "unspecified" may not read ``complete``.** The descriptor
-  is the code set stating that an axis exists and that this code declines to name
-  it, so ``M19.90 Unspecified osteoarthritis, unspecified site`` flagged
-  ``complete`` contradicts the line above it. This is only checkable because C2
-  already requires the descriptor be the **verbatim official string**; against a
-  paraphrase it would prove nothing, which is worth knowing before trusting a
-  clean scan over a run that has not been through C2.
+- **A descriptor saying "unspecified" and flagged ``complete`` is counted for
+  review, but does not fail C5 when the flag carries a reason.** Most instances
+  name an axis the bedside could supply, but ``R00.1 Bradycardia, unspecified``
+  and ``R19.7 Diarrhea, unspecified`` do not. No string test separates those
+  cases. The reason lets a reader judge the distinction; the count makes the
+  review surface visible without forcing a semantically false ``needs:``.
 
 **What it does not test, and cannot.** Whether a reason is a real check or a stock
 phrase. ``L85.3`` has five siblings and ``Z98.51`` has one, and ruling that those
@@ -56,7 +55,7 @@ Extractor limits worth knowing before quoting a number:
   but a run that writes one anyway would be graded against a descriptor reading
   ``..., unspecified`` **by design**, because the skill codes a differential at
   the unspecified level on purpose. So a flag on a ``NOT FOR ENTRY`` line is
-  parsed, counted, and exempt from both tests; writing one is a C4 failure, which
+  parsed, counted, and exempt from both the C5 test and the advisory; writing one is a C4 failure, which
   counts parts, and C5 firing as well would name the wrong row. The count is
   printed rather than dropped, because a non-zero there is worth going to look at.
 - ``Other ...`` is not ``unspecified``. ``R06.89 Other abnormalities of breathing``
@@ -131,7 +130,7 @@ class Flag:
 
 @dataclass(frozen=True)
 class Finding:
-    """One flag failing one of C5's two tests."""
+    """One flag raised as a C5 failure or an advisory."""
 
     kind: str
     code: str
@@ -154,12 +153,10 @@ class Scan:
     not_for_entry_flags: int
     bare_flags: int
     unspecified_complete: int
-    # One flag can fail both tests, so the two counters above sum higher than the
-    # number of flags at fault. ``failing_flags`` is what the exit message says,
-    # because C5 fails a *flag* and a reader who saw ``2`` where one line is wrong
-    # would go looking for a second one.
+    # ``unspecified_complete`` is advisory and does not contribute to this count.
     failing_flags: int = 0
     findings: tuple[Finding, ...] = ()
+    advisories: tuple[Finding, ...] = ()
 
 
 def _keyword(value: str) -> tuple[str, str]:
@@ -222,9 +219,9 @@ def read_flags(text: str) -> list[Flag]:
 
 
 def flag_findings(flag: Flag) -> list[Finding]:
-    """C5's two tests, applied to one flag. A flag can fail both.
+    """C5's enforced test, applied to one flag.
 
-    **A flag on a ``NOT FOR ENTRY`` line is graded on neither.** A differential is
+    **A flag on a ``NOT FOR ENTRY`` line is neither graded nor advisory-counted.** A differential is
     coded at the unspecified level *on purpose* -- ``icd10-cpt`` says so and drops
     the specificity part from that shape entirely -- so an entry whose descriptor
     reads ``..., unspecified`` by design is not evidence that anybody failed to
@@ -237,8 +234,6 @@ def flag_findings(flag: Flag) -> list[Finding]:
         return found
     if flag.keyword and not flag.has_substance:
         found.append(Finding(BARE, flag.code, flag.descriptor, flag.value))
-    if flag.keyword == "complete" and UNSPECIFIED.search(flag.descriptor):
-        found.append(Finding(UNSPECIFIED_COMPLETE, flag.code, flag.descriptor, flag.value))
     return found
 
 
@@ -247,11 +242,23 @@ def findings(flags: list[Flag]) -> list[Finding]:
     return [finding for flag in flags for finding in flag_findings(flag)]
 
 
+def advisory_findings(flags: list[Flag]) -> list[Finding]:
+    """Every ``complete`` on an unspecified for-entry code."""
+    return [
+        Finding(UNSPECIFIED_COMPLETE, flag.code, flag.descriptor, flag.value)
+        for flag in flags
+        if flag.for_entry
+        and flag.keyword == "complete"
+        and UNSPECIFIED.search(flag.descriptor)
+    ]
+
+
 def survey(per_worksheet: list[list[Flag]]) -> Scan:
     """Count across a run. Takes parsed flags rather than paths, so a ``Scan``
     never learns a filename -- a run directory's paths name the shift."""
     flags = [flag for sheet in per_worksheet for flag in sheet]
     found = findings(flags)
+    advisories = advisory_findings(flags)
     return Scan(
         worksheets=len(per_worksheet),
         flags=len(flags),
@@ -260,9 +267,10 @@ def survey(per_worksheet: list[list[Flag]]) -> Scan:
         unrecognized_flags=sum(1 for f in flags if not f.keyword),
         not_for_entry_flags=sum(1 for f in flags if not f.for_entry),
         bare_flags=sum(1 for f in found if f.kind == BARE),
-        unspecified_complete=sum(1 for f in found if f.kind == UNSPECIFIED_COMPLETE),
+        unspecified_complete=len(advisories),
         failing_flags=sum(1 for flag in flags if flag_findings(flag)),
         findings=tuple(found),
+        advisories=tuple(advisories),
     )
 
 
@@ -282,16 +290,21 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}",
         "",
         f"  C5 - flag carries no reason      {scan.bare_flags}",
-        f"  C5 - complete on unspecified     {scan.unspecified_complete}",
+        f"  advisory - complete on unspecified {scan.unspecified_complete}",
         f"  C5 - flags at fault              {scan.failing_flags}",
     ]
     if show:
-        lines += ["", "  findings (PHI - read, do not paste):"]
-        for finding in scan.findings:
-            lines.append(
-                f"    {finding.kind:<22} {finding.code:<9} "
-                f"SPECIFICITY: {finding.value}  [{finding.descriptor}]"
-            )
+        for heading, details in (
+            ("findings", scan.findings),
+            ("advisories", scan.advisories),
+        ):
+            if details:
+                lines += ["", f"  {heading} (PHI - read, do not paste):"]
+                for finding in details:
+                    lines.append(
+                        f"    {finding.kind:<22} {finding.code:<9} "
+                        f"SPECIFICITY: {finding.value}  [{finding.descriptor}]"
+                    )
     return "\n".join(lines)
 
 
