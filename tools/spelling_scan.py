@@ -64,6 +64,11 @@ Known limits, stated so nobody reads this as the rule itself:
   that is on the page as well as here**, in ``vocabulary_covered`` and beside
   every clean line -- ``licence`` and ``manoeuvres`` were written into skill
   files in one commit minutes apart and only the listed one was reported.
+  **The declaration is not a substitute for the table growing**, which is what
+  #278's second round settled: four more evidenced forms landed on 2026-08-20,
+  one of them live in a skill a consumer reads with both nets working. Printing
+  the limit is what stops a clean line over-claiming; it is not what closes a
+  gap.
 - Advisory in the pre-commit hook, and deliberately: a spelling is not worth
   refusing a commit over. **Two things here can refuse one** -- standing rule 1
   via ``phi_scan.py``, and since #83 ``threshold_sheet.py`` when a
@@ -96,7 +101,7 @@ EVIDENCE_PREFIXES = ("fixtures/filled-anchor/notes/case-",)
 
 # *Conventions > Spelling* in skills/clinical-note/SKILL.md, transcribed. Parity
 # is asserted rather than trusted; see `parse_skill_table`.
-# spelling-scan: mentions 26
+# spelling-scan: mentions 30
 TABLE = {
     "dyspnoea": "dyspnea",
     "apnoea": "apnea",
@@ -124,15 +129,24 @@ TABLE = {
     "neighbour": "neighbor",
     "judgement": "judgment",
     "manoeuvre": "maneuver",
+    "counselling": "counseling",
+    "millimetre": "millimeter",
+    "hypoxaemia": "hypoxemia",
+    "immobilisation": "immobilization",
 }
 
 # Inflections whose stem changes, so the suffix rule below cannot reach them from
-# the table's entry. Two, because two are what the corpus and the run record have
-# produced -- this is not an attempt at English.
-# spelling-scan: mentions 2
+# the table's entry. Three, because three are what the corpus and the run record
+# have produced -- this is not an attempt at English. The newest is an adjective
+# whose noun is already a row above: the suffix rule appends where that ending
+# replaces, so it is out of reach of its own noun, and this repo wrote both.
+# It is named in the entry below rather than here, because a declaration covers
+# a statement and not the comment over it -- see the module docstring.
+# spelling-scan: mentions 3
 STEM_CHANGES = {
     "labelling": "labeling",
     "catheterisation": "catheterization",
+    "hypoxaemic": "hypoxemic",
 }
 
 FORMS = {**TABLE, **STEM_CHANGES}
@@ -412,16 +426,25 @@ def record_rows(paths: Iterable[str], read: Callable[[str], str | None]) -> list
     ]
 
 
+# spelling-scan: mentions 2
 def render_record(rows: list[RecordRow]) -> list[str]:
     lines = [
         "spelling-scan: fixtures/filled-anchor/notes/ -- day-b run 1, byte for "
         "byte apart from two redacted site names. Issue #73.",
         "",
     ]
+    # Derived rather than typed. The width was a literal 13 and had always been
+    # too narrow for ``catheterisation`` -- which never surfaced, because that
+    # form is not in the record and so was never rendered. #278's
+    # ``immobilisation`` is the first 14-character form the record holds, and it
+    # pushed its own count out of the column. A literal beside a table that
+    # grows is #143 with a schedule, which is the argument the count on the
+    # ``vocabulary_covered`` line already runs on.
+    width = max((len(row.form) for row in rows), default=0)
     for row in rows:
         where = ", ".join(f"{case} x{count}" for case, count in row.cases)
         lines.append(
-            f"  {row.form:<13} {row.british:>2}   {where}"
+            f"  {row.form:<{width}} {row.british:>2}   {where}"
             f"   ({row.american}: {row.american_count})"
         )
     lines.append("")
@@ -648,7 +671,7 @@ def scanned_population(mode: str) -> str:
     return f"spelling-scan: scanned {POPULATIONS[mode]}."
 
 
-# spelling-scan: mentions 5
+# spelling-scan: mentions 14
 def vocabulary_covered() -> str:
     """The forms this run looked for, so a clean line cannot be read wider.
 
@@ -674,6 +697,20 @@ def vocabulary_covered() -> str:
     ``seizure`` and ``figure`` is worse than one that says what it holds.
     ``foetal`` and ``oesophag-`` stay off for the narrower reason that nobody
     has written them here; #278 settled that vocabulary question as evidence-only.
+
+    **A second round on 2026-08-20, and it is the growth rule firing rather
+    than the declaration failing.** Four more forms had been written here and
+    were on no table -- ``counselling``, ``millimetre``, ``hypoxaemia`` with
+    ``hypoxaemic``, and ``immobilisation``. **They arrived by three different
+    routes and the spread is what makes them evidence rather than a family**:
+    ``counselling`` was live in tracked Markdown prose in a skill a consumer
+    reads, with both nets working and this line printing clean over it; three
+    were in the preserved run record, the way ``neighbour`` and ``judgement``
+    arrived; and ``millimetre``'s four instances were all in ``.py``, **a
+    surface this scanner did not read at the time**, so the form went on the table on
+    evidence the instrument holding the table could never have produced. That
+    last is #104's limit 1 handing evidence to #278's limit 2, and it changes
+    nothing about what a clean run here means.
 
     **Derived from ``_PATTERNS`` rather than typed.** That tuple is what
     ``_matches`` iterates, so the printed number cannot disagree with what ran

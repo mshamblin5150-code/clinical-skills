@@ -28,6 +28,7 @@ fails the repository-wide scan.
 import ast
 import contextlib
 import io
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -41,8 +42,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 
 # day-b run 1, byte for byte apart from two redacted site names. Issue #73.
-RECORD_FORMS = 9
-RECORD_OCCURRENCES = 23
+#
+# **These moved twice on 2026-08-20 in opposite directions, and the record did
+# not move at all.** #278's second round put four evidenced forms on the table
+# and three of them were already sitting in these notes, uncounted, because the
+# table did not hold them. #103 removed one in the same window, on the same
+# evidence-only rule read the other way. The run produced exactly what it always
+# produced; the instrument gained three rows here and lost one.
+RECORD_FORMS = 13
+RECORD_OCCURRENCES = 43
 RECORD_NOTES = 7
 
 
@@ -343,7 +351,7 @@ class TheRunRecord(unittest.TestCase):
         self.assertEqual(evidence.occurrences, RECORD_OCCURRENCES)
         self.assertEqual(len(evidence.files), RECORD_NOTES)
 
-    # spelling-scan: mentions 12
+    # spelling-scan: mentions 22
     def test_the_listed_forms_are_the_ones_the_ticket_names(self):
         # **Eight until 2026-08-18, then nine, then ten within the hour.** The run
         # record has not changed and cannot -- ``fixtures/filled-anchor/notes/``
@@ -360,11 +368,25 @@ class TheRunRecord(unittest.TestCase):
         # to warn about ticket text, while three occurrences sat in these
         # committed notes. **A form documented as invisible is still invisible**,
         # and naming one in prose is not the same as adding it to the table.
-        # #103 later removed ``recognisable``: its only appearances were the
-        # run's self-audit boilerplate, not vocabulary an encounter can exercise.
+        #
+        # **Four more on 2026-08-20, and three of them are here.** #278's second
+        # round is the same distinction a fourth time: ``counselling``,
+        # ``hypoxaemia``, ``hypoxaemic`` and ``immobilisation`` were written by
+        # the run that produced these notes and were invisible to every scan
+        # until the table held them. ``millimetre`` went on the table in the
+        # same change and is **not** in this list -- that run never wrote it,
+        # which is ``manoeuvre``'s shape and is why the two facts are kept
+        # apart.
+        #
+        # **And #103 removed ``recognisable`` in the same window**, its only
+        # appearances being the run's self-audit boilerplate rather than
+        # vocabulary an encounter can exercise. So this list gained four and
+        # lost one while the twelve notes did not move a byte, which is the
+        # growth rule read in both directions at once.
         self.assertEqual(
             sorted(self.report.evidence.forms),
-            ["behaviour", "caesarean", "dyspnoea", "fibre", "grey", "judgement",
+            ["behaviour", "caesarean", "counselling", "dyspnoea", "fibre",
+             "grey", "hypoxaemia", "hypoxaemic", "immobilisation", "judgement",
              "labelled", "neighbour", "programme"],
         )
 
@@ -392,6 +414,133 @@ class TheRecordView(unittest.TestCase):
         self.assertEqual((rows["caesarean"].british, rows["caesarean"].american_count), (2, 8))
         self.assertEqual((rows["dyspnoea"].british, rows["dyspnoea"].american_count), (3, 7))
         self.assertEqual((rows["fibre"].british, rows["fibre"].american_count), (4, 3))
+
+    # spelling-scan: mentions 7
+    def test_the_largest_pair_in_the_set_is_partitioned_by_note(self):
+        """``counselling`` is #73's argument at its sharpest, and the table not
+        holding the form is the only reason nobody had seen it.
+
+        **The mechanism is a between-note partition, not a within-note ratio**,
+        and the skill's prose said the opposite for the length of one sweep: the
+        two notes carrying the British form carry **no** occurrence of the
+        American one, and the ten carrying the American form carry none of the
+        British. So a reader of any single note sees perfect internal
+        consistency and the drift exists only across the twelve -- which is
+        precisely why #73 needed twelve outputs in front of one reader.
+
+        Pinned in both directions because the prose states the pair and names
+        the two exceptions. **The count was right and the reading of it was
+        invented**, which no assertion on the count alone would have caught --
+        the version of this test that shipped first asserted exactly the two
+        numbers below and would have passed the wrong sentence unchanged.
+        """
+        rows = {row.form: row for row in self.rows}
+        row = rows["counselling"]
+        self.assertEqual((row.british, row.american_count), (12, 57))
+        self.assertGreater(
+            row.american_count,
+            max(r.american_count for r in self.rows if r.form != "counselling"),
+        )
+        self.assertEqual(self._notes_carrying_both("counselling"), [])
+        # The two the prose names as the genuine within-note case, and the
+        # reason ``slip`` is the wrong word for the pair above.
+        both = sorted(r.form for r in self.rows if self._notes_carrying_both(r.form))
+        self.assertEqual(both, ["caesarean", "fibre"])
+        # **Bound to the prose, not merely pinned here**, which is the same
+        # #220 gap the stated tally had. The three pairs beside this one in the
+        # skill are prose nothing can fail against; they predate this and are
+        # left alone, but a pair added *by* the change that fixed the tally may
+        # not repeat the defect one sentence over. Written in digits so the
+        # assertion can be built from the values rather than transcribed.
+        self.assertIn(
+            f"`counseling` {row.american_count} against "
+            f"`counselling` {row.british}",
+            SKILL.read_text(encoding="utf-8"),
+        )
+
+    # spelling-scan: mentions 1
+    def _notes_carrying_both(self, form):
+        """The record notes containing this form *and* its American counterpart."""
+        american = scan.ALL_FORMS[form]
+        british = re.compile(r"\b" + re.escape(form) + scan._SUFFIX + r"\b", re.I)
+        counterpart = re.compile(r"\b" + re.escape(american) + scan._SUFFIX + r"\b", re.I)
+        found = []
+        for path in scan.tracked_markdown():
+            if not scan.is_evidence(path):
+                continue
+            text = scan.read_tracked(path) or ""
+            if british.search(text) and counterpart.search(text):
+                found.append(path)
+        return found
+        # **Bound to the prose, not merely pinned here**, which is the same
+        # #220 gap the stated tally had. The three pairs beside this one in the
+        # skill are prose nothing can fail against; they predate this and are
+        # left alone, but a pair added *by* the change that fixed the tally may
+        # not repeat the defect one sentence over. Written in digits so the
+        # assertion can be built from the values rather than transcribed.
+        self.assertIn(
+            f"`counseling` {row.american_count} against "
+            f"`counselling` {row.british}",
+            SKILL.read_text(encoding="utf-8"),
+        )
+
+    def test_the_skills_stated_tally_is_the_one_the_scanner_computes(self):
+        """The figure in the skill's prose, bound rather than typed.
+
+        `CLAUDE.md` names ``skills/clinical-note/SKILL.md`` under *Conventions*
+        as this tally's **one home**, so unlike every other figure this repo
+        withholds, that one is meant to be written down. What it was missing is
+        the other half of #220: a copy nothing can fail against. It was
+        unbound for the length of one review and a reviewer mutated it to a
+        triple the record has never held with all 59 spelling tests green --
+        [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+        inside the change citing #143.
+
+        **Only the current value is bound, and that asymmetry is deliberate.**
+        The three before it are what the paragraph *used to read*; they are
+        history and no reader can act on them. This one is a claim about the
+        tree.
+
+        **The parser lives here rather than in the module**, which is where
+        ``parse_skill_table`` sits. That one parses a **rule the scanner
+        enforces** and the scanner is its caller. This parses a **figure the
+        test pins**, and ``spelling_scan`` has no use for it -- a public
+        function with no production caller is Speculative Generality, and the
+        constants it checks against are this file's already.
+
+        The wording is the command's own, so the sentence a reader checks and
+        the line the tool prints are the same shape.
+        """
+        stated = re.search(
+            r"\*\*(\d+) forms / (\d+) occurrences / (\d+) of the twelve notes\*\*",
+            SKILL.read_text(encoding="utf-8"),
+        )
+        self.assertIsNotNone(
+            stated,
+            "the skill's stated record tally moved or changed shape; it is the "
+            "one home CLAUDE.md names for this figure",
+        )
+        self.assertEqual(
+            tuple(int(n) for n in stated.groups()),
+            (RECORD_FORMS, RECORD_OCCURRENCES, RECORD_NOTES),
+        )
+
+    # spelling-scan: mentions 2
+    def test_the_form_column_fits_the_longest_form_it_renders(self):
+        """The width is derived, so a longer form cannot push its own count out
+        of the column. It was a literal ``13`` and was already too narrow for
+        ``catheterisation`` -- invisibly, because that form is not in the record
+        and so was never rendered. #278's ``immobilisation`` is the first
+        14-character form the record holds, and it is what made the defect
+        visible rather than what introduced it."""
+        rendered = scan.render_record(self.rows)
+        counts = [
+            line[2 + max(len(row.form) for row in self.rows):]
+            for line, row in zip(rendered[2:2 + len(self.rows)], self.rows)
+        ]
+        for line in counts:
+            with self.subTest(line=line):
+                self.assertTrue(line.startswith(" "), "the form column overflowed")
 
     def test_the_view_names_cases_and_counts_only(self):
         rendered = "\n".join(scan.render_record(self.rows))
@@ -687,6 +836,104 @@ class TheTicketsOwnInstance(unittest.TestCase):
         a guess at English."""
         self.assertTrue(scan.scan_text("repeated manoeuvres", "a.md"))
         self.assertEqual(scan.scan_text("repeated manoeuvring", "a.md"), [])
+
+
+# spelling-scan: mentions 31
+class TheSecondRoundOfEvidence(unittest.TestCase):
+    """#278's four evidenced forms, ruled by the clinician 2026-08-20.
+
+    The growth rule is **evidence** -- settled on #104 when the clinician
+    declined the productive families and the medical vocabulary nobody had
+    written. These four had been written here and were on no table, which is the
+    rule firing rather than the rule being widened.
+
+    **They are three different classes of evidence and the difference is the
+    point of this class.** ``counselling`` was live in tracked Markdown prose in
+    a skill a consumer reads; ``hypoxaemia``, ``hypoxaemic`` and
+    ``immobilisation`` were in the preserved run record, which is how
+    ``neighbour`` and ``judgement`` arrived; ``millimetre`` was written four
+    times in ``.py``, a surface this scanner did not then read. The last is
+    the one worth naming, and it is asserted below rather than left to be
+    rediscovered.
+    """
+
+    # spelling-scan: mentions 10
+    def test_every_evidenced_form_is_now_a_finding(self):
+        for sentence, expected in (
+            ("Dietary counselling was offered.", ("counselling", "counseling")),
+            ("Induration measured in millimetres.", ("millimetre", "millimeter")),
+            ("If it progresses to hypoxaemia, escalate.", ("hypoxaemia", "hypoxemia")),
+            ("Early non-hypoxaemic outpatient disease.", ("hypoxaemic", "hypoxemic")),
+            ("No recent immobilisation reported.", ("immobilisation", "immobilization")),
+        ):
+            with self.subTest(sentence=sentence):
+                findings = scan.scan_text(sentence, "a.md")
+                self.assertEqual([(f.form, f.american) for f in findings], [expected])
+
+    def test_none_of_them_fires_on_the_american_form(self):
+        """The bar every widening here is priced against, and the reason the
+        productive families were declined: a scanner that refuses ``seizure``
+        and ``figure`` is worse than one that says what it holds. Each of these
+        five turns a listed form into another spelling of the same wrong word
+        and never into a right one, which is what ``_SUFFIX`` promises."""
+        american = (
+            "Dietary counseling, induration in millimeters, progresses to "
+            "hypoxemia, early non-hypoxemic disease, no immobilization."
+        )
+        self.assertEqual(scan.scan_text(american, "a.md"), [])
+
+    # spelling-scan: mentions 7
+    def test_the_adjective_is_a_stem_change_and_needs_its_own_entry(self):
+        """``hypoxaemic`` is not reachable from ``hypoxaemia``: the suffix rule
+        appends, and ``-ia`` to ``-ic`` replaces. So it sits in
+        ``STEM_CHANGES`` beside ``catheterisation``, which is the same shape.
+
+        This is the mirror of ``manoeuvring``, which is **not** carried -- there
+        the repo had written only the one inflection, and here it wrote both.
+        Evidence decides which, not English."""
+        self.assertIn("hypoxaemic", scan.STEM_CHANGES)
+        self.assertNotIn("hypoxaemic", scan.TABLE)
+        without_the_entry = {
+            form: pattern
+            for form, _, pattern in scan._PATTERNS
+            if form != "hypoxaemic"
+        }
+        self.assertFalse(
+            any(p.search("non-hypoxaemic") for p in without_the_entry.values()),
+            "the entry is redundant: something else already reaches the adjective",
+        )
+
+    # spelling-scan: mentions 5
+    def test_the_live_instance_was_in_tracked_markdown_prose(self):
+        """``counselling`` is the sharpest of the four: it sat at
+        ``skills/clinical-note/HP.md:106``, in prose rather than a code span, in
+        a tracked file, with ``--all`` green over it and both nets working. That
+        is ``licence`` again with nothing broken -- the form was simply not on
+        the table, which is this ticket's whole subject."""
+        findings = scan.scan_text(
+            "matters for counselling and future care", "skills/clinical-note/HP.md"
+        )
+        self.assertEqual([f.form for f in findings], ["counselling"])
+        self.assertEqual(scan.scan_text("write `counselling` here", "a.md"), [])
+
+    def test_the_form_whose_evidence_this_scanner_could_not_then_read(self):
+        """``millimetre``'s four instances were all in ``.py`` -- three in
+        ``tools/corpus_census.py`` and one in its test -- and when the form went
+        on the table this scanner read Markdown only. So the row rests on
+        evidence the instrument holding the table could not have produced:
+        #104's limit 1 handing a vocabulary row to #278's limit 2.
+
+        **The two limbs then met.** #104's local surfaces landed on ``main`` in
+        the same window, so ``.py`` is a scanned surface now and the same
+        evidence today is a finding rather than something somebody noticed by
+        hand. The claim is asserted in both halves because the sentence in the
+        skill is **historical**, and a reader needs to know which half still
+        holds: the row's provenance does not change, and the gap that made it
+        notable is closed."""
+        self.assertIn("millimetre", scan.TABLE)
+        self.assertTrue(scan.is_scannable_source("tools/corpus_census.py"))
+        clean = "# a skin test result, in the unit it is read in\n"
+        self.assertEqual(scan.scan_python_text(clean, "tools/example.py"), [])
 
 
 class Reporting(unittest.TestCase):
