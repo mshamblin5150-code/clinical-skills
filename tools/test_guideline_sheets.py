@@ -545,15 +545,16 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         )
         self.assertIn("[uspstf: grade B, children and adolescents 6 years or older", self.text)
 
-    def test_no_scanner_claim_names_only_the_row_it_can_name(self):
-        # differential_scan.py reaches one limb of row 22 and nothing else. The
-        # skill claimed it reached a limb of row 23 too, while that tool's own
-        # docstring said otherwise -- a skill file disagreeing with the tool it
-        # cites is worse than silence, because it reads as agreement.
+    def test_the_row_13_floor_does_not_claim_to_grade_rows_23_or_24(self):
+        # #164 added a declared floor for row 13, so the old assertion that this
+        # module could not even name row 23 became stale. The invariant that
+        # matters is narrower: neither the tool nor the skill promotes that floor
+        # into a grade on the two rows it still cannot check.
         scanner = (REPO_ROOT / "tools" / "differential_scan.py").read_text(encoding="utf-8")
-        self.assertNotIn("row 23", scanner)
-        self.assertIn("reaches one limb of row 22 and nothing else", self.text)
-        self.assertIn("**not row 23 either**", self.text)
+        self.assertNotIn("fails row 23", scanner)
+        self.assertNotIn("fails row 24", scanner)
+        self.assertIn("does not grade row 23", self.text)
+        self.assertIn("still reaches **nothing in row 23 or 24**", self.text)
 
 
 class TheCoderGainsNoObligation(unittest.TestCase):
