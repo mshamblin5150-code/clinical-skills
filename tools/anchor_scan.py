@@ -18,10 +18,10 @@ and that sentence is the whole of what this scans.
   This is A1's, A2's and A5's fail condition with the reading taken out of it.
 - **A pediatric band names the CDC computation.** [#123] retired the old test
   forbidding an ICD-only verification claim. Its replacement checks the evidence
-  the new rule requires: every for-entry ``Z68.5-`` carries ``CDC 2022 Extended
-  BMI-for-Age`` on its ``CONFIDENCE`` line. A bare ``verify this number`` now
-  proves the calculator was skipped rather than honestly disclosing an absent
-  chart.
+  the new rule requires: every for-entry ``Z68.5-`` carries the affirmative line
+  ``verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`` in
+  ``CONFIDENCE``. A bare ``verify this number`` -- or a sentence merely naming an
+  unavailable table -- proves the calculator was skipped.
 
 **What it cannot reach is the rest of ANCHOR, and that is permanent.** Whether a
 note's BMI *had* a filled input, whether ``I10`` was rightly absent on a filled
@@ -109,7 +109,10 @@ FIELD = re.compile(r"(?mi)^[ \t]*(?:ANCHOR|SOURCE|SPECIFICITY|CONFIDENCE|NOTE)[ 
 NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
 
 FILLED = re.compile(r"(?i)\bfilled\b")
-CDC_COMPUTED = re.compile(r"(?i)\bCDC 2022 Extended BMI-for-Age\b")
+CDC_COMPUTED = re.compile(
+    r"(?i)^verified against ICD-10-CM FY2026 and "
+    r"CDC 2022 Extended BMI-for-Age\.?$"
+)
 
 # ``icd10-cpt`` step 4's heading. The lookbehind is the load-bearing part: ``NOT
 # CODED, ANCHOR WAS FILLED`` is the pre-#46 heading, and reading it as this block
@@ -158,8 +161,8 @@ class Worksheet:
     marked: frozenset[str]
     listed: frozenset[str]
     has_block: bool
-    pediatric: frozenset[str]
-    pediatric_not_computed: frozenset[str]
+    pediatric: tuple[str, ...]
+    pediatric_not_computed: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -223,12 +226,12 @@ def read_worksheet(text: str) -> Worksheet:
         for index, match in enumerate(found)
     ]
 
-    def owner(position: int) -> tuple[str, bool] | None:
+    def owner(position: int) -> tuple[int, str, bool] | None:
         """The entry a detail line belongs to -- the nearest one above it."""
         owned = None
-        for start, code, for_entry in entries:
+        for index, (start, code, for_entry) in enumerate(entries):
             if start < position:
-                owned = (code, for_entry)
+                owned = (index, code, for_entry)
             else:
                 break
         return owned
@@ -236,18 +239,19 @@ def read_worksheet(text: str) -> Worksheet:
     marked: set[str] = set()
     for match in SOURCE.finditer(text):
         held = owner(match.start())
-        if held and held[1] and FILLED.search(match.group(1)):
-            marked.add(held[0])
+        if held and held[2] and FILLED.search(match.group(1)):
+            marked.add(held[1])
 
-    pediatric = {
-        code
-        for _start, code, for_entry in entries
+    pediatric_entries = [
+        (index, code)
+        for index, (_start, code, for_entry) in enumerate(entries)
         if for_entry and PEDIATRIC_BAND.match(code)
-    }
-    computed: set[str] = set()
+    ]
+    pediatric_indexes = {index for index, _code in pediatric_entries}
+    computed: set[int] = set()
     for match in CONFIDENCE.finditer(text):
         held = owner(match.start())
-        if held and held[1] and held[0] in pediatric and CDC_COMPUTED.search(match.group(1)):
+        if held and held[2] and held[0] in pediatric_indexes and CDC_COMPUTED.fullmatch(match.group(1)):
             computed.add(held[0])
 
     block, has_block = _block_lines(text)
@@ -258,8 +262,10 @@ def read_worksheet(text: str) -> Worksheet:
         marked=frozenset(marked),
         listed=frozenset(listed),
         has_block=has_block,
-        pediatric=frozenset(pediatric),
-        pediatric_not_computed=frozenset(pediatric - computed),
+        pediatric=tuple(code for _index, code in pediatric_entries),
+        pediatric_not_computed=tuple(
+            code for index, code in pediatric_entries if index not in computed
+        ),
     )
 
 

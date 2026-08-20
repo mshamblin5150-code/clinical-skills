@@ -238,12 +238,36 @@ class ThePediatricBandIsComputed(unittest.TestCase):
         kinds = [finding.kind for finding in scan.worksheet_findings(sheet)]
         self.assertEqual(kinds, [scan.PEDIATRIC_NOT_COMPUTED])
 
+    def test_naming_an_unavailable_cdc_table_is_not_computation(self):
+        sheet = scan.read_worksheet(
+            worksheet(
+                entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
+                      " 85th percentile for age", confidence="verify this number - CDC 2022 "
+                      "Extended BMI-for-Age was unavailable")
+            )
+        )
+        kinds = [finding.kind for finding in scan.worksheet_findings(sheet)]
+        self.assertEqual(kinds, [scan.PEDIATRIC_NOT_COMPUTED])
+
+    def test_each_duplicate_code_entry_needs_its_own_computation(self):
+        descriptor = "Body mass index [BMI] pediatric, 5th percentile to less than 85th percentile for age"
+        entries = "\n\n".join(
+            (
+                entry("Z68.52", descriptor, confidence="verified against ICD-10-CM FY2026 and "
+                      "CDC 2022 Extended BMI-for-Age"),
+                entry("Z68.52", descriptor, confidence="verify this number"),
+            )
+        )
+        sheet = scan.read_worksheet(worksheet(entries))
+        self.assertEqual(sheet.pediatric, ("Z68.52", "Z68.52"))
+        self.assertEqual(len(scan.worksheet_findings(sheet)), 1)
+
     def test_a_computed_band_alone_counts_as_something_scanned(self):
         sheet = scan.read_worksheet(
             worksheet(
                 entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
-                      " 85th percentile for age", confidence="verified against CDC 2022 "
-                      "Extended BMI-for-Age")
+                      " 85th percentile for age", confidence="verified against ICD-10-CM "
+                      "FY2026 and CDC 2022 Extended BMI-for-Age")
             )
         )
         self.assertEqual(scan.survey([sheet]).subjects, 1)
