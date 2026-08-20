@@ -3124,7 +3124,7 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
     **It was closed without one, on the clinician's ruling of 2026-08-16, because
     the two senses are not the same shape.** A pack count is a small number in
     front of the token and usually a span behind it. A skin test has no quantity
-    in front at all: it is placed, it is read, and its result is millimetres of
+    in front at all: it is placed, it is read, and its result is millimeters of
     induration. Nobody writes a tuberculin test as a number of packs followed by
     years.
 

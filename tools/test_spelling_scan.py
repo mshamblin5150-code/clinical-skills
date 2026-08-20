@@ -36,8 +36,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 
 # day-b run 1, byte for byte apart from two redacted site names. Issue #73.
-RECORD_FORMS = 10
-RECORD_OCCURRENCES = 25
+#
+# **These moved on 2026-08-20 and the record did not**, for the fourth time.
+# #278's second round put four evidenced forms on the table and three of them
+# were already sitting in these notes -- ``counselling`` twelve times,
+# ``hypoxaem-`` five, ``immobilisation`` three -- uncounted, because the table
+# did not hold them. The run produced exactly what it always produced; the
+# instrument got better. Both notes were already in the seven, so the count of
+# notes did not move.
+RECORD_FORMS = 14
+RECORD_OCCURRENCES = 45
 RECORD_NOTES = 7
 
 
@@ -247,7 +255,7 @@ class TheRunRecord(unittest.TestCase):
         self.assertEqual(evidence.occurrences, RECORD_OCCURRENCES)
         self.assertEqual(len(evidence.files), RECORD_NOTES)
 
-    def test_the_ten_forms_are_the_ones_the_ticket_names(self):
+    def test_the_forms_are_the_ones_the_ticket_names(self):
         # **Eight until 2026-08-18, then nine, then ten within the hour.** The run
         # record has not changed and cannot -- ``fixtures/filled-anchor/notes/``
         # is a byte-for-byte record of what a day-b run produced, apart from two
@@ -263,9 +271,19 @@ class TheRunRecord(unittest.TestCase):
         # to warn about ticket text, while three occurrences sat in these
         # committed notes. **A form documented as invisible is still invisible**,
         # and naming one in prose is not the same as adding it to the table.
+        #
+        # **Four more on 2026-08-20, and three of them are here.** #278's second
+        # round is the same distinction a fourth time: ``counselling``,
+        # ``hypoxaemia``, ``hypoxaemic`` and ``immobilisation`` were written by
+        # the run that produced these notes and were invisible to every scan
+        # until the table held them. ``millimetre`` went on the table in the
+        # same change and is **not** in this list -- that run never wrote it,
+        # which is ``manoeuvre``'s shape and is why the two facts are kept
+        # apart.
         self.assertEqual(
             sorted(self.report.evidence.forms),
-            ["behaviour", "caesarean", "dyspnoea", "fibre", "grey", "judgement",
+            ["behaviour", "caesarean", "counselling", "dyspnoea", "fibre",
+             "grey", "hypoxaemia", "hypoxaemic", "immobilisation", "judgement",
              "labelled", "neighbour", "programme", "recognisable"],
         )
 
@@ -573,6 +591,99 @@ class TheTicketsOwnInstance(unittest.TestCase):
         a guess at English."""
         self.assertTrue(scan.scan_text("repeated manoeuvres", "a.md"))
         self.assertEqual(scan.scan_text("repeated manoeuvring", "a.md"), [])
+
+
+class TheSecondRoundOfEvidence(unittest.TestCase):
+    """#278's four evidenced forms, ruled by the clinician 2026-08-20.
+
+    The growth rule is **evidence** -- settled on #104 when the clinician
+    declined the productive families and the medical vocabulary nobody had
+    written. These four had been written here and were on no table, which is the
+    rule firing rather than the rule being widened.
+
+    **They are three different classes of evidence and the difference is the
+    point of this class.** ``counselling`` was live in tracked Markdown prose in
+    a skill a consumer reads; ``hypoxaemia``, ``hypoxaemic`` and
+    ``immobilisation`` were in the preserved run record, which is how
+    ``neighbour`` and ``judgement`` arrived; ``millimetre`` was written four
+    times in ``.py``, a surface this scanner does not read at all. The last is
+    the one worth naming, and it is asserted below rather than left to be
+    rediscovered.
+    """
+
+    def test_every_evidenced_form_is_now_a_finding(self):
+        for sentence, expected in (
+            ("Dietary counselling was offered.", ("counselling", "counseling")),
+            ("Induration measured in millimetres.", ("millimetre", "millimeter")),
+            ("If it progresses to hypoxaemia, escalate.", ("hypoxaemia", "hypoxemia")),
+            ("Early non-hypoxaemic outpatient disease.", ("hypoxaemic", "hypoxemic")),
+            ("No recent immobilisation reported.", ("immobilisation", "immobilization")),
+        ):
+            with self.subTest(sentence=sentence):
+                findings = scan.scan_text(sentence, "a.md")
+                self.assertEqual([(f.form, f.american) for f in findings], [expected])
+
+    def test_none_of_them_fires_on_the_american_form(self):
+        """The bar every widening here is priced against, and the reason the
+        productive families were declined: a scanner that refuses ``seizure``
+        and ``figure`` is worse than one that says what it holds. Each of these
+        five turns a listed form into another spelling of the same wrong word
+        and never into a right one, which is what ``_SUFFIX`` promises."""
+        american = (
+            "Dietary counseling, induration in millimeters, progresses to "
+            "hypoxemia, early non-hypoxemic disease, no immobilization."
+        )
+        self.assertEqual(scan.scan_text(american, "a.md"), [])
+
+    def test_the_adjective_is_a_stem_change_and_needs_its_own_entry(self):
+        """``hypoxaemic`` is not reachable from ``hypoxaemia``: the suffix rule
+        appends, and ``-ia`` to ``-ic`` replaces. So it sits in
+        ``STEM_CHANGES`` beside ``catheterisation``, which is the same shape.
+
+        This is the mirror of ``manoeuvring``, which is **not** carried -- there
+        the repo had written only the one inflection, and here it wrote both.
+        Evidence decides which, not English."""
+        self.assertIn("hypoxaemic", scan.STEM_CHANGES)
+        self.assertNotIn("hypoxaemic", scan.TABLE)
+        without_the_entry = {
+            form: pattern
+            for form, _, pattern in scan._PATTERNS
+            if form != "hypoxaemic"
+        }
+        self.assertFalse(
+            any(p.search("non-hypoxaemic") for p in without_the_entry.values()),
+            "the entry is redundant: something else already reaches the adjective",
+        )
+
+    def test_the_live_instance_was_in_tracked_markdown_prose(self):
+        """``counselling`` is the sharpest of the four: it sat at
+        ``skills/clinical-note/HP.md:106``, in prose rather than a code span, in
+        a tracked file, with ``--all`` green over it and both nets working. That
+        is ``licence`` again with nothing broken -- the form was simply not on
+        the table, which is this ticket's whole subject."""
+        findings = scan.scan_text(
+            "matters for counselling and future care", "skills/clinical-note/HP.md"
+        )
+        self.assertEqual([f.form for f in findings], ["counselling"])
+        self.assertEqual(scan.scan_text("write `counselling` here", "a.md"), [])
+
+    def test_the_form_whose_evidence_this_scanner_cannot_see(self):
+        """``millimetre``'s four instances were all in ``.py`` -- three in
+        ``tools/corpus_census.py`` and one in its test -- and this scanner reads
+        Markdown only. So it went on the table on evidence the instrument that
+        holds the table could never have produced.
+
+        **That is #104's limit 1 handing evidence to #278's limit 2**, and it is
+        asserted rather than described because the honest reading of a clean
+        ``--all`` is unchanged by it: the form is checked now, and the surface it
+        arrived on is still unscanned."""
+        self.assertIn("millimetre", scan.TABLE)
+        self.assertFalse(scan.is_markdown("tools/corpus_census.py"))
+        report = scan.scan(
+            ["tools/corpus_census.py"],
+            lambda path: "measured in millimetres of induration",
+        )
+        self.assertEqual(report.findings, [])
 
 
 class Reporting(unittest.TestCase):

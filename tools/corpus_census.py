@@ -154,7 +154,7 @@ Extractor limits worth knowing before quoting a number:
   can tell them apart"*, is false as written: the two senses are not the same
   shape. A pack count is a small number in front of the token and usually a span
   behind it. A skin test has no quantity in front at all -- it is placed, it is
-  read, and its result is millimetres of induration. Nobody writes a tuberculin
+  read, and its result is millimeters of induration. Nobody writes a tuberculin
   test as a number of packs followed by years.
 - **The audit is printed rather than quoted**, so it is re-derivable by anyone
   with the corpus: ``with_bare_ppd``, ``bare_ppd_no_other_token`` and the two
@@ -777,7 +777,7 @@ PPD_TOKEN = re.compile(r"(?i)\bppd\b")
 #
 # A pack count is a small number in front of the token and usually a span behind
 # it -- "0.5 ppd x 15 yrs". A skin test has no quantity in front: it is placed,
-# it is read, and its result is millimetres of induration. **Nobody writes a
+# it is read, and its result is millimeters of induration. **Nobody writes a
 # tuberculin test as a number of packs followed by years**, which is what makes
 # this a discriminator rather than a guess.
 PPD_AS_QUANTITY = re.compile(
@@ -1188,7 +1188,7 @@ def ppd_written_as_quantity(note: str) -> bool:
 
 
 def ppd_written_as_skin_test(note: str) -> bool:
-    """A tuberculin test -- placed, read, and measured in millimetres."""
+    """A tuberculin test -- placed, read, and measured in millimeters."""
     return bool(PPD_AS_SKIN_TEST.search(note))
 
 

@@ -62,6 +62,11 @@ Known limits, stated so nobody reads this as the rule itself:
   that is on the page as well as here**, in ``vocabulary_covered`` and beside
   every clean line -- ``licence`` and ``manoeuvres`` were written into skill
   files in one commit minutes apart and only the listed one was reported.
+  **The declaration is not a substitute for the table growing**, which is what
+  #278's second round settled: four more evidenced forms landed on 2026-08-20,
+  one of them live in a skill a consumer reads with both nets working. Printing
+  the limit is what stops a clean line over-claiming; it is not what closes a
+  gap.
 - Advisory in the pre-commit hook, and deliberately: a spelling is not worth
   refusing a commit over. **Two things here can refuse one** -- standing rule 1
   via ``phi_scan.py``, and since #83 ``threshold_sheet.py`` when a
@@ -119,14 +124,21 @@ TABLE = {
     "neighbour": "neighbor",
     "judgement": "judgment",
     "manoeuvre": "maneuver",
+    "counselling": "counseling",
+    "millimetre": "millimeter",
+    "hypoxaemia": "hypoxemia",
+    "immobilisation": "immobilization",
 }
 
 # Inflections whose stem changes, so the suffix rule below cannot reach them from
-# the table's entry. Two, because two are what the corpus and the run record have
-# produced -- this is not an attempt at English.
+# the table's entry. Three, because three are what the corpus and the run record
+# have produced -- this is not an attempt at English. ``hypoxaemic`` is the
+# newest: ``-ia`` to ``-ic`` replaces where the suffix rule appends, so the
+# adjective is out of reach of its own noun, and this repo wrote both.
 STEM_CHANGES = {
     "labelling": "labeling",
     "catheterisation": "catheterization",
+    "hypoxaemic": "hypoxemic",
 }
 
 FORMS = {**TABLE, **STEM_CHANGES}
@@ -557,6 +569,20 @@ def vocabulary_covered() -> str:
     ``seizure`` and ``figure`` is worse than one that says what it holds.
     ``foetal`` and ``oesophag-`` stay off for the narrower reason that nobody
     has written them here, which is #104's open question and not this one's.
+
+    **A second round on 2026-08-20, and it is the growth rule firing rather
+    than the declaration failing.** Four more forms had been written here and
+    were on no table -- ``counselling``, ``millimetre``, ``hypoxaemia`` with
+    ``hypoxaemic``, and ``immobilisation``. **They arrived by three different
+    routes and the spread is what makes them evidence rather than a family**:
+    ``counselling`` was live in tracked Markdown prose in a skill a consumer
+    reads, with both nets working and this line printing clean over it; three
+    were in the preserved run record, the way ``neighbour`` and ``judgement``
+    arrived; and ``millimetre``'s four instances were all in ``.py``, **a
+    surface this scanner does not read**, so the form went on the table on
+    evidence the instrument holding the table could never have produced. That
+    last is #104's limit 1 handing evidence to #278's limit 2, and it changes
+    nothing about what a clean run here means.
 
     **Derived from ``_PATTERNS`` rather than typed.** That tuple is what
     ``_matches`` iterates, so the printed number cannot disagree with what ran
