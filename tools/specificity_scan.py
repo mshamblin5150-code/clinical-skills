@@ -30,9 +30,10 @@ the whole ``filled-anchor`` set exists for.
 **What the first pass does not test, and cannot.** Whether a substantive reason is
 true. [#154] found four reasons in ``filled-anchor/run-2`` that were specific,
 checkable, and false. ``--brief`` now gives a fresh reader code numbers and no
-worksheet answers; ``--second-read`` binds that reader's cited descriptors,
-billability values, and inherited tabular notes to the committed database. The
-reader's prose is paired with the original reason under ``--show`` and deliberately
+worksheet answers; ``--second-read`` binds that reader's complete three-character
+categories, descriptors, billability values, and inherited tabular notes to the
+committed database. The reader's prose is paired with the original reason under
+``--show`` and deliberately
 not machine-graded. Agreement is a smoke test, never proof.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
@@ -83,7 +84,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
-from icd10_lookup import describe, normalize, notes_for, open_database
+from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
 # ``ICD-10  M19.90  Unspecified osteoarthritis, unspecified site``. The trailing
 # ``NOT FOR ENTRY`` mark belongs to the differential shape and is not descriptor.
@@ -126,10 +127,7 @@ SECOND_READ_IS_A_SMOKE_TEST = (
 )
 SECOND_READ_CODE_FIELDS = (
     "code",
-    "descriptor",
-    "billable",
-    "notes",
-    "evidence",
+    "family",
     "about",
 )
 SECOND_READ_FACT_FIELDS = ("code", "descriptor", "billable", "notes")
@@ -150,6 +148,17 @@ class Flag:
     @property
     def has_substance(self) -> bool:
         return bool(SUBSTANCE.search(self.remainder))
+
+
+@dataclass(frozen=True)
+class WorksheetEntry:
+    """One code entry, including entries whose required specificity line is absent."""
+
+    start: int
+    system: str
+    code: str
+    descriptor: str
+    for_entry: bool
 
 
 @dataclass(frozen=True)
@@ -216,13 +225,8 @@ def _keyword(value: str) -> tuple[str, str]:
     return "", stripped
 
 
-def read_flags(text: str) -> list[Flag]:
-    """Every ``SPECIFICITY`` line in one worksheet, paired with its entry.
-
-    Pairing is positional -- the most recent entry line above the flag -- because
-    the skill's template puts the two three lines apart and nothing else in the
-    output carries a code and its official descriptor on one line.
-    """
+def read_entries(text: str) -> list[WorksheetEntry]:
+    """Every code entry, whether or not its required ``SPECIFICITY`` line exists."""
     found = list(ENTRY.finditer(text))
 
     def header(index: int) -> str:
@@ -237,25 +241,35 @@ def read_flags(text: str) -> list[Flag]:
         field = FIELD.search(text, start, end)
         return text[start : field.start() if field else end]
 
-    entries = [
-        (
-            m.start(),
-            m.group(1),
-            m.group(2),
-            m.group(3),
-            not NOT_FOR_ENTRY.search(header(i)),
+    return [
+        WorksheetEntry(
+            start=match.start(),
+            system=match.group(1),
+            code=match.group(2),
+            descriptor=match.group(3),
+            for_entry=not NOT_FOR_ENTRY.search(header(index)),
         )
-        for i, m in enumerate(found)
+        for index, match in enumerate(found)
     ]
+
+
+def read_flags(text: str) -> list[Flag]:
+    """Every ``SPECIFICITY`` line in one worksheet, paired with its entry.
+
+    Pairing is positional -- the most recent entry line above the flag -- because
+    the skill's template puts the two three lines apart and nothing else in the
+    output carries a code and its official descriptor on one line.
+    """
+    entries = read_entries(text)
     flags: list[Flag] = []
     for match in SPECIFICITY.finditer(text):
         system, code, descriptor, for_entry = "", "", "", True
-        for start, found_system, found_code, found_descriptor, entry_is_for_entry in entries:
-            if start < match.start():
-                system = found_system
-                code = found_code
-                for_entry = entry_is_for_entry
-                descriptor = NOT_FOR_ENTRY.sub("", found_descriptor)
+        for entry in entries:
+            if entry.start < match.start():
+                system = entry.system
+                code = entry.code
+                for_entry = entry.for_entry
+                descriptor = NOT_FOR_ENTRY.sub("", entry.descriptor)
             else:
                 break
         keyword, remainder = _keyword(match.group(1))
@@ -273,7 +287,17 @@ def read_flags(text: str) -> list[Flag]:
     return flags
 
 
-def brief(per_worksheet: list[list[Flag]], source: str) -> str:
+def for_entry_icd10(items: list[list[Flag | WorksheetEntry]]) -> list[Flag | WorksheetEntry]:
+    """The one eligibility walk shared by the brief and its coverage gate."""
+    return [
+        item
+        for worksheet in items
+        for item in worksheet
+        if item.for_entry and item.system.upper().startswith("ICD") and item.code
+    ]
+
+
+def brief(per_worksheet: list[list[Flag | WorksheetEntry]], source: str) -> str:
     """A locator-only work order for a reader who cannot see the worksheets.
 
     A code is enough to open the committed release. Descriptors and flags are the
@@ -282,14 +306,7 @@ def brief(per_worksheet: list[list[Flag]], source: str) -> str:
     names can carry a date or site.
     """
     del source
-    codes = sorted(
-        {
-            flag.code
-            for flags in per_worksheet
-            for flag in flags
-            if flag.for_entry and flag.system.upper().startswith("ICD") and flag.code
-        }
-    )
+    codes = sorted({item.code for item in for_entry_icd10(per_worksheet)})
     lines = [
         "== a separated second read of ICD-10-CM specificity",
         "",
@@ -302,21 +319,18 @@ def brief(per_worksheet: list[list[Flag]], source: str) -> str:
     lines.extend(f"  {code}" for code in codes)
     lines += [
         "",
-        "Write the result as JSON. For each subject code, descriptor and billable",
-        "must be copied from the release; evidence is a list of every additional",
-        "code looked up; about is the independent reading in your own words:",
+        "Write the result as JSON. Family is EVERY code in the subject's complete",
+        "three-character category, with exact release facts. About is the independent",
+        "reading in your own words:",
         "",
         '  {"read_on": "<YYYY-MM-DD>",',
         '   "codes": [{"code": "<subject code>",',
-        '              "descriptor": "<official descriptor>",',
-        '              "billable": <true | false>,',
-        '              "notes": [{"code": "<where written>",',
-        '                         "kind": "<tabular note kind>",',
-        '                         "text": "<exact note text>"}],',
-        '              "evidence": [{"code": "<looked-up code>",',
-        '                            "descriptor": "<official descriptor>",',
-        '                            "billable": <true | false>,',
-        '                            "notes": [<same exact note shape>]}],',
+        '              "family": [{"code": "<category code>",',
+        '                          "descriptor": "<official descriptor>",',
+        '                          "billable": <true | false>,',
+        '                          "notes": [{"code": "<where written>",',
+        '                                     "kind": "<tabular note kind>",',
+        '                                     "text": "<exact note text>"}]}],',
         '              "about": "<what the release shows about specificity>"}]}',
         "",
         f"  {SECOND_READ_IS_A_SMOKE_TEST}.",
@@ -332,10 +346,26 @@ def _record_problem(record: object, position: str, subject: bool) -> str | None:
     missing = [name for name in required if name not in record]
     if missing:
         return f"{position} has no {', '.join(missing)}"
-    strings = ("code", "descriptor") + (("about",) if subject else ())
+    strings = ("code",) + (("about",) if subject else ("descriptor",))
     empty = [name for name in strings if not str(record.get(name, "")).strip()]
     if empty:
         return f"{position} has an empty {', '.join(empty)}"
+    if subject:
+        family = record.get("family")
+        if not isinstance(family, list) or not family:
+            return f"{position} family is not a non-empty list"
+        seen: set[str] = set()
+        for family_position, fact in enumerate(family, start=1):
+            problem = _record_problem(
+                fact, f"{position} family {family_position}", subject=False
+            )
+            if problem:
+                return problem
+            fact_code = normalize(str(fact["code"]))
+            if fact_code in seen:
+                return f"{position} family repeats {fact['code']}"
+            seen.add(fact_code)
+        return None
     if not isinstance(record.get("billable"), bool):
         return f"{position} billable is not true or false"
     notes = record.get("notes")
@@ -347,16 +377,6 @@ def _record_problem(record: object, position: str, subject: bool) -> str | None:
         absent = [name for name in ("code", "kind", "text") if not str(note.get(name, "")).strip()]
         if absent:
             return f"{position} note {note_position} has no {', '.join(absent)}"
-    if subject:
-        evidence = record.get("evidence")
-        if not isinstance(evidence, list):
-            return f"{position} evidence is not a list"
-        for evidence_position, fact in enumerate(evidence, start=1):
-            problem = _record_problem(
-                fact, f"{position} evidence {evidence_position}", subject=False
-            )
-            if problem:
-                return problem
     return None
 
 
@@ -385,11 +405,21 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
 
 def load_second_read(path: Path) -> SecondRead:
     if not path.is_file():
-        return SecondRead(path=path, ok=False, why_not=f"no such file: {path}")
+        return SecondRead(path=path, ok=False, why_not=f"no such file: {path.name}")
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        return SecondRead(path=path, ok=False, why_not=f"unreadable: {error}")
+    except OSError as error:
+        return SecondRead(
+            path=path,
+            ok=False,
+            why_not=f"unreadable {path.name}: {error.__class__.__name__}",
+        )
+    except ValueError as error:
+        return SecondRead(
+            path=path,
+            ok=False,
+            why_not=f"unreadable {path.name}: invalid JSON at line {error.lineno}",
+        )
     return load_second_read_record(loaded, path)
 
 
@@ -418,26 +448,44 @@ def _fact_refusals(
     return refusals
 
 
+def _family_refusals(record: dict, connection: sqlite3.Connection, label: str) -> list[str]:
+    """Bind a reader's complete category walk to the release that defines it."""
+    subject = normalize(str(record["code"]))
+    category = subject[:CATEGORY_LENGTH]
+    official_codes = {
+        row[0]
+        for row in connection.execute(
+            "SELECT code FROM code WHERE code LIKE ? ORDER BY code", (category + "%",)
+        )
+    }
+    recorded_codes = {normalize(str(fact["code"])) for fact in record["family"]}
+    refusals: list[str] = []
+    if subject not in official_codes:
+        refusals.append(f"{label} {record['code']} is not in ICD-10-CM FY2026")
+    if recorded_codes != official_codes:
+        refusals.append(f"{label} {record['code']} family coverage disagrees with FY2026")
+    for fact in record["family"]:
+        refusals.extend(_fact_refusals(fact, connection, f"{label} {record['code']} family"))
+    return refusals
+
+
 def gate_second_read(
-    per_worksheet: list[list[Flag]], read: SecondRead, connection: sqlite3.Connection
+    per_worksheet: list[list[Flag]],
+    read: SecondRead,
+    connection: sqlite3.Connection,
+    entries: list[list[WorksheetEntry]] | None = None,
 ) -> SecondReadGate:
     """Check cited facts and pair, but never grade, the two specificity readings."""
-    expected_flags = [
-        flag
-        for flags in per_worksheet
-        for flag in flags
-        if flag.for_entry and flag.system.upper().startswith("ICD") and flag.code
-    ]
-    expected_codes = {normalize(flag.code): flag.code for flag in expected_flags}
+    expected_flags = for_entry_icd10(per_worksheet)
+    expected_subjects = for_entry_icd10(entries) if entries is not None else expected_flags
+    expected_codes = {normalize(item.code): item.code for item in expected_subjects}
     expected = set(expected_codes)
     records = {normalize(str(record["code"])): record for record in read.codes}
     refusals: list[str] = []
     warnings: list[str] = []
     for code, record in records.items():
         label = "subject" if code in expected else "off-brief subject"
-        refusals.extend(_fact_refusals(record, connection, label))
-        for fact in record["evidence"]:
-            refusals.extend(_fact_refusals(fact, connection, f"{record['code']} evidence"))
+        refusals.extend(_family_refusals(record, connection, label))
         if code not in expected:
             warnings.append(f"{record['code']} was read but no worksheet requested it")
     uncovered = [expected_codes[code] for code in sorted(expected - records.keys())]
@@ -627,8 +675,9 @@ def main(argv: list[str]) -> int:
         print(f"no worksheets found in {directory.name}", file=sys.stderr)
         return 2
     per_worksheet = [read_flags(text) for text in worksheets]
+    per_worksheet_entries = [read_entries(text) for text in worksheets]
     if make_brief:
-        print(brief(per_worksheet, source=directory.name), end="")
+        print(brief(per_worksheet_entries, source=directory.name), end="")
         print(
             "brief output contains diagnosis codes and is PHI - redirect it into scratch/; "
             "do not paste it",
@@ -645,11 +694,19 @@ def main(argv: list[str]) -> int:
             return 1 if scan.failing_flags else 2
         try:
             connection = open_database()
-        except FileNotFoundError as missing:
-            print(f"\nseparated read not graded: {missing}", file=sys.stderr)
+        except FileNotFoundError:
+            print(
+                "\nseparated read not graded: the committed ICD-10-CM database is missing",
+                file=sys.stderr,
+            )
             return 1 if scan.failing_flags else 2
         try:
-            second_gate = gate_second_read(per_worksheet, read, connection)
+            second_gate = gate_second_read(
+                per_worksheet,
+                read,
+                connection,
+                entries=per_worksheet_entries,
+            )
         finally:
             connection.close()
         print("\n" + format_second_read_report(second_gate, show=show))

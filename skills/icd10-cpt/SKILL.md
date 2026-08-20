@@ -158,30 +158,23 @@ The reader is briefed to **try to break each reason**, not to confirm it. For ea
 {
   "read_on": "YYYY-MM-DD",
   "codes": [{
-    "code": "Z90.49",
-    "descriptor": "Acquired absence of other specified parts of digestive tract",
-    "billable": true,
-    "notes": [{
-      "code": "Z90",
-      "kind": "excludes1",
-      "text": "congenital absence - see Alphabetical Index"
-    }, {
-      "code": "Z90",
-      "kind": "excludes2",
-      "text": "postprocedural absence of endocrine glands (E89.-)"
-    }],
-    "evidence": [{
-      "code": "Z90.3",
-      "descriptor": "Acquired absence of stomach [part of]",
+    "code": "I10",
+    "family": [{
+      "code": "I10",
+      "descriptor": "Essential (primary) hypertension",
       "billable": true,
       "notes": [{
-        "code": "Z90",
-        "kind": "excludes1",
-        "text": "congenital absence - see Alphabetical Index"
+      "code": "I10",
+      "kind": "excludes1",
+      "text": "hypertensive disease complicating pregnancy, childbirth and the puerperium (O10-O11, O13-O16)"
+    }, {
+      "code": "I10",
+      "kind": "excludes2",
+      "text": "essential (primary) hypertension involving vessels of brain (I60-I69)"
       }, {
-        "code": "Z90",
+        "code": "I10",
         "kind": "excludes2",
-        "text": "postprocedural absence of endocrine glands (E89.-)"
+        "text": "essential (primary) hypertension involving vessels of eye (H35.0-)"
       }]
     }],
     "about": "what the release shows about this code's specificity, in the fresh reader's own words"
@@ -189,7 +182,7 @@ The reader is briefed to **try to break each reason**, not to confirm it. For ea
 }
 ```
 
-`"notes"` is the **complete inherited note set** for that code, not only the note that looked useful. `"evidence"` holds every additional code the reader looked up while checking the family, each with the same exact descriptor, billability, and complete inherited-note set. An empty list is a statement that the release returned none; omission is not. `"about"` states what the evidence means without copying the worksheet's reason.
+`"family"` is every code whose normalized number begins with the subject's three-character category — `I10` for `I10`, all of `Z90...` for `Z90.49` — each with its exact descriptor, billability, and **complete inherited note set**. The scanner recomputes that set from SQLite, so an omitted sibling, invented sibling, or empty family refuses rather than reading as a completed lookup. `"about"` states what the whole category means for the subject's specificity without copying the worksheet's reason.
 
 The committed scanner creates the answer-free brief and grades the record:
 
@@ -198,13 +191,13 @@ python tools/specificity_scan.py <run directory> --brief > scratch/specificity-b
 python tools/specificity_scan.py <run directory> --second-read scratch/specificity-second-read.json
 ```
 
-The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every recorded descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a source fact or C5 flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the fresh reader's `"about"` prose for the final eye check; that output is PHI too.
+The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every category member, descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a family/source fact or C5 flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the fresh reader's `"about"` prose for the final eye check; that output is PHI too.
 
 Without the scanner, do the same walk by eye: list each distinct for-entry ICD-10 code without copying its reason; hand that list alone to the fresh reader; require every field above; compare every source field to `tools/icd10_lookup.py` and the committed database; then place the original reason beside `"about"`. The command saves that mechanical comparison; it does not replace the reader.
 
 **`about` is never machine-graded.** It is free prose beside free prose, so judging whether the two agree is itself a reading. A source-field disagreement is a hard failure; a clean source comparison plus a human agreement is a **smoke test and never proof**. Two readers can misread the same code family the same way. This is separation as an instrument, not a claim that a second reason cannot also be wrong.
 
-The brief excludes CPT and HCPCS entries because this repo ships no corresponding code set to bind their evidence against. Their specificity reasons keep the ordinary human verification posture; a clean ICD-10 second read says nothing about them.
+The brief excludes CPT and HCPCS entries because this repo ships no corresponding code set to bind their family walks against. Their specificity reasons keep the ordinary human verification posture; a clean ICD-10 second read says nothing about them.
 
 #### A filled value is coded, and it is marked
 

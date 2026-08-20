@@ -25,7 +25,7 @@ import unittest
 from pathlib import Path
 
 import specificity_scan as scan
-from icd10_lookup import normalize, open_database
+from icd10_lookup import describe, normalize, notes_for, open_database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
@@ -76,19 +76,13 @@ def second_read(*codes: dict) -> dict:
 
 def read_code(
     code: str,
-    descriptor: str,
     *,
-    billable: bool = True,
     about: str = "the code set leaves no further axis beneath this code",
-    evidence: list[dict] | None = None,
-    notes: list[dict] | None = None,
+    family: list[dict] | None = None,
 ) -> dict:
     return {
         "code": code,
-        "descriptor": descriptor,
-        "billable": billable,
-        "notes": notes or [],
-        "evidence": evidence or [],
+        "family": family or [],
         "about": about,
     }
 
@@ -120,6 +114,36 @@ Z90_NOTES = [
         "text": "postprocedural absence of endocrine glands (E89.-)",
     },
 ]
+
+
+def release_family(code: str) -> list[dict]:
+    """The shipped category facts, used to make a record before planting one defect."""
+    connection = open_database()
+    try:
+        category = normalize(code)[:3]
+        codes = [
+            row[0]
+            for row in connection.execute(
+                "SELECT code FROM code WHERE code LIKE ? ORDER BY code", (category + "%",)
+            )
+        ]
+        family: list[dict] = []
+        for family_code in codes:
+            official = describe(connection, family_code)
+            family.append(
+                fact(
+                    family_code,
+                    official.long,
+                    billable=official.billable,
+                    notes=[
+                        {"code": note.code, "kind": note.kind, "text": note.text}
+                        for note in notes_for(connection, family_code)
+                    ],
+                )
+            )
+        return family
+    finally:
+        connection.close()
 
 
 class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
@@ -374,6 +398,11 @@ class TheIndependentReadBriefCarriesNoAnswer(unittest.TestCase):
         self.assertIn("smoke test", brief.lower())
         self.assertIn("Do not consult", brief)
 
+    def test_a_for_entry_code_with_no_specificity_line_still_enters_the_brief(self):
+        text = "ICD-10  I10  Essential (primary) hypertension\n  ANCHOR: the note text\n"
+        brief = scan.brief([scan.read_entries(text)], source="a-run")
+        self.assertIn("I10", brief)
+
 
 class TheSecondReadIsBoundToTheCommittedRelease(unittest.TestCase):
     def setUp(self):
@@ -395,18 +424,16 @@ class TheSecondReadIsBoundToTheCommittedRelease(unittest.TestCase):
     def _subject(self, **changes) -> dict:
         record = read_code(
             "Z90.49",
-            "Acquired absence of other specified parts of digestive tract",
-            notes=Z90_NOTES,
-            evidence=[
-                fact(
-                    "Z90.3",
-                    "Acquired absence of stomach [part of]",
-                    notes=Z90_NOTES,
-                )
-            ],
+            family=release_family("Z90.49"),
             about="stomach is a sibling family and Z90.49 is the digestive residual",
         )
         record.update(changes)
+        return record
+
+    def _with_family_change(self, code: str, **changes) -> dict:
+        record = json.loads(json.dumps(self._subject()))
+        target = next(fact for fact in record["family"] if normalize(fact["code"]) == normalize(code))
+        target.update(changes)
         return record
 
     def test_exact_release_facts_are_clean_and_the_prose_is_paired(self):
@@ -422,7 +449,11 @@ class TheSecondReadIsBoundToTheCommittedRelease(unittest.TestCase):
     def test_a_false_subject_descriptor_refuses(self):
         result = scan.gate_second_read(
             self.flags,
-            self._read(self._subject(descriptor="Acquired absence of large intestine")),
+            self._read(
+                self._with_family_change(
+                    "Z90.49", descriptor="Acquired absence of large intestine"
+                )
+            ),
             self.connection,
         )
         self.assertEqual(len(result.refusals), 1)
@@ -432,30 +463,54 @@ class TheSecondReadIsBoundToTheCommittedRelease(unittest.TestCase):
         result = scan.gate_second_read(
             self.flags,
             self._read(
-                self._subject(
-                    evidence=[
-                        fact(
-                            "Z90.3",
-                            "Acquired absence of large intestine",
-                            notes=Z90_NOTES,
-                        )
-                    ]
+                self._with_family_change(
+                    "Z90.3", descriptor="Acquired absence of large intestine"
                 )
             ),
             self.connection,
         )
         self.assertEqual(len(result.refusals), 1)
-        self.assertIn("evidence", result.refusals[0])
+        self.assertIn("family", result.refusals[0])
 
     def test_an_incomplete_note_set_refuses(self):
         result = scan.gate_second_read(
-            self.flags, self._read(self._subject(notes=[])), self.connection
+            self.flags,
+            self._read(self._with_family_change("Z90.49", notes=[])),
+            self.connection,
         )
         self.assertEqual(len(result.refusals), 1)
         self.assertIn("notes", result.refusals[0])
 
+    def test_an_omitted_family_member_refuses(self):
+        record = self._subject()
+        record["family"] = [
+            fact for fact in record["family"] if normalize(fact["code"]) != "Z903"
+        ]
+        result = scan.gate_second_read(
+            self.flags, self._read(record), self.connection
+        )
+        self.assertEqual(len(result.refusals), 1)
+        self.assertIn("family coverage", result.refusals[0])
+
+    def test_an_empty_family_is_not_a_read(self):
+        loaded = self._read(read_code("Z90.49", family=[]))
+        self.assertFalse(loaded.ok)
+        self.assertIn("non-empty", loaded.why_not)
+
+    def test_a_subject_not_present_in_its_recorded_family_refuses(self):
+        record = self._subject(code="Z90.99")
+        result = scan.gate_second_read(
+            self.flags, self._read(record), self.connection
+        )
+        self.assertTrue(any("not in ICD-10-CM" in refusal for refusal in result.refusals))
+
     def test_a_subject_the_read_omits_is_uncovered_not_agreement(self):
-        result = scan.gate_second_read(self.flags, self._read(), self.connection)
+        result = scan.gate_second_read(
+            self.flags,
+            self._read(),
+            self.connection,
+            entries=[scan.read_entries(entry("Z90.49", "descriptor", "complete — reason"))],
+        )
         self.assertEqual(result.refusals, ())
         self.assertEqual(result.uncovered, ("Z90.49",))
         self.assertEqual(result.pairings, ())
@@ -492,8 +547,7 @@ class TheCommandGradesTheSeparatedRead(unittest.TestCase):
     def _record(self, **changes) -> dict:
         record = read_code(
             "Z90.49",
-            "Acquired absence of other specified parts of digestive tract",
-            notes=Z90_NOTES,
+            family=release_family("Z90.49"),
             about="the independent account",
         )
         record.update(changes)
@@ -535,7 +589,12 @@ class TheCommandGradesTheSeparatedRead(unittest.TestCase):
         self.assertIn("UNGRADED", printed)
 
     def test_a_false_release_fact_exits_one(self):
-        self._write(self._record(descriptor="Acquired absence of large intestine"))
+        record = self._record()
+        subject = next(
+            fact for fact in record["codes"][0]["family"] if normalize(fact["code"]) == "Z9049"
+        )
+        subject["descriptor"] = "Acquired absence of large intestine"
+        self._write(record)
         status, _, errors = self._run("--second-read", str(self.read_path))
         self.assertEqual(status, 1)
         self.assertIn("source fact", errors)
@@ -552,6 +611,23 @@ class TheCommandGradesTheSeparatedRead(unittest.TestCase):
         status, _, errors = self._run("--second-read", str(self.read_path))
         self.assertEqual(status, 2)
         self.assertIn("not graded", errors)
+
+    def test_a_missing_record_never_prints_its_sensitive_parent_path(self):
+        missing = self.root / "2026-08-20-sensitive-site" / "read.json"
+        status, _, errors = self._run("--second-read", str(missing))
+        self.assertEqual(status, 2)
+        self.assertIn("read.json", errors)
+        self.assertNotIn("2026-08-20-sensitive-site", errors)
+
+    def test_a_code_without_a_specificity_line_cannot_vanish_from_coverage(self):
+        (self.run / "case-01.md").write_text(
+            "ICD-10  I10  Essential (primary) hypertension\n  ANCHOR: the note text\n",
+            encoding="utf-8",
+        )
+        self._write(second_read())
+        status, printed, _ = self._run("--second-read", str(self.read_path))
+        self.assertEqual(status, 2)
+        self.assertIn("subject code(s) uncovered       1", printed)
 
 
 class TheAuditFiguresAreReDerivable(unittest.TestCase):
@@ -681,8 +757,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         flags = [
             scan.read_flags(
                 entry(
-                    "Z90.49",
-                    "Acquired absence of other specified parts of digestive tract",
+                    "I10",
+                    "Essential (primary) hypertension",
                     "complete — a reason the reader did not see",
                 )
             )
