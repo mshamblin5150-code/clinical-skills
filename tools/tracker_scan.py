@@ -82,13 +82,15 @@ pushed and then force-pushed away is reachable by SHA on GitHub and by nothing
 here. A harvest goes stale the moment anybody comments. GitHub keeps a previous
 revision of every edited issue and comment and serves it to anyone with read
 access, and **the API exposes no way to read or delete one**, so a redaction
-this tool prompts is not the same as the text being gone. And **a date rewritten
-into a format the corpus does not hold escapes the corpus layer entirely** -- a
-real day file's date, with slashes and a four-digit year, sits in two commit
-messages here where it reads as an ordinary shape hit beside a hundred census
-ratios. That was found by reading the shape-layer output, not by the corpus
-layer. **Naming the literal in this docstring would have been the same defect**,
-and the pre-commit hook refused the commit that did.
+this tool prompts is not the same as the text being gone. Date rewriting was a
+third limit when this scanner found one real corpus day only as an ordinary
+shape hit: the corpus held a dashed two-digit-year literal and two commit
+messages used slashes and a four-digit year. **#261 moved that responsibility
+to `phi_scan`**, which now normalizes parseable corpus dates across US numeric,
+written English and ISO forms. Renderings outside those declared families still
+escape unless the shape layer recognizes them. **Naming the literal in this
+docstring would have been the same defect**, and the pre-commit hook refused the
+commit that did.
 
 **Counts only by default**, on `phi_scan.py`'s terms and for its reason: a
 finding here is a patient identifier. **``--show`` output is PHI**: read it, do

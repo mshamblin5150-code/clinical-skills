@@ -49,7 +49,8 @@ git config core.hooksPath tools/hooks
 
 `/setup-clinical-skills` does this for you and creates the folders. After that, every commit in that clone is scanned by `tools/phi_scan.py`, which refuses:
 
-- any patient name or date literal appearing in your local corpus,
+- any patient name appearing in your local corpus, and any corpus date written
+  in a supported US numeric, written English, or ISO form,
 - anything PHI-shaped — a `dob` followed by a date, an SSN, a phone number, an MRN plus digits, an `M-D-YY`-style short date,
 - any attempt to force-add a path under `scratch/` or `output/`.
 
