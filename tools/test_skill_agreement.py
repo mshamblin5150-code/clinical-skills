@@ -2184,11 +2184,14 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
     force* and nothing is going to.
 
     **Keyed on the legend and never on the ``class`` cell**, which is what makes
-    it true either side of a merge rather than only today. #107's widening --
-    ``draft``, ``errata`` and ``scope-of-work`` as class values -- is ruled and
-    is **not in this tree**; those three rows still read ``guideline`` here.
-    Anything keyed on the new values would be wrong now, and anything keyed on
-    the old ones would be wrong later.
+    it true either side of a merge rather than only today -- and the merge has
+    since happened, so that is now checked rather than predicted. #107's
+    widening landed while this branch was open: ``CLASSES`` carries ``draft``,
+    ``errata`` and ``scope-of-work``, and the three rows have moved off
+    ``guideline``. **Every needle still matches**, because each keys on the
+    reason the catalog's prose gives rather than on the value in the cell. A
+    check written the obvious way -- against the class value -- would have been
+    wrong before the merge and would have had to be rewritten at it.
 
     **The direction of the harm is the reason this is a defect rather than a
     slip.** ``RECENCY: guideline in force`` stands the five-year window down,
