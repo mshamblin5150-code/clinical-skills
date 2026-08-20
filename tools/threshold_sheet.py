@@ -468,9 +468,36 @@ def _normalized_conflict_claim(text: str) -> str:
     normalized = text.casefold()
     for phrase, operator in _INEQUALITY_WORDS:
         normalized = re.sub(phrase, operator, normalized)
-    normalized = re.sub(r"\s*(<=|>=|<|>)\s*", r"\1", normalized)
+    normalized = re.sub(r"(<=|>=|<|>)\s*", r"\1", normalized)
     normalized = re.sub(r"\s*/\s*", "/", normalized)
     return " ".join(normalized.split())
+
+
+def _unnamed_conflict_values(values: set[str], conflict: str) -> list[str]:
+    """Return row values that have no distinct, bounded mention in the prose."""
+    claim = _normalized_conflict_claim(conflict)
+    normalized_values = [(value, _normalized_conflict_claim(value)) for value in values]
+    # Longest first prevents one longer mention from donating its prefix to a second
+    # value. Each value gets its own span: evidence that two sides were compared must
+    # occur twice, not be two interpretations of the same characters.
+    normalized_values.sort(key=lambda item: (-len(item[1]), item[1]))
+    used: list[tuple[int, int]] = []
+    missing: list[str] = []
+    for value, normalized in normalized_values:
+        pattern = re.compile(r"(?<!\w)" + re.escape(normalized) + r"(?!\w)")
+        available = next(
+            (
+                match
+                for match in pattern.finditer(claim)
+                if not any(match.start() < end and start < match.end() for start, end in used)
+            ),
+            None,
+        )
+        if available is None:
+            missing.append(value)
+        else:
+            used.append(available.span())
+    return sorted(missing)
 
 
 def parse(text: str, path: Path) -> Sheet:
@@ -637,8 +664,7 @@ def gate_schema(sheet: Sheet) -> list[str]:
                 f"and no 'CONFLICT: {quantity}' block under '## Conflicts'"
             )
             continue
-        claim = _normalized_conflict_claim(conflict)
-        missing = [value for value in sorted(values) if _normalized_conflict_claim(value) not in claim]
+        missing = _unnamed_conflict_values(values, conflict)
         if missing:
             failures.append(
                 f"{sheet.path.name}  'CONFLICT: {quantity}' for population '{population}' "

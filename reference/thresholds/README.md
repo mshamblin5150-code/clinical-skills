@@ -293,10 +293,11 @@ Eight columns: `quantity | population | value | snippet | source | page | rec | 
 
 `CONFLICT: <quantity>` followed by prose naming every distinct row value and **why
 they differ**. The grader requires one wherever two rows share a quantity and a
-population with different values, and reads the prose to require every value. Ordinary
-inequality wording is accepted (`below 180/105 mm Hg` names `<180/105 mm Hg`). This is
-a floor, not a clinical reading: it catches an empty block, `TODO`, or one side left
-unnamed, but cannot decide whether the explanation is correct.
+population with different values, and reads the prose to require a distinct mention of
+every value. One longer value cannot donate its matching prefix to a shorter one.
+Ordinary inequality wording is accepted (`below 180/105 mm Hg` names `<180/105 mm Hg`).
+This is a floor, not a clinical reading: it catches an empty block, `TODO`, or one side
+left unnamed, but cannot decide whether the explanation is correct.
 
 Why prose rather than a column: the KDIGO/AHA case turns entirely on *why* — different
 measurement method, different population — and a cell has no room for the only thing
