@@ -7,7 +7,7 @@ own declaration, and that declaration says what made this reaction plausible
 for this allergen.  A shared sentence about the list does not satisfy the rule.
 
 ``duration-span`` case 1 is the committed regression shape.  Its allergy clause
-contains two spellings of one drug, so it also fixes the unit: transcription
+contains spelling variants of one drug, so it also fixes the unit: transcription
 noise is corrected before distinct allergens are counted.
 """
 
@@ -22,6 +22,7 @@ SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 SOAP = REPO_ROOT / "skills" / "clinical-note" / "SOAP.md"
 HP = REPO_ROOT / "skills" / "clinical-note" / "HP.md"
 ASSERTIONS = REPO_ROOT / "fixtures" / "duration-span" / "assertions.md"
+CASE_ONE = REPO_ROOT / "fixtures" / "duration-span" / "shorthand" / "case-01.md"
 
 
 def read(path: Path) -> str:
@@ -70,6 +71,37 @@ class DriftRowTwentySevenWalksTheRule(unittest.TestCase):
 
 
 class TheCommittedMultiAllergenShapeCarriesTheAssertion(unittest.TestCase):
+    @staticmethod
+    def one_insertion_apart(left: str, right: str) -> bool:
+        """Whether deleting one character from the longer token yields the shorter."""
+        short, long = sorted((left, right), key=len)
+        return len(long) == len(short) + 1 and any(
+            long[:index] + long[index + 1 :] == short for index in range(len(long))
+        )
+
+    def test_the_published_token_and_distinct_counts_still_match_the_input(self) -> None:
+        """Derive the decision-bearing figures from the tracked shorthand.
+
+        The assertion prose publishes six tokens naming five distinct drugs.
+        Reading that prose back would make it its own source of truth, so this
+        check parses the allergy clause and independently finds its one
+        single-character spelling variant.
+        """
+        allergy_line = next(
+            line for line in read(CASE_ONE).splitlines() if line.startswith("allergies:")
+        )
+        tokens = [token.strip().lower() for token in allergy_line.split(":", 1)[1].split(",")]
+        variant_pairs = {
+            tuple(sorted((left, right)))
+            for index, left in enumerate(tokens)
+            for right in tokens[index + 1 :]
+            if self.one_insertion_apart(left, right)
+        }
+
+        self.assertEqual(len(tokens), 6)
+        self.assertEqual(variant_pairs, {("phenergan", "phenergran")})
+        self.assertEqual(len(tokens) - len(variant_pairs), 5)
+
     def test_duration_span_has_one_binary_row_for_the_new_rule(self) -> None:
         rows = [line for line in read(ASSERTIONS).splitlines() if line.startswith("| S4 ")]
         self.assertEqual(len(rows), 1)
