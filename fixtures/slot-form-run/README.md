@@ -75,6 +75,14 @@ python tools/phi_scan.py --all
 
 **Do not correct the note.** Byte-for-byte apart from a recorded redaction is the property that makes a run worth keeping, and a row rewritten to agree with a later measurement is a record edited to match its own checker.
 
+## This set is a run record and is not exempt from standing rule 4
+
+`tools/spelling_scan.py` exempts `fixtures/filled-anchor/notes/case-*.md` by path, because that set's British spellings **are the evidence for [#73](https://github.com/mshamblin5150-code/clinical-skills/issues/73)**. This set holds none today and is **deliberately not added to that exemption**: a carve-out granted for a spelling nobody has written is a silence bought against a hypothetical, and it would hide a real finding the day one appears.
+
+**So the two rules that govern this directory can collide, and nothing decides which wins.** The scanner's table grows from evidence — `counselling` joined it on 2026-08-20, after this run was produced — so a form landing on it that these notes already contain would make standing rule 4 demand an edit while the paragraph above forbids one. **Neither outcome is available**: correcting falsifies the record, and exempting makes the set unscannable forever.
+
+Recorded rather than pre-empted on [#321](https://github.com/mshamblin5150-code/clinical-skills/issues/321), and the ruling is the clinician's. Until then a reader who hits it should treat it as a finding about the *table's* reach rather than about these notes, which is what `filled-anchor`'s own README argues at length: the figure moved twice without a byte of the record changing, because it was a property of the instrument.
+
 **A clean scan is not a walked row.** `differential_scan.py` settles whether a refused code sits in a slot. Whether a label is what its descriptor says — row 22 proper — is a reading, and paraphrase is permitted. Nothing here has walked that.
 
 **And it must not be tuned.** These six exit 0 and that is the honest outcome; a run edited until the checker fires is material written to make a check pass its own test, which is the trap [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s own CI comment names. The exit-1 branch is exercised by **mutating** a copy of this material in `tools/test_differential_scan.py`, where the mutation is visible in the test rather than baked into the record.
