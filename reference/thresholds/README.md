@@ -140,9 +140,28 @@ omission refuses or merely warns.
 
 **Mode is not a style choice and is not set by hand.** It comes from
 `tools/guidelines_recs.py`, and it says whether that document's recommendations could
-be counted *exactly* — read out of a ruled `COR | LOE` table — or only *bounded* by
-matching a marker in running text. An exact source has its omissions **refused**; a
-bound source has them **warned**. See #83 decision 1.
+be counted *exactly* or only *bounded* by matching a marker in running text. An exact
+source has its omissions **refused**; a bound source has them **warned**. See #83
+decision 1.
+
+**Exact arrives two ways since [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173),
+and the record's `counted_from` says which.** One is a ruled `COR | LOE` table in the
+document itself. The other is [`reference/guidelines-uspstf.md`](../guidelines-uspstf.md),
+which is **also** a ruled table — one recommendation per row, the grade in a cell — and
+is where the 90 USPSTF documents are answered from. **That second one is read out of a
+committed file rather than out of the PDF's own layout**, which is an objection the
+first one does not have to meet, so every row is checked to be on the page it cites
+before it is counted and a document whose rows do not check is reported as **not
+scanned** rather than counted short. That check is what earns the word, and it is the
+answer to #173's own prohibition — *do not promote a document to exact that is not read
+out of a ruled table*.
+
+**What the mode still does not say is whether the source is complete.** Neither reading
+claims every recommendation in the document was found; a table the parser did not
+recognize and a curated row the builder did not extract are the same hole, and gate 2 is
+silent about both. *The sheet accounted for everything the record holds* and *the record
+holds everything the guideline states* are separate claims, and only the first is
+checked here.
 
 ### `## Scope`
 
@@ -274,30 +293,51 @@ not left to be discovered:
   anyone should be able to commit by accident. **Named here rather than smoothed over**,
   because the cost lands on someone editing prose who has done nothing wrong.
 - **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
-- **A `bound` source is warned about and never refused**, so most of the corpus can
-  only ever be warned about. `tools/guidelines_recs.py --json` reports which mode a
-  document yields, and that is the number to look at before trusting a clean run.
+- **A `bound` source is warned about and never refused.** `tools/guidelines_recs.py
+  --json` reports which mode a document yields, and that is the number to look at
+  before trusting a clean run. **This bullet used to close *so most of the corpus can
+  only ever be warned about*, and #173 made that false without touching the sentence**
+  — the majority of the corpus is `exact` now. The standing figure is the table below
+  and is deliberately not restated here.
 - **One topic has a sheet.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
-- **Most of the corpus cannot be gated at all yet, and the number is measured.**
-  `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-16:
+- **Most of the corpus can be gated now, and the number is measured.**
+  `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-19, after
+  [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173) added the
+  two readings it was filed for:
 
-  | mode | docs | what a gate can do |
-  | --- | ---: | --- |
-  | `exact` | **22** | omissions **refused**; 22 of 23 AHA/ACC files, 2,969 recommendations |
-  | `bound` | 19 | omissions **warned**; 16 KDIGO, 2 IDSA, 1 ADA |
-  | nothing found | **138** | nothing counted, so nothing gated |
+  | mode | `counted_from` | docs | recommendations | what a gate can do |
+  | --- | --- | ---: | ---: | --- |
+  | `exact` | `ruled-table` | **22** | 2,969 | omissions **refused**; 22 of 23 AHA/ACC files |
+  | `exact` | `curated-table` | **90** | 143 | omissions **refused**; every USPSTF document |
+  | `bound` | `text-marker` | 48 | 4,618 | omissions **warned**; 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
+  | nothing found | — | **19** | 0 | nothing counted, so nothing gated |
 
-  **The 138 is a limit of this extractor, not a finding about those guidelines.** It
-  knows two house styles — a ruled `COR | LOE` table and a `Recommendation N.N.N` /
-  `Practice Point` marker. USPSTF grades recommendations with a letter (A/B/C/D/I) and
-  IDSA writes *"strong recommendation, moderate-quality evidence"* in prose; neither is
-  matched. `guidelines_recs.py` exits 2 on those and says so in as many words rather
-  than reporting a zero, and all 90 USPSTF documents are separately covered by
-  `reference/guidelines-uspstf.md`. **A sheet built on any of the 138 would have its
-  omission gate silently do nothing**, which is why the mode is recorded per source and
-  cross-checked rather than trusted.
+  **It read 22 / 19 / 138 on 2026-08-16 and that is what #173 was filed over.** The
+  138 was 90 USPSTF plus 39 IDSA plus 9 others — two house styles, not a scatter —
+  and both were closed: USPSTF from the committed
+  [`reference/guidelines-uspstf.md`](../guidelines-uspstf.md), IDSA by matching the
+  GRADE parenthetical it writes in prose.
+
+  **The 143 being small beside the 2,969 is the artifact and not a defect.** A USPSTF
+  recommendation statement states one to four recommendations; an AHA/ACC guideline
+  states a hundred.
+
+  **The 19 left is still a limit of this extractor, not a finding about those
+  guidelines** — 11 IDSA documents that state no graded recommendation in either form
+  this reads, 3 ACIP print captures, 2 KDIGO, and one each of AHA/ACC, CDC and GINA.
+  `guidelines_recs.py` exits 2 on them and says so in as many words rather than
+  reporting a zero. **A sheet built on any of the 19 would have its omission gate
+  silently do nothing**, which is why the mode is recorded per source and cross-checked
+  rather than trusted.
+
+  **One document moved from *nothing* to a bound of one and that is worth knowing
+  before reading it as coverage.** The GOLD report states a single recommendation in
+  GRADE terms in running prose, so the IDSA marker finds exactly one in a document
+  holding hundreds. That is a true statement about markers and a poor description of
+  the document; it is a bound, a bound may only warn, and no threshold on the number
+  would be anything but invented.
 - **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
   stripped by #80 appears inside an extracted table row, that row is suspect and must
   be read off the rendered page."* **This ticket widened the exposure rather than

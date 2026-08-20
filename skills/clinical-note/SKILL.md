@@ -692,7 +692,7 @@ It fails closed: no hit, no name.
 
 ### What a citation can never carry
 
-**Whether the recommendation applies to this patient is not machine-checkable, and no wording here makes it so.** The population is quoted so a reader can compare it in one jump; that is the whole of what this buys. Two further limits are the sheets' own, written down in [reference/thresholds/README.md](../../reference/thresholds/README.md) rather than discovered: a sheet whose numbers are all real and all filed under the wrong heading passes every gate in that directory, and 138 of the 179 documents cannot be omission-gated at all — so *the sheet was consulted* and *the sheet is complete* are separate claims and only the first one is cheap.
+**Whether the recommendation applies to this patient is not machine-checkable, and no wording here makes it so.** The population is quoted so a reader can compare it in one jump; that is the whole of what this buys. Two further limits are the sheets' own, written down in [reference/thresholds/README.md](../../reference/thresholds/README.md) rather than discovered: a sheet whose numbers are all real and all filed under the wrong heading passes every gate in that directory, and 19 of the 179 documents cannot be omission-gated at all while a further 48 can only be warned about — so *the sheet was consulted* and *the sheet is complete* are separate claims and only the first one is cheap.
 
 ## Conventions
 

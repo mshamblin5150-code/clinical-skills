@@ -35,12 +35,18 @@ in review. Every figure the new prose states is now counted from the artifact, s
 a corpus refresh or a second threshold sheet fails a test instead of quietly
 making a sentence false.
 
-**One figure resists that, and it is marked rather than smoothed over.** The *138
+**One figure resists that, and it is marked rather than smoothed over.** The *19
 of 179 documents not omission-gateable* the skill cites is a count over the
 out-of-repo corpus, so nothing committed can re-derive it. The assertion below
 compares the skill's copy to the README's and is a **consistency check between
 two files, not a verification** -- named here because a pinned figure and a
 re-derived one look identical in a passing suite.
+
+**It read 138 until [#173] closed two of the extractor's blind spots**, which is
+the same figure moving for the third time and is why it is pinned on both sides
+rather than in one. The consistency check is what caught the skill's copy and the
+README's needing to move together; nothing here could have told you either was
+stale.
 
 **Nothing here reads a note or a run directory.** It reads committed Markdown
 only, so it needs no fixtures, touches nothing under ``scratch/`` or ``output/``,
@@ -517,8 +523,13 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         # 250-line file -- including a page number or a byte count -- so it would
         # have kept passing after the figure it guards was regraded.
         readme = (THRESHOLDS / "README.md").read_text(encoding="utf-8")
-        self.assertRegex(readme, r"\| nothing found \| \*\*138\*\* \|")
-        self.assertIn("138 of the 179 documents cannot be omission-gated", self.text)
+        self.assertRegex(readme, r"\| nothing found \| — \| \*\*19\*\* \|")
+        self.assertIn("19 of the 179 documents cannot be omission-gated", self.text)
+        # The second half of the same sentence, and the one a reader acts on: a bound
+        # source IS gated, it just cannot refuse. Collapsing the two would let 19 read
+        # as "everything else is enforced", which is false of 48 documents.
+        self.assertIn("a further 48 can only be warned about", self.text)
+        self.assertRegex(readme, r"\| `bound` \| `text-marker` \| 48 \|")
 
     def test_the_pediatric_row_the_skill_quotes_is_real(self):
         # Quoted with a grade and a year, both of which were written before they
