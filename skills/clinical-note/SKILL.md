@@ -627,12 +627,12 @@ If yes it is clinical and it stays. If no it is describing this skill's own work
 
 ## Guideline sheets
 
-Two sheets ship in this repo, and where one covers what a Plan item asserts, it is **consulted rather than recalled**. This is the [icd10-cpt](../icd10-cpt/SKILL.md) code-set arrangement arriving one document over: a fact this repo holds is looked up, and a fact it does not hold says so. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
+Three sheets ship in this repo, and where one covers what a Plan item asserts, it is **consulted rather than recalled**. This is the [icd10-cpt](../icd10-cpt/SKILL.md) code-set arrangement arriving one document over: a fact this repo holds is looked up, and a fact it does not hold says so. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
 
 | Sheet | Holds | Covers |
 | --- | --- | --- |
 | [`reference/guidelines-uspstf.md`](../../reference/guidelines-uspstf.md) | 143 recommendation statements, each with grade, population, interval, year, file and page, plus the verbatim statement text | preventive screening and counseling, **90 of 90** USPSTF documents |
-| [`reference/thresholds/`](../../reference/thresholds/) | per topic, the numeric decision points — target, cutoff, dose, interval — each with a verbatim snippet, source, page and class | **one topic**, hypertension, out of a 179-document corpus |
+| [`reference/thresholds/`](../../reference/thresholds/) | per topic, the numeric decision points — target, cutoff, dose, interval — each with a verbatim snippet, source, page and class | **two topics**, diabetes and hypertension, out of a 179-document corpus |
 
 **The obligation fires on the item's subject, never on whether the item states a number.** Before writing a Plan item whose appropriateness rests on a **population or a threshold** — every screening, counseling and immunization item, and every treatment item resting on a target or a cutoff — open the sheet that covers it. An item resting on neither is outside this rule entirely: `return precautions given`, `ibuprofen 400 mg PO q6h PRN for the sore throat`, `follow up as needed`. So is every part of the note that is not the Plan.
 

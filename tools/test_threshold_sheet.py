@@ -1044,6 +1044,52 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
             self.assertIn(claim, readme, f"the posture no longer states: {claim}")
 
 
+class TheDiabetesQuotingPostureFiguresAreReDerived(unittest.TestCase):
+    """The second sheet gets its own measured public-repo ruling; #223 explicitly
+    says the hypertension figures do not license the class of future sheets."""
+
+    def test_the_diabetes_quote_footprint_is_measured_from_the_shipped_sheet(self):
+        path = gate.SHEET_ROOT / "diabetes.md"
+        sheet_ = gate.parse(path.read_text(encoding="utf-8"), path)
+        # ``RENDERED:`` is this repo's evidentiary marker, not ADA expression. It
+        # stays in the cell count and is removed only from the copied-word measure.
+        snippets = [row.snippet for row in sheet_.rows]
+        distinct = set(snippets)
+        quoted = [snippet.removeprefix(gate.RENDERED_MARKER).strip() for snippet in distinct]
+        words = sorted(len(snippet.split()) for snippet in quoted)
+
+        self.assertEqual(len(snippets), 25)
+        self.assertEqual(len(distinct), 22)
+        self.assertEqual(sum(words), 166)
+        self.assertEqual((max(words), words[len(words) // 2], min(words)), (18, 6, 3))
+        self.assertEqual(len(sheet_.populations), 17)
+        self.assertEqual(sum(len(value.split()) for value in sheet_.populations.values()), 124)
+
+        readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
+        for claim in (
+            "| rows | **25** |",
+            "**22** are distinct",
+            "**166**",
+            "18 / 6 / 3",
+            "17 rows",
+            "**124**",
+            "**377**",
+        ):
+            self.assertIn(claim, readme)
+
+        catalog = (gate.SHEET_ROOT.parent / "guidelines-catalog.md").read_text(
+            encoding="utf-8"
+        )
+        matching = [
+            line
+            for line in catalog.splitlines()
+            if line.startswith("|") and "standards-of-care-2026.pdf" in line
+        ]
+        self.assertEqual(len(matching), 1)
+        cells = [cell.strip() for cell in matching[0].strip("|").split("|")]
+        self.assertEqual(cells[6], "377")
+
+
 class CoverageIsPerSource(unittest.TestCase):
     """[#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177).
 
