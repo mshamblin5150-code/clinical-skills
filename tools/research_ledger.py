@@ -204,6 +204,36 @@ exactly the table #289 forbids. Written down and pinned by a test rather than
 guessed at, on ``UNRESOLVABLE_LOCATOR``'s terms, and filed --
 [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300).
 
+**Ruled a reading rather than a row on 2026-08-20, and the row stays exactly as
+declared above.** #300 offered three answers and the clinician took the third:
+``skills/practicum-case-study/SKILL.md`` step 9's ``the Rx blocks`` row asks its
+reader for the welded row by name. **That row was already the right reader and
+was simply not told** -- its brief has always asked whether every drug in the Plan
+has a table, and a welded pair is precisely a drug in the Plan without one. **No
+parser moved**, which is the durable half; where the wording landed is those
+files' to say rather than this docstring's.
+
+**The declined parser row is refused on a measurement, and the measurement is a
+test rather than a figure here.** Both forms the ticket priced fire on correct
+orders, and they do not fire on the same ones: *a second unit-bearing token after
+the first dose* takes a taper and an infusion rate as well as a titration and a
+repeat dose, and narrowing to a conjunction between the two doses drops the taper
+and keeps the rest. **The narrowing helps and does not close it**, which is the
+finding rather than the count. Narrowing past what is left needs a closed set of
+continuation
+verbs, and a verb missing from that set is a false alarm on a correct order,
+which is **the same failure direction as the drug table #289 prohibits**.
+``test_research_ledger.TheDeclinedParserRowsFireOnCorrectOrders`` implements both
+forms and runs them, so re-proposing one costs a failing test rather than an
+argument.
+
+**What that buys is a brief and not a gate**, which is the standing price of the
+option and is named rather than left to be found: that row's ``clean`` is not one
+``checks_ledger`` requires to say what it walked --
+[#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255) ruled
+which rows do and this is not one -- so a bare ``clean`` from a reader that
+skimmed still passes.
+
 **What it cannot reach, and the sharpest limb is a claim about coverage rather
 than about a dose.** Whether the dose is right for this patient, whether the
 record that names the drug sourced its *dose* rather than its indication --
@@ -215,9 +245,10 @@ drug row and the ``Sig`` agree.
 [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299), and it
 is not this module.** This paragraph said ``skills/practicum-case-study/SKILL.md``
 step 9 sends a reader at the Rx blocks *for exactly that reason*, and that was
-false: that row briefs a reader on whether every drug has a table, whether every
-``Sig`` ends in an indication and whether the prose block is there, and on no
-number at all -- and ``checks_ledger.SUBSTANTIATED_CLEAN`` leaves it out, so a
+false: that row briefs a reader on whether every drug has a table -- including,
+since [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300),
+whether a drug row welds a second drug into it -- whether every ``Sig`` ends in
+an indication and whether the prose block is there, and on no number at all -- and ``checks_ledger.SUBSTANTIATED_CLEAN`` leaves it out, so a
 bare ``clean`` on it passes. So the residue was declared covered and covered
 nowhere -- this
 ticket's own shape arriving in the fix for it, found by the spec axis of
@@ -740,7 +771,10 @@ SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 #
 # **The cost it names is a missed drug and not only a missed match**, and the
 # module docstring says which: a row welding two orders together is one drug
-# here, so the second one's dose is graded by nothing. #300.
+# here, so the second one's dose is graded by no command in this repo. #300 ruled
+# it a reading on 2026-08-20 -- ``skills/practicum-case-study/SKILL.md`` step 9's
+# ``the Rx blocks`` row asks a reader for it -- and this parser is untouched by
+# that, which is the point of taking the option that needed no parser change.
 DRUG_NAME = re.compile(r"[A-Za-z][A-Za-z'-]*")
 
 # What a drug row may declare about itself. **The exemption is declared and

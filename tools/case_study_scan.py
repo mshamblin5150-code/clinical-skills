@@ -641,9 +641,25 @@ def _rx_findings(sections: list[Section]) -> list[Finding]:
             # carries an endpoint, so the row is discharged for a second drug
             # that states none. That is
             # [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300)'s
-            # hole arriving in a second tool; declared in ``NOT_REACHED`` rather
-            # than guessed at, because splitting an order on ``and`` would split
-            # `metronidazole 500 mg PO TID and hold if the creatinine rises` too.
+            # hole arriving in a second tool; declared in ``NOT_REACHED`` above
+            # rather than guessed at, because splitting an order on ``and`` would
+            # cut `metronidazole 500 mg PO TID and continue until the abscess
+            # resolves` in half and fire this row on the first half -- a false
+            # alarm on a correct order, which is #215's outcome.
+            #
+            # **The counterexample this comment cited until 2026-08-20 did not
+            # demonstrate that**, and it was found by running the string rather
+            # than by reading it: `metronidazole 500 mg PO TID and hold if the
+            # creatinine rises` states no endpoint this row recognizes, so it
+            # fires **whole**, and splitting it changes the verdict not at all.
+            # ``test_case_study_scan.SplittingADrugRowOnAndIsRefusedHere`` runs
+            # both directions now, in this module's own suite, because a comment
+            # fails nothing and a measurement in a sibling's suite is not one a
+            # ``case_study_scan`` author runs.
+            #
+            # **Ruled a reading on 2026-08-20 and this row is untouched**:
+            # ``skills/practicum-case-study/SKILL.md`` step 9's ``the Rx blocks``
+            # row asks a reader for the welded row.
             order = rows[RX_DRUG_ROW][0]
             if RECURRING.search(order) and not ENDPOINT.search(order):
                 findings.append(Finding(NO_STOP_CRITERION, section.name, block.line, order))
