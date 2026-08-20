@@ -246,6 +246,21 @@ def records_from_github_event(
     item = data.get(key)
     if not isinstance(item, dict):
         raise HarvestError(f"{source}: event has no {key!r} record")
+
+    if data.get("action") == "edited":
+        changes = data.get("changes")
+        if not isinstance(changes, dict):
+            raise HarvestError(f"{source}: edited event has no changes object")
+        changed_item = {
+            field: item[field]
+            for field in ("html_url", "number", "id")
+            if field in item
+        }
+        for field in ("title", "body"):
+            if field in changes and field in item:
+                changed_item[field] = item[field]
+        item = changed_item
+
     return records_from_github([item], source)
 
 
@@ -265,19 +280,12 @@ def _label(item: dict, source: str) -> str:
 def load_harvest(paths: Sequence[Path]) -> list[Record]:
     records: list[Record] = []
     for path in paths:
-        try:
-            raw = path.read_text(encoding="utf-8")
-        except OSError as error:
-            raise HarvestError(f"{path}: {error}") from error
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise HarvestError(f"{path}: {error}") from error
+        data = load_json(path)
         records.extend(records_from_github(data, path.name))
     return records
 
 
-def load_github_event(path: Path, event_name: str) -> list[Record]:
+def load_json(path: Path) -> object:
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as error:
@@ -286,6 +294,11 @@ def load_github_event(path: Path, event_name: str) -> list[Record]:
         data = json.loads(raw)
     except json.JSONDecodeError as error:
         raise HarvestError(f"{path}: {error}") from error
+    return data
+
+
+def load_github_event(path: Path, event_name: str) -> list[Record]:
+    data = load_json(path)
     return records_from_github_event(data, event_name, path.name)
 
 

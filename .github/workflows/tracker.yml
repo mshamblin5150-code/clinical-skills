@@ -29,7 +29,11 @@ jobs:
     name: tracker PHI shape layer only
     # A review submission may be only an approval state, with no public text.
     # There is then no record for this text scanner to read and no scan to fail.
-    if: github.event_name != 'pull_request_review' || (github.event.review.body != null && github.event.review.body != '')
+    if: >-
+      (github.event_name != 'pull_request_review' ||
+       (github.event.review.body != null && github.event.review.body != '')) &&
+      (github.event.action != 'edited' ||
+       github.event.changes.title != null || github.event.changes.body != null)
     runs-on: windows-latest
 
     steps:

@@ -112,13 +112,43 @@ class OneChangedTrackerRecordComesFromAnEvent(unittest.TestCase):
         )
         self.assertEqual([record.text for record in records], ["new"])
 
-    def test_an_edited_pull_request_reads_its_title_and_body(self):
+    def test_an_opened_pull_request_reads_its_title_and_body(self):
         records = tracker_scan.records_from_github_event(
-            {"pull_request": {"number": 3, "title": "changed", "body": "body"}},
+            {
+                "action": "opened",
+                "pull_request": {
+                    "number": 3, "title": "changed", "body": "body"
+                },
+            },
             "pull_request_target",
             "event.json",
         )
         self.assertEqual([record.kind for record in records], ["title", "body"])
+
+    def test_a_body_edit_does_not_replay_an_unchanged_noisy_title(self):
+        records = tracker_scan.records_from_github_event(
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {
+                    "number": 260,
+                    "title": "unchanged 17/5/12 title",
+                    "body": "clean changed body",
+                },
+            },
+            "issues",
+            "event.json",
+        )
+        self.assertEqual([record.kind for record in records], ["body"])
+        self.assertEqual([record.text for record in records], ["clean changed body"])
+
+    def test_an_edit_without_a_changes_object_is_not_guessed_at(self):
+        with self.assertRaises(tracker_scan.HarvestError):
+            tracker_scan.records_from_github_event(
+                {"action": "edited", "issue": {"number": 260, "body": "body"}},
+                "issues",
+                "event.json",
+            )
 
     def test_an_unrecognized_event_is_not_a_clean_empty_scan(self):
         with self.assertRaises(tracker_scan.HarvestError):

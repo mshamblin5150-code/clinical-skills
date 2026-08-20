@@ -40,8 +40,23 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
 
     def test_create_and_edit_do_not_depend_on_a_later_push(self):
         text = workflow_text()
-        self.assertRegex(text, r"(?s)issue_comment:.*types:.*created.*edited")
-        self.assertRegex(text, r"(?s)issues:.*types:.*opened.*edited")
+        expected = {
+            "issues": ("opened", "edited"),
+            "issue_comment": ("created", "edited"),
+            "pull_request_target": ("opened", "edited"),
+            "pull_request_review": ("submitted", "edited"),
+            "pull_request_review_comment": ("created", "edited"),
+        }
+        for event, actions in expected.items():
+            with self.subTest(event=event):
+                match = re.search(
+                    rf"(?m)^  {re.escape(event)}:\r?\n    types: \[([^]]+)\]$",
+                    text,
+                )
+                self.assertIsNotNone(match, f"no trigger block for {event}")
+                block = match.group(1)
+                for action in actions:
+                    self.assertIn(action, block)
 
     def test_the_changed_event_is_the_only_harvest(self):
         text = workflow_text()
@@ -54,6 +69,11 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
             workflow_text(),
             r"github\.event\.review\.body\s*!=\s*null",
         )
+
+    def test_an_edit_that_changes_no_text_does_not_start_a_text_scan(self):
+        text = workflow_text()
+        self.assertIn("github.event.changes.title", text)
+        self.assertIn("github.event.changes.body", text)
 
     def test_the_ci_run_names_and_accepts_its_dead_corpus_layer(self):
         text = workflow_text()

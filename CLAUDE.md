@@ -650,9 +650,10 @@ they are created or edited. The workflow scans the **changed record**, not a
 fresh copy of the whole tracker: replaying the historical surface would repeat
 #264's already-triaged findings on every comment until a new finding became one
 more line in an always-red report. Creation and edit are the publication events,
-so the incremental boundary loses none of the current text a full harvest can
-read. GitHub's retained pre-edit revisions remain outside the API on the ruling
-below.
+and an edit scans only the title or body named in GitHub's `changes` object, so
+cleaning one field does not replay an unchanged finding in the other. The
+incremental boundary loses none of the current text a full harvest can read.
+GitHub's retained pre-edit revisions remain outside the API on the ruling below.
 
 **It is a shape layer run and says so on the check.** `scratch/` must never
 reach a runner, so Actions passes `--allow-no-corpus`, preserves the scanner's
@@ -662,7 +663,10 @@ the corpus layer is live; if its name index is present but short,
 `tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
 hook was declined as the trigger: a comment is published without a push, and a
 push can happen before the finishing sweep writes its comments. This is #260's
-ruling, 2026-08-20.
+ruling, 2026-08-20. The same day, a one-time full harvest was scanned from the
+maintainer clone after #141's completed name index landed. It produced only
+`us-short-date` shape findings -- no corpus-name or corpus-date row -- and no
+`--show` output; the three gitignored harvest files were deleted after the run.
 
 **It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
