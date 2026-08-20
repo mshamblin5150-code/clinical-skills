@@ -752,5 +752,330 @@ class TheReportCarriesTheNewCounts(unittest.TestCase):
         self.assertNotIn("pharyngitis", report.lower())
 
 
+class TheCoverageRowSeparatesReadableFromClean(unittest.TestCase):
+    """[#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s
+    sharper instance, found on the #85 sweep and re-derived before this was built.
+
+    **The exit-2 *no differential entry* limb is evaluated per run, not per note**,
+    so a single parsed entry rescues a whole run into a clean exit 0. A recorded
+    six-note run parses **one** entry and exits 0 -- five notes contributed nothing
+    to the limb that produced the verdict, and nothing in the report said so. That
+    is the partial-coverage-reading-as-complete shape the bare-mark limb was already
+    widened for, surviving on the entry limb.
+
+    **Reported, deliberately not graded** -- the clinician's ruling on 2026-08-19.
+    Making the limb per-note would exit 2 on a run where one note of twelve carries
+    no differential, which is most real runs, and a check that refuses the ordinary
+    case is one people learn to work around. So the denominator is printed and the
+    status is untouched, which is ``NOT_VALIDATED_AGAINST``'s third row.
+
+    **It prints on the ordinary passing path and not only when short**, which is
+    [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
+    ruling on ``phi_scan`` and ``spelling_scan`` borrowed whole: a reader who learns
+    to read a qualifier reads its absence as a stronger claim.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def write(self, name: str, text: str) -> None:
+        (self.root / name).write_text(text, encoding="utf-8")
+
+    def scan(self):
+        return ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
+
+    def test_the_count_is_notes_and_not_entries(self):
+        """One note carrying several entries is one note, and the other five are five."""
+        self.write("case-01.md", TWO_REFUSALS)
+        for n in range(2, 7):
+            self.write(f"case-0{n}.md", "S:\n\nPatient reports a cough.\n")
+        scan = self.scan()
+        self.assertEqual(scan.notes, 6)
+        self.assertEqual(scan.notes_with_entries, 1)
+
+    def test_the_row_prints_on_a_fully_covered_run(self):
+        self.write("case-01.md", CLEAN_SOAP)
+        self.write("case-02.md", TWO_REFUSALS)
+        report = ds.format_report(self.scan(), source="run-1")
+        self.assertIn("notes with a differential entry", report)
+        self.assertIn("2 of 2", report)
+
+    def test_a_short_run_says_what_the_verdict_covers(self):
+        self.write("case-01.md", CLEAN_SOAP)
+        self.write("case-02.md", "S:\n\nPatient reports a cough.\n")
+        report = ds.format_report(self.scan(), source="run-1")
+        self.assertIn("1 of 2", report)
+        self.assertIn("read nothing from their differential", report)
+
+    def test_a_fully_covered_run_carries_no_qualifier(self):
+        """The qualifier is a finding about the run, so a covered run must not
+        carry one -- a caveat printed unconditionally is one nobody reads."""
+        self.write("case-01.md", CLEAN_SOAP)
+        report = ds.format_report(self.scan(), source="run-1")
+        self.assertNotIn("read nothing from their differential", report)
+
+    def test_the_status_is_unchanged(self):
+        """The ruling in one assertion. Five of six notes ungraded is still 0."""
+        self.write("case-01.md", CLEAN_SOAP)
+        for n in range(2, 7):
+            self.write(f"case-0{n}.md", "S:\n\nPatient reports a cough.\n")
+        self.assertEqual(ds.main([str(self.root)]), 0)
+
+    def test_a_conclusion_only_note_is_uncovered_and_the_report_says_it_is_graded(self):
+        """**The discriminating case, and it is what shaped the wording.**
+
+        A note carrying a ``Final diagnosis`` and no differential entry has its
+        conclusion codes read by position and graded, so calling it *ungraded*
+        would be false in the direction that matters. It is still uncovered by the
+        row, because what went unread is its **differential** -- which is what row
+        22 is about and what the exit-2 limb keys on.
+
+        **Measured rather than reasoned**: a recorded six-note run is 1 of 6 by
+        differential and 5 of 6 by any entry, so the two denominators genuinely
+        come apart and the wider one would have reported that run as almost
+        covered.
+        """
+        self.write("case-01.md", CLEAN_SOAP)
+        self.write(
+            "case-02.md",
+            "A:\n\nFinal diagnosis: Community-acquired pneumonia - J18.9\n",
+        )
+        scan = self.scan()
+        self.assertEqual(scan.notes, 2)
+        self.assertEqual(scan.notes_with_entries, 1)
+        self.assertEqual(scan.conclusion_entries, 1)
+        report = ds.format_report(scan, source="run-1")
+        self.assertIn("1 of 2", report)
+        self.assertIn("read nothing from their differential", report)
+        self.assertIn("read by position and graded", report)
+
+    def test_the_row_reveals_nothing(self):
+        self.write("case-01.md", WELDED_SLOT_VIOLATION)
+        report = ds.format_report(self.scan(), source="run-1")
+        self.assertNotIn("M86.9", report)
+        self.assertNotIn("osteomyelitis", report.lower())
+
+
+class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
+    """[#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s
+    option 4, priced as a declared object rather than as a docstring sentence.
+
+    That ticket's own thread re-prices it: #241 ruled a prose sentence insufficient
+    because **a prose edit to it fails nothing**, and the two worked examples in the
+    tree -- ``docx_write.NOT_APPLIED`` and ``reference_scan.NOT_REACHED`` -- are a
+    tuple of ``(key, reason)`` bound by a test asserting the prose and the object
+    name the same items in both directions.
+
+    **The bind here is *point, never copy*.** There is no second sheet to compare
+    against -- the reader-facing surface is ``CLAUDE.md``'s *Differential scan*
+    section -- so what is asserted is that the section names the object and states
+    none of its rows, which is
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+    discipline made checkable rather than promised.
+
+    **And every row is live**, which is what #241 asks for over a sentence: each is
+    re-derived by an assertion below against the committed tree, so a limit cannot
+    quietly stop being true. A row that becomes false fails here rather than
+    standing as a stale claim nobody re-derives.
+    """
+
+    CLAUDE = REPO_ROOT / "CLAUDE.md"
+    FIXTURES = REPO_ROOT / "fixtures"
+
+    def keys(self):
+        return [key for key, _ in ds.NOT_VALIDATED_AGAINST]
+
+    def test_every_row_carries_a_key_and_a_reason(self):
+        for key, reason in ds.NOT_VALIDATED_AGAINST:
+            with self.subTest(key=key):
+                self.assertTrue(key.strip(), key)
+                self.assertGreater(len(reason.split()), 8, key)
+
+    def test_the_keys_are_distinct(self):
+        self.assertEqual(len(set(self.keys())), len(self.keys()))
+
+    def test_the_docstring_points_at_the_object_and_copies_none_of_it(self):
+        """One object, on #241's terms. A docstring restating a row is the second
+        copy that ticket exists to refuse."""
+        doc = " ".join((ds.__doc__ or "").split())
+        self.assertIn("NOT_VALIDATED_AGAINST", doc)
+        for key in self.keys():
+            with self.subTest(key=key):
+                self.assertNotIn(key, doc)
+
+    def test_claude_md_points_at_the_object_and_copies_none_of_it(self):
+        """The reader-facing surface names the object rather than the rows.
+
+        Read as one whitespace-normalized block on ``test_run_record_claim.py``'s
+        finding: a hard-wrapped restatement is invisible to a line-wise search and
+        is exactly the copy this refuses.
+        """
+        text = " ".join(self.CLAUDE.read_text(encoding="utf-8").split())
+        self.assertIn("NOT_VALIDATED_AGAINST", text)
+        for key in self.keys():
+            with self.subTest(key=key):
+                self.assertNotIn(key, text)
+
+    def committed_directories(self):
+        """Every committed directory this scanner can be pointed at.
+
+        Walked rather than listed, so a run committed later is graded by the rows
+        below rather than leaving them asserting something about a tree that has
+        moved. ``run-2`` is an ``icd10-cpt`` worksheet set and is included on
+        purpose: #162's sharp case is that the one committed artifact written in
+        the mandated welded form is the one this tool is pointed away from.
+        """
+        found = [
+            d
+            for d in sorted(self.FIXTURES.glob("*/*"))
+            if d.is_dir() and ds.read_notes(d)
+        ]
+        self.assertTrue(found, "the instrument is dead: no committed directory was read")
+        return found
+
+    def test_no_committed_input_reaches_the_failure_path(self):
+        """The first row, re-derived rather than asserted.
+
+        A run directory is a patient record under gitignored ``scratch/`` or
+        ``output/``, so no run can be committed and every test of the exit-1 path
+        above builds a synthetic note. **If a committed set ever does hold a
+        row-22 violation this fails**, and the row comes out.
+        """
+        self.assertIn("the exit-1 path on committed input", self.keys())
+        for directory in self.committed_directories():
+            with self.subTest(directory=directory.name):
+                scan = ds.survey([ds.read_note(t) for t in ds.read_notes(directory)])
+                self.assertEqual(scan.findings, ())
+
+    def test_the_two_committed_sets_are_both_refused(self):
+        """The second row -- the aggregate the docstring's four limbs never state.
+
+        Each exit 2 is separately correct and separately documented. What none of
+        them says is that **together they leave the scanner with no committed
+        material it can read at all**, which is #162's finding and the thing a
+        reader infers coverage against.
+        """
+        self.assertIn("the aggregate of the exit-2 limbs", self.keys())
+        for name in ("notes", "run-2"):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    ds.main([str(self.FIXTURES / "filled-anchor" / name)]), 2
+                )
+
+    def test_partial_coverage_is_reported_and_not_graded(self):
+        """The third row, and the clinician's 2026-08-19 ruling in one assertion."""
+        self.assertIn("partial coverage inside a run", self.keys())
+        scan = ds.Scan(
+            notes=6,
+            notes_with_entries=1,
+            differential_entries=1,
+            conclusion_entries=0,
+            refused_codes=0,
+            unwelded_marks=0,
+            malformed_pins=0,
+        )
+        self.assertIn("1 of 6", ds.format_report(scan, source="run-1"))
+
+
+class TheSkillsWorkedExamplesPassTheScanner(unittest.TestCase):
+    """[#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s
+    fifth option, borrowed from ``research_ledger.py``'s
+    ``test_the_worked_example_in_the_skill_passes_the_scanner``.
+
+    **The catch it defends against is precise**: a documented entry shape this
+    scanner would refuse teaches the next run to write a note that fails, and every
+    substring test in ``TheSkillSaysWhatThisChecks`` would still be green. The thing
+    under test is the file a run actually copies from.
+
+    **What it does not reach is the exit-1 path**, and that limit is stated here
+    rather than left to be discovered: a worked example is compliant by
+    construction, so this exercises the clean path only. It is
+    ``NOT_VALIDATED_AGAINST``'s first row that stays open, not this class that
+    closes it.
+    """
+
+    FILES = ("SKILL.md", "SOAP.md", "HP.md")
+
+    def blocks(self, name: str) -> list[str]:
+        """Every fenced block in one skill file, walked line by line.
+
+        Line by line rather than by one regex, on ``test_research_ledger.py``'s
+        finding: a non-greedy pattern over the whole file opens on a *closing*
+        fence and returns the prose between two code blocks.
+        """
+        text = (REPO_ROOT / "skills" / "clinical-note" / name).read_text(
+            encoding="utf-8"
+        )
+        blocks: list[str] = []
+        current: list[str] | None = None
+        for line in text.splitlines():
+            if line.startswith("```"):
+                if current is None:
+                    current = []
+                else:
+                    blocks.append("\n".join(current) + "\n")
+                    current = None
+                continue
+            if current is not None:
+                current.append(line)
+        self.assertIsNone(current, f"an unclosed code fence in {name}")
+        return blocks
+
+    def readable(self) -> list[tuple[str, str]]:
+        """The blocks this scanner reads as a note: an entry, a refusal, or a mark.
+
+        Selected by what the parser finds rather than by a heading, because the
+        point is to grade what the scanner sees, and a block it reads as empty
+        carries no claim either way.
+        """
+        found: list[tuple[str, str]] = []
+        for name in self.FILES:
+            for index, block in enumerate(self.blocks(name)):
+                note = ds.read_note(block)
+                if note.entries or note.refused or note.unwelded_marks:
+                    found.append((f"{name}#{index}", block))
+        return found
+
+    def test_the_instrument_is_live(self):
+        """A parser finding nothing would pass every row below.
+
+        ``TheInstrumentIsLive``'s reasoning in ``test_build_artifacts_ignored.py``.
+        The floors sit well under the measurement on
+        [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+        terms -- a worked example added later must not turn the suite red.
+        """
+        notes = [ds.read_note(block) for _, block in self.readable()]
+        self.assertGreaterEqual(len(notes), 8)
+        entries = [entry for note in notes for entry in note.entries]
+        self.assertGreaterEqual(sum(1 for e in entries if not e.conclusion), 6)
+        self.assertGreaterEqual(sum(1 for e in entries if e.conclusion), 3)
+        self.assertGreaterEqual(sum(len(note.refused) for note in notes), 3)
+
+    def test_no_worked_example_violates_row_22(self):
+        for label, block in self.readable():
+            with self.subTest(block=label):
+                self.assertEqual(ds.note_findings(ds.read_note(block)), [])
+
+    def test_no_worked_example_writes_a_bare_mark(self):
+        """The retired form, which would teach the next run to exit 2.
+
+        The skill's own rule is that a note discussing the mark puts it in
+        backticks, so this grades the rule against the file that states it.
+        """
+        for label, block in self.readable():
+            with self.subTest(block=label):
+                self.assertEqual(ds.read_note(block).unwelded_marks, 0)
+
+    def test_the_examples_read_as_one_note_are_clean_too(self):
+        """Refusals are collected note-wide, so a block clean on its own can
+        collide with a slot in another. Cheap to assert, and it is the reading a
+        run produces."""
+        joined = "\n".join(block for _, block in self.readable())
+        self.assertTrue(joined.strip())
+        self.assertEqual(ds.note_findings(ds.read_note(joined)), [])
+
+
 if __name__ == "__main__":
     unittest.main()
