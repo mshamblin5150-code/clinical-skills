@@ -13,6 +13,9 @@ import refusal_scan as scan
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
+ASSERTIONS = REPO_ROOT / "fixtures" / "filled-anchor" / "assertions.md"
+RUN_README = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2" / "README.md"
+EXPECTED_VECTOR = "6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7"
 
 
 def worksheet(*blocks: str) -> str:
@@ -101,6 +104,17 @@ class EveryRefusalCarriesTheThreeMechanicalParts(unittest.TestCase):
             [scan.MISSING_NEEDS],
         )
 
+    def test_a_mark_without_a_descriptor_is_malformed(self):
+        text = worksheet(refusal()).replace(
+            "NOT CODED: M86.9  Osteomyelitis, unspecified",
+            "NOT CODED: M86.9",
+        )
+        sheet = scan.read_worksheet(text)
+        self.assertEqual(
+            [finding.kind for finding in scan.worksheet_findings(sheet)],
+            [scan.MALFORMED_MARK],
+        )
+
     def test_a_missing_substitute_fails(self):
         sheet = scan.read_worksheet(worksheet(refusal(substitute=None)))
         self.assertEqual(
@@ -147,7 +161,12 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
 
     def test_a_missing_directory_is_unscanned(self):
         with tempfile.TemporaryDirectory() as raw:
-            self.assertEqual(scan.main([str(Path(raw) / "absent")]), 2)
+            path = Path(raw) / "absent"
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(scan.main([str(path)]), 2)
+            self.assertNotIn(str(path), output.getvalue())
+            self.assertIn("absent", output.getvalue())
 
     def test_default_output_names_no_code(self):
         status, report = self.run_over({"case-01.md": worksheet(refusal())})
@@ -191,6 +210,11 @@ class TheCommittedRunPinsTheWalkedRow(unittest.TestCase):
 
     def test_the_walked_row_is_clean(self):
         self.assertEqual(self.scan.findings, ())
+
+    def test_both_prose_surfaces_carry_the_pinned_vector(self):
+        for path in (ASSERTIONS, RUN_README):
+            with self.subTest(path=path):
+                self.assertIn(EXPECTED_VECTOR, path.read_text(encoding="utf-8"))
 
 
 class TheSkillStillStatesTheRow(unittest.TestCase):

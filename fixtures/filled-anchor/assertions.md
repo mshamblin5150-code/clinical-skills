@@ -326,16 +326,17 @@ It exits non-zero on either failure, prints counts and never a descriptor, and `
 
 | # | Cases | Passes when | Fails when |
 | --- | --- | --- | --- |
-| F1 | all | All twelve worksheets carry `NOT CODED, NOTHING ESTABLISHED IT`; the refusal counts by case are **6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7**; every one of the 52 records welds `NOT CODED:` to the refused code, carries `needs:`, and carries `proposed instead:`; no refused code also appears in that worksheet's proposed-for-entry list | A block is absent; the count vector changes; any record omits the refused code, what would establish it, or the supported substitute; or one worksheet both refuses and proposes the same code for entry |
+| F1 | all | All twelve worksheets carry `NOT CODED, NOTHING ESTABLISHED IT`; the refusal counts by case are **6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7**; every one of the 52 records welds `NOT CODED:` to the refused code **and a nonempty descriptor**, carries `needs:`, and carries `proposed instead:`; no refused code also appears in that worksheet's proposed-for-entry list | A block is absent; the count vector changes; any record omits the refused code, descriptor, what would establish it, or the supported substitute; or one worksheet both refuses and proposes the same code for entry |
 
 ```bash
 python tools/refusal_scan.py <the run directory>
 ```
 
-The command grades the mechanical limbs: block presence, the three required record fields, and the
+The command grades the mechanical limbs: block presence, code plus nonempty descriptor, `needs:`, `proposed instead:`, and the
 proposed/refused collision. It prints the count vector so the grader can compare it with F1 rather
 than accepting an aggregate 52 that one added record could preserve after another was silently
-dropped. **Exit 0 does not perform that comparison and is not F1 by itself.** The default report is
+dropped. It cannot decide whether the descriptor is the official one; C2's lookup-backed check
+does that. **Exit 0 does not perform the vector comparison and is not F1 by itself.** The default report is
 counts only and safe to paste; `--show` names codes and is PHI.
 
 **Differential entries are outside both the numerator and the collision test.** Twelve of run 2's

@@ -2,9 +2,10 @@
 """Grade the mechanical refusal-record row in ``icd10-cpt`` worksheets.
 
 The scanner reads only ``--- NOT CODED, NOTHING ESTABLISHED IT ---``. A refusal
-inside that block must weld ``NOT CODED`` to its code, state what would establish
-the code, and name what the encounter supports instead. Codes in the differential
-are outside the block and do not inflate the refusal count.
+inside that block must weld ``NOT CODED`` to its code and nonempty descriptor,
+state what would establish the code, and name what the encounter supports instead.
+It cannot judge whether descriptor text is official. Codes in the differential are
+outside the block and do not inflate the refusal count.
 
 Default output is counts only. ``--show`` prints code-level findings and is PHI on
 the same terms as the repo's other scanners. Exit 0 means the scanned records are
@@ -27,7 +28,7 @@ REFUSAL_HEADING = re.compile(
     r"^[ \t]*(?:#{1,6}[ \t]*)?---[ \t]*NOT CODED, NOTHING ESTABLISHED IT[ \t]*---[ \t]*$",
     re.IGNORECASE,
 )
-MARK = re.compile(rf"^[ \t]*NOT CODED:[ \t]*({CODE})\b[ \t]+(.+)$")
+MARK = re.compile(rf"^[ \t]*NOT CODED:[ \t]*({CODE})\b[ \t]+(\S.*)$")
 NEEDS = re.compile(r"^[ \t]*needs:[ \t]*\S", re.IGNORECASE)
 SUBSTITUTE = re.compile(r"^[ \t]*proposed instead:[ \t]*\S", re.IGNORECASE)
 MARK_MENTION = re.compile(r"^[ \t]*NOT CODED:", re.IGNORECASE)
@@ -217,12 +218,12 @@ def main(argv: list[str]) -> int:
 
     directory = Path(args[0])
     if not directory.is_dir():
-        print(f"not a directory: {directory}")
+        print(f"no directory named {directory.name}")
         return 2
 
     texts = read_worksheets(directory)
     if not texts:
-        print(f"no worksheets: {directory}")
+        print(f"no worksheets found in {directory.name}")
         return 2
 
     result = survey([read_worksheet(text) for text in texts])
