@@ -150,6 +150,19 @@ class OneChangedTrackerRecordComesFromAnEvent(unittest.TestCase):
                 "event.json",
             )
 
+    def test_clearing_a_body_is_a_scanned_record_with_no_text(self):
+        records = tracker_scan.records_from_github_event(
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {"number": 260, "title": "title", "body": ""},
+            },
+            "issues",
+            "event.json",
+        )
+        self.assertEqual([(record.kind, record.text) for record in records],
+                         [("body", "")])
+
     def test_an_unrecognized_event_is_not_a_clean_empty_scan(self):
         with self.assertRaises(tracker_scan.HarvestError):
             tracker_scan.records_from_github_event(
@@ -433,6 +446,21 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
         )
         self.assertEqual(status, tracker_scan.FOUND)
         self.assertIn("corpus-date", out)
+
+    def test_clearing_an_event_body_is_clean_not_unscanned(self):
+        path = self.harvest(
+            "event.json",
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {"number": 260, "title": "title", "body": None},
+            },
+        )
+        status, out = self.run_main(
+            "--github-event", path, "--event-name", "issues"
+        )
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("no finding", out)
 
     def test_the_default_run_prints_no_match_text(self):
         path = self.harvest(

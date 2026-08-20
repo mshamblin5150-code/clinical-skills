@@ -8,7 +8,7 @@ is blocked on **issue and pull-request text**, **pull-request diffs**, and
 [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records
 the last of those as scanned by nothing.
 
-**Four limbs, and the mapping to those three is not one-to-one:**
+**The inputs do not map one-to-one to #212's surfaces:**
 
 - ``--harvest`` reads GitHub's own JSON for issues, pull requests and comments.
 - ``--github-event`` reads the one record a GitHub tracker event changed.
@@ -221,7 +221,6 @@ def records_from_github(data: object, source: str) -> list[Record]:
 EVENT_RECORD_KEYS = {
     "issues": "issue",
     "issue_comment": "comment",
-    "pull_request": "pull_request",
     "pull_request_target": "pull_request",
     "pull_request_review": "review",
     "pull_request_review_comment": "comment",
@@ -251,7 +250,7 @@ def records_from_github_event(
         changes = data.get("changes")
         if not isinstance(changes, dict):
             raise HarvestError(f"{source}: edited event has no changes object")
-        changed_item = {
+        changed_item: dict = {
             field: item[field]
             for field in ("html_url", "number", "id")
             if field in item
@@ -261,7 +260,19 @@ def records_from_github_event(
                 changed_item[field] = item[field]
         item = changed_item
 
-    return records_from_github([item], source)
+    records = records_from_github([item], source)
+    if records or data.get("action") != "edited":
+        return records
+
+    # Clearing a body publishes no text, but it is still a record the event
+    # path completely scanned. Keep that distinct from an empty full harvest,
+    # which remains NOT_SCANNED because it names no record at all.
+    label = _label(item, source)
+    return [
+        Record(field, f"{label} {field}", item.get(field) or "")
+        for field in ("title", "body")
+        if field in item
+    ]
 
 
 def _label(item: dict, source: str) -> str:
