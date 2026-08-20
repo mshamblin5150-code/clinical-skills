@@ -164,7 +164,7 @@ So the separation is not just for catching failures. **A self-report can be wron
 | [peds-bp](peds-bp/assertions.md) | `clinical-note`, SOAP branch | 5 | [extracted](peds-bp/shorthand/) | read | **`FILLED 5/6`** — **6 of 13 rows**, see below |
 | [obesity-bmi](obesity-bmi/assertions.md) | `clinical-note`, SOAP branch | 4 | [extracted](obesity-bmi/shorthand/) | **owed** | never run |
 | [filled-anchor](filled-anchor/assertions.md) | `icd10-cpt` | 12 | [finished notes](filled-anchor/notes/) | read | **`ANCHOR 5/5` · `CODE 1/1` · `REPORTED 1/1`** — run 2, **7 of 12 rows**, and it **passes**, see below. Output committed at [filled-anchor/run-2/](filled-anchor/run-2/) |
-| [hedged-dx](hedged-dx/assertions.md) | `clinical-note`, SOAP branch | 3 | [extracted](hedged-dx/shorthand/) | **owed** | `CODING 5/5` · `DRIFT 1/1` · `REPORTED 1/1` — **7 of 13 rows**, and it passes, see below |
+| [hedged-dx](hedged-dx/assertions.md) | `clinical-note`, SOAP branch | 3 | [extracted](hedged-dx/shorthand/) | read | `CODING 5/5` · `DRIFT 1/1` · `REPORTED 1/1` — **7 of 13 rows**, and it passes, see below |
 | [duration-span](duration-span/assertions.md) | `clinical-note`, SOAP branch | 3 | [extracted](duration-span/shorthand/) | **owed** | never run |
 
 **Two of the five sets that have run fail their bar** — `peds-bp`, on a filled value that reaches the Objective and stops, which is the defect this repo exists to catch appearing in the skill's own output, filed against the skill as [#47](https://github.com/mshamblin5150-code/clinical-skills/issues/47) and not resolved by editing a fixture; and **day-b again on run 3**, on an unrelated row and for an unrelated reason. Which rows, on which cases, and where each finding landed instead live in the sets' own files.
