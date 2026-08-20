@@ -30,6 +30,69 @@ The four are **module or case number**, **which video**, **the hyperlink**, and 
 description of the case**. Label and capitalization both drift across the set. Normalize to the
 form above.
 
+## 1a. Intake block — defined fields, never a table
+
+**Ruled 2026-08-19, reversing *"the intake block is a table"*.** The clinician read the first
+rendered submission and the demographics, the Review of Systems and the Physical Examination had all
+been set as two-column tables. His words: *"for the patient demographics I would not make a
+field/value table for that, I would define those fields and append the value"*, and for the Review of
+Systems, *"I would not write a table, I would simply write the system and the findings"*.
+
+So every intake section is **a field name, a colon, the value, as running text**:
+
+> Age: 26 years. Sex: Female. Race/Ethnicity: African American. Occupation: Elementary school
+> teacher.
+
+**A table is still right for data that arrives as a table** — given laboratory results, given
+diagnostic studies, a vital sign set. The distinction is that those are a *result set* with a shared
+unit of meaning, and demographics, a Review of Systems and a Physical Examination are a *narrative*
+that a table chops into cells. The Rx block in §8 stays a table because a prescription is a form.
+
+### The Review of Systems and the Physical Examination
+
+Same shape, one line per system, with the positives and the negatives signed:
+
+> General: + fatigue and fever, - chills and weight loss.
+> Gastrointestinal: + lower abdominal pain and mild nausea, - vomiting and diarrhea.
+
+**The Review of Systems closes with a disclaimer and the Physical Examination does not.** His
+instruction: *"I would put at the bottom of that ROS a disclaimer that all other systems reviewed and
+are negative."* A Review of Systems is a question set and the closer is what makes the unlisted
+systems *asked*; an examination is a set of maneuvers actually performed, and the same sentence there
+would claim work that was not done.
+
+### Never bullets, anywhere in the document
+
+§ the skeleton rule in [SKILL.md](../SKILL.md) already forbids bullets in the differential, the MDM,
+the Plan and the Patient Education. **It is the whole document, ruled 2026-08-19** — *"remember I
+abhor bullet points"* — and the run that prompted this had set the HPI's OLDCARTS breakdown as a
+bulleted list. Write the fields as running text on the pattern above.
+
+### No scaffolding language in the finished document
+
+Three forms the first submission carried, none of which he writes:
+
+| Written | Write instead |
+| --- | --- |
+| `Using OLDCARTS:` before the HPI fields | nothing — just write `Onset: ...` and continue |
+| `Ordered, not assumed` after an absent datum | say what is absent: `Not quantified in the case study` |
+| `No known drug allergies` | `NKDA` |
+
+**`Ordered, not assumed` is the sharpest of the three because it is this repo's idiom leaking into a
+graded document.** It appears nowhere in any skill file — the run invented it — and it narrates the
+skill's discipline to a reader who is grading a clinical note. The discipline is right and stays; what
+goes is saying so out loud. Where a datum is missing, name the datum and put the order in the Plan.
+
+### Most Likely Clinical Diagnosis is not bold
+
+§4's exemplar sets it in italics and the run set the whole statement in bold. *"I don't do that."*
+Ruled 2026-08-19. Italicize the organism names and leave the sentence in body face.
+
+### The signature is one line
+
+`Signed by: <name>, RN, CEN, TCRN` and the date sit on **one** line, separated as a sentence is. The
+first submission put the date on its own line beneath, which renders as a stray orphan paragraph.
+
 ## 2. Assessment — an optional body under a required heading
 
 The heading is always written. Its body is empty in three of the ten, and `Differential Diagnoses`
@@ -133,18 +196,33 @@ Rules the corpus follows without exception:
 - Where knowledge is genuinely absent it is admitted to the patient rather than papered over.
 - **No abbreviations at all**, though they are used freely in the Plan and MDM.
 
-## 8. Rx — a fixed six-row table
+## 8. Rx — a fixed six-row table, three columns wide
 
 One table per drug, including home medications continued unchanged.
 
-| |
-| --- |
-| `<patient placeholder>` &#124; `DOB x-x-xxx` &#124; `NPI # <number>` |
+| | | |
+| --- | --- | --- |
+| `<patient placeholder>` | `DOB x-x-xxx` | `NPI # <number>` |
 | `<drug> <dose> <route> <frequency> [x duration]` |
 | `Disp: <quantity, "QS", or "N week supply">` |
 | `Sig: <spoken-out instruction> for <indication>` |
-| `<name> FNP-C, CEN, TCRN` &#124; `DEA number on file with pharmacy` |
-| `Refill: <none, or 0-3>` |
+| `<name> FNP-C, CEN, TCRN` |
+| `Refill: <none, or 0-3>` | `DEA number on file with pharmacy` |
+
+**The table is three columns and most of its rows are merged, which is what makes it look like a
+prescription pad rather than a list.** Row 1 carries three cells. The drug, the `Disp:`, the `Sig:`
+and the signature each declare **one** cell and span the full width. The last row declares **two**,
+so the refill sits on the left and the DEA line on the right. `docx_write.table` merges a short row
+onto its last cell and right-aligns that cell when the row has more than one — the layout is a
+consequence of how many cells a row declares, and nothing else.
+
+**This shape is ruled 2026-08-19 and it replaces a one-column table whose row 1 separated its three
+items with `&#124;`.** That spelling rendered as literal text, and a run copying the idea wrote
+`\|` instead, which rendered as a stray backslash — *"the patient carries a `\` and so does the end
+of my titles"*. Worse, the one-column header made the grid as wide as its widest row while every
+other row held a single cell, so the drug, the `Disp:`, the `Sig:` and the signature all sat in
+column 1 with two empty columns beside them. **Both defects came from faking columns inside one
+cell. The table has real columns now, and no row needs an escaped pipe.**
 
 - **The patient cell is always a placeholder and the date of birth is literally `x-x-xxx`.** A case
   study prescription carries no identifiers.
@@ -167,6 +245,23 @@ One table per drug, including home medications continued unchanged.
   a prescription for a drug that must not be given. The decision not to use it belongs in the Plan
   and the MDM, as reasoning.
 - Acute, one-time and intravenous drugs take `Refill: none`. Maintenance takes `Refill: 3`.
+- **A drug that continues carries its stop criterion in the drug row. Ruled 2026-08-19.** An order
+  reading `Ceftriaxone 1 g IV every 24 hours` says when to start and never says when to stop, and
+  the reader supplies *until discharge* out of their own head. The clinician's words: *"the rocephin
+  did not have a stop criteria on it, I assume that it is continued every day until discharge but
+  assumption is the mother of all fuckups, so that needs addressed."* A one-time dose already
+  states its own endpoint and needs nothing added.
+- **A stop criterion is a clinical claim and takes a source like any other. Ruled 2026-08-19, the
+  same day and out of the same reading.** The first attempt at the row above supplied the endpoint
+  from recall — *"then stepped down to oral therapy to complete 14 days total"* — inside a
+  **ceftriaxone** order. **Ceftriaxone has no oral form**, and the oral agent that would have
+  completed that course was contraindicated in the patient it was written for. Both errors were
+  invisible to every gate in `tools/`, because a dose nobody entered as a research record is a
+  claim `research_ledger.py` cannot see. [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289).
+- **So where the duration is not sourced, write the endpoint you can defend and say what sets the
+  rest** — *"continued for the admission and reassessed daily against the fever curve"* — rather
+  than a number recalled. **A route change is a different drug unless the drug has that route**, and
+  saying so in the order is cheaper than a reader assuming it does.
 
 **The credential in this block is `FNP-C, CEN, TCRN`** — the prescribing role the case study puts
 him in. The `Signed by:` line at the foot of the document takes `RN, CEN, TCRN`, which is what

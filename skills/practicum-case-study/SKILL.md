@@ -113,8 +113,24 @@ referred to by number cannot be pointed at in a critique. The four sections are 
 — differential 3 has MDM entry 3, and a plan item exists because some numbered entry called for it.
 Bullets destroy that, and the corpus's own worst list mixes both markers in one list.
 
-Everything else stays as it is: the intake block is a table, the Assessment runs as prose, and the
-prescriptions are tables.
+**And there are no bullets anywhere else either. Ruled 2026-08-19** — *"remember I abhor bullet
+points"* — after a run set the HPI's OLDCARTS breakdown as a bulleted list. The 2026-08-18 ruling
+above named four sections because those four are where a bullet costs the *correspondence*; the
+wider rule is a house preference and it covers the whole document.
+
+**Each numbered list restarts at 1, and its section heading is what restarts it.** A run does not
+have to do anything to get this — `docx_write.py` allocates one `w:num` per section — but a reader
+comparing the Markdown to the `.docx` should know the numbering in the rendered file is per-section
+rather than continuous.
+
+**The intake block is *not* a table. Ruled 2026-08-19, reversing what this file used to say.**
+Demographics, the Review of Systems and the Physical Examination are written as defined fields with
+their values appended, as running text. A table is still right for a given result set — laboratory
+values, diagnostic studies — and the prescriptions in `Rx:` stay tables because a prescription is a
+form. See [reference/style.md](reference/style.md) §1a, which carries the shapes, the Review of
+Systems closer, and the three pieces of scaffolding language that must not reach the document.
+
+The Assessment still runs as prose.
 
 ### Three modes, and none of them subtracts a section
 
@@ -137,6 +153,27 @@ plan ask for none of the three. **Two submissions surviving the omission is evid
 survivable, not that it is right**, and a run that drops a scored section is spending fifteen points
 on the clinician's behalf without being asked. A mode is still not a quality tier; what changed is
 that a mode no longer subtracts sections.
+
+### A wrapper instruction that does not fit this patient is reasoned about, not answered literally
+
+**Amended 2026-08-19, and it is the clinician amending his own ruling above:** *"I know I told you
+to follow the scaffold exactly, but there needs to be some reasoning in here — it should not have
+contained a separate growth and development line."*
+
+The course wrapper carries an instruction to evaluate **growth and development**, copied from a
+pediatric case. Against a 26-year-old it is not a section with a thin answer; it is a section that
+does not exist. The run wrote it out as its own heading and then explained in the body why it did
+not apply, which puts a paragraph in a graded document whose entire content is *this prompt is the
+wrong prompt*.
+
+**The rule is narrow and it is not a license to drop scored sections.** *Every section of the
+skeleton is still written every time* — that ruling stands untouched, and the fifteen points it
+protects are the reason. What this reaches is a **wrapper instruction inherited from a different
+case**, where the honest response is to fold the applicable substance into the section that already
+owns it — here the fetal assessment, in the Plan, carried by the fundal height, the fetal heart
+tones and the dating ultrasound — and write no heading of its own. **If nothing is applicable and
+nothing can be folded anywhere, say so in one clause inside the nearest owning section**, never as a
+section.
 
 ## Ordering is the graded axis
 
@@ -697,7 +734,7 @@ sorted.
 | An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
 | A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
-| Two entries with the same author and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3 |
+| Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
 | An entry in the list that is cited nowhere in the body | delete it |
