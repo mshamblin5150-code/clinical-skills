@@ -150,11 +150,13 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 # that list is one that reads as agreement while covering less.
 #
 # **It covered less until #172.** Written by hand, it blocked `\u00a3` and `\u00b3` -- and
-# `\u00b3` is a slot the corpus does not contain, while the double dagger where 146 of
-# its 183 greater-or-equal signs actually landed was not blocked at all. So the
-# guard #172 was told to rely on refused the character the ticket named and passed
-# the one it had missed. How many slots there are is `SYMBOL_FONT_OPERATORS`'s to
-# say and is deliberately not counted here.
+# `\u00b3` is a slot the corpus does not contain, while the double dagger carrying most
+# of that corpus's greater-or-equal signs was not blocked at all. So the guard #172
+# was told to rely on refused the character the ticket named and passed the one the
+# ticket had missed. **Every count behind that sentence lives on
+# `SYMBOL_FONT_OPERATORS` and none is restated here** -- a first draft of this
+# comment copied two of them in, which is #143 arriving inside the paragraph
+# arguing that a copied list reads as agreement while covering less.
 #
 # `\u00b3` stays. It is the Symbol font's greater-or-equal slot decoded through cp1252,
 # which is what a *different* reader on a *different* machine would hand back from
@@ -187,16 +189,24 @@ UNREACHABLE_IN_A_TABLE_CELL = ("\u001e", "\u001f")
 # rather than wired up, because a value legitimately carries no operator at all
 # (`81 mg/day`, `monthly`, `3-6 months`) and an allowlist would have to permit the
 # empty case, at which point it permits everything.
+# How each of the extractor's replacements is written in ASCII, which is the form a
+# value cell must use. A plain lookup rather than a conditional inside the message,
+# for two reasons. A conditional labels every future replacement as whichever branch
+# is the `else`, silently; a lookup raises. And a backslash inside an f-string
+# *expression* is a syntax error before 3.12 -- the first version of this wrote
+# `f"{'<=' if replacement == '\u2264' else '>='}"`, which parses here and would not
+# have parsed on the 3.10 floor ADR 0002 sets. `ast.parse(feature_version=(3, 10))`
+# does not see it, which is the same blindness CLAUDE.md already records for
+# `int | None`, and the only interpreter on this machine is 3.14. Caught by review.
+ASCII_OPERATOR = {"\u2264": "<=", "\u2265": ">="}
+
 FORBIDDEN_IN_VALUE = {
     "\u2264": "a Unicode <=; write the ASCII <=",
     "\u2265": "a Unicode >=; write the ASCII >=",
     "\u00b3": "a Symbol-font mis-encoding of >=; write >=",
     **{
-        glyph: (
-            f"a Symbol-font mis-encoding of "
-            f"{'<=' if replacement == '\u2264' else '>='}; write "
-            f"{'<=' if replacement == '\u2264' else '>='}"
-        )
+        glyph: f"a Symbol-font mis-encoding of {ASCII_OPERATOR[replacement]}; "
+               f"write {ASCII_OPERATOR[replacement]}"
         for mapping in guidelines_extract.SYMBOL_FONT_OPERATORS.values()
         for glyph, replacement in mapping.items()
     },

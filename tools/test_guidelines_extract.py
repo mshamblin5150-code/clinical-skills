@@ -480,6 +480,53 @@ class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
             with self.subTest(font=font):
                 self.assertEqual(extract.font_key(font), font)
 
+    def test_the_font_that_proves_a_font_name_is_not_always_a_verdict_stays_out(self):
+        """``MathematicalPi-One`` is the reason this table has a rule and not just
+        rows, and it is the closest this repo has come to shipping an inverted
+        threshold.
+
+        It sets comparison operators in two C0 slots that ``_DISCARDED_RANGES``
+        deletes -- the same class as ``SymbolMT``'s, in USPSTF, which is 90 of the
+        179 documents. Every instinct says add two rows. **Rendered, the two slots
+        are exactly inverted between two documents of the same society**:
+
+            abdom-aortic-aneurysm-screening-final-rs   U+0002 = >=   U+0003 = <=
+            osteoporosis-screening-final-recommendation U+0002 = <=   U+0003 = >=
+
+        Measured at 700 dpi, 2026-08-19, after four samples at 400 dpi had agreed
+        with each other and the fifth did not. Confirmed a second way, by hashing
+        the rasterized glyph box of every occurrence: no shape appears under both
+        of ``AdvPS_SSYB``'s codes, and **four shapes appear under both of
+        ``MathematicalPi-One``'s**. That instrument cannot prove two glyphs are the
+        same -- it hashes a rendering, so point size moves it -- but one shape
+        under two codes is a difference noise cannot manufacture, and that is the
+        only direction it was read in. A font-name-keyed row would
+        therefore have turned ``>=90% of screen-detected AAAs`` into ``<=90%`` --
+        **inverting a clinical threshold rather than losing one**, which is worse
+        than the defect #172 was filed about and is the one outcome no downstream
+        gate could catch, because the result is a well-formed operator.
+
+        So the rule the table states is load-bearing rather than decorative: *a row
+        may only claim a slot that is wrong everywhere*. A subsetted font reassigns
+        its codes per document, and a font **name** is a verdict about a slot only
+        where the outline behind it does not move. Settling that needs the embedded
+        glyph outline or a rendered page, and neither is in this repo -- so this is
+        a test that names the font and refuses it, and the census is what keeps it
+        visible. Filed rather than folded in.
+        """
+        self.assertNotIn("MathematicalPi-One", extract.SYMBOL_FONT_OPERATORS)
+        self.assertTrue(
+            extract.is_symbol_font("MathematicalPi-One"),
+            "the census must keep reporting it, or refusing to map it hides it",
+        )
+        self.assertEqual(
+            extract.symbol_glyph_census(
+                rawline("90", 9.0, [0.0] * 4, font="MathematicalPi-One")
+            ),
+            {"MathematicalPi-One U+0002": 1, "MathematicalPi-One U+0003": 1,
+             "MathematicalPi-One U+0039": 1, "MathematicalPi-One U+0030": 1},
+        )
+
 
 class TheCensusThatStopsThisRecurringInSilence(unittest.TestCase):
     """``symbol_glyph_census`` -- the half of #172 that is not the substitution.

@@ -405,12 +405,38 @@ MINIMUM_GAPS_FOR_BASELINE = 4
 # font name is not a verdict on a document, only on a slot -- and a row may only
 # claim a slot that is wrong everywhere.
 #
-# **Two mis-encodings found beside these are deliberately not here.** `AdvPSSym`
-# renders the copyright sign as U+00AA, 72 times; `SymbolMT` renders an up arrow
-# as `n` and a down arrow as `p` in one KDIGO figure. Neither is a character a
-# threshold is written with, which is the boundary of what this table may claim,
-# and mapping a *letter* would mean a font name that is ever wrong corrupts prose
-# rather than one symbol. Filed rather than folded in.
+# **`MathematicalPi-One` is the font that is not here, and it is why the rule
+# above is load-bearing rather than decorative.** It sets comparison operators in
+# two C0 slots `_DISCARDED_RANGES` deletes -- the same class as `SymbolMT`'s, and
+# in USPSTF, which is 90 of the 179 documents. 93 operators. Every instinct says
+# add two rows. **Rendered, the two slots are exactly inverted between two
+# documents of the same society:**
+#
+#     abdom-aortic-aneurysm-screening-final-rs     U+0002 = >=   U+0003 = <=
+#     osteoporosis-screening-final-recommendation  U+0002 = <=   U+0003 = >=
+#
+# So a font-name-keyed row would have turned `>=90% of screen-detected AAAs` into
+# `<=90%` -- **inverting a threshold rather than losing one**, which is worse than
+# the defect this table was built for and is the one outcome no gate downstream
+# can catch, because the result is a well-formed operator in a plausible place.
+#
+# **It was nearly missed, and how is the transferable part.** Four sampled
+# documents agreed at 400 dpi and the fifth did not; the disagreement was only
+# legible at 700 dpi. Confirmed independently by rasterizing every occurrence and
+# hashing the glyph box: no shape appears under both of `AdvPS_SSYB`'s two codes,
+# and **four shapes appear under both of `MathematicalPi-One`'s**. That instrument
+# cannot prove two glyphs are the *same* -- it hashes a rasterization, so point
+# size and subpixel offset move it -- but one shape sitting under two codes is a
+# difference noise cannot manufacture, which is the only direction it was trusted
+# in. Filed rather than folded in: settling it needs a *per document* decoding.
+#
+# **Two more mis-encodings are deliberately not here, on the narrower ground.**
+# `AdvPSSym` renders the copyright sign as U+00AA; `SymbolMT` renders an up arrow
+# as `n` and a down arrow as `p` in one KDIGO figure; `Universal-GreekwithMathP`
+# renders an equals sign in a deleted C0 slot. None is a character a threshold is
+# written with, which is the boundary of what this table may claim, and mapping a
+# *letter* would mean a font name that is ever wrong corrupts prose rather than
+# one symbol. All of them stay visible in `symbol_glyph_census`.
 SYMBOL_FONT_OPERATORS = {
     "AdvPS_SSYB": {
         "\u00a3": "\u2264",  # rendered: a less-or-equal sign

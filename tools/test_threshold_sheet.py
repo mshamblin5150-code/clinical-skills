@@ -133,10 +133,11 @@ class SchemaGate(unittest.TestCase):
         """#172 found the gate reaching half its own subject.
 
         It blocked ``\u00a3`` and ``\u00b3`` and not the double dagger -- and the double
-        dagger is where 146 of the corpus's 183 greater-or-equal signs landed, so a
+        dagger is where most of the corpus's greater-or-equal signs landed, so a
         transcriber pasting ``\u20216 months`` cleared a gate written to stop exactly
         that. The two C0 controls are worse again: invisible, and a value cell can
-        carry one with nothing on screen to see.
+        carry one with nothing on screen to see. **The counts live on
+        ``guidelines_extract.SYMBOL_FONT_OPERATORS`` and are not restated here.**
 
         Derived from ``guidelines_extract.SYMBOL_FONT_OPERATORS`` rather than
         listed, on ``test_spelling_scan.py``'s reasoning -- a sixth slot added to
