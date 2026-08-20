@@ -17,7 +17,11 @@ of them society-copyrighted. Issue #87 rules on that and is not reopened here.
 defaults to a sibling of the source directory (``guidelines-src`` next door becomes
 ``guidelines-text``). ``reference/`` and ``scratch/`` are both wrong for it for the
 same reason: tracked files are materialized in every worktree and gitignored ones
-are copied into every worktree, and there are six live.
+are copied into every worktree. **How many are live is deliberately not stated** --
+it moves on every ``git worktree add``, nothing re-derives it, and this sentence
+held ``six`` while its twin in ``guidelines_index.py`` held it too and ``CLAUDE.md``
+said twelve. #143, and the argument survives the figure intact: *every* worktree
+gets a copy, so one is one too many.
 
 **Maintainer-only, and that is what buys the dependency.** Everything else in
 ``tools/`` is stdlib. This reads PDFs, so it needs ``pymupdf``, and it runs once per
@@ -313,6 +317,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
+from repo_root import InsideCheckout, ensure_outside_checkout
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -557,6 +562,15 @@ CLASS_RECOMMENDATION_STATEMENT = "recommendation-statement"
 # A browser print-to-PDF of a web page rather than a published document, which is the
 # three ACIP/ files and only those.
 CLASS_WEB_CAPTURE = "web-capture"
+# A document whose own title page says it is not final. Kept narrower than the word
+# ``draft`` so a final guideline discussing an earlier draft is not reclassified.
+CLASS_DRAFT = "draft"
+# A correction document that titles itself ``Errata`` or ``Erratum``. The classifier
+# matches a whole title line, never the word in body prose.
+CLASS_ERRATA = "errata"
+# Planning material for a guideline that has not been written. Both identity marks
+# are required so an ordinary scope section does not decide the document class.
+CLASS_SCOPE_OF_WORK = "scope-of-work"
 # For a document that was never read. It is not a guideline; nobody knows what it
 # is, and recording it as the default class would let a failure read as a finding.
 CLASS_UNKNOWN = "unknown"
@@ -575,7 +589,7 @@ CLASS_UNKNOWN = "unknown"
 #: carry that value -- and a catalog row that did carry it would be a filter value the
 #: index cannot answer, which is the whole defect. It is a manifest value only.
 #:
-#: **``guidelines_index.UNCLASSIFIED`` is a fourth value the index can carry and this
+#: **``guidelines_index.UNCLASSIFIED`` is an additional value the index can carry and this
 #: is deliberately not it either.** That one describes a *build* -- a document with no
 #: manifest entry at all -- rather than a document, so no catalog row could sensibly
 #: hold it. It is named here rather than left to be discovered, and pinned in
@@ -583,7 +597,14 @@ CLASS_UNKNOWN = "unknown"
 #:
 #: ``guidelines_catalog.py`` imports this rather than restating it, and
 #: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
-CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
+CLASSES = (
+    CLASS_GUIDELINE,
+    CLASS_RECOMMENDATION_STATEMENT,
+    CLASS_WEB_CAPTURE,
+    CLASS_DRAFT,
+    CLASS_ERRATA,
+    CLASS_SCOPE_OF_WORK,
+)
 
 # The pre-strip page vote used by the catalog's publication-year guess. It lives
 # with the producer because the manifest has to retain the page frequency that
@@ -621,6 +642,16 @@ def publication_year_page_counts(pages: list[list[str]]) -> dict[str, int]:
 # the manifest value. Two copies of a rule that must agree is what #253 cost.
 TASK_FORCE_MARK = "taskforce"
 RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
+PUBLIC_REVIEW_DRAFT_TITLE = re.compile(
+    r"^\s*public\s+review\s+draft\s*$", re.IGNORECASE | re.MULTILINE
+)
+ERRATA_TITLE = re.compile(r"^\s*errat(?:a|um)\s*$", re.IGNORECASE | re.MULTILINE)
+ERRATA_RUNNING_HEAD = re.compile(r"errata\s*$", re.IGNORECASE | re.MULTILINE)
+ERRATUM_CORRECTION_TITLE = re.compile(
+    r"^\s*erratum\s+to\s*:", re.IGNORECASE | re.MULTILINE
+)
+GUIDELINE_MARK = "guideline"
+SCOPE_OF_WORK_TITLE = re.compile(r"^\s*scope\s+of\s+work\s*$", re.IGNORECASE | re.MULTILINE)
 
 # The three ACIP/ files are browser print-to-PDF captures of CDC schedule pages
 # rather than guideline documents, and this header is what says so. The URL and
@@ -907,6 +938,25 @@ def is_recommendation_statement(title_block: str) -> bool:
     return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
 
 
+def is_public_review_draft(title_block: str) -> bool:
+    """Whether the document identifies itself as a public review draft."""
+    return PUBLIC_REVIEW_DRAFT_TITLE.search(title_block) is not None
+
+
+def is_errata(title_block: str) -> bool:
+    """Whether a title line identifies the whole document as errata."""
+    return ERRATA_TITLE.search(title_block) is not None or (
+        ERRATA_RUNNING_HEAD.search(title_block) is not None
+        and ERRATUM_CORRECTION_TITLE.search(title_block) is not None
+    )
+
+
+def is_guideline_scope_of_work(title_block: str) -> bool:
+    """Whether the title identifies planning material for a future guideline."""
+    squashed = squash(title_block)
+    return GUIDELINE_MARK in squashed and SCOPE_OF_WORK_TITLE.search(title_block) is not None
+
+
 def classify(pages: list[list[str]]) -> str:
     """Which of ``CLASSES`` this document is.
 
@@ -920,14 +970,14 @@ def classify(pages: list[list[str]]) -> str:
     to trip MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page,
     would come back a guideline with nothing saying otherwise.
 
-    **The recommendation-statement test reads the first page only**, which is where the
-    document titles itself, and it runs here because #185 ruled the producer's
-    vocabulary is the catalog's. The catalog consumes this manifest value: reclassifying
-    extracted ``.txt`` would miss all three captures because the stamp has already been
-    stripped. This sees the pages **before** stripping, which is why the rule lives here.
-    **The counts are deliberately not stated**: the
-    only thing that produces them is an artifact outside every checkout, so nothing
-    committed re-derives them, and one of the three is a subtraction of the other two.
+    **Every content-form test reads the first page only**, which is where the document
+    identifies itself. The three #107 forms use whole title lines, so a final guideline
+    mentioning an earlier draft, errata, or its scope in prose keeps the fallback class.
+    This runs here rather than in ``guidelines_catalog.py`` alone because #185 ruled the
+    producer's vocabulary is the catalog's. The catalog consumes this manifest value;
+    it does not reclassify extracted text. The extractor sees the pages **before**
+    stripping, which is why the capture test must live here: its timestamp is
+    boilerplate and is absent from the extracted text the index reads.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:
@@ -939,6 +989,12 @@ def classify(pages: list[list[str]]) -> str:
     )
     if stamped >= BOILERPLATE_THRESHOLD * len(sampled):
         return CLASS_WEB_CAPTURE
+    if pages and is_public_review_draft("\n".join(pages[0])):
+        return CLASS_DRAFT
+    if pages and is_errata("\n".join(pages[0])):
+        return CLASS_ERRATA
+    if pages and is_guideline_scope_of_work("\n".join(pages[0])):
+        return CLASS_SCOPE_OF_WORK
     if pages and is_recommendation_statement(" ".join(pages[0])):
         return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE
@@ -1494,25 +1550,16 @@ def default_output(source: Path) -> Path:
     return source.parent / f"{stem}-text"
 
 
-def check_outside_repo(out_root: Path) -> None:
-    """Refuse an output directory inside any git checkout, not just this one.
-
-    ``REPO_ROOT`` alone is not enough. Run from a worktree it is the worktree, so
-    it says nothing about the main clone's ``reference/`` -- and that is one of the
-    two directories #80 names by name. Walking up for a ``.git`` entry catches the
-    main clone, every sibling worktree, and any other repo the maintainer keeps
-    nearby. A worktree's ``.git`` is a file rather than a directory, so this tests
-    for existence and not for a directory.
-    """
-    resolved = out_root.resolve()
-    for candidate in (resolved, *resolved.parents):
-        if (candidate / ".git").exists():
-            raise SystemExit(
-                f"refusing to write inside a git checkout: {resolved}\n"
-                f"  {candidate} is a repository.\n"
-                "Tracked files are materialized in every worktree and gitignored ones "
-                "are copied into every worktree. Pick a directory outside it."
-            )
+# Why *this* artifact stays out, which is not why the other two do. ``REPO_ROOT``
+# alone was never enough: run from a worktree it is the worktree, so it says
+# nothing about the main clone's ``reference/``, one of the two directories #80
+# names by name. The rule that catches the main clone, every sibling worktree and
+# any other repo nearby is ``repo_root.enclosing_checkout`` -- #176, which found
+# this module holding one of three answers to one question.
+WHY_OUTSIDE = (
+    "Tracked files are materialized in every worktree and gitignored ones "
+    "are copied into every worktree. Pick a directory outside it."
+)
 
 
 def main(argv: list[str]) -> int:
@@ -1537,11 +1584,20 @@ def main(argv: list[str]) -> int:
 
     if not args.source.is_dir():
         raise SystemExit(f"not a directory: {args.source}")
-    require_pymupdf()
 
     source_root = args.source.resolve()
-    out_root = (args.out or default_output(source_root)).resolve()
-    check_outside_repo(out_root)
+    # Before the dependency check, not after it. Where the output lands is a
+    # question about the arguments alone, and answering it first means a
+    # machine with no PDF library still refuses a path inside a checkout --
+    # which is what lets the cross-check in `test_write_guards.py` drive this
+    # command line at all, since the suite installs nothing.
+    try:
+        out_root = ensure_outside_checkout(
+            args.out or default_output(source_root), detail=WHY_OUTSIDE
+        )
+    except InsideCheckout as refused:
+        raise SystemExit(str(refused)) from refused
+    require_pymupdf()
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
     if not pdfs:

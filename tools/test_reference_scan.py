@@ -1144,7 +1144,7 @@ class TheDeclinedOptionIsPinnedToTheClassesItWasRuledOver(unittest.TestCase):
     ``/code-review`` and the tracker sweep independently. The sharper form is theirs:
     the same commit deliberately withheld ``len(NOT_REACHED)`` on #143's terms and then
     stated the number beside it, so the discipline was applied to one figure and missed
-    on its neighbour in the same paragraph.
+    on its neighbor in the same paragraph.
 
     **The repair is the mapping becoming an object and no file stating a number.** This
     is what makes it re-derivable: a fifth ``SOURCE`` class fails here rather than

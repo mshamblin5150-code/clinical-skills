@@ -18,12 +18,17 @@ take one fuzzy one. ``guidelines_search.py`` takes several queries per run for
 exactly that reason.
 
 **The database is written outside the repo and there is a guard, not a convention.**
-``reference/`` and ``scratch/`` are both materialized into every worktree and there
-are six live, so a 65 MB index committed or dropped in either is duplicated into all
-of them. ``ensure_outside_repo`` refuses any target inside the main checkout or
-inside this worktree, which is what keeps `git status` clean after a build. Whether
-the index should ever *ship* is #87, and it is blocked; nothing here presumes an
-answer.
+``reference/`` and ``scratch/`` are both materialized into every worktree, so an
+index committed or dropped in either is duplicated into all of them. ``repo_root.ensure_outside_checkout`` refuses any target inside *any* git
+checkout, which is what keeps `git status` clean after a build. Whether the index
+should ever *ship* is #87, and it is blocked; nothing here presumes an answer.
+
+**That guard used to live here, and it was the weaker of the three copies #176
+found.** It compared the target against this worktree and the clone that owns it,
+which is blind to a sibling worktree -- the ordinary shape here, not an exotic one.
+It walks up for a ``.git`` entry now, in one place, beside the resolver that already
+answers the other half of the same question. ``main`` needs no new handler: the
+refusal is a ``ValueError`` and lands on the one already there.
 
 **The text-directory contract.** One layout: ``<text-dir>/<doc-id>.txt``, pages
 separated by form feed. That is what ``tools/guidelines_extract.py`` emits and what
@@ -65,10 +70,10 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterator
 
 from console_codec import use_utf8
-from repo_root import main_repo_root
+from repo_root import ensure_outside_checkout, main_repo_root
 
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -83,10 +88,6 @@ PAGE_BREAK = "\f"
 # the manifest's shape, and an alias list would absorb a mismatch instead of raising
 # on it, leaving every title and document class quietly blank.
 DOC_ID_KEY = "doc_id"
-
-
-class InsideRepo(ValueError):
-    """The index was aimed at a path inside the repo. See #87 and the module docstring."""
 
 
 @dataclass(frozen=True)
@@ -145,12 +146,6 @@ class BuildReport:
     manifest_only: list[str]  # named by the manifest, no extracted text found
 
 
-def default_repo_roots() -> list[Path]:
-    """Both roots that must stay clean: this worktree, and the checkout it came from."""
-    worktree = Path(__file__).resolve().parent.parent
-    return [worktree, main_repo_root()]
-
-
 def default_database() -> Path:
     """Beside the sources, outside every checkout. Overridable per machine."""
     override = os.environ.get(DATABASE_ENVIRONMENT_VARIABLE)
@@ -159,22 +154,25 @@ def default_database() -> Path:
     return main_repo_root().parent / "guidelines-index" / "guidelines.sqlite"
 
 
-def ensure_outside_repo(path: Path | str, repo_roots: Iterable[Path] | None = None) -> Path:
-    """Raise ``InsideRepo`` if ``path`` is the repo or sits under it.
-
-    Compared as path ancestry rather than string prefix, so ``clinical_skills-notes``
-    is correctly outside ``clinical_skills``.
-    """
-    target = Path(path).expanduser().resolve()
-    for root in repo_roots if repo_roots is not None else default_repo_roots():
-        root = Path(root).resolve()
-        if target == root or root in target.parents:
-            raise InsideRepo(
-                f"{target} is inside the repo at {root}. The index is a build artifact "
-                "and stays outside every checkout -- see issue #87. Pass a path beside "
-                f"the guideline sources, or set {DATABASE_ENVIRONMENT_VARIABLE}."
-            )
-    return target
+# Why *this* artifact stays out, which is not why the other two do: the index is
+# large, and ``reference/`` and ``scratch/`` are both materialized into every
+# worktree, so one dropped in either is duplicated into all of them. Whether it
+# should ever *ship* is #87 and is blocked; nothing here presumes an answer.
+# **How large is deliberately not stated here** -- #143, and this file has
+# carried that figure in two units for the same bytes.
+#
+# **This is the site whose detection rule changed on #176.** It compared the
+# target against ``[this worktree, main_repo_root()]``, which is blind to a
+# *sibling* worktree -- and under ``.claude/worktrees/`` a sibling is the
+# ordinary case here rather than an exotic one. ``enclosing_checkout`` walks up
+# for a ``.git`` entry instead, so it catches all three for the same cost. The
+# one property the old rule was careful about survives for free: containment is
+# path ancestry, so ``clinical_skills-notes`` is correctly outside
+# ``clinical_skills``.
+WHY_OUTSIDE = (
+    "The index is a build artifact and stays outside every checkout -- see issue "
+    f"#87. Pass a path beside the guideline sources, or set {DATABASE_ENVIRONMENT_VARIABLE}."
+)
 
 
 def normalize_doc_id(value: str) -> str:
@@ -376,11 +374,7 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
-def build(
-    text_dir: Path | str,
-    database: Path | str | None = None,
-    repo_roots: Iterable[Path] | None = None,
-) -> BuildReport:
+def build(text_dir: Path | str, database: Path | str | None = None) -> BuildReport:
     """Index every document under ``text_dir``, replacing any existing index.
 
     Built into a sibling temp file and moved into place, so a build that dies part
@@ -388,7 +382,7 @@ def build(
     fine and answers short.
     """
     text_dir = Path(text_dir).resolve()
-    target = ensure_outside_repo(database or default_database(), repo_roots)
+    target = ensure_outside_checkout(database or default_database(), detail=WHY_OUTSIDE)
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".building")
     partial.unlink(missing_ok=True)
