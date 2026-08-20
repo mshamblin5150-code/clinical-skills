@@ -83,13 +83,14 @@ Read the note and list what is documented — not what is implied. For each, cap
 does not carry into an Assessment anchor, procedure list or CPT entry, because each worksheet line
 is designed to survive being copied by itself.
 
-**A bare source occurrence stops the worksheet before extraction.** Ask the clinician whether the
-source means office or diagnostic spirometry, spirometry with bronchodilator response, or incentive
-spirometry, and amend the source note before continuing. Do not infer the answer from whether the
-procedure was performed or deferred, and do not insert an editorial qualifier inside an `ANCHOR`:
-anchors remain verbatim. This is the same human-read, spirometry-specific convention as
-[clinical-note](../clinical-note/SKILL.md), not a general ambiguous-procedure table. Ruled by the
-clinician 2026-08-20, issue
+**A bare source occurrence cannot be copied into an affected worksheet entry.** If that source text
+supports an extracted procedure, ask the clinician for a qualified restatement before writing that
+entry, treat the response as added source text and quote it verbatim. Continue extracting unrelated
+elements; the ambiguity in one procedure does not block the rest of the worksheet. Do not infer the
+answer from whether the procedure was performed or deferred, and do not insert an editorial
+qualifier inside an `ANCHOR`: anchors remain verbatim. This is the same human-read,
+spirometry-specific convention as [clinical-note](../clinical-note/SKILL.md), not a general
+ambiguous-procedure table. Ruled by the clinician 2026-08-20, issue
 [#166](https://github.com/mshamblin5150-code/clinical-skills/issues/166).
 
 Then mark every element whose only support is a value from step 1. Those are coded like any other — they carry their mark into step 3 and are listed **again** in step 4.
@@ -422,6 +423,6 @@ Every hedged diagnosis in the Assessment has been accounted for the same way: co
 
 **Every refusal resting on a pending test names what that result would establish.** A culture-pending refusal is limited to bacteremia or an organism-specific descriptor; a pending culture alone never withholds an unspecified-organism diagnosis. An imaging-pending refusal says that the image would establish the disease itself, and where documented findings reject the disease those findings are the reason. A `needs:` line that merely says a test is pending has not completed the descriptor check in step 3.
 
-And every occurrence of spirometry identifies the intervention. A bare source occurrence was
-returned for clarification before extraction; no worksheet line relies on a qualifier written
-somewhere else.
+And every occurrence of spirometry identifies the intervention. An affected entry waited for a
+qualified clinician restatement while unrelated extraction continued; no worksheet line relies on
+a qualifier written somewhere else.
