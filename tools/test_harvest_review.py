@@ -125,9 +125,10 @@ class Rendering(unittest.TestCase):
         self.assertIn("keeps refusing", self.render([JORDAN], {"reaction latex"}))
 
     def test_a_string_with_no_window_is_reported_rather_than_dropped(self):
-        """The index is a scratch artifact with no generator in this repo, so a
-        string can be unruled with nothing to show. Silently listing fewer than
-        the stated count would be the worst outcome."""
+        """The index's producer merges rather than rebuilds, so an entry
+        predating it keeps whatever shape it was written with and a string can be
+        unruled with nothing to show. Silently listing fewer than the stated
+        count would be the worst outcome."""
         out = self.render([JORDAN], {"reaction latex", "ghost phrase"})
         self.assertIn("1 with no window to show", out)
         self.assertIn("'ghost phrase'", out)

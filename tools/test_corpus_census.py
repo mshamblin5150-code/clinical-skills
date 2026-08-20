@@ -384,9 +384,13 @@ class EveryFileQuotesOneCatalogSize(unittest.TestCase):
     said 548 encounters, the census said 551, and drift row 13 said 559. Each was
     right about something and no file said which, so a reader picked whichever one
     they opened first. #129 retired the 559 and 2026-08-15 settled the rest --
-    ``scratch/name-index.json`` holds one entry per encounter *that yielded a
-    name*, three encounters put something other than the name on the line after
-    ``Note N``, and 548 was that harvest's total rather than the catalog's.
+    ``scratch/name-index.json`` **held** one entry per encounter *that yielded
+    a name*, three encounters put something other than the name on the line
+    after ``Note N``, and 548 was that harvest's total rather than the
+    catalog's. **Past tense since #141**: that index has a producer now, it
+    covers the catalog, and an encounter whose name the predicate cannot
+    recognize gets an entry carrying none. So 548 stays retired and the reason
+    it was never the catalog's size no longer holds of the file.
 
     **Nothing in the repo noticed, which is the defect one level up.** The figure
     is prose in a dozen files and no two of them are read together. This is the

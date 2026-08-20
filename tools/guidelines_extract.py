@@ -94,42 +94,115 @@ the citation digit-breaks -- against 6,881 by set difference. The ``word broken`
 is mostly ``bThe -> b|The``, which is the rebuild correctly separating a footnote
 marker from the word after it and is miscounted as damage here rather than credited.
 
-**284 of those 696 are one running footer in one document, and it is unfinished
-work.** ``KDIGO-2009-Transplant-Recipient-Guideline-English.pdf`` carries
+**The table above is pre-#178 and is left as it was measured.** 284 of the 696 were
+one running footer in one document, and that footer is fixed below; the table is not
+restated against the new extraction because the classifier that produced its five
+buckets was never saved. **390 and 13,685 re-derive and 9,622 / 3,179 / 306 / 188 do
+not**, and reasonable bucket rules put ``letter-spaced word`` anywhere from 128 to
+466. What replaces it is the measured delta in the next paragraphs, which does
+re-derive from this module's own functions.
+
+**That footer is fixed -- #178.**
+``KDIGO-2009-Transplant-Recipient-Guideline-English.pdf`` carries
 
     American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9
 
-on every page, and it accounts for 142 of the 306 letter-spaced splits and 142 of
-the 390 digit-breaks. ``span_baselines`` fixed the 16 pages where that footer is set
-as three spans and **not the 142 where it is one**: there the whole footer is a
-single Univers-Light span whose per-glyph gaps run from -2.35 to 0.00 around a
-median of -1.36, so the top of its own spread clears any fixed offset from that
-median. It is a font with heavy and highly variable negative bearings, not tracked
-type, and the median-plus-offset rule cannot separate the two.
+on every page. ``span_baselines`` fixed the 16 pages where it is set as three spans
+and **not the 142 where it is one**: there the whole footer is a single
+Univers-Light span whose per-glyph gaps run from -2.35 to 0.00 around a median of
+-1.36, so the top of its own spread clears any fixed offset from that median. Heavy
+and highly variable negative bearings, not tracked type, and no median-plus-offset
+rule separates the two.
 
-**The line already carries real space glyphs**, which is the lead worth following:
-the PDF has already said where its words are, and nothing on that line needed
-inferring at all. A rule that measured a candidate gap against the width of an
-actual space on the same line -- rather than against the median -- would leave it
-alone. That is not built here, because the same rule must not undo the USPSTF case,
-where a line has a space after its bullet and its words are glued anyway. See #178.
+**What separates them is that the line already carries real space glyphs**, which
+is the lead #178 named and ``SPACE_ADVANCE_FRACTION`` is. The PDF has already said
+where that line's words are -- 1.056 pt across one of its own spaces, against the
+0.003 pt gaps that were being split -- so a candidate gap is measured against what
+this line charges for a word break rather than against the font size alone. The
+constraint the ticket names is met and is measured rather than asserted: **"the
+line has a space, infer nothing" is too blunt**, because 12,003 of the corpus's
+inferences are made on lines that already carry one -- USPSTF sets a real space
+after a bullet and glues the words after it anyway -- and the great majority are
+correct. So the rule is a floor on the gap, never a veto on the line.
+
+**Corpus-wide it removes 2,809 inferences and creates no glued run**, measured over
+all 179 documents and all 7,733 pages, 2026-08-19, by running this module's own
+``rebuild_text`` twice. All 2,809 were read and fall across **five** documents:
+2,741 are that footer, 33 are letter-spaced runs in ``ADA/standards-of-care-2026``
+and 33 in the CDC opioid MMWR, and the last two are one each in the ACIP captures
+and are a space after an opening bracket rather than letter-spacing. The footer's surviving lines in the
+extracted text fall from **159 to 11, and the 142 letter-split ones to 0**; the 11
+are the roman-numeral front-matter pages, which the margin rule cannot reach by
+design and which stay.
+
+**The CDC opioid MMWR p.26 is improved and not repaired, which is worth knowing
+before reading it as fixed.** Its letter-spaced paragraph has a gap spread wide
+enough that some of its gaps still clear the bar, so
+``I n A p r i l 2 0 2 1 , t o e x p a n d`` becomes ``I n Ap ril 2 0 2 1 , to e xp
+a nd`` rather than plain text. Neither form is searchable, so nothing regressed --
+but 37 of that page's splits survive and the line is still unusable.
 
 **And the footer is boilerplate that should never have reached a reader**: its page
-range varies per page, so the 75% rule never strips it. #178 reads that as #100's
-cause 1 and expects #100 to remove the damage without touching the space rule.
+range varies per page, so the 75% rule never strips it. #178 read that as #100's
+cause 1 and expected #100 to remove the damage without touching the space rule.
 
-**#100 has landed and it does not, and the reason is #178's own subject.** The
-letter-spacing damage sets every digit as its own run, so the page range masks to a
-different pattern depending on how many digits it has: ``S # - S #`` on one page and
-``S # # - S # #`` on the next. The footer produces **8 distinct masked patterns**
+**#100 landed and it did not, and the reason was #178's own subject.** The
+letter-spacing damage set every digit as its own run, so the page range masked to a
+different pattern depending on how many digits it had: ``S # - S #`` on one page and
+``S # # - S # #`` on the next. The footer produced **8 distinct masked patterns**
 across 32 sampled pages, the largest reaching 16, against a floor of 24 -- so
-nothing clears and all 166 lines stay. Measured 2026-08-16. The dependency runs the
-other way round from the one #178 states: the space rule has to be fixed first, or
-the two have to meet.
+nothing cleared and all 166 lines stayed. Measured 2026-08-16.
+
+**So the two had to meet, and they have.** With the spacing fixed the footer
+extracts identically on every arabic-folio page, the margin rule sees one repeated
+line, and ``American Journal of Transplantation #; # (Suppl #): S#-S#`` is a
+recorded margin pattern for the first time. That document's ``chars_stripped`` goes
+from 516 to 9,793, and the corpus's margin rule from 2,649 distinct lines to 2,688
+-- **the 39 added are all that one footer and nothing was removed anywhere**.
+Measured 2026-08-19. The dependency ran the other way round from the one #178
+stated: the space rule had to be fixed first.
 
 The trade favors the body over the front matter, which is the right way round: what
 splits is display type in headings and reference lists, and what is repaired is
 running prose, where a threshold lives.
+
+**Fonts that lie about their own encoding, and the one thing that settles it.**
+#172. A comparison operator set in ``AdvPS_SSYB`` or in three slots of ``SymbolMT``
+comes back as a pound sign, a double dagger or a C0 control code, from ``pypdf``
+and PyMuPDF alike -- the mis-encoding is in the PDF, not in either reader.
+``rebuild_text`` repairs those slots, and it is the only place that can: it is the
+last function here that knows what typeface a character was set in. See
+``SYMBOL_FONT_OPERATORS`` for the table, the evidence and the counts.
+
+**The evidence is the rendered page, because the PDF offers nothing else.**
+``GMBEDM+AdvPS_SSYB`` declares ``/Encoding /WinAnsiEncoding``, a text encoding on a
+symbol font; it ships no ``ToUnicode``; and its embedded CFF subset names its two
+glyphs ``sterling`` and ``daggerdbl``. All three statements are false, so the page
+had to be rasterized and looked at -- ``span_baselines``'s method, for
+``span_baselines``'s reason, and the second time in this file that a rendered page
+found what no text metric could.
+
+**Keyed on the font, which is what makes it a decoding fix rather than a
+heuristic.** #172 proposed a unit-aware rule over the text -- a pound sign, a
+number, a clinical unit -- and this repo does not rewrite source text on a guess.
+It does not have to: the corpus's two genuine currency figures are set in an
+ordinary text face and are untouched *by construction*. The clinician ruled the
+substitution on 2026-08-19 on that basis.
+
+**And the ticket was understated threefold by looking at the wrong character.** It
+recorded the greater-or-equal side as clean on ``0 occurrences of the 0xB3 slot``,
+which is true and is not what it reads as. 183 of the 256 operators are ``>=``, and
+they landed on a double dagger, on two control codes, and on 0xB3 exactly once but
+in the private use area. A rule keyed on the pound sign reaches none of them.
+
+**``symbol_glyph_census`` is the other half, and it is the durable one.** The
+substitution repairs five slots somebody went and looked at. What it cannot reach
+is the next corpus refresh bringing a symbol font nobody has looked at -- decoded
+however the PDF says, with every check downstream reading clean, which is the state
+this corpus was in for the whole of #83. So every unmapped glyph from a symbol face
+is counted per document into ``manifest.json`` and summed on the run summary, and a
+refresh leaves a diff somebody has to look at rather than a silence somebody has to
+think of.
 
 **The boilerplate rule.** A line appearing on 75% or more of a document's sampled
 pages is boilerplate, is stripped from every page, and is recorded per document so
@@ -157,8 +230,9 @@ margins it takes none of them, because a running head lives at a page edge and a
 table row does not.
 
 **Two is measured, not chosen.** Against the 179-document corpus, N=1 and N=2 remove
-bare folios and two welded running heads **and nothing else at all** -- 2,382 folios
-and 267 head lines at N=2. N=3 removes a further 574 lines across 11 documents, and
+bare folios and welded running heads **and nothing else at all** -- 2,382 folios and
+306 head lines at N=2, the head count having risen by 39 when #178 fixed the KDIGO
+transplant footer's spacing and the rule could see it for the first time. N=3 removes a further 574 lines across 11 documents, and
 most are genuine folios, but it also flips ``KDIGO-2013-Lipids-Guideline`` from
 stripping nothing to stripping its own **figure axis**: page 23 opens ``20 / 10 / 5
 / 2`` and N=3 takes the ``20`` and the ``10``. That is the same damage class the
@@ -190,8 +264,10 @@ because a rule that was never needed is invisible afterwards, and the next reade
 would otherwise find option 1 implemented and option 2 apparently forgotten.
 
 **What the run does.** 27 of 179 documents gain something the literal rule missed,
-2,649 distinct lines, of which 2,382 are bare folios and 267 are the two welded
-heads. Documents with nothing stripped by either rule fall from 12 to 5. The two
+2,688 distinct lines, of which 2,382 are bare folios and 306 are the three welded
+heads -- re-derived 2026-08-19. It read 2,649 and two heads until #178: the third
+head is the KDIGO transplant footer, which the rule could not see while the space
+reconstruction was setting each of its digits as a separate run. Documents with nothing stripped by either rule fall from 12 to 5. The two
 #100 names as true negatives that must stay true negatives -- the CDC opioid MMWR,
 a web-page print with no running head, and the 2-page ``IDSA/ciab275`` erratum --
 still report nothing stripped.
@@ -310,15 +386,219 @@ SPACE_GAP_FRACTION = 0.10
 # becomes a space, which turns one bad span into a page of single letters.
 SPACE_GAP_FLOOR = 0.25
 
+# The fraction of a line's *own* observed space advance that a gap has to reach
+# before it may be read as a word break -- #178.
+#
+# `span_baselines` fixed the pages where the running footer of
+# KDIGO-2009-Transplant-Recipient-Guideline-English.pdf is set as three spans. It
+# cannot fix the 142 where it is one: there the per-glyph gaps run from -2.35 to
+# 0.00 around a median of -1.36, so the top of the span's own spread clears any
+# fixed offset from that median. Heavy and variable negative bearings, not tracked
+# type, and no median-plus-offset rule separates the two.
+#
+# What separates them is that the line carries real space glyphs. The PDF has
+# already said where its words are -- 1.056 pt from the previous glyph's right
+# edge to the next glyph's left, across one of its own spaces -- while the gaps
+# being split measure 0.003. So a word break on that line is worth 350 times what
+# a letter join is, and the line states both quantities itself.
+#
+# **"The line has a space, so infer nothing" is too blunt, and that is measured
+# rather than assumed.** 12,003 of the corpus's inferences are made on lines that
+# already carry a space -- USPSTF sets a real space after a bullet and glues the
+# words after it anyway -- and the great majority are correct. So the rule is a
+# floor on the gap, not a veto on the line.
+#
+# **The value is the midpoint of a plateau rather than a tuned edge.** Every
+# constant in (0.0025, 0.0974] suppresses exactly the same 2,809 inferences -- a
+# 39-fold interval in which the answer does not move at all, because the highest
+# damaged ratio in the corpus is 0.0025 and the next ratio of any kind is 0.0974.
+# No tuning table is written out here: five rows reading 2,809 say only what that
+# sentence says, and #83's lesson is that a published tuning table is what goes
+# stale.
+#
+# All 2,809 were read, and they fall across **five** documents. 2,741 are that one
+# footer. 33 are letter-spaced runs in `ADA/standards-of-care-2026`
+# (`S i l v e r S p r i n g`, `D e x c o m , I n c`, `B e t h e s d a`) and 33 more
+# in the CDC opioid MMWR (`e x e m p t e d e l i g i b l e p h y s i c i a n s`).
+# The last two are one each in the two ACIP captures and are **not** letter-spacing
+# at all -- a space inserted after an opening bracket, `Hib ( Haemophilus`.
+#
+# The first *correct* split lost is at 0.1173, a GOLD citation marker
+# (`studied.(1650)` -> `studied. (1650)`), so 0.05 sits a factor of 2.3 below the
+# nearest real cost and a factor of 20 above the damage it exists to stop.
+#
+# Measured over all 179 documents and all 7,733 pages, 2026-08-19. #83 published a
+# tuning table built from 10 documents that named a value at an edge, and over the
+# corpus that value was the one setting worse than not making the change at all --
+# which is why the plateau matters more here than the number does.
+SPACE_ADVANCE_FRACTION = 0.05
+
 # How many inter-character gaps a line needs before its median is trusted as a
 # baseline. See `line_baseline` for why a low floor would be worse than none.
 MINIMUM_GAPS_FOR_BASELINE = 4
 
+# Fonts that lie about their own encoding, and what their glyphs really are --
+# #172. A comparison operator set in one of these comes back as something else,
+# from `pypdf` and PyMuPDF alike, because the mis-encoding is in the PDF rather
+# than in either reader's interpretation of it.
+#
+# **Keyed on the font, so no rule reads the text.** The ticket proposed a
+# unit-aware rule -- a pound sign, then a number, then a clinical unit -- and
+# priced it at ~67 of the 73 it knew about. Keyed on the font instead, the two
+# genuine currency figures in the corpus are untouched *by construction* rather
+# than by a rule that mostly avoids them: both are set in an ordinary text face,
+# one `MinionPro-Regular` and one `Berkeley-Medium`, each beside a euro sign in a
+# price list. That is what makes this a decoding fix and not a heuristic, and it
+# is why the clinician's ruling on 2026-08-19 was to substitute at all.
+#
+# **The evidence is the rendered glyph, because the PDF offers no other.**
+# `GMBEDM+AdvPS_SSYB` declares `/Encoding /WinAnsiEncoding`, which is a text
+# encoding on a symbol font; it ships no `ToUnicode` at all; and its embedded CFF
+# subset names its two glyphs `sterling` and `daggerdbl`. All three statements are
+# wrong, so nothing in the file can be trusted and the page had to be rasterized
+# and looked at -- `span_baselines`'s method, for `span_baselines`'s reason.
+#
+# Measured over all 179 documents, 2026-08-19. **256 operators across 12 files**,
+# against the 73 the ticket recorded:
+#
+#     AdvPS_SSYB  U+00A3 -> <=    71   9 docs, all KDIGO
+#     AdvPS_SSYB  U+2021 -> >=   146  11 docs, all KDIGO
+#     SymbolMT    U+001E -> <=     2   1 doc, AHA/ACC aortic disease 2022
+#     SymbolMT    U+001F -> >=    36   1 doc, the same one
+#     SymbolMT    U+F0B3 -> >=     1   1 doc, IDSA GAS pharyngitis
+#
+# **The ticket looked at the wrong character for the >= side.** It records that
+# side as clean on `0 occurrences of the 0xB3 slot`, which is true and does not
+# mean what it reads as: >= landed on a double dagger 146 times, on two C0 control
+# codes 38 times, and on 0xB3 exactly once but in the *private use area*, where a
+# scan for U+00B3 cannot see it. A rule keyed on the pound sign reaches none of
+# the 183.
+#
+# **39 of the 256 are deleted rather than mangled, which is worse.** U+001E,
+# U+001F and U+F0B3 all fall inside `_DISCARDED_RANGES`, so before this landed
+# `COPD and FEV1 <=50% predicted` reached the corpus as
+# `COPD and FEV1 50% predicted`: a threshold flattened into an equality with no
+# character left behind to notice it by. Nothing downstream could have caught
+# that -- `threshold_sheet.py`'s gate refuses a mis-encoded character in a value
+# cell, and there is no character.
+#
+# **What this cannot reach, and it is the reason for `symbol_glyph_census`
+# below.** A symbol font this table does not name is decoded however the PDF says
+# and passes in silence, which is exactly the state the corpus was in until
+# somebody went looking. `SymbolMT` is the standing warning: under that one font
+# name the corpus emits <= and >= *correctly* 2,078 times in other documents, so a
+# font name is not a verdict on a document, only on a slot -- and a row may only
+# claim a slot that is wrong everywhere.
+#
+# **`MathematicalPi-One` is the font that is not here, and it is why the rule
+# above is load-bearing rather than decorative.** It sets comparison operators in
+# two C0 slots `_DISCARDED_RANGES` deletes -- the same class as `SymbolMT`'s, and
+# in USPSTF, which is 90 of the 179 documents. 93 operators. Every instinct says
+# add two rows. **Rendered, the two slots are exactly inverted between two
+# documents of the same society:**
+#
+#     abdom-aortic-aneurysm-screening-final-rs     U+0002 = >=   U+0003 = <=
+#     osteoporosis-screening-final-recommendation  U+0002 = <=   U+0003 = >=
+#
+# So a font-name-keyed row would have turned `>=90% of screen-detected AAAs` into
+# `<=90%` -- **inverting a threshold rather than losing one**, which is worse than
+# the defect this table was built for and is the one outcome no gate downstream
+# can catch, because the result is a well-formed operator in a plausible place.
+#
+# **It was nearly missed, and how is the transferable part.** Four sampled
+# documents agreed at 400 dpi and the fifth did not; the disagreement was only
+# legible at 700 dpi. Confirmed independently by rasterizing every occurrence and
+# hashing the glyph box: no shape appears under both of `AdvPS_SSYB`'s two codes,
+# and **four shapes appear under both of `MathematicalPi-One`'s**. That instrument
+# cannot prove two glyphs are the *same* -- it hashes a rasterization, so point
+# size and subpixel offset move it -- but one shape sitting under two codes is a
+# difference noise cannot manufacture, which is the only direction it was trusted
+# in. Filed rather than folded in: settling it needs a *per document* decoding.
+#
+# **Two more mis-encodings are deliberately not here, on the narrower ground.**
+# `AdvPSSym` renders the copyright sign as U+00AA; `SymbolMT` renders an up arrow
+# as `n` and a down arrow as `p` in one KDIGO figure; `Universal-GreekwithMathP`
+# renders an equals sign in a deleted C0 slot. None is a character a threshold is
+# written with, which is the boundary of what this table may claim, and mapping a
+# *letter* would mean a font name that is ever wrong corrupts prose rather than
+# one symbol. All of them stay visible in `symbol_glyph_census`.
+SYMBOL_FONT_OPERATORS = {
+    "AdvPS_SSYB": {
+        "\u00a3": "\u2264",  # rendered: a less-or-equal sign
+        "\u2021": "\u2265",  # rendered: a greater-or-equal sign
+    },
+    "SymbolMT": {
+        "\u001e": "\u2264",
+        "\u001f": "\u2265",
+        "\uf0b3": "\u2265",  # the Symbol font's own 0xB3, surfacing unmapped
+    },
+}
+
+# A PDF font subset tag: exactly six uppercase letters and a plus, as in
+# `GMBEDM+AdvPS_SSYB`. PyMuPDF strips it before `rawdict`, so the corpus never
+# exercises this -- but the tag is one call away in the font dictionary itself,
+# and matching on the plus alone would let `abcdef+AdvPS_SSYB` through as a font
+# nobody measured.
+SUBSET_TAG = re.compile(r"^[A-Z]{6}\+")
+
+# Font names whose glyphs are worth counting even where nothing maps them. A
+# substring match and therefore a guess -- which is affordable here and nowhere
+# else in this module, because `symbol_glyph_census` only ever *reports*. Nothing
+# below changes a character.
+SYMBOL_FONT_MARKERS = (
+    "sym", "ssy", "dingbat", "wingding", "mathematicalpi", "mathpi", "universal",
+)
+
+
 CLASS_GUIDELINE = "guideline"
-CLASS_PRINT_CAPTURE = "print-capture"
+# USPSTF's document type and nobody else's in this corpus: the 90 USPSTF files each
+# title themselves one. #82 built a separate table for exactly that distinction.
+CLASS_RECOMMENDATION_STATEMENT = "recommendation-statement"
+# A browser print-to-PDF of a web page rather than a published document, which is the
+# three ACIP/ files and only those.
+CLASS_WEB_CAPTURE = "web-capture"
 # For a document that was never read. It is not a guideline; nobody knows what it
 # is, and recording it as the default class would let a failure read as a finding.
 CLASS_UNKNOWN = "unknown"
+
+#: The vocabulary a document that was **read** can carry, and the one
+#: ``reference/guidelines-catalog.md``'s ``class`` column publishes --
+#: [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185), where the
+#: two were different sets overlapping on ``guideline`` alone, so every document not
+#: classed ``guideline`` answered ``guidelines_search.py --class`` with a certified
+#: zero. **The count is stated in ``test_class_vocabulary.py`` and deliberately
+#: nowhere else**: it is a fact about a tree that no longer exists and nothing
+#: committed re-derives it.
+#:
+#: **``CLASS_UNKNOWN`` is deliberately not in it.** A document that failed to read has
+#: no ``.txt``, so ``guidelines_index.py`` never sees it and no row in the index can
+#: carry that value -- and a catalog row that did carry it would be a filter value the
+#: index cannot answer, which is the whole defect. It is a manifest value only.
+#:
+#: **``guidelines_index.UNCLASSIFIED`` is a fourth value the index can carry and this
+#: is deliberately not it either.** That one describes a *build* -- a document with no
+#: manifest entry at all -- rather than a document, so no catalog row could sensibly
+#: hold it. It is named here rather than left to be discovered, and pinned in
+#: ``test_class_vocabulary.py``.
+#:
+#: ``guidelines_catalog.py`` imports this rather than restating it, and
+#: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
+CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
+
+# A recommendation statement is a document that titles itself one. The two marks have
+# to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
+# line in four KDIGO guidelines and in the CDC opioid guideline, and matching the
+# phrase alone classes all five wrongly.
+#
+# Whitespace is squashed before matching because the extraction loses the spaces in
+# some of these title blocks: several USPSTF files render the line as
+# ``USPreventiveServicesTaskForceRecommendationStatement``.
+#
+# These live here rather than in ``guidelines_catalog.py``, which is where they were
+# written, because the producer owns the vocabulary it emits and the auditor imports
+# it. Two copies of a rule that must agree is what #253 cost.
+TASK_FORCE_MARK = "taskforce"
+RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
 
 # The three ACIP/ files are browser print-to-PDF captures of CDC schedule pages
 # rather than guideline documents, and this header is what says so. The URL and
@@ -338,7 +618,10 @@ CLASS_UNKNOWN = "unknown"
 # must never become is unanchored: a date and time part way through a sentence is
 # prose, and this must not read a guideline as a browser capture.
 #
-# All three ACIP files re-checked as print-capture under PyMuPDF on 2026-08-16.
+# All three ACIP files re-checked as web-capture under PyMuPDF on 2026-08-19.
+# The constant is named for the shape it matches -- a browser print stamp -- and the
+# class it decides is named for what the document is. #185 renamed the second and
+# deliberately left the first.
 PRINT_CAPTURE_STAMP = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}\s*[AP]M\b")
 
 # Characters that are noise or that render as something else, replaced explicitly
@@ -591,15 +874,45 @@ def margin_removals(
     return sorted(taken)
 
 
-def classify(pages: list[list[str]]) -> str:
-    """Whether this is a guideline document or a browser print-to-PDF capture.
+def squash(text: str) -> str:
+    """Whitespace out, lowercase, for matching a title block the extraction glued."""
+    return re.sub(r"\s+", "", text).lower()
 
-    Counted over the sampled pages directly rather than read off the boilerplate
-    set. Those look interchangeable on the three real captures, where the stamp is
-    on every page and clears every bar -- but reading the boilerplate set makes the
-    class a side effect of boilerplate detection, so a capture short enough to trip
-    MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page, would
-    come back a guideline with nothing saying otherwise.
+
+def is_recommendation_statement(title_block: str) -> bool:
+    """Whether a title block says the document is a USPSTF recommendation statement.
+
+    Shared with ``guidelines_catalog.classify`` by import rather than by copy, so the
+    producer and the auditor cannot come to hold different answers.
+    """
+    squashed = squash(title_block)
+    return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
+
+
+def classify(pages: list[list[str]]) -> str:
+    """Which of ``CLASSES`` this document is.
+
+    **Ordered, and the order matters**: a browser capture of a page that happens to say
+    "recommendation statement" is still a capture. ``guidelines_catalog.classify`` has
+    always read the two in that order and this adopts it.
+
+    The capture test is counted over the sampled pages directly rather than read off
+    the boilerplate set. Those look interchangeable on the three real captures, where
+    the stamp is on every page and clears every bar -- but reading the boilerplate set
+    makes the class a side effect of boilerplate detection, so a capture short enough
+    to trip MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page,
+    would come back a guideline with nothing saying otherwise.
+
+    **The recommendation-statement test reads the first page only**, which is where the
+    document titles itself, and it runs here rather than in ``guidelines_catalog.py``
+    alone because #185 ruled the producer's vocabulary is the catalog's. Running the
+    catalog's classifier over the extracted ``.txt`` corpus reproduces every one of the
+    catalog's ``recommendation-statement`` and ``guideline`` cells, and misses all three
+    captures -- because the stamp it keys on is boilerplate and has been stripped by
+    then. This sees the pages **before** stripping, which is why both halves can live
+    here and neither could live there. **The counts are deliberately not stated**: the
+    only thing that produces them is an artifact outside every checkout, so nothing
+    committed re-derives them, and one of the three is a subtraction of the other two.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:
@@ -610,7 +923,9 @@ def classify(pages: list[list[str]]) -> str:
         if any(PRINT_CAPTURE_STAMP.match(line) for line in pages[index])
     )
     if stamped >= BOILERPLATE_THRESHOLD * len(sampled):
-        return CLASS_PRINT_CAPTURE
+        return CLASS_WEB_CAPTURE
+    if pages and is_recommendation_statement(" ".join(pages[0])):
+        return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE
 
 
@@ -651,6 +966,13 @@ class Record:
     # reshuffle of the old one.
     margin_patterns: list[str] = field(default_factory=list)
     margin_stripped: list[str] = field(default_factory=list)
+    # #172's report, and deliberately a field rather than a printed line. A symbol
+    # font this module's table does not name is decoded however the PDF says and
+    # passes in silence -- which is the state the corpus was in for the whole of
+    # #83 -- so a refresh has to leave a diff somebody looks at. Keyed
+    # `<font> U+XXXX`, and empty means the walk found nothing rather than that
+    # nothing was looked at: `error` is what says the document was never read.
+    symbol_glyphs: dict[str, int] = field(default_factory=dict)
     error: str | None = None
 
 
@@ -668,9 +990,19 @@ def society_of(doc_id: str) -> str | None:
 
 
 def build_document(
-    relative: Path, raw_pages: list[str], out_root: Path, title: str | None = None
+    relative: Path,
+    raw_pages: list[str],
+    out_root: Path,
+    title: str | None = None,
+    symbol_glyphs: dict[str, int] | None = None,
 ) -> Record:
-    """Normalize, strip, write one text file, and describe what was done to it."""
+    """Normalize, strip, write one text file, and describe what was done to it.
+
+    ``symbol_glyphs`` is #172's census, which cannot be computed here: this takes
+    page *strings* and a font name exists only in the ``rawdict`` ``extract_pages``
+    walked. It is carried rather than derived for exactly that reason, and defaults
+    to nothing counted -- which is what every caller in the test file is.
+    """
     pages = clean_pages(raw_pages)
     boilerplate = find_boilerplate(pages)
     margin_patterns = find_margin_patterns(pages)
@@ -709,6 +1041,7 @@ def build_document(
         boilerplate=boilerplate,
         margin_patterns=fired,
         margin_stripped=margin_stripped,
+        symbol_glyphs=dict(symbol_glyphs or {}),
         error=None,
     )
 
@@ -803,6 +1136,133 @@ def span_baselines(line: dict) -> list[float]:
     ]
 
 
+def font_key(name: str) -> str:
+    """A span's font name with any subset tag dropped.
+
+    ``GMBEDM+AdvPS_SSYB`` and ``AdvPS_SSYB`` are the same typeface, and every
+    document embeds its own subset under its own tag -- so a table keyed on the
+    tagged name would match one document and no other.
+    """
+    return SUBSET_TAG.sub("", name)
+
+
+def is_symbol_font(name: str) -> bool:
+    """Whether a font name marks it as a symbol face rather than a text one."""
+    lowered = font_key(name).lower()
+    return any(marker in lowered for marker in SYMBOL_FONT_MARKERS)
+
+
+def symbol_glyph_census(raw: dict) -> dict[str, int]:
+    """Glyphs from a symbol font that ``SYMBOL_FONT_OPERATORS`` does not map.
+
+    **A report and never a rule** -- this is what stops #172 recurring in silence.
+    The defect it exists for is not a character that came out wrong; it is a
+    *corpus refresh* bringing a font nobody has looked at, whose comparison
+    operators land wherever its broken map sends them, with every downstream check
+    reading clean. That is the state this corpus was in for the whole of #83.
+    Recorded per document in ``manifest.json``, so a refresh produces a diff
+    somebody has to look at rather than a silence somebody has to think of.
+
+    Keyed ``<font> U+XXXX`` and counted. **Deliberately unfiltered beyond the two
+    exclusions below**, and an allowlist of glyphs that look harmless is exactly
+    what would have hidden U+001F -- which reads as extraction debris and is a
+    greater-or-equal sign.
+
+    A space is dropped because every symbol font in the corpus sets them and means
+    nothing by it. And a glyph that is already one of ``SYMBOL_FONT_OPERATORS``'s
+    *replacements* is dropped, which is a line about this module's own vocabulary
+    rather than a judgment about what looks harmless: a symbol font emitting a
+    correct ``<=`` is the non-defect this whole table exists to produce. Measured
+    2026-08-19 it is not a nicety -- ``SymbolMT`` alone renders 2,078 correct
+    operators across the corpus, which is two thirds of everything the census would
+    otherwise print, and a report whose loudest line is the thing working is a
+    report with no usable baseline.
+
+    **What that costs, named rather than discovered.** A font emitting ``<=`` where
+    the page shows ``<`` is now invisible here. It was never visible: no census over
+    a text layer can see a glyph that decoded to a plausible character, which is the
+    same reason the five rows above had to be settled by rendering a page.
+    """
+    replacements = {
+        replacement
+        for mapping in SYMBOL_FONT_OPERATORS.values()
+        for replacement in mapping.values()
+    }
+    census: dict[str, int] = {}
+    for block in raw.get("blocks", ()):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", ()):
+            for span in line.get("spans", ()):
+                name = font_key(span.get("font", ""))
+                if not is_symbol_font(name):
+                    continue
+                mapped = SYMBOL_FONT_OPERATORS.get(name, {})
+                for char in span.get("chars", ()):
+                    glyph = char["c"]
+                    if glyph in mapped or glyph in replacements or glyph == " ":
+                        continue
+                    key = f"{name} U+{ord(glyph):04X}"
+                    census[key] = census.get(key, 0) + 1
+    return census
+
+def span_space_advances(line: dict) -> list[float | None]:
+    """What a word break is worth on this line, read off the spaces it already has.
+
+    One value per span, because a line's spans do not share metrics: a span with
+    spaces of its own is measured on them, a span with none borrows the line's, and
+    a line with none at all gets ``None``.
+
+    **That is ``span_baselines``'s fallback order with its count floor deliberately
+    absent, and the difference is not an oversight.** A *baseline* is a median gap,
+    so over one or two samples it is the gap itself -- degenerate, which is what
+    ``MINIMUM_GAPS_FOR_BASELINE`` exists for. An *advance* is not a summary of a
+    distribution: **one real space glyph is one word break the typesetter actually
+    set**, and is direct evidence rather than an estimate of it. A floor here would
+    throw that evidence away on exactly the short lines that have least of it, and
+    the quantity is used as a 5% floor with two orders of magnitude of headroom, so
+    an unrepresentative single sample cannot reach the decision. Pinned by a test
+    so the divergence is a decision rather than a copy that drifted.
+
+    **The advance is measured across the space, never of it.** A space glyph's own
+    width is not what separates two words -- the gaps on either side count too, and
+    on the KDIGO footer they are negative enough to more than halve it: the glyph
+    is 3.776 pt wide and the real separation is 1.056. So the quantity is the
+    previous glyph's right edge to the next glyph's left, which is exactly the
+    quantity a candidate gap is, and the two are comparable without adjustment.
+
+    A space beside another space is skipped, because a run of them is padding
+    rather than one word break and would report an advance no single break has.
+
+    **``None`` is not zero.** It means the line said nothing about what a space is
+    worth, and the caller must then infer on the older rule alone -- which is the
+    property that keeps this from reaching the 59,092 inferences the corpus makes
+    on lines carrying no space at all.
+
+    **A non-positive advance is the third answer and is treated as the same
+    silence.** Bearings negative enough can put the next glyph's left edge at or
+    behind the previous glyph's right edge even across a real space, and a floor
+    computed from such a value is either zero or backwards -- so ``rebuild_text``
+    disables the second bar there rather than applying a bar that cannot bind. It
+    is not observed in this corpus and is guarded anyway, because the failure it
+    would cause is the silent one: every gap on the line clearing a bar of zero.
+    """
+    def advances(chars: list[dict]) -> list[float]:
+        return [
+            chars[index + 1]["bbox"][0] - chars[index - 1]["bbox"][2]
+            for index in range(1, len(chars) - 1)
+            if chars[index]["c"] == " "
+            and chars[index - 1]["c"] != " "
+            and chars[index + 1]["c"] != " "
+        ]
+
+    spans = [list(span.get("chars", ())) for span in line.get("spans", ())]
+    fallback = advances([char for span in spans for char in span])
+    return [
+        statistics.median(own or fallback) if (own or fallback) else None
+        for own in (advances(span) for span in spans)
+    ]
+
 def rebuild_text(raw: dict) -> str:
     """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
 
@@ -829,18 +1289,40 @@ def rebuild_text(raw: dict) -> str:
             baselines = span_baselines(line)
             if not baselines:
                 continue
+            advances = span_space_advances(line)
             buffer: list[str] = []
             previous_right: float | None = None
             for index, span in enumerate(line.get("spans", ())):
                 size = span.get("size", 0.0)
                 baseline = baselines[index]
+                advance = advances[index]
                 threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
+                # #172. Looked up once per span rather than once per character,
+                # and empty for every font in the corpus but two.
+                operators = SYMBOL_FONT_OPERATORS.get(font_key(span.get("font", "")), {})
                 for char in span.get("chars", ()):
-                    glyph = char["c"]
+                    # Substituted before the gap rule reads it, which is safe
+                    # because every row is 1:1 and no row produces a space -- so
+                    # `glyph != " "` below decides the same thing either way.
+                    glyph = operators.get(char["c"], char["c"])
                     left, _, right, _ = char["bbox"]
+                    # Two independent bars, and a gap has to clear both. The first
+                    # asks whether the gap stands out against the line's own
+                    # spacing; the second, where the line set real spaces, asks
+                    # whether it comes anywhere near what this line charges for a
+                    # word break. The second does not apply where the line never
+                    # said -- `None` -- or where what it said cannot bind, which is
+                    # a non-positive advance. Both are `span_space_advances`'s to
+                    # explain and both are pinned by tests.
                     gap_is_wide = (
                         previous_right is not None
                         and (left - previous_right) - baseline > threshold
+                        and (
+                            advance is None
+                            or advance <= 0.0
+                            or (left - previous_right)
+                            >= SPACE_ADVANCE_FRACTION * advance
+                        )
                     )
                     # Never two spaces, and never a space before one the PDF set
                     # itself: `buffer[-1] != " "` covers the first and
@@ -857,8 +1339,12 @@ def rebuild_text(raw: dict) -> str:
     return "\n".join(lines)
 
 
-def extract_pages(path: Path) -> tuple[list[str], str | None]:
-    """Every page of a PDF as raw text in reading order, and its embedded title.
+def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
+    """Every page of a PDF as raw text, its embedded title, and #172's census.
+
+    The census comes back from here and not from anywhere downstream because this
+    is the last place a font name exists -- ``rebuild_text`` returns a string, and
+    every function after it takes page text.
 
     A page that raises comes back as an empty string rather than taking the
     document down with it -- the manifest counts it, and one unreadable page in a
@@ -873,10 +1359,14 @@ def extract_pages(path: Path) -> tuple[list[str], str | None]:
     import pymupdf  # imported here so the pure functions above stay importable without it
 
     document = pymupdf.open(str(path))
-    pages = []
+    pages: list[str] = []
+    symbol_glyphs: dict[str, int] = {}
     for page in document:
         try:
-            pages.append(rebuild_text(page.get_text("rawdict")))
+            raw = page.get_text("rawdict")
+            pages.append(rebuild_text(raw))
+            for key, count in symbol_glyph_census(raw).items():
+                symbol_glyphs[key] = symbol_glyphs.get(key, 0) + count
         except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
             pages.append("")
 
@@ -885,7 +1375,7 @@ def extract_pages(path: Path) -> tuple[list[str], str | None]:
     except Exception:  # noqa: BLE001 - a broken metadata dictionary is not a failed read
         title = None
     document.close()
-    return pages, title
+    return pages, title, dict(sorted(symbol_glyphs.items()))
 
 
 def _engine_version() -> str:
@@ -926,8 +1416,8 @@ def _extract_one(job: tuple[Path, Path, Path]) -> Record:
     """
     source_root, relative, out_root = job
     try:
-        raw_pages, title = extract_pages(source_root / relative)
-        return build_document(relative, raw_pages, out_root, title)
+        raw_pages, title, symbol_glyphs = extract_pages(source_root / relative)
+        return build_document(relative, raw_pages, out_root, title, symbol_glyphs)
     except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
         return failed_document(relative, f"{type(error).__name__}: {error}")
 
@@ -1082,13 +1572,28 @@ def main(argv: list[str]) -> int:
     manifest = write_manifest(out_root, records, source_root)
 
     failures = [record for record in records if record.error]
-    captures = sum(1 for r in records if r.document_class == CLASS_PRINT_CAPTURE)
+    # Every class, not only the captures. Since #185 this is the vocabulary
+    # `reference/guidelines-catalog.md` publishes and `guidelines_search.py --class`
+    # filters on, so the breakdown is the one command that re-derives the figures
+    # CLAUDE.md states -- and a class that fell to zero is visible rather than
+    # implied by the one that did not.
+    #
+    # `CLASS_UNKNOWN` is counted here and is deliberately outside `CLASSES`, because a
+    # breakdown that did not sum to the document count would be a line inviting the
+    # reader to work out the difference -- and the missing term would be exactly the
+    # documents that failed to read. It prints only when it is non-zero, so an ordinary
+    # run is not given a column for a class it does not have.
+    counted = {cls: sum(1 for r in records if r.document_class == cls) for cls in CLASSES}
+    unread = sum(1 for r in records if r.document_class == CLASS_UNKNOWN)
+    if unread:
+        counted[CLASS_UNKNOWN] = unread
+    breakdown = ", ".join(f"{n} {cls}" for cls, n in counted.items())
 
     print()
     print(f"source      {source_root}")
     print(f"output      {out_root}")
     print(f"engine      {_engine_version()}, codec {OUTPUT_CODEC}")
-    print(f"documents   {len(records):,}  ({captures} print-capture)")
+    print(f"documents   {len(records):,}  ({breakdown})")
     print(
         f"pages       {sum(r.pages for r in records):,}  "
         f"({sum(r.empty_pages for r in records):,} with no text layer)"
@@ -1115,6 +1620,15 @@ def main(argv: list[str]) -> int:
     )
     unstripped = [r for r in records if r.output and not r.boilerplate and not r.margin_patterns]
     print(f"            {len(unstripped):,} document(s) had nothing stripped by either rule")
+    # #172. Printed on every run rather than only when it is non-zero, because a
+    # line that appears when something is wrong is a line nobody has a baseline
+    # for -- and the number a reader needs is "the same as last time".
+    unmapped = sum(sum(r.symbol_glyphs.values()) for r in records)
+    carriers = sum(1 for r in records if r.symbol_glyphs)
+    print(
+        f"symbols     {unmapped:,} glyph(s) in {carriers:,} document(s) from a symbol "
+        "font this build does not map; see symbol_glyphs in the manifest"
+    )
     print(f"manifest    {manifest}")
 
     orphans = orphaned_outputs(out_root, records)
