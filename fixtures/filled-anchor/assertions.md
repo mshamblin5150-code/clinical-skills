@@ -22,8 +22,8 @@ Opened for [issue #17](https://github.com/mshamblin5150-code/clinical-skills/iss
 
 **The reference is read.** All twelve submitted notes were opened in the portal on 2026-08-11 and are kept in `scratch/day-b-reference/`, gitignored. Their code lists were lifted on 2026-08-11 and every `Reference did` cell below rests on them. Reading it cost nothing — day-b had already paid for it.
 
-**Run 2, 2026-08-16, on `184462d`: `ANCHOR 5/5` · `CODE 1/1` · `REFUSAL 1/1` · `REPORTED 1/1` — eight of thirteen
-rows, and it passes.** [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
+**Run 2, 2026-08-16, on `184462d`: `ANCHOR 5/5` · `CODE 1/1` · `REFUSAL 1/2` · `REPORTED 1/1` — eight of fourteen
+rows, and every valid score passes; F2 is unscored.** [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
 Twelve generating passes with the input at a neutral path and `fixtures/` closed, four grading
 passes split by row, and an orchestrating pass that wrote no worksheet. **The output is committed**
 at [run-2/](run-2/), which no run in this repo has been before; that directory's README carries the
@@ -35,7 +35,7 @@ opened.
 **C5 alone**: C1 through C4 were not re-run for their own sake, so their run-1 verdicts stand
 against text and an output that are both gone, and mixing them into a run-2 digit would produce a
 number belonging to neither commit. `REPORTED 1/1` is **R2 alone**, for the same reason on the other
-side — R1 held on run 1 and was not re-scored. `REFUSAL 1/1` is **F1 alone**, targeted-scored from
+side — R1 held on run 1 and was not re-scored. `REFUSAL 1/2` is **F1 alone**, targeted-scored from
 the committed run on 2026-08-20 after [#131](https://github.com/mshamblin5150-code/clinical-skills/issues/131)
 named the row. Step 4 already governed the run, so this is a score against the rule that produced
 the worksheets rather than a new bar imposed on old output.
@@ -327,9 +327,9 @@ It exits non-zero on a bare flag, prints counts including the advisory `complete
 | # | Cases | Passes when | Fails when |
 | --- | --- | --- | --- |
 | F1 | all | All twelve worksheets carry `NOT CODED, NOTHING ESTABLISHED IT`; the refusal counts by case are **6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7**; every one of the 52 records welds `NOT CODED:` to the refused code **and a nonempty descriptor**, carries `needs:`, and carries `proposed instead:`; no refused code also appears in that worksheet's proposed-for-entry list | A block is absent; the count vector changes; any record omits the refused code, descriptor, what would establish it, or the supported substitute; or one worksheet both refuses and proposes the same code for entry |
-| F2 | 5, 7, 8, 10, 12 | Every refusal distinguishes what the pending test would establish: **a pending culture does not by itself refuse a code whose descriptor names no organism**; imaging may leave a disease code unsupported when its result would establish the disease itself; and an available rejecting finding is named instead of replacing it with the absent result. Case 5 proposes `L03.012` while its culture is pending; cases 7 and 12 do not refuse `N39.0` merely because urinalysis or culture has not resulted; case 8 names the documented clear lung findings against `J18.9`; case 10 may leave `J18.9` unsupported on the absent disease-establishing film | A culture-pending reason suppresses `L03.012` or is the sole reason `N39.0` is refused; a pending film is treated as though it could only name an organism; or a refusal substitutes a missing test for documented findings that already reject the diagnosis |
+| F2 | 5, 7, 8, 10, 12 | Every refusal distinguishes what the pending test would establish: **a pending culture does not by itself refuse a code whose descriptor names no organism**; imaging may leave a disease code unsupported when its result would establish the disease itself; and an available rejecting finding is named instead of replacing it with the absent result. Case 5 proposes `L03.012` while its culture is pending; cases 7 and 12 do not refuse `N39.0` merely because urinalysis or culture has not resulted; case 8 names the documented clear lung findings against `J18.9`; **case 10 refuses `J18.9` because the absent film would establish the disease itself** | A culture-pending reason suppresses `L03.012` or is the sole reason `N39.0` is refused; case 10 proposes `J18.9` or refuses it as though the film would only name an organism; or a refusal substitutes a missing test for documented findings that already reject the diagnosis |
 
-**F2 is the converse of F1's completeness check, and run 2 fails it.** Cases 7 and 12 refuse `N39.0` on an unresulted urinalysis or culture; case 8 refuses `J18.9` on an unresulted film despite naming clear lungs as the finding against it. Case 10 is the imaging control: the absent film is the result that would establish the pneumonia the note has not otherwise established. Case 5 is the culture control: it proposes `L03.012` and routes only the pending organism code aside. Five passes reading one skill split on one rule, which is why this row belongs in the existing `icd10-cpt` set rather than in `hedged-dx` or a new fixture. The run record stays byte-for-byte evidence and is not repaired. Issue [#149](https://github.com/mshamblin5150-code/clinical-skills/issues/149).
+**F2 is the converse of F1's completeness check, and F2 is unscored.** Run 2 predates the rule, so its worksheets are evidence of the defect rather than a valid fail. Cases 7 and 12 refuse `N39.0` on an unresulted urinalysis or culture; case 8 refuses `J18.9` on an unresulted film despite naming clear lungs as the finding against it. Case 10 is the imaging control: the absent film is the result that would establish the pneumonia the note has not otherwise established. Case 5 is the culture control: it proposes `L03.012` and routes only the pending organism code aside. Five passes reading one skill split on one rule, which is why this row belongs in the existing `icd10-cpt` set rather than in `hedged-dx` or a new fixture. The run record stays byte-for-byte evidence and is not repaired. Issue [#149](https://github.com/mshamblin5150-code/clinical-skills/issues/149).
 
 ```bash
 python tools/refusal_scan.py <the run directory>
