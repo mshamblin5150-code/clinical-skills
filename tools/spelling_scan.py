@@ -63,11 +63,14 @@ Known limits, stated so nobody reads this as the rule itself:
   every clean line -- ``licence`` and ``manoeuvres`` were written into skill
   files in one commit minutes apart and only the listed one was reported.
 - Advisory in the pre-commit hook, and deliberately: a spelling is not worth
-  refusing a commit over. **It is not the only advisory check and standing rule
-  1 is not the only refuser** -- ``threshold_sheet.py`` has refused a staged
-  ``reference/thresholds/*.md`` since #83, and this docstring asserted
-  otherwise for long enough to be the fourth surviving copy of a claim
-  ``AGENTS.md`` and ``CLAUDE.md`` had already corrected. #278.
+  refusing a commit over. **Two things here can refuse one** -- standing rule 1
+  via ``phi_scan.py``, and since #83 ``threshold_sheet.py`` when a
+  ``reference/thresholds/*.md`` is staged. This line read *"standing rule 1 stays
+  the only thing that refuses a commit in this repo"* until 2026-08-19; that was
+  the **fourth** copy of a claim false since #83, after ``AGENTS.md`` and
+  ``CLAUDE.md`` corrected theirs and ``tools/hooks/pre-commit`` recorded killing
+  what it called the third. Found by a tracker sweep, in the one file whose own
+  docstring is what a reader checks the rule against.
 """
 
 from __future__ import annotations
