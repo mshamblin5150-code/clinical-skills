@@ -69,7 +69,7 @@ row needed it.
     ``<source key>=<path>`` now and ``--recs-root`` resolves ``recs-<source key>.json``,
     and a sheet where **any** source has no record exits 2.
 
-``WATERMARK`` refuses, and skips loudly where the extracted corpus is absent
+``WATERMARK`` warns, and skips loudly where the extracted corpus is absent
     #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
     that row is suspect and must be read off the rendered page. Cannot verify a
     reading; flags every place the text stream was interleaved."* The strings are
@@ -81,8 +81,13 @@ row needed it.
     the document's own body**, and that discrimination is measured rather than
     chosen -- see ``usable_probes`` for why no length or letter-run cut point can
     do it. A declared ``RENDERED:`` row is exempt and counted: reading it off the
-    rendered page is the remedy #83 names, so refusing it anyway would leave the
-    gate unsatisfiable.
+    rendered page is the remedy #83 names, and refusing a row that applied it would
+    leave the gate unsatisfiable.
+
+    **Warns rather than refuses, and that is a ruling deferred.** #83 decision 1 set
+    the posture per gate and never ruled this one, whose own line says *flags*; the
+    hook would make a refusal here the third thing in this repo that can turn a
+    commit away. [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296).
 
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
@@ -384,6 +389,19 @@ class Sheet:
     why_not: str | None = None
 
 
+def _document_of(sheet: "Sheet", row: "Row") -> str:
+    """The source document a row cites, or ``""`` where its source is undeclared.
+
+    One walk rather than four spellings of it. It was written out at every call site
+    first -- ``sheet.sources.get(row.source, {}).get("document", "")`` in three places
+    and ``sheet.sources[row.source].get("document", "")`` in a fourth, which is the
+    same chain with a different failure mode on an undeclared key. Every gate that
+    reaches for a row's document is really asking this one question, and SCHEMA has
+    already refused the row where the answer is empty.
+    """
+    return sheet.sources.get(row.source, {}).get("document", "")
+
+
 def _cells(line: str) -> list[str] | None:
     """A Markdown table row as its cells, or None if the line is not one."""
     match = _ROW_PIPE.match(line)
@@ -683,12 +701,22 @@ def usable_probes(entry: dict, body: str) -> dict[str, str]:
     ``SPACE_ADVANCE_FRACTION`` is that naming a value at an edge is how a constant
     goes wrong, and the value here is that there is no constant to name.
 
+    **Those two counts are stated here and deliberately nowhere else.** They are
+    measured against a 179-document corpus outside this repo, so nothing committed
+    re-derives them, and a copy in ``CLAUDE.md`` or in ``reference/thresholds/README.md``
+    is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) --
+    which is what the first draft of this change did, in three places each, inside a
+    paragraph asserting the figure was stated once. Re-derive by running
+    ``tools/guidelines_extract.py`` and counting over ``manifest.json``.
+
     **Both fields, which is #100 and #174's own comment.** ``boilerplate`` holds what
     the literal 75% rule took and ``margin_stripped`` what the margin rule took; a
-    detector reading only the first misses 2,688 lines across 27 documents and
-    reports a clean gate, which is gate 4's failure shape arriving in gate 4's input.
-    Three of those documents lose a **welded running head** rather than a folio, and
-    prose is what interleaves.
+    detector reading only the first misses the whole margin rule and reports a clean
+    gate, which is gate 4's failure shape arriving in gate 4's input. **How much that
+    is, and which documents lose a welded running head rather than a folio, are
+    `guidelines_extract.py`'s figures to state** -- CLAUDE.md already rules them not
+    to be repeated, and prose is what interleaves, which is the part that matters
+    here.
 
     Matching is substring on both sides and through ``_normalize``, so the body test
     and the row test are the same test asked of two different strings -- a probe that
@@ -710,7 +738,7 @@ def gate_watermark(
 ) -> tuple[list[str], str | None, int, list[str]]:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
-    Returns ``(failures, skip reason, rows declared RENDERED, source keys not probed)``.
+    Returns ``(warnings, skip reason, rows declared RENDERED, source keys not probed)``.
 
     #83 states it: *"If a string stripped by #80 appears inside an extracted table
     row, that row is suspect and must be read off the rendered page. Cannot verify a
@@ -718,6 +746,24 @@ def gate_watermark(
     marker shipped with #83 as the **declaration** half. This is the detection half,
     and until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)
     nothing told a writer that a given row needed it.
+
+    **It warns and does not refuse, and that is a ruling deferred rather than a
+    judgment about severity.** #83 decision 1 set the posture *per gate* -- schema
+    and citation refuse, recommendation counting warns -- and it never ruled gate 4,
+    whose own line says **flags**. The pre-commit hook runs ``--all --quiet`` when a
+    sheet is staged, so anything routed into the refusal list becomes the **third**
+    thing in this repo that can refuse a commit; the hook's own comment records the
+    second as *"a deliberate change in posture, ruled on in #83 decision 1 rather
+    than drifted into"*. **The first version of this gate refused**, which would have
+    been a third refuser added by inference from a line that says *flags* -- caught
+    by the spec axis of ``/code-review``.
+    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) carries
+    the question to the clinician, and every mechanism a refusal would need is
+    already here: the finding, its remedy, and the count.
+
+    **Every probe that hits, not the first.** #83 asks for *every place*, and a row
+    can carry two stripped strings -- a running head and a folio land on one line
+    often enough that stopping at the first would report one and read as the whole.
 
     **A declared row is exempt and counted, not refused.** The remedy #83 names for a
     suspect row *is* to read it off the rendered page, so refusing a row that says it
@@ -737,10 +783,13 @@ def gate_watermark(
 
     **A source that was reached but could not be probed is neither.** A document with
     no manifest entry, no extracted text on disk, or no usable probe at all is
-    returned in the fourth value and printed -- 11 of the 179 documents have no
-    usable probe, measured 2026-08-19, and a sheet citing one is a sheet this gate
-    said nothing about. A silent zero there is the shape ``differential_scan.py`` and
-    every scanner after it exists to refuse.
+    returned in the fourth value and printed, because a sheet citing one is a sheet
+    this gate said nothing about. A silent zero there is the shape
+    ``differential_scan.py`` and every scanner after it exists to refuse. **How many
+    of the 179 have no usable probe is stated once, in
+    ``reference/thresholds/README.md``**, where the command that re-derives it sits
+    beside it -- it is measured against a corpus outside this repo, so a second copy
+    is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
     """
     if text_root is None or not Path(text_root).is_dir():
         return [], f"extracted corpus not found at {text_root}", 0, []
@@ -770,7 +819,7 @@ def gate_watermark(
             continue
         probes_for[key] = probes
 
-    failures: list[str] = []
+    findings: list[str] = []
     rendered = 0
     for row in sheet.rows:
         probes = probes_for.get(row.source)
@@ -784,14 +833,13 @@ def gate_watermark(
         transcribed = _normalize(f"{row.value} {row.snippet}")
         for probe, recorded in sorted(probes.items()):
             if probe in transcribed:
-                failures.append(
+                findings.append(
                     f"{sheet.path.name}:{row.line}  the row carries {recorded!r}, which #80 "
-                    f"stripped from {sheet.sources[row.source].get('document', '')} as "
+                    f"stripped from {_document_of(sheet, row)} as "
                     f"page-repeated text. The text stream was interleaved here, so read "
                     f"this row off the rendered page and declare {RENDERED_MARKER}."
                 )
-                break
-    return failures, None, rendered, unprobed
+    return findings, None, rendered, unprobed
 
 
 # The line gate 5 prints on every run it makes, clean or not. #83 states the caveat
@@ -867,6 +915,15 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
                 path=path, ok=False,
                 why_not=f"entry {position} has no {', '.join(missing)}",
             )
+        if not _PAGE_DIGITS.search(str(entry["page"])):
+            # `_citation` is tolerant of how a page is spelled and this is why it can
+            # afford to be: a page with no digit in it is not a page, and letting one
+            # through would put the entry under a key no row can ever carry -- which
+            # reads as the reader having gone off the brief.
+            return SecondRead(
+                path=path, ok=False,
+                why_not=f"entry {position} has no page number in {entry['page']!r}",
+            )
     return SecondRead(path=path, values=values, read_on=str(read_on))
 
 
@@ -881,8 +938,42 @@ def load_second_read(path: Path) -> SecondRead:
     return load_second_read_record(loaded, path)
 
 
+_PAGE_DIGITS = re.compile(r"\d+")
+
+
 def _citation(document: str, page: object) -> tuple[str, str]:
-    return guidelines_index.normalize_doc_id(str(document)), str(page).strip().lstrip("pP")
+    """A ``(document, page)`` key, from either side of the second-read boundary.
+
+    **The page is read as its digits**, which matters only on the untrusted side. A
+    sheet's page came through ``parse`` and is an ``int``; a second-read record was
+    typed by whoever did the read, off a brief that prints locators as ``p.41`` --
+    and ``lstrip("pP")`` left the dot, so a reader copying what the brief showed them
+    produced ``.41``, matched no row, and got their work reported as **read off the
+    brief**. Blaming a reader for covering exactly what it was sent to is the worst
+    failure this gate has, because it is the one that looks like a finding.
+    ``load_second_read_record`` refuses an entry whose page carries no digit at all,
+    so this is tolerant of a spelling and never of an absence.
+    """
+    digits = _PAGE_DIGITS.search(str(page))
+    return (
+        guidelines_index.normalize_doc_id(str(document)),
+        digits.group(0) if digits else str(page).strip(),
+    )
+
+
+def cited_citations(sheet: Sheet) -> set[tuple[str, str]]:
+    """Every ``(document, page)`` a sheet's rows cite.
+
+    Shared by ``brief`` and ``gate_second_read`` rather than written twice, because
+    the two have to agree exactly: the brief is what a reader is sent to, and the
+    diff decides what that reader covered. Two copies of this comprehension could
+    drift into a work order naming a page the grader then reports as off-brief.
+    """
+    return {
+        _citation(_document_of(sheet, row), row.page)
+        for row in sheet.rows
+        if row.page is not None
+    }
 
 
 def brief(sheet: Sheet) -> str:
@@ -899,8 +990,7 @@ def brief(sheet: Sheet) -> str:
     it searched rather than what it read. The narrower a locator gets the more the
     read is steered, and page is the widest one that makes the task finite.
     """
-    citations = sorted({_citation(sheet.sources.get(row.source, {}).get("document", ""), row.page)
-                        for row in sheet.rows if row.page is not None})
+    citations = sorted(cited_citations(sheet))
     lines = [
         f"== a second independent read for {sheet.path.name}",
         "",
@@ -981,10 +1071,7 @@ def gate_second_read(
     undiffed: list[str] = []
     uncovered: list[str] = []
 
-    cited = {
-        _citation(sheet.sources.get(row.source, {}).get("document", ""), row.page)
-        for row in sheet.rows if row.page is not None
-    }
+    cited = cited_citations(sheet)
     by_citation: dict[tuple[str, str], list[dict]] = {}
     for entry in read.values:
         key = _citation(entry["document"], entry["page"])
@@ -997,7 +1084,9 @@ def gate_second_read(
             continue
         by_citation.setdefault(key, []).append(entry)
 
-    matched: set[int] = set()
+    # By position rather than by ``id()``: two entries of a read can be equal dicts,
+    # and identity is not what "this entry answered a row" means.
+    matched: set[tuple[tuple[str, str], int]] = set()
     for row in sheet.rows:
         wanted = _NUMBER.findall(row.value)
         where = f"{sheet.path.name}:{row.line}"
@@ -1006,18 +1095,18 @@ def gate_second_read(
             continue
         if row.page is None:
             continue  # already a SCHEMA failure; not counted twice
-        key = _citation(sheet.sources.get(row.source, {}).get("document", ""), row.page)
+        key = _citation(_document_of(sheet, row), row.page)
         if key not in by_citation:
             uncovered.append(
                 f"{where}  the read covers nothing on {key[0]} p.{key[1]}"
             )
             continue
         found = None
-        for entry in by_citation.get(key, ()):
+        for position, entry in enumerate(by_citation.get(key, ())):
             present = set(_NUMBER.findall(str(entry["value"])))
             if all(number in present for number in wanted):
                 found = entry
-                matched.add(id(entry))
+                matched.add((key, position))
                 break
         if found is None:
             refusals.append(
@@ -1030,8 +1119,8 @@ def gate_second_read(
         )
 
     for key in sorted(by_citation):
-        for entry in by_citation[key]:
-            if id(entry) not in matched:
+        for position, entry in enumerate(by_citation[key]):
+            if (key, position) not in matched:
                 warnings.append(
                     f"{read.path.name}  {key[0]} p.{key[1]} states {entry['value']!r} "
                     f"({entry['about']}) and no row carries it -- the independent read "
@@ -1439,7 +1528,7 @@ def grade(
     if watermark_skip:
         report(f"  WATERMARK       NOT RUN -- {watermark_skip}")
     else:
-        report(f"  WATERMARK       {len(watermark)}")
+        report(f"  WATERMARK       {len(watermark)} warning")
         if watermark_rendered:
             report(
                 f"                  {watermark_rendered} row(s) declared {RENDERED_MARKER}, "
@@ -1472,7 +1561,13 @@ def grade(
             # for their reason: a partial read that printed only its refusals would
             # read as a whole-sheet verdict.
             report("                  so the counts above are a floor, not the whole")
-        report(f"                  {SECOND_READ_IS_A_SMOKE_TEST}")
+        # **Through `print`, so `--quiet` cannot take it.** #174 calls this caveat a
+        # build instruction -- *"the tool's own output must say it is a smoke test"* --
+        # and `--quiet --second-read` printed WARN and NOT DIFFED lines with the
+        # caveat suppressed, which is the one configuration where a reader sees gate
+        # 5's findings and not what they are worth. `CITATION` tier 2's banner takes
+        # the same door for the same reason.
+        print(f"                  {SECOND_READ_IS_A_SMOKE_TEST}")
         for pairing in pairings:
             # The misreading limb, and the only thing here a reader has to do by
             # hand: the row's own heading beside what an independent reader said the
@@ -1504,13 +1599,25 @@ def grade(
         print("  extracted corpus with tools/guidelines_extract.py, or pass --text-root.")
         print("  " + "=" * 66)
 
-    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + watermark + five_refusals
+    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + five_refusals
     for message in refusals:
         print(f"  FAIL  {message}", file=sys.stderr)
-    for message in coverage_warnings + five_warnings:
+    for message in coverage_warnings + watermark + five_warnings:
         print(f"  WARN  {message}", file=sys.stderr)
     for message in undiffed + uncovered:
         print(f"  NOT DIFFED  {message}", file=sys.stderr)
+
+    # **On stderr as well as in the body, and `--quiet` is exactly why.** The hook
+    # runs `--all --quiet`, which suppresses the report -- so a sheet whose source
+    # this gate could not probe exited 0 with no trace at all, which is the whole
+    # shape the notice exists to refuse. `COVERAGE` prints its NOT RUN in both places
+    # for this reason and this was the one limb that did not.
+    for key in unprobed:
+        print(
+            f"  WATERMARK       NOT PROBED for source '{key}' -- no manifest entry, no "
+            "extracted text, or no string stripped from it that could serve as a probe",
+            file=sys.stderr,
+        )
 
     if second_read is not None and not second_read.ok:
         print(

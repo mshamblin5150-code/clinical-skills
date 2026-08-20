@@ -117,7 +117,7 @@ need something this repo does not carry:
 
 ```bash
 # WATERMARK, #83 gate 4. Reads the strings #80 stripped as page-repeated text out of
-# `manifest.json` and refuses a row that carries one -- the text stream was
+# `manifest.json` and WARNS about a row that carries one -- the text stream was
 # interleaved there, so the row's label and its number may never have been adjacent.
 # `--text-root` is derived from `--pdf-root` when it is not given; absent, the gate
 # skips behind a banner and never passes.
@@ -397,9 +397,19 @@ not left to be discovered:
   holding hundreds. That is a true statement about markers and a poor description of
   the document; it is a bound, a bound may only warn, and no threshold on the number
   would be anything but invented.
+- **Gate 4 warns and does not refuse, and that is a ruling deferred rather than a
+  judgment about severity.** #83 decision 1 set each gate's posture and never ruled
+  this one, whose own line says *flags*. A refusal here would be the **third** thing
+  in this repo that can turn a commit away, because the hook runs `--all --quiet`
+  whenever a sheet is staged — and the hook's own comment records the second refuser
+  as *"a deliberate change in posture, ruled on in #83 decision 1 rather than drifted
+  into"*. **The first build of this gate refused**, which would have added a third by
+  inference.
+  [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296)
+  carries the question; every mechanism a refusal needs is already here.
 - **Gate 4, watermark interleave, is built on
   [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174), and what it
-  cannot reach is the half the exposure figure is about.** It refuses a row that
+  cannot reach is the half the exposure figure is about.** It flags a row that
   *carries* a stripped string. It says nothing about the other direction — a stripped
   line sitting *between* a row's label and its number, removed cleanly, leaving two
   halves welded that were never adjacent on the page. Tier 2 catches that one where the
@@ -424,12 +434,22 @@ not left to be discovered:
 - **Not every stripped string is a probe, and 11 of the 179 documents have none.** A
   string the extractor strips in one place and keeps in another proves nothing by
   appearing in a snippet, so a probe has to be absent from the document's own extracted
-  body — `JAMA` is a running head on seventeen AHA/ACC files and occurs up to 52 times
-  in the body of one of them. **A sheet citing one of the 11 is a sheet gate 4 said
-  nothing about**, and the command names those sources rather than printing a zero.
-  Measured 2026-08-19, and re-derivable by running `tools/guidelines_extract.py` and
-  reading `manifest.json`; nothing committed re-derives it, which is why it is stated
-  once.
+  body — a running head that the body also states is the worked case, and
+  `threshold_sheet.usable_probes` names it with its counts. **A sheet citing one of the
+  11 is a sheet gate 4 said nothing about**, and the command names those sources rather
+  than printing a zero. Measured 2026-08-19 against a corpus outside this repo, so
+  nothing committed re-derives it — which is why the figure is stated here and in no
+  other file. **Re-derive it with the gate's own predicate**, not by reading the
+  manifest: the manifest records the stripped strings, and what makes one a probe is
+  the body test `usable_probes` applies to it.
+
+  ```bash
+  python -c "import sys, json, pathlib; sys.path.insert(0, 'tools'); \
+    import threshold_sheet as g; \
+    r = pathlib.Path('C:/codeing/guidelines-text'); \
+    d = json.loads((r / 'manifest.json').read_text(encoding='utf-8'))['documents']; \
+    print(sum(not g.usable_probes(e, (r / e['output']).read_text(encoding='utf-8', errors='replace')) for e in d), 'of', len(d))"
+  ```
 - **Gate 5, the second independent read, is built and it is half a mechanism by
   design.** #83 describes it as the only thing that catches *misreading* rather than
   *miscitation*, and says in the same breath that its weakness is correlated error —

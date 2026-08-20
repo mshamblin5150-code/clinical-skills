@@ -1522,9 +1522,12 @@ class WatermarkGate(unittest.TestCase):
         self.assertEqual(rendered, 1)
 
     def test_a_document_with_no_usable_probe_is_reported_and_never_clean(self):
-        """Eleven of the 179 documents have no usable probe at all, measured
-        2026-08-19. A sheet citing one of them is a sheet gate 4 said nothing about,
-        and a silent zero there is the shape every scanner in `tools/` refuses."""
+        """A sheet citing a document with no usable probe is a sheet gate 4 said
+        nothing about, and a silent zero there is the shape every scanner in `tools/`
+        refuses. **How many of the corpus that is stays
+        `reference/thresholds/README.md`'s to say** -- it is measured outside this
+        repo, and spelling it out in words here was a restatement a `grep` for the
+        figure could not even find."""
         text_corpus(self.root, "Society/doc", "JAMA and a goal of <130 mm Hg",
                     boilerplate=["JAMA"])
         failures, skip, _, unprobed = gate.gate_watermark(sheet(row()), self.root)
@@ -1976,3 +1979,194 @@ class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
 
     def test_the_readme_still_says_the_marker_is_what_a_suspect_row_declares(self):
         self.assertIn(gate.RENDERED_MARKER, self.readme())
+
+
+class TheNotProbedNoticeSurvivesQuiet(unittest.TestCase):
+    """The pre-commit hook runs `--all --quiet`, so anything that reaches a committer
+    only through the report reaches nobody. `--quiet` suppresses the report and never
+    a finding, and a gate that could not probe a source is a finding about the run --
+    `gate_citation_tier2`'s banner rule, applied to the limb that first missed it.
+    """
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.sheet_path = self.root / "sheet.md"
+        self.sheet_path.write_text(
+            header() + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row()
+            + "\n## Conflicts\n\n\n## Coverage\n\n",
+            encoding="utf-8",
+        )
+        # A corpus that HAS a manifest -- so the gate ran -- but nothing in it the
+        # sheet's source resolves to. The whole-corpus banner does not fire here,
+        # which is exactly why this limb needed its own channel.
+        text_corpus(self.root / "text", "Society/other", "a goal", boilerplate=["Jones et al"])
+
+    def _quiet(self) -> tuple[str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            gate.grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                       text_root=self.root / "text", second_read_path=None, quiet=True)
+        return out.getvalue(), err.getvalue()
+
+    def test_quiet_still_names_the_source_that_could_not_be_probed(self):
+        printed, errors = self._quiet()
+        self.assertNotIn("WATERMARK", printed, "the report itself is suppressed")
+        self.assertIn("NOT PROBED", errors)
+        self.assertIn("src", errors)
+
+
+class TheBriefAndTheDiffReadOneSetOfCitations(unittest.TestCase):
+    """Two copies of the citation walk could drift into a work order naming a page the
+    grader then reports as read off the brief -- the reader blamed for covering
+    exactly what it was sent to. Shared rather than written twice, and pinned rather
+    than asserted in a comment."""
+
+    def test_every_page_the_brief_names_is_a_page_the_diff_counts_as_cited(self):
+        rows = (
+            row(page="p41")
+            + row(page="p7", value="<80 mm Hg", snippet="a DBP goal of <80 mm Hg", rec="p7/g/1")
+        )
+        parsed = sheet(rows)
+        work_order = gate.brief(parsed)
+        for document, page in gate.cited_citations(parsed):
+            self.assertIn(f"{document}  p.{page}", work_order)
+        read = gate.load_second_read_record(
+            second_read(*[seen("<130 mm Hg", document=document, page=int(page))
+                          for document, page in sorted(gate.cited_citations(parsed))]),
+            Path("read.json"),
+        )
+        _, warnings, _, _, _ = gate.gate_second_read(parsed, read)
+        self.assertFalse(
+            [warning for warning in warnings if "cites nowhere" in warning],
+            "a read that covered exactly the brief must not be told it went off it",
+        )
+
+
+class GateFourWarnsAndDoesNotRefuse(unittest.TestCase):
+    """#83 decision 1 set each gate's posture and never ruled this one, whose own line
+    says *flags*. The hook runs `--all --quiet` whenever a sheet is staged, so a
+    refusal here would be the third thing in this repo that can turn a commit away —
+    added by inference. #296 carries the question; this pins the answer that is in
+    force until it is ruled, in both directions, so moving it has to be a diff.
+    """
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        text_corpus(self.root / "text", "Society/doc", "an SBP goal of <130 mm Hg",
+                    boilerplate=["Jones et al"])
+        self.sheet_path = self.root / "sheet.md"
+        self.sheet_path.write_text(
+            header() + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(snippet="an SBP goal of Jones et al <130 mm Hg")
+            + "\n## Conflicts\n\n\n## Coverage\n\n",
+            encoding="utf-8",
+        )
+
+    def _run(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = gate.grade(
+                sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                text_root=self.root / "text", second_read_path=None,
+                recs_root=self.root / "recs",
+            )
+        return status, out.getvalue(), err.getvalue()
+
+    def test_the_gate_really_fires_on_this_sheet(self):
+        """Otherwise the posture assertion below passes for the wrong reason."""
+        _, printed, errors = self._run()
+        self.assertIn("Jones et al", errors)
+        self.assertIn("WATERMARK       1 warning", printed)
+
+    def test_it_is_reported_as_a_warning_and_never_as_a_refusal(self):
+        _, _, errors = self._run()
+        interleave = [line for line in errors.splitlines() if "Jones et al" in line]
+        self.assertEqual(len(interleave), 1)
+        self.assertTrue(interleave[0].strip().startswith("WARN"), interleave[0])
+
+    def test_a_finding_here_alone_does_not_make_the_run_refuse(self):
+        """The sheet is otherwise clean, so any non-zero would be this gate's."""
+        status, _, _ = self._run()
+        self.assertEqual(status, 2, "2 is COVERAGE having no record, which is not gate 4")
+
+    def test_every_probe_that_hits_is_reported_and_not_only_the_first(self):
+        """#83 asks for *every place* the text stream was interleaved, and a running
+        head and a folio land on one line often enough that stopping at the first
+        would report one and read as the whole. The first version broke out."""
+        text_corpus(self.root / "text2", "Society/doc", "an SBP goal of <130 mm Hg",
+                    boilerplate=["Jones et al"], margin=["Circulation 2025"])
+        suspect = row(snippet="Jones et al an SBP goal of <130 mm Hg Circulation 2025")
+        findings, _, _, _ = gate.gate_watermark(sheet(suspect), self.root / "text2")
+        self.assertEqual(len(findings), 2)
+
+
+class ASecondReadRecordsPageIsReadAsItsDigits(unittest.TestCase):
+    """The brief prints locators as `p.41`, and `lstrip("pP")` left the dot — so a
+    reader copying exactly what it was shown produced `.41`, matched no row, and had
+    its work reported as read off the brief. Blaming a reader for covering what it
+    was sent to is the worst failure this gate has, because it looks like a finding.
+    """
+
+    def test_a_page_written_the_way_the_brief_prints_it_still_matches(self):
+        read = gate.load_second_read_record(
+            second_read(seen("<130 mm Hg", page="p.41")), Path("read.json")
+        )
+        self.assertTrue(read.ok, read.why_not)
+        refusals, warnings, pairings, _, uncovered = gate.gate_second_read(
+            sheet(row(value="<130 mm Hg", page="p41")), read
+        )
+        self.assertEqual((refusals, warnings, uncovered), ([], [], []))
+        self.assertEqual(len(pairings), 1)
+
+    def test_a_page_with_no_digit_in_it_is_not_a_page(self):
+        """Tolerant of a spelling, never of an absence: an entry keyed on something no
+        row can carry reads as the reader having gone off the brief."""
+        read = gate.load_second_read_record(
+            second_read(seen("<130 mm Hg", page="the appendix")), Path("read.json")
+        )
+        self.assertFalse(read.ok)
+        self.assertIn("page", read.why_not)
+
+
+class TheSmokeTestCaveatSurvivesQuiet(unittest.TestCase):
+    """#174 calls it a build instruction: *the tool's own output must say it is a
+    smoke test*. `--quiet --second-read` printed WARN and NOT DIFFED lines with the
+    caveat suppressed, which is the one configuration where a reader sees gate 5's
+    findings and not what they are worth."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.sheet_path = self.root / "sheet.md"
+        self.sheet_path.write_text(
+            header() + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row()
+            + "\n## Conflicts\n\n\n## Coverage\n\n",
+            encoding="utf-8",
+        )
+        self.read_path = self.root / "read.json"
+        self.read_path.write_text(
+            json.dumps(second_read(seen("<130 mm Hg"), seen("<80 mm Hg", about="the DBP goal"))),
+            encoding="utf-8",
+        )
+
+    def test_quiet_suppresses_the_report_and_not_the_caveat(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            gate.grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                       text_root=None, second_read_path=self.read_path, quiet=True)
+        printed = out.getvalue()
+        self.assertNotIn("SECOND READ     ", printed, "the report itself is suppressed")
+        self.assertIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
