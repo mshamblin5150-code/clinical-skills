@@ -804,6 +804,7 @@ check that was never run is not.
 
 | Check | What it reads | How | A `clean` says what it walked |
 | --- | --- | --- | --- |
+| the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
 | the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
@@ -817,6 +818,76 @@ reader walked, and `tools/checks_ledger.py` fails a bare one. Those are the rows
 `clean` is most expensive; everywhere else a bare `clean` still passes, which is the gap below. **Brief
 the two readers accordingly** — they report what they examined whichever verdict they return, and
 the clause is one sentence written by an agent that has just walked the thing.
+
+#### The house style is a command now, and it is the row this step gained on #277
+
+**Ruled 2026-08-19.** The clinician read the first rendered submission and returned a list of
+findings. Some were renderer defects and are fixed; **the rest were house style, and every one of
+those is in the body of the draft** — which `tools/reference_scan.py` does not read and no reader
+was briefed on. **The arithmetic is on the ticket and in `CLAUDE.md`, once**, because a figure
+restated where nothing re-derives it is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). His framing is the ticket: *"is there some machine checkable way to get this right every
+time... this prevents me from using this skill for future work."*
+[#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277). The rules landed in
+[reference/style.md](reference/style.md) §1a and §8 as prose, which is exactly the arrangement
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) ruled insufficient: **a
+prose edit to a rule fails nothing.**
+
+**Run it on the Markdown — before step 8 renders it, and again after every repair:**
+
+```bash
+python tools/case_study_scan.py output/case-studies/<stem>.md
+```
+
+Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file, no section
+it recognizes in the document, a skeleton that disagrees with the one this file publishes above, or
+a `SKILL.md` it could not read at all. **The last is a claim about the *check* rather than about the
+rows**, which all still ran; what the status refuses is a clean set of them standing for a scan
+against a skeleton nobody confirmed.
+Re-run with `--show` to see which, and **that output is PHI**: read it, do not paste it.
+Deliberately **not** `tools/reference_scan.py`'s exception — that command's output is bounded by
+what its code can draw from, and this one's is not, because a bullet's finding is the bullet's own
+text.
+
+**Every row is a rule written in [reference/style.md](reference/style.md) §1a or §8**, and how many
+there are is `case_study_scan.KINDS`'s to say rather than this paragraph's. **This list is the one
+copy** — a test keyed on that tuple asserts each row has a sentence here, and `CLAUDE.md` points at
+it rather than repeating it. The rows are: no bullet anywhere in
+the document, no table under Demographics, the Review of Systems or the Physical Examination, the
+Review of Systems closing with the all-other-systems disclaimer **and the Physical Examination not
+carrying one**, no scaffolding language from §1a's closed set, the Most Likely Clinical Diagnosis
+not set wholly bold, the signature and its date on one line, the prescription table at six rows and
+three columns wide, and **a drug that continues carrying a stop criterion**.
+
+**It reads the Markdown through the renderer's own parser rather than a copy of it.** A line it
+calls a bullet is a `ListParagraph` in the `.docx`, because `docx_write.blocks` is what both of them
+read — `tools/reference_scan.py` importing `REFERENCE_HEADING` is the precedent, at the width of one
+heading rather than the whole parse. **A fenced code block is not an escape**: the renderer opens
+nothing on a fence, so a bulleted line inside one is a bullet in the finished document.
+
+**The em dash is counted and never graded, and that is a ruling rather than an omission.** His
+words: *"generally I prefer not to use em dashes, just saying, though I do use them sometimes."* A
+row keyed on a stated preference with a stated exception would refuse a document he would have
+written himself, which is
+[#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s own defect a third time —
+that ticket exists because a recency filter cut a correct claim for a property the rule did not care
+about, and its closing comment records the same mistake being made again inside the fix. The count
+prints; nothing fails on it.
+
+**A clean scan is not a checked draft.** Here is what no row of that command reaches: **the voice,
+and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop
+criterion's endpoint is the right endpoint**, **whether a drug ordered PRN needs an endpoint
+of its own**, **a second drug welded into one drug row, discharged by the first drug's endpoint**, **whether a dose is correct, or was sourced at all**,
+**a scaffolding phrase nobody has written yet**, and **anything the Markdown cannot show, which the
+rendered document can**.
+
+**The two findings in his list that mattered most clinically are in that list rather than in the
+rows** — the ceftriaxone order's missing endpoint being the *right* endpoint, and the growth and
+development section that should not have existed at all. The command reaches that a continuing drug
+states an endpoint and not whether the endpoint is defensible; the second is a reading, and it is
+the amended ruling above, *A wrapper instruction that does not fit this patient is reasoned about*.
+Both stay a reader's, and the last of them is why `the house style` row's `clean` is not one a
+command can substitute for the walk.
 
 **One reader per row, all of them at once, and none of them is the context that wrote the draft.**
 Each gets the draft, the rule its row names, and the instruction to report findings rather than fix

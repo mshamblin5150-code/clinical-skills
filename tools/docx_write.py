@@ -768,39 +768,149 @@ def body_xml(markdown: str) -> str:
     return render_body(markdown)[0]
 
 
+# The Markdown subset, as three patterns and a name for the separators. **They
+# were inline in ``render_body`` and are constants because a second reader now
+# exists.** ``reference_scan.py`` imports ``REFERENCE_HEADING`` for the reason
+# written beside it -- a scanner holding its own copy of a rule can pass a
+# document the renderer sets wrong -- and ``blocks`` below is that argument at
+# the width of the whole parse rather than at one heading.
+HEADING = re.compile(r"(#{1,4})\s+(.*)")
+BULLET = re.compile(r"([ \t]*)[-*+]\s+(.*)")
+NUMBERED = re.compile(r"([ \t]*)\d+[.)]\s+(.*)")
+SEPARATORS = ("---", "***", "___")
+
+
+class Block:
+    """One thing the renderer will set, and the source line it opens on.
+
+    ``kind`` is one of ``blank``, ``separator``, ``heading``, ``table``,
+    ``bullet``, ``numbered`` and ``paragraph`` -- the seven branches
+    ``render_body`` had, named. ``line`` is 1-indexed and nothing in this module
+    reads it; it is there because a scanner reports a finding at a line.
+    """
+
+    __slots__ = ("kind", "text", "line", "level", "rows")
+
+    def __init__(self, kind, text="", line=0, level=0, rows=()):
+        self.kind = kind
+        self.text = text
+        self.line = line
+        self.level = level
+        self.rows = rows
+
+    def __repr__(self):  # pragma: no cover - diagnostics only
+        return "Block({k!r}, {t!r}, line={n})".format(k=self.kind, t=self.text, n=self.line)
+
+
+def blocks(markdown: str):
+    """Read the Markdown subset once, into ``Block`` objects.
+
+    **This is the whole of the renderer's reading and there is no second copy of
+    it.** ``render_body``'s own docstring already named the risk -- *a second pass
+    over the same Markdown is a second parser to keep in step* -- and
+    ``tools/case_study_scan.py`` is that second pass: it grades a draft on rules
+    whose failure is a rendered one, so a line it calls a bullet has to be a
+    bullet in the ``.docx``. Importing the three patterns would have left two
+    loops that could still disagree about where a table ends; consuming this
+    leaves none.
+
+    **A fenced code block is not a branch here, and that is the renderer's
+    behavior rather than an omission of this function's.** A fence opens nothing,
+    so a bulleted line inside one is set as a bullet in the finished document --
+    which is why ``case_study_scan.py`` grants no mention-versus-use exemption
+    for one, where ``spelling_scan.py`` reading a skill file does.
+    """
+    lines = markdown.replace("\r\n", "\n").split("\n")
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        number = index + 1
+
+        if not stripped:
+            yield Block("blank", line=number)
+            index += 1
+            continue
+
+        if stripped in SEPARATORS:
+            yield Block("separator", stripped, line=number)
+            index += 1
+            continue
+
+        heading = HEADING.match(stripped)
+        if heading:
+            yield Block(
+                "heading",
+                heading.group(2).strip(),
+                line=number,
+                level=len(heading.group(1)),
+            )
+            index += 1
+            continue
+
+        if stripped.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
+            rows = [tuple(split_row(stripped))]
+            index += 2
+            while index < len(lines) and lines[index].strip().startswith("|"):
+                rows.append(tuple(split_row(lines[index].strip())))
+                index += 1
+            yield Block("table", line=number, rows=tuple(rows))
+            continue
+
+        bullet = BULLET.match(line)
+        if bullet:
+            yield Block(
+                "bullet",
+                bullet.group(2),
+                line=number,
+                level=min(len(bullet.group(1).expandtabs(4)) // 2, 2),
+            )
+            index += 1
+            continue
+
+        numbered = NUMBERED.match(line)
+        if numbered:
+            yield Block(
+                "numbered",
+                numbered.group(2),
+                line=number,
+                level=min(len(numbered.group(1).expandtabs(4)) // 2, 2),
+            )
+            index += 1
+            continue
+
+        yield Block("paragraph", stripped, line=number)
+        index += 1
+
+
 def render_body(markdown: str):
     """``(body payload, number of decimal lists)``.
 
     The count is what ``numbering_xml`` has to be sized by, and it is returned
     rather than recomputed because a second pass over the same Markdown is a
     second parser to keep in step -- which is the duplication
-    ``table_first_cells`` above was consolidated to refuse.
+    ``table_first_cells`` above was consolidated to refuse, and which is why the
+    reading itself is ``blocks`` above rather than a loop in here.
     """
-    lines = markdown.replace("\r\n", "\n").split("\n")
     out = []
     in_references = False
     has_content = False
     # 0 means "no list open": the next numbered line allocates a fresh ``numId``.
     decimal_id = 0
     decimal_lists = 0
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        stripped = line.strip()
-
-        if not stripped or stripped in ("---", "***", "___"):
-            if not in_references and not stripped:
+    for block in blocks(markdown):
+        if block.kind == "blank":
+            if not in_references:
                 out.append("<w:p/>")
-            index += 1
             continue
 
-        heading = re.match(r"(#{1,4})\s+(.*)", stripped)
-        if heading:
-            level = len(heading.group(1))
-            text = heading.group(2).strip()
+        if block.kind == "separator":
+            continue
+
+        if block.kind == "heading":
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
-            in_references = bool(REFERENCE_HEADING.match(text))
+            in_references = bool(REFERENCE_HEADING.match(block.text))
             # A heading closes whatever list was open, so the next numbered line
             # allocates a fresh ``w:num`` and Word restarts it at 1. This is the
             # only place the counter resets: a plain paragraph *between* two
@@ -808,8 +918,8 @@ def render_body(markdown: str):
             decimal_id = 0
             out.append(
                 para(
-                    text,
-                    style="Heading{n}".format(n=level),
+                    block.text,
+                    style="Heading{n}".format(n=block.level),
                     # A page break on the document's first paragraph renders an empty
                     # first page, so a document that opens on its reference list takes
                     # the centering and not the break.
@@ -818,56 +928,43 @@ def render_body(markdown: str):
                 )
             )
             has_content = True
-            index += 1
             continue
 
-        if stripped.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
-            rows = [split_row(stripped)]
-            index += 2
-            while index < len(lines) and lines[index].strip().startswith("|"):
-                rows.append(split_row(lines[index].strip()))
-                index += 1
-            out.append(table(rows))
+        if block.kind == "table":
+            out.append(table([list(row) for row in block.rows]))
             has_content = True
             continue
 
-        bullet = re.match(r"([ \t]*)[-*+]\s+(.*)", line)
-        if bullet:
-            level = min(len(bullet.group(1).expandtabs(4)) // 2, 2)
-            out.append(para(bullet.group(2), style="ListParagraph", num_id=1, level=level))
+        if block.kind == "bullet":
+            out.append(para(block.text, style="ListParagraph", num_id=1, level=block.level))
             has_content = True
-            index += 1
             continue
 
-        numbered = re.match(r"([ \t]*)\d+[.)]\s+(.*)", line)
-        if numbered:
-            level = min(len(numbered.group(1).expandtabs(4)) // 2, 2)
+        if block.kind == "numbered":
             if not decimal_id:
                 decimal_lists += 1
                 decimal_id = decimal_lists + 1
             out.append(
                 para(
-                    numbered.group(2),
+                    block.text,
                     style="ListParagraph",
                     num_id=decimal_id,
-                    level=level,
+                    level=block.level,
                 )
             )
             has_content = True
-            index += 1
             continue
 
         # APA 7 section 2.24's first-line indent lands here and on no other branch:
         # a heading, a list item and a reference entry are each carved out above.
         out.append(
             para(
-                stripped,
+                block.text,
                 style="Reference" if in_references else "",
                 first_line=not in_references,
             )
         )
         has_content = True
-        index += 1
 
     return "".join(out), decimal_lists
 
