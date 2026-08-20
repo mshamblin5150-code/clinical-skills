@@ -58,9 +58,19 @@ Known limits, stated so nobody reads this as the rule itself:
   ``.md``, which is the notes, the fixtures, the skills and the prose about them.
 - **It holds the table, not the language.** The ``-ise`` family beyond
   ``catheterise``, and every British form nobody has written here yet, are out.
-  A scan that comes back clean means no *listed* form was used.
-- Advisory in the pre-commit hook, and deliberately: standing rule 1 stays the
-  only thing that refuses a commit in this repo.
+  A scan that comes back clean means no *listed* form was used. **Since #278
+  that is on the page as well as here**, in ``vocabulary_covered`` and beside
+  every clean line -- ``licence`` and ``manoeuvres`` were written into skill
+  files in one commit minutes apart and only the listed one was reported.
+- Advisory in the pre-commit hook, and deliberately: a spelling is not worth
+  refusing a commit over. **Two things here can refuse one** -- standing rule 1
+  via ``phi_scan.py``, and since #83 ``threshold_sheet.py`` when a
+  ``reference/thresholds/*.md`` is staged. This line read *"standing rule 1 stays
+  the only thing that refuses a commit in this repo"* until 2026-08-19; that was
+  the **fourth** copy of a claim false since #83, after ``AGENTS.md`` and
+  ``CLAUDE.md`` corrected theirs and ``tools/hooks/pre-commit`` recorded killing
+  what it called the third. Found by a tracker sweep, in the one file whose own
+  docstring is what a reader checks the rule against.
 """
 
 from __future__ import annotations
@@ -108,6 +118,7 @@ TABLE = {
     "licence": "license",
     "neighbour": "neighbor",
     "judgement": "judgment",
+    "manoeuvre": "maneuver",
 }
 
 # Inflections whose stem changes, so the suffix rule below cannot reach them from
@@ -338,6 +349,12 @@ def render_record(rows: list[RecordRow]) -> list[str]:
         "These stay. Correcting them would falsify the record of what the run "
         "produced -- see the set's README."
     )
+    lines.append(
+        "This tally is bounded by that set: adding a form moves it without the "
+        "record moving, which has happened. Issue #278; the instance is in "
+        "skills/clinical-note/SKILL.md under Conventions."
+    )
+    lines.append(vocabulary_covered())
     return lines
 
 
@@ -515,6 +532,67 @@ def scanned_population(mode: str) -> str:
     return f"spelling-scan: scanned {POPULATIONS[mode]}."
 
 
+def vocabulary_covered() -> str:
+    """The forms this run looked for, so a clean line cannot be read wider.
+
+    [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278).
+    #258 put the walked **population** on the page -- which files were read.
+    That is one axis of what a clean result covers, and this scanner is weakest
+    on the other: it holds a table rather than the language, so the honest form
+    of a clean run is *no form on an N-entry table appears in the walked set*
+    and it reads as *American English*.
+
+    **The recorded instance is two forms in one commit, minutes apart.**
+    ``licence`` was on the table and was reported; ``manoeuvres`` was not on it
+    and was not, and was found only by going and looking by hand afterwards.
+    Nothing the clean run printed said the second had never been looked for --
+    which is the same silence #258 closed, one axis over.
+
+    **Declared rather than widened**, which is the clinician's #254 ruling and
+    the one he re-ruled here on 2026-08-19. ``manoeuvre`` is on the table now,
+    because it was written in this repo and that is the table's growth rule --
+    evidence, the way ``neighbour`` and ``judgement`` arrived. The productive
+    families the ticket priced (``-ise``, ``-our``, ``-re``) were declined:
+    every one of them fires on a correct word, and a scanner that refuses
+    ``seizure`` and ``figure`` is worse than one that says what it holds.
+    ``foetal`` and ``oesophag-`` stay off for the narrower reason that nobody
+    has written them here, which is #104's open question and not this one's.
+
+    **Derived from ``_PATTERNS`` rather than typed.** That tuple is what
+    ``_matches`` iterates, so the printed number cannot disagree with what ran
+    -- a hand-typed figure beside a table that grows is #143 with a schedule.
+
+    **Its own row, on #258's terms.** Folding it into the population line would
+    put two claims where a reader edits one, which is #220; and a reader who
+    learns to read one qualifier reads the absence of the other as the stronger
+    claim, which is the defect one level down.
+
+    **The count names its own composition, and that is not decoration.** The
+    table a reader opens in ``skills/clinical-note/SKILL.md`` holds fewer rows
+    than this set has patterns -- the stem changes and the drug names are not
+    rows of it -- so a bare total is a figure a reader counting the table gets a
+    different answer to, which is the two-files-two-answers failure the parity
+    test exists to close. The parts are read off the same dicts and reconcile to
+    the total. **The figures are not restated in prose anywhere**, here or in
+    ``CLAUDE.md``, on #143's terms.
+
+    **``--record`` gets this same line, and calls it rather than holding a
+    copy.** #258 ruled that view needs no *population* line, its first printed
+    line naming the one directory it reports on. Its tally is still bounded by
+    this set: adding a form has moved it while the twelve notes did not move at
+    all. **The instance is stated once, in the skill's Conventions section**,
+    which tells a reader to re-derive it with ``--record`` rather than quote it
+    -- so printing it here would be the command quoting the sentence that says
+    not to.
+    """
+    return (
+        f"spelling-scan: checked {len(_PATTERNS)} listed forms and their "
+        f"regular inflections -- {len(TABLE)} table rows, {len(STEM_CHANGES)} "
+        f"stem changes, {len(DRUGS)} drug names. A form this set does not hold "
+        "is not a finding."
+    )
+
+
 def render(report: Report, quiet: bool, mode: str) -> list[str]:
     lines: list[str] = []
     if report.findings:
@@ -554,13 +632,14 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
     # #258.
     if report.findings or not quiet:
         lines.append(scanned_population(mode))
+        lines.append(vocabulary_covered())
     return lines
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Report British spelling in Markdown. Standing rule 4, "
-                    "advisory -- only phi_scan refuses a commit here.",
+                    "advisory -- this scanner refuses no commit.",
     )
     parser.add_argument(
         "paths", nargs="*", type=Path,

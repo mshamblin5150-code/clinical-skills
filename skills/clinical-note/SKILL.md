@@ -873,7 +873,7 @@ It binds both branches, which is why it lives here rather than in either templat
 | `millilitre`, `centimetre`, `litre`, `fibre` | `milliliter`, `centimeter`, `liter`, `fiber` |
 | `grey`, `behaviour`, `colour`, `tumour`, `favour` | `gray`, `behavior`, `color`, `tumor`, `favor` |
 | `labelled`, `recognisable`, `programme`, `licence` | `labeled`, `recognizable`, `program`, `license` |
-| `neighbour`, `judgement` | `neighbor`, `judgment` |
+| `neighbour`, `judgement`, `manoeuvre` | `neighbor`, `judgment`, `maneuver` |
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not `paracetamol`, `epinephrine` not `adrenaline`, `albuterol` not `salbutamol`, `ferrous sulfate` not `ferrous sulphate`. A clinician reading the other name has to translate it before they can check the dose.
 
@@ -893,6 +893,10 @@ It binds both branches, which is why it lives here rather than in either templat
 
 **That run wrote both spellings of most of them**, which is what makes the record evidence of drift rather than of a register: `cesarean` eight times against `caesarean` twice, `dyspnea` seven against `dyspnoea` three, `program` nine against `programme` twice, `fiber` three against `fibre` four. **Nobody reading one note would see it** — the same shape as [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67), and the same reason twelve outputs had to be put in front of one reader.
 
+**The sixteenth is `manoeuvre`, added 2026-08-19, and it is the clearest instance this table has of its own limit.** It was written into a skill file in the **same commit** as `licence`, minutes apart, and `spelling_scan.py --all` reported one and not the other — `licence` is a row above, `manoeuvre` was on no row, and a clean run said nothing about the difference. It was found by going and looking by hand afterwards. [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278), and unlike `neighbour` and `judgement` it moved none of the run record's figures: that run never wrote it.
+
+**The ticket asked for the families and the clinician declined them**, which is what fixes the growth rule rather than leaving it implied. The medical `-ae-`/`-oe-` forms it proposed were **already here** — six of its eight are rows above — so the table's rule was working better than the ticket credited. The productive suffixes it priced next, `-ise` and `-our` and `-re`, each fire on a correct word: a scanner that refuses `seizure`, `figure` and `metre` is worse than one that says what it holds. **So the rule stays evidence: a form goes on this table when somebody writes it here.** What generalizes instead is that the command now prints which forms it checked, beside the files it read — a clean run says *no form on this table*, where it used to say something a reader heard as *American English*.
+
 **A fourteenth instance — of a form already on that list — was in a skill file, and the hand sweep that wrote this section missed it.** `batch-shift` used `programme` in prose about the clinician's program, and what found it was `python tools/spelling_scan.py --all` — this table with a command in front of it, which is the ordinary way to check now:
 
 ```bash
@@ -900,7 +904,7 @@ python tools/spelling_scan.py --all      # every tracked .md
 python tools/spelling_scan.py --record   # the preserved run record, form by form
 ```
 
-It reads Markdown only, and it holds this table rather than the language: a clean scan means no *listed* form was used. `tools/test_spelling_scan.py` parses the table above and asserts the scanner covers every row of it, so the two cannot drift apart. **The rule is complete without the command** — this table is the instruction, and skipping the scan costs a check rather than an answer.
+It reads Markdown only, and it holds this table rather than the language: a clean scan means no *listed* form was used — **which it now prints**, beside the set of files it walked, so neither limit has to be remembered off this page. [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278). `tools/test_spelling_scan.py` parses the table above and asserts the two hold the same rows **in both directions**, so neither can drift — the reverse half was added on [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278), which is what exercised it: before that, a form could go into the scanner with this table never mentioning it. **The rule is complete without the command** — this table is the instruction, and skipping the scan costs a check rather than an answer.
 
 **The rule has been exercised, and until 2026-08-12 it had not been.** A rule written after the run that motivated it is a rule nothing has walked, so day-b's twelve encounters were re-run that day on `ffe9377` — twelve generating passes, shorthand pasted inline, `fixtures/` closed — and graded by `python tools/spelling_scan.py` over the output rather than by a reader. **None of the eight forms the table then held appears in 4,275 lines.** A wider hand net — the `-ise` family, the `oe` and `ae` digraphs, `-our`, `-re`, `-ence`, 46 stems in all — came back empty too. **The denominator has since moved to ten and the notes that run produced are gitignored and gone**, so this clean verdict cannot be re-derived in either direction — it certifies eight forms over an artifact nobody can re-grade. Kept as the dated measurement it is, and not restated as a current one.
 
