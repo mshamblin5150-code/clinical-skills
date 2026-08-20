@@ -15,6 +15,7 @@ import phi_scan
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
+ISSUE_TRACKER = REPO_ROOT / "docs" / "agents" / "issue-tracker.md"
 
 
 def workflow_text():
@@ -41,7 +42,7 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
     def test_create_and_edit_do_not_depend_on_a_later_push(self):
         text = workflow_text()
         expected = {
-            "issues": ("opened", "edited"),
+            "issues": ("opened", "edited", "labeled"),
             "issue_comment": ("created", "edited"),
             "pull_request_target": ("opened", "edited"),
             "pull_request_review": ("submitted", "edited"),
@@ -107,6 +108,38 @@ class TheFileIsValidYaml(unittest.TestCase):
         except ImportError:
             self.skipTest("PyYAML absent; the text tests are the floor")
         self.assertIsInstance(yaml.safe_load(workflow_text()), dict)
+
+
+class ACompletedMergePublishesAnImmutableTicketReceipt(unittest.TestCase):
+    def test_the_workflow_listens_for_a_closed_pull_request(self):
+        text = workflow_text()
+        self.assertRegex(
+            text,
+            r"(?m)^  pull_request_target:\r?\n    types: \[[^]]*closed[^]]*\]$",
+        )
+        self.assertIn("github.event.pull_request.merged == true", text)
+
+    def test_trusted_main_builds_and_publishes_the_receipt_plan(self):
+        text = workflow_text()
+        self.assertIn("tracker_merge_receipt.py", text)
+        self.assertIn("gh pr view", text)
+        self.assertIn("gh issue comment", text)
+        self.assertIn("issues: write", text)
+        self.assertIn("github.event.repository.default_branch", text)
+
+    def test_in_flight_issue_text_is_scoped_at_the_publication_event(self):
+        text = workflow_text()
+        self.assertIn("--github-event", text)
+        self.assertIn("--event-name", text)
+        self.assertIn("Branch scope for in-flight issue text", text)
+
+    def test_the_maintainer_rule_names_both_sides_of_the_state_change(self):
+        text = ISSUE_TRACKER.read_text(encoding="utf-8")
+        self.assertIn("Branch state:", text)
+        self.assertIn("not on `main` as of", text)
+        self.assertIn("Part of #", text)
+        self.assertIn("merge receipt", text.lower())
+        self.assertIn("do not rewrite", text.lower())
 
 
 if __name__ == "__main__":
