@@ -750,8 +750,8 @@ belong in a note.
 **Nothing in the model bends a structural rule, and the list is closed.** The tier block's grammar,
 the Medatrax field strings, the drift matrix, an ICD-10 descriptor, the template's own formatting
 instructions, **row 22's welded refusal — `NOT CODED: <code> <descriptor>, <reason>`, on one line**
-— and the two rules below this one, *Punctuation* and *Spelling*, are all fixed. **The model governs
-the prose between them and nothing else.**
+— and the three rules below this one, *Spirometry*, *Punctuation* and *Spelling*, are all fixed.
+**The model governs the prose between them and nothing else.**
 
 **The refusal is on that list because the table above hands its rationale to the model, and the two
 together were a hole.** A `NOT CODED` rationale is register-1 prose and reads as the model's to
@@ -776,6 +776,21 @@ tier block is not one kind of claim: its separate lanes hold arithmetic, generat
 unresolved finished-note defects, genuine source gaps and unknown tokens.
 **That is the one place this differs from
 `practicum-case-study`**, which declares an unmodeled voice because it has somewhere to put it.
+
+### Spirometry
+
+**Every occurrence this skill writes identifies which spirometry it means.** `Office spirometry`,
+`diagnostic spirometry`, `spirometry with bronchodilator response` and `incentive spirometry` are
+qualified; the bare term is not. Office or diagnostic spirometry may appropriately be deferred
+through an acute illness, while incentive spirometry is used during the period in which that same
+wording would defer it. A reader must never have to infer which opposite disposition the note means.
+
+**The qualifier travels with every occurrence.** One in the Plan does not license a bare occurrence
+in the Assessment, tier block or another section: those surfaces are read independently, and a line
+copied out of one of them loses the context from the others. This is a rule for `spirometry`, not an
+open-ended table of words that may be ambiguous, and it is a human-read convention rather than a
+drift-matrix row. Ruled by the clinician 2026-08-20, issue
+[#166](https://github.com/mshamblin5150-code/clinical-skills/issues/166).
 
 ### Punctuation
 
