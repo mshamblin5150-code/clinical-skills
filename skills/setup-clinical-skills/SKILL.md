@@ -22,7 +22,7 @@ This skill collects the second kind. It is prompt-driven, not a script: explore,
 
 Everything after this step writes identifying data to disk. Do this first, in this order, and do not proceed past a failure.
 
-**Enable the pre-commit hook.** Git does not clone hooks, so a fresh clone has none and every commit is unguarded:
+**Enable the repository hooks.** Git does not clone hooks, so a fresh clone has none and every commit is unguarded:
 
 ```bash
 git config core.hooksPath tools/hooks
@@ -215,7 +215,7 @@ Show a draft of `scratch/medatrax-profile.md`, `scratch/identity-map.md`, and �
 **`shorthand.md` gets a different kind of confirmation and it is the more urgent one.** Read every expansion back and every ambiguity's tell with it. A wrong register produces a document that does not sound like him; **a wrong expansion produces a finding the patient does not have**, so this is the one list in the skill that is read line by line rather than skimmed.
 
 - That finished notes and case studies are written to `output/`, working material to `scratch/`, and that both are gitignored — so nothing they produce ever reaches GitHub.
-- That the pre-commit hook from step 0 is now armed in this clone only, and a clone on another machine needs `git config core.hooksPath tools/hooks` again.
+- That the pre-commit and commit-message hooks from step 0 are now armed in this clone only, and a clone on another machine needs `git config core.hooksPath tools/hooks` again.
 - Which skills read the profile.
 - That `reference/medatrax-fields.md` holds the universal Medatrax behavior and the profile holds everything about them — and that where the two disagree, **the profile wins.**
 - That re-running this skill is only needed to change accounts, courses or program; the files can be edited directly otherwise.

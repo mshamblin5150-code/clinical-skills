@@ -19,7 +19,7 @@ for python in python python3 py; do
 
         # Advisory on the same terms, and for the same reason: a British
         # spelling is standing rule 4, not PHI. Prints nothing when the staged
-        # Markdown is clean. See tools/spelling_scan.py.
+        # staged Markdown, Python and filenames are clean. See tools/spelling_scan.py.
         "$python" "$repo_root/tools/spelling_scan.py" --quiet >&2 || true
 
         status=0

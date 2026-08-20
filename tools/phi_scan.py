@@ -832,6 +832,7 @@ def read_text_if_text(path: Path) -> str | None:
     return data.decode("utf-8", errors="replace")
 
 
+# spelling-scan: mentions 1
 def scan_all(index: CorpusIndex) -> list[Finding]:
     """Every **tracked** file, which is the whole of what a clean result covers.
 
