@@ -16,13 +16,16 @@ file a reader opens is worse than no scanner, because it reads as agreement.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import re
 import tempfile
 import unittest
 from pathlib import Path
 
 import specificity_scan as scan
-from icd10_lookup import normalize, open_database
+from icd10_lookup import describe, normalize, notes_for, open_database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
@@ -65,6 +68,82 @@ def entry(code: str, descriptor: str, specificity: str) -> str:
         f"  SPECIFICITY: {specificity}\n"
         f"  CONFIDENCE: verified against ICD-10-CM FY2026"
     )
+
+
+def second_read(*codes: dict) -> dict:
+    return {"read_on": "2026-08-20", "codes": list(codes)}
+
+
+def read_code(
+    code: str,
+    *,
+    about: str = "the code set leaves no further axis beneath this code",
+    family: list[dict] | None = None,
+) -> dict:
+    return {
+        "code": code,
+        "family": family or [],
+        "about": about,
+    }
+
+
+def fact(
+    code: str,
+    descriptor: str,
+    *,
+    billable: bool = True,
+    notes: list[dict] | None = None,
+) -> dict:
+    return {
+        "code": code,
+        "descriptor": descriptor,
+        "billable": billable,
+        "notes": notes or [],
+    }
+
+
+Z90_NOTES = [
+    {
+        "code": "Z90",
+        "kind": "excludes1",
+        "text": "congenital absence - see Alphabetical Index",
+    },
+    {
+        "code": "Z90",
+        "kind": "excludes2",
+        "text": "postprocedural absence of endocrine glands (E89.-)",
+    },
+]
+
+
+def release_family(code: str) -> list[dict]:
+    """The shipped category facts, used to make a record before planting one defect."""
+    connection = open_database()
+    try:
+        category = normalize(code)[:3]
+        codes = [
+            row[0]
+            for row in connection.execute(
+                "SELECT code FROM code WHERE code LIKE ? ORDER BY code", (category + "%",)
+            )
+        ]
+        family: list[dict] = []
+        for family_code in codes:
+            official = describe(connection, family_code)
+            family.append(
+                fact(
+                    family_code,
+                    official.long,
+                    billable=official.billable,
+                    notes=[
+                        {"code": note.code, "kind": note.kind, "text": note.text}
+                        for note in notes_for(connection, family_code)
+                    ],
+                )
+            )
+        return family
+    finally:
+        connection.close()
 
 
 class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
@@ -302,6 +381,285 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             self.assertEqual(scan.main([str(directory)]), 2)
 
 
+class TheIndependentReadBriefCarriesNoAnswer(unittest.TestCase):
+    """The reader gets locators, never the worksheet's answer or its prose."""
+
+    def test_it_lists_each_for_entry_icd10_code_once(self):
+        text = worksheet(
+            entry("Z90.49", "Acquired absence of other specified parts", "complete — leaf"),
+            entry("Z90.49", "Acquired absence of other specified parts", "complete — leaf"),
+            entry("I10", "Essential hypertension", "complete — no axis"),
+        )
+        brief = scan.brief([scan.read_flags(text)], source="a-run")
+        self.assertEqual(brief.count("Z90.49"), 1)
+        self.assertEqual(brief.count("I10"), 1)
+
+    def test_it_exposes_neither_descriptor_nor_existing_reason(self):
+        text = entry(
+            "Z90.49",
+            "Acquired absence of other specified parts of digestive tract",
+            "complete — the author's conclusion must stay hidden",
+        )
+        brief = scan.brief([scan.read_flags(text)], source="a-run")
+        self.assertNotIn("Acquired absence", brief)
+        self.assertNotIn("author's conclusion", brief)
+
+    def test_it_excludes_cpt_and_not_for_entry_codes(self):
+        text = (
+            "ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY\n"
+            "  SPECIFICITY: complete — differential\n\n"
+            "CPT  10060  Incision and drainage of abscess\n"
+            "  SPECIFICITY: complete — simple single abscess\n\n"
+            + entry("I10", "Essential hypertension", "complete — no axis")
+        )
+        brief = scan.brief([scan.read_flags(text)], source="a-run")
+        self.assertIn("I10", brief)
+        self.assertNotIn("J20.9", brief)
+        self.assertNotIn("10060", brief)
+
+    def test_it_states_the_record_shape_and_the_independence_caveat(self):
+        brief = scan.brief(
+            [scan.read_flags(entry("I10", "Essential hypertension", "complete — no axis"))],
+            source="a-run",
+        )
+        for field in scan.SECOND_READ_CODE_FIELDS:
+            self.assertIn(f'"{field}"', brief)
+        self.assertIn('"read_on"', brief)
+        self.assertIn("smoke test", brief.lower())
+        self.assertIn("Do not consult", brief)
+
+    def test_a_for_entry_code_with_no_specificity_line_still_enters_the_brief(self):
+        text = "ICD-10  I10  Essential (primary) hypertension\n  ANCHOR: the note text\n"
+        brief = scan.brief([scan.read_entries(text)], source="a-run")
+        self.assertIn("I10", brief)
+
+
+class TheSecondReadIsBoundToTheCommittedRelease(unittest.TestCase):
+    def setUp(self):
+        self.flags = [
+            scan.read_flags(
+                entry(
+                    "Z90.49",
+                    "Acquired absence of other specified parts of digestive tract",
+                    "complete — Z90.4 has only a pancreas child",
+                )
+            )
+        ]
+        self.connection = open_database()
+        self.addCleanup(self.connection.close)
+
+    def _read(self, *codes: dict) -> scan.SecondRead:
+        return scan.load_second_read_record(second_read(*codes), Path("read.json"))
+
+    def _subject(self, **changes) -> dict:
+        record = read_code(
+            "Z90.49",
+            family=release_family("Z90.49"),
+            about="stomach is a sibling family and Z90.49 is the digestive residual",
+        )
+        record.update(changes)
+        return record
+
+    def _with_family_change(self, code: str, **changes) -> dict:
+        record = json.loads(json.dumps(self._subject()))
+        target = next(fact for fact in record["family"] if normalize(fact["code"]) == normalize(code))
+        target.update(changes)
+        return record
+
+    def test_exact_release_facts_are_clean_and_the_prose_is_paired(self):
+        result = scan.gate_second_read(
+            self.flags, self._read(self._subject()), self.connection
+        )
+        self.assertEqual(result.refusals, ())
+        self.assertEqual(result.uncovered, ())
+        self.assertEqual(len(result.pairings), 1)
+        self.assertIn("only a pancreas child", result.pairings[0])
+        self.assertIn("stomach is a sibling family", result.pairings[0])
+
+    def test_a_false_subject_descriptor_refuses(self):
+        result = scan.gate_second_read(
+            self.flags,
+            self._read(
+                self._with_family_change(
+                    "Z90.49", descriptor="Acquired absence of large intestine"
+                )
+            ),
+            self.connection,
+        )
+        self.assertEqual(len(result.refusals), 1)
+        self.assertIn("descriptor", result.refusals[0])
+
+    def test_a_false_supporting_fact_refuses(self):
+        result = scan.gate_second_read(
+            self.flags,
+            self._read(
+                self._with_family_change(
+                    "Z90.3", descriptor="Acquired absence of large intestine"
+                )
+            ),
+            self.connection,
+        )
+        self.assertEqual(len(result.refusals), 1)
+        self.assertIn("family", result.refusals[0])
+
+    def test_an_incomplete_note_set_refuses(self):
+        result = scan.gate_second_read(
+            self.flags,
+            self._read(self._with_family_change("Z90.49", notes=[])),
+            self.connection,
+        )
+        self.assertEqual(len(result.refusals), 1)
+        self.assertIn("notes", result.refusals[0])
+
+    def test_an_omitted_family_member_refuses(self):
+        record = self._subject()
+        record["family"] = [
+            fact for fact in record["family"] if normalize(fact["code"]) != "Z903"
+        ]
+        result = scan.gate_second_read(
+            self.flags, self._read(record), self.connection
+        )
+        self.assertEqual(len(result.refusals), 1)
+        self.assertIn("family coverage", result.refusals[0])
+
+    def test_an_empty_family_is_not_a_read(self):
+        loaded = self._read(read_code("Z90.49", family=[]))
+        self.assertFalse(loaded.ok)
+        self.assertIn("non-empty", loaded.why_not)
+
+    def test_a_subject_not_present_in_its_recorded_family_refuses(self):
+        record = self._subject(code="Z90.99")
+        result = scan.gate_second_read(
+            self.flags, self._read(record), self.connection
+        )
+        self.assertTrue(any("not in ICD-10-CM" in refusal for refusal in result.refusals))
+
+    def test_a_subject_the_read_omits_is_uncovered_not_agreement(self):
+        result = scan.gate_second_read(
+            self.flags,
+            self._read(),
+            self.connection,
+            entries=[scan.read_entries(entry("Z90.49", "descriptor", "complete — reason"))],
+        )
+        self.assertEqual(result.refusals, ())
+        self.assertEqual(result.uncovered, ("Z90.49",))
+        self.assertEqual(result.pairings, ())
+
+    def test_a_well_formed_record_requires_every_field_and_a_date(self):
+        missing_date = scan.load_second_read_record({"codes": []}, Path("read.json"))
+        self.assertFalse(missing_date.ok)
+        for field_name in scan.SECOND_READ_CODE_FIELDS:
+            record = self._subject()
+            del record[field_name]
+            loaded = self._read(record)
+            self.assertFalse(loaded.ok, field_name)
+
+
+class TheCommandGradesTheSeparatedRead(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.run = self.root / "run"
+        self.run.mkdir()
+        (self.run / "case-01.md").write_text(
+            worksheet(
+                entry(
+                    "Z90.49",
+                    "Acquired absence of other specified parts of digestive tract",
+                    "complete — the original reason",
+                )
+            ),
+            encoding="utf-8",
+        )
+        self.read_path = self.root / "read.json"
+
+    def _record(self, **changes) -> dict:
+        record = read_code(
+            "Z90.49",
+            family=release_family("Z90.49"),
+            about="the independent account",
+        )
+        record.update(changes)
+        return second_read(record)
+
+    def _run(self, *extra: str) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = scan.main([str(self.run), *extra])
+        return status, out.getvalue(), err.getvalue()
+
+    def _write(self, record: object) -> None:
+        self.read_path.write_text(json.dumps(record), encoding="utf-8")
+
+    def test_brief_prints_the_locator_and_warns_that_it_is_sensitive(self):
+        status, printed, errors = self._run("--brief")
+        self.assertEqual(status, 0)
+        self.assertIn("Z90.49", printed)
+        self.assertIn("PHI", errors)
+
+    def test_a_complete_clean_read_exits_zero_and_prints_the_caveat(self):
+        self._write(self._record())
+        status, printed, _ = self._run("--second-read", str(self.read_path))
+        self.assertEqual(status, 0)
+        self.assertIn(scan.SECOND_READ_IS_A_SMOKE_TEST, printed)
+        self.assertIn("source fact(s) at fault         0", printed)
+
+    def test_default_output_carries_no_reason_or_independent_prose(self):
+        self._write(self._record())
+        _, printed, _ = self._run("--second-read", str(self.read_path))
+        self.assertNotIn("original reason", printed)
+        self.assertNotIn("independent account", printed)
+
+    def test_show_prints_the_ungraded_pairing(self):
+        self._write(self._record())
+        _, printed, _ = self._run("--second-read", str(self.read_path), "--show")
+        self.assertIn("original reason", printed)
+        self.assertIn("independent account", printed)
+        self.assertIn("UNGRADED", printed)
+
+    def test_a_false_release_fact_exits_one(self):
+        record = self._record()
+        subject = next(
+            fact for fact in record["codes"][0]["family"] if normalize(fact["code"]) == "Z9049"
+        )
+        subject["descriptor"] = "Acquired absence of large intestine"
+        self._write(record)
+        status, _, errors = self._run("--second-read", str(self.read_path))
+        self.assertEqual(status, 1)
+        self.assertIn("source fact", errors)
+
+    def test_an_uncovered_code_exits_two_and_never_reads_as_agreement(self):
+        self._write(second_read())
+        status, printed, _ = self._run("--second-read", str(self.read_path))
+        self.assertEqual(status, 2)
+        self.assertIn("NOT COMPLETE", printed)
+        self.assertNotIn(scan.SECOND_READ_IS_A_SMOKE_TEST, printed)
+
+    def test_an_invalid_record_exits_two(self):
+        self._write({"codes": []})
+        status, _, errors = self._run("--second-read", str(self.read_path))
+        self.assertEqual(status, 2)
+        self.assertIn("not graded", errors)
+
+    def test_a_missing_record_never_prints_its_sensitive_parent_path(self):
+        missing = self.root / "2026-08-20-sensitive-site" / "read.json"
+        status, _, errors = self._run("--second-read", str(missing))
+        self.assertEqual(status, 2)
+        self.assertIn("read.json", errors)
+        self.assertNotIn("2026-08-20-sensitive-site", errors)
+
+    def test_a_code_without_a_specificity_line_cannot_vanish_from_coverage(self):
+        (self.run / "case-01.md").write_text(
+            "ICD-10  I10  Essential (primary) hypertension\n  ANCHOR: the note text\n",
+            encoding="utf-8",
+        )
+        self._write(second_read())
+        status, printed, _ = self._run("--second-read", str(self.read_path))
+        self.assertEqual(status, 2)
+        self.assertIn("subject code(s) uncovered       1", printed)
+
+
 class TheAuditFiguresAreReDerivable(unittest.TestCase):
     """Pin the figures #56 rests on, the way ``test_filled_vitals_census`` does.
 
@@ -398,6 +756,49 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     def test_the_skill_names_this_scanner(self):
         self.assertIn("tools/specificity_scan.py", self.skill)
+
+    def test_the_skill_requires_a_fresh_reader_who_cannot_see_the_worksheet(self):
+        self.assertIn("fresh reader", self.skill)
+        self.assertIn("must not see the worksheet", self.skill)
+
+    def test_the_skill_documents_both_second_read_commands(self):
+        self.assertIn("--brief", self.skill)
+        self.assertIn("--second-read", self.skill)
+
+    def test_the_skill_documents_every_second_read_field(self):
+        for field_name in scan.SECOND_READ_CODE_FIELDS + ("read_on",):
+            self.assertIn(f'"{field_name}"', self.skill, field_name)
+
+    def test_the_skill_calls_agreement_a_smoke_test_and_not_proof(self):
+        lowered = self.skill.lower()
+        self.assertIn("smoke test", lowered)
+        self.assertIn("never proof", lowered)
+
+    def test_the_skill_says_which_half_remains_a_reading(self):
+        self.assertIn("`about` is never machine-graded", self.skill)
+
+    def test_the_documented_record_is_valid_against_the_shipped_release(self):
+        match = re.search(r"```json\n(.*?)\n```", self.skill, re.DOTALL)
+        self.assertIsNotNone(match)
+        documented = json.loads(match.group(1))
+        documented["read_on"] = "2026-08-20"
+        loaded = scan.load_second_read_record(documented, Path("documented.json"))
+        self.assertTrue(loaded.ok, loaded.why_not)
+        flags = [
+            scan.read_flags(
+                entry(
+                    "I10",
+                    "Essential (primary) hypertension",
+                    "complete — a reason the reader did not see",
+                )
+            )
+        ]
+        connection = open_database()
+        try:
+            result = scan.gate_second_read(flags, loaded, connection)
+        finally:
+            connection.close()
+        self.assertEqual(result.refusals, ())
 
 
 if __name__ == "__main__":

@@ -155,6 +155,59 @@ ICD-10  R00.1  Bradycardia, unspecified
 
 **What the command cannot reach is whether a reason is a real check or a stock phrase.** `L85.3` has five siblings and `Z98.51` has one, and ruling that those are different conditions rather than axes of one thing takes a reader — so `complete — L85.3 has no further axis` can be true, and no string test confirms it. `filled-anchor`'s **R2** carries that residue, counted rather than enforced; the advisory `unspecified` count tells that reader where the same judgment is especially important.
 
+**What the worksheet's own pass cannot settle is whether its reason is true.** `fixtures/filled-anchor/run-2` proved the difference: a reason can be specific, checkable, and false while every descriptor is official and every C5 string test passes. The worksheet that wrote the reason is not its verifier. [#154](https://github.com/mshamblin5150-code/clinical-skills/issues/154).
+
+#### A fresh reader checks every ICD-10 specificity reason
+
+After every worksheet in a run is written, give a **fresh reader in a separate context** the for-entry ICD-10 code numbers and nothing else. The fresh reader **must not see the worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line. Parallelism is only a speed property; a serial harness may run the reader later, provided its context contains the brief and not the worksheet.
+
+The reader is briefed to **try to break each reason**, not to confirm it. For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children, siblings, and inherited tabular notes bear on specificity; and record:
+
+```json
+{
+  "read_on": "YYYY-MM-DD",
+  "codes": [{
+    "code": "I10",
+    "family": [{
+      "code": "I10",
+      "descriptor": "Essential (primary) hypertension",
+      "billable": true,
+      "notes": [{
+      "code": "I10",
+      "kind": "excludes1",
+      "text": "hypertensive disease complicating pregnancy, childbirth and the puerperium (O10-O11, O13-O16)"
+    }, {
+      "code": "I10",
+      "kind": "excludes2",
+      "text": "essential (primary) hypertension involving vessels of brain (I60-I69)"
+      }, {
+        "code": "I10",
+        "kind": "excludes2",
+        "text": "essential (primary) hypertension involving vessels of eye (H35.0-)"
+      }]
+    }],
+    "about": "what the release shows about this code's specificity, in the fresh reader's own words"
+  }]
+}
+```
+
+`"family"` is every code whose normalized number begins with the subject's three-character category — `I10` for `I10`, all of `Z90...` for `Z90.49` — each with its exact descriptor, billability, and **complete inherited note set**. The scanner recomputes that set from SQLite, so an omitted sibling, invented sibling, or empty family refuses rather than reading as a completed lookup. `"about"` states what the whole category means for the subject's specificity without copying the worksheet's reason.
+
+The committed scanner creates the answer-free brief and grades the record:
+
+```bash
+python tools/specificity_scan.py <run directory> --brief > scratch/specificity-brief.txt
+python tools/specificity_scan.py <run directory> --second-read scratch/specificity-second-read.json
+```
+
+The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every category member, descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a family/source fact or C5 flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the fresh reader's `"about"` prose for the final eye check; that output is PHI too.
+
+Without the scanner, do the same walk by eye: list each distinct for-entry ICD-10 code without copying its reason; hand that list alone to the fresh reader; require every field above; compare every source field to `tools/icd10_lookup.py` and the committed database; then place the original reason beside `"about"`. The command saves that mechanical comparison; it does not replace the reader.
+
+**`about` is never machine-graded.** It is free prose beside free prose, so judging whether the two agree is itself a reading. A source-field disagreement is a hard failure; a clean source comparison plus a human agreement is a **smoke test and never proof**. Two readers can misread the same code family the same way. This is separation as an instrument, not a claim that a second reason cannot also be wrong.
+
+The brief excludes CPT and HCPCS entries because this repo ships no corresponding code set to bind their family walks against. Their specificity reasons keep the ordinary human verification posture; a clean ICD-10 second read says nothing about them.
+
 #### A filled value is coded, and it is marked
 
 **A code whose only anchor is a filled value is proposed like any other, carries `SOURCE: filled`, and is listed again in step 4.** The code is derived from the note's own stated value and looked up, not withheld and not recalled.
@@ -343,6 +396,8 @@ So the codes on the differential are required, and none of them is for entry. Th
 Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
+
+**Every for-entry ICD-10 code has a separated second read by a fresh reader who did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing, partial, or self-authored read is not completion. Agreement is a smoke test and never proof.
 
 **A differential code is the one shape with fewer, and it is not an exception to that sentence** — it is a different thing being written down. Number, descriptor, confidence, three parts, plus `NOT FOR ENTRY` on the line. Anything with five parts or six is a code proposed for entry; anything with three is documentation of reasoning. **The count is still how the two are told apart** — the gap is five-or-six against three, and nothing lands between — which is why neither shape may borrow from the other.
 
