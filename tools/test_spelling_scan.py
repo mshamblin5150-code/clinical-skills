@@ -55,10 +55,12 @@ def reader(**files: str):
 class CodeSpans(unittest.TestCase):
     """A form in a code span is a mention. In running prose it is a use."""
 
+    # spelling-scan: mentions 1
     def test_a_backticked_form_is_not_a_finding(self):
         findings = scan.scan_text("Never write `dyspnoea` here.", "a.md")
         self.assertEqual(findings, [])
 
+    # spelling-scan: mentions 1
     def test_a_double_backticked_form_is_not_a_finding(self):
         findings = scan.scan_text("British ``apnoea`` is not carried.", "a.md")
         self.assertEqual(findings, [])
@@ -70,16 +72,17 @@ class CodeSpans(unittest.TestCase):
         self.assertEqual(findings[0].american, "dyspnea")
         self.assertEqual(findings[0].line, 1)
 
-    # spelling-scan: mentions 2
+    # spelling-scan: mentions 3
     def test_a_span_shields_only_itself(self):
         findings = scan.scan_text("`grey` is out; the TMs were grey.", "a.md")
         self.assertEqual([f.form for f in findings], ["grey"])
 
+    # spelling-scan: mentions 3
     def test_a_table_row_of_mentions_is_clean(self):
         row = "| `grey`, `behaviour`, `colour` | `gray`, `behavior`, `color` |"
         self.assertEqual(scan.scan_text(row, "a.md"), [])
 
-    # spelling-scan: mentions 1
+    # spelling-scan: mentions 2
     def test_a_fenced_block_is_not_shielded(self):
         text = "```\nHt 5'10\", no dyspnoea at rest\n```\n"
         self.assertEqual([f.form for f in scan.scan_text(text, "a.md")], ["dyspnoea"])
@@ -112,7 +115,7 @@ class Matching(unittest.TestCase):
     def test_a_form_inside_a_longer_word_is_not_matched(self):
         self.assertEqual(scan.scan_text("a greyhound", "a.md"), [])
 
-    # spelling-scan: mentions 3
+    # spelling-scan: mentions 5
     def test_millilitres_is_one_finding_not_two(self):
         """``litre`` must not fire inside ``millilitre``."""
         findings = scan.scan_text("10 millilitres", "a.md")
@@ -131,6 +134,12 @@ class Matching(unittest.TestCase):
 
 
 class PythonMentions(unittest.TestCase):
+    # spelling-scan: mentions 2
+    def test_backticks_do_not_exempt_python_without_a_counted_declaration(self):
+        findings = scan.scan_python_text("# `grey` is still Python source\n", "tools/x.py")
+        self.assertEqual([(finding.line, finding.form) for finding in findings],
+                         [(1, "grey")])
+
     # spelling-scan: mentions 4
     def test_a_counted_declaration_exempts_the_exact_next_statement(self):
         text = textwrap.dedent(
@@ -284,7 +293,7 @@ class ParityWithTheSkill(unittest.TestCase):
 
     def test_the_skill_carries_every_form_the_scanner_holds(self):
         """The reverse direction, and #278 is what exercised it. Parity was one
-        way -- every skill row covered by the scanner -- so adding ``manoeuvre``
+        way -- every skill row covered by the scanner -- so adding a new form
         to ``TABLE`` left the whole suite green with the file a reader opens
         never mentioning it. That is the ``.claude/skills/`` mirror problem
         again: two files, two answers, and no way to tell which one a reader
@@ -316,7 +325,7 @@ class TheRunRecord(unittest.TestCase):
         self.assertEqual(evidence.occurrences, RECORD_OCCURRENCES)
         self.assertEqual(len(evidence.files), RECORD_NOTES)
 
-    # spelling-scan: mentions 10
+    # spelling-scan: mentions 13
     def test_the_ten_forms_are_the_ones_the_ticket_names(self):
         # **Eight until 2026-08-18, then nine, then ten within the hour.** The run
         # record has not changed and cannot -- ``fixtures/filled-anchor/notes/``
@@ -376,10 +385,10 @@ class TheWalkedPopulation(unittest.TestCase):
     """#258: what a clean result covers, on the page rather than in a docstring.
 
     #254 ruled that every ``git ls-files`` walk states what a clean result
-    covers, and `tracked_markdown`'s statement went into its docstring. This
+    covers, and `tracked_files` carries that statement in its docstring. This
     scanner prints ``no listed British spelling found.`` -- an unqualified clean
     result, in the one walk with the **recorded** instance rather than the
-    hypothetical one: ``CLAUDE.md`` carries ``licence`` landing in a skill file
+    hypothetical one: ``CLAUDE.md`` carries a listed form landing in a skill file
     because the staged scan had crashed and ``--all`` cannot see a file until
     the commit that makes it tracked.
 
@@ -474,13 +483,12 @@ class TheCheckedVocabulary(unittest.TestCase):
     a clean result is ``no form on an N-entry table appears in the walked set``
     and reads as ``American English``.
 
-    **The recorded instance is two forms in one commit, minutes apart.**
-    ``licence`` was on the table and was caught; ``manoeuvres`` was not on it
-    and was not, and was found only by going and looking afterwards. Nothing in
-    the clean run said the second was never looked for.
+    **The recorded instance is two forms in one commit, minutes apart.** One was
+    on the table and caught; the other was absent and found only by looking
+    afterwards. Nothing in the clean run said the second had never been checked.
 
     **Declared rather than widened**, which is the clinician's #254 ruling and
-    the one he re-ruled here: adding ``manoeuvre`` closes today's instance and
+    the one he re-ruled here: adding the evidenced form closes today's instance and
     the productive families (``-ise``, ``-our``, ``-re``) would fire on correct
     words. What generalizes is saying so.
     """
@@ -631,14 +639,13 @@ class TheCheckedVocabulary(unittest.TestCase):
 
 
 class TheTicketsOwnInstance(unittest.TestCase):
-    """#278's finding, pinned. ``manoeuvres`` and ``licence`` were written into
-    skill files in one commit minutes apart and the scanner caught one.
+    """#278's finding, pinned. Two variants were written into skill files in one
+    commit minutes apart and the scanner caught only the listed one.
 
     On the table's documented growth rule, which is evidence and not families:
-    this form was written in this repo, the way ``neighbour``, ``judgement`` and
-    ``programme`` were. ``foetal`` and ``oesophag-`` were **not** added, because
-    no one has written them here -- that is #104's open question and not this
-    ticket's to answer.
+    the missed form was written in this repo, as earlier additions were. Medical
+    variants nobody has written here were **not** added; #278 settled that
+    vocabulary question as evidence-only.
     """
 
     # spelling-scan: mentions 2
@@ -647,10 +654,11 @@ class TheTicketsOwnInstance(unittest.TestCase):
         self.assertEqual([(f.form, f.american) for f in findings],
                          [("manoeuvre", "maneuver")])
 
+    # spelling-scan: mentions 1
     def test_naming_it_inside_backticks_is_still_a_mention(self):
         self.assertEqual(scan.scan_text("Never write `manoeuvre` here.", "a.md"), [])
 
-    # spelling-scan: mentions 1
+    # spelling-scan: mentions 2
     def test_the_inflection_it_actually_arrived_as_is_the_one_caught(self):
         """It arrived as ``manoeuvres``. ``manoeuvring`` drops the ``e`` and is a
         stem change, so the suffix rule cannot reach it and ``STEM_CHANGES``
@@ -689,6 +697,46 @@ class Reporting(unittest.TestCase):
                 status = scan.main(["--commit-message", str(message), "--quiet"])
         self.assertEqual(status, 1)
         self.assertIn("COMMIT_EDITMSG:1", output.getvalue())
+
+
+class CommandLineModes(unittest.TestCase):
+    # spelling-scan: mentions 1
+    def test_default_mode_routes_through_the_staged_scan(self):
+        dirty = scan.Report([scan.Finding("a.py", 1, "grey", "gray")],
+                            scan.Evidence({}, ()))
+        output = io.StringIO()
+        with mock.patch.object(scan, "scan_staged", return_value=dirty):
+            with contextlib.redirect_stdout(output):
+                status = scan.main(["--quiet"])
+        self.assertEqual(status, 1)
+        self.assertIn("a.py:1", output.getvalue())
+
+    # spelling-scan: mentions 2
+    def test_all_mode_routes_tracked_filenames_through_the_scanner(self):
+        output = io.StringIO()
+        with (
+            mock.patch.object(scan, "tracked_files", return_value=["grey-data.csv"]),
+            contextlib.redirect_stdout(output),
+        ):
+            status = scan.main(["--all", "--quiet"])
+        self.assertEqual(status, 1)
+        self.assertIn("grey-data.csv", output.getvalue())
+
+    # spelling-scan: mentions 2
+    def test_path_mode_scans_the_named_files(self):
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "grey.py"
+            path.write_text("clean_value = 1\n", encoding="utf-8")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = scan.main([str(path), "--quiet"])
+        self.assertEqual(status, 1)
+        self.assertIn("grey.py", output.getvalue())
+
+    def test_paths_cannot_silently_override_an_explicit_mode(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                scan.main(["--all", "."])
 
 
 class CommitMessageHook(unittest.TestCase):

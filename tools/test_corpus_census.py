@@ -1252,7 +1252,7 @@ class HedgedDiagnosis(unittest.TestCase):
         No committed fixture carries it and the corpus cannot be audited from
         every clone, so an alternative matched by nothing is one nothing can
         catch going wrong -- the reasoning ``SLEEP_APNEA`` already carries for
-        ``apnoea``. This is the line to change if the form turns up.
+        the British apnea variant. This is the line to change if the form turns up.
         """
         self.assertFalse(cc.has_hedge("?fx right wrist"))
 

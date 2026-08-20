@@ -1,3 +1,4 @@
+# spelling-scan: mentions 4
 """Standing rule 4, made runnable. American English, always.
 
 The rule is in ``AGENTS.md`` and the table it points at is in
@@ -240,6 +241,7 @@ class _Tally:
         return Report(self.findings, Evidence(self.counts, tuple(self.record)))
 
 
+# spelling-scan: mentions 2
 def _matches(line: str) -> list[tuple[str, str]]:
     """``(form, american)`` for the line, in the order they are written.
 
@@ -264,12 +266,18 @@ def _matches(line: str) -> list[tuple[str, str]]:
     return kept
 
 
-def scan_text(text: str, path: str) -> list[Finding]:
+def _scan_text(text: str, path: str, mentions: bool) -> list[Finding]:
     findings = []
     for number, line in enumerate(text.splitlines(), start=1):
-        for form, american in _matches(strip_code_spans(line)):
+        scanned = strip_code_spans(line) if mentions else line
+        for form, american in _matches(scanned):
             findings.append(Finding(path, number, form, american))
     return findings
+
+
+def scan_text(text: str, path: str) -> list[Finding]:
+    """Scan Markdown-style text, where backticks distinguish a mention."""
+    return _scan_text(text, path, mentions=True)
 
 
 class MentionDeclarationError(ValueError):
@@ -278,7 +286,7 @@ class MentionDeclarationError(ValueError):
 
 def scan_python_text(text: str, path: str) -> list[Finding]:
     """Scan Python while honoring counted declarations on exact AST statements."""
-    findings = scan_text(text, path)
+    findings = _scan_text(text, path, mentions=False)
     source_lines = text.splitlines()
     declarations = [
         (token.start[0], matched)
@@ -338,18 +346,21 @@ def is_scannable_source(path: str) -> bool:
     return Path(path).suffix.lower() in {".md", ".py"}
 
 
+def path_findings(path: str, text: str | None) -> list[Finding]:
+    """Filename findings plus any scannable source findings for one path."""
+    findings = [Finding(path, 0, form, american) for form, american in _matches(path)]
+    if text is None or not is_scannable_source(path):
+        return findings
+    scanner = scan_python_text if path.lower().endswith(".py") else scan_text
+    findings.extend(scanner(text, path))
+    return findings
+
+
 def scan(paths: Iterable[str], read: Callable[[str], str | None]) -> Report:
     tally = _Tally()
     for path in paths:
-        for form, american in _matches(path):
-            tally.add(Finding(path, 0, form, american))
-        if not is_scannable_source(path):
-            continue
-        text = read(path)
-        if text is None:
-            continue
-        scanner = scan_python_text if path.lower().endswith(".py") else scan_text
-        for finding in scanner(text, path):
+        text = read(path) if is_scannable_source(path) else None
+        for finding in path_findings(path, text):
             tally.add(finding)
     return tally.report()
 
@@ -364,6 +375,7 @@ class RecordRow(NamedTuple):
     american_count: int
 
 
+# spelling-scan: mentions 1
 def record_rows(paths: Iterable[str], read: Callable[[str], str | None]) -> list[RecordRow]:
     """The run record, form by form, with the American form's count beside it.
 
@@ -576,17 +588,10 @@ def scan_staged() -> Report:
     tally = _Tally()
     additions = staged_additions()
     for path in staged_paths():
-        for form, american in _matches(path):
-            tally.add(Finding(path, 0, form, american))
-        if not is_scannable_source(path):
-            continue
-        text = read_staged(path)
-        if text is None:
-            continue
-        scanner = scan_python_text if path.lower().endswith(".py") else scan_text
         added_lines = {number for number, _line in additions.get(path, [])}
-        for finding in scanner(text, path):
-            if finding.line in added_lines:
+        text = read_staged(path) if is_scannable_source(path) else None
+        for finding in path_findings(path, text):
+            if finding.line == 0 or finding.line in added_lines:
                 tally.add(finding)
     return tally.report()
 
@@ -603,6 +608,7 @@ POPULATIONS = {
 }
 
 
+# spelling-scan: mentions 1
 def scanned_population(mode: str) -> str:
     """The set this run actually read, so a clean line cannot be read wider.
 
@@ -643,6 +649,7 @@ def scanned_population(mode: str) -> str:
     return f"spelling-scan: scanned {POPULATIONS[mode]}."
 
 
+# spelling-scan: mentions 5
 def vocabulary_covered() -> str:
     """The forms this run looked for, so a clean line cannot be read wider.
 
