@@ -107,6 +107,22 @@ jobs:
       - name: Test suite
         run: python -m unittest discover -s tools -t tools
 
+      # The pre-commit hook can refuse a threshold-sheet edit, but it does not
+      # run on an automatic merge commit. The runner cannot hold the clinical
+      # source corpus or second-read records, so the tool itself says which
+      # gates did not run; the workflow does not reinterpret that report or
+      # its exit status. Capture the report before preserving the exit status
+      # so the same caveats appear on the page carrying the checkmark. #190.
+      - name: Threshold sheet gates, external evidence may not run
+        if: always()
+        run: |
+          $report = python tools/threshold_sheet.py --all 2>&1
+          $status = $LASTEXITCODE
+          $report
+          @('### Threshold sheet gate coverage', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status
+
       # `scratch/` is gitignored PHI and must never reach a runner, so the
       # corpus layer is dead here on every run that will ever happen. The step
       # is named for what it is: a green check beside these words is "no
