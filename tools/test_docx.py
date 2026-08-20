@@ -572,9 +572,16 @@ class NotHavingRead(unittest.TestCase):
         self.assertEqual(docx_write.main(["no-such-file.md", "out.docx"]), 2)
 
 
-class TheFourDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
-    r"""#215 follow-up. Four defects, found by reading the rendered document rather
-    than the code, and every one of them invisible in the Markdown source.
+class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
+    r"""#215 follow-up. The defects the clinician found by reading the rendered
+    document rather than the code, every one invisible in the Markdown source.
+
+    **The count is deliberately not in the class name.** It read ``TheFourDefects``
+    for twenty minutes while the ticket, the commit message and ``style.md`` all
+    said five, and while the class held more methods than either number -- because
+    ``/code-review`` later added two findings of its own here. That is
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+    arriving inside the change that cites #143, caught by the tracker sweep.
 
     They are pinned together because they were found together and because they
     share the property that makes them expensive: **the Markdown looked correct and

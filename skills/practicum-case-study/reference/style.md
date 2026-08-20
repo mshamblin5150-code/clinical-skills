@@ -240,10 +240,19 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   reading `Ceftriaxone 1 g IV every 24 hours` says when to start and never says when to stop, and
   the reader supplies *until discharge* out of their own head. The clinician's words: *"the rocephin
   did not have a stop criteria on it, I assume that it is continued every day until discharge but
-  assumption is the mother of all fuckups, so that needs addressed."* Write the endpoint into the
-  order — `x 14 days total`, `until 24 to 48 hours after clinical improvement, then transition to
-  oral`, `x 7 days` — and let the `Sig:` spell it out. A one-time dose already states its own
-  endpoint and needs nothing added.
+  assumption is the mother of all fuckups, so that needs addressed."* A one-time dose already
+  states its own endpoint and needs nothing added.
+- **A stop criterion is a clinical claim and takes a source like any other. Ruled 2026-08-19, the
+  same day and out of the same reading.** The first attempt at the row above supplied the endpoint
+  from recall — *"then stepped down to oral therapy to complete 14 days total"* — inside a
+  **ceftriaxone** order. **Ceftriaxone has no oral form**, and the oral agent that would have
+  completed that course was contraindicated in the patient it was written for. Both errors were
+  invisible to every gate in `tools/`, because a dose nobody entered as a research record is a
+  claim `research_ledger.py` cannot see. [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289).
+- **So where the duration is not sourced, write the endpoint you can defend and say what sets the
+  rest** — *"continued for the admission and reassessed daily against the fever curve"* — rather
+  than a number recalled. **A route change is a different drug unless the drug has that route**, and
+  saying so in the order is cheaper than a reader assuming it does.
 
 **The credential in this block is `FNP-C, CEN, TCRN`** — the prescribing role the case study puts
 him in. The `Signed by:` line at the foot of the document takes `RN, CEN, TCRN`, which is what
