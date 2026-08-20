@@ -736,6 +736,15 @@ Write the Markdown to `output/case-studies/`, then render it:
 python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx
 ```
 
+**A `warning:` line from that command means a table row put a cell separator into its own
+text.** That is the shape
+[#280](https://github.com/mshamblin5150-code/clinical-skills/issues/280) was filed over: a row faking a width the grid does not have renders into column 1, and a pipe
+written as `\|` or `&#124;` outside a table reaches the page as visible text. **Fix the row, not the
+warning** — [reference/style.md](reference/style.md) §8 is the worked example of a table that
+declares its columns. The document is still written either way, because a blocked submission is a
+worse outcome than a separator on the page. The warning names the forms found and a count and
+**never a cell of the draft**, so it is safe to paste into a ticket.
+
 APA 7 page setup is applied by the renderer: Times New Roman 12 pt, double spaced, one inch
 margins, a page number top right, headings at body size in APA's own level styling, a 0.5 inch
 first-line indent on **body paragraphs only**, tables drawn with APA's horizontal rules rather
