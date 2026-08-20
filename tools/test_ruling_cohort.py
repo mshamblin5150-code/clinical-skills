@@ -29,10 +29,11 @@ branch, and once in ``fixtures/README.md``'s own ``Sets`` column, which read
 **It covers two of the seven sets, deliberately, and that bound is asserted
 rather than left to be discovered.** #79 moved day-a's and day-b's totals and
 no others, and a gate over the whole ``Sets`` column is a different ticket --
-`#202 <https://github.com/mshamblin5150-code/clinical-skills/issues/202>`_, filed with the two stale figures a glob would fail on today
-(``peds-bp`` reads ``6 of 11`` and holds 12 rows; ``hedged-dx`` reads ``6 of 6``
-and holds 12). **The reason for saying so here is that the alternative is the
-defect this module cites #143 for**: an explicit list that reads as a repo-wide
+`#202 <https://github.com/mshamblin5150-code/clinical-skills/issues/202>`_,
+filed 2026-08-18, when a glob would have found two stale figures
+(``peds-bp`` read ``6 of 11`` while holding 12 rows; ``hedged-dx`` read
+``6 of 6`` while holding 12). **It stays because the alternative has the defect
+this module cites #143 for**: an explicit list that reads as a repo-wide
 denominator gate was ``all_committed_cases()``'s exact shape, and a silent cap
 reads as coverage. ``TheCoverageBoundIsStated`` below is what makes it noisy.
 
