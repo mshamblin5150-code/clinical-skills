@@ -788,10 +788,12 @@ the clause is one sentence written by an agent that has just walked the thing.
 
 #### The house style is a command now, and it is the row this step gained on #277
 
-**Ruled 2026-08-19.** The clinician read the first rendered submission and returned seventeen
-findings. Five were renderer defects and are fixed; **twelve were house style, and every one of them
-is in the body of the draft** — which `tools/reference_scan.py` does not read and no reader was
-briefed on. His framing is the ticket: *"is there some machine checkable way to get this right every
+**Ruled 2026-08-19.** The clinician read the first rendered submission and returned a list of
+findings. Some were renderer defects and are fixed; **the rest were house style, and every one of
+those is in the body of the draft** — which `tools/reference_scan.py` does not read and no reader
+was briefed on. **The arithmetic is on the ticket and in `CLAUDE.md`, once**, because a figure
+restated where nothing re-derives it is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). His framing is the ticket: *"is there some machine checkable way to get this right every
 time... this prevents me from using this skill for future work."*
 [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277). The rules landed in
 [reference/style.md](reference/style.md) §1a and §8 as prose, which is exactly the arrangement
@@ -805,14 +807,19 @@ python tools/case_study_scan.py output/case-studies/<stem>.md
 ```
 
 Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file, no section
-it recognizes in the document, or a skeleton that disagrees with the one this file publishes above.
+it recognizes in the document, a skeleton that disagrees with the one this file publishes above, or
+a `SKILL.md` it could not read at all. **The last is a claim about the *check* rather than about the
+rows**, which all still ran; what the status refuses is a clean set of them standing for a scan
+against a skeleton nobody confirmed.
 Re-run with `--show` to see which, and **that output is PHI**: read it, do not paste it.
 Deliberately **not** `tools/reference_scan.py`'s exception — that command's output is bounded by
 what its code can draw from, and this one's is not, because a bullet's finding is the bullet's own
 text.
 
 **Every row is a rule written in [reference/style.md](reference/style.md) §1a or §8**, and how many
-there are is `case_study_scan.KINDS`'s to say rather than this paragraph's: no bullet anywhere in
+there are is `case_study_scan.KINDS`'s to say rather than this paragraph's. **This list is the one
+copy** — a test keyed on that tuple asserts each row has a sentence here, and `CLAUDE.md` points at
+it rather than repeating it. The rows are: no bullet anywhere in
 the document, no table under Demographics, the Review of Systems or the Physical Examination, the
 Review of Systems closing with the all-other-systems disclaimer **and the Physical Examination not
 carrying one**, no scaffolding language from §1a's closed set, the Most Likely Clinical Diagnosis
@@ -836,7 +843,8 @@ prints; nothing fails on it.
 
 **A clean scan is not a checked draft.** Here is what no row of that command reaches: **the voice,
 and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop
-criterion's endpoint is the right endpoint**, **whether a dose is correct, or was sourced at all**,
+criterion's endpoint is the right endpoint**, **whether a drug ordered PRN needs an endpoint
+of its own**, **whether a dose is correct, or was sourced at all**,
 **a scaffolding phrase nobody has written yet**, and **anything the Markdown cannot show, which the
 rendered document can**.
 

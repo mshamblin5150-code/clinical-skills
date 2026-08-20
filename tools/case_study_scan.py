@@ -2,8 +2,8 @@
 
 ``reference_scan.py`` grades the reference list. ``research_ledger.py`` and
 ``checks_ledger.py`` grade the two fan-out records. Nothing graded the case
-study's house style, and every one of the twelve findings the clinician returned
-from the first rendered Module 1 submission is in the body --
+study's house style, and every house-style finding the clinician returned from
+the first rendered Module 1 submission is in the body --
 [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277). His
 framing is the ticket: *"is there some machine checkable way to get this right
 every time... this prevents me from using this skill for future work."*
@@ -22,9 +22,9 @@ row below is visible in the ``.md``, and the two rows whose failure is a
 *rendered* one -- the bullet and the prescription table -- are read through
 ``docx_write.blocks``, which is the renderer's own parse rather than a copy of
 it. So a line this calls a bullet is a bullet in the document. **What that does
-not reach is anything the Markdown cannot show**, and three of the five renderer
-defects that shipped with the first submission were of exactly that kind; the
-blind spot is named in ``NOT_REACHED`` rather than closed.
+not reach is anything the Markdown cannot show**, and most of the renderer defects
+that shipped with the first submission were of exactly that kind; the blind spot
+is named in ``NOT_REACHED`` rather than closed.
 
 **Counts only by default, and ``--show`` output is PHI**, on
 ``research_ledger.py``'s terms and for its reason: a finished draft is written
@@ -51,8 +51,9 @@ on a document that got it right.
 
 **Exit status distinguishes not having scanned from having found nothing** -- 0
 clean, 1 for a defect, **2 for every way of not having scanned**: no argument, no
-file, **no section this recognizes in the document**, and **a skeleton that
-disagrees with the one ``SKILL.md`` publishes**. The third limb is
+file, **no section this recognizes in the document**, **a skeleton that
+disagrees with the one ``SKILL.md`` publishes**, and **a ``SKILL.md`` this
+could not read at all**. The third limb is
 ``differential_scan.py``'s reasoning -- a draft whose headings are written in a
 shape this cannot read would otherwise report zero defects and stand where a
 graded document should. The fourth is ``guidelines_catalog.check_legend``'s: two
@@ -67,8 +68,10 @@ finding reads as a floor.
 test; ``guidelines_catalog.check_legend`` parses the published Markdown *in the
 command*, and #277's own second comment records why that is the third answer and
 the only one a **run** hits -- a test binding is one a run never executes.
-Holding *and* checking is both: the grader still works where ``SKILL.md`` is out
-of reach, and says so rather than pretending the check ran.
+Holding *and* checking is both: every row still runs where ``SKILL.md`` is out of
+reach, and the **status** says the skeleton went unchecked rather than letting a
+clean set of rows stand for a scan against a skeleton nobody confirmed. That is
+the fifth exit-2 limb, and it is a claim about the *check* and not about the rows.
 
 **A clean scan is not a checked draft**,
 ``skills/practicum-case-study/SKILL.md`` step 9 says so beside the command, and a
@@ -82,6 +85,7 @@ from __future__ import annotations
 
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import docx_write
@@ -124,6 +128,10 @@ INTAKE_SECTIONS = (DEMOGRAPHICS, REVIEW_OF_SYSTEMS, PHYSICAL_EXAMINATION)
 # reads -- which is an ordinary place for one to be, since the bullet and the
 # scaffolding rows cover the whole document rather than a section of it.
 OUTSIDE_ANY_SECTION = "no section this reads"
+
+# Deeper than any heading ``docx_write.blocks`` reads, so an unrecognized
+# heading of any level closes a section a label paragraph opened.
+LABEL_LEVEL = 99
 
 MOST_LIKELY = "Most Likely Clinical Diagnosis"
 RX = "Rx:"
@@ -176,13 +184,30 @@ RECURRING = re.compile(
     r"|four\s+times\s+(?:a|per)\s+day|weekly|monthly)\b",
     re.I,
 )
+# A duration is a number and a unit, and the unit set is **every unit an order in
+# this corpus is written with** rather than the two the first version had.
+# ``for 3 months``, ``x 6 months``, ``for 1 year``, ``x 72 hours`` and ``for 10
+# more days`` all close an order that this row then failed anyway -- a false alarm
+# on a correct order, which is the one outcome
+# [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215) rules
+# out and the whole reason the em dash is not a row. **Found by running the
+# pattern over a set of realistic orders rather than by reading it**, which is
+# `block_scan.py`'s and `threshold_sheet.py`'s lesson again.
+DURATION = r"\d+\s*(?:hour|day|week|month|year)s?\b"
 ENDPOINT = re.compile(
-    r"x\s?\d+\s*(?:day|days|dose|doses|week|weeks)"
-    r"|\bfor\s+\d+\s*(?:day|days|week|weeks)\b"
-    r"|\buntil\b|\bthrough\b|\bto\s+complete\b|\bsingle\s+dose\b|\bone[-\s]time\b"
-    r"|\bx1\b|\bstop\b|\breassess\w*\b|\bdiscontinue\w*\b|\btaper\w*\b"
-    r"|\bfor\s+the\s+admission\b"
-    r"|\bonce\b(?!\s+(?:daily|nightly|a\s+day|per\s+day|weekly|monthly|every))",
+    r"\bx\s?" + DURATION
+    + r"|\bx\s?\d+\s*doses?\b"
+    + r"|\bfor\s+(?:the\s+next\s+|another\s+)?" + DURATION
+    + r"|\bfor\s+\d+\s+more\s+(?:hour|day|week|month|year)s?\b"
+    + r"|\buntil\b|\bthrough\b|\bto\s+complete\b|\bsingle\s+dose\b|\bone[-\s]time\b"
+    + r"|\bx1\b|\bstop\b|\breassess\w*|\bdiscontinue\w*|\btaper\w*"
+    + r"|\bfor\s+the\s+admission\b"
+    # **``PRN`` closes an order, and that is a narrowing rather than a reading.**
+    # A symptomatic order's endpoint is its indication, so asking one for a
+    # duration fires on every correct PRN analgesic. What the narrowing costs is
+    # declared in ``NOT_REACHED``.
+    + r"|\bPRN\b"
+    + r"|\bonce\b(?!\s+(?:daily|nightly|a\s+day|per\s+day|weekly|monthly|every))",
     re.I,
 )
 
@@ -234,7 +259,7 @@ ROW_RULE = {
     INTAKE_TABLE: "style.md 1a - defined fields, never a table",
     ROS_NO_CLOSER: "style.md 1a - the ROS closes with the disclaimer",
     EXAM_CLAIMS_UNEXAMINED: "style.md 1a - and the exam does not",
-    SCAFFOLDING_PHRASE: "style.md 1a - no scaffolding language",
+    SCAFFOLDING_PHRASE: "style.md 1a - no scaffolding language, and NKDA over the expansion",
     DIAGNOSIS_ALL_BOLD: "style.md 1a - Most Likely is not bold",
     SIGNATURE_DATE_SPLIT: "style.md 1a - the signature is one line",
     RX_TABLE_SHAPE: "style.md 8 - six rows, three columns wide",
@@ -251,10 +276,37 @@ NOT_REACHED = (
     "the voice, and it never will be",
     "a wrapper section that does not apply to this patient",
     "whether a stop criterion's endpoint is the right endpoint",
+    "whether a drug ordered PRN needs an endpoint of its own",
     "whether a dose is correct, or was sourced at all",
     "a scaffolding phrase nobody has written yet",
     "anything the Markdown cannot show, which the rendered document can",
 )
+
+
+def block_text(block) -> str:
+    """Everything a block says, table cells included.
+
+    A table's ``text`` is empty because the renderer sets it cell by cell, so a
+    row reading prose has to join the cells itself. Extracted after review found
+    the join written at three call sites.
+    """
+    if block.kind == "table":
+        return " ".join(cell for row in block.rows for cell in row)
+    return block.text
+
+
+def section_owner(sections: list) -> dict:
+    """Line number to the name of the first section that owns it.
+
+    The two rows that read the **whole document** -- the bullet and the
+    scaffolding phrase -- still want to say which section a finding landed in,
+    and both built this map. One copy.
+    """
+    owner = {}
+    for section in sections:
+        for block in section.blocks:
+            owner.setdefault(block.line, section.name)
+    return owner
 
 
 class Finding:
@@ -282,21 +334,25 @@ class Section:
         self.blocks = []
 
 
+@dataclass(frozen=True)
 class Scan:
-    __slots__ = (
-        "findings",
-        "sections",
-        "intake_sections",
-        "tables",
-        "em_dashes",
-        "no_section",
-        "skeleton_disagreement",
-        "skeleton_unread",
-    )
+    """What one run found, and what it was able to look at.
 
-    def __init__(self, **kwargs):
-        for slot in self.__slots__:
-            setattr(self, slot, kwargs.get(slot))
+    **An annotated dataclass rather than ``__slots__`` filled from ``**kwargs``**,
+    which is what this was until review: a misspelled field there was swallowed as
+    ``None`` and the row it belonged to reported clean. That is the silent-pass
+    shape this whole directory exists to refuse, arriving in the object the report
+    is rendered from. ``reference_scan.Scan``'s shape, taken whole.
+    """
+
+    findings: list
+    sections: int
+    intake_sections: int
+    tables: int
+    em_dashes: int
+    no_section: bool
+    skeleton_disagreement: list
+    skeleton_unread: bool
 
 
 def normalize(label: str) -> str:
@@ -374,9 +430,29 @@ def read_sections(markdown: str) -> tuple[list[Section], list]:
     not a heading and does not open one, which is what keeps
     ``Signed by: <name>, RN, CEN, TCRN. August 19, 2026`` a signature rather than
     an empty section.
+
+    **At most one recognized section is open at a time, and that is a statement
+    about the vocabulary rather than a simplification.** Every name this reads is
+    a *peer* -- no skeleton section nests inside another, and the three intake
+    subsections sit inside a skeleton item that is never written as a heading. So
+    opening one closes the last, whichever shape either was written in.
+
+    **It was a nesting stack until review**, and the bug that arrangement had is
+    the reason the sentence above is written down. A label paragraph was given a
+    level deeper than any heading so that it would close a sibling label; against
+    a real heading it therefore closed nothing, so ``### Review of Systems``
+    followed by ``**Physical Examination:**`` put the examination *inside* the
+    Review of Systems and every one of its lines into both. A draft whose ROS
+    carried no closer and whose examination carried one reported ``ros-no-closer``
+    **zero** -- the row the clinician asked for, passing in silence on the shape
+    it exists to catch.
+
+    An **unrecognized** heading closes the open section when it outranks it, and
+    always closes a label-opened one: without that, a ``### Note`` under ``Rx:``
+    would put every block after it inside the prescription section.
     """
     sections: list[Section] = []
-    open_stack: list[Section] = []
+    current: Section | None = None
     every = list(docx_write.blocks(markdown))
     for block in every:
         if block.kind in ("blank", "separator"):
@@ -387,29 +463,26 @@ def read_sections(markdown: str) -> tuple[list[Section], list]:
             known = KNOWN_SECTIONS.get(normalize(block.text))
             if known:
                 opened = Section(known, block.text, block.level, block.line)
+            elif current is not None and block.level <= current.level:
+                current = None
+                continue
             else:
-                # An unrecognized heading still closes the sections it outranks;
-                # without that, a `### Note` under `## Rx:` would put every block
-                # after it inside the prescription section.
-                while open_stack and open_stack[-1].level >= block.level:
-                    open_stack.pop()
                 continue
         elif block.kind == "paragraph":
             known = KNOWN_SECTIONS.get(normalize(block.text))
-            # A label paragraph carries no value of its own, so it is a heading
-            # deeper than any real one -- it closes a sibling label and nothing else.
+            # A label paragraph carries no value of its own. ``LABEL_LEVEL`` is
+            # deeper than any heading the renderer reads, so an unrecognized
+            # heading of any level closes one.
             if known:
-                opened = Section(known, block.text, 99, block.line)
+                opened = Section(known, block.text, LABEL_LEVEL, block.line)
 
         if opened is not None:
-            while open_stack and open_stack[-1].level >= opened.level:
-                open_stack.pop()
-            open_stack.append(opened)
+            current = opened
             sections.append(opened)
             continue
 
-        for section in open_stack:
-            section.blocks.append(block)
+        if current is not None:
+            current.blocks.append(block)
     return sections, every
 
 
@@ -419,10 +492,7 @@ def _bullet_findings(sections: list[Section], every: list) -> list[Finding]:
     Read off ``docx_write.blocks`` and so off the renderer's own reading, which is
     what makes the row a claim about the ``.docx`` rather than about the Markdown.
     """
-    owner = {}
-    for section in sections:
-        for block in section.blocks:
-            owner.setdefault(block.line, section.name)
+    owner = section_owner(sections)
     return [
         Finding(BULLET_MARKER, owner.get(block.line, OUTSIDE_ANY_SECTION), block.line, block.text)
         for block in every
@@ -457,7 +527,7 @@ def _closer_findings(sections: list[Section]) -> list[Finding]:
     findings = []
     for section in sections:
         carried = [
-            block for block in section.blocks if ROS_CLOSER.search(block.text or _table_text(block))
+            block for block in section.blocks if ROS_CLOSER.search(block.text or block_text(block))
         ]
         if section.name == REVIEW_OF_SYSTEMS and not carried:
             findings.append(Finding(ROS_NO_CLOSER, section.name, section.line, section.name))
@@ -469,19 +539,14 @@ def _closer_findings(sections: list[Section]) -> list[Finding]:
     return findings
 
 
-def _table_text(block) -> str:
-    return " ".join(cell for row in block.rows for cell in row)
 
 
 def _scaffolding_findings(sections: list[Section], every: list) -> list[Finding]:
     """The closed set from section 1a's table, named phrase by phrase in the report."""
-    owner = {}
-    for section in sections:
-        for block in section.blocks:
-            owner.setdefault(block.line, section.name)
+    owner = section_owner(sections)
     findings = []
     for block in every:
-        text = block.text or _table_text(block)
+        text = block.text or block_text(block)
         for phrase, pattern in SCAFFOLDING:
             if pattern.search(text):
                 findings.append(
@@ -604,7 +669,7 @@ def survey(markdown: str, skill_text: str | None) -> Scan:
         intake_sections=len([s for s in sections if s.name in INTAKE_SECTIONS]),
         tables=len([b for b in every if b.kind == "table"]),
         em_dashes=sum(block.text.count(EM_DASH) for block in every)
-        + sum(_table_text(b).count(EM_DASH) for b in every if b.kind == "table"),
+        + sum(block_text(b).count(EM_DASH) for b in every if b.kind == "table"),
         no_section=not sections,
         skeleton_disagreement=check_skeleton(skill_text) if skill_text is not None else [],
         skeleton_unread=skill_text is None,
@@ -642,7 +707,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines.append("SKELETON DISAGREEMENT: {f}".format(f=failure))
     if scan.no_section:
         lines.append("")
-        lines.append("no section this recognizes in the document -- nothing here was graded")
+        lines.append(
+            "no section this recognizes in the document -- only the rows that read the "
+            "whole document could run"
+        )
     if not show and scan.findings:
         lines.append("")
         lines.append("re-run with --show for the detail. THAT OUTPUT IS PHI: read it, do not paste it.")

@@ -102,6 +102,26 @@ Ross, J. (2025). Pelvic inflammatory disease. UpToDate.
 """.format(rx=RX_TABLE)
 
 
+# One phrase per row, keyed on the module's own tuple, so a row added without a
+# sentence in the skill fails here rather than becoming a rule only the scanner
+# knows. ``test_checks_ledger.ROW_PHRASES``'s arrangement, and the skill's
+# enumeration is the **one** copy -- ``CLAUDE.md`` points at it now rather than
+# repeating it, because two hand-kept lists of a set held in code is #220.
+ROW_PHRASES = {
+    scan.BULLET_MARKER: "no bullet anywhere in the document",
+    scan.INTAKE_TABLE: (
+        "no table under Demographics, the Review of Systems or the Physical Examination"
+    ),
+    scan.ROS_NO_CLOSER: "the Review of Systems closing with the all-other-systems disclaimer",
+    scan.EXAM_CLAIMS_UNEXAMINED: "the Physical Examination not carrying one",
+    scan.SCAFFOLDING_PHRASE: "no scaffolding language",
+    scan.DIAGNOSIS_ALL_BOLD: "the Most Likely Clinical Diagnosis not set wholly bold",
+    scan.SIGNATURE_DATE_SPLIT: "the signature and its date on one line",
+    scan.RX_TABLE_SHAPE: "the prescription table at six rows and three columns wide",
+    scan.NO_STOP_CRITERION: "a drug that continues carrying a stop criterion",
+}
+
+
 def survey(markdown: str):
     """Grade a draft with the skeleton check satisfied, so a row test sees only its row."""
     return scan.survey(markdown, SKILL.read_text(encoding="utf-8"))
@@ -689,8 +709,10 @@ class EveryRowIsDeclared(unittest.TestCase):
         """The name every ``Finding(...)`` in the module is constructed with.
 
         Read positionally and by keyword, since either spelling builds the same
-        finding. **A branch that assigned its kind to a local would be opaque
-        here**, which is why every call names its row.
+        finding, and **required to be a module-level constant** -- a branch that
+        assigned its row to a local would otherwise satisfy an ``ast.Name`` check
+        while telling this walk nothing. Mutation-tested in four spellings: a
+        positional name, a keyword name, a local variable, and a subscript.
         """
         tree = ast.parse(MODULE.read_text(encoding="utf-8"))
         names = set()
@@ -705,6 +727,10 @@ class EveryRowIsDeclared(unittest.TestCase):
                     kind = keyword.value
             self.assertIsInstance(
                 kind, ast.Name, "a Finding built from an expression is invisible to this walk"
+            )
+            self.assertTrue(
+                kind.id.isupper(),
+                "a Finding built from a local is invisible to this walk: " + kind.id,
             )
             names.add(kind.id)
         return names
@@ -736,6 +762,26 @@ class EveryRowIsDeclared(unittest.TestCase):
             with self.subTest(kind=kind):
                 self.assertIn(kind, report)
 
+    def test_every_row_has_a_sentence_in_the_skill(self):
+        """A row added with no sentence in the skill fails here.
+
+        ``test_checks_ledger.ROW_PHRASES``'s arrangement, keyed on the module's own
+        tuple: [AGENTS.md](AGENTS.md) classes this as a tool a skill *names* rather
+        than one it depends on, and that class is defined by the instruction being
+        complete without the command. **The enumeration in the skill is the one
+        copy** -- ``CLAUDE.md`` points at it rather than repeating it, because two
+        hand-kept lists of a set held in code is
+        [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220).
+        """
+        step = SKILL.read_text(encoding="utf-8")
+        step = " ".join(step[step.index("### 9. Check") :].split())
+        for kind, phrase in ROW_PHRASES.items():
+            with self.subTest(row=kind):
+                self.assertIn(phrase, step)
+
+    def test_the_phrase_map_is_the_row_set(self):
+        self.assertEqual(sorted(ROW_PHRASES), sorted(scan.KINDS))
+
 
 class TheParserIsTheRenderers(unittest.TestCase):
     """``read_sections`` consumes ``docx_write.blocks`` and holds no copy of it.
@@ -745,19 +791,59 @@ class TheParserIsTheRenderers(unittest.TestCase):
     table ends where the renderer ends it.
     """
 
-    def test_the_module_defines_no_markdown_pattern_of_its_own(self):
+    def compiled_patterns(self) -> list[str]:
+        """Every string literal that reaches a ``re.compile`` in the module.
+
+        **Through a concatenation and through a module constant**, which the first
+        version did neither of: it called ``ast.literal_eval`` on the first
+        argument, so ``re.compile(a + b)`` raised ``ValueError`` and took the test
+        down rather than reading it, and a pattern assembled from a named constant
+        was invisible. Found by feeding the predicate a mutant rather than by
+        reading it, and both spellings are now in the tree -- ``ENDPOINT`` is built
+        both ways.
+
+        **What is still out of reach** is a pattern assembled at run time, or one
+        read from a file. That is `test_ls_files_coverage.py`'s ceiling, and it is
+        declared here for its reason rather than closed.
+        """
         tree = ast.parse(MODULE.read_text(encoding="utf-8"))
+        literals = {}
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+                if isinstance(node.value.value, str):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            literals[target.id] = node.value.value
+        found = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
+            func = node.func
             if not (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "compile"
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "re"
+                isinstance(func, ast.Attribute)
+                and func.attr == "compile"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "re"
             ):
                 continue
-            source = ast.literal_eval(node.args[0]) if node.args else ""
+            for argument in node.args[:1]:
+                for part in ast.walk(argument):
+                    if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                        found.append(part.value)
+                    elif isinstance(part, ast.Name) and part.id in literals:
+                        found.append(literals[part.id])
+        return found
+
+    def test_the_walk_reads_the_patterns_that_are_there(self):
+        """A predicate that found nothing would pass the test below saying nothing."""
+        found = self.compiled_patterns()
+        self.assertGreaterEqual(len(found), len(scan.KINDS))
+        joined = "".join(found)
+        self.assertIn("OLDCARTS", joined, "the walk is not reading the module's patterns")
+        self.assertIn("month", joined, "the walk does not reach a concatenated pattern")
+
+    def test_the_module_defines_no_markdown_pattern_of_its_own(self):
+        for source in self.compiled_patterns():
             self.assertNotIn(
                 "#{1,4}", source, "the heading pattern belongs to docx_write, not here"
             )
@@ -772,6 +858,11 @@ class TheParserIsTheRenderers(unittest.TestCase):
         self.assertEqual(len(graded), 1)
         self.assertEqual(len([b for b in graded[0].blocks if b.kind == "table"]), 1)
 
+    def test_a_deeper_unknown_heading_does_not_close_it(self):
+        text = "## Rx:\n\n" + RX_TABLE + "\n### A note about the order\n\n" + RX_TABLE
+        graded = [s for s in scan.read_sections(text)[0] if s.name == scan.RX]
+        self.assertEqual(len([b for b in graded[0].blocks if b.kind == "table"]), 2)
+
     def test_a_label_paragraph_opens_a_section(self):
         """A run may write an intake subsection as a bold label rather than a heading."""
         text = "## Sanity Check\n\nModule 1 - confirmed\n\n**Review of Systems:**\n\nGeneral: + fever.\n"
@@ -783,6 +874,44 @@ class TheParserIsTheRenderers(unittest.TestCase):
         text = "## Sanity Check\n\nSigned by: M. S., RN, CEN, TCRN. August 19, 2026\n"
         names = [section.name for section in scan.read_sections(text)[0]]
         self.assertNotIn(scan.SIGNED_BY, names)
+
+    def test_a_label_section_closes_a_heading_section(self):
+        """The nesting bug the stack had, pinned in the direction it silently passed.
+
+        ``### Review of Systems`` followed by ``**Physical Examination:**`` put the
+        examination *inside* the Review of Systems, so the exam's closer satisfied
+        the ROS's row and ``ros-no-closer`` reported zero on a draft carrying no
+        closer at all. Found by review; every section this reads is a peer.
+        """
+        text = (
+            "## Sanity Check\n\nModule 1 - confirmed\n\n"
+            "### Review of Systems\n\nGeneral: + fatigue.\n\n"
+            "**Physical Examination:**\n\n"
+            "General: Alert. All other systems reviewed and are negative.\n"
+        )
+        found = sorted(kinds(text))
+        self.assertIn(scan.ROS_NO_CLOSER, found)
+        self.assertIn(scan.EXAM_CLAIMS_UNEXAMINED, found)
+
+    def test_a_heading_section_closes_a_label_section(self):
+        """The same rule in the other direction, which the stack also got wrong."""
+        text = (
+            "## Sanity Check\n\nModule 1 - confirmed\n\n"
+            "**Review of Systems:**\n\nGeneral: + fatigue.\n\n"
+            "### Physical Examination\n\n"
+            "General: Alert. All other systems reviewed and are negative.\n"
+        )
+        self.assertIn(scan.ROS_NO_CLOSER, kinds(text))
+
+    def test_no_block_belongs_to_two_sections(self):
+        """At most one recognized section is open, so a line is graded once."""
+        text = (
+            "## Review of Systems\n\nGeneral: + fatigue.\n\n"
+            "## Physical Examination\n\nGeneral: Alert.\n"
+        )
+        sections = scan.read_sections(text)[0]
+        seen = [block.line for section in sections for block in section.blocks]
+        self.assertEqual(len(seen), len(set(seen)))
 
 
 if __name__ == "__main__":
