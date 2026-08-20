@@ -64,10 +64,12 @@ That is two of three layers dark, permanently, on the rule that matters most. **
 > phi-scan coverage (--all):
 >   scanned        tracked files -- git ls-files; an untracked file is not scanned until the commit that tracks it
 >   path layer     NOT RUN  -- this layer tests staged paths, and there are none in this mode
->   corpus layer   NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED
+>   corpus layer   NOT RUN  -- no name-index.json, day-file-text under scratch/; PATIENT NAMES ARE NOT CHECKED
 >   shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date
 >   ** A clean result here is NOT "no PHI": the path and corpus layers did not run. **
 > ```
+>
+> **Copied off run 32318025480 rather than derived, and the first version of this block was derived and wrong.** It was produced by calling `layer_report` with an empty `missing`, which takes the branch for *a corpus that is absent wholesale* and prints `no corpus under scratch/`. On a runner **both sources are missing by name**, so the real row is the one above. The rest of the block was identical, which is what made it plausible — a figure measured against the wrong input reads exactly like one measured against the right one, which is the lesson this file already records for #100's N=3 boundary. The only place this could be checked is a runner, and it was checked there.
 >
 > **This ADR's reasoning is extended rather than falsified.** *A green check still means less than it looks like, and now says so* was true of the **layers** and silent about the **population**: the job runs `--all` with nothing staged, so the file most likely to carry a new mistake — the one being written — was invisible to the walk and nothing on the page said so. The `--all` path-layer row above even carried the words *`--all` walks tracked files*, spent on why that layer is inapplicable rather than on what the two live layers covered. Recorded here rather than edited into the text above, because an ADR is a record of what was decided and when.
 
