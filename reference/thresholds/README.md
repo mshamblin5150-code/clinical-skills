@@ -111,10 +111,60 @@ field, and that is what the grader compares against this table's `document` cell
 `--doc-id` is free text and the record behind the sheet above carries an abbreviated
 one. A record built from another guideline is **refused** — see the holes below.
 
-Four gates. What each one can see, and what it cannot, is written out in full in
+**Two more gates landed on
+[#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)**, and both
+need something this repo does not carry:
+
+```bash
+# WATERMARK, #83 gate 4. Reads the strings #80 stripped as page-repeated text out of
+# `manifest.json` and refuses a row that carries one -- the text stream was
+# interleaved there, so the row's label and its number may never have been adjacent.
+# `--text-root` is derived from `--pdf-root` when it is not given; absent, the gate
+# skips behind a banner and never passes.
+python tools/threshold_sheet.py reference/thresholds/hypertension.md \
+    --text-root C:/codeing/guidelines-text
+
+# SECOND READ, #83 gate 5. Two commands and a reader in between.
+python tools/threshold_sheet.py reference/thresholds/hypertension.md --brief
+# ... hand that work order to somebody who has NOT seen the sheet, and grade what
+# they hand back:
+python tools/threshold_sheet.py reference/thresholds/hypertension.md \
+    --second-read C:/codeing/guidelines-index/second-read-hypertension.json
+```
+
+**The read is written by an agent that has not read the sheet, and that independence
+is the whole instrument.** `--brief` prints documents and pages and nothing else — a
+test drives a distinctive quantity, value and snippet through the sheet and asserts
+none of them comes out. Naming the pages is itself a small leak and is named as one:
+without it the reader has a hundred-page guideline to search, and the diff would
+measure how thoroughly it searched rather than what it read.
+
+**The record it hands back is:**
+
+```json
+{"read_on": "2026-08-19",
+ "values": [{"document": "AHA ACC/jones-et-al-2025-...",
+             "page": 41,
+             "value": "<130 mm Hg",
+             "about": "the office systolic target for adults on treatment"}]}
+```
+
+Every field is required, and a record short of one is **not graded** rather than
+graded on what is left — `bind_recs`' ruling, for its reason. `read_on` is required
+too: a read carries no trace of which extraction of the corpus it was taken against,
+and this repo has watched three review agents read one shared build directory a second
+branch had overwritten.
+
+**Six gates now.** What each one can see, and what it cannot, is written out in full in
 `tools/threshold_sheet.py`'s docstring rather than summarized here, on
 `icd10_lookup.py`'s terms: a rule is cheapest to keep true where the code that enforces
 it lives. What belongs here is the part a reader of the *sheets* needs.
+
+**What a reader of the sheets has to do by hand is gate 5's pairing.** The command
+prints each row's `quantity` and `population` beside the independent reader's own
+description of the number, and grades neither — comparing two free-text descriptions
+is a reading. **That is the one thing that reaches the largest hole below**, and it
+reaches it only if somebody reads the pairs.
 
 ## The file format
 
@@ -347,41 +397,67 @@ not left to be discovered:
   holding hundreds. That is a true statement about markers and a poor description of
   the document; it is a bound, a bound may only warn, and no threshold on the number
   would be anything but invented.
-- **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
-  stripped by #80 appears inside an extracted table row, that row is suspect and must
-  be read off the rendered page."* **This ticket widened the exposure rather than
-  narrowing it** — boilerplate stripping went from 554,372 characters to **921,093**
-  under the new reader, across 167 of 179 documents, so there is more stripped text
-  that could have been interleaved, not less. **#100 widened it again**, by 42,272
-  characters and 2,688 lines across a further 27 documents, for 963,365 together --
-  **9,277 of which is [#178](https://github.com/mshamblin5150-code/clinical-skills/issues/178)**,
-  which fixed the KDIGO transplant footer's spacing and so let the margin rule see a
-  running head it had never been able to match. The
-  `RENDERED:` marker gives a row a way to *declare* it was read off the page; nothing
-  yet *detects* that it should have been.
-  ([#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174) holds this
-  and gate 5.)
-- **Gate 4's input is two fields now, not one.** #83 says the manifest "records the
-  exact strings stripped per document, so this is a comparison against a recorded
-  list". Still true, and the list is split: `boilerplate` holds what the literal rule
-  took and `margin_stripped` holds what #100's margin rule took. A detector reading
-  only `boilerplate` misses 2,688 lines across 27 documents and reports a clean gate.
-  The three documents that matter most lose a **welded running head** rather than a
-  folio — `GOLD/GOLD-REPORT-2026`, `IDSA/ciw670` and, since #178,
+- **Gate 4, watermark interleave, is built on
+  [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174), and what it
+  cannot reach is the half the exposure figure is about.** It refuses a row that
+  *carries* a stripped string. It says nothing about the other direction — a stripped
+  line sitting *between* a row's label and its number, removed cleanly, leaving two
+  halves welded that were never adjacent on the page. Tier 2 catches that one where the
+  PDFs are present, because a snippet spanning a removal is not on the raw page; on a
+  machine without them nothing catches it. **The exposure figure is what makes that
+  worth knowing**: boilerplate stripping went from 554,372 characters to **921,093**
+  under #83's reader, across 167 of 179 documents, and **#100 widened it again** by
+  42,272 characters and 2,688 lines across a further 27 documents, for 963,365 together
+  — **9,277 of which is
+  [#178](https://github.com/mshamblin5150-code/clinical-skills/issues/178)**, which
+  fixed the KDIGO transplant footer's spacing and so let the margin rule see a running
+  head it had never been able to match.
+- **Gate 4's input is two fields, and it reads both.** #83 says the manifest "records
+  the exact strings stripped per document, so this is a comparison against a recorded
+  list". The list is split: `boilerplate` holds what the literal rule took and
+  `margin_stripped` holds what #100's margin rule took. A detector reading only
+  `boilerplate` misses 2,688 lines across 27 documents and reports a clean gate. The
+  three documents that matter most lose a **welded running head** rather than a folio —
+  `GOLD/GOLD-REPORT-2026`, `IDSA/ciw670` and, since #178,
   `KDIGO/KDIGO-2009-Transplant-Recipient-Guideline-English` — and prose is what
   interleaves.
-- **Gate 5, the second independent read, was not built.** #83 describes it as the only
-  mechanism that catches *misreading* rather than *miscitation*, and says in the same
-  breath that its weakness is correlated error — same model, same PDF, same mangling,
-  same wrong answer — so it *"must be documented as a strong smoke test, never as
-  proof."* Not built here; recorded so that the absence is visible rather than
-  inferred.
-- **Gate 1's "different path" is different-function, not different-library.** #83 asks
-  that the citation gate *"pulls that page's text through a different path than the
-  writer used"*. The writer reads `find_tables()`; tier 2 reads `get_text()`. Those are
-  genuinely different code paths over different structures, and they did catch a
-  planted defect. But both are PyMuPDF, so **a mis-extraction at the library level is
-  invisible to tier 2** — it would corrupt the snippet and the page identically.
+- **Not every stripped string is a probe, and 11 of the 179 documents have none.** A
+  string the extractor strips in one place and keeps in another proves nothing by
+  appearing in a snippet, so a probe has to be absent from the document's own extracted
+  body — `JAMA` is a running head on seventeen AHA/ACC files and occurs up to 52 times
+  in the body of one of them. **A sheet citing one of the 11 is a sheet gate 4 said
+  nothing about**, and the command names those sources rather than printing a zero.
+  Measured 2026-08-19, and re-derivable by running `tools/guidelines_extract.py` and
+  reading `manifest.json`; nothing committed re-derives it, which is why it is stated
+  once.
+- **Gate 5, the second independent read, is built and it is half a mechanism by
+  design.** #83 describes it as the only thing that catches *misreading* rather than
+  *miscitation*, and says in the same breath that its weakness is correlated error —
+  same model, same PDF, same mangling, same wrong answer — so it *"must be documented
+  as a strong smoke test, never as proof."* **Correlated error weakens the pass and not
+  the fail**, which is why a disagreement refuses while a clean run prints the
+  smoke-test line every time. What the command cannot do is perform the read: there is
+  no code path in `threshold_sheet.py` that produces a `--second-read` record, because
+  one it produced would be the same code over the same page — the check that module's
+  docstring calls worthless by name.
+- **A partial second read is a floor and says so.** A citation the read did not cover
+  is reported as uncovered and never refused. The first version refused it, and
+  pointing the gate at the committed sheet is what showed that up: a read of three
+  pages produced sixty-odd confident refusals about pages nobody had opened.
+- **Gate 1's "different path" is different-function, not different-library, and #174
+  settled that it does not need to be.** #83 asks that the citation gate *"pulls that
+  page's text through a different path than the writer used"*. The writer reads
+  `find_tables()`; tier 2 reads `get_text()`. Those are genuinely different code paths
+  over different structures, and they did catch a planted defect. But both are PyMuPDF,
+  so **a mis-extraction at the library level is invisible to tier 2** — it would corrupt
+  the snippet and the page identically. **A second library would not help**, which
+  [#172](https://github.com/mshamblin5150-code/clinical-skills/issues/172) measured
+  rather than argued: the mis-encoding it is about is *in the PDF*, and `pypdf` and
+  PyMuPDF return byte-for-byte identical wrong output on the same file. What settles
+  that class is **rendering the page**, at a stated resolution — 400 dpi produced a
+  confident wrong answer that only 700 dpi corrected
+  ([#282](https://github.com/mshamblin5150-code/clinical-skills/issues/282)). So the
+  hole stands, and the instrument that closes it is not a reader.
 - **COVERAGE read one recommendation record per sheet until
   [#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177).** A sheet
   citing two societies got omission checked against whichever record `--recs` named and

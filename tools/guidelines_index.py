@@ -167,6 +167,14 @@ def _normalize_doc_id(value: str) -> str:
     return cleaned[:-4] if cleaned.lower().endswith(".txt") else cleaned
 
 
+# Public under this name because `threshold_sheet.gate_watermark` joins a threshold
+# sheet's `document` cell to these keys, and a second spelling of the rule in that
+# module would read as agreement while covering less -- `reference_scan.py` importing
+# `docx_write.REFERENCE_HEADING`, for that module's reason. The leading-underscore
+# name stays so the callers already inside this file need no edit.
+normalize_doc_id = _normalize_doc_id
+
+
 def read_manifest(text_dir: Path | str) -> dict[str, dict]:
     """``manifest.json`` keyed by document id, or ``{}`` when there is none.
 
