@@ -100,7 +100,7 @@ CPT entries take the same shape, plus the note text documenting anything the cod
 Rules:
 
 - Code to the specificity the documentation supports and no further. If the note says "wrist fracture" with no side, the laterality is `needs: laterality`, not a coin flip between left and right.
-- **Every `SPECIFICITY` flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail — and a code whose descriptor says `unspecified` does not read `complete` at all.** Below.
+- **Every `SPECIFICITY` flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** A code whose descriptor says `unspecified` normally reads `needs:`, but may read `complete` when its reason explains why nothing the bedside can supply would move the code. Below.
 - Say `verify this number` whenever you are working from recall rather than the code set. An honest flag costs the clinician ten seconds; a confident wrong code costs a rejected claim or a bad log entry.
 - Never invent a documented finding to justify a code. If a code needs an element the note lacks, that goes in step 4.
 - **A code whose only anchor is a filled value is proposed, and carries `SOURCE: filled`.** The rule and its reasoning are below.
@@ -128,7 +128,7 @@ SPECIFICITY: needs: site   <- compliant
 
 A bare `needs:` names a gap and then does not say what the gap is, which leaves a step-4 `UNDOCUMENTED` entry that cannot be written — so the clinician is told something is missing and not told what to document at the bedside. **The rule is therefore one rule, not two**: a flag carries substance beyond its keyword, whichever keyword it took.
 
-**And a code whose own official descriptor says `unspecified` may not read `complete`.** The descriptor is the code set stating that an axis exists and that this code declines to name it, so a flag calling that complete contradicts the line directly above it:
+**A code whose own official descriptor says `unspecified` demands an explanation, not an automatic `needs:`.** Usually the descriptor is the code set stating that an axis exists and that this code declines to name it, so `complete` would contradict the line directly above it:
 
 ```
 ICD-10  M19.90  Unspecified osteoarthritis, unspecified site
@@ -136,15 +136,24 @@ ICD-10  M19.90  Unspecified osteoarthritis, unspecified site
   SPECIFICITY: needs: site                   <- and this earns a step-4 bedside line
 ```
 
-That resolves without judgment, because the descriptor beside it is required to be the verbatim official string: does it contain `unspecified` or `not specified`, and does the flag say `complete`. `tools/specificity_scan.py` is the rule made runnable, and `fixtures/filled-anchor`'s **C5** is what holds a run to it.
+**But the word is not proof that the encounter left an axis open.** `R00.1 Bradycardia, unspecified` is the only bradycardia code in its sibling set, so this is compliant:
+
+```
+ICD-10  R00.1  Bradycardia, unspecified
+  SPECIFICITY: complete — R00.1 is the only bradycardia code; nothing documented at the bedside would move it
+```
+
+**A substantive reason discharges C5.** `tools/specificity_scan.py` enforces that the reason exists and counts every `complete` on `unspecified` or `not specified` as an advisory review surface; it does not fail that shape merely because of the descriptor. Deciding whether the reason names a real exhausted axis or disguises a documentation gap takes a reader.
 
 **Measured rather than assumed, and re-derivable rather than quoted.** [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56) audited the twelve `fixtures/filled-anchor/notes` diagnosis lists against `reference/icd10cm-2026.sqlite`: **106 distinct codes, all 106 resolving, and 23 carrying `unspecified` or `not specified` in their own official descriptor.** `tools/test_specificity_scan.py` pins every one of those figures against the committed notes, so the argument fails a test rather than quietly going stale.
 
 **Most of the 23 name a detail the bedside could supply** — a lipid panel for `E78.5`, a rapid strep for `J02.9`, the joint for `M19.90`, an orthostatic component for `R51.9`, the duration for `R05.9 Cough, unspecified`.
 
-**Two of the 23 do not, and they are the rule's known false positives.** `R00.1 Bradycardia, unspecified` and `R19.7 Diarrhea, unspecified` have no sibling naming a more specific form of the same condition — `R00.1`'s neighbors are tachycardia and palpitations, `R19.7`'s are abdominal swelling and bowel sounds. The word is part of the condition's own name there, and **nothing at the bedside would move either code**. The rule fires on them anyway, because no mechanical test separates *the documentation is thin* from *the descriptor happens to contain the word*, and a rule with a hand-written exception list would be a worse thing than a known cost. [#135](https://github.com/mshamblin5150-code/clinical-skills/issues/135) holds that open.
+**Two of the 23 exposed why the descriptor cannot decide the row.** `R00.1 Bradycardia, unspecified` and `R19.7 Diarrhea, unspecified` have no sibling naming a more specific form of the same condition — `R00.1`'s neighbors are tachycardia and palpitations, `R19.7`'s are abdominal swelling and bowel sounds. The word is part of the condition's own name there, and **nothing at the bedside would move either code**. A committed run avoided the old failure by writing `needs: nothing the bedside can supply`, which satisfied the scanner by fabricating a documentation gap in the clinician's action list. [#135](https://github.com/mshamblin5150-code/clinical-skills/issues/135) therefore made the descriptor shape advisory and let the reason carry the distinction.
 
 **The same audit settled two more things a run could otherwise get wrong.** **105 of the 106 are leaves** — no more specific code exists beneath them — so `needs: a billable child` has almost no subject in that set, and a run reaching for it is probably wrong. The one exception is not a proposed code at all: `E11` is a header a note's own aside *discusses*, where the code proposed is `E11.9`. And an `Other ...` residual is **not** an `unspecified` one: `R06.89 Other abnormalities of breathing` says the finding does not fit a named code, not that the documentation is thin. Those read `complete` with a reason like anything else.
+
+**What the command cannot reach is whether a reason is a real check or a stock phrase.** `L85.3` has five siblings and `Z98.51` has one, and ruling that those are different conditions rather than axes of one thing takes a reader — so `complete — L85.3 has no further axis` can be true, and no string test confirms it. `filled-anchor`'s **R2** carries that residue, counted rather than enforced; the advisory `unspecified` count tells that reader where the same judgment is especially important.
 
 **What the worksheet's own pass cannot settle is whether its reason is true.** `fixtures/filled-anchor/run-2` proved the difference: a reason can be specific, checkable, and false while every descriptor is official and every C5 string test passes. The worksheet that wrote the reason is not its verifier. [#154](https://github.com/mshamblin5150-code/clinical-skills/issues/154).
 
@@ -380,7 +389,7 @@ So the codes on the differential are required, and none of them is for entry. Th
 
 Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
 
-**Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail — and a code whose descriptor says `unspecified` does not read `complete` at all.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. `python tools/specificity_scan.py <run directory>` checks both.
+**Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 
 **Every for-entry ICD-10 code has a separated second read by a fresh reader who did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing, partial, or self-authored read is not completion. Agreement is a smoke test and never proof.
 

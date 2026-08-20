@@ -157,9 +157,8 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
     def test_a_wrapped_descriptor_keeps_its_not_for_entry_exemption(self):
         # The mark lands on the continuation line when the official descriptor runs
         # past one. Reading only the code's own line calls this for-entry and then
-        # fails it on ``unspecified``-plus-``complete`` -- a false C5 finding on the
-        # exact shape the exemption exists to protect, since a differential is coded
-        # at the unspecified level on purpose.
+        # would count it in the ``unspecified`` advisory without the exemption,
+        # even though a differential is coded at that level on purpose.
         wrapped = (
             "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic,"
             " without\n"
@@ -223,7 +222,7 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
 
 
 class AFlagCarriesSubstanceBeyondItsKeyword(unittest.TestCase):
-    """The first of C5's two tests, and it reaches both branches."""
+    """C5's enforced test reaches both branches."""
 
     def test_a_bare_complete_fails(self):
         flags = scan.read_flags(entry("Z98.51", "Tubal ligation status", "complete"))
@@ -251,20 +250,38 @@ class AFlagCarriesSubstanceBeyondItsKeyword(unittest.TestCase):
         self.assertEqual(scan.findings(scan.read_flags(text)), [])
 
 
-class AnUnspecifiedDescriptorMayNotReadComplete(unittest.TestCase):
-    """C5's second test. The descriptor is C2's verbatim official string."""
+class AnUnspecifiedDescriptorIsAnAdvisoryReviewShape(unittest.TestCase):
+    """The descriptor is counted for a reader, but a reason discharges C5."""
 
-    def test_unspecified_in_the_descriptor_fails_a_complete(self):
-        text = entry("M19.90", "Unspecified osteoarthritis, unspecified site", "complete — no further axis")
-        self.assertEqual([f.kind for f in scan.findings(scan.read_flags(text))], ["unspecified-complete"])
+    def test_the_ticket_135_bradycardia_reason_discharges_c5(self):
+        text = entry(
+            "R00.1",
+            "Bradycardia, unspecified",
+            "complete — R00.1 is the only bradycardia code",
+        )
+        flags = scan.read_flags(text)
+        self.assertEqual(scan.findings(flags), [])
+        survey = scan.survey([flags])
+        self.assertEqual(survey.unspecified_complete, 1)
+        self.assertEqual([f.kind for f in survey.advisories], ["unspecified-complete"])
+
+    def test_the_ticket_135_diarrhea_reason_discharges_c5(self):
+        text = entry(
+            "R19.7",
+            "Diarrhea, unspecified",
+            "complete — R19.7 has no sibling naming a more specific diarrhea",
+        )
+        self.assertEqual(scan.findings(scan.read_flags(text)), [])
 
     def test_the_same_descriptor_passes_with_needs(self):
         text = entry("M19.90", "Unspecified osteoarthritis, unspecified site", "needs: site")
         self.assertEqual(scan.findings(scan.read_flags(text)), [])
 
-    def test_not_specified_fires_too(self):
+    def test_not_specified_is_counted_for_review_too(self):
         text = entry("N39.0", "Urinary tract infection, site not specified", "complete — no axis remains")
-        self.assertEqual([f.kind for f in scan.findings(scan.read_flags(text))], ["unspecified-complete"])
+        flags = scan.read_flags(text)
+        self.assertEqual(scan.findings(flags), [])
+        self.assertEqual(scan.survey([flags]).unspecified_complete, 1)
 
     def test_an_other_residual_is_not_an_unspecified_one(self):
         """``R06.89`` says the finding fits no named code, not that the note is thin."""
@@ -275,12 +292,10 @@ class AnUnspecifiedDescriptorMayNotReadComplete(unittest.TestCase):
         text = entry("R79.89", "Other specified abnormal findings of blood chemistry", "complete — residual")
         self.assertEqual(scan.findings(scan.read_flags(text)), [])
 
-    def test_a_bare_complete_on_an_unspecified_descriptor_fails_both_ways(self):
+    def test_a_bare_complete_still_fails_and_is_counted_for_review(self):
         flags = scan.read_flags(entry("J02.9", "Acute pharyngitis, unspecified", "complete"))
-        self.assertEqual(
-            sorted(f.kind for f in scan.findings(flags)),
-            ["bare-flag", "unspecified-complete"],
-        )
+        self.assertEqual([f.kind for f in scan.findings(flags)], ["bare-flag"])
+        self.assertEqual(scan.survey([flags]).unspecified_complete, 1)
 
 
 class TheReportCarriesNoTextWithoutShow(unittest.TestCase):
@@ -302,11 +317,9 @@ class TheReportCarriesNoTextWithoutShow(unittest.TestCase):
         self.assertEqual(self.survey.bare_flags, 1)
         self.assertEqual(self.survey.unspecified_complete, 1)
 
-    def test_one_flag_failing_both_tests_counts_as_one_flag(self):
-        """The two counters sum to 2 and exactly one line is at fault."""
-        self.assertEqual(self.survey.bare_flags + self.survey.unspecified_complete, 2)
+    def test_the_advisory_count_does_not_add_a_failure(self):
         self.assertEqual(self.survey.failing_flags, 1)
-        self.assertEqual(len(self.survey.findings), 2)
+        self.assertEqual(len(self.survey.findings), 1)
 
     def test_no_descriptor_reaches_the_default_report(self):
         report = scan.format_report(self.survey, source="a-run", show=False)
@@ -317,6 +330,23 @@ class TheReportCarriesNoTextWithoutShow(unittest.TestCase):
     def test_show_names_the_code_and_the_flag(self):
         report = scan.format_report(self.survey, source="a-run", show=True)
         self.assertIn("M19.90", report)
+        self.assertIn("bare-flag", report)
+        self.assertIn("unspecified-complete", report)
+
+    def test_the_unspecified_count_is_labeled_advisory(self):
+        report = scan.format_report(self.survey, source="a-run", show=False)
+        self.assertIn("advisory - complete on unspecified", report)
+
+    def test_show_names_advisory_flags_for_reader_review(self):
+        flags = scan.read_flags(
+            entry(
+                "R00.1",
+                "Bradycardia, unspecified",
+                "complete — R00.1 is the only bradycardia code",
+            )
+        )
+        report = scan.format_report(scan.survey([flags]), source="a-run", show=True)
+        self.assertIn("R00.1", report)
         self.assertIn("unspecified-complete", report)
 
 
@@ -717,8 +747,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_the_template_no_longer_permits_a_bare_complete(self):
         self.assertNotIn("SPECIFICITY: <complete | needs:", self.skill)
 
-    def test_the_skill_states_the_unspecified_rule(self):
-        self.assertIn("does not read `complete` at all", self.skill)
+    def test_the_skill_says_a_reason_can_discharge_the_unspecified_shape(self):
+        self.assertIn("A substantive reason discharges C5", self.skill)
 
     def test_the_skill_states_the_bare_needs_limb(self):
         """C5 fails a bare ``needs:``, so the skill has to say so too."""
