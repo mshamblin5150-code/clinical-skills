@@ -7,10 +7,19 @@ for python in python python3 py; do
     if command -v "$python" >/dev/null 2>&1; then
         "$python" "$repo_root/tools/spelling_scan.py" \
             --commit-message "$1" --quiet >&2 || true
+
+        # Issue #183, advisory. GitHub treats the keyword grammar as active even
+        # inside quoted explanations and negated prose. The command returns 1
+        # so it can grade other surfaces directly; this hook warns and leaves
+        # the commit status alone, on the existing commit-msg ruling.
+        "$python" "$repo_root/tools/closing_keyword_scan.py" \
+            "$1" --quiet >&2 || true
         exit 0
     fi
 done
 
 echo "spelling-scan: no python on PATH -- commit message check SKIPPED." >&2
 echo "               Standing rule 4 is advisory; check American English by hand." >&2
+echo "closing-keyword-scan: no python on PATH -- commit message check SKIPPED." >&2
+echo "                      Check GitHub closing keywords by hand." >&2
 exit 0
