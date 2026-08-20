@@ -227,57 +227,55 @@ class SchemaGate(unittest.TestCase):
         the extractor and not here would leave this passing while the artifact it
         guards could hold the character.
 
-        Scoped to the slots a Markdown table can carry. The two C0 controls cannot
-        reach any gate at all, and the class below is where that is written down.
+        The destructive C0 controls are refused at the raw-input seam before Python can erase
+        them; every other slot is refused from the parsed value.
         """
         for mapping in extract.SYMBOL_FONT_OPERATORS.values():
             for glyph in mapping:
-                if glyph in gate.UNREACHABLE_IN_A_TABLE_CELL:
-                    continue
                 with self.subTest(glyph=f"U+{ord(glyph):04X}"):
-                    failures = gate.gate_schema(sheet(row(value=f"{glyph}120 mm Hg")))
-                    self.assertTrue(
-                        any("mis-encoding" in message for message in failures),
-                        f"U+{ord(glyph):04X} passed the value gate",
-                    )
+                    parsed = sheet(row(value=f"{glyph}120 mm Hg"))
+                    if glyph in gate.FORBIDDEN_IN_RAW_TEXT:
+                        self.assertFalse(parsed.ok)
+                    else:
+                        failures = gate.gate_schema(parsed)
+                        self.assertTrue(
+                            any("mis-encoding" in message for message in failures),
+                            f"U+{ord(glyph):04X} passed the value gate",
+                        )
 
 
-class TwoSlotsNoGateHereCanReach(unittest.TestCase):
-    """#172's two C0 controls, declared rather than left to be discovered.
+class RawInputOperatorGate(unittest.TestCase):
+    """#285 refuses #172's destructive C0 controls before Python can erase them.
 
     ``U+001E`` and ``U+001F`` are the greater- and less-or-equal signs of one
-    AHA/ACC document, 38 of them. They cannot be refused in a value cell, for two
-    separate reasons that are both Python's rather than this module's -- and the
-    tests below are the evidence, not the docstring.
+    AHA/ACC document. They cannot be refused in a parsed value cell, for two separate
+    reasons that are both Python's rather than this module's. The raw-input seam sees
+    both, preserves the source row, and refuses to guess which operator was meant.
 
-    The exposure is narrow and this ticket is what narrowed it: the only path that
-    ever put such a character in front of a transcriber was the extracted corpus,
-    and ``guidelines_extract`` now writes ``<=`` and ``>=`` there. What is left is
-    a person pasting from a raw reader, and ``guidelines_extract.SYMBOL_FONT_OPERATORS``
-    is where that is fixed rather than here.
-
-    Not repaired in the parser, because both repairs are wider than this ticket:
-    ``strip(" \\t")`` changes what every cell in every sheet is allowed to carry,
-    and nothing about ``splitlines`` is local to this file at all.
+    The error directs an agent to render the cited PDF page, visually verify the
+    operator, and write the explicit ASCII form. The parser never rewrites clinical
+    meaning automatically.
     """
 
-    def test_they_are_declared_as_unreachable(self):
-        self.assertEqual(gate.UNREACHABLE_IN_A_TABLE_CELL, ("\u001e", "\u001f"))
+    def test_the_raw_gate_is_narrowly_the_destructive_slots(self):
+        self.assertEqual(set(gate.FORBIDDEN_IN_RAW_TEXT), {"\u001e", "\u001f"})
 
-    def test_the_strip_that_tidies_a_cell_eats_one_of_them(self):
-        """``str.strip()`` treats U+001C to U+001F as whitespace, so the operator
-        leaves the cell and the row reads as a bare number -- the corpus defect
-        reproduced in the artifact built to refuse it."""
+    def test_the_operator_is_refused_before_cell_trimming_can_eat_it(self):
+        """The raw-input refusal preserves the sheet line that needs a visual read."""
         parsed = sheet(row(value="\u001f120 mm Hg"))
-        self.assertEqual(parsed.rows[0].value, "120 mm Hg")
-        self.assertEqual(gate.gate_schema(parsed), [])
+        self.assertFalse(parsed.ok)
+        self.assertIn("test-sheet.md:30", parsed.why_not)
+        self.assertIn("U+001F", parsed.why_not)
+        self.assertIn("PyMuPDF", parsed.why_not)
 
-    def test_the_other_is_a_line_boundary_and_takes_its_whole_row_with_it(self):
-        """``str.splitlines()`` breaks on U+001E, so the row is two half-lines and
-        neither is a table row. The sheet parses clean with the row simply gone,
-        which is worse than the value being wrong."""
+    def test_the_row_is_refused_before_line_splitting_can_erase_it(self):
+        """The raw-input refusal preserves the locator for a row splitlines loses."""
         self.assertEqual("a\u001eb".splitlines(), ["a", "b"])
-        self.assertEqual(sheet(row(value="\u001e120 mm Hg")).rows, [])
+        parsed = sheet(row(value="\u001e120 mm Hg"))
+        self.assertFalse(parsed.ok)
+        self.assertIn("test-sheet.md:30", parsed.why_not)
+        self.assertIn("U+001E", parsed.why_not)
+        self.assertIn("PyMuPDF", parsed.why_not)
 
     def test_a_unicode_comparison_sign_in_a_value_fails(self):
         failures = gate.gate_schema(sheet(row(value="\u2265130 mm Hg")))

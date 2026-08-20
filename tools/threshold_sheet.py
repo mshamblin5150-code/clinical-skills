@@ -114,8 +114,8 @@ row needed it.
     character that is not a comparison operator** -- a Symbol-font ``\u00a3`` or
     ``\u2021`` where the source meant ``<=`` or ``>=``. The mis-encoded slots are
     imported from ``guidelines_extract.SYMBOL_FONT_OPERATORS`` rather than listed
-    here, and **two of them no gate in this file can reach**: see
-    ``UNREACHABLE_IN_A_TABLE_CELL``. How many there are is that table's to say.
+    here. Destructive C0 slots are refused from the raw sheet before ``splitlines`` or cell
+    trimming can erase them; the rest are refused from the parsed value.
 
 What no gate here reaches, stated the same day the gates were built
 --------------------------------------------------------------------
@@ -306,9 +306,8 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 # the same PDFs -- a sheet is transcribed by a person who may not be using this
 # module's extraction at all.
 
-# Two of the extractor's slots that no gate in this file can reach, named here so
-# the coverage claim above is not read as wider than it is. Both are Python's
-# doing rather than this module's, and `TwoSlotsNoGateHereCanReach` in
+# The extractor's destructive C0 slots must be refused before parsing. Their behavior is Python's
+# doing rather than this module's, and `RawInputOperatorGate` in
 # `tools/test_threshold_sheet.py` demonstrates each rather than asserting it:
 #
 #   U+001F  `str.strip()` counts U+001C to U+001F as whitespace, so `_cells`
@@ -318,13 +317,13 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 #           is a table row, and the sheet parses clean with the row simply gone.
 #           That is worse than a wrong value: nothing is left to be wrong.
 #
-# Not repaired here, because both repairs are wider than the ticket that found
-# them: `strip(" \t")` changes what every cell in every sheet may carry, and
-# nothing about `splitlines` is local to this file. The exposure is what #172
-# narrowed -- the only path that put such a character in front of a transcriber
-# was the extracted corpus, and `guidelines_extract` writes `<=` and `>=` there
-# now. What is left is a paste from a raw reader.
-UNREACHABLE_IN_A_TABLE_CELL = ("\u001e", "\u001f")
+# #285 repairs neither Python operation. It refuses only these known operator slots
+# in the raw input, preserving the sheet line and its source/page cells for an agent
+# to verify against a rendered PDF page. It never guesses which operator was meant.
+FORBIDDEN_IN_RAW_TEXT = {
+    "\u001e": "line splitting would erase it with its row",
+    "\u001f": "cell trimming would erase it",
+}
 # A blocklist and deliberately not an allowlist. An allowlist of operators was
 # written here first and never referenced by any gate, while the docstring claimed
 # it was enforced -- which is `test_spelling_scan.py`'s failure mode exactly: a rule
@@ -534,6 +533,22 @@ def parse(text: str, path: Path) -> Sheet:
     a row fires on what opens a section, never on a mention inside one.
     """
     sheet = Sheet(path=path)
+    raw_findings = [
+        (offset, character, why)
+        for character, why in FORBIDDEN_IN_RAW_TEXT.items()
+        if (offset := text.find(character)) != -1
+    ]
+    if raw_findings:
+        offset, character, why = min(raw_findings)
+        line = text.count("\n", 0, offset) + 1
+        sheet.ok = False
+        sheet.why_not = (
+            f"{path.name}:{line} contains U+{ord(character):04X}, a mis-encoded "
+            f"comparison operator that {why}; render the cited PDF page (for example "
+            "with PyMuPDF), visually verify the operator, and replace it with ASCII "
+            "<= or >="
+        )
+        return sheet
     if SCHEMA_MARKER not in text:
         sheet.ok = False
         sheet.why_not = f"no {SCHEMA_MARKER} marker"
