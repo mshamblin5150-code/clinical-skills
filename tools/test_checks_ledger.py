@@ -56,7 +56,8 @@ FINDINGS: The second MDM entry summarizes diverticulitis and names no
 """
 
 
-# The two checks #255 grades, normalized once so the helpers below and the module
+# The checks #255 grades -- how many is ``SUBSTANTIATED_CLEAN``'s to say and is
+# counted in no sentence here, on #143's terms. Normalized once so the helpers below and the module
 # cannot come to disagree about which rows carry the requirement.
 GRADED_KEYS = {checks.normalize(name) for name in checks.SUBSTANTIATED_CLEAN}
 
@@ -64,8 +65,8 @@ GRADED_KEYS = {checks.normalize(name) for name in checks.SUBSTANTIATED_CLEAN}
 def a_clean_record(name: str) -> str:
     """The ``clean`` record for ``name`` that fails every row it is graded by.
 
-    **Two shapes rather than one, and the asymmetry is #255's ruling**: the two
-    checks in ``SUBSTANTIATED_CLEAN`` say what they walked and the other four do
+    **Two shapes rather than one, and the asymmetry is #255's ruling**: the
+    checks in ``SUBSTANTIATED_CLEAN`` say what they walked and the rest do
     not have to. A single filler string would have made the whole row invisible
     to every test built on ``whole_file``.
     """
@@ -95,8 +96,8 @@ def instead_of(name: str, block: str) -> str:
     more than the helper. A ``str.replace`` that misses hands back the original
     string, so the test then grades the file the swap was supposed to have broken
     and passes for the wrong reason. It happened here the moment the filler grew a
-    ``FINDINGS`` line on two of the six checks: half a dozen literal replace
-    targets stopped matching at once, and a test asserting a finding it no longer
+    ``FINDINGS`` line on the checks ``SUBSTANTIATED_CLEAN`` names: several literal
+    replace targets stopped matching at once, and a test asserting a finding it no longer
     provokes is the silent-pass shape this whole directory exists to refuse.
     """
     original = a_clean_record(name)
@@ -377,8 +378,8 @@ class ADefectSaysWhatAndWhere(unittest.TestCase):
         )
         self.assertEqual(kinds(text), [checks.DEFECT_WITHOUT_FINDINGS])
 
-    def test_a_clean_check_is_not_asked_for_findings_on_the_four_255_left_alone(self):
-        """**Named in #240 as unreachable, and #255 reached two of the six.**
+    def test_a_clean_check_is_not_asked_for_findings_on_the_rows_255_left_alone(self):
+        """**Named in #240 as unreachable, and #255 reached only some of it.**
         Everywhere else a check that ran and found nothing still writes exactly
         what a check that reported nothing writes, and no string test tells them
         apart -- so a bare ``clean`` on an ungraded row is still not a finding."""
@@ -386,14 +387,14 @@ class ADefectSaysWhatAndWhere(unittest.TestCase):
         self.assertEqual(kinds(bare), [])
 
 
-class ACleanSaysWhatItWalkedOnTheTwoExpensiveRows(unittest.TestCase):
+class ACleanSaysWhatItWalkedOnTheExpensiveRows(unittest.TestCase):
     """#255, and it is that ticket's **third option** rather than its headline.
 
     ``research_ledger``'s ``BARE_STATUS`` argument, one skill over: anybody can
     write ``clean``; nobody writes *"walked all nine entries against apa7.md
     section 3; all nine hang, all nine alphabetize"* without having walked them.
-    Required of the two rows where a wrong ``clean`` is most expensive and of no
-    others, so four of the six checks are counted and not graded --
+    Required of the rows where a wrong ``clean`` is most expensive and of no
+    others, so the rest are counted and not graded --
     ``filled_vitals_census``'s arrangement, and the report says which is which.
     """
 
@@ -520,9 +521,10 @@ class ACleanSaysWhatItWalkedOnTheTwoExpensiveRows(unittest.TestCase):
 
     def test_the_split_counts_the_rows_and_never_the_records_that_complied(self):
         """**The distinction the report label got wrong first.** A file of bare
-        cleans counts the same two under ``clean_required`` and fails both -- so the
+        cleans counts every one of them under ``clean_required`` and fails them all --
+        so the
         number is *how many must say what they walked*, not how many did. A label
-        reading ``saying what it walked`` reported two records as having done the
+        reading ``saying what it walked`` reported those records as having done the
         one thing they had not."""
         bare = "".join(
             f"## CHECK: {name}\nVERDICT: clean\n"
@@ -713,6 +715,40 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         not grade is a rule only the reader knows."""
         marked = {name for name, required in self.table_substantiated().items() if required}
         self.assertEqual(marked, set(checks.SUBSTANTIATED_CLEAN))
+
+    def table_reads(self) -> dict:
+        """The check table's second column: what each row is pointed at."""
+        body = self.skill.split("### 9. Check", 1)[1]
+        rows = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
+        return {line.split("|")[1].strip(): line.split("|")[2].strip() for line in rows[2:]}
+
+    def test_the_dose_row_is_pointed_at_the_ledger_as_well_as_the_draft(self):
+        """#299's decision 2, pinned where it can fail.
+
+        **The reason that reading is its own row rather than a clause in ``the Rx
+        blocks`` is that it spans two documents** -- the draft and the claim
+        ledger -- while that row's three checks are shapes in one. A reword that
+        dropped the ledger from its brief would leave the row standing, its name
+        unchanged and ``SUBSTANTIATED_CLEAN`` still naming it, while quietly
+        turning it back into a shape check that cannot compare anything. Nothing
+        else here would notice: every other assertion in this class reads the
+        first and last columns.
+        """
+        reads = self.table_reads()["the dose against the record that sourced it"]
+        self.assertIn("scratch/case-study-claims.md", reads)
+        self.assertIn("prescription table", reads)
+
+    def test_the_shape_reader_and_the_correspondence_reader_are_two_rows(self):
+        """**Marking one must not mark the other**, which is the whole of #299's
+        decision 2. ``SUBSTANTIATED_CLEAN`` is keyed on the check name, so
+        folding the dose reading into ``the Rx blocks`` would require a bare
+        ``clean`` to say what it walked on that row's three shape checks too --
+        which #255 deliberately left alone, and which no ticket has revisited.
+        """
+        self.assertIn("the Rx blocks", checks.EXPECTED_CHECKS)
+        self.assertIn("the dose against the record that sourced it", checks.EXPECTED_CHECKS)
+        self.assertNotIn("the Rx blocks", checks.SUBSTANTIATED_CLEAN)
+        self.assertIn("the dose against the record that sourced it", checks.SUBSTANTIATED_CLEAN)
 
     def test_the_skill_names_the_command(self):
         self.assertIn("python tools/checks_ledger.py scratch/case-study-checks.md", self.skill)

@@ -755,8 +755,8 @@ belong in a note.
 **Nothing in the model bends a structural rule, and the list is closed.** The tier block's grammar,
 the Medatrax field strings, the drift matrix, an ICD-10 descriptor, the template's own formatting
 instructions, **row 22's welded refusal — `NOT CODED: <code> <descriptor>, <reason>`, on one line**
-— and the two rules below this one, *Punctuation* and *Spelling*, are all fixed. **The model governs
-the prose between them and nothing else.**
+— and the three rules below this one, *Spirometry*, *Punctuation* and *Spelling*, are all fixed.
+**The model governs the prose between them and nothing else.**
 
 **The refusal is on that list because the table above hands its rationale to the model, and the two
 together were a hole.** A `NOT CODED` rationale is register-1 prose and reads as the model's to
@@ -781,6 +781,21 @@ tier block is not one kind of claim: its separate lanes hold arithmetic, generat
 unresolved finished-note defects, genuine source gaps and unknown tokens.
 **That is the one place this differs from
 `practicum-case-study`**, which declares an unmodeled voice because it has somewhere to put it.
+
+### Spirometry
+
+**Every occurrence this skill writes identifies which spirometry it means.** `Office spirometry`,
+`diagnostic spirometry`, `spirometry with bronchodilator response` and `incentive spirometry` are
+qualified; the bare term is not. Office or diagnostic spirometry may appropriately be deferred
+through an acute illness, while incentive spirometry is used during the period in which that same
+wording would defer it. A reader must never have to infer which opposite disposition the note means.
+
+**The qualifier travels with every occurrence.** One in the Plan does not license a bare occurrence
+in the Assessment, tier block or another section: those surfaces are read independently, and a line
+copied out of one of them loses the context from the others. This is a rule for `spirometry`, not an
+open-ended table of words that may be ambiguous, and it is a human-read convention rather than a
+drift-matrix row. Ruled by the clinician 2026-08-20, issue
+[#166](https://github.com/mshamblin5150-code/clinical-skills/issues/166).
 
 ### Punctuation
 
@@ -835,7 +850,7 @@ Lightheadedness - R42
 
 **The clinician ruled all four of these on 2026-08-16**, each against a rendered example rather than a description of one, which is #68's method reused. Drift rows 13 and 23 walk them. [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 
-**What no tool checks, and that is a consequence of the ruling rather than a gap in the tooling.** Deciding that `Body mass index 28.6, in the overweight range` is a diagnosis and `Drug and condition conflict: …` is not takes a reader, and so does finding a diagnosis-shaped line under a heading a run invented. A scanner could read the block headed `Differential:` and would then be checking the narrow reading this ruling rejected — reporting clean on exactly the note that moved a line one heading down. **So these rows are counted by a reader**, the way rows 2, 16, 18 and 21 are counted by one, and [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164) holds what a partial scanner could still be worth.
+**What only a reader can finish, and that is a consequence of the ruling rather than a gap in the tooling.** Deciding that `Body mass index 28.6, in the overweight range` is a diagnosis and `Drug and condition conflict: …` is not takes a reader, and so does finding a diagnosis-shaped line under a heading a run invented. `python tools/differential_scan.py <a run directory>` now supplies [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164)'s declared floor: it counts the labeled Differential blocks, the numbered items inside them, and the items carrying the required `Name - CODE` slot; a numbered item without one fails row 13. **Every report says the count covers only those labeled blocks and that the wide Assessment count still needs a reader.** No numbered item in any labeled block exits 2 rather than printing a clean zero, and a confirmed missing code exits 1 before that not-run path can hide it. The command does not grade row 23 and does not find a diagnosis moved under another heading, so **a clean scan is not a walked row 13 or 23**.
 
 ### Naming a differential entry
 
@@ -1218,7 +1233,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 
 **Its quiet failure is a note that reads better for having failed.** A recalled threshold and a cited one are the same sentence in the body — that is what *Block only* guarantees — so the only place the difference shows is the block, and a note that simply omits the tail looks tidier than one carrying `needs: 10-year risk not calculated`. **The row is failed by an absence that improves the document**, which is the shape rows 12 and 19 also have and the reason none of them survives being skimmed for.
 
-**Nothing checks this row, and that is worth stating rather than leaving to be found.** `tools/differential_scan.py` reaches one limb of row 22 and nothing else — **not row 23 either**, whose `malformed slot pins` count is scoped to the conclusion line that row exempts. So rows 23 and 24 both go unchecked, and every limb of this one is walked by a reader today. This sentence said the scanner reached a limb of each; it does not, and the tool's own docstring said so while this file claimed otherwise. The mechanical limbs are there to be built — a tail is a string on a line and the sheets are greppable — but until something exists, *a clean read is the only read there is*.
+**Nothing checks this row, and that is worth stating rather than leaving to be found.** `tools/differential_scan.py` reaches one limb of row 22 and supplies a declared floor for row 13; it still reaches **nothing in row 23 or 24**, and its `malformed slot pins` count is scoped to the conclusion line row 23 exempts. So every limb of this row is walked by a reader today. The mechanical limbs are there to be built — a tail is a string on a line and the sheets are greppable — but until something exists, *a clean read is the only read there is*.
 
 **And no scanner ever built for it will reach the limb that matters.** Whether a correctly extracted recommendation applies to the patient in front of the clinician is a clinical judgment, and the citation exists to put the population where a reader can rule on it — never to rule on it. A row that scored applicability would be asserting exactly the thing this whole section is arranged to avoid asserting. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
 
