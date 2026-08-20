@@ -96,6 +96,10 @@ def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
     )
 
 
+def conflicting_rows(second_value: str = "<120 mm Hg") -> str:
+    return row(value="<130 mm Hg") + row(value=second_value, rec="p50/goal/1")
+
+
 # A two-source sheet, which is what #177 is about: until that ticket the grader took
 # one recommendation record for the whole sheet, so whichever source `--recs` did not
 # name went omission-unchecked and nothing said so. Every fixture in this file had
@@ -291,14 +295,55 @@ class TwoSlotsNoGateHereCanReach(unittest.TestCase):
 
 class ConflictRule(unittest.TestCase):
     def test_same_quantity_and_population_with_different_values_needs_a_conflict_block(self):
-        rows = row(value="<130 mm Hg") + row(value="<120 mm Hg", rec="p50/goal/1")
-        failures = gate.gate_schema(sheet(rows))
+        failures = gate.gate_schema(sheet(conflicting_rows()))
         self.assertTrue(any("CONFLICT" in message for message in failures))
 
-    def test_a_conflict_block_satisfies_it(self):
-        rows = row(value="<130 mm Hg") + row(value="<120 mm Hg", rec="p50/goal/1")
-        parsed = sheet(rows, conflicts="**CONFLICT: bp-goal** - the two societies differ because ...\n")
+    def test_a_conflict_block_that_names_both_values_satisfies_it(self):
+        parsed = sheet(
+            conflicting_rows(),
+            conflicts=(
+                "**CONFLICT: bp-goal** - one recommendation says below 130 mm Hg; "
+                "the other says <120 mm Hg.\n"
+            ),
+        )
         self.assertEqual(gate.gate_schema(parsed), [])
+
+    def test_a_conflict_block_that_names_only_one_value_fails(self):
+        parsed = sheet(
+            conflicting_rows(),
+            conflicts="**CONFLICT: bp-goal** - one recommendation says <130 mm Hg.\n",
+        )
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("<120 mm Hg" in message for message in failures), failures)
+
+    def test_a_todo_conflict_block_does_not_discharge_the_rule(self):
+        failures = gate.gate_schema(
+            sheet(conflicting_rows(), conflicts="**CONFLICT: bp-goal** - TODO\n")
+        )
+        self.assertTrue(any("CONFLICT" in message for message in failures), failures)
+
+    def test_one_longer_value_mention_cannot_satisfy_two_distinct_rows(self):
+        """The suffix of one value is not evidence that the other was compared."""
+        parsed = sheet(
+            conflicting_rows("<130 mm Hg in clinic"),
+            conflicts="**CONFLICT: bp-goal** - below 130 mm Hg in clinic.\n",
+        )
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("<130 mm Hg" in message for message in failures), failures)
+
+    def test_the_live_blocks_pass_and_the_instrument_reads_their_prose(self):
+        """#182's two correct blocks are the acceptance material, not imagined prose.
+
+        The mutation is the live-instrument half: a predicate that merely notices the
+        quantity key would leave the second assertion green after the prose vanished.
+        """
+        path = Path(__file__).resolve().parents[1] / "reference" / "thresholds" / "hypertension.md"
+        parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+        self.assertEqual(gate.gate_schema(parsed), [])
+
+        parsed.conflicts["acute-stroke-bp-treatment-threshold"] = "- TODO"
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("acute-stroke-bp-treatment-threshold" in message for message in failures))
 
     def test_different_populations_are_not_a_conflict(self):
         """The clinician's ruling, made mechanical.

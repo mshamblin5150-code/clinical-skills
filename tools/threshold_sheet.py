@@ -34,13 +34,11 @@ row needed it.
     ``CONFLICT`` block for that quantity. Needs nothing but the sheet, so it runs
     everywhere and always.
 
-    **What the conflict rule checks is the block's existence, not its contents.**
-    This sentence used to say the block must name *both* rows; it does not, and
-    nothing reads the block's prose. Corrected rather than implemented, because the
-    check a reader was promised -- does this paragraph name both societies and both
-    values -- is a reading, and the file two screens down deletes an allowlist for
-    exactly this reason: *"a rule that has drifted from the file a reader opens reads
-    as agreement."*
+    **The conflict floor reads the block's prose.** Every distinct conflicting row
+    value must appear there, with ordinary inequality wording (for example, ``below``
+    for ``<``) normalized before comparison. This does not verify that the explanation
+    is clinically correct; it prevents an empty block, ``TODO``, or a paragraph that
+    names only one side from discharging the structural rule.
 
 ``CITATION`` refuses, in two tiers
     Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
@@ -397,6 +395,13 @@ _CONFLICT = re.compile(r"^\s*\*{0,2}CONFLICT\*{0,2}:\s*(?P<quantity>[a-z0-9-]+)\
 _OUT_LINE = re.compile(r"^\s*-\s*`(?P<rec_id>[^`]+)`\s*[-\u2014:]\s*(?P<reason>.+?)\s*$")
 _RESOLVED = re.compile(r"citations resolved against\s+(?P<corpus>\S+)\s+on\s+(?P<date>\d{4}-\d{2}-\d{2})", re.IGNORECASE)
 
+_INEQUALITY_WORDS = (
+    (r"\b(?:less than or equal to|at or below|no more than)\b", "<="),
+    (r"\b(?:greater than or equal to|at or above|at least)\b", ">="),
+    (r"\b(?:less than|below)\b", "<"),
+    (r"\b(?:greater than|above|more than)\b", ">"),
+)
+
 
 @dataclass(frozen=True)
 class Row:
@@ -457,6 +462,47 @@ def _cells(line: str) -> list[str] | None:
 def _is_rule(cells: list[str]) -> bool:
     """The ``| --- | --- |`` line under a header."""
     return all(set(cell) <= set("-: ") and cell for cell in cells)
+
+
+def _normalized_conflict_claim(text: str) -> str:
+    """Normalize the bounded inequality wording a conflict may use in prose.
+
+    The row remains the source of truth. This only makes ``below 180`` comparable
+    with ``<180``; it does not attempt to interpret arbitrary clinical prose.
+    """
+    normalized = text.casefold()
+    for phrase, operator in _INEQUALITY_WORDS:
+        normalized = re.sub(phrase, operator, normalized)
+    normalized = re.sub(r"(<=|>=|<|>)\s*", r"\1", normalized)
+    normalized = re.sub(r"\s*/\s*", "/", normalized)
+    return " ".join(normalized.split())
+
+
+def _unnamed_conflict_values(values: set[str], conflict: str) -> list[str]:
+    """Return row values that have no distinct, bounded mention in the prose."""
+    claim = _normalized_conflict_claim(conflict)
+    normalized_values = [(value, _normalized_conflict_claim(value)) for value in values]
+    # Longest first prevents one longer mention from donating its prefix to a second
+    # value. Each value gets its own span: evidence that two sides were compared must
+    # occur twice, not be two interpretations of the same characters.
+    normalized_values.sort(key=lambda item: (-len(item[1]), item[1]))
+    used: list[tuple[int, int]] = []
+    missing: list[str] = []
+    for value, normalized in normalized_values:
+        pattern = re.compile(r"(?<!\w)" + re.escape(normalized) + r"(?!\w)")
+        available = next(
+            (
+                match
+                for match in pattern.finditer(claim)
+                if not any(match.start() < end and start < match.end() for start, end in used)
+            ),
+            None,
+        )
+        if available is None:
+            missing.append(value)
+        else:
+            used.append(available.span())
+    return sorted(missing)
 
 
 def parse(text: str, path: Path) -> Sheet:
@@ -613,11 +659,21 @@ def gate_schema(sheet: Sheet) -> list[str]:
     for row in sheet.rows:
         seen.setdefault((row.quantity, row.population), set()).add(row.value)
     for (quantity, population), values in sorted(seen.items()):
-        if len(values) > 1 and quantity.lower() not in sheet.conflicts:
+        if len(values) <= 1:
+            continue
+        conflict = sheet.conflicts.get(quantity.lower())
+        if conflict is None:
             failures.append(
                 f"{sheet.path.name}  quantity '{quantity}' for population '{population}' "
                 f"has {len(values)} different values ({', '.join(sorted(values))}) "
                 f"and no 'CONFLICT: {quantity}' block under '## Conflicts'"
+            )
+            continue
+        missing = _unnamed_conflict_values(values, conflict)
+        if missing:
+            failures.append(
+                f"{sheet.path.name}  'CONFLICT: {quantity}' for population '{population}' "
+                f"does not name every distinct value; missing {', '.join(missing)}"
             )
     return failures
 
