@@ -3271,16 +3271,18 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
         Neither assertion moved, because the *right* reason was always the other
         one. This population is the encounters where the token is **ambiguous**
         -- a bare ``ppd`` that might be a purified protein derivative. A digit
-        welded to it is not ambiguous, since nobody writes a count in front of a
-        tuberculin test, so a welded form was never a candidate for the wrong
-        sense and does not belong in the denominator #78 was ruled on.
+        welded to it is not ambiguous, so a welded form was never a candidate for
+        the wrong sense and does not belong in the denominator #78 was ruled on.
 
-        **This is a reading and it is the conservative one**, stated here rather
-        than left implicit. Widening ``writes_bare_ppd`` with the slot is the
-        other option, and it would move figures the clinician ruled on
-        2026-08-16 -- ``with_bare_ppd`` and both shape counters. Leaving it
-        narrow moves none of them. If the wider population is wanted, that is a
-        change to #78 and not to #146, and it needs the person who closed it.
+        **That was the conservative reading when it was written and it is the
+        ruled one now.** The clinician settled #146 on 2026-08-20: a welded
+        ``1ppd`` is the spaced form mistyped and means one pack per day. A string
+        whose meaning is *settled* cannot be a candidate for the wrong sense, so
+        the narrow population is no longer a choice this test is making on
+        anyone's behalf -- it is what the ruling implies. Widening
+        ``writes_bare_ppd`` would put a decided token into a denominator that
+        exists to count undecided ones, and would move ``with_bare_ppd`` and both
+        shape counters for nothing.
         """
         self.assertFalse(cc.writes_bare_ppd("1ppd x 24 yrs"))
         self.assertTrue(cc.writes_bare_ppd("1 ppd x 24 yrs"))
