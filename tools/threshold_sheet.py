@@ -66,8 +66,11 @@ Four gates, and what each one can and cannot see
     magnitude off. Decimal-place and unit errors are the highest-consequence
     extraction failures and the cheapest to catch, because catching them needs no
     understanding of the guideline at all. **It also refuses a value carrying a
-    character that is not a comparison operator** -- a Symbol-font ``\u00a3`` where the
-    source meant ``<=``, which this corpus contains 73 of.
+    character that is not a comparison operator** -- a Symbol-font ``\u00a3`` or
+    ``\u2021`` where the source meant ``<=`` or ``>=``. The mis-encoded slots are
+    imported from ``guidelines_extract.SYMBOL_FONT_OPERATORS`` rather than listed
+    here, and **two of them no gate in this file can reach**: see
+    ``UNREACHABLE_IN_A_TABLE_CELL``. How many there are is that table's to say.
 
 What no gate here reaches, stated the same day the gates were built
 --------------------------------------------------------------------
@@ -125,6 +128,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import guidelines_extract
 from console_codec import use_utf8
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -154,11 +158,50 @@ RENDERED_MARKER = "RENDERED:"
 ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "rec", "class")
 
 # The comparison operators a value may carry. ASCII only, and that is a rule about
-# the corpus rather than about taste: KDIGO's tables render the less-or-equal sign
-# through a Symbol-font slot that extracts as a pound sign, 73 times across the 179
-# documents, measured 2026-08-16. A sheet is allowed to hold the fact and must not
-# hold the mis-encoding, because `<=` and `\u00a3` sort and compare differently and only
-# one of them is readable back to a clinician.
+# the corpus rather than about taste: two fonts in it render a comparison operator
+# through a slot their own encoding does not describe, so what a reader hands back
+# is a pound sign, a double dagger or a control code. A sheet is allowed to hold
+# the fact and must not hold the mis-encoding, because those sort and compare
+# differently from `<=` and only one of them is readable back to a clinician.
+#
+# **The mis-encoded slots are imported rather than listed**, on
+# `test_spelling_scan.py`'s reasoning: `guidelines_extract` is where they are
+# measured and where a sixth would be added, and a gate holding its own copy of
+# that list is one that reads as agreement while covering less.
+#
+# **It covered less until #172.** Written by hand, it blocked `\u00a3` and `\u00b3` -- and
+# `\u00b3` is a slot the corpus does not contain, while the double dagger carrying most
+# of that corpus's greater-or-equal signs was not blocked at all. So the guard #172
+# was told to rely on refused the character the ticket named and passed the one the
+# ticket had missed. **Every count behind that sentence lives on
+# `SYMBOL_FONT_OPERATORS` and none is restated here** -- a first draft of this
+# comment copied two of them in, which is #143 arriving inside the paragraph
+# arguing that a copied list reads as agreement while covering less.
+#
+# `\u00b3` stays. It is the Symbol font's greater-or-equal slot decoded through cp1252,
+# which is what a *different* reader on a *different* machine would hand back from
+# the same PDFs -- a sheet is transcribed by a person who may not be using this
+# module's extraction at all.
+
+# Two of the extractor's slots that no gate in this file can reach, named here so
+# the coverage claim above is not read as wider than it is. Both are Python's
+# doing rather than this module's, and `TwoSlotsNoGateHereCanReach` in
+# `tools/test_threshold_sheet.py` demonstrates each rather than asserting it:
+#
+#   U+001F  `str.strip()` counts U+001C to U+001F as whitespace, so `_cells`
+#           removes it and the row reads as a bare number -- the corpus defect
+#           reproduced inside the artifact built to refuse it.
+#   U+001E  `str.splitlines()` breaks on it, so the row is two half-lines, neither
+#           is a table row, and the sheet parses clean with the row simply gone.
+#           That is worse than a wrong value: nothing is left to be wrong.
+#
+# Not repaired here, because both repairs are wider than the ticket that found
+# them: `strip(" \t")` changes what every cell in every sheet may carry, and
+# nothing about `splitlines` is local to this file. The exposure is what #172
+# narrowed -- the only path that put such a character in front of a transcriber
+# was the extracted corpus, and `guidelines_extract` writes `<=` and `>=` there
+# now. What is left is a paste from a raw reader.
+UNREACHABLE_IN_A_TABLE_CELL = ("\u001e", "\u001f")
 # A blocklist and deliberately not an allowlist. An allowlist of operators was
 # written here first and never referenced by any gate, while the docstring claimed
 # it was enforced -- which is `test_spelling_scan.py`'s failure mode exactly: a rule
@@ -166,11 +209,27 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 # rather than wired up, because a value legitimately carries no operator at all
 # (`81 mg/day`, `monthly`, `3-6 months`) and an allowlist would have to permit the
 # empty case, at which point it permits everything.
+# How each of the extractor's replacements is written in ASCII, which is the form a
+# value cell must use. A plain lookup rather than a conditional inside the message,
+# for two reasons. A conditional labels every future replacement as whichever branch
+# is the `else`, silently; a lookup raises. And a backslash inside an f-string
+# *expression* is a syntax error before 3.12 -- the first version of this wrote
+# `f"{'<=' if replacement == '\u2264' else '>='}"`, which parses here and would not
+# have parsed on the 3.10 floor ADR 0002 sets. `ast.parse(feature_version=(3, 10))`
+# does not see it, which is the same blindness CLAUDE.md already records for
+# `int | None`, and the only interpreter on this machine is 3.14. Caught by review.
+ASCII_OPERATOR = {"\u2264": "<=", "\u2265": ">="}
+
 FORBIDDEN_IN_VALUE = {
-    "\u00a3": "a Symbol-font mis-encoding of <= (73 in this corpus); write <=",
     "\u2264": "a Unicode <=; write the ASCII <=",
     "\u2265": "a Unicode >=; write the ASCII >=",
     "\u00b3": "a Symbol-font mis-encoding of >=; write >=",
+    **{
+        glyph: f"a Symbol-font mis-encoding of {ASCII_OPERATOR[replacement]}; "
+               f"write {ASCII_OPERATOR[replacement]}"
+        for mapping in guidelines_extract.SYMBOL_FONT_OPERATORS.values()
+        for glyph, replacement in mapping.items()
+    },
 }
 
 # Sanity bounds, keyed on the UNIT a number is written in and never on the row's
