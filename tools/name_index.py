@@ -157,7 +157,7 @@ from typing import Iterable, Sequence
 
 import corpus_census as cc
 from console_codec import use_utf8
-from repo_root import scratch_root
+from repo_root import enclosing_checkout, scratch_root
 
 # `guidelines_search.py`'s convention, already in `specificity_scan`,
 # `differential_scan`, `anchor_scan`, `block_scan` and `phi_scan`: a status that
@@ -471,20 +471,25 @@ def refuse_target(path: Path, scratch: Path | None = None) -> str | None:
 
 
 def _refuse(target: Path, scratch: Path) -> str | None:
+    # **A reason string and no raise, deliberately** -- the one convention here
+    # that #176 did not consolidate away. A refused write is not a refused scan:
+    # the run read the whole corpus and knows exactly how short the index is, so
+    # the refusal is a note beside that finding rather than instead of it.
+    #
     # **The repo's own ``scratch/``, not any directory so named.** The first
     # version tested for a path component called ``scratch`` anywhere, which
     # blesses ``~/scratch/`` in somebody else's checkout on the strength of a
-    # coincidence. This is the directory ``phi_scan``'s path layer actually
-    # covers.
-    if target.is_relative_to(scratch):
+    # coincidence. ``permitted`` takes the resolved directory ``phi_scan``'s path
+    # layer actually covers, and that parameter is the one thing a shared guard
+    # needed that a single rule could not have: the other three writers refuse
+    # every path inside a checkout, and this one blesses exactly one.
+    checkout = enclosing_checkout(target, permitted=[scratch])
+    if checkout is None:
         return None
-    for parent in target.parents:
-        if (parent / ".git").exists():
-            return (
-                f"refusing to write {target}: it is inside the checkout at {parent} "
-                "and not under scratch/. The index is a list of patient names."
-            )
-    return None
+    return (
+        f"refusing to write {target}: it is inside the checkout at {checkout} "
+        "and not under scratch/. The index is a list of patient names."
+    )
 
 
 def write_atomically(path: Path, text: str) -> None:
