@@ -59,8 +59,15 @@ Known limits, stated so nobody reads this as the rule itself:
 - **It holds the table, not the language.** The ``-ise`` family beyond
   ``catheterise``, and every British form nobody has written here yet, are out.
   A scan that comes back clean means no *listed* form was used.
-- Advisory in the pre-commit hook, and deliberately: standing rule 1 stays the
-  only thing that refuses a commit in this repo.
+- Advisory in the pre-commit hook, and deliberately: a spelling is not worth
+  refusing a commit over. **Two things here can refuse one** -- standing rule 1
+  via ``phi_scan.py``, and since #83 ``threshold_sheet.py`` when a
+  ``reference/thresholds/*.md`` is staged. This line read *"standing rule 1 stays
+  the only thing that refuses a commit in this repo"* until 2026-08-19; that was
+  the **fourth** copy of a claim false since #83, after ``AGENTS.md`` and
+  ``CLAUDE.md`` corrected theirs and ``tools/hooks/pre-commit`` recorded killing
+  what it called the third. Found by a tracker sweep, in the one file whose own
+  docstring is what a reader checks the rule against.
 """
 
 from __future__ import annotations

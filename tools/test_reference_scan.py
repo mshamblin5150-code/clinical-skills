@@ -221,6 +221,37 @@ class SameAuthorSameYearTakesALetter(unittest.TestCase):
         text = draft(plain_a, plain_b, body="# Case\n\nBoth (Hooton, 2025).\n")
         self.assertIn(scan.MISSING_AB, kinds(text))
 
+    def test_a_shared_first_author_with_different_coauthors_takes_no_letter(self):
+        """[apa7.md](../skills/practicum-case-study/reference/apa7.md) section 3
+        scopes the rule to *the same authors*, and APA 8.19 with it. ``Hsu, K.``
+        and ``Hsu, K., & Khosropour, C.`` are two author strings, and
+        ``(Hsu, 2026)`` and ``(Hsu & Khosropour, 2026)`` already tell them apart
+        in text, so there is nothing for a letter to disambiguate.
+
+        **Lettering them would be the error rather than the fix**, which is what
+        makes this worth a row of its own: the scanner grouped on the first
+        surname alone, so it was stricter than the sheet it implements, and a run
+        that trusted it would write ``2026a``/``2026b`` onto two entries APA
+        requires to carry neither. A checker that refuses a correct entry and
+        teaches the next run to write a wrong one is the shape this directory
+        exists to refuse.
+
+        Found by pointing the command at a real draft on
+        [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215),
+        not by a fixture -- ``block_scan.py``'s and ``threshold_sheet.py``'s
+        lesson again.
+        """
+        solo = (
+            "Hsu, K. (2026). Clinical manifestations. *UpToDate*. Retrieved "
+            "August 19, 2026, from https://www.uptodate.com/contents/ccc"
+        )
+        joint = (
+            "Hsu, K., & Khosropour, C. (2026). Treatment. *UpToDate*. Retrieved "
+            "August 19, 2026, from https://www.uptodate.com/contents/ddd"
+        )
+        body = "# Case\n\nOne (Hsu, 2026) and two (Hsu & Khosropour, 2026).\n"
+        self.assertNotIn(scan.MISSING_AB, kinds(draft(solo, joint, body=body)))
+
     def test_letters_in_title_order_pass(self):
         a = self.A.replace("*UpToDate*", "Acute cystitis. *UpToDate*")
         b = self.B.replace("*UpToDate*", "Bacteriuria. *UpToDate*")
@@ -579,6 +610,25 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_the_skill_names_the_exam_date_argument(self):
         self.assertIn("--as-of", self.skill)
 
+    def test_both_files_scope_the_ab_rule_to_the_same_authors(self):
+        """The sheet is the authority and this module is *a second reader of it*,
+        so the narrowing has to be readable in the sheet rather than only in the
+        code that implements it.
+
+        [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s
+        arrangement and [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
+        reason: the scope lived in ``reference_scan.py`` and ``CLAUDE.md`` for the
+        length of one commit while ``apa7.md`` section 3 still read *same author*
+        and ``skills/practicum-case-study/SKILL.md`` step 7's defect table still
+        said *the same author*, so a harness walking that table by eye reached the
+        **opposite** verdict on the same pair the command had just been fixed to
+        pass. A prose edit to either copy failed nothing.
+        """
+        for name, text in (("apa7.md", self.apa7), ("SKILL.md", self.skill)):
+            with self.subTest(file=name):
+                self.assertIn("same *authors*, not the same first author", text)
+                self.assertIn("Khosropour", text)
+
     # One phrase per row, keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than quietly becoming a rule only
     # the scanner knows -- which is the class ``AGENTS.md`` puts this tool in.
@@ -598,7 +648,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.ENTRY_HAS_NO_YEAR: "An entry carrying no year element",
         scan.CANVAS_ARTIFACT: "`Links to an external site.` welded to a URL",
         scan.LIST_NOT_SORTED: "Two entries out of alphabetical order",
-        scan.MISSING_AB: "Two entries with the same author and year and no `a`/`b`",
+        scan.MISSING_AB: "Two entries with the same authors and year and no `a`/`b`",
         scan.AB_OUT_OF_TITLE_ORDER: "the letters are assigned by **title order**",
         scan.UPTODATE_NO_RETRIEVAL_DATE: "An UpToDate entry with no retrieval date",
         scan.RETRIEVAL_DATE_ON_ARCHIVED: "The command reaches this only where the entry carries a DOI",
