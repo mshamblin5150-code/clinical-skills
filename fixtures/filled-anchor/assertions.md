@@ -22,7 +22,7 @@ Opened for [issue #17](https://github.com/mshamblin5150-code/clinical-skills/iss
 
 **The reference is read.** All twelve submitted notes were opened in the portal on 2026-08-11 and are kept in `scratch/day-b-reference/`, gitignored. Their code lists were lifted on 2026-08-11 and every `Reference did` cell below rests on them. Reading it cost nothing — day-b had already paid for it.
 
-**Run 2, 2026-08-16, on `184462d`: `ANCHOR 5/5` · `CODE 1/1` · `REPORTED 1/1` — seven of twelve
+**Run 2, 2026-08-16, on `184462d`: `ANCHOR 5/5` · `CODE 1/1` · `REFUSAL 1/1` · `REPORTED 1/1` — eight of thirteen
 rows, and it passes.** [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
 Twelve generating passes with the input at a neutral path and `fixtures/` closed, four grading
 passes split by row, and an orchestrating pass that wrote no worksheet. **The output is committed**
@@ -35,7 +35,10 @@ opened.
 **C5 alone**: C1 through C4 were not re-run for their own sake, so their run-1 verdicts stand
 against text and an output that are both gone, and mixing them into a run-2 digit would produce a
 number belonging to neither commit. `REPORTED 1/1` is **R2 alone**, for the same reason on the other
-side — R1 held on run 1 and was not re-scored.
+side — R1 held on run 1 and was not re-scored. `REFUSAL 1/1` is **F1 alone**, targeted-scored from
+the committed run on 2026-08-20 after [#131](https://github.com/mshamblin5150-code/clinical-skills/issues/131)
+named the row. Step 4 already governed the run, so this is a score against the rule that produced
+the worksheets rather than a new bar imposed on old output.
 
 **Nothing moved under it while it ran**, which is worth one sentence because
 [fixtures/README](../README.md) has now counted six consecutive runs where something did.
@@ -172,12 +175,13 @@ more than the skill required, and a run could satisfy the skill in full and lose
 to catch, a run reaching for `complete` because it did not look. The audit that settled it, and
 what it turned up that nobody had asked about, are under *CODE* beside C5.
 
-## The classes are new, and two of them are
+## The classes are new, and three of them are
 
-`DRIFT`, `FILLED` and `REPORTED` are `clinical-note`'s classes and the first two do not transfer. DRIFT asks whether a given finding survived from the Objective to the Assessment; FILLED asks what became of a value the skill generated under license. **`icd10-cpt` generates nothing and writes no prose** — it reads a finished note and returns a worksheet — so neither question has a subject here. That holds under [fixtures/README](../README.md)'s widened FILLED, which admits a row on the ground that *the value was generated and the skill licensed generating it*: this skill has no such license to exercise. This set defines two enforced classes of its own, both binary on [fixtures/README](../README.md)'s terms — each resolves to the presence or absence of a code, never to how something is worded.
+`DRIFT`, `FILLED` and `REPORTED` are `clinical-note`'s classes and the first two do not transfer. DRIFT asks whether a given finding survived from the Objective to the Assessment; FILLED asks what became of a value the skill generated under license. **`icd10-cpt` generates nothing and writes no prose** — it reads a finished note and returns a worksheet — so neither question has a subject here. That holds under [fixtures/README](../README.md)'s widened FILLED, which admits a row on the ground that *the value was generated and the skill licensed generating it*: this skill has no such license to exercise. This set defines three enforced classes of its own, all binary on [fixtures/README](../README.md)'s terms — each resolves to the presence or absence of a code or its required inline record, never to how something is worded.
 
 - **ANCHOR** — does a proposed code rest on a number the encounter recorded? This is #10's rule and the reason the set exists.
 - **CODE** — does a proposed code exist, carry its official descriptor, and submit? Settled by `python tools/icd10_lookup.py` against `reference/icd10cm-2026.sqlite`. What that buys the repo is stated once, in [fixtures/README](../README.md), and not restated here.
+- **REFUSAL** — when the encounter does not establish the specific code under consideration, is that code written down with what would establish it and what the encounter supports instead? This is [#131](https://github.com/mshamblin5150-code/clinical-skills/issues/131)'s row.
 
 `REPORTED` is carried over unchanged: counted, not enforced.
 
@@ -317,6 +321,34 @@ It exits non-zero on either failure, prints counts and never a descriptor, and `
 **These twelve inputs predate that rule.** Their Assessments carry differentials with no codes on them, because `clinical-note` did not require any when they were generated. A run over them today should therefore *produce* the differential section rather than pass one through, which is the harder half of the rule and the one worth watching on the first run.
 
 **What CODE does not test.** The lookup *"answers does this code exist and what governs it, never is this the right code"*, in the skill's words. A run can propose a real, billable, correctly-described code for the wrong diagnosis and pass all four rows. That is a reader's judgment and it belongs in REPORTED — except that it does not move with wording either, which makes it the one thing this set would most like to enforce and cannot. Named under *Still unresolved*.
+
+## REFUSAL — binary, all must pass
+
+| # | Cases | Passes when | Fails when |
+| --- | --- | --- | --- |
+| F1 | all | All twelve worksheets carry `NOT CODED, NOTHING ESTABLISHED IT`; the refusal counts by case are **6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7**; every one of the 52 records welds `NOT CODED:` to the refused code, carries `needs:`, and carries `proposed instead:`; no refused code also appears in that worksheet's proposed-for-entry list | A block is absent; the count vector changes; any record omits the refused code, what would establish it, or the supported substitute; or one worksheet both refuses and proposes the same code for entry |
+
+```bash
+python tools/refusal_scan.py <the run directory>
+```
+
+The command grades the mechanical limbs: block presence, the three required record fields, and the
+proposed/refused collision. It prints the count vector so the grader can compare it with F1 rather
+than accepting an aggregate 52 that one added record could preserve after another was silently
+dropped. **Exit 0 does not perform that comparison and is not F1 by itself.** The default report is
+counts only and safe to paste; `--show` names codes and is PHI.
+
+**Differential entries are outside both the numerator and the collision test.** Twelve of run 2's
+64 welded `NOT CODED:` marks sit in `DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY`; those entries
+correctly carry no `proposed instead:` and may repeat a code refused in step 4. Counting the literal
+over the whole worksheet produces 64, then invents twelve missing-substitute defects. Reading only
+the step-4 block produces the 52 records F1 names.
+
+**The fixed vector is the silent-drop limb.** A conditional row saying only *every refusal that
+exists is complete* passes a worksheet that emits none, which is the defect [#131](https://github.com/mshamblin5150-code/clinical-skills/issues/131)
+filed. The vector makes absence observable without pretending a scanner can judge whether the
+diagnosis-to-code choice was clinically right; that judgment remains outside every binary class in
+this set on CODE's stated limit.
 
 ## REPORTED — counted, not enforced
 
