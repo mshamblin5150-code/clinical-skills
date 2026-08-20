@@ -44,6 +44,49 @@ class CorpusLayer(unittest.TestCase):
         # date and it is also date-shaped.
         self.assertIn("corpus-date", [f.rule for f in scan("dos 4-17-88")])
 
+    def test_catches_an_alternate_numeric_rendering_of_a_corpus_date(self):
+        found = scan("dos 04/17/1988", dates={"4-17-88"})
+        self.assertIn("corpus-date", [f.rule for f in found])
+
+    def test_a_two_digit_year_matches_either_plausible_century(self):
+        pairs = (
+            ({"4-17-68"}, "April 17, 1968"),
+            ({"4-17-1968"}, "04/17/68"),
+        )
+        for dates, rendered in pairs:
+            with self.subTest(dates=dates, rendered=rendered):
+                found = scan(f"dos {rendered}", dates=dates)
+                self.assertIn("corpus-date", [f.rule for f in found])
+
+    def test_catches_a_written_rendering_of_a_corpus_date(self):
+        found = scan("seen April 17, 1988", dates={"4-17-88"})
+        self.assertIn("corpus-date", [f.rule for f in found])
+
+    def test_catches_standard_English_written_date_variants(self):
+        for rendered in ("Apr 17, 1988", "Apr. 17, 1988", "17 April 1988", "17 Apr 88"):
+            with self.subTest(rendered=rendered):
+                found = scan(f"seen {rendered}", dates={"4-17-88"})
+                self.assertIn("corpus-date", [f.rule for f in found])
+
+    def test_catches_an_iso_rendering_of_a_corpus_date(self):
+        found = scan("seen 1988-04-17", dates={"4-17-88"})
+        self.assertIn("corpus-date", [f.rule for f in found])
+
+    def test_reports_the_rendering_that_appeared_in_the_scanned_text(self):
+        found = scan("seen April 17, 1988", dates={"4-17-88"})
+        corpus_findings = [f for f in found if f.rule == "corpus-date"]
+        self.assertEqual([f.match for f in corpus_findings], ["April 17, 1988"])
+
+    def test_does_not_normalize_an_unrelated_date_into_a_corpus_finding(self):
+        for rendered in ("04/18/1988", "April 18, 1988", "1988-04-18"):
+            with self.subTest(rendered=rendered):
+                rules = [f.rule for f in scan(f"seen {rendered}", dates={"4-17-88"})]
+                self.assertNotIn("corpus-date", rules)
+
+    def test_an_invalid_date_shaped_corpus_literal_keeps_exact_protection(self):
+        rules = [f.rule for f in scan("seen 2-30-99", dates={"2-30-99"})]
+        self.assertIn("corpus-date", rules)
+
     def test_reports_the_line_number(self):
         found = scan("clean\nclean\nJordan Vance\n")
         self.assertEqual(found[0].line, 3)
@@ -291,7 +334,7 @@ class SyntheticPragma(unittest.TestCase):
         self.assertEqual([f.rule for f in scan(text)], ["corpus-name"])
 
     def test_pragma_does_not_suppress_a_real_corpus_date(self):
-        text = self.SYNTHETIC + 'assert has_dob("dob 4-17-88")\n'
+        text = self.SYNTHETIC + 'assert has_dob("dob 04/17/1988")\n'
         self.assertIn("corpus-date", [f.rule for f in scan(text)])
 
     def test_pragma_must_be_near_the_top(self):
@@ -764,6 +807,12 @@ class LayerReport(unittest.TestCase):
         for identifier in NAMES | DATES:
             with self.subTest(identifier=identifier):
                 self.assertNotIn(identifier, text)
+
+    def test_a_live_corpus_names_the_date_renderings_it_checks(self):
+        line = self.corpus_line(self.report(NAMES, DATES, scan_all=False))
+        for family in ("US numeric", "written English", "ISO"):
+            with self.subTest(family=family):
+                self.assertIn(family, line)
 
     def test_a_report_with_a_dead_layer_warns_that_clean_is_not_coverage(self):
         """The checkmark is the thing being defended against, so the warning has

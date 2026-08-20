@@ -1059,9 +1059,9 @@ class PainScore(unittest.TestCase):
         self.assertEqual(cc.pain_scores("exacerbated by movment 6/10."), [6])
 
     def test_a_date_after_the_score_is_still_not_a_score(self):
-        # Loosening the trailing guard must not reach the digits: "10/10/25"
+        # Loosening the trailing guard must not reach the digits: "10/10/2099"
         # is a date, and the slash and digit alternatives are what refuse it.
-        self.assertEqual(cc.pain_scores("f/u 10/10/25"), [])
+        self.assertEqual(cc.pain_scores("f/u 10/10/2099"), [])
         self.assertEqual(cc.pain_scores("wbc 6/100"), [])
 
     def test_heart_sounds_are_not_a_score(self):
