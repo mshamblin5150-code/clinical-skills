@@ -1,9 +1,9 @@
 """Contract checks for issue #132's impossible-given rule.
 
 The public seam is the complete ``clinical-note`` output: note body, tier block,
-Medatrax field block and drift matrix. The fixture assertion pins the only
-committed impossible vital; Medatrax has no heart-rate field, so that generic
-structured-field limb stays pinned in the drift row rather than this case.
+Medatrax field block and drift matrix. Fixture assertions pin the committed
+impossible vital and medication strength. Neither maps to a structured
+Medatrax value field, so that generic limb stays pinned in the drift row.
 """
 
 from pathlib import Path
@@ -14,6 +14,7 @@ import unittest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 HEDGED = REPO_ROOT / "fixtures" / "hedged-dx" / "assertions.md"
+DAY_B = REPO_ROOT / "fixtures" / "day-b" / "assertions.md"
 
 
 def read(path: Path) -> str:
@@ -54,6 +55,17 @@ class TheImpossibleGivenRule(unittest.TestCase):
         self.assertIn("GAPS", row)
         self.assertIn("unusable", row)
 
+    def test_the_filled_vitals_exception_does_not_overrule_an_impossible_given(self):
+        section = self.text.split("**What never goes under GAPS:**", 1)[1]
+        section = section.split("### 7. Check for drift", 1)[0]
+        vitals = next(
+            line
+            for line in section.splitlines()
+            if line.startswith("- **Vitals and body measurements.")
+        )
+        self.assertIn("impossible", vitals)
+        self.assertIn("GAPS", vitals)
+
 
 class HedgedDxAnchorsTheRule(unittest.TestCase):
     @classmethod
@@ -72,6 +84,22 @@ class HedgedDxAnchorsTheRule(unittest.TestCase):
 
     def test_the_case_is_no_longer_called_unscored(self):
         self.assertNotIn("Case 1's impossible heart rate is unscored", self.text)
+
+
+class DayBAnchorsTheMedicationStrengthComment(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.text = read(DAY_B)
+
+    def test_case_five_has_a_binary_given_assertion(self):
+        match = re.search(r"^\| G2 \|.*$", self.text, re.MULTILINE)
+        self.assertIsNotNone(match)
+        row = match.group(0)
+        self.assertIn("5 — 68 M", row)
+        self.assertIn("`augmentin 874`", row)
+        self.assertIn("UNKNOWN", row)
+        self.assertIn("FLAG", row)
+        self.assertIn("no structured Medatrax field", row)
 
 
 if __name__ == "__main__":

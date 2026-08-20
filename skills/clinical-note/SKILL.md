@@ -1053,7 +1053,7 @@ One FLAG per finding. Name the finding and name what was not done with it — `B
 **What never goes under GAPS:**
 
 - **Start and end times.** Estimated by design, and they say so where they appear. Estimated is a property of the value, not the absence of one.
-- **Vitals and body measurements.** Filled by design to the value the patient most plausibly had, and declared in FILLED.
+- **Vitals and body measurements.** Filled by design to the value the patient most plausibly had, and declared in FILLED — **except when the encounter supplied an impossible numeric given for a structured field**. That field goes under `GAPS` as unusable; an unusable supplied value is not silence and is never replaced by a filled one.
 - **Any of the eight OLDCARTS elements.** All eight are mandatory and all eight are filled where the shorthand is silent. `Aggravating - not documented` is the same defect written into the note body instead, and it fails the branch template rather than earning a GAPS line.
 - **Age.** Inferred by design where the shorthand and the entry both lack it, and flagged at the top of `FILLED·asserted`.
 - **Any social or allergy slot the branch template enumerates.** All of them are filled where the shorthand is silent, and `Allergies (reaction) - not supplied` is the same defect written into the note body instead. It fails the branch template and drift row 17 rather than earning a GAPS line, exactly as an OLDCARTS element does one bullet up.
