@@ -1049,7 +1049,7 @@ python tools/name_index.py --write    # merge the missing encounters in
 `--layers` prints `ACTIVE` and a name count wherever it is asked for, and **that number was never a statement about coverage while reading as one** — an index three encounters short printed exactly what a complete one printed. The vocabulary could not express it either: `missing_corpus_sources` tests a source's *presence on disk*, so a file that is there and short is `ACTIVE`, and there is no state between *the file exists* and *the file covers the corpus*.
 
 ```
-corpus layer   ACTIVE   -- <n> name(s), <n> date literal(s) from scratch/; <n> of <n> encounters indexed
+corpus layer   ACTIVE   -- <n> name(s), <n> date literal(s) from scratch/; names from <n> of <n> encounters
 ```
 
 **The figures are elided above on purpose.** Every one of them is counted against `scratch/`, nothing committed re-derives any of them, and this file has already carried a stale name count for that reason — [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). Run the command.

@@ -848,10 +848,10 @@ class TheCorpusLayerStatesItsDenominator(unittest.TestCase):
         return "\n".join(ps.layer_report(set(NAMES), set(DATES), False, list(missing), found))
 
     def test_a_complete_index_states_both_numbers(self):
-        self.assertIn("3 of 3 encounters indexed", self.report(3, 3))
+        self.assertIn("names from 3 of 3 encounters", self.report(3, 3))
 
     def test_a_short_index_states_both_numbers(self):
-        self.assertIn("1 of 3 encounters indexed", self.report(1, 3))
+        self.assertIn("names from 1 of 3 encounters", self.report(1, 3))
 
     def test_a_short_index_names_the_shortfall_and_its_remedy(self):
         text = self.report(1, 3)
@@ -877,7 +877,7 @@ class TheCorpusLayerStatesItsDenominator(unittest.TestCase):
         """``day-file-text/`` absent: there is no denominator to have."""
         text = "\n".join(ps.layer_report(set(NAMES), set(DATES), False))
         self.assertIn("ACTIVE", text)
-        self.assertNotIn("encounters indexed", text)
+        self.assertNotIn("names from", text)
 
     def test_it_reports_counts_and_never_an_identifier(self):
         text = self.report(1, 3)

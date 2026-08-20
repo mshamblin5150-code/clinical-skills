@@ -472,9 +472,14 @@ def harvested_names(entries: Sequence[dict]) -> set[str]:
 def name_position_names(entries: Sequence[dict]) -> set[str]:
     """Strings the index itself puts where a name goes.
 
-    ``win[0]`` is the name's own line -- 491 of 548 entries on 2026-08-11 have
-    the ``name`` field there verbatim, which is also why the harvest carried 465
-    case-variant duplicates before #12 pruned them. Everything at ``win[1..3]``
+    ``win[0]`` is the name's own line -- of the 548 entries on **2026-08-11**,
+    491 had the ``name`` field there verbatim, which is also why the harvest
+    carried 465 case-variant duplicates before #12 pruned them. **That
+    denominator has since moved**: #141 gave the index a producer, and running
+    it appends entries. The figures are kept because they are dated rather than
+    current, which is the split-by-tense repair #262 is about -- but do not read
+    them as today's, and see ``corpus_coverage`` for the pair that is.
+    Everything at ``win[1..3]``
     is the shorthand that follows, and a string appearing only there has no
     positional evidence that it is a name at all.
 
@@ -618,7 +623,10 @@ def prune_covered(names: set[str]) -> set[str]:
     *names* -- to the shorter, more likely real one -- and cannot change whether
     the line is refused.
 
-    **Measured 2026-08-11, because the reason is not the one it looks like.**
+    **Measured 2026-08-11, and the denominator has since moved** -- #141's
+    producer appends entries and each one can add harvested strings, so read
+    every figure below as of that date rather than as of today. It is kept
+    because the *ratio* is the argument and no plausible growth touches it.
     Of 1031 harvested strings, 468 are dropped and **465 of those are case
     variants of a name that is kept** -- the harvest holds only 566 distinct
     names case-insensitively, and the corpus layer matches with ``re.I``, so
@@ -936,8 +944,15 @@ def layer_report(
         # a name count says nothing about that. `corpus_coverage` carries why
         # this is declared and never enforced.
         if coverage is not None:
+            # **"names from" is load-bearing and the first version omitted it.**
+            # `corpus_identifiers` builds the two halves from different sources
+            # -- names from `name-index.json`, dates from a direct walk of every
+            # file in `day-file-text/`. A bare fraction at the end of the row
+            # reads as covering both, so the date count would have been audited
+            # by adjacency. #261 is the hole on the date half and this says
+            # nothing about it.
             corpus += (
-                f"; {coverage.covered} of {coverage.encounters} encounters indexed"
+                f"; names from {coverage.covered} of {coverage.encounters} encounters"
             )
     else:
         corpus = "NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED"
