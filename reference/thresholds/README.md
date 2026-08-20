@@ -79,18 +79,37 @@ settling the class.
 # society's recommendation text in full, which is the copyrighted expression this
 # whole format exists to avoid committing, and guidelines_recs.py refuses to write
 # it inside any git checkout.
+# One record per SOURCE, named for the key that source carries in the sheet's
+# `## Sources` table -- `aha-2025` here.
 python tools/guidelines_recs.py \
     "C:/codeing/guidelines-src/AHA ACC/jones-et-al-2025-....pdf" \
     --doc-id "AHA ACC/jones-et-al-2025" \
-    --json C:/codeing/guidelines-index/recs-hypertension.json
+    --json C:/codeing/guidelines-index/recs-aha-2025.json
 
 python tools/threshold_sheet.py reference/thresholds/hypertension.md \
-    --recs C:/codeing/guidelines-index/recs-hypertension.json
+    --recs aha-2025=C:/codeing/guidelines-index/recs-aha-2025.json
 
-# --all resolves recs-<sheet stem>.json from --recs-root, which defaults outside the
-# repo for the same reason. A sheet whose record it cannot find exits 2, never 0.
+# `--recs` is repeatable, once per source. Give it twice for a sheet citing two
+# societies, or leave it off and let `--recs-root` resolve `recs-<source key>.json`
+# for every one of them -- which the command above does too since #177, so a sheet
+# grades the same whichever way it is reached.
+#
+# `--all` resolves from `--recs-root` and takes no `--recs`: a source key is
+# sheet-local, so which sheet's source a record answers for is unknowable across a
+# directory. A sheet where ANY source has no record exits 2, never 0.
 python tools/threshold_sheet.py --all
 ```
+
+**A bare `--recs <path>` is still accepted where the sheet declares exactly one
+source**, and refused where it declares two — because which source it answers for is
+then a guess, and guessing is what
+[#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177) is about.
+
+**The record is matched to the source by the PDF it was built from, not by
+`--doc-id`.** `guidelines_recs.py` writes the PDF's path into the record's `source`
+field, and that is what the grader compares against this table's `document` cell;
+`--doc-id` is free text and the record behind the sheet above carries an abbreviated
+one. A record built from another guideline is **refused** — see the holes below.
 
 Four gates. What each one can see, and what it cannot, is written out in full in
 `tools/threshold_sheet.py`'s docstring rather than summarized here, on
@@ -258,7 +277,7 @@ not left to be discovered:
   is right. A mis-keyed row hides a real conflict by making two rows look like
   different patients.
 - **On a machine without the recommendation records, the hook refuses every edit to a
-  sheet — including a prose typo fix.** `--all` resolves `recs-<stem>.json` under
+  sheet — including a prose typo fix.** `--all` resolves `recs-<source key>.json` under
   `--recs-root`, which defaults outside the repo and is **not committed**, because it
   holds the society's recommendation text in full. Absent, COVERAGE cannot run, `grade`
   returns 2, and `tools/hooks/pre-commit` turns any non-zero into a refusal. So a fresh
@@ -324,8 +343,11 @@ not left to be discovered:
   be read off the rendered page."* **This ticket widened the exposure rather than
   narrowing it** — boilerplate stripping went from 554,372 characters to **921,093**
   under the new reader, across 167 of 179 documents, so there is more stripped text
-  that could have been interleaved, not less. **#100 widened it again**, by 32,995
-  characters and 2,649 lines across a further 27 documents, for 954,088 together. The
+  that could have been interleaved, not less. **#100 widened it again**, by 42,272
+  characters and 2,688 lines across a further 27 documents, for 963,365 together --
+  **9,277 of which is [#178](https://github.com/mshamblin5150-code/clinical-skills/issues/178)**,
+  which fixed the KDIGO transplant footer's spacing and so let the margin rule see a
+  running head it had never been able to match. The
   `RENDERED:` marker gives a row a way to *declare* it was read off the page; nothing
   yet *detects* that it should have been.
   ([#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174) holds this
@@ -334,9 +356,11 @@ not left to be discovered:
   exact strings stripped per document, so this is a comparison against a recorded
   list". Still true, and the list is split: `boilerplate` holds what the literal rule
   took and `margin_stripped` holds what #100's margin rule took. A detector reading
-  only `boilerplate` misses 2,649 lines across 27 documents and reports a clean gate.
-  The two documents that matter most lose a **welded running head** rather than a
-  folio — `GOLD/GOLD-REPORT-2026` and `IDSA/ciw670` — and prose is what interleaves.
+  only `boilerplate` misses 2,688 lines across 27 documents and reports a clean gate.
+  The three documents that matter most lose a **welded running head** rather than a
+  folio — `GOLD/GOLD-REPORT-2026`, `IDSA/ciw670` and, since #178,
+  `KDIGO/KDIGO-2009-Transplant-Recipient-Guideline-English` — and prose is what
+  interleaves.
 - **Gate 5, the second independent read, was not built.** #83 describes it as the only
   mechanism that catches *misreading* rather than *miscitation*, and says in the same
   breath that its weakness is correlated error — same model, same PDF, same mangling,
@@ -349,8 +373,19 @@ not left to be discovered:
   genuinely different code paths over different structures, and they did catch a
   planted defect. But both are PyMuPDF, so **a mis-extraction at the library level is
   invisible to tier 2** — it would corrupt the snippet and the page identically.
-- **COVERAGE reads one recommendation record per sheet.** A sheet citing two societies
-  gets omission checked against whichever record `--recs` names and silently not
-  against the other. The one sheet that exists has one source; a second source is the
-  point at which this has to change, and the count printed as "source(s) had no
-  recommendation record" cannot currently exceed 1.
+- **COVERAGE read one recommendation record per sheet until
+  [#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177).** A sheet
+  citing two societies got omission checked against whichever record `--recs` named and
+  silently not against the other, and the count that would have surfaced it was derived
+  from *was there a record at all*, so it could not exceed 1 however many sources went
+  unchecked. It is per source now — `known` filtered to the rows citing that source, the
+  mode cross-check and the class check reading each source's own record, a real count of
+  the sources with no record, and exit 2 where **any** of them lacks one. **Fixed on 2026-08-19, while
+  one sheet with one source existed, which is the only reason it had cost nothing**:
+  #83 decision 3 makes multi-source the normal case.
+- **What that fix newly makes possible is a record bound to the wrong source**, because
+  the lookup is keyed on a source key that is *sheet-local* — two sheets using `aha` for
+  different guidelines resolve one `recs-aha.json`. The record names the PDF it was
+  built from and the Sources table names the same file, so a mismatch is **refused**;
+  the comparison is on the filename alone, since where the corpus was mounted when the
+  record was built is not a finding. A record carrying no `source` field claims nothing.
