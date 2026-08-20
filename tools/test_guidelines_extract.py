@@ -1479,7 +1479,14 @@ class DocumentClass(unittest.TestCase):
 
 
 class OutputStaysOutOfTheRepo(unittest.TestCase):
-    """Six worktrees are live. Anything written inside one is copied into all of them."""
+    """Anything written inside a worktree is copied into all of them.
+
+    **How many are live is deliberately not stated**, on #143's terms: it moves
+    on every ``git worktree add`` and nothing re-derives it. This docstring was
+    the *third* copy of that count -- the review found one, the tracker sweep
+    found its twin in ``guidelines_extract.py``, and a sweep agent then found
+    this one, in the third file the same commit had open.
+    """
 
     def test_the_default_output_is_a_sibling_of_the_source(self):
         self.assertEqual(

@@ -17,7 +17,11 @@ of them society-copyrighted. Issue #87 rules on that and is not reopened here.
 defaults to a sibling of the source directory (``guidelines-src`` next door becomes
 ``guidelines-text``). ``reference/`` and ``scratch/`` are both wrong for it for the
 same reason: tracked files are materialized in every worktree and gitignored ones
-are copied into every worktree, and there are six live.
+are copied into every worktree. **How many are live is deliberately not stated** --
+it moves on every ``git worktree add``, nothing re-derives it, and this sentence
+held ``six`` while its twin in ``guidelines_index.py`` held it too and ``CLAUDE.md``
+said twelve. #143, and the argument survives the figure intact: *every* worktree
+gets a copy, so one is one too many.
 
 **Maintainer-only, and that is what buys the dependency.** Everything else in
 ``tools/`` is stdlib. This reads PDFs, so it needs ``pymupdf``, and it runs once per
