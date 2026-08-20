@@ -1,8 +1,8 @@
 """Cover ``differential_scan``'s parser against synthetic notes built in this file.
 
 **That used to be because there was no committed ``clinical-note`` run to test
-against, and since [#162] there is** -- ``fixtures/slot-form-run/``, six notes in
-the mandated slot form, pinned by ``TheCommittedSlotFormRunIsReadable``. The tests
+against, and since [#162] there is** -- ``fixtures/slot-form-run/``, a run in the
+mandated slot form whose size is that set's own to state, pinned by ``TheCommittedSlotFormRunIsReadable``. The tests
 below stay synthetic anyway, on ``test_icd10.py``'s reasoning: a test reading the
 run its own row graded would pass for two reasons, one of them being that the run
 and the scanner are wrong together.
@@ -1075,7 +1075,7 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
             " of NOT_VALIDATED_AGAINST claims more than the tree supports",
         )
 
-    def test_the_two_committed_sets_are_both_refused(self):
+    def test_the_filled_anchor_sets_are_both_still_refused(self):
         """The second row -- the aggregate the docstring's four limbs never state.
 
         Each exit 2 is separately correct and separately documented. What none of
@@ -1092,8 +1092,10 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         aggregate go unstated in the first place.
         """
         self.assertIn("the aggregate of the exit-2 limbs", self.keys())
+        with redirect_stdout(io.StringIO()):
+            readable = ds.main([str(self.FIXTURES / "slot-form-run")])
         self.assertEqual(
-            ds.main([str(self.FIXTURES / "slot-form-run")]),
+            readable,
             0,
             "the committed slot-form run is no longer readable, so the second row's"
             " residue is wrong -- it says most committed directories are refused,"
@@ -1138,8 +1140,8 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
     first option, which is the one that puts real output in front of the parser.
 
     ``fixtures/slot-form-run/`` is a ``clinical-note`` run in the mandated slot
-    form, six notes over six committed shorthand cases, two site names redacted on
-    the way across. Its provenance and that edit are in the set's own README and
+    form over committed shorthand cases, with site names redacted on the way
+    across. Its provenance and that edit are in the set's own README and
     are deliberately not restated here.
 
     **What this class pins is the property the first declared limit is worded
@@ -1175,9 +1177,13 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
         A run edited until the checker complains is material authored to make a
         check pass its own examination. This asserts the honest outcome instead:
         real output, read in full, violating nothing.
+
+        **The exit status is deliberately not re-asserted here.**
+        ``test_the_filled_anchor_sets_are_both_still_refused`` pins it,
+        because that row's wording is what depends on this run being readable; a
+        third copy was in the first draft and is duplication rather than cover.
         """
         self.assertEqual(ds.survey(self.notes()).findings, ())
-        self.assertEqual(ds.main([str(self.RUN)]), 0)
 
     def test_one_displaced_code_fires_the_exit_one_branch(self):
         """**The exit-1 branch on real material**, and the mutation is the point.
@@ -1203,10 +1209,8 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
                 continue
             code = sorted(note.refused)[0]
             for entry in note.entries:
-                candidate = text.replace(
-                    f"- {entry.code}:", f"- {code}:", 1
-                )
-                if candidate != text and f"- {code}:" in candidate:
+                candidate = text.replace(f"- {entry.code}:", f"- {code}:", 1)
+                if candidate != text:
                     mutated = candidate
                     break
             if mutated:
@@ -1221,11 +1225,14 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
             with redirect_stdout(printed):
                 status = ds.main([str(root)])
         self.assertEqual(status, 1, printed.getvalue())
-        self.assertNotIn(
-            "row 22 - refused code in a slot  0",
-            printed.getvalue(),
-            "the run exited 1 without the slot row counting the planted violation",
-        )
+        # **Exactly one**, and the count is what makes this assertion able to fail.
+        # ``assertNotIn("... slot  0")`` was the first version and it cannot: an
+        # exit of 1 already implies a non-zero row, so it was a second mechanism
+        # with no failure of its own -- ``docx_write.py``'s recorded finding, which
+        # is that such a line costs a test rather than adding one. One refusal is
+        # displaced and the control run above is clean, so any other number means
+        # the mutation did more than it claims.
+        self.assertIn("row 22 - refused code in a slot  1", printed.getvalue())
 
 
 class TheSkillsWorkedExamplesPassTheScanner(unittest.TestCase):

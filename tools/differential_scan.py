@@ -289,9 +289,15 @@ NOT_VALIDATED_AGAINST = (
         "and still worth declaring: most of the committed directories a reader "
         "would try are turned away, so checking one limb at a time still yields a "
         "coverage figure this tool has not earned. "
-        "``fixtures/filled-anchor/run-2`` remains the sharp case -- the sole "
-        "committed artifact composed in the required welded shape belongs to "
-        "``icd10-cpt``, and this scanner is aimed elsewhere deliberately.",
+        "``fixtures/filled-anchor/run-2`` remains the sharp case -- a committed "
+        "artifact composed in the required welded shape that belongs to "
+        "``icd10-cpt``, so this scanner is aimed elsewhere deliberately. **It was "
+        "*the* one until ``slot-form-run`` landed, and the first rewrite of this "
+        "row kept the exclusivity while the same commit falsified it** -- the "
+        "declared-limits object overclaiming about the tree it ships in, which is "
+        "the defect #162 already records this rule committing once. Caught by the "
+        "spec axis; the reason-bind cannot see it, because a word like *sole* is "
+        "one the prose surfaces never copy.",
     ),
     (
         "partial coverage inside a run",

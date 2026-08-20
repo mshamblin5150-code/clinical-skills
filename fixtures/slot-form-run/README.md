@@ -33,14 +33,19 @@ Made on #201's branch against base `48ac3ca`, merged as `6934db9` ([PR #210](htt
 
 ## De-identification
 
-**One note named both practicum sites, and no scanner in this repo would have caught it.** `hedged-dx-case-03.md`'s `PRIMARY PAYMENT METHOD` line reasoned from the site rule and named the two sites to do it. Both are now `[SITE-A]` and `[SITE-B]`, on [filled-anchor/notes](../filled-anchor/notes/README.md)' committed mapping — **`[SITE-A]` implies `Self-pay/other`, `[SITE-B]` implies `Medicaid`** — checked against that set before the edit, so the two committed runs cannot disagree about which is which.
+**One note named both practicum sites, and no scanner in this repo would have caught it.** `hedged-dx-case-03.md`'s `PRIMARY PAYMENT METHOD` line reasoned from the site rule and named the two sites to do it. Both are now `[SITE-A]` and `[SITE-B]`.
+
+**Which marker means which site is [filled-anchor/notes](../filled-anchor/notes/README.md)' to say and is deliberately not restated here.** That README states the mapping; this set was checked against it before the edit, so the two committed runs cannot disagree about which is which — and a second copy is exactly what would let them, which is the failure the check was performed to avoid. Restating it one line after citing it would be [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) inside the sentence claiming the opposite, and the first draft of this paragraph did it.
+
+**Authorized and performed 2026-08-20.** The clinician ruled [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s option 1 and named this run as the donor; the edit was made mechanically — a string replacement of two derived names — and the residue was then swept by an instrument rather than by eye: every capitalized phrase in the six notes that appears nowhere in the committed tree was listed and read, and what remains is drug names, exam signs and field labels. **That sweep is not the read-through and does not claim to be.** [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)'s leak was caught by a reader and by no tool, and this one was caught by a tool only because the name happened to be capitalized and unusual; a site written in lower case, or one already appearing in the tree for another reason, is invisible to it.
 
 This is [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)'s finding arriving a second time, from the same direction, on a different skill run: **a generated note's provenance is its whole context, not its prompt.** All six inputs were already de-identified; the generating skill read the account profile in `scratch/` for a payer and had the site names whether or not its encounter input did.
 
-**`phi_scan` returns zero findings over these six, before the edit and after it.** A site name is not a patient name and no shape rule matches one — the hole is listed among that scanner's known limits and it is not fixed by this directory. Recompute both figures rather than trusting this paragraph:
+**`phi_scan` returns zero findings over these six, before the edit and after it.** A site name is not a patient name and no shape rule matches one — the hole is listed among that scanner's known limits and it is not fixed by this directory. Recompute both claims rather than trusting this paragraph — the marker count with the first command, the scanner's silence with the second:
 
 ```bash
 grep -c '\[SITE-A\]\|\[SITE-B\]' fixtures/slot-form-run/*.md
+python tools/phi_scan.py --all
 ```
 
 **Visit date, site and preceptor are `GAPS` in all six**, inherited from inputs that already had them removed; nothing here had a date to strip. Names are `[PT]` under [standing rule 1](../../AGENTS.md). Ages and findings stay, because they are what the run is.
@@ -57,6 +62,18 @@ grep -c '\[SITE-A\]\|\[SITE-B\]' fixtures/slot-form-run/*.md
 **It is not a reference and it is not correct output.** It is what the skill did on one day at one commit. Where a note is wrong, that is a fact about the run.
 
 **It is not a scored set and it has no `assertions.md`.** The rows that graded these six live in [day-a](../day-a/assertions.md), [day-b](../day-b/assertions.md), [hedged-dx](../hedged-dx/assertions.md) and [peds-bp](../peds-bp/assertions.md); this directory is the run record, on [filled-anchor/run-2](../filled-anchor/run-2/README.md)'s arrangement. Adding rows here would score the same run twice under two denominators.
+
+## One note records a scanner result this directory does not produce
+
+`day-a-case-06.md`'s drift row 22 says `differential_scan.py` **was run and reported a row-22 finding it could not attribute**, because the directory held other passes' work. The same directory reports **none** today, and the note is kept as written.
+
+**It is not a scanner regression, checked rather than assumed.** The scanner as it stood at the run's own base commit reports the same thing today's does, and its parser has not moved since [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) landed two days before the run.
+
+**What it is, is a scan of a directory that no longer existed when the run finished.** Six passes wrote into one directory concurrently; a pass that scanned partway through read whatever the others had committed to disk at that moment, and at least one of them was still short of its final shape. So the note's row 22 is a true report about an **intermediate** state and a false one about the run as delivered — and the note says so itself, in the clause about not being able to attribute the finding.
+
+**That is `CLAUDE.md`'s `guidelines-text` finding on a smaller path**: a shared output directory with several writers and no lock returns whatever ran last, and a figure taken from one reads exactly like a figure taken from the finished thing. **The transferable rule is that a fan-out's own passes must not scan the shared directory**, only their own file — which is what `filled-anchor/run-2`'s audit records several passes doing and flags for the same reason.
+
+**Do not correct the note.** Byte-for-byte apart from a recorded redaction is the property that makes a run worth keeping, and a row rewritten to agree with a later measurement is a record edited to match its own checker.
 
 **A clean scan is not a walked row.** `differential_scan.py` settles whether a refused code sits in a slot. Whether a label is what its descriptor says — row 22 proper — is a reading, and paraphrase is permitted. Nothing here has walked that.
 
