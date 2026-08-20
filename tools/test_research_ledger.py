@@ -24,12 +24,14 @@ from __future__ import annotations
 import ast
 import inspect
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
+import docx_write
 import research_ledger as ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -1050,6 +1052,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # a sentence in the skill fails here rather than quietly becoming a rule only
     # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
     ROW_PHRASES = {
+        ledger.UNRESEARCHED_PRESCRIPTION: "a drug in an Rx table that no claim record names",
+        ledger.DOSE_NOT_CLAIMED: "an order stating a dose whose claim record states no number",
+        ledger.UNREADABLE_DRUG_ROW: "a prescription table with no readable drug row",
         ledger.MISSING_FIELD: "a field missing or empty",
         ledger.UNKNOWN_STATUS: "a `STATUS` that is neither word",
         ledger.BARE_STATUS: "an `unsourced` with nothing said about what was searched",
@@ -1228,6 +1233,22 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
     def test_the_recency_helper_holds_every_215_row_and_nothing_else(self):
         self.assertEqual(self._kinds_constructed_in("_recency_findings"), self._rows_for("#215"))
 
+    def test_the_draft_grader_holds_every_289_row_and_nothing_else(self):
+        """#289's rows read the draft rather than a record, so they are the one
+        group here that could not have gone into a record helper. Pinned in both
+        directions for the class's own reason: a #214 row appended inside
+        ``prescription_findings`` would be graded only where ``--draft`` was
+        given, which is a row that runs sometimes and reads as one that runs."""
+        self.assertEqual(
+            self._kinds_constructed_in("prescription_findings"), self._rows_for("#289")
+        )
+
+    def test_the_rows_the_report_calls_not_graded_are_exactly_the_draft_rows(self):
+        """``DRAFT_ROWS`` is what ``format_report`` prints *not graded* off, and
+        ``ROW_TICKET`` is what a reader is sent to #289 by. Two lists of one set,
+        which is the drift #220 was filed over -- so one asserts the other."""
+        self.assertEqual(set(ledger.DRAFT_ROWS), self._rows_for("#289"))
+
     def test_the_branching_helper_holds_only_the_rows_the_branch_decides(self):
         """``record_findings`` keeps the two rows no helper can own: a claim with
         no text, and a status the branch below cannot read."""
@@ -1242,11 +1263,16 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         "_contract_findings",
         "_recency_findings",
         "_citation_findings",
+        # #289's, and the only one that is not handed a ``Record``. The count in
+        # the name below is deliberately gone: it read *five* while the tuple
+        # held six for the length of one edit, which is #143 at the shortest
+        # range this file has caught it at.
+        "prescription_findings",
     )
 
-    def test_every_row_is_built_in_one_of_the_five(self):
+    def test_every_row_is_built_in_one_of_the_graders(self):
         """Without this the partitions above are claims about the functions they
-        happened to name, and a sixth grader could hold rows none of them see."""
+        happened to name, and a further grader could hold rows none of them see."""
         built: set[str] = set()
         for name in self.OWNERS:
             built |= self._kinds_constructed_in(name)
@@ -1332,9 +1358,9 @@ class ExactlyTwoRowsAreMeasuredAgainstTheDate(unittest.TestCase):
         against no date at all, which is why ``_contract_findings`` takes none."""
         takes = {
             name
-            for name in ("_unsourced_findings", "_contract_findings", "_recency_findings", "_citation_findings")
+            for name in TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings.OWNERS
             if "as_of" in inspect.signature(getattr(ledger, name)).parameters
-        }
+        } - {"record_findings"}
         self.assertEqual(takes, {"_recency_findings", "_citation_findings"})
 
 
@@ -1494,6 +1520,731 @@ class TheDoiBranchOfTheLocatorMatchesAPageRange(unittest.TestCase):
         doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         self.assertIn(self.LIMIT, doc)
         self.assertIn(self.TICKET, doc)
+
+
+# --- #289: the draft's prescriptions against the ledger -----------------------
+
+
+def rx_table(order: str, disp: str = "QS", sig: str = "Infuse one gram daily for infection.") -> str:
+    """One prescription table in ``style.md`` section 8's six-row form.
+
+    Written out in full rather than assembled from the drug row alone, because the
+    parser keys on the ``Disp:``/``Sig:`` pair and a fixture omitting one would be
+    testing a shape no run writes.
+
+    **Three columns, and it was one until the merge that brought #293 in.** That
+    ticket rebuilt this table -- row 1 carries three cells, the middle rows declare
+    one and span, and the last declares two -- and every test in this file stayed
+    green against the retired form, because a fixture is only ever the shape its
+    author last looked at. ``TheDocumentedTableIsStillReadable`` below is what makes
+    that a failure rather than a quiet drift, and it is why this docstring's own
+    claim is not the guarantee.
+    """
+    return "\n".join(
+        [
+            "| | | |",
+            "| --- | --- | --- |",
+            "| `<patient>` | `DOB x-x-xxx` | `NPI # 0000000000` |",
+            f"| `{order}` |",
+            f"| `Disp: {disp}` |",
+            f"| `Sig: {sig}` |",
+            "| `<name> FNP-C, CEN, TCRN` |",
+            "| `Refill: none` | `DEA number on file with pharmacy` |",
+            "",
+        ]
+    )
+
+
+def a_drug_claim(claim: str) -> str:
+    """A clean record whose claim heading is ``claim``."""
+    lines = CLEAN.splitlines()
+    lines[0] = f"## CLAIM: {claim}"
+    return "\n".join(lines) + "\n"
+
+
+CEFTRIAXONE = "ceftriaxone 1 g IV q24h x 14 days"
+CEFTRIAXONE_CLAIM = (
+    "Ceftriaxone 1 g intravenously every 24 hours is the recommended parenteral"
+    " regimen for pelvic inflammatory disease in pregnancy."
+)
+HEADLESS = "| |\n| --- |\n| `Disp: QS` |\n| `Sig: take one for pain.` |\n"
+
+
+def rx_kinds(draft: str, *records: str) -> list[str]:
+    """The prescription findings one draft and one ledger produce."""
+    parsed = ledger.read_records(ledger_text(*records)) if records else []
+    return [
+        f.kind for f in ledger.prescription_findings(ledger.read_prescriptions(draft), parsed)
+    ]
+
+
+class ADrugRowIsReadOffTheDispSigPair(unittest.TestCase):
+    """The parser's own seam, before any row grades anything.
+
+    **Two anchors and never a row position.** ``differential_scan``'s first
+    version read a refusal by position and failed in both directions at once, and
+    the repair was a welded pair. A prescription table is the one place in a case
+    study where ``Disp:`` and ``Sig:`` co-occur, and the drug row is the row above
+    ``Disp:`` -- so the position is read relative to an anchor rather than counted
+    from the top of a table whose header rows a run may or may not write.
+    """
+
+    def test_one_table_yields_one_drug_row(self):
+        found = ledger.read_prescriptions(rx_table(CEFTRIAXONE))
+        self.assertEqual([rx.drug for rx in found], ["ceftriaxone"])
+
+    def test_the_drug_is_the_leading_token_and_the_rest_is_the_order(self):
+        rx = ledger.read_prescriptions(rx_table(CEFTRIAXONE))[0]
+        self.assertEqual(rx.drug, "ceftriaxone")
+        self.assertEqual(rx.order, CEFTRIAXONE)
+        self.assertTrue(rx.states_a_dose)
+
+    def test_a_markdown_table_that_is_not_a_prescription_is_not_read(self):
+        """A case study is full of tables -- the differential, the MDM, the
+        faculty's questions. Only the pair makes one a prescription."""
+        other = "| Differential | Discriminator |\n| --- | --- |\n| Appendicitis | RLQ pain |\n"
+        self.assertEqual(ledger.read_prescriptions(other), [])
+
+    def test_two_tables_yield_two_drug_rows(self):
+        text = (
+            rx_table(CEFTRIAXONE)
+            + "\nSome prose between them.\n\n"
+            + rx_table("metronidazole 500 mg PO q12h x 14 days")
+        )
+        self.assertEqual(
+            [rx.drug for rx in ledger.read_prescriptions(text)],
+            ["ceftriaxone", "metronidazole"],
+        )
+
+    def test_a_row_with_no_digit_states_no_dose(self):
+        """``prenatal vitamin one tablet PO daily`` spells its number out, and the
+        row asking for a quantified claim is not asked of it -- which is
+        ``NUMERIC_CLAIM_UNQUANTIFIED``'s *a claim with no number is not asked for
+        one*, one artifact over."""
+        rx = ledger.read_prescriptions(rx_table("prenatal vitamin one tablet PO daily"))[0]
+        self.assertFalse(rx.states_a_dose)
+
+    def test_a_table_carrying_disp_and_no_sig_is_not_a_prescription(self):
+        half = "| |\n| --- |\n| `ceftriaxone 1 g IV q24h` |\n| `Disp: QS` |\n"
+        self.assertEqual(ledger.read_prescriptions(half), [])
+
+    def test_a_prescription_table_with_nothing_above_disp_reads_no_drug(self):
+        """The row exists so a table the parser cannot read is a finding rather
+        than a table it silently drops -- the partial-coverage-reading-as-complete
+        shape ``differential_scan`` was given its exit-2 limb for."""
+        self.assertEqual([rx.drug for rx in ledger.read_prescriptions(HEADLESS)], [""])
+
+
+class AContinuedHomeMedicationDeclaresItself(unittest.TestCase):
+    """The clinician's ruling of 2026-08-19 on #289's decision 1: a record is
+    required for every drug the run chose a number for, and a home medication
+    continued unchanged at the patient's own dose is not one of them.
+
+    **It fails closed, and that is the whole safety of the rule.** The grader
+    never infers *new*; the exemption is a declaration the run has to write. A
+    drug row that says nothing is graded, so the direction a lazy run drifts in is
+    toward being asked for a record rather than away from it -- which is
+    ``guidelines_catalog --draft``'s *a guessed answer here is worse than a blank
+    one* arriving at a prescription.
+    """
+
+    CONTINUED = "Continued home medication: prenatal vitamin one tablet PO daily"
+
+    def test_the_declaration_exempts_the_row(self):
+        rx = ledger.read_prescriptions(rx_table(self.CONTINUED))[0]
+        self.assertTrue(rx.exempt)
+        self.assertEqual(rx.drug, "prenatal")
+
+    def test_an_undeclared_row_is_graded(self):
+        rx = ledger.read_prescriptions(rx_table("prenatal vitamin one tablet PO daily"))[0]
+        self.assertFalse(rx.exempt)
+
+    def test_a_delayed_order_is_stripped_and_still_graded(self):
+        """``style.md`` section 8's other declaration. A delayed order is a dose
+        the run chose that has not started yet, so it is the one declaration that
+        strips without exempting."""
+        rx = ledger.read_prescriptions(
+            rx_table("Delayed order: metformin 500 mg PO BID, hold until the AKI resolves")
+        )[0]
+        self.assertEqual(rx.drug, "metformin")
+        self.assertFalse(rx.exempt)
+        self.assertTrue(rx.states_a_dose)
+
+    def test_the_declaration_is_matched_whatever_its_case(self):
+        rx = ledger.read_prescriptions(rx_table(self.CONTINUED.lower()))[0]
+        self.assertTrue(rx.exempt)
+
+    def test_a_word_merely_opening_with_the_declaration_is_not_one(self):
+        """``keyword_of``'s #253 boundary arriving at the declarations. Without it
+        a drug row is exempted by a prefix of the exemption, which is the silent
+        pass that ticket was filed over."""
+        rx = ledger.read_prescriptions(
+            rx_table("Continued home medications reviewed: aspirin 81 mg PO daily")
+        )[0]
+        self.assertFalse(rx.exempt)
+
+
+class EveryPrescribedDrugHasAClaimRecord(unittest.TestCase):
+    """#289's expected set. ``research_ledger`` has no expected count of its own
+    and says so, so a ledger holding six records where seven claims went out
+    grades clean; the draft is where the seventh becomes visible.
+
+    That is ``checks_ledger``'s arrangement -- an expected set the grader can
+    report a *missing* member of -- with the set derived from the document the run
+    wrote rather than from a table in this module.
+    """
+
+    def test_a_drug_with_a_record_naming_it_passes(self):
+        self.assertEqual(rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim(CEFTRIAXONE_CLAIM)), [])
+
+    def test_a_drug_no_record_names_is_the_ticket_itself(self):
+        """The Module 1 submission verbatim: a ledger whose records sourced the
+        *disposition* -- pregnancy as an indication for admission and intravenous
+        therapy -- beside a table ordering a specific dose."""
+        found = rx_kinds(
+            rx_table(CEFTRIAXONE),
+            a_drug_claim(
+                "Pregnancy is an indication for inpatient management of pelvic"
+                " inflammatory disease with intravenous therapy."
+            ),
+        )
+        self.assertEqual(found, [ledger.UNRESEARCHED_PRESCRIPTION])
+
+    def test_an_exempt_row_is_never_asked_for_one(self):
+        found = rx_kinds(
+            rx_table("Continued home medication: prenatal vitamin one tablet PO daily"),
+            a_drug_claim(CEFTRIAXONE_CLAIM),
+        )
+        self.assertEqual(found, [])
+
+    def test_an_unreadable_drug_row_is_a_finding_and_not_a_silent_drop(self):
+        self.assertEqual(rx_kinds(HEADLESS), [ledger.UNREADABLE_DRUG_ROW])
+
+    def test_the_match_is_a_word_and_not_a_prefix(self):
+        """``cefazolin`` must not be answered by a record about ``ceftriaxone``,
+        and ``ceftriaxone`` must be answerable by a record naming it
+        mid-sentence -- which is why the row is a word boundary."""
+        found = rx_kinds(rx_table("cefazolin 2 g IV q8h"), a_drug_claim(CEFTRIAXONE_CLAIM))
+        self.assertEqual(found, [ledger.UNRESEARCHED_PRESCRIPTION])
+
+    def test_the_match_ignores_case(self):
+        found = rx_kinds(rx_table("Ceftriaxone 1 g IV q24h"), a_drug_claim(CEFTRIAXONE_CLAIM))
+        self.assertEqual(found, [])
+
+    def test_seven_tables_and_three_declared_leaves_four_graded(self):
+        """The ticket's own arithmetic, and the clinician's ruling read back off
+        the parser: seven tables, three continued home medications, four records
+        required."""
+        draft = "".join(
+            [
+                rx_table(CEFTRIAXONE),
+                rx_table("metronidazole 500 mg PO q12h"),
+                rx_table("azithromycin 1 g PO once"),
+                rx_table("Delayed order: metformin 500 mg PO BID, hold until the AKI resolves"),
+            ]
+            + [
+                rx_table(f"Continued home medication: drug{n} one tablet PO daily")
+                for n in range(3)
+            ]
+        )
+        found = ledger.read_prescriptions(draft)
+        self.assertEqual(len(found), 7)
+        self.assertEqual(sum(1 for rx in found if rx.exempt), 3)
+        self.assertEqual(len(rx_kinds(draft)), 4)
+
+
+class AClaimForADosedDrugCarriesTheNumber(unittest.TestCase):
+    """The chain the row exists for, and it is one link rather than a new check.
+
+    A record naming the drug is not yet a record that sourced the *dose* -- and
+    the one form of that a string test reaches is whether the claim was asked
+    numerically at all. Where it was, ``NUMERIC_CLAIM_UNQUANTIFIED`` already
+    forces the restatement to answer with a number. So the two rows compose into
+    *the table's dose reaches a source*, which is as far as offline grading goes.
+    """
+
+    def test_a_dosed_row_answered_by_a_claim_with_no_number(self):
+        found = rx_kinds(
+            rx_table(CEFTRIAXONE),
+            a_drug_claim("Ceftriaxone is first-line for pelvic inflammatory disease."),
+        )
+        self.assertEqual(found, [ledger.DOSE_NOT_CLAIMED])
+
+    def test_a_dosed_row_answered_by_a_numeric_claim_passes(self):
+        self.assertEqual(rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim(CEFTRIAXONE_CLAIM)), [])
+
+    def test_an_undosed_row_is_not_asked_for_a_number(self):
+        found = rx_kinds(
+            rx_table("prenatal vitamin one tablet PO daily"),
+            a_drug_claim("A prenatal vitamin is continued unchanged through pregnancy."),
+        )
+        self.assertEqual(found, [])
+
+    def test_any_one_naming_record_carrying_a_number_answers_the_row(self):
+        """Two records may split the drug between them -- one on the indication,
+        one on the dose -- and the row asks the set rather than the first match."""
+        found = rx_kinds(
+            rx_table(CEFTRIAXONE),
+            a_drug_claim("Ceftriaxone is first-line for pelvic inflammatory disease."),
+            a_drug_claim(CEFTRIAXONE_CLAIM),
+        )
+        self.assertEqual(found, [])
+
+    def test_the_row_never_compares_the_numbers(self):
+        """**The prohibition #289 closes with.** A dose depends on indication,
+        weight, renal function, pregnancy and route, and a row refusing a correct
+        dose for the wrong reason is #215's defect a fourth time. The reachable
+        property is whether the dose was sourced, never whether it is right -- so
+        a claim carrying a *different* number passes this row.
+        """
+        found = rx_kinds(
+            rx_table(CEFTRIAXONE),
+            a_drug_claim(
+                "Ceftriaxone 250 mg intramuscularly once is the regimen for uncomplicated"
+                " gonococcal infection."
+            ),
+        )
+        self.assertEqual(found, [])
+
+
+class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
+    """#289 at the command, where the coverage claim is made.
+
+    **A zero beside a row that never ran is the whole defect this ticket is
+    about**, one level up: the run cited a topic its own ledger recorded as
+    unavailable, and three commands exited 0 over it. So the report never prints
+    a zero for a row ``--draft`` did not switch on -- #258's ruling, arriving at
+    the one grader in this directory that reads two files.
+    """
+
+    def _run(self, ledger_body: str, draft: str | None, *flags: str) -> tuple[int, str, str]:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "case-study-claims.md"
+            path.write_text(ledger_body, encoding="utf-8")
+            argv = [str(path), *flags]
+            if draft is not None:
+                draft_path = Path(temp) / "draft.md"
+                draft_path.write_text(draft, encoding="utf-8")
+                argv += ["--draft", str(draft_path)]
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = ledger.main(argv)
+            return status, out.getvalue(), err.getvalue()
+
+    def test_without_the_flag_the_three_rows_read_not_graded(self):
+        status, out, _ = self._run(ledger_text(CLEAN), None)
+        self.assertEqual(status, 0)
+        for kind in ledger.DRAFT_ROWS:
+            with self.subTest(row=kind):
+                line = next(l for l in out.splitlines() if kind in l)
+                self.assertIn("not graded", line)
+
+    def test_without_the_flag_the_coverage_line_says_why(self):
+        """The one line a reader takes the clean exit's width from."""
+        _, out, _ = self._run(ledger_text(CLEAN), None)
+        self.assertIn("prescription drug rows", out)
+        self.assertIn("no --draft was given", out)
+
+    def test_with_the_flag_the_rows_carry_counts(self):
+        """**Keyed on the row lines and not on the whole report**, because the
+        coverage block below carries its own ``(not graded)`` qualifier and an
+        earlier version of this asserted the string was absent from the page --
+        which made a true claim about the rows by asserting a false one about the
+        report."""
+        _, out, _ = self._run(ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE))
+        for kind in ledger.DRAFT_ROWS:
+            with self.subTest(row=kind):
+                self.assertNotIn("not graded", next(l for l in out.splitlines() if kind in l))
+        self.assertIn("prescription drug rows           1", out)
+        self.assertIn("continued unchanged, exempt    0", out)
+        self.assertIn("needing a claim record         1", out)
+
+    def test_a_half_anchored_table_is_counted_on_the_page(self):
+        """#204's shape in a second tool: a draft whose Rx tables are mixed reads
+        a subset, grades it, and prints the shrunken count. The exit-2 limb
+        covers *no* table and never a short read, so the coverage line is what
+        makes a partial read visible."""
+        deviant = rx_table("metronidazole 500 mg PO q12h").replace("Disp: QS", "Dispense: QS")
+        # A blank line between them, because two table blocks written flush are
+        # one table in Markdown and one run to this parser -- which is correct,
+        # and which made the first version of this test measure nothing.
+        _, out, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)),
+            rx_table(CEFTRIAXONE) + "\n" + deviant,
+        )
+        self.assertIn("prescription drug rows           1", out)
+        self.assertIn("tables read with one anchor    1", out)
+
+    def test_a_whole_table_is_not_counted_as_half_anchored(self):
+        """The instrument, live. Without this the line above could read 1 for a
+        clean draft and prove nothing."""
+        _, out, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE)
+        )
+        self.assertIn("tables read with one anchor    0", out)
+
+    def test_the_line_prints_on_every_graded_run(self):
+        """#258's reasoning: a reader who has learned to read the qualifier takes
+        its absence as the stronger claim."""
+        _, clean, _ = self._run(ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE))
+        self.assertIn("tables read with one anchor", clean)
+
+    def test_a_short_read_is_outside_the_exit_status_and_says_so(self):
+        """``block_scan``'s arrangement for a reading rather than a violation. A
+        table carrying one anchor is *probably* a malformed prescription and this
+        cannot know it is one, and #204's own question -- whether a short read may
+        refuse -- is unruled."""
+        deviant = rx_table("metronidazole 500 mg PO q12h").replace("Disp: QS", "Dispense: QS")
+        status, out, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)),
+            rx_table(CEFTRIAXONE) + "\n" + deviant,
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("(not graded)", out)
+
+    def test_a_sourced_prescription_exits_zero(self):
+        status, _, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE)
+        )
+        self.assertEqual(status, 0)
+
+    def test_a_prescription_no_record_names_exits_one(self):
+        """The ticket, end to end: a well-formed ledger, a clean reference list,
+        and a dose nobody sourced."""
+        status, _, err = self._run(
+            ledger_text(a_drug_claim("Pregnancy is an indication for inpatient management.")),
+            rx_table(CEFTRIAXONE),
+        )
+        self.assertEqual(status, 1)
+        self.assertIn("reach no claim record", " ".join(err.split()))
+
+    def test_the_failure_line_names_no_drug(self):
+        """Counts only by default, on this module's own terms: a drug attached to
+        an encounter is a patient's medication. The drug is in ``--show``, and
+        ``--show`` output is PHI."""
+        _, out, err = self._run(
+            ledger_text(a_drug_claim("Pregnancy is an indication for inpatient management.")),
+            rx_table(CEFTRIAXONE),
+        )
+        self.assertNotIn("ceftriaxone", out + err)
+
+    def test_show_names_it(self):
+        _, out, _ = self._run(
+            ledger_text(a_drug_claim("Pregnancy is an indication for inpatient management.")),
+            rx_table(CEFTRIAXONE),
+            "--show",
+        )
+        self.assertIn("ceftriaxone", out)
+
+    def test_a_draft_with_no_prescription_table_exits_two(self):
+        """``differential_scan``'s reasoning. A draft whose prescriptions are
+        written in a shape this parser does not read would otherwise report three
+        zeros and read as a document whose every dose reaches a record."""
+        status, _, err = self._run(ledger_text(CLEAN), "# A draft\n\nProse and no tables.\n")
+        self.assertEqual(status, 2)
+        self.assertIn("no prescription table found", err)
+
+    def test_a_prescription_finding_outranks_a_missing_date_header(self):
+        """``differential_scan``'s ordering, and the pair that can actually
+        co-occur: an unreadable draft yields no findings at all, so the limb a
+        prescription finding has to outrank is the dateless ledger. The banner
+        prints beside it, so the exit 1 reads as a floor."""
+        status, _, err = self._run(
+            ledger_text(a_drug_claim("Pregnancy is an indication for inpatient management."), stamp=""),
+            rx_table(CEFTRIAXONE),
+        )
+        self.assertEqual(status, 1)
+        self.assertIn("carries no DATE:", err)
+
+    def test_a_missing_draft_file_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "case-study-claims.md"
+            path.write_text(ledger_text(CLEAN), encoding="utf-8")
+            err = io.StringIO()
+            with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                status = ledger.main([str(path), "--draft", str(Path(temp) / "gone.md")])
+        self.assertEqual(status, 2)
+        self.assertIn("no draft file named", err.getvalue())
+
+    def test_the_flag_with_no_value_is_usage_and_not_a_silent_skip(self):
+        """``--draft`` swallowing the next argument, or being dropped, are the two
+        ways a run believes it graded its prescriptions and did not."""
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "case-study-claims.md"
+            path.write_text(ledger_text(CLEAN), encoding="utf-8")
+            err = io.StringIO()
+            with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                status = ledger.main([str(path), "--draft"])
+        self.assertEqual(status, 2)
+        self.assertIn("usage:", err.getvalue())
+
+    def test_the_ledger_path_is_not_eaten_by_the_flag(self):
+        """The one-line ``[a for a in argv if not a.startswith("--")]`` filter this
+        replaced would have read the draft's path as a second positional and, with
+        the flag written first, the draft as the ledger."""
+        args, draft, show = ledger.read_arguments(["--draft", "d.md", "ledger.md", "--show"])
+        self.assertEqual((args, draft, show), (["ledger.md"], "d.md", True))
+
+    def test_the_equals_spelling_is_read_too(self):
+        args, draft, _ = ledger.read_arguments(["ledger.md", "--draft=d.md"])
+        self.assertEqual((args, draft), (["ledger.md"], "d.md"))
+
+    def test_a_following_flag_is_a_missing_value_and_not_a_path(self):
+        """``--draft --show`` gave two wrong answers at once before the standards
+        axis of `/code-review` priced it: it reported *no draft file named
+        --show*, which is a claim about a path nobody wrote, and it swallowed
+        ``--show`` so the findings could not be read either."""
+        args, draft, show = ledger.read_arguments(["ledger.md", "--draft", "--show"])
+        self.assertEqual((args, draft, show), (["ledger.md"], "", True))
+
+    def test_an_absent_flag_is_none_and_not_an_empty_string(self):
+        """Two different mistakes, and only one of them is a run that graded no
+        prescriptions on purpose."""
+        self.assertIsNone(ledger.read_arguments(["ledger.md"])[1])
+        self.assertEqual(ledger.read_arguments(["ledger.md", "--draft"])[1], "")
+
+
+class TheDocumentedTableIsStillReadable(unittest.TestCase):
+    """Run the parser over `style.md` §8's own table, not over a fixture.
+
+    **This class exists because the fixture went stale inside one merge.** #293
+    rebuilt that table from one column to three while this branch was open, every
+    test in this file stayed green against the retired form, and the only thing
+    that caught it was reading the merged section by hand. That is
+    [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the
+    merge is the unguarded moment* arriving on a **fixture** -- where no assertion
+    can see it, because a fixture is only ever the shape its author last looked
+    at.
+
+    So the assertion is against the file a run copies, on
+    ``TheSkillSaysWhatThisChecks``'s reasoning one artifact over: a documented
+    table this parser cannot read teaches the next run to write prescriptions
+    ``--draft`` reports as unreadable, and every substring test here would still
+    be green.
+
+    **What it asserts is structural and never the drug**, because the documented
+    row is a template: ``<drug> <dose> <route> <frequency>`` is a placeholder and
+    the parser rightly reads no drug out of it. What has to hold is that the
+    ``Disp:``/``Sig:`` pair is found and that the row above ``Disp:`` is the one
+    the drug would be in.
+    """
+
+    STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+
+    @classmethod
+    def setUpClass(cls):
+        text = cls.STYLE.read_text(encoding="utf-8")
+        opened = text.index("## 8. Rx")
+        cls.section = text[opened : text.index("\n## ", opened + 1)]
+
+    def test_the_documented_table_reads_as_one_prescription(self):
+        found = ledger.read_prescriptions(self.section)
+        self.assertEqual(len(found), 1, "style.md section 8's table is not read as a prescription")
+
+    def test_the_row_above_disp_is_the_one_the_drug_goes_in(self):
+        """The template's placeholder is not a drug, and the order it lands in is
+        what says the parser found the right row rather than the patient row
+        above it or the ``Disp:`` row itself."""
+        found = ledger.read_prescriptions(self.section)[0]
+        self.assertIn("<drug>", found.order)
+        self.assertEqual(found.drug, "")
+
+    def test_the_fixture_in_this_file_is_the_documented_shape(self):
+        """**The narrow half, and the one that went stale.** Column counts, row
+        order and the separator row are what the parser walks, so the fixture and
+        the documented table have to agree about them -- and the cells' contents
+        are the fixture's own business, since it fills in a real drug where the
+        table writes a placeholder.
+        """
+        def skeleton(block: str) -> list[int]:
+            return [
+                len(_cells_of(line))
+                for line in block.splitlines()
+                if line.lstrip().startswith("|")
+            ]
+
+        def _cells_of(line: str) -> list[str]:
+            return ledger._cells(line)
+
+        documented = [
+            line for line in self.section.splitlines() if line.lstrip().startswith("|")
+        ]
+        self.assertEqual(
+            skeleton("\n".join(documented)),
+            skeleton(rx_table("ceftriaxone 1 g IV q24h")),
+            "style.md section 8's table and this file's fixture disagree about their shape",
+        )
+
+
+class TheStyleSheetDeclaresWhatTheParserReads(unittest.TestCase):
+    """`style.md` §8 is the file a run copies; this module holds the vocabulary.
+
+    **A scanner holding a different answer than the file a reader opens is worse
+    than none, because it reads as agreement** -- ``test_spelling_scan``'s
+    reasoning, and the arrangement ``checks_ledger`` uses with
+    ``skills/practicum-case-study/SKILL.md`` step 9's table.
+    Both files said *`tools/research_ledger.py --draft` reads both labels off this
+    table* and nothing made that true; the standards axis of `/code-review` found
+    it.
+
+    **Derived in the test rather than at run time**, because a case study run is
+    not a checkout and nothing this module does at run time can open `style.md`.
+
+    **Matched against a whitespace-normalized copy**, because `style.md` hard-wraps
+    and the first version of this class looked for `Continued home medication:`
+    where the sheet writes `Continued home` and `medication:` on two lines. That
+    is ``test_run_record_claim``'s finding exactly -- a search cannot see a phrase
+    broken across a line, and it answers like a settled negative rather than
+    saying it could not look.
+    """
+
+    STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+
+    @classmethod
+    def setUpClass(cls):
+        text = cls.STYLE.read_text(encoding="utf-8")
+        opened = text.index("## 8. Rx")
+        cls.raw = text[opened : text.index(chr(10) + "## ", opened + 1)]
+        cls.section = " ".join(cls.raw.split())
+
+    def test_the_sheet_writes_every_declaration_the_parser_reads(self):
+        for name in ledger.DRUG_ROW_DECLARATIONS:
+            with self.subTest(declaration=name):
+                self.assertIn(f"{name}:".capitalize(), self.section)
+
+    def test_the_sheet_says_which_one_exempts(self):
+        """The asymmetry is the ruling, so the sheet has to carry it: a delayed
+        order is still a dose the run chose."""
+        exempts, grades = ledger.EXEMPT_DECLARATIONS[0], ledger.DELAYED_ORDER
+        self.assertIn(f"{exempts}:".capitalize(), self.section)
+        self.assertIn(f"`{grades.capitalize()}:` exempts nothing", self.section)
+
+    def test_the_wrapping_is_what_this_class_reads_through(self):
+        """The instrument, live. Without it every assertion above is a search that
+        could not have worked answering like a settled negative -- which is this
+        repo's most-recorded shape, and it fired here on the first attempt."""
+        self.assertNotIn(f"{ledger.CONTINUED_HOME}:".capitalize(), self.raw)
+        self.assertIn(f"{ledger.CONTINUED_HOME}:".capitalize(), self.section)
+
+    def test_the_worked_prose_block_cites_no_concrete_source(self):
+        """#289's comment's live finding, pinned so a reword cannot undo it.
+
+        That block modeled `(Workowski et al., 2021)` -- a CDC guideline the
+        evidence dump cross-references and does not carry -- so the example taught
+        citing a source the run had never read. It is a placeholder
+        now, and **a prose edit putting a real citation back would have failed
+        nothing**, which is #220's lesson and why this exists.
+        """
+        text = self.STYLE.read_text(encoding="utf-8")
+        opened = text.index("### The prose block under each table")
+        block = text[opened : text.index(chr(10) + "## ", opened + 1)]
+        quoted = " ".join(
+            line for line in block.splitlines() if line.startswith(">")
+        )
+        self.assertIn("<Author>", quoted, "the worked block lost its placeholder citation")
+        self.assertEqual(
+            re.findall(r"\((?!<)[A-Z][A-Za-z'-]+(?:[^)]*?),\s*(?:19|20)\d{2}[a-z]?\)", quoted),
+            [],
+            "the worked prose block models a concrete in-text citation again",
+        )
+
+
+class TheDoseRowAsksForANumberAndNotForTheNumber(unittest.TestCase):
+    """``UNRESOLVABLE_LOCATOR``'s arrangement, one row over: a limit that is
+    documented and pinned rather than tightened.
+
+    The claim heading is written in the source's own terms **by design** -- this
+    module's own ``NUMERIC_CLAIM_UNQUANTIFIED`` exists because a claim about
+    15,000 cells is rightly answered in ``10^9/L`` -- so a digit test is the widest
+    thing available and a heading carrying a year satisfies it. **It only ever
+    weakens the weaker half of a pair**: the row says *this claim was not asked
+    numerically*, never *this dose is sourced*, and ``UNRESEARCHED_PRESCRIPTION``
+    still asks that a record exist at all.
+    """
+
+    def test_a_year_in_the_heading_satisfies_the_row(self):
+        found = rx_kinds(
+            rx_table(CEFTRIAXONE),
+            a_drug_claim("Ceftriaxone is first-line for pelvic inflammatory disease since 2021."),
+        )
+        self.assertEqual(found, [], "the row is narrower than it is documented to be")
+
+    def test_the_module_writes_the_limit_down(self):
+        """``test_spelling_scan``'s reasoning: a limit a reader cannot find reads
+        as coverage."""
+        source = Path(ledger.__file__).read_text(encoding="utf-8")
+        self.assertIn("asks for a number and cannot ask for *the* number", source)
+
+    def test_the_sibling_row_still_asks_for_the_record(self):
+        """Why it is affordable. A heading with a year and no drug fails the row
+        above this one."""
+        found = rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim("Published in 2021."))
+        self.assertEqual(found, [ledger.UNRESEARCHED_PRESCRIPTION])
+
+
+class OneDrugRowIsOneDrugAndNothingHereMakesThatTrue(unittest.TestCase):
+    """`#300`, documented rather than tightened, on ``UNRESOLVABLE_LOCATOR``'s
+    terms: a limit a reader cannot find reads as coverage.
+
+    **Found by the tracker sweep against `#127`**, whose shape is a count whose
+    denominator the graded run chooses. `style.md` §8 says *one table per drug*
+    and nothing grades it, so a run that welds two orders into one drug row makes
+    the expected set come out right by formatting -- and the second drug's dose,
+    which is exactly the recalled number `#289` was filed over, is invisible to
+    all three rows.
+
+    **Not narrowable here.** Splitting on ``and`` cuts ``normal saline and
+    potassium chloride``, and telling two drugs apart needs a drug vocabulary,
+    which is the table `#289` forbids in as many words.
+    """
+
+    BUNDLED = "doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7 days"
+
+    def test_a_welded_row_is_one_drug(self):
+        found = ledger.read_prescriptions(rx_table(self.BUNDLED))
+        self.assertEqual([rx.drug for rx in found], ["doxycycline"])
+
+    def test_the_second_drugs_dose_is_graded_by_nothing(self):
+        """The finding, stated as a passing assertion so it cannot be mistaken
+        for an oversight. Metronidazole is unsourced and the set is clean."""
+        found = rx_kinds(
+            rx_table(self.BUNDLED),
+            a_drug_claim(
+                "Doxycycline 100 mg twice daily for 7 days is the oral regimen for"
+                " pelvic inflammatory disease."
+            ),
+        )
+        self.assertEqual(found, [])
+
+    def test_the_module_writes_the_limit_down(self):
+        source = Path(ledger.__file__).read_text(encoding="utf-8")
+        self.assertIn("One drug row is one drug, and nothing here makes that true", source)
+        self.assertIn("clinical-skills/issues/300", source)
+
+
+class TheRowSplitIsTheRenderersOwn(unittest.TestCase):
+    """``reference_scan``'s ``REFERENCE_HEADING`` precedent, and it is the same
+    argument: ``docx_write.split_row`` decides where a cell ends in the document a
+    grader reads, so a second reading of one table can put the ``Disp:`` anchor in
+    a different row than the one that renders.
+
+    Restated rather than imported until the standards axis of `/code-review`
+    priced it, and the divergence was live: an escaped pipe splits a cell here
+    and does not there, which is the defect #215's follow-up recorded costing a
+    rendered cell.
+    """
+
+    def test_the_cells_come_from_the_renderer(self):
+        self.assertIs(ledger.split_row, docx_write.split_row)
+
+    def test_an_escaped_pipe_stays_one_cell(self):
+        """The behavioral half. A signature is not enough: ``_cells`` could re-split
+        what ``split_row`` returned."""
+        self.assertEqual(ledger._cells(r"| `ceftriaxone 1 g \| held` |"), ["ceftriaxone 1 g | held"])
+
+    def test_a_drug_row_carrying_an_escaped_pipe_is_still_one_drug(self):
+        found = ledger.read_prescriptions(rx_table(r"ceftriaxone 1 g IV q24h \| pharmacy to verify"))
+        self.assertEqual([rx.drug for rx in found], ["ceftriaxone"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,10 @@ work are both outside this repo.
 
 from __future__ import annotations
 
+import ast
+import contextlib
+import io
+import os
 import re
 import tempfile
 import unittest
@@ -22,6 +26,8 @@ from xml.etree import ElementTree
 
 import docx_read
 import docx_write
+
+SOURCE = Path(__file__).resolve().parent / "docx_write.py"
 
 
 class TheArchiveHasTheRequiredParts(unittest.TestCase):
@@ -548,6 +554,708 @@ class TheRendererClaimsInStepSeven(unittest.TestCase):
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
 
 
+class TheDestinationSurvivesAFailedRender(unittest.TestCase):
+    """#279's fourth mode: a render that raises used to destroy the previous document.
+
+    ``write_docx`` opened ``ZipFile(destination, "w")`` -- truncating -- and built the
+    content *inside* the ``with`` block, so the destination was already empty when
+    ``document_xml`` ran. A good seven-part archive became a six-part one with
+    ``word/document.xml`` absent, which is a file Word declines to open, and ``output/``
+    is gitignored so there is nothing to recover from. **No hand edit is involved and no
+    ``--force`` would have caught it**: the author did intend to write, which is why none
+    of the three signals in the ticket body reaches this mode.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.path = Path(self.directory.name) / "sample.docx"
+        docx_write.write_docx("# Title\n\nThe good document.\n", self.path)
+        self.before = self.path.read_bytes()
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def _render_that_raises(self, markdown="# New\n"):
+        # ``*_`` rather than one parameter, and #293 is why. That branch gave
+        # ``document_xml`` a second argument while this one was being written, so a
+        # one-parameter stub raised ``TypeError`` instead of the ``RuntimeError`` these
+        # tests assert -- the merged tree failed where neither branch's suite could.
+        # #86's *the merge is the unguarded moment*, on a test double.
+        def explode(*_):
+            raise RuntimeError("the render died part way")
+
+        original = docx_write.document_xml
+        docx_write.document_xml = explode
+        try:
+            with self.assertRaises(RuntimeError):
+                docx_write.write_docx(markdown, self.path)
+        finally:
+            docx_write.document_xml = original
+
+    def test_the_previous_document_is_byte_for_byte_intact(self):
+        self._render_that_raises()
+        self.assertEqual(self.path.read_bytes(), self.before)
+
+    def test_the_previous_document_still_reads_back(self):
+        self._render_that_raises()
+        self.assertIn("The good document.", docx_read.read_docx(self.path))
+
+    def test_nothing_part_written_is_left_beside_it(self):
+        """A leftover partial is a file the next reader has to rule on."""
+        self._render_that_raises()
+        siblings = {p.name for p in self.path.parent.iterdir()}
+        self.assertEqual(siblings, {self.path.name})
+
+    def test_the_partial_name_is_unique_per_process(self):
+        """#279's own parenthetical: #276 is why a fixed shared temp name is not enough.
+
+        One writer and one destination here, so per-process is the honest width -- but
+        the name has to carry *something*, and ``guidelines_index.build``'s bare
+        ``.building`` carries nothing.
+        """
+        self.assertIn(str(os.getpid()), docx_write.partial_name(self.path).name)
+
+
+class RefusingToDestroyHandEdits(unittest.TestCase):
+    """#279's subject: the destination is a file a human opens in an editor.
+
+    Ruled by the clinician on 2026-08-19 -- refuse, with ``--force``. This renderer
+    writes a fixed set of parts, so an archive carrying any other set was written by
+    something else.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.source = self.root / "case.md"
+        self.source.write_text("# Fresh\n\nRendered.\n", encoding="utf-8")
+        self.path = self.root / "nur5144-m1-2026-08-19.docx"
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def _foreign(self):
+        """What a Word save leaves: this renderer's parts plus the ones Word adds."""
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in docx_write.parts("# Hand edited\n").items():
+                archive.writestr(name, content)
+            archive.writestr("docProps/core.xml", "<x/>")
+            archive.writestr("word/settings.xml", "<x/>")
+        return self.path.read_bytes()
+
+    def test_a_destination_that_does_not_exist_yet_needs_no_flag(self):
+        docx_write.write_docx("# Fresh\n", self.path)
+        self.assertIn("Fresh", docx_read.read_docx(self.path))
+
+    def test_a_document_this_renderer_wrote_is_overwritten_with_no_flag(self):
+        docx_write.write_docx("# First\n", self.path)
+        docx_write.write_docx("# Second\n", self.path)
+        self.assertIn("Second", docx_read.read_docx(self.path))
+
+    def test_a_word_saved_archive_is_refused(self):
+        before = self._foreign()
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_a_destination_that_is_not_a_zip_at_all_is_refused(self):
+        self.path.write_bytes(b"this is not a docx")
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+        self.assertEqual(self.path.read_bytes(), b"this is not a docx")
+
+    def test_an_archive_missing_one_of_our_parts_is_refused(self):
+        """A truncated archive is not one of ours either, and a set test says so."""
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in list(docx_write.parts("# x\n").items())[:-1]:
+                archive.writestr(name, content)
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_words_lock_file_refuses_even_over_our_own_document(self):
+        docx_write.write_docx("# Ours\n", self.path)
+        (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_the_truncated_lock_name_word_actually_wrote_is_recognized(self):
+        """#279 quotes the pair: ``nur5144-...`` locked by ``~$r5144-...``.
+
+        Word replaces the first two characters rather than prepending on a long name,
+        so both shapes have to be looked for -- read off the ticket's own directory
+        listing rather than off a remembered rule.
+        """
+        docx_write.write_docx("# Ours\n", self.path)
+        (self.root / ("~$" + self.path.name[2:])).write_bytes(b"lock")
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_force_writes_over_a_word_saved_archive(self):
+        self._foreign()
+        docx_write.write_docx("# Forced\n", self.path, force=True)
+        self.assertIn("Forced", docx_read.read_docx(self.path))
+
+    def test_force_writes_past_a_lock_file(self):
+        docx_write.write_docx("# Ours\n", self.path)
+        (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
+        docx_write.write_docx("# Forced\n", self.path, force=True)
+        self.assertIn("Forced", docx_read.read_docx(self.path))
+
+    def test_the_refusal_names_the_flag_that_overrides_it(self):
+        """A refusal that does not say how to proceed is a dead end, not a guard."""
+        self._foreign()
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
+            docx_write.write_docx("# New\n", self.path)
+        self.assertIn("--force", str(caught.exception))
+
+    def test_a_document_from_before_header1_was_a_part_is_refused(self):
+        """The pre-#217 shape, and it is in ``output/case-studies/`` today.
+
+        ``word/header1.xml`` arrived on #217, so every document rendered before that
+        reads as foreign -- correctly, since it *was* written by something other than
+        this renderer, one version back. Kept as its own case rather than folded into
+        the missing-part test above because it is the one the real directory holds.
+        """
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in docx_write.parts("# Older render\n").items():
+                if name != "word/header1.xml":
+                    archive.writestr(name, content)
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_the_part_set_refusal_names_both_causes(self):
+        """A message guessing one cause reads as a diagnosis, and it was wrong first.
+
+        It said ``a Word save, most likely`` and nothing else, which is the wrong guess
+        for the older of the two documents in ``output/case-studies/``. Both causes are
+        pinned so neither can be quietly dropped back out.
+        """
+        self._foreign()
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
+            docx_write.write_docx("# New\n", self.path)
+        message = str(caught.exception)
+        self.assertIn("Word", message)
+        self.assertIn("older version of this renderer", message)
+
+    def test_the_command_line_refusal_is_two_and_writes_nothing(self):
+        before = self._foreign()
+        self.assertEqual(docx_write.main([str(self.source), str(self.path)]), 2)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_the_command_line_takes_the_flag(self):
+        self._foreign()
+        self.assertEqual(docx_write.main([str(self.source), str(self.path), "--force"]), 0)
+        self.assertIn("Rendered.", docx_read.read_docx(self.path))
+
+    def test_the_usage_line_names_the_flag(self):
+        self.assertIn("--force", docx_write.USAGE)
+
+
+@unittest.skipUnless(os.name == "nt", "os.replace over an open file only refuses on Windows")
+class TheDestinationHeldOpen(unittest.TestCase):
+    """``NOT_GUARDED``'s last row, measured rather than described.
+
+    ``refusal`` is a moment and not a lock, so a Word session that opens the document
+    after it returns is a race nothing in this process wins. What the module claims is
+    that the *outcome* of losing that race is safe -- ``os.replace`` fails rather than
+    truncating. That is a claim about Windows, and it was written here unqualified
+    first; on POSIX ``os.replace`` succeeds over an open file and the holder keeps the
+    old inode, so the class skips there rather than asserting something false.
+
+    CI runs ``windows-latest`` -- #86's own reason, that a red run has to mean the
+    maintainer's machine would go red -- so this is exercised where it is true.
+    """
+
+    def test_the_previous_document_survives_and_no_partial_is_left(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.docx"
+            docx_write.write_docx("# Good\n\nOriginal body.\n", path)
+            before = path.read_bytes()
+            handle = open(path, "rb+")
+            try:
+                with self.assertRaises(OSError):
+                    docx_write.write_docx("# New\n", path, force=True)
+            finally:
+                handle.close()
+            self.assertEqual(path.read_bytes(), before)
+            self.assertIn("Original body.", docx_read.read_docx(path))
+            self.assertEqual({p.name for p in Path(directory).iterdir()}, {"case.docx"})
+
+    def test_the_command_line_reports_it_as_two_rather_than_a_traceback(self):
+        """The ticket's headline scenario exited 1 with a traceback until both axes said so."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# New\n", encoding="utf-8")
+            path = root / "case.docx"
+            docx_write.write_docx("# Good\n", path)
+            handle = open(path, "rb+")
+            try:
+                self.assertEqual(docx_write.main([str(source), str(path), "--force"]), 2)
+            finally:
+                handle.close()
+
+
+class TheGuardsDeclaredLimits(unittest.TestCase):
+    """``NOT_GUARDED`` is one object, on ``NOT_APPLIED``'s precedent and for its reason.
+
+    The list sat in this module's docstring *and* in ``CLAUDE.md``, and a prose edit to
+    either failed nothing -- #220, arriving inside a change whose own subject is a
+    second copy of a rule. Found by the standards axis of ``/code-review``.
+    """
+
+    def test_every_entry_carries_a_key_and_a_reason(self):
+        for entry in docx_write.NOT_GUARDED:
+            self.assertEqual(len(entry), 2)
+            key, reason = entry
+            self.assertTrue(key.strip())
+            self.assertGreater(len(reason), 80, key)
+
+    def test_the_docstring_points_at_the_object_rather_than_restating_it(self):
+        """A paragraph naming the limits again is the copy this replaced."""
+        self.assertIn("NOT_GUARDED", docx_write.__doc__)
+
+    def test_claude_md_names_the_object_rather_than_listing_them(self):
+        text = (SOURCE.parent.parent / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("NOT_GUARDED", text)
+
+    def test_the_standing_cost_of_the_part_set_is_declared(self):
+        """Spec axis: the false-positive class was disclosed only in the past tense.
+
+        A part added here refuses every document already written, and that is the price
+        of keying on the part set rather than a fact about #217.
+        """
+        keys = [key for key, _ in docx_write.NOT_GUARDED]
+        self.assertIn("a part added here refuses every document already written", keys)
+
+
+class ThePartSetTheGuardReadsIsTheOneTheWriterWrites(unittest.TestCase):
+    """One object, so an eighth part cannot arrive with the guard still passing.
+
+    ``word/header1.xml`` is the recorded instance of a part arriving late -- it landed
+    on #217 -- and a hand-typed list in the guard would have called every document this
+    renderer produced afterwards foreign, or every one before it ours.
+    """
+
+    def test_the_names_are_derived_from_the_writer(self):
+        """By AST, because the obvious form of this test cannot fail.
+
+        It read ``assertEqual(frozenset(parts("# x")), PART_NAMES)`` -- and
+        ``PART_NAMES`` *is* ``frozenset(parts(""))``, so both sides come from ``parts``
+        and it fires only if the part names vary by input, which is not the thing being
+        protected. A hand-typed list in the guard was invisible to it while the class
+        docstring said it was what stopped one: a check that could not have found the
+        thing it is named for, reading as a settled negative. That is
+        ``test_console_codec.py``'s instrument adopted for ``test_console_codec.py``'s
+        reason, and ``reference_scan.BODY_ROWS``'s completeness half made the same
+        correction. Found by the standards axis of ``/code-review``.
+        """
+        module = ast.parse(SOURCE.read_text(encoding="utf-8"))
+        assignments = [
+            node
+            for node in module.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "PART_NAMES"
+                for target in node.targets
+            )
+        ]
+        self.assertEqual(len(assignments), 1, "PART_NAMES is assigned once, at module level")
+        called = {
+            node.func.id
+            for node in ast.walk(assignments[0].value)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        self.assertIn(
+            "parts",
+            called,
+            "PART_NAMES must be derived by calling parts(), not typed beside it",
+        )
+
+    def test_the_guard_compares_against_that_object_and_not_its_own_list(self):
+        """The other half: deriving the names buys nothing if the guard ignores them."""
+        source = SOURCE.read_text(encoding="utf-8")
+        body = source[source.index("def written_by_this_renderer") :]
+        body = body[: body.index("\ndef ")]
+        self.assertIn("PART_NAMES", body)
+        self.assertNotIn("word/styles.xml", body)
+
+    def test_a_document_this_renderer_just_wrote_reads_as_ours(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.docx"
+            docx_write.write_docx("# Title\n\nBody.\n", path)
+            self.assertTrue(docx_write.written_by_this_renderer(path))
+
+    def test_the_archive_carries_exactly_those_names_and_no_others(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.docx"
+            docx_write.write_docx("# Title\n", path)
+            with zipfile.ZipFile(path) as archive:
+                self.assertEqual(frozenset(archive.namelist()), docx_write.PART_NAMES)
+
+
+class TheRefusalClaimsInStepEight(unittest.TestCase):
+    """``TheRendererClaimsInStepSeven``'s arrangement, one step later.
+
+    ``skills/practicum-case-study/SKILL.md`` step 8 tells the run what a refusal means -- two signals, exit 2, the flag that
+    proceeds. That was prose with nothing behind it, which is the shape that class
+    exists to refuse. Both directions again, because either alone reads as agreement:
+    the step still says it, **and** the command still does it.
+    """
+
+    SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+    def skill_text(self):
+        return (self.SKILL / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_the_step_still_names_both_signals(self):
+        text = self.skill_text()
+        self.assertIn("owner file", text)
+        self.assertIn("parts are not the ones this renderer writes", text)
+
+    def test_the_step_still_says_a_refusal_writes_nothing_and_exits_two(self):
+        self.assertIn("exit 2 with nothing written", self.skill_text())
+
+    def test_the_step_still_names_the_flag(self):
+        self.assertIn("--force", self.skill_text())
+
+    def test_the_command_really_exits_two_and_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# New\n", encoding="utf-8")
+            path = root / "case.docx"
+            path.write_bytes(b"not a docx at all")
+            self.assertEqual(docx_write.main([str(source), str(path)]), 2)
+            self.assertEqual(path.read_bytes(), b"not a docx at all")
+
+    def test_the_flag_really_proceeds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# Forced\n", encoding="utf-8")
+            path = root / "case.docx"
+            path.write_bytes(b"not a docx at all")
+            self.assertEqual(docx_write.main([str(source), str(path), "--force"]), 0)
+            self.assertIn("Forced", docx_read.read_docx(path))
+
+    def test_the_step_does_not_tell_the_run_to_perform_the_check_itself(self):
+        """#279's decision 2: a written instruction to look first is what it rejects."""
+        self.assertIn("there is nothing here to run before the render", self.skill_text())
+
+
+class AnUnrecognizedOption(unittest.TestCase):
+    """A mistyped flag is refused rather than read as a third path and ignored."""
+
+    def test_an_unknown_double_dash_option_is_two(self):
+        self.assertEqual(docx_write.main(["in.md", "out.docx", "--forse"]), 2)
+
+    def test_it_does_not_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# New\n", encoding="utf-8")
+            path = root / "case.docx"
+            self.assertEqual(docx_write.main([str(source), str(path), "--forse"]), 2)
+            self.assertFalse(path.exists())
+SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+
+def section_eight():
+    """``style.md`` section 8, sliced once rather than in each class that reads it."""
+    text = (SKILL / "reference" / "style.md").read_text(encoding="utf-8")
+    return text[text.index("## 8.") : text.index("## 9.")]
+
+
+class TheRxTableTheStyleSheetDocuments(unittest.TestCase):
+    """#280: nothing bound ``style.md`` section 8 to what this renderer does with it.
+
+    That sheet specified the ``Rx:`` block as a **one-column** table whose first row
+    faked three columns with ``&#124;``, and two of the five defects the clinician found
+    in the rendered Module 1 submission came out of it: the entity reached the page as
+    literal text, a run that reached for the Markdown spelling instead left a backslash
+    in the cell, and the whole prescription rendered into column 1. **Both were
+    downstream of a documented shape that had never been rendered.**
+
+    #293 repaired the shape and taught ``split_row`` and ``table`` the rest. **The gap
+    this class closes is the one that let it happen**: every ``Rx:`` test that landed
+    with those repairs uses rows typed into this file, so the sheet is still correct only
+    because somebody rendered it once and looked. Here the table is **extracted from the
+    sheet** and run through the renderer -- ``TheTwoCopiesOfWhatTheRendererApplies``'s
+    arrangement pointed at a *shape* rather than at a list.
+
+    **What it does not reach** is whether the six rows are the *right* six. A sheet that
+    renamed ``Disp:`` to something a pharmacy will not fill passes every row below, and
+    stays the clinician's reading.
+    """
+
+    def section_eight(self):
+        return section_eight()
+
+    def block(self):
+        tables = docx_write.markdown_tables(section_eight())
+        self.assertTrue(tables, "no table in section 8 -- the instrument is dead")
+        return tables[0]
+
+    def rows(self):
+        """Every ``w:tr`` of the rendered table, as a list of its ``w:tc`` fragments."""
+        xml = rendered_parts(self.block())["word/document.xml"]
+        return [
+            re.findall(r"<w:tc>.*?</w:tc>", row, re.DOTALL)
+            for row in re.findall(r"<w:tr>.*?</w:tr>", xml, re.DOTALL)
+        ]
+
+    def span(self, cell):
+        found = re.search(r'<w:gridSpan w:val="(\d+)"/>', cell)
+        return int(found.group(1)) if found else 1
+
+    def test_the_sheets_table_renders_as_a_header_band_over_six_rows(self):
+        """The instrument is live: a parser finding nothing would pass every row below.
+
+        **Seven ``w:tr`` under a heading that says six**, and the extra one is the
+        blank header band the ``---`` rule needs above it. The heading counts the rows a
+        prescriber fills in, which is the honest thing for it to count and is why this
+        is asserted rather than left for a reader to trip over.
+        """
+        self.assertEqual(len(self.rows()), 7)
+        band = ["".join(re.findall(r"<w:t[ >]", c)) for c in self.rows()[0]]
+        self.assertEqual(band, ["", "", ""])
+
+    def test_the_grid_is_three_columns_wide(self):
+        xml = rendered_parts(self.block())["word/document.xml"]
+        grid = re.search(r"<w:tblGrid>.*?</w:tblGrid>", xml, re.DOTALL).group(0)
+        self.assertEqual(grid.count("<w:gridCol"), 3)
+
+    def test_the_patient_row_declares_three_cells(self):
+        """The row the entity was faking. Three real cells, none of them spanning."""
+        patient = self.rows()[1]
+        self.assertEqual(len(patient), 3)
+        self.assertEqual([self.span(c) for c in patient], [1, 1, 1])
+
+    def test_each_single_field_row_spans_the_whole_width(self):
+        """The drug, ``Disp:``, ``Sig:`` and signature rows carry one field each.
+
+        Sitting in column 1 with two empty cells beside it is the second half of the
+        recorded defect -- *"everything was put into the left sided column"*.
+        """
+        rows = self.rows()
+        for index in (2, 3, 4, 5):
+            self.assertEqual(len(rows[index]), 1, index)
+            self.assertEqual(self.span(rows[index][0]), 3, index)
+
+    def test_the_refill_row_is_two_cells_and_the_dea_line_sits_right(self):
+        refill = self.rows()[6]
+        self.assertEqual(len(refill), 2)
+        self.assertEqual([self.span(c) for c in refill], [1, 2])
+        self.assertNotIn('<w:jc w:val="right"/>', refill[0])
+        self.assertIn('<w:jc w:val="right"/>', refill[1])
+
+    def test_no_cell_carries_a_separator_as_text(self):
+        """#280's general row, asserted on the table it was recorded against."""
+        self.assertEqual(docx_write.separator_artifacts(self.block()), [])
+
+    def test_the_heading_states_the_width_the_table_renders_to(self):
+        """It read *a fixed six-row table* and named no width at all, while the shape
+        under it was one column faking three."""
+        heading = self.section_eight().splitlines()[0]
+        self.assertIn("six-row", heading)
+        self.assertIn("three columns wide", heading)
+
+
+class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
+    """#280's general row: **no documented table shape in this skill may render to text
+    containing its own separator syntax.**
+
+    The ticket's open decision was whether to generalize past section 8, and it worried
+    that a wider walk *"may fire on tables that document Markdown rather than prescribing
+    output"*. Measured over the sheets rather than argued: every table in
+    ``skills/practicum-case-study/reference/`` is a shape a run copies or a legend a run
+    reads, **not one of them documents Markdown syntax**, and only section 8's ever
+    carried an escape. So the wider walk costs nothing and fires on the one recorded
+    defect.
+
+    **What it does not reach** is a table outside these sheets. ``SKILL.md``'s own are
+    prose about the work -- a defect table, a check table -- rather than shapes a draft
+    copies, so they are outside the row's *statement* rather than merely unwalked; that
+    was **measured** rather than assumed, by running this scanner over every table in
+    that file and finding none that fires. #137's shape is a generalization made from
+    the files a pass had open, so the fix for it is to go and look.
+
+    A documented shape that renders cleanly and is *wrong* passes here as it does
+    everywhere.
+    """
+
+    SHEETS = SKILL / "reference"
+
+    # A floor rather than the count, on #143's terms: a sheet gaining a table must not
+    # turn the suite red, and a walk that found nothing must not read as a clean sweep.
+    FLOOR = 9
+
+    def tables(self):
+        found = []
+        for sheet in sorted(self.SHEETS.glob("*.md")):
+            for block in docx_write.markdown_tables(sheet.read_text(encoding="utf-8")):
+                found.append((sheet.name, block))
+        return found
+
+    def test_the_walk_finds_tables_to_grade(self):
+        """The instrument is live, on ``TheTwoCopiesOfWhatTheRendererApplies``'s row."""
+        self.assertGreaterEqual(len(self.tables()), self.FLOOR)
+
+    def test_no_sheet_documents_a_table_that_renders_its_own_separator(self):
+        for name, block in self.tables():
+            self.assertEqual(docx_write.separator_artifacts(block), [], name)
+
+    def test_the_detector_fires_on_the_shape_this_ticket_retired(self):
+        """A walk that could not see the recorded defect would be a clean sweep proving
+        nothing. This is section 8's table as it stood.
+
+        It fires on the **faked width** rather than on the entity, and that is why the
+        row is not the one the ticket wrote: since #293 ``split_row`` decodes ``&#124;``,
+        so the entity no longer reaches the page at all -- what is left is one cell
+        carrying two pipes, a row saying it is three columns wide over a grid that is
+        one. The same defect, one layer down.
+        """
+        retired = (
+            "| |\n"
+            "| --- |\n"
+            "| `<patient placeholder>` &#124; `DOB x-x-xxx` &#124; `NPI # <number>` |\n"
+        )
+        self.assertIn(
+            docx_write.CELL_SEPARATOR, docx_write.separator_artifacts(retired)
+        )
+
+    def test_an_escape_the_parser_never_sees_is_still_reported(self):
+        """Outside a table nothing consumes either spelling, so both reach the page."""
+        for escape in docx_write.PIPE_ESCAPES:
+            found = docx_write.separator_artifacts(
+                "A stray {e} in a sentence.\n".format(e=escape)
+            )
+            self.assertIn(escape, found, escape)
+
+    def test_a_backslash_in_a_cell_is_reported(self):
+        """The recorded symptom itself -- *"the patient carries a backslash"*. The
+        escape limb narrows the ticket's row to a backslash **before a pipe**, because
+        that is what the parser consumes, so a lone one would otherwise reach the page
+        reported by nothing. Found by the spec axis of ``/code-review``."""
+        markdown = "| Head |\n| --- |\n| Jane Doe FNP-C \\ |\n"
+        self.assertIn(
+            docx_write.CELL_BACKSLASH, docx_write.separator_artifacts(markdown)
+        )
+
+    def test_a_backslash_outside_a_table_is_left_alone(self):
+        """The declared half of that narrowing, asserted rather than described: in
+        running prose a backslash is somebody quoting a path or a pattern, and a
+        warning that fires on those is one a run learns to skip."""
+        self.assertEqual(
+            docx_write.separator_artifacts("A path C:\\temp in prose.\n"), []
+        )
+
+    def test_the_prose_that_documents_the_defect_is_a_mention_and_not_a_use(self):
+        """**Section 8 explains the retired shape, so both escapes are in that file** --
+        one in a sentence naming the spelling that rendered as text, one in the
+        clinician's quoted reading of the page.
+
+        The unit is the **table**, so neither is seen. Pointed at the whole section the
+        walk reports both, and would fail the sheet that documents the fix -- which is
+        ``spelling_scan.py``'s mention-versus-use distinction and #153's *describing the
+        rule broke the tool that checks the rule*, arriving here uninvited. Written down
+        because the first version of this test asserted the section rather than the
+        table and went red on exactly that.
+        """
+        section = section_eight()
+        self.assertEqual(docx_write.separator_artifacts(section), ["&#124;", "\\|"])
+        for block in docx_write.markdown_tables(section):
+            self.assertEqual(docx_write.separator_artifacts(block), [])
+
+    def test_every_form_the_scanner_reports_is_one_the_parser_consumes(self):
+        """``PIPE_ESCAPES`` is declared for the reporting side and read by only one limb
+        of ``split_row``, so nothing but this stops the two drifting -- a scanner naming
+        a spelling the parser leaves alone would send a run chasing a working cell."""
+        for escape in docx_write.PIPE_ESCAPES:
+            self.assertEqual(
+                docx_write.split_row("| a {e} b | c |".format(e=escape)),
+                ["a | b", "c"],
+                escape,
+            )
+
+
+class TheRendererWarnsAboutSeparatorArtifacts(unittest.TestCase):
+    """Ruled by the clinician on 2026-08-19: the command **warns and never refuses**.
+
+    #280's second comment is why there is a command limb at all -- a test binds the sheet
+    for the next author of ``docx_write.py``, and **section 8 is copied by runs, and a
+    run executes commands rather than the suite**. So the artifact is reported where a
+    run would see it. Refusing was priced and declined: this renderer is on the
+    consumer's critical path, and a blocked submission is a worse outcome than a
+    separator on the page.
+
+    **The warning is bounded by what the code can draw on** -- a value of
+    ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``, and an integer, never a
+    run's text -- which is ``reference_scan.py``'s discipline at the width
+    ``tracker_bodies.py`` uses it at. A case study draft is written about a patient, and
+    printing a cell of it would make this command's output PHI where it was not.
+    """
+
+    def render(self, markdown):
+        """The written flag is read **inside** the temp directory, which is why it is a
+        flag: a path handed back outlives the directory that gave it a meaning."""
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "draft.md"
+            source.write_text(markdown, encoding="utf-8")
+            written = Path(directory) / "d.docx"
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = docx_write.main([str(source), str(written)])
+            return status, out.getvalue(), err.getvalue(), written.is_file()
+
+    def test_a_clean_draft_warns_about_nothing(self):
+        status, _, err, written = self.render("| a | b |\n| --- | --- |\n| one | two |\n")
+        self.assertEqual(status, 0)
+        self.assertEqual(err, "")
+        self.assertTrue(written)
+
+    def test_an_artifact_warns_and_the_file_is_still_written(self):
+        status, out, err, written = self.render(
+            "| Head |\n| --- |\n| a &#124; b |\n"
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("wrote", out)
+        self.assertTrue(written)
+        self.assertIn("warning", err)
+
+    def test_the_warning_names_a_count_and_a_form_and_no_prose_of_the_document(self):
+        marker = "Zzyzxine"
+        status, _, err, _ = self.render(
+            "| Head |\n| --- |\n| {m} &#124; {m} |\n".format(m=marker)
+        )
+        self.assertEqual(status, 0)
+        self.assertNotIn(marker, err)
+        self.assertIn("1", err)
+        self.assertIn(docx_write.CELL_SEPARATOR, err)
+
+    def test_step_eight_tells_a_run_what_the_warning_means(self):
+        """A warning a run cannot read is a warning a run works around. Pinned on
+        ``test_reference_scan.py``'s reasoning -- the instruction has to be complete
+        without the command, and a reword would otherwise rot it in silence.
+
+        **Whitespace-normalized, which is #221's instrument rather than a nicety.** The
+        first version of this matched the line as written and went red the moment the
+        paragraph was rewrapped -- a phrase pin cannot see its own sentence hard-wrapped,
+        which is exactly what ``test_run_record_claim.py`` was built to get past.
+        """
+        skill = " ".join((SKILL / "SKILL.md").read_text(encoding="utf-8").split())
+        self.assertIn(
+            "A `warning:` line from that command means a table row put a cell separator into its own text",
+            skill,
+        )
+
+    def test_the_sheets_own_rx_table_renders_without_a_word_of_warning(self):
+        """The end of the chain: what the sheet documents is what the command accepts."""
+        _, _, err, _ = self.render(docx_write.markdown_tables(section_eight())[0])
+        self.assertEqual(err, "")
+
+
 class NotHavingRead(unittest.TestCase):
     """Exit 2 is every way of not having read, on ``guidelines_search.py``'s convention."""
 
@@ -743,6 +1451,48 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
                     if name.endswith(".xml"):
                         ElementTree.fromstring(archive.read(name))
 
+
+
+class ABlankLineIsNotATableRule(unittest.TestCase):
+    """``is_rule`` accepted one, so ``markdown_tables`` opened a phantom table.
+
+    The predicate asked *no cell carries anything but dashes* rather than *some
+    cell carries dashes*, and ``split_row("")`` is ``[""]``, so the ``if c``
+    filter left nothing to disagree with and a blank line came back ``True``.
+    ``markdown_tables`` reads the line under a header to decide a table starts
+    there, so **any table-looking line followed by a blank one opened a one-row
+    table that is not one** -- and there is one in the tracked tree.
+
+    Found by ``research_ledger.py`` adopting ``markdown_tables`` at a merge, on
+    that function's own *one reader of a documentation table, not two*. Neither
+    suite could see it: this module's tables all have real rules under them, and
+    the phantom only appears where the header match has already failed.
+    """
+
+    def test_a_blank_line_is_not_a_rule(self):
+        self.assertFalse(docx_write.is_rule(""))
+        self.assertFalse(docx_write.is_rule("   "))
+
+    def test_an_all_empty_row_is_not_a_rule(self):
+        """The Rx table's own header, which declares three empty cells."""
+        self.assertFalse(docx_write.is_rule("| | | |"))
+
+    def test_a_real_rule_still_is_one(self):
+        """The instrument, live -- both spellings the sheets use."""
+        self.assertTrue(docx_write.is_rule("| --- |"))
+        self.assertTrue(docx_write.is_rule("| --- | --- | --- |"))
+        self.assertTrue(docx_write.is_rule("| :--- | ---: |"))
+
+    def test_no_phantom_table_in_the_reference_sheets(self):
+        """The blast radius, asserted rather than described. A block whose second
+        line is not a rule is a table ``markdown_tables`` invented."""
+        skills = Path(__file__).resolve().parent.parent / "skills"
+        for sheet in sorted(skills.rglob("*.md")):
+            for block in docx_write.markdown_tables(sheet.read_text(encoding="utf-8")):
+                rows = [line for line in block.split("\n") if line.strip()]
+                with self.subTest(sheet=sheet.name, opens=rows[0][:40]):
+                    self.assertGreater(len(rows), 1, "a one-row table is not a table")
+                    self.assertTrue(docx_write.is_rule(rows[1]), "no separator under the header")
 
 if __name__ == "__main__":
     unittest.main()
