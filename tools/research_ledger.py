@@ -211,18 +211,41 @@ record 1 of the run that produced #289 sourced the **disposition**, and would
 have failed these rows only because it named no drug at all -- and whether the
 drug row and the ``Sig`` agree.
 
-**And no reader is looking at the number either.** This paragraph said
-``skills/practicum-case-study/SKILL.md`` step 9 sends a reader at the Rx blocks
-*for exactly that reason*, and that was false: step 9's row briefs a reader on
-whether every drug has a table, whether every ``Sig`` ends in an indication and
-whether the prose block is there, and ``checks_ledger.EXPECTED_CHECKS`` marks it
-as one whose ``clean`` need not say what it walked. **So the residue is declared
-covered and is covered nowhere**, which is this ticket's own shape arriving in
-the fix for it -- found by the spec axis of ``/code-review``, filed as
-[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299) rather
-than closed here, because widening what a step 9 reader is asked to do is a
-change to the skill's checks and #255 is the precedent for who rules those.
-**A clean scan is not a checked prescription.**
+**A reader is looking at the number since
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299), and it
+is not this module.** This paragraph said ``skills/practicum-case-study/SKILL.md``
+step 9 sends a reader at the Rx blocks *for exactly that reason*, and that was
+false: that row briefs a reader on whether every drug has a table, whether every
+``Sig`` ends in an indication and whether the prose block is there, and on no
+number at all -- and ``checks_ledger.SUBSTANTIATED_CLEAN`` leaves it out, so a
+bare ``clean`` on it passes. So the residue was declared covered and covered
+nowhere -- this
+ticket's own shape arriving in the fix for it, found by the spec axis of
+``/code-review``. It is ``the dose against the record that sourced it``, its own
+row of step 9's table and of ``checks_ledger.EXPECTED_CHECKS``, and one of the
+rows ``checks_ledger.SUBSTANTIATED_CLEAN`` names -- so a bare ``clean`` on it
+fails.
+
+**A reader and not a row, ruled by the clinician on 2026-08-20, and the ground is
+that the false-alarm rate could not be grounded rather than that it would be
+high.** A string test can reach *the table's number appears in the record naming
+that drug* and nothing further, so it fires on ``1 g`` against *1000 mg* and on
+``q24h`` against *once daily* -- the unit problem ``NUMERIC_CLAIM_UNQUANTIFIED``
+above already refuses to touch, arriving one level down. And when it was ruled
+there was **no pair in the tree to measure it on**: the only ``practicum-case-study``
+run **with a claim ledger** predated these rows, so every one of its
+prescriptions reached no claim
+record at all and not one drug-row-and-record pair existed anywhere. **How
+many that was is deliberately not stated**, here or in the two other places
+this paragraph is written: it counts a run under ``scratch/`` that nothing
+committed re-derives, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143), and
+the three copies disagreed about it the day they were written.
+[#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
+precedent is that a cut point is grounded where the corpus offers one and refused
+where it does not. **The prohibition is unchanged either way**: the question is
+whether the document's number and the record's number are the *same* number,
+never whether either is right. **A clean scan is not a checked prescription.**
 
 **``--evidence`` grades what the run says it read against what it was handed**
 -- [#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298),

@@ -708,15 +708,41 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
     def footer(self, text: str) -> dict:
         gaps = [self.FOOTER_TYPICAL] * len(text)
         for index, glyph in enumerate(text):
-            # Every gap that follows a digit or a bracket is one of the wide ones
-            # in this font -- which is precisely the set that was being split.
-            if glyph in "0123456789();:-" and index + 1 < len(text):
+            # Gaps after digits, brackets and some letters reach the top of the
+            # real font's spread -- precisely the set that was being split.
+            if glyph in "A0123456789();:-" and index + 1 < len(text):
                 gaps[index] = self.FOOTER_TOP
         return rawline(text, self.FOOTER_SIZE, gaps)
 
     def test_the_footer_is_left_alone(self):
         text = "American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9"
         self.assertEqual(extract.rebuild_text(self.footer(text)), text)
+
+    def test_real_spaces_bound_local_spacing_regimes(self):
+        """A long compressed phrase must not redefine normally spaced neighbors.
+
+        CDC's opioid MMWR extracted page 27 sets one line in one span, but its
+        ``Practice Guidelines ...`` middle is compressed by roughly 3 pt while
+        ``In April 2021 ...`` on either side uses ordinary bearings. A single
+        median for the span therefore turns every ordinary letter gap into an
+        apparent word break even though real spaces already bound each phrase.
+        """
+        text = "In April Practice Guidelines Administration"
+        gaps = [0.2] * len(text)
+        for index, glyph in enumerate(text[:-1]):
+            if glyph == " " or text[index + 1] == " ":
+                # With rawline's 4.5 pt glyph advance, these two bearings make
+                # the measured advance across a real space exactly 1.0 pt.
+                gaps[index] = -1.75
+        for word in ("Practice", "Guidelines", "Administration"):
+            start = text.index(word)
+            for index in range(start, start + len(word) - 1):
+                gaps[index] = -3.0
+
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, 9.0, gaps, font="Nunito-Regular")),
+            text,
+        )
 
     def test_without_the_second_bar_that_footer_is_split(self):
         """The counterfactual, so the test above cannot pass by having nothing to do.
@@ -742,12 +768,11 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
         finally:
             extract.SPACE_ADVANCE_FRACTION = original
         self.assertNotEqual(without, text)
-        # The damage this fixture reproduces is the digits and brackets coming
-        # apart -- `2009;` -> `2 0 0 9 ;`. The real page loses more than that,
-        # because there every gap is at the top of the spread and here only the
-        # ones `footer()` marks are; the name of this test says "split" rather
-        # than "split character by character" for that reason.
-        self.assertIn("2 0 0 9", without)
+        # The damage this fixture reproduces is a gap at the top of the font's
+        # spread becoming a word boundary. Real spaces now bound local baselines,
+        # so the short digit run no longer demonstrates the second bar by itself;
+        # the longer first word does, and keeps this counterfactual nonvacuous.
+        self.assertIn("A merican", without)
         self.assertEqual(extract.rebuild_text(page), text)
 
     def test_a_glued_line_that_also_carries_a_space_still_splits(self):

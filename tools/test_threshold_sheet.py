@@ -18,7 +18,10 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -92,6 +95,10 @@ def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
         f"| {quantity} | {population} | {value} | \"{snippet}\" | {source} | {page} "
         f"| {rec} | {klass} |\n"
     )
+
+
+def conflicting_rows(second_value: str = "<120 mm Hg") -> str:
+    return row(value="<130 mm Hg") + row(value=second_value, rec="p50/goal/1")
 
 
 # A two-source sheet, which is what #177 is about: until that ticket the grader took
@@ -289,14 +296,55 @@ class TwoSlotsNoGateHereCanReach(unittest.TestCase):
 
 class ConflictRule(unittest.TestCase):
     def test_same_quantity_and_population_with_different_values_needs_a_conflict_block(self):
-        rows = row(value="<130 mm Hg") + row(value="<120 mm Hg", rec="p50/goal/1")
-        failures = gate.gate_schema(sheet(rows))
+        failures = gate.gate_schema(sheet(conflicting_rows()))
         self.assertTrue(any("CONFLICT" in message for message in failures))
 
-    def test_a_conflict_block_satisfies_it(self):
-        rows = row(value="<130 mm Hg") + row(value="<120 mm Hg", rec="p50/goal/1")
-        parsed = sheet(rows, conflicts="**CONFLICT: bp-goal** - the two societies differ because ...\n")
+    def test_a_conflict_block_that_names_both_values_satisfies_it(self):
+        parsed = sheet(
+            conflicting_rows(),
+            conflicts=(
+                "**CONFLICT: bp-goal** - one recommendation says below 130 mm Hg; "
+                "the other says <120 mm Hg.\n"
+            ),
+        )
         self.assertEqual(gate.gate_schema(parsed), [])
+
+    def test_a_conflict_block_that_names_only_one_value_fails(self):
+        parsed = sheet(
+            conflicting_rows(),
+            conflicts="**CONFLICT: bp-goal** - one recommendation says <130 mm Hg.\n",
+        )
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("<120 mm Hg" in message for message in failures), failures)
+
+    def test_a_todo_conflict_block_does_not_discharge_the_rule(self):
+        failures = gate.gate_schema(
+            sheet(conflicting_rows(), conflicts="**CONFLICT: bp-goal** - TODO\n")
+        )
+        self.assertTrue(any("CONFLICT" in message for message in failures), failures)
+
+    def test_one_longer_value_mention_cannot_satisfy_two_distinct_rows(self):
+        """The suffix of one value is not evidence that the other was compared."""
+        parsed = sheet(
+            conflicting_rows("<130 mm Hg in clinic"),
+            conflicts="**CONFLICT: bp-goal** - below 130 mm Hg in clinic.\n",
+        )
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("<130 mm Hg" in message for message in failures), failures)
+
+    def test_the_live_blocks_pass_and_the_instrument_reads_their_prose(self):
+        """#182's two correct blocks are the acceptance material, not imagined prose.
+
+        The mutation is the live-instrument half: a predicate that merely notices the
+        quantity key would leave the second assertion green after the prose vanished.
+        """
+        path = Path(__file__).resolve().parents[1] / "reference" / "thresholds" / "hypertension.md"
+        parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+        self.assertEqual(gate.gate_schema(parsed), [])
+
+        parsed.conflicts["acute-stroke-bp-treatment-threshold"] = "- TODO"
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("acute-stroke-bp-treatment-threshold" in message for message in failures))
 
     def test_different_populations_are_not_a_conflict(self):
         """The clinician's ruling, made mechanical.
@@ -599,6 +647,48 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
                 gate.grade(path, ["C:/nowhere/recs.json"], Path("C:/nowhere"), quiet=True)
             self.assertIn("no such file", err.getvalue())
+
+    def test_a_record_never_built_under_the_lookup_root_warns_and_exits_0(self):
+        """The hook's ``--all`` lookup is not an explicit path somebody typed.
+
+        A fresh clone has no recommendation records, so that absence must remain loud
+        under ``--quiet`` without turning every sheet edit into a refused commit.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(self.CLEAN, encoding="utf-8")
+            empty_root = Path(directory) / "recs"
+            empty_root.mkdir()
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = gate.grade(
+                    path,
+                    [],
+                    Path("C:/nowhere-at-all"),
+                    quiet=True,
+                    recs_root=empty_root,
+                )
+            self.assertEqual(status, 0)
+            self.assertIn("COVERAGE", err.getvalue())
+            self.assertIn("NOT RUN", err.getvalue())
+            self.assertIn("not a clean COVERAGE pass", err.getvalue())
+
+    def test_an_unreadable_record_under_the_lookup_root_still_exits_2(self):
+        """Only absence is the declared degradation; a broken artifact is an error."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-src.json").write_text("{not json", encoding="utf-8")
+            path = root / "sheet.md"
+            path.write_text(self.CLEAN, encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = gate.grade(
+                    path,
+                    [],
+                    Path("C:/nowhere-at-all"),
+                    quiet=True,
+                    recs_root=root,
+                )
+            self.assertEqual(status, 2)
 
 
 class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
@@ -1108,7 +1198,8 @@ class BindingARecordToEachSource(unittest.TestCase):
     """
 
     def bind(self, sheet_, arguments, recs_root=None):
-        return gate.bind_recs(sheet_, arguments, recs_root)
+        records, why, errors, _ = gate.bind_recs(sheet_, arguments, recs_root)
+        return records, why, errors
 
     def test_a_keyed_argument_binds_to_that_source(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1178,12 +1269,18 @@ class BindingARecordToEachSource(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertIsNone(records["src"])
         self.assertIn("no such file", why["src"])
+        _, _, _, missing = gate.bind_recs(
+            sheet(row()), ["src=C:/nowhere-at-all/recs.json"], None
+        )
+        self.assertEqual(missing, set())
 
     def test_a_record_the_root_does_not_hold_reads_as_never_built(self):
         with tempfile.TemporaryDirectory() as directory:
             _, why, _ = self.bind(sheet(row()), [], Path(directory))
             self.assertIn("no recommendation record", why["src"])
             self.assertNotIn("no such file", why["src"])
+            _, _, _, missing = gate.bind_recs(sheet(row()), [], Path(directory))
+            self.assertEqual(missing, {"src"})
 
     def test_no_argument_and_no_root_says_none_was_given(self):
         _, why, _ = self.bind(sheet(row()), [], None)
@@ -1397,13 +1494,109 @@ class TheRecordsStayOutsideTheRepo(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             empty_root = Path(directory) / "root"
             empty_root.mkdir()
-            for root in (None, empty_root):
-                with self.subTest(recs_root=root):
-                    with contextlib.redirect_stdout(io.StringIO()),                             contextlib.redirect_stderr(io.StringIO()):
-                        status = gate.grade(
-                            path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=root
-                        )
-                    self.assertEqual(status, 2)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                no_lookup_status = gate.grade(
+                    path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=None
+                )
+                empty_root_status = gate.grade(
+                    path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=empty_root
+                )
+            self.assertEqual(no_lookup_status, 2)
+            self.assertEqual(empty_root_status, 0)
+
+
+class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
+    """Drive the hook command itself, because that is where #181's cost lands."""
+
+    def test_readme_only_is_ignored_and_a_sheet_is_graded(self):
+        shell = shutil.which("sh")
+        git = shutil.which("git")
+        if not shell or not git:
+            self.skipTest("the hook contract needs sh and git")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tools" / "hooks").mkdir(parents=True)
+            (root / "reference" / "thresholds").mkdir(parents=True)
+            hook = root / "tools" / "hooks" / "pre-commit"
+            hook.write_text(
+                (gate.REPO_ROOT / "tools" / "hooks" / "pre-commit").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            marker = root / "threshold-ran"
+            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+                (root / "tools" / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
+            (root / "tools" / "threshold_sheet.py").write_text(
+                "import os, pathlib\n"
+                "pathlib.Path(os.environ['THRESHOLD_HOOK_MARKER']).write_text('ran')\n",
+                encoding="utf-8",
+            )
+            subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.name", "Threshold Test"], cwd=root, check=True)
+            subprocess.run([git, "commit", "--allow-empty", "--quiet", "-m", "base"], cwd=root, check=True)
+
+            readme = root / "reference" / "thresholds" / "README.md"
+            readme.write_text("prose only\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(readme)], cwd=root, check=True)
+            environment = {**os.environ, "THRESHOLD_HOOK_MARKER": str(marker)}
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertFalse(marker.exists(), "README.md invoked the sheet grader")
+
+            actual_sheet = root / "reference" / "thresholds" / "hypertension.md"
+            actual_sheet.write_text("a sheet\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(actual_sheet)], cwd=root, check=True)
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertTrue(marker.exists(), "an actual sheet did not invoke the grader")
+
+    def test_the_hook_command_warns_and_passes_without_a_recommendation_record(self):
+        shell = shutil.which("sh")
+        git = shutil.which("git")
+        if not shell or not git:
+            self.skipTest("the hook contract needs sh and git")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = root / "tools"
+            (tools / "hooks").mkdir(parents=True)
+            sheets = root / "reference" / "thresholds"
+            sheets.mkdir(parents=True)
+            for name in (
+                "threshold_sheet.py",
+                "guidelines_extract.py",
+                "guidelines_index.py",
+                "console_codec.py",
+                "repo_root.py",
+            ):
+                shutil.copy2(gate.REPO_ROOT / "tools" / name, tools / name)
+            shutil.copy2(
+                gate.REPO_ROOT / "tools" / "hooks" / "pre-commit",
+                tools / "hooks" / "pre-commit",
+            )
+            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+                (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
+            sheet_path = sheets / "hypertension.md"
+            shutil.copy2(gate.SHEET_ROOT / "hypertension.md", sheet_path)
+
+            subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.name", "Threshold Test"], cwd=root, check=True)
+            subprocess.run([git, "commit", "--allow-empty", "--quiet", "-m", "base"], cwd=root, check=True)
+            subprocess.run([git, "add", "--", str(sheet_path)], cwd=root, check=True)
+            empty_recs = root / "empty-recs"
+            empty_recs.mkdir()
+            environment = {**os.environ, "CLINICAL_GUIDELINES_RECS": str(empty_recs)}
+            result = subprocess.run(
+                [shell, str(tools / "hooks" / "pre-commit")],
+                cwd=root,
+                env=environment,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("COVERAGE        NOT RUN for source 'aha-2025'", result.stderr)
+            self.assertIn("not a clean COVERAGE pass", result.stderr)
 
 
 if __name__ == "__main__":
@@ -2152,7 +2345,7 @@ class GateFourWarnsAndDoesNotRefuse(unittest.TestCase):
     def test_a_finding_here_alone_does_not_make_the_run_refuse(self):
         """The sheet is otherwise clean, so any non-zero would be this gate's."""
         status, _, _ = self._run()
-        self.assertEqual(status, 2, "2 is COVERAGE having no record, which is not gate 4")
+        self.assertEqual(status, 0)
 
     def test_every_probe_that_hits_is_reported_and_not_only_the_first(self):
         """#83 asks for *every place* the text stream was interleaved, and a running

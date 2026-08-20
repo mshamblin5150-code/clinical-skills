@@ -34,13 +34,11 @@ row needed it.
     ``CONFLICT`` block for that quantity. Needs nothing but the sheet, so it runs
     everywhere and always.
 
-    **What the conflict rule checks is the block's existence, not its contents.**
-    This sentence used to say the block must name *both* rows; it does not, and
-    nothing reads the block's prose. Corrected rather than implemented, because the
-    check a reader was promised -- does this paragraph name both societies and both
-    values -- is a reading, and the file two screens down deletes an allowlist for
-    exactly this reason: *"a rule that has drifted from the file a reader opens reads
-    as agreement."*
+    **The conflict floor reads the block's prose.** Every distinct conflicting row
+    value must appear there, with ordinary inequality wording (for example, ``below``
+    for ``<``) normalized before comparison. This does not verify that the explanation
+    is clinically correct; it prevents an empty block, ``TODO``, or a paragraph that
+    names only one side from discharging the structural rule.
 
 ``CITATION`` refuses, in two tiers
     Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
@@ -66,8 +64,10 @@ row needed it.
     decision 3 makes multi-source the normal case -- one row per society with a
     ``CONFLICT`` block where they disagree -- so the first sheet carrying ADA beside
     AHA/ACC would have hit it, and hit it reading green. ``--recs`` is
-    ``<source key>=<path>`` now and ``--recs-root`` resolves ``recs-<source key>.json``,
-    and a sheet where **any** source has no record exits 2.
+    ``<source key>=<path>`` now and ``--recs-root`` resolves
+    ``recs-<source key>.json``. A record absent from that lookup root warns loudly and
+    exits 0 on #181's ruling; an explicit path that does not resolve, an unreadable
+    record, or any refusal from a record that is present remains non-zero.
 
 ``WATERMARK`` warns, and skips loudly where the extracted corpus is absent
     #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
@@ -159,9 +159,12 @@ why ``--brief`` prints a work order for a reader instead of doing the work.
 Exit status
 -----------
 
-``0`` clean. ``1`` a gate that refuses found something. ``2`` **every way of not
-having graded** -- no sheet, no rows in it, an unreadable Sources table, **any source
-with no recommendation record**, a ``--recs`` argument naming a source the sheet
+``0`` no refusing finding. This includes a recommendation record that was never built
+under ``--recs-root``: COVERAGE prints ``NOT RUN`` through ``--quiet`` and calls the
+result a warning, never a clean COVERAGE pass. ``1`` a gate that refuses found
+something. ``2`` every other way of not having graded -- no sheet, no rows in it, an
+unreadable Sources table, no record lookup requested, an explicit ``--recs`` path that
+does not resolve, an unreadable record, a ``--recs`` argument naming a source the sheet
 does not declare, a ``--second-read`` that was asked for and did not load, **and one
 that loaded and diffed no row at all** -- a record whose entries all land on pages the
 sheet cites nowhere made every row *uncovered* and printed ``0 refusing, 0 warning``,
@@ -392,6 +395,13 @@ _CONFLICT = re.compile(r"^\s*\*{0,2}CONFLICT\*{0,2}:\s*(?P<quantity>[a-z0-9-]+)\
 _OUT_LINE = re.compile(r"^\s*-\s*`(?P<rec_id>[^`]+)`\s*[-\u2014:]\s*(?P<reason>.+?)\s*$")
 _RESOLVED = re.compile(r"citations resolved against\s+(?P<corpus>\S+)\s+on\s+(?P<date>\d{4}-\d{2}-\d{2})", re.IGNORECASE)
 
+_INEQUALITY_WORDS = (
+    (r"\b(?:less than or equal to|at or below|no more than)\b", "<="),
+    (r"\b(?:greater than or equal to|at or above|at least)\b", ">="),
+    (r"\b(?:less than|below)\b", "<"),
+    (r"\b(?:greater than|above|more than)\b", ">"),
+)
+
 
 @dataclass(frozen=True)
 class Row:
@@ -452,6 +462,47 @@ def _cells(line: str) -> list[str] | None:
 def _is_rule(cells: list[str]) -> bool:
     """The ``| --- | --- |`` line under a header."""
     return all(set(cell) <= set("-: ") and cell for cell in cells)
+
+
+def _normalized_conflict_claim(text: str) -> str:
+    """Normalize the bounded inequality wording a conflict may use in prose.
+
+    The row remains the source of truth. This only makes ``below 180`` comparable
+    with ``<180``; it does not attempt to interpret arbitrary clinical prose.
+    """
+    normalized = text.casefold()
+    for phrase, operator in _INEQUALITY_WORDS:
+        normalized = re.sub(phrase, operator, normalized)
+    normalized = re.sub(r"(<=|>=|<|>)\s*", r"\1", normalized)
+    normalized = re.sub(r"\s*/\s*", "/", normalized)
+    return " ".join(normalized.split())
+
+
+def _unnamed_conflict_values(values: set[str], conflict: str) -> list[str]:
+    """Return row values that have no distinct, bounded mention in the prose."""
+    claim = _normalized_conflict_claim(conflict)
+    normalized_values = [(value, _normalized_conflict_claim(value)) for value in values]
+    # Longest first prevents one longer mention from donating its prefix to a second
+    # value. Each value gets its own span: evidence that two sides were compared must
+    # occur twice, not be two interpretations of the same characters.
+    normalized_values.sort(key=lambda item: (-len(item[1]), item[1]))
+    used: list[tuple[int, int]] = []
+    missing: list[str] = []
+    for value, normalized in normalized_values:
+        pattern = re.compile(r"(?<!\w)" + re.escape(normalized) + r"(?!\w)")
+        available = next(
+            (
+                match
+                for match in pattern.finditer(claim)
+                if not any(match.start() < end and start < match.end() for start, end in used)
+            ),
+            None,
+        )
+        if available is None:
+            missing.append(value)
+        else:
+            used.append(available.span())
+    return sorted(missing)
 
 
 def parse(text: str, path: Path) -> Sheet:
@@ -608,11 +659,21 @@ def gate_schema(sheet: Sheet) -> list[str]:
     for row in sheet.rows:
         seen.setdefault((row.quantity, row.population), set()).add(row.value)
     for (quantity, population), values in sorted(seen.items()):
-        if len(values) > 1 and quantity.lower() not in sheet.conflicts:
+        if len(values) <= 1:
+            continue
+        conflict = sheet.conflicts.get(quantity.lower())
+        if conflict is None:
             failures.append(
                 f"{sheet.path.name}  quantity '{quantity}' for population '{population}' "
                 f"has {len(values)} different values ({', '.join(sorted(values))}) "
                 f"and no 'CONFLICT: {quantity}' block under '## Conflicts'"
+            )
+            continue
+        missing = _unnamed_conflict_values(values, conflict)
+        if missing:
+            failures.append(
+                f"{sheet.path.name}  'CONFLICT: {quantity}' for population '{population}' "
+                f"does not name every distinct value; missing {', '.join(missing)}"
             )
     return failures
 
@@ -1192,11 +1253,11 @@ def gate_second_read(
 
 def bind_recs(
     sheet: Sheet, arguments: list[str], recs_root: Path | None
-) -> tuple[dict[str, dict | None], dict[str, str], list[str]]:
+) -> tuple[dict[str, dict | None], dict[str, str], list[str], set[str]]:
     """Which recommendation record answers for each source the sheet declares.
 
     Returns ``({source key: record or None}, {source key: why there is none},
-    [argument errors])``.
+    [argument errors], {source keys whose lookup-root record was never built})``.
 
     **Per source and not per sheet, which is #177.** A sheet citing two societies used
     to be graded against whichever single record ``--recs`` named, and the other
@@ -1245,6 +1306,7 @@ def bind_recs(
 
     records: dict[str, dict | None] = {}
     why_not: dict[str, str] = {}
+    missing_records: set[str] = set()
     for key in sorted(sheet.sources):
         path = explicit.get(key)
         named = path is not None
@@ -1261,6 +1323,8 @@ def bind_recs(
             why_not[key] = (
                 f"no such file: {path}" if named else f"no recommendation record at {path}"
             )
+            if not named:
+                missing_records.add(key)
         else:
             try:
                 loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -1285,7 +1349,7 @@ def bind_recs(
     # the JSON `null` above -- and the symptom was a KeyError in `grade` rather than
     # anything a reader could act on. `EveryAbsentRecordSaysWhy` walks all four ways
     # of not having one.
-    return records, why_not, errors
+    return records, why_not, errors, missing_records
 
 
 def _record_built_from_another_document(recs: dict, source: dict[str, str]) -> str:
@@ -1497,7 +1561,9 @@ def grade(
     # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
     # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
     # `why_not` so the report can say which source and which of the two it was.
-    records, why_not, recs_errors = bind_recs(sheet, recs_arguments or [], recs_root)
+    records, why_not, recs_errors, missing_records = bind_recs(
+        sheet, recs_arguments or [], recs_root
+    )
 
     schema = gate_schema(sheet)
     tier1 = gate_citation_tier1(sheet)
@@ -1542,8 +1608,11 @@ def grade(
     # having graded, on `bind_recs`' ruling: the run asked for something and got
     # nothing, and a typo is not a decision. So is one that resolved and diffed no
     # row at all -- the run asked for a diff either way.
+    blocking_ungraded_sources = [
+        key for key in ungraded_sources if key not in missing_records
+    ]
     not_graded = (
-        bool(ungraded_sources)
+        bool(blocking_ungraded_sources)
         or bool(recs_errors)
         or not sheet.sources
         or (second_read is not None and not second_read.ok)
@@ -1722,7 +1791,13 @@ def grade(
         print(f"  COVERAGE        NOT RUN -- {message}", file=sys.stderr)
     for key in ungraded_sources:
         print(f"  COVERAGE        NOT RUN for source '{key}' -- {why_not[key]}", file=sys.stderr)
-    if ungraded_sources or recs_errors:
+    if missing_records:
+        print(
+            "  The missing recommendation record(s) above are a warning, not a clean "
+            "COVERAGE pass.",
+            file=sys.stderr,
+        )
+    if blocking_ungraded_sources or recs_errors:
         print("  Omission was not checked for the source(s) above. A source with no", file=sys.stderr)
         print("  recommendation record is not a source that passed, and a --recs path", file=sys.stderr)
         print("  that does not resolve is a typo rather than a decision.", file=sys.stderr)

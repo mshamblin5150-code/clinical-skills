@@ -117,6 +117,46 @@ class BothMergeRoutesAreCovered(unittest.TestCase):
         self.assertRegex(workflow_text(), r"(?m)^\s*workflow_dispatch:")
 
 
+class ClosingKeywordSurfacesAreCovered(unittest.TestCase):
+    """#183: PR text and the landed merge message are different artifacts."""
+
+    def test_pull_request_metadata_and_commits_are_scanned(self):
+        text = workflow_text()
+        self.assertIn("gh pr view", text)
+        self.assertIn("--json title,body,commits", text)
+        self.assertIn("closing_keyword_scan.py --github-json -", text)
+        self.assertRegex(text, r"(?m)^\s*pull-requests:\s*read\s*$")
+
+    def test_an_edited_pull_request_is_rescanned(self):
+        self.assertRegex(
+            workflow_text(),
+            r"(?s)pull_request:.*?types:[^\n]*\bedited\b",
+        )
+
+    def test_every_commit_message_in_a_push_is_scanned(self):
+        text = workflow_text()
+        self.assertIn("git log --format=%B", text)
+        self.assertIn("$env:BEFORE_SHA..$env:GITHUB_SHA", text)
+        self.assertRegex(text, r"(?m)^\s*fetch-depth:\s*0\s*$")
+        self.assertRegex(text, r"closing_keyword_scan\.py\s+-")
+
+    def test_the_check_records_its_advisory_status(self):
+        text = workflow_text()
+        self.assertRegex(
+            text,
+            r"(?s)- name: Closing keyword scan, advisory.*continue-on-error:\s*true",
+        )
+
+    def test_claude_md_documents_the_same_surfaces(self):
+        section = CLAUDE_MD.read_text(encoding="utf-8").partition(
+            "### Closing keyword scan"
+        )[2].partition("\n### ")[0]
+        self.assertTrue(section.strip(), "no Closing keyword scan section in CLAUDE.md")
+        for surface in ("commit-msg", "title", "body", "merge message"):
+            with self.subTest(surface=surface):
+                self.assertIn(surface, section)
+
+
 class ThePhiStepCannotReadAsCoverage(unittest.TestCase):
     """#86 decision 2, and the trap the ticket names as its sharpest risk:
 
