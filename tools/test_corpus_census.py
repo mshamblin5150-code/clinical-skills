@@ -209,6 +209,29 @@ def case(directory: Path, number: int) -> str:
 OBESITY_BMI_SHORTHAND = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
 
 
+def table_cell(path: Path, row_label: str, heading: str) -> str:
+    """Return one named cell from a Markdown table row."""
+    column = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if heading in cells:
+            column = cells.index(heading)
+            continue
+        if cells and cells[0] == row_label:
+            if column is None:
+                raise AssertionError(
+                    f"{path.name} row {row_label} sits under no {heading!r} header"
+                )
+            if len(cells) <= column:
+                raise AssertionError(
+                    f"{path.name} row {row_label} has no {heading!r} column"
+                )
+            return cells[column]
+    raise AssertionError(f"{path.name} carries no table row labeled {row_label}")
+
+
 def all_fixture_shorthand():
     """Every committed shorthand input, read off the tree rather than listed.
 
@@ -2353,27 +2376,7 @@ class Row15AndB9StateOneRule(unittest.TestCase):
         several, and one shared index across all of them is the same guess in a
         cheaper disguise.
         """
-        column = None
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.startswith("|"):
-                continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if self.RULE_HEADING in cells:
-                column = cells.index(self.RULE_HEADING)
-                continue
-            if cells and cells[0] == row_label:
-                self.assertIsNotNone(
-                    column,
-                    f"{path.name} row {row_label} sits under no "
-                    f"{self.RULE_HEADING!r} header",
-                )
-                self.assertGreater(
-                    len(cells),
-                    column,
-                    f"{path.name} row {row_label} has no rule column",
-                )
-                return cells[column]
-        self.fail(f"{path.name} carries no table row labeled {row_label}")
+        return table_cell(path, row_label, self.RULE_HEADING)
 
     def rows(self):
         return (
@@ -2598,6 +2601,83 @@ class ObesityBmiIsTheDocumentedObesitySet(unittest.TestCase):
             int(p.stem.split("-")[1]) for p in sorted(self.OBESITY_BMI.glob("case-*.md"))
         ]
         self.assertEqual(numbers, sorted(self.ANCHORS + self.CONTROLS))
+
+
+class FilledZeroRulingIsFixtured(unittest.TestCase):
+    """Issue #138's two limbs, scored against the committed blind-run output."""
+
+    ASSERTIONS = REPO_ROOT / "fixtures" / "obesity-bmi" / "assertions.md"
+    BLIND_RUN = REPO_ROOT / "fixtures" / "blind-run"
+    CATALOG = REPO_ROOT / "fixtures" / "README.md"
+    CONFIRMED_CASES = (3,)
+
+    def shorthand(self, number: int) -> str:
+        return case(OBESITY_BMI_SHORTHAND, number)
+
+    def severity_fill(self, number: int) -> str:
+        output = (
+            self.BLIND_RUN / f"obesity-bmi-case-{number:02d}.md"
+        ).read_text(encoding="utf-8")
+        start = output.index("FILLED·asserted   SEVERITY 0/10")
+        end = output.find("\nFILLED·asserted", start + 1)
+        return output[start:] if end == -1 else output[start:end]
+
+    def test_the_inputs_leave_the_severity_to_fill(self):
+        for number in self.CONFIRMED_CASES:
+            with self.subTest(case=number):
+                shorthand = self.shorthand(number)
+                self.assertFalse(cc.has_pain_score(shorthand))
+                self.assertNotRegex(shorthand, NO_PAIN)
+
+    def test_o6_states_both_halves_of_the_value_ruling(self):
+        self.assertEqual(table_cell(self.ASSERTIONS, "O6", "Cases"), "3")
+        passes = table_cell(self.ASSERTIONS, "O6", "Passes when")
+        fails = table_cell(self.ASSERTIONS, "O6", "Fails when")
+        for clause in (
+            "The filled `0/10` itself is not a failure",
+            "creates no Plan obligation and discharges none",
+            "`PASS`, 2026-08-20, on `733a396`",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, passes)
+        self.assertIn("clinician confirmed", passes)
+        self.assertIn("The zero itself is rejected", fails)
+
+    def test_o7_states_the_search_and_closes_the_no_anchor_exit(self):
+        self.assertEqual(table_cell(self.ASSERTIONS, "O7", "Cases"), "3")
+        passes = table_cell(self.ASSERTIONS, "O7", "Passes when")
+        fails = table_cell(self.ASSERTIONS, "O7", "Fails when")
+        for clause in (
+            "names the search",
+            "what was read in the complaint and the exam",
+            "neither held a pain source",
+            "`PASS`, 2026-08-20, on `733a396`",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, passes)
+        self.assertIn("drift row 19's no-anchor exit", fails)
+
+    def test_each_scored_output_fills_zero_after_a_negative_search(self):
+        for number in self.CONFIRMED_CASES:
+            with self.subTest(case=number):
+                disclosure = self.severity_fill(number)
+                self.assertRegex(
+                    disclosure,
+                    r"Read the\s+complaint and the\s+exam(?:ination)?",
+                )
+                self.assertIn("pain source", disclosure)
+                self.assertRegex(disclosure, r"Nothing in the encounter\s+documents pain")
+                self.assertNotRegex(disclosure, r"(?i)no anchor")
+
+    def test_the_catalog_does_not_restate_targeted_scores_as_a_run(self):
+        entry = next(
+            line
+            for line in self.CATALOG.read_text(encoding="utf-8").splitlines()
+            if "[obesity-bmi]" in line
+        )
+        self.assertIn("never run", entry)
+        self.assertIn("O6 and O7", entry)
+        self.assertIn("targeted", entry)
 
 
 class SocialSlotsSplitTwoWays(unittest.TestCase):
