@@ -19,9 +19,11 @@ The other half is the silent failure mode every extractor here shares with
 body values and must keep reading as given.
 """
 
+import io
 import tempfile
 import textwrap
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import filled_vitals_census as fvc
@@ -87,6 +89,238 @@ class FilledBlock(unittest.TestCase):
             with self.subTest(key=key):
                 text = f"{key}   BP 120/70 filled.\nFLAG              None.\n"
                 self.assertIn("BP 120/70 filled", fvc.filled_block(text))
+
+
+class TheKeyHeadsALineRatherThanOpeningASentence(unittest.TestCase):
+    """A column-0 match is not enough, and two committed notes prove it.
+
+    The module used to open a block on any ``FILLED·asserted`` at column 0. Note
+    prose is hard-wrapped, so a sentence can begin a line with the key and mean
+    nothing by it -- ``case-04`` writes ``FILLED·asserted.`` at column 0 far above
+    its tier block, and ``case-06`` writes
+    ``FILLED·asserted item 11.`` below its own. On ``case-04`` the parser took the
+    prose one, which is exactly the failure the module's own docstring says the
+    column-0 rule prevents: **a whole note body read as declared content, with
+    the real block never read at all.**
+
+    A tier key *heads* a line -- end of line, or an aligned column of two or more
+    spaces before its content. A sentence does neither.
+    """
+
+    def test_a_wrapped_prose_sentence_does_not_open_a_block(self):
+        """``case-04``'s shape: the key at column 0 with a period after it."""
+        text = (
+            "and acetaminophen — both inferred and listed in\n"
+            "FILLED·asserted. **Whether he takes an NSAID** is unconfirmed.\n"
+        )
+        self.assertEqual(fvc.filled_block(text), "")
+
+    def test_a_prose_reference_with_one_space_does_not_open_a_block(self):
+        """``case-06``'s shape: the key, one space, and a running sentence."""
+        text = "FILLED·asserted item 11. Filled vitals are not results.\n"
+        self.assertEqual(fvc.filled_block(text), "")
+
+    def test_a_key_alone_on_its_line_opens_a_block(self):
+        """``case-07`` and ``case-08`` write it this way -- a third live form."""
+        text = "FILLED·asserted\n    BP 138/86 filled.\nFILLED·proposed\n    Ibuprofen.\n"
+        block = fvc.filled_block(text)
+        self.assertIn("BP 138/86 filled", block)
+        self.assertNotIn("Ibuprofen", block)
+
+    def test_case_04s_block_is_its_tier_block_and_not_its_body(self):
+        """The committed instance, which is why this rule is not hypothetical."""
+        block = fvc.filled_block(note("case-04.md"))
+        self.assertIn("Home meds — omeprazole", block)
+        self.assertNotIn("Whether he takes an NSAID", block)
+
+    def test_the_committed_notes_still_read_exactly_one_key_each(self):
+        for name in sorted(p.name for p in NOTES.glob("case-*.md")):
+            with self.subTest(note=name):
+                self.assertEqual(fvc.key_coverage(note(name)), (1, 1))
+
+
+class TheRepeatedKeyFormIsOneBlock(unittest.TestCase):
+    """Issue #204. Three block forms are live and all three are this skill's.
+
+    The parser used to end a block at the next line starting ``FILLED``, which
+    includes ``FILLED·asserted`` itself. On the aligned-continuation form that is
+    right. On the **repeated-key** form -- one key per line, which is how
+    ``skills/clinical-note/SKILL.md``'s own worked examples write a multi-item
+    block -- the first declaration swallowed nothing and every one after it was
+    read as a block that ended where it began, and nothing in the report or the
+    exit status said so. **How many declarations one run lost is #204's to state
+    and is deliberately not restated here**, on that module's own terms.
+    """
+
+    REPEATED = (
+        "DERIVED           BMI 26.5 = 703 x 185 / 70^2.\n"
+        "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a 41-year-old man.\n"
+        "FILLED·asserted   WEIGHT 185 lb filled. Reasoned from the same.\n"
+        "FILLED·asserted   BP 142/88 filled. Reasoned from age 41.\n"
+        "FILLED·asserted   HR 96 filled.\n"
+        "FILLED·proposed   Recheck in 4 weeks.\n"
+    )
+
+    def test_every_declaration_in_a_repeated_key_block_reads(self):
+        fill = fvc.read_fill(self.REPEATED)
+        self.assertEqual(fill.height_in, 70)
+        self.assertEqual(fill.weight_lb, 185)
+        self.assertEqual(fill.pressure, (142, 88))
+        self.assertIn("heart_rate", fill.counted)
+
+    def test_the_block_still_ends_at_the_proposed_key(self):
+        """Reading past it would put forward actions among declared values."""
+        self.assertNotIn("Recheck", fvc.filled_block(self.REPEATED))
+        self.assertNotIn("BMI 26.5", fvc.filled_block(self.REPEATED))
+
+    def test_the_aligned_continuation_form_reads_the_same_values(self):
+        aligned = (
+            "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a 41-year-old man.\n"
+            "                  WEIGHT 185 lb filled. BP 142/88 filled. HR 96 filled.\n"
+            "FILLED·proposed   Recheck in 4 weeks.\n"
+        )
+        self.assertEqual(fvc.read_fill(aligned), fvc.read_fill(self.REPEATED))
+
+    def test_a_declaration_may_not_wrap_from_one_repeated_key_into_the_next(self):
+        """Each key opens its own item, so the 80-character window stops there.
+
+        Without a boundary the tail of one entry welds to the ``filled`` of the
+        next, which would read a *given* value on one line as declared by the
+        word on the line below it.
+        """
+        text = (
+            "FILLED·asserted   BMI 25.7 rests on the charted Ht 6'2\"\n"
+            "FILLED·asserted   WEIGHT 200 lb filled.\n"
+            "FILLED·proposed   Recheck.\n"
+        )
+        # No ``given`` anywhere, so the height's only route to being read as
+        # declared is the word on the line below it. That route is the one the
+        # repeated key closes, and nothing else in this module would.
+        self.assertIsNone(fvc.read_fill(text).height_in)
+        self.assertEqual(fvc.read_fill(text).weight_lb, 200)
+
+
+class TheTwoBoundariesAreLooseInOppositeDirections(unittest.TestCase):
+    """The start is strict and the end is permissive, and that is not symmetry.
+
+    The two fail opposite ways. A **start** that matches too readily opens a
+    block on prose and reads a note body as declared content. An **end** that
+    matches too *reluctantly* never closes the block and reads the tiers below
+    it as declared content -- which is the same defect one boundary over.
+
+    The first version of #204's fix applied the heads-a-line rule to both, and
+    the case below is what that cost: a single-space ``FLAG`` stopped closing
+    the block, so a **given** pressure the note had flagged, and a charted
+    weight under ``GAPS``, both read as filled -- with the coverage row
+    reporting a clean scan over them. Found by the spec axis of ``/code-review``
+    and re-derived before it was believed.
+    """
+
+    FLAGGED = (
+        "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a 41-year-old man.\n"
+        "FLAG BP 151/93 undiscussed\n"
+        "GAPS x-ray ordered, WEIGHT 300 lb filled per chart\n"
+    )
+
+    def test_a_single_space_key_still_closes_the_block(self):
+        fill = fvc.read_fill(self.FLAGGED)
+        self.assertEqual(fill.height_in, 70)
+        self.assertIsNone(fill.pressure)
+        self.assertIsNone(fill.weight_lb)
+
+    def test_a_prose_line_starting_filled_closes_rather_than_opens(self):
+        """``case-06`` writes ``FILLED, not traced.`` below its own block.
+
+        Closing early truncates, which is the safe direction; opening there
+        would read everything after it as declared.
+        """
+        text = "FILLED·asserted   BP 120/70 filled.\nFILLED, not traced.\nWEIGHT 300 lb filled\n"
+        self.assertIsNone(fvc.read_fill(text).weight_lb)
+        self.assertEqual(fvc.read_fill(text).pressure, (120, 70))
+
+    def test_a_repeated_asserted_key_is_still_not_an_end(self):
+        """Both separators, so the end's lookahead tracks the start's class."""
+        for key in ("FILLED·asserted", "FILLED.asserted", "FILLED asserted"):
+            with self.subTest(key=key):
+                text = f"{key}   BP 120/70 filled.\n{key}   WEIGHT 185 lb filled.\n"
+                self.assertEqual(fvc.read_fill(text).weight_lb, 185)
+
+    def test_the_proposed_key_is_still_an_end(self):
+        text = "FILLED·asserted   BP 120/70 filled.\nFILLED·proposed   WEIGHT 185 lb filled.\n"
+        self.assertIsNone(fvc.read_fill(text).weight_lb)
+
+
+class CoverageIsCountedAndRefused(unittest.TestCase):
+    """Issue #204's ruling, and #177's arrangement adopted whole.
+
+    Reading both forms leaves the tool silently tolerant of a fourth nobody has
+    written. So the signal is derived from the **member list** -- the
+    ``FILLED·asserted`` keys the note carries -- rather than from whether a block
+    was found at all, which is the arithmetic that let *one declaration of N* read
+    like a complete scan. A key the read block does not contain is a member that was not
+    read: the report says so on **every** run, and the exit status refuses.
+    """
+
+    INTERLEAVED = (
+        "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a 41-year-old man.\n"
+        "DERIVED           BMI 26.5 = 703 x 185 / 70^2.\n"
+        "FILLED·asserted   BP 142/88 filled.\n"
+    )
+
+    def test_a_key_outside_the_read_block_is_counted_unread(self):
+        self.assertEqual(fvc.key_coverage(self.INTERLEAVED), (2, 1))
+
+    def test_a_note_with_no_block_is_not_a_partial_scan(self):
+        """Declaring nothing and being half-read are different states."""
+        self.assertEqual(fvc.key_coverage("SUBJECTIVE\n\nOBJECTIVE\n"), (0, 0))
+
+    def test_the_report_names_what_was_scanned_on_every_run(self):
+        report = fvc.format_report(fvc.survey(all_notes()), source="notes")
+        self.assertIn("scanned", report)
+        self.assertIn("FILLED·asserted", report)
+
+    def test_the_scanned_row_comes_before_the_counts(self):
+        """A count printed ahead of the caveat is read as the verdict."""
+        report = fvc.format_report(fvc.survey(all_notes()), source="notes")
+        self.assertLess(report.index("scanned"), report.index("notes read"))
+
+    def test_a_partly_read_note_exits_two(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=self.INTERLEAVED))]), 2)
+
+    def test_the_same_note_read_whole_exits_zero(self):
+        """So the two above is the unread key and not the temp directory."""
+        whole = self.INTERLEAVED.replace(
+            "DERIVED           BMI 26.5 = 703 x 185 / 70^2.\n", ""
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=whole))]), 0)
+
+    def test_a_violation_outranks_a_partly_read_note(self):
+        """1 wins, on ``differential_scan.py``'s ordering and for its reason."""
+        bare = self.INTERLEAVED.replace(" Plausible for a 41-year-old man.", "")
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(fvc.main([str(written(Path(tmp), a=bare))]), 1)
+
+    def test_the_floor_note_precedes_the_findings_it_qualifies(self):
+        """#177's ordering: a count ahead of its caveat reads as the verdict.
+
+        Every finding printed below is a count, and each is a floor where a key
+        went unread -- so the caveat cannot be the last thing on the page.
+        """
+        bare = self.INTERLEAVED.replace(" Plausible for a 41-year-old man.", "")
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+                self.assertEqual(fvc.main([str(written(Path(tmp), a=bare))]), 1)
+        out = stderr.getvalue()
+        self.assertIn("is a floor", out)
+        self.assertLess(out.index("is a floor"), out.index("B18 fails"))
+
+    def test_the_committed_set_reads_every_key_it_has(self):
+        census = fvc.survey(all_notes())
+        self.assertEqual(census.asserted_keys_unread, 0)
+        self.assertEqual(census.asserted_keys, census.asserted_keys_read)
 
 
 class Declarations(unittest.TestCase):

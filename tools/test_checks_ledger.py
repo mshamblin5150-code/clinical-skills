@@ -178,11 +178,24 @@ class EveryCheckTheTableNamesIsPresent(unittest.TestCase):
         self.assertEqual([f.check for f in found], [checks.EXPECTED_CHECKS[0]])
 
     def test_the_two_reference_rows_are_not_one_check(self):
-        """The first table row's name is a prefix of the second's, so a substring
-        match would read either one as satisfying both."""
+        """One row's name is a prefix of another's, so a substring match would read
+        either one as satisfying both.
+
+        **The pair is found by the prefix property rather than by index.** It was
+        two positional lookups until #277 put a new row at the head of the tuple,
+        which broke a test whose subject has nothing to do with where in the table
+        a row sits -- so the search is now for the property itself, and a second
+        such pair arriving is covered rather than only the one that exists.
+        """
         text = whole_file()
-        short, long = checks.EXPECTED_CHECKS[0], checks.EXPECTED_CHECKS[1]
-        self.assertTrue(long.startswith(short))
+        pairs = [
+            (short, long)
+            for short in checks.EXPECTED_CHECKS
+            for long in checks.EXPECTED_CHECKS
+            if long != short and long.startswith(short)
+        ]
+        self.assertTrue(pairs, "no prefix pair in the table, so this test checks nothing")
+        short, long = pairs[0]
         without_long = text.replace(f"## CHECK: {long}\n", "## CHECK: dropped\n")
         self.assertIn(checks.MISSING_CHECK, kinds(without_long))
 

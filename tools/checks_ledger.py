@@ -198,6 +198,12 @@ FIELD = re.compile(r"(?mi)^[ \t]*(VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$")
 # normalized string and never a substring: a prefix test would read either one as
 # satisfying both.
 EXPECTED_CHECKS = (
+    # Graded by ``tools/case_study_scan.py`` rather than by a reader, on
+    # ``the reference list``'s terms and for its reason: the rules are
+    # mechanical, so the row is a command. Added on
+    # [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277),
+    # and it is first because it is the only row that reads the whole draft.
+    "the house style",
     "the reference list",
     "the reference list, the part no command reaches",
     "differential ordering",

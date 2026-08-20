@@ -131,7 +131,7 @@ class AWorktreeIsNotPartOfItsParent(unittest.TestCase):
     **This does not reach the worse half of that finding and is not claimed to.**
     A generator whose ``OUT`` points at a path under a tracked directory writes a
     **modification to a tracked file**, which no ignore rule suppresses. That
-    stays a write guard's job, on ``guidelines_extract.check_outside_repo``'s
+    stays a write guard's job, on ``repo_root.ensure_outside_checkout``'s
     terms.
     """
 
