@@ -189,7 +189,7 @@ Completion: every encounter appears in exactly one of the two note lists.
 
 **Read FLAGS first.** A gap is work outstanding and announces itself. A flag is a note that reads perfectly well and acted on only part of what it documented — nothing about it looks wrong. The roll-up is the only place the pattern is visible: one flag in one note looks like a hard case, five across a shift is what a twelve-hour day does to documentation.
 
-**FILLED VITALS is there for the same reason, and it is the harder case of it.** A flag at least announces itself once you read the note. A filled vital announces nothing: `5'10"` for a 36-year-old man is an ordinary patient, and `clinical-note` licenses filling it. **What no single note can show is that the next eight patients were also 5'10"** — a measured run gave nine filled heights four distinct values, and gave two patients aged 36 and 68 an identical `5'10" / 190 lb`. Issue #67, and `clinical-note`'s *Which value was chosen is the instruction* is the rule this block enforces.
+**FILLED VITALS is there for the same reason, and it is the harder case of it.** A flag at least announces itself once you read the note. A filled vital announces nothing: an ordinary value for one patient may still reveal a template when it repeats across unrelated encounters. **No single note can show that pattern.** Issue #67, and `clinical-note`'s *Which value was chosen is the instruction* is the rule this block enforces.
 
 **Print it whether or not anything repeats.** A block that appears only on a bad shift is a block whose absence is read as a pass, and the license's instruction — *the value this patient most plausibly had* — is one every filled note owes an account of, not one that becomes relevant when something looks wrong.
 

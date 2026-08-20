@@ -42,16 +42,37 @@ CONCRETE_FIXTURE_PATH = re.compile(
     r"fixtures/(?!README(?:\.md)?(?:[#)\s\]]|$))"
 )
 NUMBERED_CASE_OR_RUN = re.compile(r"(?i)\b(?:case|run)\s*-?\d+\b")
+# These strings are ordinary clinical notation as well as assertion identifiers.
+# Ignoring them avoids treating vitamin B12, heart sounds S1/S2, and O2 as leaks.
+CLINICAL_ROW_HOMONYMS = {"B12", "O2", "S1", "S2"}
 
 
 def concrete_fixture_names() -> list[str]:
     return sorted(path.name for path in FIXTURES.iterdir() if path.is_dir())
 
 
+def concrete_assertion_rows() -> list[str]:
+    rows = set()
+    for path in FIXTURES.glob("*/assertions.md"):
+        rows.update(
+            re.findall(
+                r"^\|\s*([A-Z]\d+)\s*\|",
+                path.read_text(encoding="utf-8"),
+                re.MULTILINE,
+            )
+        )
+    return sorted(rows - CLINICAL_ROW_HOMONYMS)
+
+
 def findings(path: Path) -> list[str]:
     names = concrete_fixture_names()
     name_pattern = re.compile(
         r"(?<![A-Za-z0-9_-])(?:" + "|".join(map(re.escape, names)) + r")(?![A-Za-z0-9_-])"
+    )
+    row_pattern = re.compile(
+        r"(?<![A-Za-z0-9])(?:"
+        + "|".join(map(re.escape, concrete_assertion_rows()))
+        + r")(?![A-Za-z0-9])"
     )
     found = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -60,6 +81,7 @@ def findings(path: Path) -> list[str]:
             CONCRETE_FIXTURE_PATH.search(normalized)
             or name_pattern.search(normalized)
             or NUMBERED_CASE_OR_RUN.search(normalized)
+            or row_pattern.search(normalized)
         ):
             found.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
     return found
@@ -91,6 +113,17 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
     def test_the_guard_detects_a_numbered_case_or_run_without_a_set_name(self):
         self.assertIsNotNone(NUMBERED_CASE_OR_RUN.search("case 7 carried the answer"))
         self.assertIsNotNone(NUMBERED_CASE_OR_RUN.search("run 2 scored it"))
+
+    def test_the_guard_detects_a_committed_assertion_row(self):
+        self.assertIn("B18", concrete_assertion_rows())
+        path = ROOT / "tools" / "test_blind_fixture_instructions.py"
+        row_pattern = re.compile(
+            r"(?<![A-Za-z0-9])(?:"
+            + "|".join(map(re.escape, concrete_assertion_rows()))
+            + r")(?![A-Za-z0-9])"
+        )
+        self.assertIsNotNone(row_pattern.search("B18 carried the answer"))
+        self.assertIsNone(row_pattern.search("vitamin B12 level"))
 
     def test_the_general_policy_link_is_not_a_concrete_fixture_path(self):
         self.assertIsNone(

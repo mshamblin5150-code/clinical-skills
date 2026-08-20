@@ -55,6 +55,8 @@ Each of the twelve also records the missing date and site under `GAPS`, in its o
 
 **Do not correct them.** The current scanner vocabulary finds **13 forms / 43 occurrences / 7 of the twelve notes**. This paragraph once read *eight forms, 20 times across six of the twelve notes*; adding `neighbour` and then `judgement` moved it **without a byte of these notes changing**. The figure is a property of the instrument applied to the record, so the test binds it here, in the withheld fixture record, rather than in a required generation instruction. [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278) later added evidenced forms already present in the notes, and [#103](https://github.com/mshamblin5150-code/clinical-skills/issues/103) removed a derivative ordinary encounters could not exercise. [Standing rule 4](../../../AGENTS.md) says American English always and has no exceptions in the output, and these are not an exception to it: they are **a record of it being broken**, which is a different thing and is the only reason they survive. Recompute the figures rather than trusting this paragraph:
 
+The largest American/British pair is **`counseling` 57 against `counselling` 12**. It is partitioned by note: the notes carrying the British form carry no American occurrence, and the notes carrying the American form carry no British occurrence. `caesarean` and `fibre` are the two forms that coexist with their American counterparts inside a note. The test binds both the figures and this mechanism here so a correct count cannot support an invented interpretation.
+
 ```bash
 python tools/spelling_scan.py --record
 ```
