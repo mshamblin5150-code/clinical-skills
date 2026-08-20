@@ -680,9 +680,9 @@ def check_audit(
     """Require one independent reading for every judgment cell in every row."""
     failures: list[str] = []
     catalog = {row.filename: row for row in rows}
-    audited: dict[str, AuditDocument] = {}
-    read: dict[tuple[str, str], AuditReading] = {}
-    ruled: dict[tuple[str, str], AuditRuling] = {}
+    document_audits_by_filename: dict[str, AuditDocument] = {}
+    readings_by_cell: dict[tuple[str, str], AuditReading] = {}
+    rulings_by_cell: dict[tuple[str, str], AuditRuling] = {}
 
     def valid_date(value: str) -> bool:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
@@ -696,12 +696,12 @@ def check_audit(
         return True
 
     for document in documents:
-        if document.filename in audited:
+        if document.filename in document_audits_by_filename:
             failures.append(
                 f"{document.filename}: document audit appears more than once"
             )
         else:
-            audited[document.filename] = document
+            document_audits_by_filename[document.filename] = document
         row = catalog.get(document.filename)
         if row is None:
             failures.append(f"{document.filename}: document audit has no catalog row")
@@ -717,12 +717,12 @@ def check_audit(
 
     for reading in readings:
         key = (reading.filename, reading.column)
-        if key in read:
+        if key in readings_by_cell:
             failures.append(
                 f"{reading.filename}: {reading.column} reading appears more than once"
             )
         else:
-            read[key] = reading
+            readings_by_cell[key] = reading
         row = catalog.get(reading.filename)
         if reading.column not in AUDITED_COLUMNS:
             failures.append(
@@ -749,12 +749,12 @@ def check_audit(
 
     for ruling in rulings:
         key = (ruling.filename, ruling.column)
-        if key in ruled:
+        if key in rulings_by_cell:
             failures.append(
                 f"{ruling.filename}: {ruling.column} ruling appears more than once"
             )
         else:
-            ruled[key] = ruling
+            rulings_by_cell[key] = ruling
         row = catalog.get(ruling.filename)
         if ruling.column not in AUDITED_COLUMNS:
             failures.append(
@@ -777,22 +777,23 @@ def check_audit(
             failures.append(f"{ruling.filename}: {ruling.column} ruling rationale is empty")
 
     for row in rows:
-        if row.filename not in audited:
+        if row.filename not in document_audits_by_filename:
             failures.append(f"{row.filename}: has no document audit")
         for column in AUDITED_COLUMNS:
             key = (row.filename, column)
-            if key not in read:
+            if key not in readings_by_cell:
                 failures.append(
                     f"{row.filename}: {column} has no independent reading"
                 )
                 continue
-            disagrees = read[key].value != row.cells[column]
-            if not disagrees and key in ruled:
+            disagrees = readings_by_cell[key].value != row.cells[column]
+            if not disagrees and key in rulings_by_cell:
                 failures.append(
                     f"{row.filename}: {column} ruling exists without a disagreement"
                 )
             elif disagrees and (
-                key not in ruled or ruled[key].confirmed_value != row.cells[column]
+                key not in rulings_by_cell
+                or rulings_by_cell[key].confirmed_value != row.cells[column]
             ):
                 failures.append(
                     f"{row.filename}: {column} disagrees between the catalog and "
