@@ -14,6 +14,8 @@ work are both outside this repo.
 from __future__ import annotations
 
 import ast
+import contextlib
+import io
 import os
 import re
 import tempfile
@@ -956,6 +958,302 @@ class AnUnrecognizedOption(unittest.TestCase):
             path = root / "case.docx"
             self.assertEqual(docx_write.main([str(source), str(path), "--forse"]), 2)
             self.assertFalse(path.exists())
+SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+
+def section_eight():
+    """``style.md`` section 8, sliced once rather than in each class that reads it."""
+    text = (SKILL / "reference" / "style.md").read_text(encoding="utf-8")
+    return text[text.index("## 8.") : text.index("## 9.")]
+
+
+class TheRxTableTheStyleSheetDocuments(unittest.TestCase):
+    """#280: nothing bound ``style.md`` section 8 to what this renderer does with it.
+
+    That sheet specified the ``Rx:`` block as a **one-column** table whose first row
+    faked three columns with ``&#124;``, and two of the five defects the clinician found
+    in the rendered Module 1 submission came out of it: the entity reached the page as
+    literal text, a run that reached for the Markdown spelling instead left a backslash
+    in the cell, and the whole prescription rendered into column 1. **Both were
+    downstream of a documented shape that had never been rendered.**
+
+    #293 repaired the shape and taught ``split_row`` and ``table`` the rest. **The gap
+    this class closes is the one that let it happen**: every ``Rx:`` test that landed
+    with those repairs uses rows typed into this file, so the sheet is still correct only
+    because somebody rendered it once and looked. Here the table is **extracted from the
+    sheet** and run through the renderer -- ``TheTwoCopiesOfWhatTheRendererApplies``'s
+    arrangement pointed at a *shape* rather than at a list.
+
+    **What it does not reach** is whether the six rows are the *right* six. A sheet that
+    renamed ``Disp:`` to something a pharmacy will not fill passes every row below, and
+    stays the clinician's reading.
+    """
+
+    def section_eight(self):
+        return section_eight()
+
+    def block(self):
+        tables = docx_write.markdown_tables(section_eight())
+        self.assertTrue(tables, "no table in section 8 -- the instrument is dead")
+        return tables[0]
+
+    def rows(self):
+        """Every ``w:tr`` of the rendered table, as a list of its ``w:tc`` fragments."""
+        xml = rendered_parts(self.block())["word/document.xml"]
+        return [
+            re.findall(r"<w:tc>.*?</w:tc>", row, re.DOTALL)
+            for row in re.findall(r"<w:tr>.*?</w:tr>", xml, re.DOTALL)
+        ]
+
+    def span(self, cell):
+        found = re.search(r'<w:gridSpan w:val="(\d+)"/>', cell)
+        return int(found.group(1)) if found else 1
+
+    def test_the_sheets_table_renders_as_a_header_band_over_six_rows(self):
+        """The instrument is live: a parser finding nothing would pass every row below.
+
+        **Seven ``w:tr`` under a heading that says six**, and the extra one is the
+        blank header band the ``---`` rule needs above it. The heading counts the rows a
+        prescriber fills in, which is the honest thing for it to count and is why this
+        is asserted rather than left for a reader to trip over.
+        """
+        self.assertEqual(len(self.rows()), 7)
+        band = ["".join(re.findall(r"<w:t[ >]", c)) for c in self.rows()[0]]
+        self.assertEqual(band, ["", "", ""])
+
+    def test_the_grid_is_three_columns_wide(self):
+        xml = rendered_parts(self.block())["word/document.xml"]
+        grid = re.search(r"<w:tblGrid>.*?</w:tblGrid>", xml, re.DOTALL).group(0)
+        self.assertEqual(grid.count("<w:gridCol"), 3)
+
+    def test_the_patient_row_declares_three_cells(self):
+        """The row the entity was faking. Three real cells, none of them spanning."""
+        patient = self.rows()[1]
+        self.assertEqual(len(patient), 3)
+        self.assertEqual([self.span(c) for c in patient], [1, 1, 1])
+
+    def test_each_single_field_row_spans_the_whole_width(self):
+        """The drug, ``Disp:``, ``Sig:`` and signature rows carry one field each.
+
+        Sitting in column 1 with two empty cells beside it is the second half of the
+        recorded defect -- *"everything was put into the left sided column"*.
+        """
+        rows = self.rows()
+        for index in (2, 3, 4, 5):
+            self.assertEqual(len(rows[index]), 1, index)
+            self.assertEqual(self.span(rows[index][0]), 3, index)
+
+    def test_the_refill_row_is_two_cells_and_the_dea_line_sits_right(self):
+        refill = self.rows()[6]
+        self.assertEqual(len(refill), 2)
+        self.assertEqual([self.span(c) for c in refill], [1, 2])
+        self.assertNotIn('<w:jc w:val="right"/>', refill[0])
+        self.assertIn('<w:jc w:val="right"/>', refill[1])
+
+    def test_no_cell_carries_a_separator_as_text(self):
+        """#280's general row, asserted on the table it was recorded against."""
+        self.assertEqual(docx_write.separator_artifacts(self.block()), [])
+
+    def test_the_heading_states_the_width_the_table_renders_to(self):
+        """It read *a fixed six-row table* and named no width at all, while the shape
+        under it was one column faking three."""
+        heading = self.section_eight().splitlines()[0]
+        self.assertIn("six-row", heading)
+        self.assertIn("three columns wide", heading)
+
+
+class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
+    """#280's general row: **no documented table shape in this skill may render to text
+    containing its own separator syntax.**
+
+    The ticket's open decision was whether to generalize past section 8, and it worried
+    that a wider walk *"may fire on tables that document Markdown rather than prescribing
+    output"*. Measured over the sheets rather than argued: every table in
+    ``skills/practicum-case-study/reference/`` is a shape a run copies or a legend a run
+    reads, **not one of them documents Markdown syntax**, and only section 8's ever
+    carried an escape. So the wider walk costs nothing and fires on the one recorded
+    defect.
+
+    **What it does not reach** is a table outside these sheets. ``SKILL.md``'s own are
+    prose about the work -- a defect table, a check table -- rather than shapes a draft
+    copies, so they are outside the row's *statement* rather than merely unwalked; that
+    was **measured** rather than assumed, by running this scanner over every table in
+    that file and finding none that fires. #137's shape is a generalization made from
+    the files a pass had open, so the fix for it is to go and look.
+
+    A documented shape that renders cleanly and is *wrong* passes here as it does
+    everywhere.
+    """
+
+    SHEETS = SKILL / "reference"
+
+    # A floor rather than the count, on #143's terms: a sheet gaining a table must not
+    # turn the suite red, and a walk that found nothing must not read as a clean sweep.
+    FLOOR = 9
+
+    def tables(self):
+        found = []
+        for sheet in sorted(self.SHEETS.glob("*.md")):
+            for block in docx_write.markdown_tables(sheet.read_text(encoding="utf-8")):
+                found.append((sheet.name, block))
+        return found
+
+    def test_the_walk_finds_tables_to_grade(self):
+        """The instrument is live, on ``TheTwoCopiesOfWhatTheRendererApplies``'s row."""
+        self.assertGreaterEqual(len(self.tables()), self.FLOOR)
+
+    def test_no_sheet_documents_a_table_that_renders_its_own_separator(self):
+        for name, block in self.tables():
+            self.assertEqual(docx_write.separator_artifacts(block), [], name)
+
+    def test_the_detector_fires_on_the_shape_this_ticket_retired(self):
+        """A walk that could not see the recorded defect would be a clean sweep proving
+        nothing. This is section 8's table as it stood.
+
+        It fires on the **faked width** rather than on the entity, and that is why the
+        row is not the one the ticket wrote: since #293 ``split_row`` decodes ``&#124;``,
+        so the entity no longer reaches the page at all -- what is left is one cell
+        carrying two pipes, a row saying it is three columns wide over a grid that is
+        one. The same defect, one layer down.
+        """
+        retired = (
+            "| |\n"
+            "| --- |\n"
+            "| `<patient placeholder>` &#124; `DOB x-x-xxx` &#124; `NPI # <number>` |\n"
+        )
+        self.assertIn(
+            docx_write.CELL_SEPARATOR, docx_write.separator_artifacts(retired)
+        )
+
+    def test_an_escape_the_parser_never_sees_is_still_reported(self):
+        """Outside a table nothing consumes either spelling, so both reach the page."""
+        for escape in docx_write.PIPE_ESCAPES:
+            found = docx_write.separator_artifacts(
+                "A stray {e} in a sentence.\n".format(e=escape)
+            )
+            self.assertIn(escape, found, escape)
+
+    def test_a_backslash_in_a_cell_is_reported(self):
+        """The recorded symptom itself -- *"the patient carries a backslash"*. The
+        escape limb narrows the ticket's row to a backslash **before a pipe**, because
+        that is what the parser consumes, so a lone one would otherwise reach the page
+        reported by nothing. Found by the spec axis of ``/code-review``."""
+        markdown = "| Head |\n| --- |\n| Jane Doe FNP-C \\ |\n"
+        self.assertIn(
+            docx_write.CELL_BACKSLASH, docx_write.separator_artifacts(markdown)
+        )
+
+    def test_a_backslash_outside_a_table_is_left_alone(self):
+        """The declared half of that narrowing, asserted rather than described: in
+        running prose a backslash is somebody quoting a path or a pattern, and a
+        warning that fires on those is one a run learns to skip."""
+        self.assertEqual(
+            docx_write.separator_artifacts("A path C:\\temp in prose.\n"), []
+        )
+
+    def test_the_prose_that_documents_the_defect_is_a_mention_and_not_a_use(self):
+        """**Section 8 explains the retired shape, so both escapes are in that file** --
+        one in a sentence naming the spelling that rendered as text, one in the
+        clinician's quoted reading of the page.
+
+        The unit is the **table**, so neither is seen. Pointed at the whole section the
+        walk reports both, and would fail the sheet that documents the fix -- which is
+        ``spelling_scan.py``'s mention-versus-use distinction and #153's *describing the
+        rule broke the tool that checks the rule*, arriving here uninvited. Written down
+        because the first version of this test asserted the section rather than the
+        table and went red on exactly that.
+        """
+        section = section_eight()
+        self.assertEqual(docx_write.separator_artifacts(section), ["&#124;", "\\|"])
+        for block in docx_write.markdown_tables(section):
+            self.assertEqual(docx_write.separator_artifacts(block), [])
+
+    def test_every_form_the_scanner_reports_is_one_the_parser_consumes(self):
+        """``PIPE_ESCAPES`` is declared for the reporting side and read by only one limb
+        of ``split_row``, so nothing but this stops the two drifting -- a scanner naming
+        a spelling the parser leaves alone would send a run chasing a working cell."""
+        for escape in docx_write.PIPE_ESCAPES:
+            self.assertEqual(
+                docx_write.split_row("| a {e} b | c |".format(e=escape)),
+                ["a | b", "c"],
+                escape,
+            )
+
+
+class TheRendererWarnsAboutSeparatorArtifacts(unittest.TestCase):
+    """Ruled by the clinician on 2026-08-19: the command **warns and never refuses**.
+
+    #280's second comment is why there is a command limb at all -- a test binds the sheet
+    for the next author of ``docx_write.py``, and **section 8 is copied by runs, and a
+    run executes commands rather than the suite**. So the artifact is reported where a
+    run would see it. Refusing was priced and declined: this renderer is on the
+    consumer's critical path, and a blocked submission is a worse outcome than a
+    separator on the page.
+
+    **The warning is bounded by what the code can draw on** -- a value of
+    ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``, and an integer, never a
+    run's text -- which is ``reference_scan.py``'s discipline at the width
+    ``tracker_bodies.py`` uses it at. A case study draft is written about a patient, and
+    printing a cell of it would make this command's output PHI where it was not.
+    """
+
+    def render(self, markdown):
+        """The written flag is read **inside** the temp directory, which is why it is a
+        flag: a path handed back outlives the directory that gave it a meaning."""
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "draft.md"
+            source.write_text(markdown, encoding="utf-8")
+            written = Path(directory) / "d.docx"
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = docx_write.main([str(source), str(written)])
+            return status, out.getvalue(), err.getvalue(), written.is_file()
+
+    def test_a_clean_draft_warns_about_nothing(self):
+        status, _, err, written = self.render("| a | b |\n| --- | --- |\n| one | two |\n")
+        self.assertEqual(status, 0)
+        self.assertEqual(err, "")
+        self.assertTrue(written)
+
+    def test_an_artifact_warns_and_the_file_is_still_written(self):
+        status, out, err, written = self.render(
+            "| Head |\n| --- |\n| a &#124; b |\n"
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("wrote", out)
+        self.assertTrue(written)
+        self.assertIn("warning", err)
+
+    def test_the_warning_names_a_count_and_a_form_and_no_prose_of_the_document(self):
+        marker = "Zzyzxine"
+        status, _, err, _ = self.render(
+            "| Head |\n| --- |\n| {m} &#124; {m} |\n".format(m=marker)
+        )
+        self.assertEqual(status, 0)
+        self.assertNotIn(marker, err)
+        self.assertIn("1", err)
+        self.assertIn(docx_write.CELL_SEPARATOR, err)
+
+    def test_step_eight_tells_a_run_what_the_warning_means(self):
+        """A warning a run cannot read is a warning a run works around. Pinned on
+        ``test_reference_scan.py``'s reasoning -- the instruction has to be complete
+        without the command, and a reword would otherwise rot it in silence.
+
+        **Whitespace-normalized, which is #221's instrument rather than a nicety.** The
+        first version of this matched the line as written and went red the moment the
+        paragraph was rewrapped -- a phrase pin cannot see its own sentence hard-wrapped,
+        which is exactly what ``test_run_record_claim.py`` was built to get past.
+        """
+        skill = " ".join((SKILL / "SKILL.md").read_text(encoding="utf-8").split())
+        self.assertIn(
+            "A `warning:` line from that command means a table row put a cell separator into its own text",
+            skill,
+        )
+
+    def test_the_sheets_own_rx_table_renders_without_a_word_of_warning(self):
+        """The end of the chain: what the sheet documents is what the command accepts."""
+        _, _, err, _ = self.render(docx_write.markdown_tables(section_eight())[0])
+        self.assertEqual(err, "")
 
 
 class NotHavingRead(unittest.TestCase):
