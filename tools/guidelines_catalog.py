@@ -1,8 +1,9 @@
 """Build and verify ``reference/guidelines-catalog.md``, the one-row-per-document
 index of the guideline corpus.
 
-    python tools/guidelines_catalog.py                       # check the committed catalog
-    python tools/guidelines_catalog.py --draft <src-dir>     # emit a scaffold to curate
+    python tools/guidelines_catalog.py                         # check catalog and audit
+    python tools/guidelines_catalog.py --draft <src-dir>       # emit a catalog scaffold
+    python tools/guidelines_catalog.py --audit-draft <src-dir> # emit a blind audit
 
 The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
 repo** and stays there: 410 MB, most of it society-copyrighted, and no consumer
@@ -17,10 +18,19 @@ the field that decides whether a threshold applies to the patient at all. Those
 cells are read by a human or an agent and left ``?`` where the title page does not
 settle them.
 
-So the committed file is the source of truth and this script is its auditor.
-``--check`` re-derives the mechanical columns from the corpus and refuses a
-catalog that has drifted: a dropped row, a wrong page count, a row for a file that
-no longer exists, a ``?`` that nobody listed in the closing comment.
+So the committed catalog remains the source of truth, but it is no longer its own
+evidence. ``reference/guidelines-catalog-audit.md`` records a blind second read of
+every judgment cell, a page locator, the kind of evidence used, an audit date, and
+the SHA-256 of the PDF read. The audit draft exposes file identity only, never the
+catalog values or the machine guesses. A disagreement remains a failure until a
+clinician records a dated ruling that confirms the catalog value.
+
+The normal command re-derives the mechanical columns from the corpus and refuses
+a catalog that has drifted: a dropped row, a wrong page count, a row for a file
+that no longer exists, a ``?`` that nobody listed in the closing comment. It also
+checks audit completeness and agreement. When the corpus is absent, structural
+and agreement checks still run and digest verification is reported as skipped;
+the command never calls that partial result a digest pass.
 
 **Why ``year`` is a column at all.** The corpus holds a KDIGO 2009 document and a
 KDIGO 2013 document sitting beside a 2026 AHA one. There is no common release
@@ -28,8 +38,8 @@ event across nine societies, so per-document version is the only staleness signa
 that exists here. Same reasoning that put ``meta.release`` in
 ``reference/icd10cm-2026.sqlite``.
 
-**Metadata only.** No extracted body text goes in the catalog or in this file's
-output, and the checker never prints document text.
+**Metadata only.** No extracted body text goes in the catalog, audit, or this
+file's output, and the checker never prints document text.
 
 Stdlib for everything except reading the PDFs themselves, which needs ``pypdf``
 or ``fitz``. That import is deliberately lazy and confined to ``read_corpus``:
@@ -41,6 +51,7 @@ PDF or a corpus anywhere in reach.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import sys
 from dataclasses import dataclass
@@ -63,6 +74,7 @@ from guidelines_extract import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
+AUDIT = REPO_ROOT / "reference" / "guidelines-catalog-audit.md"
 DEFAULT_SRC = Path("C:/codeing/guidelines-src")
 
 COLUMNS = (
@@ -80,6 +92,9 @@ COLUMNS = (
 # ``page_count`` are read off the corpus and cannot be in doubt; ``class`` is
 # decided by a rule below and falls back to ``guideline`` rather than to ``?``.
 NULLABLE = ("title", "topic", "population", "year")
+
+# The four judgment columns ticket #106 requires a second reader to settle.
+AUDITED_COLUMNS = NULLABLE
 
 # ``CLASSES`` is imported from ``guidelines_extract`` rather than restated here.
 # [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185): the
@@ -185,6 +200,114 @@ class Document:
     cls: str
     title_guess: str
     year_guess: str
+
+
+@dataclass(frozen=True)
+class AuditReading:
+    """One independent reading of one judgment column."""
+
+    society: str
+    filename: str
+    column: str
+    value: str
+    page: str
+    evidence: str
+
+
+@dataclass(frozen=True)
+class AuditDocument:
+    """The exact corpus document to which an independent reading is bound."""
+
+    society: str
+    filename: str
+    sha256: str
+    audited: str
+
+
+@dataclass(frozen=True)
+class AuditRuling:
+    """A clinician-confirmed resolution of one independent-read disagreement."""
+
+    society: str
+    filename: str
+    column: str
+    confirmed_value: str
+    confirmed_date: str
+    rationale: str
+
+
+AUDIT_TABLES = {
+    "## Documents": ("society", "filename", "sha256", "audited"),
+    "## Independent readings": (
+        "society",
+        "filename",
+        "column",
+        "value",
+        "page",
+        "evidence",
+    ),
+    "## Clinician rulings": (
+        "society",
+        "filename",
+        "column",
+        "confirmed_value",
+        "confirmed_date",
+        "rationale",
+    ),
+}
+
+
+def _parse_named_table(
+    text: str, heading: str, columns: tuple[str, ...], problems: list[str]
+) -> list[list[str]]:
+    lines = text.splitlines()
+    try:
+        heading_at = next(i for i, line in enumerate(lines) if line.strip() == heading)
+    except StopIteration:
+        problems.append(f"audit has no {heading!r} table")
+        return []
+    header_at = next(
+        (
+            i
+            for i in range(heading_at + 1, len(lines))
+            if lines[i].lstrip().startswith("|")
+        ),
+        None,
+    )
+    if header_at is None or tuple(split_table_row(lines[header_at])) != columns:
+        problems.append(f"{heading}: expected columns {columns}")
+        return []
+    rows: list[list[str]] = []
+    for lineno, line in enumerate(lines[header_at + 1 :], start=header_at + 2):
+        if not line.lstrip().startswith("|"):
+            if rows:
+                break
+            continue
+        cells = split_table_row(line)
+        if is_separator_row(cells):
+            continue
+        if len(cells) != len(columns):
+            problems.append(
+                f"{heading} line {lineno}: {len(cells)} cells, expected {len(columns)}"
+            )
+            continue
+        rows.append(cells)
+    return rows
+
+
+def parse_audit(
+    text: str,
+) -> tuple[list[AuditDocument], list[AuditReading], list[AuditRuling], list[str]]:
+    """Parse the independent-read ledger by its three named table headings."""
+    problems: list[str] = []
+    tables = {
+        heading: _parse_named_table(text, heading, columns, problems)
+        for heading, columns in AUDIT_TABLES.items()
+    }
+    documents = [AuditDocument(*cells) for cells in tables["## Documents"]]
+    readings = [AuditReading(*cells) for cells in tables["## Independent readings"]]
+    rulings = [AuditRuling(*cells) for cells in tables["## Clinician rulings"]]
+    return documents, readings, rulings, problems
 
 
 # --------------------------------------------------------------------------
@@ -560,6 +683,158 @@ def check_shape(rows: list[Row], unsettled_index: dict[str, set[str]]) -> list[s
     return failures
 
 
+def check_audit(
+    rows: list[Row],
+    documents: list[AuditDocument],
+    readings: list[AuditReading],
+    rulings: list[AuditRuling],
+) -> list[str]:
+    """Require one independent reading for every judgment cell in every row."""
+    failures: list[str] = []
+    catalog = {row.filename: row for row in rows}
+    document_audits_by_filename: dict[str, AuditDocument] = {}
+    readings_by_cell: dict[tuple[str, str], AuditReading] = {}
+    rulings_by_cell: dict[tuple[str, str], AuditRuling] = {}
+
+    def valid_date(value: str) -> bool:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            return False
+        try:
+            from datetime import date
+
+            date.fromisoformat(value)
+        except ValueError:
+            return False
+        return True
+
+    for document in documents:
+        if document.filename in document_audits_by_filename:
+            failures.append(
+                f"{document.filename}: document audit appears more than once"
+            )
+        else:
+            document_audits_by_filename[document.filename] = document
+        row = catalog.get(document.filename)
+        if row is None:
+            failures.append(f"{document.filename}: document audit has no catalog row")
+        elif document.society != row.society:
+            failures.append(
+                f"{document.filename}: document society is {document.society!r}, "
+                f"catalog says {row.society!r}"
+            )
+        if not re.fullmatch(r"[0-9a-f]{64}", document.sha256):
+            failures.append(f"{document.filename}: SHA-256 is not 64 lowercase hex digits")
+        if not valid_date(document.audited):
+            failures.append(f"{document.filename}: audit date is not a valid YYYY-MM-DD")
+
+    for reading in readings:
+        key = (reading.filename, reading.column)
+        if key in readings_by_cell:
+            failures.append(
+                f"{reading.filename}: {reading.column} reading appears more than once"
+            )
+        else:
+            readings_by_cell[key] = reading
+        row = catalog.get(reading.filename)
+        if reading.column not in AUDITED_COLUMNS:
+            failures.append(
+                f"{reading.filename}: {reading.column!r} is an unknown audit column"
+            )
+        if row is None:
+            failures.append(f"{reading.filename}: independent reading has no catalog row")
+        else:
+            if reading.society != row.society:
+                failures.append(
+                    f"{reading.filename}: reading society is {reading.society!r}, "
+                    f"catalog says {row.society!r}"
+                )
+            page_count = int(row.page_count) if row.page_count.isdigit() else 0
+            if not reading.page.isdigit() or not 1 <= int(reading.page) <= page_count:
+                failures.append(
+                    f"{reading.filename}: {reading.column} page {reading.page!r} "
+                    f"is not within 1..{page_count}"
+                )
+        if not reading.value:
+            failures.append(f"{reading.filename}: {reading.column} reading is empty")
+        if not reading.evidence:
+            failures.append(f"{reading.filename}: {reading.column} evidence is empty")
+
+    for ruling in rulings:
+        key = (ruling.filename, ruling.column)
+        if key in rulings_by_cell:
+            failures.append(
+                f"{ruling.filename}: {ruling.column} ruling appears more than once"
+            )
+        else:
+            rulings_by_cell[key] = ruling
+        row = catalog.get(ruling.filename)
+        if ruling.column not in AUDITED_COLUMNS:
+            failures.append(
+                f"{ruling.filename}: {ruling.column!r} is an unknown ruling column"
+            )
+        if row is None:
+            failures.append(f"{ruling.filename}: clinician ruling has no catalog row")
+        elif ruling.society != row.society:
+            failures.append(
+                f"{ruling.filename}: ruling society is {ruling.society!r}, "
+                f"catalog says {row.society!r}"
+            )
+        if not ruling.confirmed_value:
+            failures.append(f"{ruling.filename}: {ruling.column} confirmed value is empty")
+        if not valid_date(ruling.confirmed_date):
+            failures.append(
+                f"{ruling.filename}: {ruling.column} ruling date is not a valid YYYY-MM-DD"
+            )
+        if not ruling.rationale:
+            failures.append(f"{ruling.filename}: {ruling.column} ruling rationale is empty")
+
+    for row in rows:
+        if row.filename not in document_audits_by_filename:
+            failures.append(f"{row.filename}: has no document audit")
+        for column in AUDITED_COLUMNS:
+            key = (row.filename, column)
+            if key not in readings_by_cell:
+                failures.append(
+                    f"{row.filename}: {column} has no independent reading"
+                )
+                continue
+            disagrees = readings_by_cell[key].value != row.cells[column]
+            if not disagrees and key in rulings_by_cell:
+                failures.append(
+                    f"{row.filename}: {column} ruling exists without a disagreement"
+                )
+            elif disagrees and (
+                key not in rulings_by_cell
+                or rulings_by_cell[key].confirmed_value != row.cells[column]
+            ):
+                failures.append(
+                    f"{row.filename}: {column} disagrees between the catalog and "
+                    "the independent reading"
+                )
+    return failures
+
+
+def check_audit_digests(
+    documents: list[AuditDocument], digests: dict[tuple[str, str], str]
+) -> list[str]:
+    """Bind every completed audit to the exact PDF bytes that were read."""
+    failures: list[str] = []
+    for document in documents:
+        key = (document.society, document.filename)
+        if key not in digests:
+            failures.append(
+                f"{document.filename}: missing from the corpus digest scan"
+            )
+        elif digests[key] != document.sha256:
+            failures.append(
+                f"{document.filename}: SHA-256 disagrees with the audited document"
+            )
+    audited = {(document.society, document.filename) for document in documents}
+    for _, filename in sorted(set(digests) - audited):
+        failures.append(f"{filename}: in the corpus digest scan without a document audit")
+    return failures
+
+
 # --------------------------------------------------------------------------
 # Drafting
 # --------------------------------------------------------------------------
@@ -574,6 +849,64 @@ def render_table(rows: list[Row]) -> str:
     for row in rows:
         out.append("| " + " | ".join(escape_cell(row.cells[c]) for c in COLUMNS) + " |")
     return "\n".join(out)
+
+
+def _render_markdown_table(columns: tuple[str, ...], rows: list[list[str]]) -> str:
+    out = [
+        "| " + " | ".join(columns) + " |",
+        "| " + " | ".join("---" for _ in columns) + " |",
+    ]
+    out.extend(
+        "| " + " | ".join(escape_cell(value) for value in row) + " |"
+        for row in rows
+    )
+    return "\n".join(out)
+
+
+def scan_audit_documents(src: Path) -> list[AuditDocument]:
+    """Read only corpus filenames and bytes; never open or interpret a PDF."""
+    documents: list[AuditDocument] = []
+    for society_dir in sorted(path for path in src.iterdir() if path.is_dir()):
+        for pdf in sorted(society_dir.glob("*.pdf")):
+            digest = hashlib.sha256()
+            with pdf.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            documents.append(
+                AuditDocument(
+                    society=society_dir.name,
+                    filename=pdf.name,
+                    sha256=digest.hexdigest(),
+                    audited=UNSETTLED,
+                )
+            )
+    return documents
+
+
+def render_audit_draft(docs: list[AuditDocument]) -> str:
+    """Emit a blind worksheet containing identity and no judgment values."""
+    document_rows = [
+        [d.society, d.filename, d.sha256, d.audited]
+        for d in docs
+    ]
+    reading_rows = [
+        [d.society, d.filename, column, UNSETTLED, UNSETTLED, UNSETTLED]
+        for d in docs
+        for column in AUDITED_COLUMNS
+    ]
+    return "\n\n".join(
+        [
+            "# Guideline catalog independent audit",
+            "## Documents\n\n"
+            + _render_markdown_table(AUDIT_TABLES["## Documents"], document_rows),
+            "## Independent readings\n\n"
+            + _render_markdown_table(
+                AUDIT_TABLES["## Independent readings"], reading_rows
+            ),
+            "## Clinician rulings\n\n"
+            + _render_markdown_table(AUDIT_TABLES["## Clinician rulings"], []),
+        ]
+    )
 
 
 def draft_rows(docs: list[Document]) -> list[Row]:
@@ -593,13 +926,20 @@ def draft_rows(docs: list[Document]) -> list[Row]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0], allow_abbrev=False
+    )
     parser.add_argument(
         "--draft",
         metavar="SRC",
         nargs="?",
         const=str(DEFAULT_SRC),
         help="emit a scaffold table read from the corpus at SRC instead of checking",
+    )
+    parser.add_argument(
+        "--audit-draft",
+        metavar="SRC",
+        help="emit a blind independent-audit worksheet from corpus file identity",
     )
     parser.add_argument(
         "--src",
@@ -611,7 +951,20 @@ def main(argv: list[str] | None = None) -> int:
         default=str(CATALOG),
         help=f"catalog to check (default {CATALOG})",
     )
+    parser.add_argument(
+        "--audit",
+        default=str(AUDIT),
+        help=f"independent audit ledger to check (default {AUDIT})",
+    )
     args = parser.parse_args(argv)
+
+    if args.audit_draft:
+        src = Path(args.audit_draft)
+        if not src.is_dir():
+            print(f"no corpus at {src}", file=sys.stderr)
+            return 2
+        print(render_audit_draft(scan_audit_documents(src)))
+        return 0
 
     if args.draft:
         src = Path(args.draft)
@@ -629,15 +982,37 @@ def main(argv: list[str] | None = None) -> int:
     rows, unsettled_index, problems = parse_catalog(text)
     problems = problems + check_legend(text)
 
+    audit_path = Path(args.audit)
+    if not audit_path.exists():
+        print(f"no independent audit at {audit_path}", file=sys.stderr)
+        return 2
+    audit_text = audit_path.read_text(encoding="utf-8")
+    audit_documents, readings, rulings, audit_problems = parse_audit(audit_text)
+    problems = problems + audit_problems
+    audit_failures = check_audit(rows, audit_documents, readings, rulings)
+
     src = Path(args.src)
     if src.is_dir():
-        failures = problems + check(rows, unsettled_index, read_corpus(src))
+        corpus_audits = scan_audit_documents(src)
+        digests = {
+            (document.society, document.filename): document.sha256
+            for document in corpus_audits
+        }
+        failures = (
+            problems
+            + check(rows, unsettled_index, read_corpus(src))
+            + audit_failures
+            + check_audit_digests(audit_documents, digests)
+        )
         scope = f"{len(rows)} row(s) against {src}"
+        digest_status = f"verified {len(audit_documents)} document digest(s)"
     else:
-        failures = problems + check_shape(rows, unsettled_index)
+        failures = problems + check_shape(rows, unsettled_index) + audit_failures
         scope = f"{len(rows)} row(s), shape only (no corpus at {src})"
+        digest_status = "SKIPPED document digest verification: corpus unavailable"
 
     print(f"guidelines catalog: {scope}")
+    print(f"  {digest_status}")
     for failure in failures:
         print(f"  FAIL {failure}")
     if failures:

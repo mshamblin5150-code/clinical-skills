@@ -31,9 +31,10 @@ the answer to that, so positional arguments repeat.
 
 **A missing index is not zero hits.** Exit status is 0 for hits, 1 for a genuine zero,
 and 2 for every way of not having searched -- no index, a file that is not one, one
-built by another schema version, a query that would not parse, or a ``--class`` value
-no document in the index carries. An index that had quietly failed to build would
-otherwise answer every clinical question with silence and look like a settled negative.
+built by another schema version, a query that would not parse, or a ``--class`` or
+``--society`` value no document in the index carries. An index that had quietly failed
+to build would otherwise answer every clinical question with silence and look like a
+settled negative.
 
 **That last limb is #185's**, and it is the same defect one level up. The catalog and
 the extractor held two ``class`` vocabularies overlapping on ``guideline`` alone, so
@@ -43,6 +44,15 @@ answer. They are one set now; what is left to reach is a typo in the flag and an
 built before the vocabulary was reconciled, and neither of those is a finding about the
 corpus. The figures are in ``test_class_vocabulary.py`` and deliberately not restated
 here.
+
+**``--society`` had the identical shape and kept it for one ticket** -- #271. #185's
+subject was the two ``class`` vocabularies and widening the fix to a second flag in the
+same commit would have been scope the ruling did not cover, so it was left, said out
+loud, and filed. A society's name here is the directory it is filed under, and those are
+not obvious -- one carries a space, and the corpus holds two that differ by a letter --
+so a mistype is not hypothetical. ``--society IDS`` was reaching a **1**, which is this
+tool certifying that IDSA is silent on a question IDSA answers on the next line. Both
+flags are guarded by one table now; the decision and its ceiling are on ``FILTERS``.
 
 **A crash while printing was reaching 1 through the back door, and that is what
 ``use_utf8`` is doing in ``__main__``.** On a cp1252 console the print of a hit line
@@ -221,11 +231,46 @@ def search(
     return hits
 
 
-def index_classes(connection: sqlite3.Connection) -> list[str]:
-    """Every ``document_class`` some document in this index actually carries."""
-    return sorted(
-        row[0] for row in connection.execute("SELECT DISTINCT document_class FROM document")
+# Every filter flag, paired with the `document` column it narrows on -- which is also
+# its argparse dest, because the two are the same word for both. `main` reads the value
+# with `getattr(args, column)` on the strength of that, so it is pinned by a test rather
+# than relied on: a third filter whose dest parted from its column would raise, and the
+# traceback would escape `main` and exit 1.
+#
+# #271's decision: one table rather than a copy of the guard per flag. The ticket leaned
+# the other way, on the ground that #253's cost is two copies of a *rule* and two copies
+# of a *shape* are not that. The table wins on two grounds it did not have. The two are
+# not copies at all -- see `index_values` for the one way they differ and what a naive
+# copy costs. And it makes completeness partly checkable: `test_guidelines.py` reads the
+# columns off `search`'s own WHERE clauses by AST and asserts they are exactly these.
+#
+# **Partly, and the ceiling is named rather than left to be found.** That walk matches
+# one SQL shape -- `AND d.<column> = ?`. A range filter, an `IN`, an unaliased column
+# and a named parameter all pass it unseen, so it is a floor on the shapes in this file
+# today and not a guarantee about the next one. Overstating it was caught in review, and
+# `test_ls_files_coverage.py` records the same overstatement being priced the same way.
+FILTERS = (("--society", "society"), ("--class", "document_class"))
+
+
+def index_values(connection: sqlite3.Connection, column: str) -> list[str]:
+    """Every value of ``column`` some document in this index actually carries.
+
+    ``NULL`` is not a value a filter can be asked for -- a document at the root of
+    the text directory has no society -- and it is dropped rather than reported. It
+    cannot be left in: ``sorted`` raises ``TypeError`` on a mixed list, the traceback
+    escapes ``main``, and the process exits **1**, which this module's docstring reads
+    as a genuine zero. That is #150's back door reopened on the flag whose whole bug
+    is a wrong 1.
+
+    The column is interpolated, so it is checked against ``FILTERS`` first rather than
+    trusted -- there is no parameter form for an identifier in SQL.
+    """
+    if column not in {name for _, name in FILTERS}:
+        raise ValueError(f"{column!r} is not a filter column; {FILTERS} are")
+    rows = connection.execute(
+        f"SELECT DISTINCT {column} FROM document WHERE {column} IS NOT NULL"
     )
+    return sorted(row[0] for row in rows)
 
 
 def _report(connection: sqlite3.Connection, query: str, **options) -> int:
@@ -248,7 +293,11 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("query", nargs="+", help="one or more queries; each is a phrase")
     parser.add_argument("--db", help=f"index to read (default: {default_database()})")
-    parser.add_argument("--society", help="restrict to one society, e.g. IDSA")
+    parser.add_argument(
+        "--society",
+        help="restrict to one society, e.g. IDSA; the directory name it is filed "
+        "under. A value no document carries exits 2 rather than reporting a zero",
+    )
     parser.add_argument(
         "--class",
         dest="document_class",
@@ -275,16 +324,19 @@ def main(argv: list[str]) -> int:
         raw=args.fts,
     )
     try:
-        # A `--class` value no document carries is not a genuine zero, and 1 would
-        # say it was. #185, and the docstring above carries the reasoning. What is
-        # left to reach is a typo and an index built by an older extractor; both are
-        # ways of not having searched, and both are 2.
-        if args.document_class:
-            carried = index_classes(connection)
-            if args.document_class not in carried:
+        # A filter value no document carries is not a genuine zero, and 1 would say
+        # it was. #185 for `--class`, #271 for `--society`, and the docstring above
+        # carries the reasoning. What is left to reach is a typo and an index built
+        # by an older extractor; both are ways of not having searched, and both are 2.
+        for flag, column in FILTERS:
+            value = getattr(args, column)
+            if not value:
+                continue
+            carried = index_values(connection, column)
+            if value not in carried:
                 print(
-                    f"--class {args.document_class!r} is not a class any document in "
-                    f"this index carries; it holds {', '.join(carried) or 'nothing'}",
+                    f"{flag} {value!r} is not a value any document in this index "
+                    f"carries; it holds {', '.join(carried) or 'nothing'}",
                     file=sys.stderr,
                 )
                 return 2

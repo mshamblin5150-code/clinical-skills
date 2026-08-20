@@ -93,6 +93,28 @@ the run now reads as **unscanned** -- one bare mark, no refusal read. **N1 is
 still failed by that run**; it is failed by a reader now, and
 ``fixtures/hedged-dx/assertions.md`` records which.
 
+**What this scanner's validation set does not reach is ``NOT_VALIDATED_AGAINST``
+below, not this paragraph.** [#162] is why it is an object: option 4 there was
+*"say so in the docstring"*, and #241 had already ruled that shape insufficient on
+a different module -- a **prose** edit to a limit fails nothing, so a limit written
+as prose goes stale in the direction nobody notices. Every row is re-derived by an
+assertion in ``test_differential_scan.py`` rather than merely stated, so a limit
+that stops being true fails the suite. **The reasons live on the rows**; what
+belongs here is the shape of the answer rather than a second copy of it.
+
+**The coverage row is that list's third item arriving in the report.** ``notes with
+a differential entry`` prints on every run **this tool reports on at all**, and a
+short one carries a line saying what the verdict covers. The **status is
+untouched** -- reported, not graded, the clinician's ruling on 2026-08-19, and the
+row says why rather than this paragraph saying it again.
+
+**That qualifier is not pedantry, and the first draft of this sentence was wrong
+without it.** A run where *no* note carries a differential entry never reaches
+``format_report`` -- the exit-2 limb fires first -- so the most uncovered run of
+all prints no coverage row. It is louder rather than quieter, which is why the
+ordering stands: it exits 2 with its own message. What the row makes visible is
+the interval **between** those two, where the old report said nothing at all.
+
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record; an
 entry label is a diagnosis attached to an encounter. Nothing but integers is
@@ -222,6 +244,74 @@ CONCLUSION_PREFIX = re.compile(rf"{_OPENER}[^:]*:")
 HYPHEN_PIN = re.compile(r"[ \t]-[ \t]+$")
 
 
+# **What this scanner's validation set does not reach**, declared rather than
+# described -- [#162], option 4, and it is an object rather than a sentence for
+# [#241]'s reason: a **prose** edit to a limit fails nothing, so a limit written as
+# prose goes stale in the direction nobody notices. ``docx_write.NOT_APPLIED`` and
+# ``reference_scan.NOT_REACHED`` are the two worked examples this copies.
+#
+# **Every row is re-derived by an assertion rather than asserted**, which is the
+# half that makes it more than a docstring: ``test_differential_scan.py``'s
+# ``TheValidationSetsLimitsAreDeclared`` runs the scanner over every committed
+# directory it can be pointed at, so a row that stops being true fails the suite
+# instead of standing as a claim nobody re-derives.
+#
+# **The prose surfaces point at this and copy none of it**, in the module docstring
+# above and in ``CLAUDE.md``'s *Differential scan* section, and the same class
+# asserts both. That is [#143]'s discipline made checkable -- one object, and no
+# second place for it to go stale.
+NOT_VALIDATED_AGAINST = (
+    (
+        "the exit-1 path on committed input",
+        "**The branch has still never fired on output nobody edited**, and that is "
+        "now the whole of this row rather than half of it. What used to be the "
+        "other half was that the path could not be reached at all: every committed "
+        "directory was turned away before a single entry was parsed, so an empty "
+        "``findings`` there said nothing was read rather than nothing violates. "
+        "``fixtures/slot-form-run`` retired that -- each of its notes parses slot "
+        "entries **and** welded refusals, so one displaced code in any of them "
+        "trips the branch, and the merge reads the directory. **What is missing is "
+        "a committed run that genuinely violates, and it should stay missing**: a "
+        "record edited until the checker complains is material authored to make a "
+        "check pass its own examination, and #162's CI comment names the trap. So "
+        "the branch is driven by **mutating** that run inside the suite, where the "
+        "planted defect is legible in the test instead of baked into the record. "
+        "``research_ledger.py`` and ``reference_scan.py`` keep the harder version "
+        "of the old claim -- what they read is an assertion and an essay composed "
+        "about a person, and neither has a redacted shape anyone could commit.",
+    ),
+    (
+        "the aggregate of the exit-2 limbs",
+        "Each of the four ways of not having scanned is separately correct and "
+        "separately documented above, and none of them says what they come to "
+        "together. **That total used to be *nothing committed is legible here at "
+        "all*, and ``fixtures/slot-form-run`` ended it.** The residue is narrower "
+        "and still worth declaring: most of the committed directories a reader "
+        "would try are turned away, so checking one limb at a time still yields a "
+        "coverage figure this tool has not earned. "
+        "``fixtures/filled-anchor/run-2`` remains the sharp case -- a committed "
+        "artifact composed in the required welded shape that belongs to "
+        "``icd10-cpt``, so this scanner is aimed elsewhere deliberately. **It was "
+        "*the* one until ``slot-form-run`` landed, and the first rewrite of this "
+        "row kept the exclusivity while the same commit falsified it** -- the "
+        "declared-limits object overclaiming about the tree it ships in, which is "
+        "the defect #162 already records this rule committing once. Caught by the "
+        "spec axis; the reason-bind cannot see it, because a word like *sole* is "
+        "one the prose surfaces never copy.",
+    ),
+    (
+        "partial coverage inside a run",
+        "The *no differential entry* limb hangs on the run rather than on the note, "
+        "so a single parsed entry carries a whole run past it and the notes that "
+        "contributed nothing are invisible in the verdict. Since #162 the "
+        "denominator is printed. Grading it was weighed and refused: a per-note "
+        "limb fails any shift where one encounter's assessment carries no ranked "
+        "list, which is the common case rather than the defective one, and a gate "
+        "that refuses ordinary work is a gate people route around.",
+    ),
+)
+
+
 @dataclass(frozen=True)
 class Entry:
     """One code held in a slot, and the line it came from.
@@ -272,6 +362,7 @@ class Scan:
     """Counts over a run, plus the findings ``--show`` prints."""
 
     notes: int
+    notes_with_differential: int
     differential_entries: int
     conclusion_entries: int
     refused_codes: int
@@ -438,11 +529,29 @@ def survey(notes: list[Note]) -> Scan:
     ``fixtures/filled-anchor/notes`` carries a ``Final diagnosis`` list and none
     of them pins a differential code, so a single total would rescue that set
     into looking scanned on the strength of a conclusion nobody graded.
+
+    **``notes_with_differential`` is the coverage denominator**, and the reason it
+    is counted at all is ``NOT_VALIDATED_AGAINST``'s third row rather than this
+    docstring's to give.
+
+    **Against the differential and never against the note, which was measured
+    rather than reasoned.** The two denominators come apart on a recorded run: a
+    note carrying a ``Final diagnosis`` and no differential has its conclusion codes
+    read by position and graded, so counting notes with *any* entry would report
+    such a run as nearly covered when its differential went unread. This is the
+    narrower count, and ``format_report`` says beside it what the wider one still
+    covers rather than claiming those notes went ungraded. **The figures behind that
+    were taken against a run under ``scratch/``, so nothing committed re-derives
+    them and none is stated here** -- [#143], and the shape is pinned by
+    ``TheCoverageRowSeparatesReadableFromClean`` on notes built in that file.
     """
     found = [finding for note in notes for finding in note_findings(note)]
     entries = [entry for note in notes for entry in note.entries]
     return Scan(
         notes=len(notes),
+        notes_with_differential=sum(
+            1 for note in notes if any(not entry.conclusion for entry in note.entries)
+        ),
         differential_entries=sum(1 for entry in entries if not entry.conclusion),
         conclusion_entries=sum(1 for entry in entries if entry.conclusion),
         refused_codes=sum(len(note.refused) for note in notes),
@@ -453,7 +562,14 @@ def survey(notes: list[Note]) -> Scan:
 
 
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
-    """The report, as one string. Carries no code and no label unless ``show``."""
+    """The report, as one string. Carries no code and no label unless ``show``.
+
+    **The coverage row prints on every run and not only on a short one**, which is
+    [#258]'s ruling on ``phi_scan`` and ``spelling_scan`` borrowed whole: a reader
+    who learns to read a qualifier reads its absence as the stronger claim. The
+    *qualifier* beneath the verdict is a finding about the run and prints only when
+    the run is short, because a caveat printed unconditionally is one nobody reads.
+    """
     # Plain ASCII throughout, on ``specificity_scan.py``'s reasoning: this prints
     # to a Windows console, where anything outside cp1252 comes back as a question
     # mark and reads like corruption in the one output meant to be pasted.
@@ -461,6 +577,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"differential scan over {source}",
         "",
         f"  notes read                       {scan.notes}",
+        f"  notes with a differential entry  {scan.notes_with_differential} of {scan.notes}",
         f"  differential entries             {scan.differential_entries}",
         f"  conclusion entries               {scan.conclusion_entries}",
         f"  codes marked NOT CODED           {scan.refused_codes}",
@@ -469,6 +586,21 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  row 22 - refused code in a slot  {len(scan.findings)}",
     ]
+    ungraded = scan.notes - scan.notes_with_differential
+    if ungraded > 0:
+        # **Named against the differential and not against the note**, because the
+        # two come apart on a real run and the wider claim would be false. A note
+        # with a conclusion entry and no differential entry has its conclusion codes
+        # read by position and graded. So what went unread is the differential,
+        # which is what row 22 is about and what the exit-2 limb above keys on, and
+        # the second line says the rest rather than leaving it to be inferred.
+        lines += [
+            "",
+            f"  {ungraded} note(s) carry no differential entry, so the slot limb"
+            " read nothing from their differential.",
+            "  A conclusion code in such a note is read by position and graded"
+            " anyway.",
+        ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
         for finding in scan.findings:

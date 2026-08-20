@@ -1452,5 +1452,47 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
                         ElementTree.fromstring(archive.read(name))
 
 
+
+class ABlankLineIsNotATableRule(unittest.TestCase):
+    """``is_rule`` accepted one, so ``markdown_tables`` opened a phantom table.
+
+    The predicate asked *no cell carries anything but dashes* rather than *some
+    cell carries dashes*, and ``split_row("")`` is ``[""]``, so the ``if c``
+    filter left nothing to disagree with and a blank line came back ``True``.
+    ``markdown_tables`` reads the line under a header to decide a table starts
+    there, so **any table-looking line followed by a blank one opened a one-row
+    table that is not one** -- and there is one in the tracked tree.
+
+    Found by ``research_ledger.py`` adopting ``markdown_tables`` at a merge, on
+    that function's own *one reader of a documentation table, not two*. Neither
+    suite could see it: this module's tables all have real rules under them, and
+    the phantom only appears where the header match has already failed.
+    """
+
+    def test_a_blank_line_is_not_a_rule(self):
+        self.assertFalse(docx_write.is_rule(""))
+        self.assertFalse(docx_write.is_rule("   "))
+
+    def test_an_all_empty_row_is_not_a_rule(self):
+        """The Rx table's own header, which declares three empty cells."""
+        self.assertFalse(docx_write.is_rule("| | | |"))
+
+    def test_a_real_rule_still_is_one(self):
+        """The instrument, live -- both spellings the sheets use."""
+        self.assertTrue(docx_write.is_rule("| --- |"))
+        self.assertTrue(docx_write.is_rule("| --- | --- | --- |"))
+        self.assertTrue(docx_write.is_rule("| :--- | ---: |"))
+
+    def test_no_phantom_table_in_the_reference_sheets(self):
+        """The blast radius, asserted rather than described. A block whose second
+        line is not a rule is a table ``markdown_tables`` invented."""
+        skills = Path(__file__).resolve().parent.parent / "skills"
+        for sheet in sorted(skills.rglob("*.md")):
+            for block in docx_write.markdown_tables(sheet.read_text(encoding="utf-8")):
+                rows = [line for line in block.split("\n") if line.strip()]
+                with self.subTest(sheet=sheet.name, opens=rows[0][:40]):
+                    self.assertGreater(len(rows), 1, "a one-row table is not a table")
+                    self.assertTrue(docx_write.is_rule(rows[1]), "no separator under the header")
+
 if __name__ == "__main__":
     unittest.main()

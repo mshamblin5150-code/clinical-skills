@@ -266,7 +266,7 @@ class SpansDoNotShareMetrics(unittest.TestCase):
             ]}]}]
         }
 
-    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbour(self):
+    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbor(self):
         page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
         self.assertEqual(
             extract.rebuild_text(page), "AmericanJournalofTransplantation2009;9(Suppl3)"
@@ -1479,7 +1479,14 @@ class DocumentClass(unittest.TestCase):
 
 
 class OutputStaysOutOfTheRepo(unittest.TestCase):
-    """Six worktrees are live. Anything written inside one is copied into all of them."""
+    """Anything written inside a worktree is copied into all of them.
+
+    **How many are live is deliberately not stated**, on #143's terms: it moves
+    on every ``git worktree add`` and nothing re-derives it. This docstring was
+    the *third* copy of that count -- the review found one, the tracker sweep
+    found its twin in ``guidelines_extract.py``, and a sweep agent then found
+    this one, in the third file the same commit had open.
+    """
 
     def test_the_default_output_is_a_sibling_of_the_source(self):
         self.assertEqual(
@@ -1493,27 +1500,19 @@ class OutputStaysOutOfTheRepo(unittest.TestCase):
             Path("/data/guidelines-text"),
         )
 
-    def test_refuses_an_output_directory_inside_the_repo(self):
-        # The two #80 names by name, plus a path that does not exist yet.
-        for inside in ("reference", "scratch", "tools/testdata", "guidelines-text"):
-            with self.subTest(inside=inside):
-                with self.assertRaises(SystemExit):
-                    extract.check_outside_repo(extract.REPO_ROOT / inside)
+    def test_the_reason_this_artifact_stays_out_is_stated_here(self):
+        """**The rule moved and the reason did not.** ``repo_root`` holds one
+        detection rule for four writers; why *this* artifact must stay out is
+        this module's own -- a worktree materializes tracked files and copies
+        gitignored ones, so anything landing in one lands in all twelve. The
+        other two writers state #87's copyright and a list of patient names.
 
-    def test_refuses_the_repo_root_itself(self):
-        with self.assertRaises(SystemExit):
-            extract.check_outside_repo(extract.REPO_ROOT)
-
-    def test_refuses_a_sibling_worktree_and_not_only_this_one(self):
-        # Run from a worktree, REPO_ROOT is the worktree. It says nothing about
-        # the main clone, whose reference/ is the directory #80 rules out.
-        checkout = Path(tempfile.mkdtemp())
-        (checkout / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
-        with self.assertRaises(SystemExit):
-            extract.check_outside_repo(checkout / "reference")
-
-    def test_accepts_a_directory_under_no_checkout_at_all(self):
-        extract.check_outside_repo(Path(tempfile.mkdtemp()) / "guidelines-text")
+        The detection is graded in ``test_repo_root.py`` and the four sites are
+        cross-checked in ``test_write_guards.py``; what is left here is that the
+        sentence a user reads still explains this artifact.
+        """
+        self.assertIn("worktree", extract.WHY_OUTSIDE)
+        self.assertIn("outside", extract.WHY_OUTSIDE)
 
 
 class WritingADocument(unittest.TestCase):

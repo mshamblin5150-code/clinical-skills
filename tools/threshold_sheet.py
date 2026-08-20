@@ -199,6 +199,43 @@ from console_codec import use_utf8
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 
+# Where `recs-<key>.json` is looked for when `--recs-root` is not given. A module
+# constant rather than an inline default so the literal can be graded: an env var
+# can change what `parse_args` produces, and a test reading that would be measuring
+# the machine it ran on.
+DEFAULT_RECS_ROOT = "C:/codeing/guidelines-index"
+
+# **This module takes no write guard, and #176 asked for that to be a decision
+# rather than an absence** -- its own first comment: *"an absent guard is easy to
+# read as an oversight when it is a choice."* Ruled while consolidating the four,
+# 2026-08-19.
+#
+# The three writers and `name_index` all refuse a *write* inside a checkout. This
+# module only ever reads: `bind_recs` opens `recs-<key>.json` and nothing here
+# creates one. Guarding a read would refuse a record that already exists, which
+# prevents nothing -- whatever put it there was the guarded step, and refusing to
+# read it turns one module's escaped artifact into a second module's failure.
+#
+# **What is enforceable is the default, and one property of it is.** A *relative*
+# default resolves against the working directory, and the working directory when
+# these tools are run is a checkout -- so a relative default is the convention
+# encoded wrong, silently, in the one place the ticket named as encoding it
+# without enforcing it. `test_write_guards.py` grades that.
+#
+# **What is not enforceable is the value.** `DEFAULT_RECS_ROOT` names a directory
+# on the maintainer's machine, and asserting `enclosing_checkout` finds no
+# checkout above it would be asserting a fact about *that* machine -- on a POSIX
+# runner the drive-letter form resolves under the working directory and the check
+# would fail for a reason that has nothing to do with the convention. Declared
+# rather than half-checked.
+WHY_NO_WRITE_GUARD = (
+    "threshold_sheet reads recs-<key>.json and never writes one, so it takes no "
+    "write guard. What it shares with the four writers is the convention about "
+    "where such a record lives, and the enforceable half of that is that its "
+    "default is absolute -- a relative one would resolve inside the checkout the "
+    "command was run from."
+)
+
 SCHEMA_MARKER = "<!-- schema: threshold-sheet/1 -->"
 
 # The escape hatch #83 asks for by name: *"Table-derived values need an escape hatch
@@ -1171,7 +1208,7 @@ def bind_recs(
     **The lookup stays outside the repo.** ``recs_root`` resolves ``recs-<key>.json``
     and there is deliberately no fallback to the sheet's own directory: a record holds
     the society's recommendation text in full, which is the copyrighted expression the
-    sheet format exists to avoid committing, and ``guidelines_recs.ensure_outside_repo``
+    sheet format exists to avoid committing, and ``repo_root.ensure_outside_checkout``
     refuses to write one inside a checkout. A convenience that looked beside the sheet
     would quietly invite someone to put one there to make ``--all`` work.
     """
@@ -1716,7 +1753,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recs-root",
         type=Path,
-        default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", "C:/codeing/guidelines-index")),
+        default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
         help="where recs-<source key>.json is looked for (outside the repo, always)",
         # Deliberately NOT a spelling of guidelines_index.py's
         # CLINICAL_GUIDELINES_INDEX, which names a database file. This names a

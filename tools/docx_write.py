@@ -619,8 +619,19 @@ def split_row(line: str) -> list:
 
 
 def is_rule(line: str) -> bool:
+    """Whether ``line`` is a Markdown table's separator rule.
+
+    **At least one cell has to carry a dash**, and the first version required only
+    that no cell carry anything else -- so a **blank** line was a rule, because
+    ``split_row("")`` is ``[""]`` and the ``if c`` filter left nothing to check.
+    ``markdown_tables`` reads the line under a header to decide a table starts
+    there, so any table-looking line followed by a blank one opened a phantom
+    one-row table; ``skills/practicum-case-study/reference/voice.md`` has one
+    today. Found by ``research_ledger`` adopting this function at a merge, and by
+    nothing either suite ran.
+    """
     cells = split_row(line)
-    return bool(cells) and all(re.fullmatch(r":?-{2,}:?", c) for c in cells if c)
+    return any(cells) and all(re.fullmatch(r":?-{2,}:?", c) for c in cells if c)
 
 
 def table_first_cells(block: str) -> list:

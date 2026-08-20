@@ -17,7 +17,11 @@ of them society-copyrighted. Issue #87 rules on that and is not reopened here.
 defaults to a sibling of the source directory (``guidelines-src`` next door becomes
 ``guidelines-text``). ``reference/`` and ``scratch/`` are both wrong for it for the
 same reason: tracked files are materialized in every worktree and gitignored ones
-are copied into every worktree, and there are six live.
+are copied into every worktree. **How many are live is deliberately not stated** --
+it moves on every ``git worktree add``, nothing re-derives it, and this sentence
+held ``six`` while its twin in ``guidelines_index.py`` held it too and ``CLAUDE.md``
+said twelve. #143, and the argument survives the figure intact: *every* worktree
+gets a copy, so one is one too many.
 
 **Maintainer-only, and that is what buys the dependency.** Everything else in
 ``tools/`` is stdlib. This reads PDFs, so it needs ``pymupdf``, and it runs once per
@@ -313,6 +317,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
+from repo_root import InsideCheckout, ensure_outside_checkout
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -1523,25 +1528,16 @@ def default_output(source: Path) -> Path:
     return source.parent / f"{stem}-text"
 
 
-def check_outside_repo(out_root: Path) -> None:
-    """Refuse an output directory inside any git checkout, not just this one.
-
-    ``REPO_ROOT`` alone is not enough. Run from a worktree it is the worktree, so
-    it says nothing about the main clone's ``reference/`` -- and that is one of the
-    two directories #80 names by name. Walking up for a ``.git`` entry catches the
-    main clone, every sibling worktree, and any other repo the maintainer keeps
-    nearby. A worktree's ``.git`` is a file rather than a directory, so this tests
-    for existence and not for a directory.
-    """
-    resolved = out_root.resolve()
-    for candidate in (resolved, *resolved.parents):
-        if (candidate / ".git").exists():
-            raise SystemExit(
-                f"refusing to write inside a git checkout: {resolved}\n"
-                f"  {candidate} is a repository.\n"
-                "Tracked files are materialized in every worktree and gitignored ones "
-                "are copied into every worktree. Pick a directory outside it."
-            )
+# Why *this* artifact stays out, which is not why the other two do. ``REPO_ROOT``
+# alone was never enough: run from a worktree it is the worktree, so it says
+# nothing about the main clone's ``reference/``, one of the two directories #80
+# names by name. The rule that catches the main clone, every sibling worktree and
+# any other repo nearby is ``repo_root.enclosing_checkout`` -- #176, which found
+# this module holding one of three answers to one question.
+WHY_OUTSIDE = (
+    "Tracked files are materialized in every worktree and gitignored ones "
+    "are copied into every worktree. Pick a directory outside it."
+)
 
 
 def main(argv: list[str]) -> int:
@@ -1566,11 +1562,20 @@ def main(argv: list[str]) -> int:
 
     if not args.source.is_dir():
         raise SystemExit(f"not a directory: {args.source}")
-    require_pymupdf()
 
     source_root = args.source.resolve()
-    out_root = (args.out or default_output(source_root)).resolve()
-    check_outside_repo(out_root)
+    # Before the dependency check, not after it. Where the output lands is a
+    # question about the arguments alone, and answering it first means a
+    # machine with no PDF library still refuses a path inside a checkout --
+    # which is what lets the cross-check in `test_write_guards.py` drive this
+    # command line at all, since the suite installs nothing.
+    try:
+        out_root = ensure_outside_checkout(
+            args.out or default_output(source_root), detail=WHY_OUTSIDE
+        )
+    except InsideCheckout as refused:
+        raise SystemExit(str(refused)) from refused
+    require_pymupdf()
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
     if not pdfs:

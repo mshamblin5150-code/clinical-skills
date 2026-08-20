@@ -12,6 +12,13 @@ reading it. Something has to choose *which document*, and that is a metadata
 problem rather than a retrieval one — so the table is small enough to read in
 full, and says what each document **is**, never what it says.
 
+The four hand-read columns are independently audited in
+[`guidelines-catalog-audit.md`](guidelines-catalog-audit.md). That ledger was
+written blind to the values below, binds every reading to the PDF's SHA-256, and
+records a page locator and evidence kind. `tools/guidelines_catalog.py` fails on
+an incomplete reading, changed PDF bytes, or a disagreement that has no dated
+clinician ruling.
+
 ## How to read a row
 
 | Column | What it is |
@@ -87,7 +94,7 @@ elsewhere. Both of those 2024 chapter updates are separate rows in this table.
 Reading `2024` off the filename would date the document by the thing it tells you
 it does not contain.
 
-Regenerate the mechanical columns and re-check this file against the corpus with:
+Recheck the mechanical columns, the independent audit, and the corpus digests with:
 
 ```bash
 python tools/guidelines_catalog.py
