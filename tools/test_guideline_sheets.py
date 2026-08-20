@@ -206,7 +206,8 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
 
     def test_the_population_is_not_optional_and_says_why(self):
         self.assertIn("The population is the field that is not optional", self.section)
-        self.assertIn("nine-item age-keyed screening list", self.section)
+        self.assertIn("fill the wrong age", self.section)
+        self.assertIn("owed to a different patient population", self.section)
 
     def test_the_population_cell_is_copied_and_its_two_caveats_are_stated(self):
         # The USPSTF column is derived rather than quoted, and one row of 143

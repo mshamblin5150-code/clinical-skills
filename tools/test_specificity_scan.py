@@ -748,7 +748,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertNotIn("SPECIFICITY: <complete | needs:", self.skill)
 
     def test_the_skill_says_a_reason_can_discharge_the_unspecified_shape(self):
-        self.assertIn("A substantive reason discharges C5", self.skill)
+        self.assertIn(
+            "A substantive reason discharges the specificity flag rule",
+            self.skill,
+        )
 
     def test_the_skill_states_the_bare_needs_limb(self):
         """C5 fails a bare ``needs:``, so the skill has to say so too."""
