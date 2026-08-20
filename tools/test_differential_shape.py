@@ -1,13 +1,11 @@
 """Pin [#70]'s ruling to the three files a generating pass actually opens.
 
-**This is the one rule in ``clinical-note``'s differential that has no scanner,
-and the ruling is why.** The count runs to every diagnosis-shaped line in the
-Assessment rather than stopping at the ``Differential:`` heading, so locating an
-entry means telling a diagnosis from a line of reasoning under a heading a run
-invented -- a reader's judgment. A scanner reading the labeled block would be
-checking the **narrow** reading the clinician rejected, and would report clean on
-exactly the note that moved an uncoded diagnosis one heading down. ``#164`` holds
-what a partial one could still be worth.
+**The wide rule has no complete scanner, and the ruling is why.** The count runs
+to every diagnosis-shaped line in the Assessment rather than stopping at the
+``Differential:`` heading, so locating an entry means telling a diagnosis from a
+line of reasoning under a heading a run invented -- a reader's judgment. Ticket
+``#164`` added a declared floor over numbered items in the labeled block, with the
+scope printed on every run; it did not promote that narrow count to the wide one.
 
 So the check available here is ``test_spelling_scan.py``'s, and it is the same
 check ``test_block_scan.py`` and ``test_differential_scan.py`` make against their
@@ -124,11 +122,10 @@ class TheSkillCarriesTheShapeRule(unittest.TestCase):
             self.text,
         )
 
-    def test_the_section_says_no_tool_checks_it(self):
-        # If this goes, a later pass writes a scanner over the labeled block and
-        # a clean run starts reading as a walked row -- on the narrow reading the
-        # clinician rejected.
-        self.assertIn("**So these rows are counted by a reader**", self.text)
+    def test_the_section_declares_the_floor_and_the_reader_residue(self):
+        self.assertIn("supplies [#164]", self.text)
+        self.assertIn("wide Assessment count still needs a reader", self.text)
+        self.assertIn("a clean scan is not a walked row 13 or 23", self.text)
 
 
 class TheDriftMatrixCarriesBothRows(unittest.TestCase):
