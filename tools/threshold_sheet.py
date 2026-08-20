@@ -1102,12 +1102,21 @@ def gate_second_read(
             )
             continue
         found = None
+        # **Every entry a row satisfies is marked, not only the one it pairs with.**
+        # A guideline states one threshold in two places on a page and a sheet carries
+        # it as two rows for two populations, so the read comes back with duplicate
+        # values at one citation. Marking only the entry the loop broke on left the
+        # duplicates unconsumed and reported them as "no row carries this" -- 20 false
+        # warnings on the committed sheet against a read built from its own rows.
+        # Marking all of them is the direction that adds no false refusal: the row is
+        # still paired with the first, and an entry stays unmatched only where NO row
+        # accounts for it, which is what the warning claims.
         for position, entry in enumerate(by_citation.get(key, ())):
             present = set(_NUMBER.findall(str(entry["value"])))
             if all(number in present for number in wanted):
-                found = entry
                 matched.add((key, position))
-                break
+                if found is None:
+                    found = entry
         if found is None:
             refusals.append(
                 f"{where}  value {row.value!r} is not among what an independent read "

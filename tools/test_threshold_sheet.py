@@ -2170,3 +2170,51 @@ class TheSmokeTestCaveatSurvivesQuiet(unittest.TestCase):
         printed = out.getvalue()
         self.assertNotIn("SECOND READ     ", printed, "the report itself is suppressed")
         self.assertIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
+
+
+class OneStatementCanAnswerTwoRows(unittest.TestCase):
+    """A guideline states one threshold in two places on a page and a sheet carries it
+    as two rows for two populations, so a read comes back with duplicate values at one
+    citation. Marking only the entry the match loop broke on left the duplicates
+    unconsumed and warned that no row carried them.
+
+    **Found by round-tripping the committed sheet through its own values** -- 74
+    entries built from 74 rows produced 20 warnings, every one false. Neither the
+    fixtures nor the earlier partial read reached it, which is `gate_range`'s and
+    `block_scan.py`'s lesson a further time.
+    """
+
+    def _read(self, *values):
+        return gate.load_second_read_record(second_read(*values), Path("read.json"))
+
+    def test_two_entries_of_one_value_are_both_answered_by_one_row(self):
+        read = self._read(
+            seen("<130 mm Hg", about="stated in the recommendation table"),
+            seen("<130 mm Hg", about="stated again in the summary figure"),
+        )
+        refusals, warnings, _, _, _ = gate.gate_second_read(
+            sheet(row(value="<130 mm Hg")), read
+        )
+        self.assertEqual(refusals, [])
+        self.assertEqual(warnings, [], "the second statement is the same threshold")
+
+    def test_two_rows_sharing_a_value_do_not_consume_one_entry_between_them(self):
+        """The other direction, and it is why entries are not matched one-to-one: a
+        one-to-one pairing would refuse the second row for a number that is on the
+        page. A false refusal is worse than a false warning."""
+        read = self._read(seen("<130 mm Hg"))
+        rows = (
+            row(population="adults", value="<130 mm Hg")
+            + row(population="adults-ckd", value="<130 mm Hg", rec="p41/goal/2")
+        )
+        refusals, warnings, pairings, _, _ = gate.gate_second_read(sheet(rows), read)
+        self.assertEqual(refusals, [])
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(pairings), 2)
+
+    def test_an_entry_no_row_accounts_for_still_warns(self):
+        """Otherwise the fix would have bought its silence by never warning at all."""
+        read = self._read(seen("<130 mm Hg"), seen("<80 mm Hg", about="the DBP goal"))
+        _, warnings, _, _, _ = gate.gate_second_read(sheet(row(value="<130 mm Hg")), read)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("<80 mm Hg", warnings[0])
