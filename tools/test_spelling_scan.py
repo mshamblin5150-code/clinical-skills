@@ -25,6 +25,8 @@ anything.
 """
 
 import ast
+import contextlib
+import io
 import tempfile
 import textwrap
 import unittest
@@ -36,8 +38,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 
 # day-b run 1, byte for byte apart from two redacted site names. Issue #73.
-RECORD_FORMS = 10
-RECORD_OCCURRENCES = 25
+RECORD_FORMS = 9
+RECORD_OCCURRENCES = 23
 RECORD_NOTES = 7
 
 
@@ -114,6 +116,24 @@ class Matching(unittest.TestCase):
         self.assertEqual([(f.form, f.american) for f in findings],
                          [("paracetamol", "acetaminophen"),
                           ("adrenaline", "epinephrine")])
+
+
+class Ticket103Ruling(unittest.TestCase):
+    """The evidence-grown table excludes an encounter-unreachable derivative."""
+
+    def test_the_unloaded_derivative_is_outside_the_documented_cli_vocabulary(self):
+        excluded_derivative = "recognis" + "able"
+        pairs = dict(scan.parse_skill_table(SKILL.read_text(encoding="utf-8")))
+        self.assertNotIn(excluded_derivative, pairs)
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exit_code = scan.main(["--record"])
+
+        self.assertEqual(exit_code, 0, output.getvalue())
+        self.assertNotIn(excluded_derivative, output.getvalue())
+        self.assertIn(f"{RECORD_FORMS} forms, {RECORD_OCCURRENCES} occurrences",
+                      output.getvalue())
 
 
 class Evidence(unittest.TestCase):
@@ -247,7 +267,7 @@ class TheRunRecord(unittest.TestCase):
         self.assertEqual(evidence.occurrences, RECORD_OCCURRENCES)
         self.assertEqual(len(evidence.files), RECORD_NOTES)
 
-    def test_the_ten_forms_are_the_ones_the_ticket_names(self):
+    def test_the_listed_forms_are_the_ones_the_ticket_names(self):
         # **Eight until 2026-08-18, then nine, then ten within the hour.** The run
         # record has not changed and cannot -- ``fixtures/filled-anchor/notes/``
         # is a byte-for-byte record of what a day-b run produced, apart from two
@@ -257,16 +277,18 @@ class TheRunRecord(unittest.TestCase):
         # them visible. #73's evidence set got larger without the evidence
         # moving, which is the distinction this class exists to hold.
         #
-        # **``judgement`` is the tenth and it was named in the repo's own docs
+        # **``judgement`` was the tenth and it was named in the repo's own docs
         # the whole time.** ``docs/agents/issue-tracker.md`` lists it beside
         # ``neighbouring`` as a British form the table does not hold -- written
         # to warn about ticket text, while three occurrences sat in these
         # committed notes. **A form documented as invisible is still invisible**,
         # and naming one in prose is not the same as adding it to the table.
+        # #103 later removed ``recognisable``: its only appearances were the
+        # run's self-audit boilerplate, not vocabulary an encounter can exercise.
         self.assertEqual(
             sorted(self.report.evidence.forms),
             ["behaviour", "caesarean", "dyspnoea", "fibre", "grey", "judgement",
-             "labelled", "neighbour", "programme", "recognisable"],
+             "labelled", "neighbour", "programme"],
         )
 
     def test_no_tracked_markdown_uses_a_british_spelling(self):
