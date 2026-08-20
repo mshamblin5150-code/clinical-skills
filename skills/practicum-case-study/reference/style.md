@@ -93,6 +93,22 @@ Ruled 2026-08-19. Italicize the organism names and leave the sentence in body fa
 `Signed by: <name>, RN, CEN, TCRN` and the date sit on **one** line, separated as a sentence is. The
 first submission put the date on its own line beneath, which renders as a stray orphan paragraph.
 
+### These rules are graded by a command, and that is why they are written this precisely
+
+**`tools/case_study_scan.py`, ruled 2026-08-19 on
+[#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277).** Most of this section
+and the prescription table in §8 are read by a scanner
+[SKILL.md](../SKILL.md) step 9 runs over the draft, so a rule here is a rule that fails rather than
+a rule that is remembered — [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
+*a prose edit to a rule fails nothing*, answered.
+
+**Two things in this file are deliberately outside it.** The **em dash** is counted and never
+graded, because it is a preference with a stated exception and a row keyed on one would refuse a
+document he would have written himself. And anything that takes a **reading** — whether a stop
+criterion's endpoint is the right endpoint, whether a wrapper instruction applies to this patient at
+all — stays a reader's, and [SKILL.md](../SKILL.md) step 9 names each one. **A clean scan is not a
+checked draft.**
+
 ## 2. Assessment — an optional body under a required heading
 
 The heading is always written. Its body is empty in three of the ten, and `Differential Diagnoses`

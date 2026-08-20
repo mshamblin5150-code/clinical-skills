@@ -1,6 +1,6 @@
 """Render a Markdown subset to a .docx, with the standard library and nothing else.
 
-    python tools/docx_write.py <in.md> <out.docx>
+    python tools/docx_write.py <in.md> <out.docx> [--force]
 
 **Why this is not PyMuPDF, asked and answered once.** PyMuPDF reads and writes PDFs.
 A finished case study is submitted to Canvas as a Word document, and no PDF library
@@ -44,6 +44,38 @@ centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
 indented. The rubric gives APA format 5 of 100 points, and this is most of what that
 line can be given mechanically -- see ``skills/practicum-case-study/reference/rubric.md``.
 
+**It refuses to overwrite a document it did not write, and that is #279.** ``output/``
+is gitignored, so a destructive write here has no recovery -- and the destination is the
+one file this repo produces that a human opens in an editor. Two failures, and neither is
+the other's:
+
+* **A render that raises** used to truncate the destination *before* building the content,
+  turning a good document into an archive with ``word/document.xml`` absent, which Word
+  declines to open. The archive is built into a sibling and ``os.replace``d into place
+  now -- ``guidelines_index.build``'s arrangement and its reason. **No hand edit is
+  involved in this one**, so none of the three signals #279's body lists reaches it, and
+  ``--force`` would not have helped: the author did intend to write.
+* **A hand edit** is refused, with ``--force`` to proceed -- ruled by the clinician on
+  2026-08-19 over warning, on this repo's posture that a silent destructive success is the
+  worst outcome. Two signals, in ``refusal`` below: Word's ``~$`` owner file beside the
+  document, which means it is open *right now*, and an archive whose part list is not
+  ``PART_NAMES``, which means something other than this renderer wrote it.
+
+**The ticket's own signal 2 -- the ``.docx`` being newer than the ``.md`` -- is not
+implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``, so
+*newer* is the ordinary post-render state: the test would fire on every legitimate
+re-render while never once distinguishing a Word save from a render. The part-set test is
+exact in the direction that matters instead, and costs one ``namelist()``.
+
+**What the guard does not reach is ``NOT_GUARDED`` below, not this paragraph** --
+``NOT_APPLIED``'s arrangement and its reason, which this module already carries one screen
+down. It was a paragraph here and a paragraph again in ``CLAUDE.md`` for the length of one
+review, and a prose edit to either would have failed nothing, so the reader misled would
+have been whichever one checked the file nearer to hand. That is
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a
+change whose own subject is a second copy of a rule. **``--force`` is a promise and not a
+backup**: there is still nothing to recover from.
+
 Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
 horizontal rules rather than a grid -- both #220, and both carved out where APA carves
 them out: a heading, a list item, a reference entry and a table cell take no first line,
@@ -63,6 +95,7 @@ Word refuses to open is indistinguishable from a good one until Word opens it.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import zipfile
@@ -122,6 +155,56 @@ NOT_APPLIED = (
         "and the second hangs on nothing. Joining them is an edit on the same terms "
         "as sorting, and it is caught as an author defect instead -- by "
         "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
+)
+
+
+# What the #279 destination guard does **not** reach. One object rather than prose here
+# and prose again in ``CLAUDE.md``, on ``NOT_APPLIED``'s precedent and for its reason: a
+# prose edit to either copy fails nothing. The first element is the key, the second is why
+# the row is here.
+NOT_GUARDED = (
+    (
+        "an editor that writes exactly these parts",
+        "That a Word save always changes the part list is a claim about **Word**, and "
+        "there is no Word in this repo to check it against -- ``test_docx.py``'s standing "
+        "limit arriving on a guard rather than on a document. Anything that rewrote "
+        "exactly this part set would read as ours. The certain direction is the other "
+        "one: what this renderer produces always matches, because both come from "
+        "``parts``.",
+    ),
+    (
+        "a part added here refuses every document already written",
+        "The cost of keying on the part set, and it is a standing cost rather than "
+        "history. The day an eighth part lands, **every ``.docx`` already in "
+        "``output/`` reads as foreign** and every re-render of one refuses until "
+        "``--force``. That is not hypothetical and it is live in the tree today: "
+        "``word/header1.xml`` arrived on #217, so the 2026-08-18 case study reads as "
+        "foreign for the version reason alone. The refusal message names this cause "
+        "beside the Word one for exactly that reason.",
+    ),
+    (
+        "an owner file belonging to a different document",
+        "``lock_files`` looks for the truncated ``~$`` name Word writes for a long "
+        "filename, which drops the first two characters -- so ``~$r5144-m1.docx`` is "
+        "also the owner file of any other ``??r5144-m1.docx`` in the same directory, and "
+        "a lock on one refuses a render of the other. It fails toward refusing rather "
+        "than toward destroying, and ``--force`` is the way past it, which is why it is "
+        "declared rather than narrowed.",
+    ),
+    (
+        "a document open in anything but Word",
+        "The owner file is Word's convention. An editor that takes no lock, or takes a "
+        "different one, is invisible to signal 1 -- though a hand-saved document is "
+        "still caught by the part set once it has been saved.",
+    ),
+    (
+        "the moment between the check and the write",
+        "``refusal`` is a moment rather than a lock: a Word session that opens the file "
+        "*after* it returns is not caught. On Windows ``os.replace`` then fails rather "
+        "than truncating, which is the safe direction and is measured rather than "
+        "assumed -- see ``TheDestinationHeldOpen`` in ``tools/test_docx.py``. On POSIX "
+        "it succeeds, and the holder keeps the old inode.",
     ),
 )
 
@@ -487,6 +570,20 @@ def table(rows: list) -> str:
     ).format(s=TABLE_STYLE_ID, b=BORDERS, g=grid, rows="".join(body))
 
 
+# The two spellings of a pipe that is content rather than a cell boundary. ``&#124;`` is
+# what ``style.md`` section 8 wrote; the backslash is what a run reached for when it
+# noticed the shape was wrong, and #293 taught ``split_row`` both.
+#
+# **It is declared for the reporting side, and ``split_row`` reads neither element** --
+# it walks the backslash character by character because it has to look ahead, and holds
+# its own ``&#124;`` literal. That is not the ``REFERENCE_HEADING`` arrangement and
+# should not be read as one: nothing here makes the parser and the scanner share an
+# object. What binds them is a **test** -- ``tools/test_docx.py`` asserts ``split_row``
+# consumes every form named here -- because a scanner reporting a spelling the parser
+# leaves alone would send a run chasing a cell that already works.
+PIPE_ESCAPES = ("\\|", "&#124;")
+
+
 def split_row(line: str) -> list:
     r"""Split a Markdown table row on its **unescaped** pipes.
 
@@ -556,9 +653,234 @@ def table_first_cells(block: str) -> list:
     return cells
 
 
+def markdown_tables(text: str) -> list:
+    """Every Markdown table in ``text``, each as the source block ``render_body`` reads.
+
+    **One reader of a documentation table, not two** -- ``table_first_cells``'s note
+    above, and the same reason. ``tools/test_docx.py`` extracts ``style.md`` section 8's
+    ``Rx:`` table with this and renders it, and walks every table in the skill's
+    reference sheets with it for #280's general row; a second copy of the loop is the
+    duplication that function was consolidated to refuse.
+    """
+    lines = text.replace("\r\n", "\n").split("\n")
+    blocks, index = [], 0
+    while index < len(lines):
+        line = lines[index].strip()
+        if line.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
+            block = [line, lines[index + 1].strip()]
+            index += 2
+            while index < len(lines) and lines[index].strip().startswith("|"):
+                block.append(lines[index].strip())
+                index += 1
+            blocks.append("\n".join(block) + "\n")
+            continue
+        index += 1
+    return blocks
+
+
+_RUN_TEXT = re.compile(r'<w:t xml:space="preserve">(.*?)</w:t>', re.DOTALL)
+_TABLE_CELL = re.compile(r"<w:tc>.*?</w:tc>", re.DOTALL)
+
+# The row's name as a reader will see it rather than the character, because a cell may
+# legitimately hold a pipe once ``PIPE_ESCAPES`` is decoded and the finding is about
+# *where* it landed.
+CELL_SEPARATOR = "| in a table cell"
+
+# The ticket's row is *no run contains a literal backslash or* ``&#124;``, and the escape
+# limb narrows the first half to ``\\|`` because that is what the parser consumes. **A lone
+# backslash is the recorded symptom itself** -- *"the patient carries a ``\``"* -- so it
+# is reported where it was read off the page, in a cell. Outside a table it is left
+# alone and that is declared rather than widened: a backslash in running prose is
+# somebody quoting a path or a pattern, and this warning has to stay worth reading.
+CELL_BACKSLASH = "a backslash in a table cell"
+
+
+def _unesc(text: str) -> str:
+    """``esc`` run backwards. The ampersand last, so a decoded ``&lt;`` is not re-read."""
+    return text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
+
+def separator_artifacts(markdown: str) -> list:
+    r"""Runs of the rendered document carrying a cell separator as text -- #280.
+
+    **No documented table shape may render to text containing its own separator
+    syntax**, which is the general row that ticket asked for. It has three limbs
+    because the defect has three forms, and **the ticket wrote only the last**:
+
+    * a **table cell whose text holds a pipe**, which is a row declaring a width the
+      grid does not have. That is the shape section 8 documented, and the reason the
+      whole prescription rendered into column 1;
+    * a **table cell holding a backslash**, which is the clinician's own reading of the
+      rendered page and the half of the ticket's row that ``PIPE_ESCAPES`` narrows; and
+    * a run anywhere carrying one of ``PIPE_ESCAPES`` **undecoded** -- which since #293
+      can only happen outside a table, where nothing consumes it, so it reaches the page
+      as a visible ``&#124;`` or the stray backslash the clinician read off the first
+      Module 1 submission.
+
+    **The first limb is the one with the recorded defect behind it**, and stating the
+    row as the ticket did would have missed it: ``split_row`` decodes both spellings
+    now, so the retired section 8 no longer puts either on the page -- it puts two
+    pipes inside one cell instead, which is the same defect one layer down.
+
+    Read off the rendered XML rather than off the Markdown, which is
+    ``tools/test_docx.py``'s standing instrument: the claim is about what a reader of
+    the document gets.
+
+    **One finding per offending run, and a finding is a form and nothing else** -- a
+    value of ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``. So the output
+    is bounded by what this code can draw on rather than by what a caller remembers not
+    to print, and a
+    draft is written about a patient. **The first version returned the run's text
+    beside the form and no caller ever read it**, which left the bounded claim resting
+    on caller discipline; ``/code-review`` found it.
+
+    **It lives here rather than in a ``tools/*_scan.py`` because it reads this module's
+    own output**, and because the clinician ruled the check runs in the render command
+    -- which is this one. ``reference_scan.py`` is the other arrangement and has the
+    other subject: it grades a draft the renderer did not produce.
+
+    **What it cannot reach**, named rather than left to be found. A table that renders
+    cleanly and is **wrong**: a six-row ``Rx:`` whose ``Sig:`` says the wrong thing
+    satisfies every limb. A **backslash outside a table**, by the decision above. And
+    it cannot tell a faked width from a cell that **means** its pipe -- an author who
+    writes ``\|`` deliberately gets a warning, which is the price of a row that reads
+    the output rather than the intent, and is why this warns instead of refusing.
+    """
+    xml = body_xml(markdown)
+    found = []
+    for cell in _TABLE_CELL.findall(xml):
+        for raw in _RUN_TEXT.findall(cell):
+            text = _unesc(raw)
+            if "|" in text:
+                found.append(CELL_SEPARATOR)
+            if "\\" in text:
+                found.append(CELL_BACKSLASH)
+    for raw in _RUN_TEXT.findall(xml):
+        text = _unesc(raw)
+        for escape in PIPE_ESCAPES:
+            if escape in text:
+                found.append(escape)
+    return found
+
+
 def body_xml(markdown: str) -> str:
     """Convert the Markdown subset to the payload of a ``w:body`` element."""
     return render_body(markdown)[0]
+
+
+# The Markdown subset, as three patterns and a name for the separators. **They
+# were inline in ``render_body`` and are constants because a second reader now
+# exists.** ``reference_scan.py`` imports ``REFERENCE_HEADING`` for the reason
+# written beside it -- a scanner holding its own copy of a rule can pass a
+# document the renderer sets wrong -- and ``blocks`` below is that argument at
+# the width of the whole parse rather than at one heading.
+HEADING = re.compile(r"(#{1,4})\s+(.*)")
+BULLET = re.compile(r"([ \t]*)[-*+]\s+(.*)")
+NUMBERED = re.compile(r"([ \t]*)\d+[.)]\s+(.*)")
+SEPARATORS = ("---", "***", "___")
+
+
+class Block:
+    """One thing the renderer will set, and the source line it opens on.
+
+    ``kind`` is one of ``blank``, ``separator``, ``heading``, ``table``,
+    ``bullet``, ``numbered`` and ``paragraph`` -- the seven branches
+    ``render_body`` had, named. ``line`` is 1-indexed and nothing in this module
+    reads it; it is there because a scanner reports a finding at a line.
+    """
+
+    __slots__ = ("kind", "text", "line", "level", "rows")
+
+    def __init__(self, kind, text="", line=0, level=0, rows=()):
+        self.kind = kind
+        self.text = text
+        self.line = line
+        self.level = level
+        self.rows = rows
+
+    def __repr__(self):  # pragma: no cover - diagnostics only
+        return "Block({k!r}, {t!r}, line={n})".format(k=self.kind, t=self.text, n=self.line)
+
+
+def blocks(markdown: str):
+    """Read the Markdown subset once, into ``Block`` objects.
+
+    **This is the whole of the renderer's reading and there is no second copy of
+    it.** ``render_body``'s own docstring already named the risk -- *a second pass
+    over the same Markdown is a second parser to keep in step* -- and
+    ``tools/case_study_scan.py`` is that second pass: it grades a draft on rules
+    whose failure is a rendered one, so a line it calls a bullet has to be a
+    bullet in the ``.docx``. Importing the three patterns would have left two
+    loops that could still disagree about where a table ends; consuming this
+    leaves none.
+
+    **A fenced code block is not a branch here, and that is the renderer's
+    behavior rather than an omission of this function's.** A fence opens nothing,
+    so a bulleted line inside one is set as a bullet in the finished document --
+    which is why ``case_study_scan.py`` grants no mention-versus-use exemption
+    for one, where ``spelling_scan.py`` reading a skill file does.
+    """
+    lines = markdown.replace("\r\n", "\n").split("\n")
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        number = index + 1
+
+        if not stripped:
+            yield Block("blank", line=number)
+            index += 1
+            continue
+
+        if stripped in SEPARATORS:
+            yield Block("separator", stripped, line=number)
+            index += 1
+            continue
+
+        heading = HEADING.match(stripped)
+        if heading:
+            yield Block(
+                "heading",
+                heading.group(2).strip(),
+                line=number,
+                level=len(heading.group(1)),
+            )
+            index += 1
+            continue
+
+        if stripped.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
+            rows = [tuple(split_row(stripped))]
+            index += 2
+            while index < len(lines) and lines[index].strip().startswith("|"):
+                rows.append(tuple(split_row(lines[index].strip())))
+                index += 1
+            yield Block("table", line=number, rows=tuple(rows))
+            continue
+
+        bullet = BULLET.match(line)
+        if bullet:
+            yield Block(
+                "bullet",
+                bullet.group(2),
+                line=number,
+                level=min(len(bullet.group(1).expandtabs(4)) // 2, 2),
+            )
+            index += 1
+            continue
+
+        numbered = NUMBERED.match(line)
+        if numbered:
+            yield Block(
+                "numbered",
+                numbered.group(2),
+                line=number,
+                level=min(len(numbered.group(1).expandtabs(4)) // 2, 2),
+            )
+            index += 1
+            continue
+
+        yield Block("paragraph", stripped, line=number)
+        index += 1
 
 
 def render_body(markdown: str):
@@ -567,33 +889,28 @@ def render_body(markdown: str):
     The count is what ``numbering_xml`` has to be sized by, and it is returned
     rather than recomputed because a second pass over the same Markdown is a
     second parser to keep in step -- which is the duplication
-    ``table_first_cells`` above was consolidated to refuse.
+    ``table_first_cells`` above was consolidated to refuse, and which is why the
+    reading itself is ``blocks`` above rather than a loop in here.
     """
-    lines = markdown.replace("\r\n", "\n").split("\n")
     out = []
     in_references = False
     has_content = False
     # 0 means "no list open": the next numbered line allocates a fresh ``numId``.
     decimal_id = 0
     decimal_lists = 0
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        stripped = line.strip()
-
-        if not stripped or stripped in ("---", "***", "___"):
-            if not in_references and not stripped:
+    for block in blocks(markdown):
+        if block.kind == "blank":
+            if not in_references:
                 out.append("<w:p/>")
-            index += 1
             continue
 
-        heading = re.match(r"(#{1,4})\s+(.*)", stripped)
-        if heading:
-            level = len(heading.group(1))
-            text = heading.group(2).strip()
+        if block.kind == "separator":
+            continue
+
+        if block.kind == "heading":
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
-            in_references = bool(REFERENCE_HEADING.match(text))
+            in_references = bool(REFERENCE_HEADING.match(block.text))
             # A heading closes whatever list was open, so the next numbered line
             # allocates a fresh ``w:num`` and Word restarts it at 1. This is the
             # only place the counter resets: a plain paragraph *between* two
@@ -601,8 +918,8 @@ def render_body(markdown: str):
             decimal_id = 0
             out.append(
                 para(
-                    text,
-                    style="Heading{n}".format(n=level),
+                    block.text,
+                    style="Heading{n}".format(n=block.level),
                     # A page break on the document's first paragraph renders an empty
                     # first page, so a document that opens on its reference list takes
                     # the centering and not the break.
@@ -611,56 +928,43 @@ def render_body(markdown: str):
                 )
             )
             has_content = True
-            index += 1
             continue
 
-        if stripped.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
-            rows = [split_row(stripped)]
-            index += 2
-            while index < len(lines) and lines[index].strip().startswith("|"):
-                rows.append(split_row(lines[index].strip()))
-                index += 1
-            out.append(table(rows))
+        if block.kind == "table":
+            out.append(table([list(row) for row in block.rows]))
             has_content = True
             continue
 
-        bullet = re.match(r"([ \t]*)[-*+]\s+(.*)", line)
-        if bullet:
-            level = min(len(bullet.group(1).expandtabs(4)) // 2, 2)
-            out.append(para(bullet.group(2), style="ListParagraph", num_id=1, level=level))
+        if block.kind == "bullet":
+            out.append(para(block.text, style="ListParagraph", num_id=1, level=block.level))
             has_content = True
-            index += 1
             continue
 
-        numbered = re.match(r"([ \t]*)\d+[.)]\s+(.*)", line)
-        if numbered:
-            level = min(len(numbered.group(1).expandtabs(4)) // 2, 2)
+        if block.kind == "numbered":
             if not decimal_id:
                 decimal_lists += 1
                 decimal_id = decimal_lists + 1
             out.append(
                 para(
-                    numbered.group(2),
+                    block.text,
                     style="ListParagraph",
                     num_id=decimal_id,
-                    level=level,
+                    level=block.level,
                 )
             )
             has_content = True
-            index += 1
             continue
 
         # APA 7 section 2.24's first-line indent lands here and on no other branch:
         # a heading, a list item and a reference entry are each carved out above.
         out.append(
             para(
-                stripped,
+                block.text,
                 style="Reference" if in_references else "",
                 first_line=not in_references,
             )
         )
         has_content = True
-        index += 1
 
     return "".join(out), decimal_lists
 
@@ -686,32 +990,235 @@ def document_xml(markdown: str, body: str = None) -> str:
     ).format(w=W, r=R, b=body, s=sect)
 
 
-def write_docx(markdown: str, destination) -> Path:
+class RefusedToOverwrite(Exception):
+    """The destination holds work this renderer did not write, or Word has it open."""
+
+
+def parts(markdown: str) -> dict:
+    """Every part of the archive, keyed by name, in the order it is written.
+
+    **One object, so the guard cannot hold a different answer than the writer.**
+    ``word/header1.xml`` arrived late -- on #217 -- and a part list typed by hand into
+    ``written_by_this_renderer`` would have called every document produced after that
+    foreign, or every one produced before it ours.
+
+    **The body is rendered once here rather than twice.** #293 made the numbering part
+    depend on the body -- a document with several numbered lists needs one definition
+    each -- so ``render_body`` has to run before ``numbering_xml``, and its result is
+    handed on to ``document_xml`` rather than parsed a second time. That is #293's own
+    finding, and this function is where the two branches met: the guard needs the part
+    *names* and the writer needs the part *contents*, and they must come from one walk.
+    """
+    body, decimal_lists = render_body(markdown)
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "_rels/.rels": ROOT_RELS,
+        "word/_rels/document.xml.rels": DOC_RELS,
+        "word/styles.xml": STYLES,
+        "word/numbering.xml": numbering_xml(decimal_lists),
+        "word/header1.xml": HEADER,
+        "word/document.xml": document_xml(markdown, body),
+    }
+
+
+# Derived rather than restated, on ``NOT_APPLIED``'s and ``REFERENCE_HEADING``'s terms,
+# so a further part cannot arrive with the guard below still passing. **How many there are
+# is this object's to say and is deliberately counted nowhere in prose**, on #143's terms --
+# a numeral here goes stale the day a part is added, which is the one day the guard's
+# behavior changes for every document already written.
+PART_NAMES = frozenset(parts(""))
+
+
+def lock_files(destination: Path) -> tuple:
+    """The two names Word gives its owner file, either of which means *open right now*.
+
+    Word prepends ``~$`` to a short name and **replaces the first two characters** of a
+    long one, and that is not a rule worth remembering wrong: #279's own directory
+    listing is the evidence -- ``nur5144-m1-2026-08-19.docx`` locked by
+    ``~$r5144-m1-2026-08-19.docx``. Both shapes are looked for rather than the length
+    threshold between them being guessed at.
+    """
+    candidates = [destination.with_name("~$" + destination.name)]
+    if len(destination.name) > 2:
+        candidates.append(destination.with_name("~$" + destination.name[2:]))
+    return tuple(candidates)
+
+
+def written_by_this_renderer(destination: Path) -> bool:
+    """Whether the file at ``destination`` carries exactly the parts ``parts`` writes.
+
+    **The certain direction is the positive one**: anything this renderer produced has
+    this part set, because both come from one object. The module docstring carries what
+    the other direction rests on and why it is not asserted. A file that will not open as
+    a zip, or will not open at all, reads as not ours, which is the safe direction.
+    """
+    try:
+        with zipfile.ZipFile(destination) as archive:
+            return frozenset(archive.namelist()) == PART_NAMES
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
+def refusal(destination: Path) -> str:
+    """Why writing to ``destination`` would destroy work, or ``""`` if it would not.
+
+    The owner file is checked first because it is the one case that is also true of a
+    document this renderer *did* write -- so the part-set test would pass it -- and
+    because it is the moment the write may fail on a sharing violation anyway.
+
+    Every message names ``--force``. A refusal that does not say how to proceed is a dead
+    end rather than a guard, and the run that meets one is a legitimate re-render often
+    enough that it has to be.
+
+    **The part-set message names two causes and the second one is not hypothetical.**
+    ``word/header1.xml`` arrived on #217, so **every document rendered before that reads
+    as foreign** -- the claim *not written by this renderer* is exactly true of it, and
+    ``a Word save, most likely``, which is what this said first, is the wrong guess. Found
+    by pointing the guard at the real ``output/case-studies/`` rather than by a fixture:
+    of the two documents there, the one #279 was filed over reads as **ours** -- so the
+    clinician had in fact not saved it, which is what he told the session that asked --
+    and the older one reads as foreign for the version reason alone. That is
+    ``block_scan.py``'s and ``threshold_sheet.py``'s lesson a further time.
+    """
+    for lock in lock_files(destination):
+        if lock.exists():
+            return (
+                "{d} is open in Word right now -- {l} is beside it. Close the document, "
+                "or pass --force to overwrite it anyway.".format(d=destination, l=lock.name)
+            )
+    if destination.exists() and not written_by_this_renderer(destination):
+        return (
+            "{d} was not written by this renderer -- either something else saved it, "
+            "most likely Word, or an older version of this renderer wrote it before the "
+            "part set changed. Rendering over it destroys whatever is in it, and output/ "
+            "is gitignored so there is no recovery. Pass --force if that is what you "
+            "want.".format(d=destination)
+        )
+    return ""
+
+
+def partial_name(destination: Path) -> Path:
+    """The sibling the archive is built into before it is moved into place.
+
+    ``guidelines_index.build``'s arrangement with the process id added. #279's own
+    parenthetical is why: #276 records a *fixed* temp name being unsafe under
+    concurrency, and while this is one writer to one destination, a name carrying nothing
+    is the shape that ticket is about.
+    """
+    return destination.with_name(
+        "{n}.{pid}.building".format(n=destination.name, pid=os.getpid())
+    )
+
+
+def write_docx(markdown: str, destination, force: bool = False) -> Path:
+    """Render ``markdown`` to ``destination``, refusing to destroy work it did not write.
+
+    The archive is built into a sibling and moved into place, so a render that dies part
+    way leaves the previous document intact rather than the truncated archive #279
+    recorded. ``force`` skips ``refusal`` and nothing else -- the sibling is not a mode.
+
+    **Building the payload before opening the sibling would be a second mechanism, and
+    it was written that way first.** It reads as a guard and is not one: with the write
+    going to a sibling the ordering is unobservable, so the mutation that moved it back
+    inside left the whole suite green. Worse, it made the ``except`` limb below
+    unreachable from the one test aimed at it -- a raise in ``document_xml`` happened
+    before the sibling existed, so nothing exercised the cleanup. One mechanism, and the
+    limb is now on the path the test drives.
+    """
     destination = Path(destination)
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", CONTENT_TYPES)
-        archive.writestr("_rels/.rels", ROOT_RELS)
-        archive.writestr("word/_rels/document.xml.rels", DOC_RELS)
-        archive.writestr("word/styles.xml", STYLES)
-        body, decimal_lists = render_body(markdown)
-        archive.writestr("word/numbering.xml", numbering_xml(decimal_lists))
-        archive.writestr("word/header1.xml", HEADER)
-        archive.writestr("word/document.xml", document_xml(markdown, body))
+    if not force:
+        reason = refusal(destination)
+        if reason:
+            raise RefusedToOverwrite(reason)
+    partial = partial_name(destination)
+    partial.unlink(missing_ok=True)
+    try:
+        with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in parts(markdown).items():
+                archive.writestr(name, content)
+        os.replace(partial, destination)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
     return destination
 
 
+USAGE = "usage: docx_write.py <in.md> <out.docx> [--force]"
+
+
 def main(argv: list) -> int:
+    force = "--force" in argv
+    # An unrecognized ``--`` argument is refused rather than sliding into a positional
+    # slot. ``--forse`` would otherwise be read as a third path, ignored in silence, and
+    # the guard it was meant to disable would refuse the write -- which reads as the
+    # guard being broken rather than as the flag being mistyped.
+    unknown = [a for a in argv if a.startswith("--") and a != "--force"]
+    if unknown:
+        print("unknown option: {o}".format(o=unknown[0]))
+        print(USAGE)
+        return 2
+    argv = [argument for argument in argv if argument != "--force"]
     if len(argv) < 2:
-        print("usage: docx_write.py <in.md> <out.docx>")
+        print(USAGE)
         return 2
     source = Path(argv[0])
     if not source.is_file():
         print("not a file: {p}".format(p=source))
         return 2
-    written = write_docx(source.read_text(encoding="utf-8"), Path(argv[1]))
+    markdown = source.read_text(encoding="utf-8")
+    try:
+        written = write_docx(markdown, Path(argv[1]), force=force)
+    except RefusedToOverwrite as reason:
+        # 2 is every way of not having written, on ``docx_read.py``'s convention. There
+        # is no 1, because a writer has no "found nothing" to report -- but that is a
+        # claim about what this function *returns*, and an uncaught exception still
+        # leaves the process on 1 through the traceback. Both axes of ``/code-review``
+        # found the unqualified form of this sentence, which is why it is qualified.
+        print("refused: {r}".format(r=reason), file=sys.stderr)
+        return 2
+    except OSError as error:
+        # **The ticket's own headline scenario lands here**, and it exited 1 with a
+        # traceback until both review axes said so. Word holding the document open makes
+        # ``os.replace`` raise ``PermissionError`` on Windows -- which is the safe
+        # direction, since nothing was truncated -- but *did not write* is exactly what
+        # 2 means, and a traceback is not an operator-legible way to say it. The
+        # ``refusal`` check cannot close this: a Word session that opens the file after
+        # it returns is a race no check in this process wins.
+        print(
+            "could not write {p}: {e}. If it is open in Word, close it and run "
+            "again.".format(p=argv[1], e=error),
+            file=sys.stderr,
+        )
+        return 2
     print("wrote {p} ({n} bytes)".format(p=written, n=written.stat().st_size))
+    # **Warn, never refuse** -- ruled by the clinician on 2026-08-19. #280's second
+    # comment is why the command warns at all rather than the suite alone binding the
+    # sheet: ``style.md`` section 8 is copied by *runs*, and a run executes commands.
+    # Refusing was priced and declined -- this renderer is on the consumer's critical
+    # path, and a blocked submission is a worse outcome than a separator on the page.
+    #
+    # Forms and a count, never a run's text. See ``separator_artifacts``.
+    artifacts = separator_artifacts(markdown)
+    if artifacts:
+        # The two streams are buffered independently, so the warning arrives
+        # above the line it qualifies unless stdout is drained first.
+        sys.stdout.flush()
+        print(
+            "warning: {n} run(s) carry a cell separator as text rather than a cell "
+            "boundary: {f}".format(
+                n=len(artifacts), f=", ".join(sorted(set(artifacts)))
+            ),
+            file=sys.stderr,
+        )
+        print(
+            "warning: a row faking its width renders into column 1, and an escape "
+            "nothing consumed reaches the page as text. See "
+            "skills/practicum-case-study/reference/style.md section 8 for a table "
+            "that declares its columns. #280.",
+            file=sys.stderr,
+        )
     return 0
 
 

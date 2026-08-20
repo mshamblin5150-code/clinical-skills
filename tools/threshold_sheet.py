@@ -1,6 +1,8 @@
 """Grade a distilled threshold sheet against the guideline it claims to come from.
 
     python tools/threshold_sheet.py <sheet.md> [--recs <key>=<recs.json> ...] [--pdf-root <dir>]
+    python tools/threshold_sheet.py <sheet.md> --brief
+    python tools/threshold_sheet.py <sheet.md> --second-read <read.json>
     python tools/threshold_sheet.py --all
 
 This is #83's gate set. A threshold sheet is the deliverable of the #80 series: per
@@ -13,8 +15,14 @@ producing fluent, plausible, confident text from a source only it has read. Noth
 here checks that a guideline was *understood*. Each gate eliminates one way a sheet
 can be confidently wrong.
 
-Four gates, and what each one can and cannot see
+Six gates, and what each one can and cannot see
 ------------------------------------------------
+
+**It was four until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174).**
+#83 listed five under *"Independent, worth building"* and built three; the two below
+marked gate 4 and gate 5 are the rest of that list, and the ``RENDERED:`` marker had
+been shipping the *declaration* half of gate 4 since #83 with nothing detecting that a
+row needed it.
 
 ``SCHEMA``  refuses
     Structural. Every row has all eight columns, a population key drawn from the
@@ -61,6 +69,42 @@ Four gates, and what each one can and cannot see
     ``<source key>=<path>`` now and ``--recs-root`` resolves ``recs-<source key>.json``,
     and a sheet where **any** source has no record exits 2.
 
+``WATERMARK`` warns, and skips loudly where the extracted corpus is absent
+    #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
+    that row is suspect and must be read off the rendered page. Cannot verify a
+    reading; flags every place the text stream was interleaved."* The strings are
+    read from ``manifest.json`` -- **both** ``boilerplate`` and ``margin_stripped``,
+    because a detector reading only the first misses #100's whole margin rule, which
+    is this gate's own failure shape arriving in this gate's input.
+
+    **A stripped string is a usable probe only where it does not otherwise occur in
+    the document's own body**, and that discrimination is measured rather than
+    chosen -- see ``usable_probes`` for why no length or letter-run cut point can
+    do it. A declared ``RENDERED:`` row is exempt and counted: reading it off the
+    rendered page is the remedy #83 names, and refusing a row that applied it would
+    leave the gate unsatisfiable.
+
+    **Warns rather than refuses, and that is a ruling deferred.** #83 decision 1 set
+    the posture per gate and never ruled this one, whose own line says *flags*.
+    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296).
+
+``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
+    #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
+    the diff is the gate. The only mechanism that catches misreading rather than
+    miscitation."* ``--brief`` prints the work order -- documents and pages and
+    nothing else -- and ``--second-read`` diffs the result against the sheet.
+
+    **#83's caveat is a build instruction and #174 says so**: correlated error --
+    same model, same PDF, same mangling, same wrong answer -- means the *pass* is
+    cheap. It does not mean the *fail* is, because correlation does not manufacture
+    a disagreement. So a disagreement refuses, and ``SECOND_READ_IS_A_SMOKE_TEST``
+    prints on a clean run, which is the only run anybody could mistake for proof.
+
+    **The diff is on numbers and the misreading limb is a pairing nobody grades.**
+    The row's ``quantity`` and ``population`` are printed beside what the
+    independent reader said the number was **about**, for a reader to compare. That
+    is the hole named two sections down, narrowed to a reading rather than closed.
+
 ``RANGE``   refuses
     Per-quantity bounds. A BP target of 1300, an eGFR of 450, a dose three orders of
     magnitude off. Decimal-place and unit errors are the highest-consequence
@@ -78,7 +122,11 @@ What no gate here reaches, stated the same day the gates were built
 - **Whether the row says what the recommendation says.** ``CITATION`` proves the
   snippet is on the page. It cannot prove the row's ``quantity`` is what that
   sentence was about, and a sheet whose numbers are all real and all filed under the
-  wrong heading passes every gate here.
+  wrong heading passes every *automatic* gate here. **``SECOND READ`` narrows this
+  and does not close it**: it sets the row's heading beside an independent reader's
+  own description of the number and grades neither, so what closes the hole is a
+  person reading the pairs. A green gate 5 is not a read pairing list -- and a gate 5
+  that was never handed a read says ``NOT RUN`` rather than nothing.
 - **Whether the population key is right.** ``SCHEMA`` checks it is *declared*. The
   key is a judgment, which is why the verbatim population text sits beside it in the
   Sources table for a reader to check the key against. A mis-keyed row hides a real
@@ -100,13 +148,29 @@ the sheet. ``tools/test_icd10.py`` runs against committed excerpts and never aga
 the shipped database for precisely this reason. It is the most natural check to
 write here and it is worthless.
 
+**``SECOND READ`` is the exception that proves that rule rather than a breach of
+it, and the line between them is the only thing holding it.** It re-extracts, and
+what makes it worth anything is that this module **does not perform the read** --
+``gate_second_read`` grades a record somebody else produced and there is no code
+path here that can produce one. A ``--second-read`` this module generated would be
+the same code over the same page, which is the check named worthless above; that is
+why ``--brief`` prints a work order for a reader instead of doing the work.
+
 Exit status
 -----------
 
 ``0`` clean. ``1`` a gate that refuses found something. ``2`` **every way of not
 having graded** -- no sheet, no rows in it, an unreadable Sources table, **any source
-with no recommendation record**, and a ``--recs`` argument naming a source the sheet
-does not declare. A sheet whose rows were written in a shape the parser does not read
+with no recommendation record**, a ``--recs`` argument naming a source the sheet
+does not declare, a ``--second-read`` that was asked for and did not load, **and one
+that loaded and diffed no row at all** -- a record whose entries all land on pages the
+sheet cites nowhere made every row *uncovered* and printed ``0 refusing, 0 warning``,
+which is byte for byte what a clean diff prints.
+**An absent extracted corpus is deliberately NOT one of them**: ``WATERMARK`` skips
+with a banner on ``CITATION`` tier 2's terms rather than ``COVERAGE``'s, because
+making it a refusal would add a second reason the pre-commit hook turns away someone
+fixing a prose typo -- a cost ``reference/thresholds/README.md`` already names as
+landing on people who have done nothing wrong. A sheet whose rows were written in a shape the parser does not read
 would otherwise report zero violations and look like a pass, which is
 `differential_scan.py`'s ruling and the shape #153 caught in the wild at 2.4%
 coverage reading green.
@@ -129,6 +193,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import guidelines_extract
+import guidelines_index
 from console_codec import use_utf8
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -324,6 +389,19 @@ class Sheet:
     resolved_date: str | None = None
     ok: bool = True
     why_not: str | None = None
+
+
+def _document_of(sheet: "Sheet", row: "Row") -> str:
+    """The source document a row cites, or ``""`` where its source is undeclared.
+
+    One walk rather than four spellings of it. It was written out at every call site
+    first -- ``sheet.sources.get(row.source, {}).get("document", "")`` in three places
+    and ``sheet.sources[row.source].get("document", "")`` in a fourth, which is the
+    same chain with a different failure mode on an undeclared key. Every gate that
+    reaches for a row's document is really asking this one question, and SCHEMA has
+    already refused the row where the answer is empty.
+    """
+    return sheet.sources.get(row.source, {}).get("document", "")
 
 
 def _cells(line: str) -> list[str] | None:
@@ -592,6 +670,482 @@ def _normalize(text: str) -> str:
     text = re.sub(r"[\u2018\u2019\u201c\u201d]", "'", text)
     return re.sub(r"\s+", " ", text).strip().lower()
 
+
+
+# #80 owns `manifest.json`'s shape and #84 owns the reader for it. Imported rather
+# than re-implemented, on `reference_scan.py` importing `docx_write.REFERENCE_HEADING`
+# and for that module's reason: a gate holding its own copy of a rule can pass input
+# the owner would refuse, and that is the one failure this join exists to catch.
+# `read_manifest` returns `{}` only for an absent file and RAISES for every way of
+# being present and unusable, which is what lets the skip channel below say which.
+read_manifest = guidelines_index.read_manifest
+
+
+def usable_probes(entry: dict, body: str) -> dict[str, str]:
+    """The strings #80 stripped from this document that can serve as probes.
+
+    Returns ``{normalized probe: the string as the manifest records it}``.
+
+    **The discrimination is measured and there is deliberately no constant in it.**
+    A stripped string is a usable probe only where it does *not* otherwise occur in
+    the document's own extracted body -- because a string the extractor removes in
+    one place and keeps in another proves nothing at all by appearing in a snippet.
+
+    That rule replaced two heuristics that were tried against the corpus first and
+    both fail, which is why it is written down rather than left as taste. Keying on
+    length, or on the longest run of letters, cannot separate ``JAMA`` -- stripped as
+    a running head from seventeen AHA/ACC documents and occurring up to 52 times in
+    the body of one of them -- from ``Jones et al``, which is the same shape and is
+    the welded running head gate 4 exists to find. The same threshold has to keep a
+    document's own title, stripped as a page-repeated line while the body states it
+    too, and drop a bare folio like ``S37``. No cut point does all three; the body
+    test does all three by construction. #83's own lesson from
+    ``SPACE_ADVANCE_FRACTION`` is that naming a value at an edge is how a constant
+    goes wrong, and the value here is that there is no constant to name.
+
+    **Those two counts are stated here and deliberately nowhere else.** They are
+    measured against a 179-document corpus outside this repo, so nothing committed
+    re-derives them, and a copy in ``CLAUDE.md`` or in ``reference/thresholds/README.md``
+    is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) --
+    which is what the first draft of this change did, in three places each, inside a
+    paragraph asserting the figure was stated once. Re-derive by running
+    ``tools/guidelines_extract.py`` and counting over ``manifest.json``.
+
+    **Both fields, which is #100 and #174's own comment.** ``boilerplate`` holds what
+    the literal 75% rule took and ``margin_stripped`` what the margin rule took; a
+    detector reading only the first misses the whole margin rule and reports a clean
+    gate, which is gate 4's failure shape arriving in gate 4's input. **How much that
+    is, and which documents lose a welded running head rather than a folio, are
+    `guidelines_extract.py`'s figures to state** -- CLAUDE.md already rules them not
+    to be repeated, and prose is what interleaves, which is the part that matters
+    here.
+
+    Matching is substring on both sides and through ``_normalize``, so the body test
+    and the row test are the same test asked of two different strings -- a probe that
+    only ever occurs inside a longer word in the body is dropped by the same rule
+    that would have fired on it in a snippet.
+    """
+    normalized_body = _normalize(body)
+    probes: dict[str, str] = {}
+    for field_name in ("boilerplate", "margin_stripped"):
+        for stripped in entry.get(field_name) or ():
+            probe = _normalize(str(stripped))
+            if probe and probe not in normalized_body:
+                probes[probe] = str(stripped)
+    return probes
+
+
+def gate_watermark(
+    sheet: Sheet, text_root: Path | None
+) -> tuple[list[str], str | None, int, list[str]]:
+    """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
+
+    Returns ``(warnings, skip reason, rows declared RENDERED, source keys not probed)``.
+
+    #83 states it: *"If a string stripped by #80 appears inside an extracted table
+    row, that row is suspect and must be read off the rendered page. Cannot verify a
+    reading; flags every place the text stream was interleaved."* The ``RENDERED:``
+    marker shipped with #83 as the **declaration** half. This is the detection half,
+    and until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)
+    nothing told a writer that a given row needed it.
+
+    **It warns and does not refuse, and that is a ruling deferred rather than a
+    judgment about severity.** #83 decision 1 set the posture *per gate* -- schema
+    and citation refuse, recommendation counting warns -- and it never ruled gate 4,
+    whose own line says **flags**. The pre-commit hook runs ``--all --quiet`` when a
+    sheet is staged, so anything routed into the refusal list turns a commit away.
+    **The first version of this gate refused**, which was a posture set by inference
+    from a line that says *flags* -- caught by the spec axis of ``/code-review``.
+    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) carries
+    the question to the clinician, and every mechanism a refusal would need is
+    already here: the finding, its remedy, and the count.
+
+    **How much a refusal would change is smaller than this said**, and the overstated
+    version was a stated ground for deferring, which is what makes it worth recording
+    rather than quietly correcting. It read *"the third thing in this repo that can
+    refuse a commit"*, in four files. ``tools/hooks/pre-commit`` already calls
+    ``threshold_sheet.py`` **the second thing in this repo that can refuse a commit**,
+    invoked once under one staging condition -- so a gate-4 refusal adds no tool, no
+    invocation and no exit path, only another **reason** an existing refuser exits
+    non-zero. One figure copied into four files, inside a change whose own prose cites
+    #143 twice; found by the tracker sweep on
+    [#111](https://github.com/mshamblin5150-code/clinical-skills/issues/111).
+
+    **Every probe that hits, not the first.** #83 asks for *every place*, and a row
+    can carry two stripped strings -- a running head and a folio land on one line
+    often enough that stopping at the first would report one and read as the whole.
+
+    **A declared row is exempt and counted, not refused.** The remedy #83 names for a
+    suspect row *is* to read it off the rendered page, so refusing a row that says it
+    did would leave the gate unsatisfiable. The count is printed on tier 2's terms:
+    the trace the hatch exists to leave is worth nothing if the run honoring it stays
+    silent. **That does mean one marker buys out of two gates**, which is named here
+    rather than discovered -- both exemptions are counted and both print.
+
+    **An absent corpus is a skip and never a pass**, on ``gate_citation_tier2``'s
+    arrangement rather than ``gate_coverage``'s, and the asymmetry is deliberate. The
+    extracted text lives outside every checkout, so a fresh clone, a worktree and CI
+    all have nothing to probe; making that a refusal would add a second reason the
+    pre-commit hook turns away someone fixing a prose typo, which
+    ``reference/thresholds/README.md`` already names as a cost landing on people who
+    have done nothing wrong. The caller prints a banner it is meant to be hard to
+    read past.
+
+    **A source that was reached but could not be probed is neither.** A document with
+    no manifest entry, no extracted text on disk, or no usable probe at all is
+    returned in the fourth value and printed, because a sheet citing one is a sheet
+    this gate said nothing about. A silent zero there is the shape
+    ``differential_scan.py`` and every scanner after it exists to refuse. **How many
+    of the 179 have no usable probe is stated once, in
+    ``reference/thresholds/README.md``**, where the command that re-derives it sits
+    beside it -- it is measured against a corpus outside this repo, so a second copy
+    is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
+    """
+    if text_root is None or not Path(text_root).is_dir():
+        return [], f"extracted corpus not found at {text_root}", 0, []
+    text_root = Path(text_root)
+    try:
+        manifest = read_manifest(text_root)
+    except ValueError as error:
+        return [], str(error), 0, []
+    if not manifest:
+        return [], f"no manifest.json under {text_root}", 0, []
+
+    probes_for: dict[str, dict[str, str]] = {}
+    unprobed: list[str] = []
+    for key in sorted(sheet.sources):
+        document = guidelines_index.normalize_doc_id(sheet.sources[key].get("document", ""))
+        entry = manifest.get(document)
+        if entry is None:
+            unprobed.append(key)
+            continue
+        body_path = text_root / (entry.get("output") or f"{document}.txt")
+        if not body_path.is_file():
+            unprobed.append(key)
+            continue
+        probes = usable_probes(entry, body_path.read_text(encoding="utf-8", errors="replace"))
+        if not probes:
+            unprobed.append(key)
+            continue
+        probes_for[key] = probes
+
+    findings: list[str] = []
+    rendered = 0
+    for row in sheet.rows:
+        probes = probes_for.get(row.source)
+        if not probes:
+            continue
+        if row.snippet.startswith(RENDERED_MARKER):
+            rendered += 1
+            continue
+        # Both cells, because #83 says *inside an extracted table row* and both of
+        # them are transcribed off the same page.
+        transcribed = _normalize(f"{row.value} {row.snippet}")
+        for probe, recorded in sorted(probes.items()):
+            if probe in transcribed:
+                findings.append(
+                    f"{sheet.path.name}:{row.line}  the row carries {recorded!r}, which #80 "
+                    f"stripped from {_document_of(sheet, row)} as "
+                    f"page-repeated text. The text stream was interleaved here, so read "
+                    f"this row off the rendered page and declare {RENDERED_MARKER}."
+                )
+    return findings, None, rendered, unprobed
+
+
+# The line gate 5 prints on every run it makes, clean or not. #83 states the caveat
+# in the same breath as the gate -- *"weakness is correlated error, same model, same
+# PDF, same mangling, same wrong answer, so it is a strong smoke test and must be
+# documented as one, never as proof"* -- and #174 calls that a build instruction.
+#
+# **It prints on a clean run too, which is the only run where anybody would mistake
+# it for proof.** A caveat that appears beside a failure is a caveat nobody needs.
+SECOND_READ_IS_A_SMOKE_TEST = (
+    "a second read is a smoke test and never proof: the same model over the same PDF "
+    "mangles it the same way, so agreement is cheap"
+)
+
+# The fields a second-read entry has to carry. Named here rather than read
+# positionally, on `ROW_COLUMNS`' reasoning: an entry short of one is a reader who
+# answered a different question, and a `.get` default would file that under agreement.
+SECOND_READ_FIELDS = ("document", "page", "value", "about")
+
+
+@dataclass
+class SecondRead:
+    """An independent extraction of the pages a sheet cites. ``ok`` is false when it
+    could not be read as one at all."""
+
+    path: Path
+    values: list[dict] = field(default_factory=list)
+    read_on: str | None = None
+    ok: bool = True
+    why_not: str | None = None
+
+
+def load_second_read_record(loaded: object, path: Path) -> SecondRead:
+    """Read a second-read record, or say why it is not one.
+
+    **Every way of being present and unusable is the same event**, which is
+    ``bind_recs``' ruling and is here for its reason: ``[]`` and ``{}`` are valid
+    JSON and arrive through a door that looks legitimate, and a record understood as
+    empty would grade every row against nothing and print a number.
+
+    ``read_on`` is required on ``research_ledger.py``'s dateless-ledger reasoning. A
+    read carries no trace of which extraction of the corpus it was taken against, and
+    this repo has watched three review agents read one shared build directory that a
+    second branch had overwritten -- so a read with no date cannot be told from one
+    taken against a corpus that has since moved.
+    """
+    if not isinstance(loaded, dict):
+        return SecondRead(
+            path=path, ok=False,
+            why_not=f"the file holds a JSON {type(loaded).__name__}, not a second-read record",
+        )
+    if "values" not in loaded:
+        return SecondRead(path=path, ok=False, why_not="no 'values' key, so nothing was read")
+    values = loaded.get("values")
+    if not isinstance(values, list):
+        return SecondRead(
+            path=path, ok=False,
+            why_not=f"'values' is a {type(values).__name__}, not a list of entries",
+        )
+    read_on = loaded.get("read_on")
+    if not read_on:
+        return SecondRead(
+            path=path, ok=False,
+            why_not="no 'read_on' date, so which extraction of the corpus this was "
+                    "taken against is unknowable",
+        )
+    for position, entry in enumerate(values, start=1):
+        if not isinstance(entry, dict):
+            return SecondRead(path=path, ok=False, why_not=f"entry {position} is not an object")
+        missing = [name for name in SECOND_READ_FIELDS if not str(entry.get(name, "")).strip()]
+        if missing:
+            return SecondRead(
+                path=path, ok=False,
+                why_not=f"entry {position} has no {', '.join(missing)}",
+            )
+        if not _PAGE_DIGITS.search(str(entry["page"])):
+            # `_citation` is tolerant of how a page is spelled and this is why it can
+            # afford to be: a page with no digit in it is not a page, and letting one
+            # through would put the entry under a key no row can ever carry -- which
+            # reads as the reader having gone off the brief.
+            return SecondRead(
+                path=path, ok=False,
+                why_not=f"entry {position} has no page number in {entry['page']!r}",
+            )
+    return SecondRead(path=path, values=values, read_on=str(read_on))
+
+
+def load_second_read(path: Path) -> SecondRead:
+    """``load_second_read_record`` off disk. A path that does not resolve is a typo."""
+    if not path.is_file():
+        return SecondRead(path=path, ok=False, why_not=f"no such file: {path}")
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return SecondRead(path=path, ok=False, why_not=f"unreadable: {error}")
+    return load_second_read_record(loaded, path)
+
+
+_PAGE_DIGITS = re.compile(r"\d+")
+
+
+def _citation(document: str, page: object) -> tuple[str, str]:
+    """A ``(document, page)`` key, from either side of the second-read boundary.
+
+    **The page is read as its digits**, which matters only on the untrusted side. A
+    sheet's page came through ``parse`` and is an ``int``; a second-read record was
+    typed by whoever did the read, off a brief that prints locators as ``p.41`` --
+    and ``lstrip("pP")`` left the dot, so a reader copying what the brief showed them
+    produced ``.41``, matched no row, and got their work reported as **read off the
+    brief**. Blaming a reader for covering exactly what it was sent to is the worst
+    failure this gate has, because it is the one that looks like a finding.
+    ``load_second_read_record`` refuses an entry whose page carries no digit at all,
+    so this is tolerant of a spelling and never of an absence.
+    """
+    digits = _PAGE_DIGITS.search(str(page))
+    return (
+        guidelines_index.normalize_doc_id(str(document)),
+        digits.group(0) if digits else str(page).strip(),
+    )
+
+
+def cited_citations(sheet: Sheet) -> set[tuple[str, str]]:
+    """Every ``(document, page)`` a sheet's rows cite.
+
+    Shared by ``brief`` and ``gate_second_read`` rather than written twice, because
+    the two have to agree exactly: the brief is what a reader is sent to, and the
+    diff decides what that reader covered. Two copies of this comprehension could
+    drift into a work order naming a page the grader then reports as off-brief.
+    """
+    return {
+        _citation(_document_of(sheet, row), row.page)
+        for row in sheet.rows
+        if row.page is not None
+    }
+
+
+def brief(sheet: Sheet) -> str:
+    """The work order for a second independent read: what to open, and what to write.
+
+    #83 asks for a read *"with no access to the sheet"*. This is what that reader is
+    handed, and it carries **document and page and nothing else** -- no quantity, no
+    value, no snippet, no population. A test drives a distinctive string through every
+    one of those cells and asserts none of them comes out here.
+
+    **Naming the pages is a leak and it is named rather than left implied.** A page
+    number is a locator and not an answer, and without one the second reader has a
+    hundred-page guideline to search, at which point the diff measures how thoroughly
+    it searched rather than what it read. The narrower a locator gets the more the
+    read is steered, and page is the widest one that makes the task finite.
+    """
+    citations = sorted(cited_citations(sheet))
+    lines = [
+        f"== a second independent read for {sheet.path.name}",
+        "",
+        "Open each page below in the source PDF and extract EVERY threshold, target,",
+        "cutoff, dose and interval it states. Do not consult the threshold sheet: this",
+        "read is worth what its independence is worth.",
+        "",
+    ]
+    for document, page in citations:
+        lines.append(f"  {document}  p.{page}")
+    lines += [
+        "",
+        "Write the result as JSON:",
+        "",
+        '  {"read_on": "<YYYY-MM-DD>",',
+        '   "values": [{"document": "<as above>", "page": <n>,',
+        '               "value": "<the threshold as the page states it>",',
+        '               "about": "<what this number is the threshold FOR, in your own',
+        '                          words, from the page and not from any sheet>"}]}',
+        "",
+        f"  {SECOND_READ_IS_A_SMOKE_TEST}.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def gate_second_read(
+    sheet: Sheet, read: SecondRead
+) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+    """Gate 5. Returns ``(refusals, warnings, pairings, undiffed, uncovered)``.
+
+    #83: *"A subagent extracts the same table with no access to the sheet; the diff
+    is the gate. The only mechanism that catches misreading rather than
+    miscitation."*
+
+    **Correlated error weakens the pass and not the fail, and that is why a
+    disagreement may refuse.** #83's caveat -- same model, same PDF, same mangling,
+    same wrong answer -- says that two readers agreeing is cheap. It does not say
+    that two readers disagreeing is cheap, because correlation is not something that
+    manufactures a disagreement. So the refusal is sound and the *clean* result is
+    the weak half, which is why ``SECOND_READ_IS_A_SMOKE_TEST`` prints on a clean run.
+
+    **The diff is on numbers and never on words**, which is ``gate_citation_tier1``'s
+    instrument and ``research_ledger.py``'s ruling arriving together. The second
+    reader writes in the source's own terms by design, so a string comparison would
+    refuse the correct answer; what a row asserts that a machine can check is its
+    numbers, at the citation it names.
+
+    **The misreading limb is a pairing and is deliberately not graded.** The hole
+    this module's own docstring names -- *a sheet whose numbers are all real and all
+    filed under the wrong heading passes every gate here* -- is closed by comparing
+    the row's ``quantity`` and ``population`` to what the independent reader said the
+    number was **about**. Those are two free-text descriptions and comparing them is
+    a reading, so they are set side by side and neither is graded. A green gate 5 is
+    not a read pairing list.
+
+    **An unmatched second-read value only warns**, on ``gate_coverage``'s bound rule:
+    the independent reader has no access to ``## Coverage``, so it cannot know what
+    was scoped out and it over-reports by construction.
+
+    **A row whose value carries no number is returned as undiffed rather than
+    passed** -- ``monthly``, ``at every visit``. ``gate_range`` returns its ungraded
+    count for the same reason: a gate that grades four of a sheet's numbers and
+    reports a clean run is #153's shape.
+
+    **A citation the read did not cover at all is uncovered and never a refusal**,
+    which is the fifth value and was wrong in the first version. A read of three
+    pages of a sheet citing thirty refused sixty-odd rows for values it had never
+    looked for -- a confident finding about pages nobody opened, which is #153's
+    shape with the sign flipped and is exactly how a gate gets learned around. A
+    refusal now needs the read to have **been on that page**; anything else is
+    reported, counted, and makes the refusal count a floor. Found by running the gate
+    against the committed sheet rather than by a fixture, which is where both of
+    ``gate_range``'s false alarms came from too.
+    """
+    refusals: list[str] = []
+    warnings: list[str] = []
+    pairings: list[str] = []
+    undiffed: list[str] = []
+    uncovered: list[str] = []
+
+    cited = cited_citations(sheet)
+    by_citation: dict[tuple[str, str], list[dict]] = {}
+    for entry in read.values:
+        key = _citation(entry["document"], entry["page"])
+        if key not in cited:
+            warnings.append(
+                f"{read.path.name}  a value was read on {key[0]} p.{key[1]}, which this "
+                f"sheet cites nowhere: {entry['value']!r} -- read off the brief, so "
+                "nothing here diffs it"
+            )
+            continue
+        by_citation.setdefault(key, []).append(entry)
+
+    # By position rather than by ``id()``: two entries of a read can be equal dicts,
+    # and identity is not what "this entry answered a row" means.
+    matched: set[tuple[tuple[str, str], int]] = set()
+    for row in sheet.rows:
+        wanted = _NUMBER.findall(row.value)
+        where = f"{sheet.path.name}:{row.line}"
+        if not wanted:
+            undiffed.append(f"{where}  value {row.value!r} carries no number to diff")
+            continue
+        if row.page is None:
+            continue  # already a SCHEMA failure; not counted twice
+        key = _citation(_document_of(sheet, row), row.page)
+        if key not in by_citation:
+            uncovered.append(
+                f"{where}  the read covers nothing on {key[0]} p.{key[1]}"
+            )
+            continue
+        found = None
+        # **Every entry a row satisfies is marked, not only the one it pairs with.**
+        # A guideline states one threshold in two places on a page and a sheet carries
+        # it as two rows for two populations, so the read comes back with duplicate
+        # values at one citation. Marking only the entry the loop broke on left the
+        # duplicates unconsumed and reported them as "no row carries this" -- 20 false
+        # warnings on the committed sheet against a read built from its own rows.
+        # Marking all of them is the direction that adds no false refusal: the row is
+        # still paired with the first, and an entry stays unmatched only where NO row
+        # accounts for it, which is what the warning claims.
+        for position, entry in enumerate(by_citation.get(key, ())):
+            present = set(_NUMBER.findall(str(entry["value"])))
+            if all(number in present for number in wanted):
+                matched.add((key, position))
+                if found is None:
+                    found = entry
+        if found is None:
+            refusals.append(
+                f"{where}  value {row.value!r} is not among what an independent read "
+                f"found on {key[0]} p.{key[1]}"
+            )
+            continue
+        pairings.append(
+            f"{where}  {row.quantity} / {row.population}  ||  {found['about']}"
+        )
+
+    for key in sorted(by_citation):
+        for position, entry in enumerate(by_citation[key]):
+            if (key, position) not in matched:
+                warnings.append(
+                    f"{read.path.name}  {key[0]} p.{key[1]} states {entry['value']!r} "
+                    f"({entry['about']}) and no row carries it -- the independent read "
+                    "cannot see '## Coverage', so this over-reports"
+                )
+    return refusals, warnings, pairings, undiffed, uncovered
 
 def bind_recs(
     sheet: Sheet, arguments: list[str], recs_root: Path | None
@@ -863,6 +1417,8 @@ def grade(
     pdf_root: Path | None,
     quiet: bool = False,
     recs_root: Path | None = None,
+    text_root: Path | None = None,
+    second_read_path: Path | None = None,
 ) -> int:
     """Grade one sheet. ``quiet`` suppresses the report, never a finding.
 
@@ -904,6 +1460,18 @@ def grade(
     tier2, tier2_skip, rendered_rows = gate_citation_tier2(sheet, pdf_root)
     coverage_refusals, coverage_warnings, ungraded_sources = gate_coverage(sheet, records)
     ranges, ungraded_rows = gate_range(sheet)
+    watermark, watermark_skip, watermark_rendered, unprobed = gate_watermark(sheet, text_root)
+    # **Gate 5 runs only when a read is handed to it, and never runs itself.** The
+    # independence is the whole instrument: a second read this module produced would
+    # be the same code path over the same page, which is the check `test_icd10.py`
+    # calls worthless and this module's own docstring refuses by name.
+    second_read = load_second_read(second_read_path) if second_read_path else None
+    if second_read is not None and second_read.ok:
+        five_refusals, five_warnings, pairings, undiffed, uncovered = gate_second_read(
+            sheet, second_read
+        )
+    else:
+        five_refusals, five_warnings, pairings, undiffed, uncovered = [], [], [], [], []
     # An argument naming a source the sheet does not declare, or naming one twice, is
     # a typo and never a decision -- and it is a way of not having graded even when
     # every declared source resolved from `--recs-root`, because the run asked for
@@ -911,7 +1479,28 @@ def grade(
     # A sheet declaring no source has nothing for COVERAGE to iterate, which is a way
     # of not having graded and not a clean gate. SCHEMA refuses it too, so 1 wins --
     # this is what keeps the *report* from saying otherwise.
-    not_graded = bool(ungraded_sources) or bool(recs_errors) or not sheet.sources
+    # **A read that covered none of this sheet's citations did not grade it**, and
+    # that is `gate_coverage`'s NOT RUN case one gate over rather than a new rule. A
+    # well-formed record whose entries all land on pages the sheet cites nowhere made
+    # every row `uncovered` and printed `0 refusing, 0 warning` -- byte for byte what
+    # a clean diff prints -- and exited 0. Every fixture handed the gate a read that
+    # covered at least one citation, so nothing in the suite could see it; the tracker
+    # sweep did. Partial coverage stays a floor and is reported as one.
+    second_read_graded = bool(
+        second_read is not None and second_read.ok and (pairings or five_refusals)
+    )
+
+    # A `--second-read` that was asked for and did not resolve is a way of not
+    # having graded, on `bind_recs`' ruling: the run asked for something and got
+    # nothing, and a typo is not a decision. So is one that resolved and diffed no
+    # row at all -- the run asked for a diff either way.
+    not_graded = (
+        bool(ungraded_sources)
+        or bool(recs_errors)
+        or not sheet.sources
+        or (second_read is not None and not second_read.ok)
+        or (second_read is not None and not second_read_graded)
+    )
 
     report(f"  rows            {len(sheet.rows)}")
     report(f"  sources         {len(sheet.sources)}")
@@ -968,6 +1557,61 @@ def grade(
     else:
         report(f"  COVERAGE        {len(coverage_refusals)} refusing, {len(coverage_warnings)} warning")
     report(f"  RANGE           {len(ranges)}  ({ungraded_rows} numbers carried no unit this grades)")
+    if watermark_skip:
+        report(f"  WATERMARK       NOT RUN -- {watermark_skip}")
+    else:
+        report(f"  WATERMARK       {len(watermark)} warning")
+        if watermark_rendered:
+            report(
+                f"                  {watermark_rendered} row(s) declared {RENDERED_MARKER}, "
+                "so the interleave test skipped them"
+            )
+        if unprobed:
+            # Named in the body and not only on stderr, on `COVERAGE`'s ruling: a
+            # gate that could not probe a source printed `0` here, which is byte for
+            # byte what a clean gate prints.
+            report(
+                f"                  NOT PROBED for {len(unprobed)} of {len(sheet.sources)} "
+                f"source(s): {', '.join(unprobed)} -- so the count above is a floor"
+            )
+    if second_read is None:
+        report("  SECOND READ     NOT RUN -- no --second-read given; --brief prints the work order")
+    elif not second_read.ok:
+        report(f"  SECOND READ     NOT RUN -- {second_read.why_not}")
+    elif not second_read_graded:
+        report(
+            f"  SECOND READ     NOT RUN -- the read covers none of this sheet's "
+            f"citations, so no row was diffed ({len(second_read.values)} value(s) read "
+            f"on {second_read.read_on})"
+        )
+    else:
+        report(
+            f"  SECOND READ     {len(five_refusals)} refusing, {len(five_warnings)} warning "
+            f"over {len(second_read.values)} value(s) read on {second_read.read_on}"
+        )
+        report(
+            f"                  {len(undiffed)} row(s) carried no number to diff, "
+            f"{len(uncovered)} row(s) cite a page the read did not cover"
+        )
+        if uncovered:
+            # The count above is a floor and the line says so where the verdict is,
+            # which is `gate_range`'s ungraded count and `COVERAGE`'s NOT RUN line
+            # for their reason: a partial read that printed only its refusals would
+            # read as a whole-sheet verdict.
+            report("                  so the counts above are a floor, not the whole")
+        # **Through `print`, so `--quiet` cannot take it.** #174 calls this caveat a
+        # build instruction -- *"the tool's own output must say it is a smoke test"* --
+        # and `--quiet --second-read` printed WARN and NOT DIFFED lines with the
+        # caveat suppressed, which is the one configuration where a reader sees gate
+        # 5's findings and not what they are worth. `CITATION` tier 2's banner takes
+        # the same door for the same reason.
+        print(f"                  {SECOND_READ_IS_A_SMOKE_TEST}")
+        for pairing in pairings:
+            # The misreading limb, and the only thing here a reader has to do by
+            # hand: the row's own heading beside what an independent reader said the
+            # number was about. Printed rather than counted, because a count of
+            # pairs nobody read is what would make this gate read as proof.
+            report(f"                  {pairing}")
 
     if sheet.resolved_date:
         report(f"  last resolved   {sheet.resolved_date} against {sheet.resolved_corpus}")
@@ -982,11 +1626,42 @@ def grade(
         print("  own snippet; nothing here proved the snippet is on the page it cites.")
         print("  " + "=" * 66)
 
-    refusals = schema + tier1 + tier2 + coverage_refusals + ranges
+    if watermark_skip:
+        # Tier 2's banner and for its reason, printed through `print` rather than
+        # `report` so `--quiet` cannot suppress it: `--quiet` suppresses the report
+        # and never a finding, and a gate that did not run is a finding about the run.
+        print()
+        print("  " + "=" * 66)
+        print("  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped")
+        print("  as page-repeated text was interleaved into a row. Rebuild the")
+        print("  extracted corpus with tools/guidelines_extract.py, or pass --text-root.")
+        print("  " + "=" * 66)
+
+    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + five_refusals
     for message in refusals:
         print(f"  FAIL  {message}", file=sys.stderr)
-    for message in coverage_warnings:
+    for message in coverage_warnings + watermark + five_warnings:
         print(f"  WARN  {message}", file=sys.stderr)
+    for message in undiffed + uncovered:
+        print(f"  NOT DIFFED  {message}", file=sys.stderr)
+
+    # **On stderr as well as in the body, and `--quiet` is exactly why.** The hook
+    # runs `--all --quiet`, which suppresses the report -- so a sheet whose source
+    # this gate could not probe exited 0 with no trace at all, which is the whole
+    # shape the notice exists to refuse. `COVERAGE` prints its NOT RUN in both places
+    # for this reason and this was the one limb that did not.
+    for key in unprobed:
+        print(
+            f"  WATERMARK       NOT PROBED for source '{key}' -- no manifest entry, no "
+            "extracted text, or no string stripped from it that could serve as a probe",
+            file=sys.stderr,
+        )
+
+    if second_read is not None and not second_read.ok:
+        print(
+            f"  SECOND READ     NOT RUN -- {second_read.path}: {second_read.why_not}",
+            file=sys.stderr,
+        )
 
     for message in recs_errors:
         print(f"  COVERAGE        NOT RUN -- {message}", file=sys.stderr)
@@ -1054,12 +1729,64 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("C:/codeing/guidelines-src"),
         help="corpus root for citation tier 2 (absent is reported, never passed)",
     )
+    parser.add_argument(
+        "--text-root",
+        type=Path,
+        default=None,
+        help=(
+            "#80's extracted-text directory, holding manifest.json, for WATERMARK. "
+            "Derived from --pdf-root when not given (absent is reported, never passed)"
+        ),
+    )
+    parser.add_argument(
+        "--second-read",
+        type=Path,
+        default=None,
+        help=(
+            "an independent extraction of the pages this sheet cites, to diff against "
+            "it. See --brief for the work order and the record shape"
+        ),
+    )
+    parser.add_argument(
+        "--brief",
+        action="store_true",
+        help="print the work order for a second independent read and grade nothing",
+    )
     return parser
+
+
+def text_root_for(args: argparse.Namespace) -> Path:
+    """Where the extracted corpus is: ``--text-root``, else derived from ``--pdf-root``.
+
+    Derived through ``guidelines_extract.default_output`` rather than typed, so the
+    rule about where #80 writes lives in #80 and a rename there moves this. A second
+    literal path here is what would let the two go quietly out of step -- and the
+    default is not a constant this module may state, since ``--pdf-root`` can move it.
+    """
+    return args.text_root or guidelines_extract.default_output(args.pdf_root)
 
 
 def main(argv: list[str]) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    text_root = text_root_for(args)
+
+    if args.brief:
+        # Grades nothing and says so by exiting 2 on a sheet it could not read: the
+        # brief is derived from the sheet's citations, so an unreadable sheet yields
+        # a work order for nowhere.
+        if not args.sheet:
+            parser.error("--brief needs a sheet")
+        if not args.sheet.is_file():
+            print(f"not a file: {args.sheet}", file=sys.stderr)
+            return 2
+        sheet = parse(args.sheet.read_text(encoding="utf-8"), args.sheet)
+        if not sheet.ok:
+            print(f"  NOT GRADED  {sheet.why_not}", file=sys.stderr)
+            return 2
+        print(brief(sheet), end="")
+        return 0
 
     if args.all:
         # **`--all` takes no `--recs`, and refusing is cheaper than explaining.** A
@@ -1075,6 +1802,16 @@ def main(argv: list[str]) -> int:
                 "record answers for is unknowable across a directory. Name the sheet, "
                 "or point --recs-root at the records."
             )
+        # **And no `--second-read`, for the same reason one level sharper.** A read
+        # is a set of values at a set of (document, page) citations, so pointed at a
+        # directory it would diff one sheet's read against every sheet's rows -- and
+        # against a sheet citing another guideline entirely it refuses every row,
+        # which is a confident finding about nothing.
+        if args.second_read:
+            parser.error(
+                "--all takes no --second-read: a read answers for one sheet's "
+                "citations, so which sheet it grades is unknowable across a directory."
+            )
 
         sheets = sorted(SHEET_ROOT.glob("*.md"))
         sheets = [path for path in sheets if path.name.lower() != "readme.md"]
@@ -1083,7 +1820,10 @@ def main(argv: list[str]) -> int:
             return 2
         worst = 0
         for path in sheets:
-            worst = max(worst, grade(path, [], args.pdf_root, args.quiet, args.recs_root))
+            worst = max(
+                worst,
+                grade(path, [], args.pdf_root, args.quiet, args.recs_root, text_root, None),
+            )
         return worst
 
     if not args.sheet:
@@ -1092,7 +1832,10 @@ def main(argv: list[str]) -> int:
     # record and a named sheet did not, so the same sheet graded differently depending
     # on which way it was reached. One rule, and the root stays outside the repo --
     # see `bind_recs` for why there is no fallback beside the sheet.
-    return grade(args.sheet, args.recs, args.pdf_root, args.quiet, args.recs_root)
+    return grade(
+        args.sheet, args.recs, args.pdf_root, args.quiet, args.recs_root,
+        text_root, args.second_read,
+    )
 
 
 if __name__ == "__main__":
