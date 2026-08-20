@@ -28,8 +28,9 @@ unless ``--show`` asks. ``--show`` output is PHI on the same terms as
 
 **Exit status answers three rows now, and the last two are issue #97's ruling.**
 0 clean, 1 for a violation, **2 for every way of not having scanned** -- no
-directory, no notes in it, or no note declaring a filled height or a filled
-pressure. **That last limb has a real instance rather than a hypothetical one**:
+directory, no notes in it, **a ``FILLED·asserted`` key outside the block that
+was read**, or no note declaring a filled height or a filled pressure. **That
+last limb has a real instance rather than a hypothetical one**:
 a full separated run over ``day-a`` declared nothing filled at all, because every
 one of that set's inputs gives a pressure. The figures are in issue #97's own
 comments and are **deliberately not restated here**, having been measured against
@@ -83,10 +84,32 @@ evidence.
 
 Extractor limits worth knowing before quoting a number:
 
-- A tier block opens on a key at **column 0**. The phrase "listed in
-  FILLED·asserted" appears in note prose -- ``case-03`` writes it -- and a matcher
-  that opened a block there would read a whole note body as declared content,
-  which is exactly how a given value becomes a filled one.
+- A tier block opens on a key that **heads a line** -- at column 0, and followed
+  by the end of the line or by an aligned column of two or more spaces. The
+  phrase "listed in FILLED·asserted" appears in note prose -- ``case-03`` writes
+  it -- and a matcher that opened a block there would read a whole note body as
+  declared content, which is exactly how a given value becomes a filled one.
+  **Column 0 alone was not enough and this was not hypothetical**: note prose is
+  hard-wrapped, ``case-04`` lands ``FILLED·asserted.`` at column 0 far above its
+  tier block, and the parser took it -- so that note's
+  real block was never read at all. ``case-06`` writes ``FILLED·asserted item
+  11.`` below its own, harmlessly. Issue #204.
+- **Three block forms are live and this reads all three**: one key with its items
+  aligned under it, one key alone on a line with its items beneath (``case-07``
+  and ``case-08``), and **one key per item**, which is how
+  ``skills/clinical-note/SKILL.md``'s own worked examples write a multi-item
+  block. The third used to end the block at its own **second** declaration, so
+  the first swallowed nothing and every one after it read as a block that ended
+  where it began -- and a shrunken denominator makes a graded row *less* likely
+  to fail rather than more. **How many declarations one run lost is #204's to
+  state and is deliberately not restated here**: it was measured against a
+  directory under ``scratch/``, nothing committed re-derives it, and this module
+  carried two different numbers for it before review caught them. Issue #204.
+- **A key the read block does not contain is reported and refused**, which is
+  what stops a fourth form doing quietly what the third one did. See
+  ``key_coverage`` for what that count reaches and what it does not: a key line
+  this rule does not recognize as a key is invisible to the parse and to the
+  count alike, so the coverage figure is a floor rather than a proof.
 - A declaration is a **labeled** value with ``filled`` after it and no sentence
   end in between. So ``HEIGHT 5'10" (70 in) filled`` counts, the threshold
   disclosure's adjacent ``5'5" gives 29.1`` does not, and neither does a given
@@ -151,8 +174,29 @@ from corpus_census import Reading, is_normal_bp
 # A tier key at column 0 opens the block; the next key at column 0 closes it.
 # The separator between FILLED and asserted is the middle dot in every note this
 # repo has produced, and the alternatives cost nothing to accept.
-BLOCK_START = re.compile(r"(?m)^FILLED[·.\- ]?asserted\b")
-BLOCK_END = re.compile(r"(?m)^(?:DERIVED|FILLED|FLAG|GAPS|UNKNOWN|PROPOSED)\b")
+#
+# **Column 0 is not sufficient**, and a tier key therefore **heads** a line --
+# end of line, or an aligned column of two or more spaces before its content.
+# A sentence does neither. Which committed notes forced that and what it cost
+# are in the module docstring's limits list rather than restated here.
+_HEADS_A_LINE = r"(?=[ \t]*$|[ \t]{2,}\S)"
+BLOCK_START = re.compile(r"(?m)^FILLED[·.\- ]?asserted" + _HEADS_A_LINE)
+# ``FILLED·asserted`` is deliberately **not** an end: one key per item is a live
+# form of this block, and ending there read the first declaration and none of
+# the rest while reporting a number that looked complete. Issue #204, and the
+# limits list above is where the three live forms are named.
+#
+# **``_HEADS_A_LINE`` is deliberately not applied here, and the asymmetry is the
+# point rather than an oversight.** The two boundaries fail in opposite
+# directions. A start that matches too readily opens a block on prose and reads
+# a note body as declared content; an end that matches too *reluctantly* fails
+# to close the block and reads the tiers below it as declared content. So the
+# start is strict and the end is permissive, and each is loose in its own safe
+# direction. A single-space ``FLAG BP 151/93 undiscussed`` closes the block --
+# without that, a given pressure the note flagged reads as filled.
+BLOCK_END = re.compile(
+    r"(?m)^(?:DERIVED|FLAG|GAPS|UNKNOWN|PROPOSED|FILLED(?![·.\- ]?asserted\b))\b"
+)
 
 # A declaration is a label, a value, and ``filled`` -- with no sentence end
 # between the value and the word. ``{0,80}`` is what lets a declaration wrap
@@ -234,6 +278,12 @@ NAMES_SEX = re.compile(
 # ``tilt_beyond_chance``. It is the false-alarm rate that was chosen and not the
 # count, so the bar follows a set of any size without being re-decided.
 CHANCE_FLOOR = 0.02
+
+
+# The report and the refusal both name this, so it is one string rather than
+# two: a reword of either alone would leave the run's own two sentences about
+# coverage disagreeing about what was counted.
+KEY_NOUN = "FILLED·asserted key(s)"
 
 
 def _declaration(pattern: re.Pattern[str], block: str) -> re.Match[str] | None:
@@ -368,6 +418,15 @@ class Census:
     abnormal_pressures: int
     bodies: int
     repeated_bodies: int
+    # #204's coverage. ``FILLED·asserted`` keys across the set, and how many of
+    # them sat inside a block that was read. Every figure above is a floor where
+    # these disagree, because each graded row is a fraction whose denominator is
+    # whatever the parser found. **Required rather than defaulted**: a coverage
+    # field defaulting to 0 and 0 reports *nothing missed*, which is the silent
+    # pass this whole row exists to refuse, and the neighbors below default to
+    # *nothing found* instead.
+    asserted_keys: int
+    asserted_keys_read: int
     # #97's person rule. Over notes declaring a filled height, never over notes.
     heights_missing_person: int = 0
     # Counted, never graded -- #69's five classes, keyed as ``COUNTED_CLASSES``.
@@ -386,6 +445,11 @@ class Census:
         return sum(n for _, n in self.counted)
 
     @property
+    def asserted_keys_unread(self) -> int:
+        """``FILLED·asserted`` keys no block this read contains."""
+        return self.asserted_keys - self.asserted_keys_read
+
+    @property
     def tilted(self) -> bool:
         """#97's pressure bar over this set."""
         return tilt_beyond_chance(self.abnormal_pressures, self.pressures)
@@ -400,14 +464,55 @@ class Census:
         return bool(self.heights or self.pressures)
 
 
-def filled_block(text: str) -> str:
-    """The ``FILLED·asserted`` region of a tier block, or ``""``."""
+def _block_span(text: str) -> tuple[int, int] | None:
+    """Where the ``FILLED·asserted`` region starts and stops, or ``None``.
+
+    Offsets into ``text``, so ``filled_block`` and ``key_coverage`` read the same
+    boundary rather than each deriving one. Two answers to *what was scanned*
+    would be worse than none: the count and the coverage line beside it would
+    disagree, and the coverage line is the one nobody would check.
+    """
     start = BLOCK_START.search(text)
     if start is None:
+        return None
+    end = BLOCK_END.search(text, start.end())
+    return (start.end(), end.start() if end else len(text))
+
+
+def filled_block(text: str) -> str:
+    """The ``FILLED·asserted`` region of a tier block, or ``""``.
+
+    A repeated key is replaced by a sentence end rather than kept, because that
+    is what it means: each key opens its own item. Without one the declaration
+    window -- which crosses a line break on purpose, so an aligned entry may wrap
+    -- runs from the tail of one item into the ``filled`` on the line below, and
+    reads a **given** value as declared by a word belonging to something else.
+    """
+    span = _block_span(text)
+    if span is None:
         return ""
-    rest = text[start.end() :]
-    end = BLOCK_END.search(rest)
-    return rest[: end.start()] if end else rest
+    return BLOCK_START.sub(". ", text[span[0] : span[1]])
+
+
+def key_coverage(text: str) -> tuple[int, int]:
+    """``FILLED·asserted`` keys in this note, and how many the read block holds.
+
+    Issue #204's ruling. Reading a second block form leaves the tool silently
+    tolerant of a third nobody has written, so the signal is derived from the
+    **member list** -- the keys the note carries -- rather than from whether a
+    block was found at all. That second arithmetic is what let *one declaration
+    of N* report exactly what a note declaring one reports. #177's fix, one tool
+    over, is the same move.
+
+    **What it cannot reach is a key line the rule does not recognize as a key**,
+    which is invisible to the parse and to this count alike. The coverage figure
+    is therefore a floor on what was read, not a proof that a block was found.
+    """
+    keys = [m.start() for m in BLOCK_START.finditer(text)]
+    span = _block_span(text)
+    if span is None:
+        return (len(keys), 0)
+    return (len(keys), sum(1 for start in keys if start < span[1]))
 
 
 def read_fill(text: str) -> Fill:
@@ -457,6 +562,7 @@ def survey(texts: list[str]) -> Census:
     to paste.
     """
     fills = [read_fill(text) for text in texts]
+    coverage = [key_coverage(text) for text in texts]
     heights = Counter(f.height_in for f in fills if f.height_in is not None)
     weights = Counter(f.weight_lb for f in fills if f.weight_lb is not None)
     bodies = Counter(f.body for f in fills if f.body is not None)
@@ -474,6 +580,8 @@ def survey(texts: list[str]) -> Census:
         abnormal_pressures=sum(n for p, n in pressures.items() if not is_normal_bp(p)),
         bodies=sum(bodies.values()),
         repeated_bodies=sum(n - 1 for n in bodies.values() if n > 1),
+        asserted_keys=sum(present for present, _ in coverage),
+        asserted_keys_read=sum(read for _, read in coverage),
         heights_missing_person=sum(1 for f in fills if f.height_names_person is False),
         counted=tuple(
             (key, sum(1 for f in fills if key in f.counted))
@@ -500,6 +608,12 @@ def format_report(census: Census, source: str, show: bool = False) -> str:
     lines = [
         f"filled-vitals census over {source}",
         "",
+        # First, and on every run rather than only a degraded one -- #258's
+        # ruling and #177's ordering. A count printed ahead of the caveat is
+        # read as the verdict, and a caveat printed only when it fires teaches
+        # a reader that its absence is a stronger claim than it is.
+        f"  {'scanned':<32}{census.asserted_keys_read} of"
+        f" {census.asserted_keys} {KEY_NOUN}",
         f"  notes read                      {census.notes}",
         f"  declaring a filled height       {census.heights}",
         f"    distinct values               {census.distinct_heights}",
@@ -586,16 +700,36 @@ def main(argv: list[str]) -> int:
             " always has two anchors already in the encounter."
             " fixtures/day-b B18 fails."
         )
+    # #204. Every figure above is a fraction whose denominator is whatever the
+    # parser found, so a key it did not read shrinks a graded row rather than
+    # failing it -- which makes a violation less likely, not more.
+    unread = (
+        f"{census.asserted_keys_unread} of {census.asserted_keys} {KEY_NOUN} sit"
+        " outside the block that was read, so every count here is a floor.\n"
+        if census.asserted_keys_unread
+        else ""
+    )
     if findings:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
         # failed would file the strongest thing known about the run under the
         # heading that means nothing was measured.
+        #
+        # The floor note goes **first**, ahead of the findings, on #177's
+        # ordering: a count printed ahead of its caveat is read as the verdict,
+        # and every finding below is a count.
         print(
-            "\n" + "\n".join(findings) + "\nRe-run with --show to see which values,"
-            " and do not paste that output.",
+            "\n" + unread + "\n".join(findings) + "\nRe-run with --show to see"
+            " which values, and do not paste that output.",
             file=sys.stderr,
         )
         return 1
+    if unread:
+        print(
+            "\n" + unread.rstrip("\n") + f" No graded row was measured over the whole of"
+            f" {directory.name}. This is not a pass.",
+            file=sys.stderr,
+        )
+        return 2
     if not census.gradeable:
         print(
             f"\nno note in {directory.name} declares a filled height or a filled"
