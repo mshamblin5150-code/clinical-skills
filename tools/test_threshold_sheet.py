@@ -1354,7 +1354,8 @@ class TheRecordsStayOutsideTheRepo(unittest.TestCase):
 
     A `recs-*.json` holds the society's recommendation text **in full**, which is the
     copyrighted expression the sheet format exists to avoid committing.
-    `guidelines_recs.ensure_outside_repo` refuses to write one inside a checkout; what
+    `guidelines_recs` refuses to write one inside a checkout, on
+    `repo_root.ensure_outside_checkout`'s one rule since #176; what
     this pins is the other end, that the lookup does not quietly invite one to be put
     beside the sheet to make `--all` work.
     """

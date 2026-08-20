@@ -16,7 +16,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from repo_root import main_repo_root, scratch_root
+from repo_root import (
+    InsideCheckout,
+    enclosing_checkout,
+    ensure_outside_checkout,
+    main_repo_root,
+    scratch_root,
+)
 
 
 class Checkouts(unittest.TestCase):
@@ -84,6 +90,134 @@ class ScratchRoot(Checkouts):
         about a layer going quiet, so the resolver must not quietly return None."""
         self.assertFalse(scratch_root(self.main / "tools").exists())
         self.assertEqual(scratch_root(self.main / "tools").name, "scratch")
+
+
+class EnclosingCheckout(Checkouts):
+    """The write guard's detection rule -- issue #176.
+
+    Three modules used to hold three answers to *is this path inside a git
+    checkout*, and one of them compared against a list of known roots rather than
+    walking up for a ``.git`` entry. The list-based one misses a sibling worktree,
+    which under ``.claude/worktrees/`` is the ordinary case here rather than an
+    exotic one. The walk is the rule that survived.
+    """
+
+    def test_a_path_under_a_checkout_names_that_checkout(self):
+        self.assertEqual(
+            enclosing_checkout(self.main / "reference" / "guidelines.sqlite"), self.main
+        )
+
+    def test_the_checkout_root_itself_is_inside_it(self):
+        """A directory target may *be* the repo -- ``--out C:/codeing/clinical_skills``.
+        Walking only the parents would bless it."""
+        self.assertEqual(enclosing_checkout(self.main), self.main)
+
+    def test_a_path_under_no_checkout_at_all_names_none(self):
+        self.assertIsNone(enclosing_checkout(self.root / "guidelines-index" / "g.sqlite"))
+
+    def test_a_sibling_worktree_is_found_and_not_only_the_one_we_stand_in(self):
+        """The whole reason the known-roots rule was the weaker of the two. A
+        worktree's ``.git`` is a *file*, so this has to test existence rather than
+        directory-ness."""
+        tree = self.worktree((self.main / ".git" / "worktrees" / "ticket-93").as_posix())
+        self.assertEqual(enclosing_checkout(tree / "guidelines-text"), tree)
+
+    def test_a_path_that_only_shares_a_name_prefix_is_outside(self):
+        """``clinical_skills-notes`` is not inside ``clinical_skills``. A string
+        prefix would say it is, which is the case the known-roots rule was
+        careful about and which the walk gets for free."""
+        self.assertIsNone(enclosing_checkout(self.root / "clinical_skills-notes" / "g.sqlite"))
+
+    def test_a_permitted_directory_inside_a_checkout_is_allowed(self):
+        """``name_index`` writes a list of patient names into the repo's own
+        ``scratch/`` on purpose: it is gitignored and ``phi_scan``'s path layer
+        refuses a commit from it even under ``git add -f``. So the shared rule
+        takes a parameter rather than being one rule."""
+        scratch = self.main / "scratch"
+        self.assertIsNone(
+            enclosing_checkout(scratch / "name-index.json", permitted=[scratch])
+        )
+
+    def test_a_directory_merely_sharing_the_permitted_name_is_not_permitted(self):
+        """The permission is a resolved directory, never a path component. Keyed
+        on the name it would bless somebody else's ``~/scratch/`` on a
+        coincidence -- the narrowing ``name_index`` found on its first version."""
+        self.assertIsNotNone(
+            enclosing_checkout(
+                self.main / "scratch" / "name-index.json",
+                permitted=[self.main / "elsewhere"],
+            )
+        )
+
+    def test_permission_does_not_reach_a_sibling_of_the_permitted_directory(self):
+        """``scratch-old`` is not ``scratch``, for the name-prefix reason above."""
+        self.assertIsNotNone(
+            enclosing_checkout(
+                self.main / "scratch-old" / "name-index.json",
+                permitted=[self.main / "scratch"],
+            )
+        )
+
+    def test_the_permitted_directory_need_not_exist(self):
+        """``scratch/`` is gitignored, so a worktree has never had one. A guard
+        that required it to exist would refuse the write that creates it."""
+        scratch = self.main / "scratch"
+        self.assertFalse(scratch.exists())
+        self.assertIsNone(enclosing_checkout(scratch / "name-index.json", permitted=[scratch]))
+
+
+class EnsureOutsideCheckout(Checkouts):
+    """The raising wrapper. One exception type, so a caller can handle *refused*
+    uniformly -- the three sites used to raise ``SystemExit``, ``InsideRepo`` and
+    nothing at all."""
+
+    def test_it_returns_the_resolved_target_when_the_path_is_outside(self):
+        target = self.root / "guidelines-index" / "g.sqlite"
+        self.assertEqual(ensure_outside_checkout(target), target.resolve())
+
+    def test_it_accepts_a_string(self):
+        target = self.root / "guidelines-index" / "g.sqlite"
+        self.assertEqual(ensure_outside_checkout(str(target)), target.resolve())
+
+    def test_it_raises_inside_a_checkout(self):
+        with self.assertRaises(InsideCheckout):
+            ensure_outside_checkout(self.main / "reference" / "g.sqlite")
+
+    def test_the_refusal_carries_the_target_and_the_checkout_it_landed_in(self):
+        """Each caller's reason for refusing differs -- #87's copyright, a
+        worktree's materialization, a list of patient names -- so the exception
+        carries the facts and the caller supplies the sentence."""
+        with self.assertRaises(InsideCheckout) as refused:
+            ensure_outside_checkout(self.main / "reference" / "g.sqlite")
+        self.assertEqual(refused.exception.checkout, self.main)
+        self.assertEqual(
+            refused.exception.target, (self.main / "reference" / "g.sqlite").resolve()
+        )
+
+    def test_the_callers_own_detail_reaches_the_message(self):
+        with self.assertRaises(InsideCheckout) as refused:
+            ensure_outside_checkout(self.main, detail="This file holds the society's text. #87.")
+        self.assertIn("This file holds the society's text. #87.", str(refused.exception))
+
+    def test_a_refusal_names_both_paths_without_a_detail(self):
+        with self.assertRaises(InsideCheckout) as refused:
+            ensure_outside_checkout(self.main / "reference")
+        message = str(refused.exception)
+        self.assertIn(str(self.main), message)
+        self.assertIn(str((self.main / "reference").resolve()), message)
+
+    def test_it_is_a_value_error(self):
+        """``guidelines_index`` raised a ``ValueError`` subclass and the other two
+        raised ``SystemExit``. A library-level refusal is the former; the command
+        lines convert at their own boundary."""
+        self.assertTrue(issubclass(InsideCheckout, ValueError))
+
+    def test_permission_passes_through(self):
+        scratch = self.main / "scratch"
+        self.assertEqual(
+            ensure_outside_checkout(scratch / "name-index.json", permitted=[scratch]),
+            (scratch / "name-index.json").resolve(),
+        )
 
 
 if __name__ == "__main__":
