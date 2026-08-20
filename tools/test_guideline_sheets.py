@@ -185,12 +185,14 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         for line in tails:
             # The tail closes the line, or is followed only by one of the two
             # clauses that are part of the same tail: `needs:` for a population
-            # condition the encounter never established, and `verify this number`
-            # for one this repo cannot evaluate. Nothing else may follow it --
-            # a free-text remark after the bracket is how the format erodes.
+            # condition the encounter never established, `verify this number`
+            # for one this repo cannot evaluate, or `age month filled` when the
+            # committed CDC calculator used the deterministic midpoint month.
+            # Nothing else may follow it -- a free-text remark after the bracket
+            # is how the format erodes.
             self.assertRegex(
                 line,
-                r"\[[^\[\]]+\](?: (?:needs: .+|verify this number))?$",
+                r"\[[^\[\]]+\](?: (?:needs: .+|verify this number|age month filled))?$",
                 f"citation not closing the item line: {line}",
             )
 
@@ -249,11 +251,11 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         self.assertIn("It may be shortened; it may never be softened", self.section)
         self.assertIn("Dropping the risk threshold would be softening", self.section)
 
-    def test_a_population_this_repo_cannot_evaluate_is_marked(self):
-        # #123's hole reaching the citation rule: the repo ships the codes and
-        # the recommendations without the CDC growth charts, so a pediatric
-        # percentile population is recalled however carefully it was checked.
-        self.assertIn("A population this repo cannot evaluate takes `verify this number`", self.section)
+    def test_a_pediatric_percentile_population_uses_the_cdc_tool(self):
+        # #123 closes the hole: the population is now computed from the committed
+        # chart, and a midpoint month filled from whole-year age stays disclosed.
+        self.assertIn("cdc_percentile.py", self.section)
+        self.assertIn("age month filled", self.section)
         self.assertIn("95th percentile for age and sex", self.section)
 
     def test_the_calculator_follows_the_cited_row(self):

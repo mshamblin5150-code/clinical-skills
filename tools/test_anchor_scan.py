@@ -215,39 +215,37 @@ class TheMarkAndTheListingMustAgree(unittest.TestCase):
         self.assertEqual(kinds, [scan.UNMARKED_LISTING])
 
 
-class ThePediatricBandIsRecalled(unittest.TestCase):
-    def test_a_z68_5_claiming_a_lookup_fails(self):
-        sheet = scan.read_worksheet(
-            worksheet(
-                entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
-                      " 85th percentile for age", source="filled - height and weight"),
-                block="Z68.52 - BMI 23.0 from a filled height and weight",
-            )
-        )
-        kinds = [f.kind for f in scan.worksheet_findings(sheet)]
-        self.assertEqual(kinds, [scan.PEDIATRIC_VERIFIED])
-
-    def test_a_z68_5_saying_verify_this_number_is_clean(self):
+class ThePediatricBandIsComputed(unittest.TestCase):
+    def test_a_z68_5_claiming_verification_is_clean(self):
         sheet = scan.read_worksheet(
             worksheet(
                 entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
                       " 85th percentile for age", source="filled - height and weight",
-                      confidence="verify this number"),
+                      confidence="verified against ICD-10-CM FY2026 and CDC 2022 "
+                      "Extended BMI-for-Age"),
                 block="Z68.52 - BMI 23.0 from a filled height and weight",
             )
         )
         self.assertEqual(scan.worksheet_findings(sheet), [])
 
-    def test_a_compliant_band_alone_counts_as_something_scanned(self):
-        # The counter holds every pediatric band, not only the failing ones. Holding
-        # the failures would make a worksheet carrying one correctly-disclosed band
-        # and nothing else report "no pediatric band" and exit 2 -- the tool saying
-        # it did not scan the one thing it did scan.
+    def test_a_z68_5_still_saying_verify_this_number_fails(self):
         sheet = scan.read_worksheet(
-            worksheet(entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
-                            " 85th percentile for age", confidence="verify this number"))
+            worksheet(
+                entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
+                      " 85th percentile for age", confidence="verify this number")
+            )
         )
-        self.assertEqual(sheet.pediatric, frozenset({"Z68.52"}))
+        kinds = [finding.kind for finding in scan.worksheet_findings(sheet)]
+        self.assertEqual(kinds, [scan.PEDIATRIC_NOT_COMPUTED])
+
+    def test_a_computed_band_alone_counts_as_something_scanned(self):
+        sheet = scan.read_worksheet(
+            worksheet(
+                entry("Z68.52", "Body mass index [BMI] pediatric, 5th percentile to less than"
+                      " 85th percentile for age", confidence="verified against CDC 2022 "
+                      "Extended BMI-for-Age")
+            )
+        )
         self.assertEqual(scan.survey([sheet]).subjects, 1)
 
     def test_an_adult_band_may_claim_the_lookup(self):
@@ -396,8 +394,16 @@ class TheCommittedRunsFiguresArePinned(unittest.TestCase):
     def test_every_worksheet_carries_the_step_four_block(self):
         self.assertEqual(self.scan.with_block, 12)
 
-    def test_the_run_is_clean(self):
-        self.assertEqual(self.scan.findings, ())
+    def test_the_preserved_run_exposes_its_two_pre_calculator_bands(self):
+        # The run is byte-for-byte evidence from before #123. Rewriting its two
+        # recalled Z68.52 entries would falsify that record; the replacement A1
+        # check must therefore find both rather than bless or mutate them.
+        self.assertEqual(self.scan.pediatric_bands, 2)
+        self.assertEqual(self.scan.pediatric_not_computed, 2)
+        self.assertEqual(
+            {finding.kind for finding in self.scan.findings},
+            {scan.PEDIATRIC_NOT_COMPUTED},
+        )
 
 
 class TheSkillSaysWhatThisChecks(unittest.TestCase):
@@ -409,9 +415,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("CODED, ANCHOR WAS FILLED", self.text)
         self.assertIn("Both, not one instead of the other", self.text)
 
-    def test_the_skill_still_says_the_pediatric_band_is_recalled(self):
-        self.assertIn("Z68.5-", self.text)
-        self.assertIn("CONFIDENCE: verify this number", self.text)
+    def test_the_skill_sends_the_pediatric_band_to_the_cdc_tool(self):
+        self.assertIn("cdc_percentile.py", self.text)
 
 
 if __name__ == "__main__":
