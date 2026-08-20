@@ -2261,6 +2261,14 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
     #: a document not in force, and it survives #107's reclassification of those
     #: three rows out of ``guideline``. Whitespace is loose because the catalog
     #: hard-wraps its prose, which is ``test_run_record_claim.py``'s finding.
+    #:
+    #: **Matched against the catalog's prose and never against a row**, which
+    #: the first version got wrong and which cost a false claim on #107 --
+    #: ``\berrata\b`` and ``public review draft`` both land in a hand-read
+    #: ``title`` cell as well as in the legend, so the failure mode that comment
+    #: named was unreachable and a re-curation of either cell would have moved
+    #: this test. A title is a curated string that happens to carry the word;
+    #: only the prose is the catalog **declaring** anything.
     NOT_IN_FORCE_FORMS = (
         re.compile(r"scope\s+of\s+work\s+for\s+a\s+guideline\s+that\s+does\s+not\s+exist", re.I),
         re.compile(r"\berrata\b", re.I),
@@ -2270,6 +2278,25 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
     def setUp(self):
         self.case_study = read(CASE_STUDY)
         self.catalog = read(CATALOG)
+
+    def catalog_prose(self):
+        """The catalog with its document rows dropped, whitespace squashed.
+
+        **A table row is not the catalog declaring anything.** Two of
+        ``NOT_IN_FORCE_FORMS`` match a hand-read ``title`` cell -- ``Errata`` and
+        ``Public Review Draft`` are what those documents are *called* -- so a
+        whole-file search reads a curated string as a declaration, and
+        [#106](https://github.com/mshamblin5150-code/clinical-skills/issues/106)
+        is the ticket saying nothing checks those columns. Keying on the prose
+        keeps this check off them.
+        """
+        return squashed(
+            "\n".join(
+                line
+                for line in self.catalog.splitlines()
+                if not line.lstrip().startswith("|")
+            )
+        )
 
     def instruction_files(self):
         """Every Markdown file under ``skills/`` -- what a run reads as a rule.
@@ -2357,6 +2384,16 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
                 "it can never be the reason this class passes and a typo in it "
                 "is indistinguishable from a form the catalog retired",
             )
+        # The narrowing, pinned: a document row is not a declaration, however
+        # its title reads. Without this the class rests on two hand-read cells,
+        # which is #106's subject.
+        self.assertNotIn(
+            "|",
+            self.catalog_prose(),
+            "catalog_prose kept a table row, so NOT_IN_FORCE_FORMS can be "
+            "satisfied by a hand-read title cell rather than by the catalog "
+            "declaring anything",
+        )
         # The two skill patterns must not be satisfiable by one sentence: the
         # qualifier is not allowed to carry the claim it replaces.
         self.assertFalse(
@@ -2375,12 +2412,22 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         **At least one, and deliberately not all three.** A corpus refresh that
         retired the errata leaves the qualifier true on the other two, and a
         class that went red on it would be pinning a curation rather than
-        checking a claim. What it does catch is the refresh that retires the
-        last of them -- at which point the skill is telling a run something
-        nothing in the tree supports any more, and a person should look.
+        checking a claim. What it does catch is the catalog's **prose** ceasing
+        to declare any of them -- at which point the skill is telling a run
+        something nothing in the tree supports any more, and a person should
+        look.
+
+        **The prose, which is narrower than the whole file and narrower than
+        the legend.** The comment this branch posted on #107 said the class
+        would fail if *the legend* lost all three phrasings; against the first
+        version that was false in the loose direction -- two needles also match
+        a ``title`` cell, so the class stayed green with the legend deleted --
+        and against this version it is still not the legend alone, because the
+        closing ``?`` notes declare the errata too. The true statement is the
+        one above: the catalog's prose, anywhere in it.
         """
-        legend = squashed(self.catalog)
-        matched = [form.pattern for form in self.NOT_IN_FORCE_FORMS if form.search(legend)]
+        prose = self.catalog_prose()
+        matched = [form.pattern for form in self.NOT_IN_FORCE_FORMS if form.search(prose)]
         self.assertTrue(
             matched,
             "reference/guidelines-catalog.md names no document it declines to "
