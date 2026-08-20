@@ -614,7 +614,8 @@ whether it is right -- a record carrying a *different* number passes these rows.
 **Nothing downstream reads the number either, and that is stated rather than left to be assumed.**
 Step 9's `the Rx blocks` row asks a reader whether every drug has a table, whether every `Sig` ends
 in an indication and whether the prose block is there; it does not open the ledger and compare the
-dose. So *is this the dose the record sourced* is walked by nobody today. It is written here because
+dose. So *is this the dose the record sourced* is walked by nobody today —
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299). It is written here because
 a residue nobody names is a residue every reader assumes somebody else has.
 
 **Then grade it, and do not draft until it is clean:**

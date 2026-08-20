@@ -282,8 +282,11 @@ contraindications, monitoring, adverse effects, and the guideline supporting the
 **The guideline sentence carries a placeholder rather than a citation, and that is the one thing in
 this example that is not a style choice.** It named a specific CDC guideline until
 [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289), and the companion evidence
-does not carry that topic — it cross-references it thirteen times and carries none of its body — so
-the worked example was teaching a run to cite a source it had never read. **The citation here comes
+does not carry that topic — it cross-references it repeatedly and carries none of its body — so the
+worked example was teaching a run to cite a source it had never read. **How many times is measured
+on #289 and deliberately not restated here**: it is a count over a dump under `scratch/`, so nothing
+committed re-derives it, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). **The citation here comes
 off the ledger record for this drug or it does not go in**: [SKILL.md](../SKILL.md) step 3 requires
 one for every drug the run chose a number for, and `tools/research_ledger.py --draft` fails a
 document whose prescriptions do not reach one.

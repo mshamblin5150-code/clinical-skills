@@ -188,6 +188,20 @@ pair**: the row says *this claim was not asked numerically*, never *this dose is
 sourced*, and it is one row of three. Pinned by a test so it is a known behavior
 rather than an accident.
 
+**One drug row is one drug, and nothing here makes that true.** ``_drug_of``
+takes the leading token, so a row welding two orders together --
+``doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7 days``
+-- is one drug to this parser, and the second drug's dose is invisible to all
+three rows. ``style.md`` section 8 says *one table per drug* and this grades
+nothing about that, so **the run picks the denominator**, which is
+[#127](https://github.com/mshamblin5150-code/clinical-skills/issues/127)'s shape
+arriving in a set built to be an expected one. **It is not narrowable here**:
+splitting a drug row on ``and`` would cut ``normal saline and potassium
+chloride``, and telling two drugs apart needs a drug vocabulary, which is
+exactly the table #289 forbids. Written down and pinned by a test rather than
+guessed at, on ``UNRESOLVABLE_LOCATOR``'s terms, and filed --
+[#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300).
+
 **What it cannot reach, and the sharpest limb is a claim about coverage rather
 than about a dose.** Whether the dose is right for this patient, whether the
 record that names the drug sourced its *dose* rather than its indication --
@@ -202,7 +216,8 @@ whether every drug has a table, whether every ``Sig`` ends in an indication and
 whether the prose block is there, and ``checks_ledger.EXPECTED_CHECKS`` marks it
 as one whose ``clean`` need not say what it walked. **So the residue is declared
 covered and is covered nowhere**, which is this ticket's own shape arriving in
-the fix for it -- found by the spec axis of ``/code-review`` and filed rather
+the fix for it -- found by the spec axis of ``/code-review``, filed as
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299) rather
 than closed here, because widening what a step 9 reader is asked to do is a
 change to the skill's checks and #255 is the precedent for who rules those.
 **A clean scan is not a checked prescription.**
@@ -590,6 +605,10 @@ SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 # refused correct record -- the direction #215's three false alarms say to
 # take. A first token that is not a word is no drug at all, which is
 # ``UNREADABLE_DRUG_ROW`` rather than a guess.
+#
+# **The cost it names is a missed drug and not only a missed match**, and the
+# module docstring says which: a row welding two orders together is one drug
+# here, so the second one's dose is graded by nothing. #300.
 DRUG_NAME = re.compile(r"[A-Za-z][A-Za-z'-]*")
 
 # What a drug row may declare about itself. **The exemption is declared and
@@ -794,6 +813,10 @@ class Scan:
     # ``format_report`` prints *not graded* off this, on #258's ruling.
     prescriptions: int | None
     continued_home: int
+    # Table runs carrying one anchor and not the other -- a partial read,
+    # counted and reported and outside the exit status. See
+    # ``half_anchored_tables``.
+    half_anchored: int
     prescriptions_at_fault: int
     findings: tuple[Finding, ...]
 
@@ -1102,6 +1125,23 @@ def _drug_of(order: str) -> str:
     return token if DRUG_NAME.fullmatch(token) else ""
 
 
+def _table_runs(text: str) -> list[list[list[str]]]:
+    """Every run of consecutive Markdown table lines, as rows of cells."""
+    runs: list[list[list[str]]] = []
+    lines = text.splitlines()
+    start = 0
+    while start < len(lines):
+        if not TABLE_LINE.match(lines[start]):
+            start += 1
+            continue
+        end = start
+        while end < len(lines) and TABLE_LINE.match(lines[end]):
+            end += 1
+        runs.append([_cells(line) for line in lines[start:end]])
+        start = end
+    return runs
+
+
 def read_prescriptions(text: str) -> list[Prescription]:
     """Every drug row in every prescription table of a draft.
 
@@ -1114,20 +1154,37 @@ def read_prescriptions(text: str) -> list[Prescription]:
     with an empty ``drug``** rather than being dropped, so a table this parser
     cannot read is a finding instead of a silent subtraction from the set.
     """
-    found: list[Prescription] = []
-    lines = text.splitlines()
-    start = 0
-    while start < len(lines):
-        if not TABLE_LINE.match(lines[start]):
-            start += 1
-            continue
-        end = start
-        while end < len(lines) and TABLE_LINE.match(lines[end]):
-            end += 1
-        rows = [_cells(line) for line in lines[start:end]]
-        found.extend(_prescriptions_in(rows))
-        start = end
-    return found
+    return [rx for rows in _table_runs(text) for rx in _prescriptions_in(rows)]
+
+
+def half_anchored_tables(text: str) -> int:
+    """Table runs carrying one of the two anchors and not the other.
+
+    **A partial read is what this exists to make visible**, and total absence is
+    not the only way to get one. A draft whose Rx tables are mixed -- one
+    canonical, one writing ``Dispense:``, which the word boundary in ``DISP``
+    rightly refuses -- yields a smaller set, and all three rows then grade a
+    subset while the report prints the shrunken count with nothing beside it.
+    ``main``'s exit-2 limb covers *no* prescription table and never a short one,
+    which is
+    [#204](https://github.com/mshamblin5150-code/clinical-skills/issues/204)'s
+    complaint -- a parser reading one declaration of eight and printing nothing
+    to say so -- arriving in a second tool. Found by the tracker sweep on #289's
+    own branch.
+
+    **Counted and reported, and deliberately outside the exit status**, which is
+    ``block_scan.py``'s arrangement for a reading rather than a violation: a
+    table carrying one anchor is *probably* a malformed prescription and this
+    cannot know it is one, and #204's own question -- whether a short read may
+    refuse -- is unruled. What the run gets is the number, on the same page as
+    its exit.
+    """
+    return sum(
+        1
+        for rows in _table_runs(text)
+        if any(DISP.match(c) for cells in rows for c in cells)
+        != any(SIG.match(c) for cells in rows for c in cells)
+    )
 
 
 def _prescriptions_in(rows: list[list[str]]) -> list[Prescription]:
@@ -1213,6 +1270,7 @@ def survey(
     records: list[Record],
     as_of: date | None,
     prescriptions: list[Prescription] | None = None,
+    half_anchored: int = 0,
 ) -> Scan:
     """Count across one ledger.
 
@@ -1250,6 +1308,7 @@ def survey(
         failing_records=sum(1 for _, per_record in graded if per_record),
         prescriptions=None if prescriptions is None else len(prescriptions),
         continued_home=sum(1 for rx in prescriptions or [] if rx.exempt),
+        half_anchored=half_anchored,
         prescriptions_at_fault=len(on_the_draft),
         findings=tuple(found),
     )
@@ -1293,6 +1352,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         )
         lines.append(
             f"    needing a claim record         {scan.prescriptions - scan.continued_home}"
+        )
+        # Printed on every graded run rather than only a short one, on #258's
+        # reasoning: a reader who has learned to read the qualifier takes its
+        # absence as the stronger claim.
+        lines.append(
+            f"    tables read with one anchor    {scan.half_anchored}  (not graded)"
         )
     lines.append("")
     for kind, count in scan.counts:
@@ -1381,17 +1446,18 @@ def main(argv: list[str]) -> int:
         print(f"no claim records found in {path.name}", file=sys.stderr)
         return 2
     prescriptions: list[Prescription] | None = None
+    half_anchored = 0
     if draft is not None:
         draft_path = Path(draft)
         if not draft_path.is_file():
             print(f"no draft file named {draft_path.name}", file=sys.stderr)
             return 2
-        prescriptions = read_prescriptions(
-            draft_path.read_text(encoding="utf-8", errors="replace")
-        )
+        draft_text = draft_path.read_text(encoding="utf-8", errors="replace")
+        prescriptions = read_prescriptions(draft_text)
+        half_anchored = half_anchored_tables(draft_text)
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
-    scan = survey(records, as_of, prescriptions)
+    scan = survey(records, as_of, prescriptions, half_anchored)
     print(format_report(scan, source=path.name, show=show))
     if as_of is None:
         # Printed whichever status follows, so an exit 1 below reads as a floor

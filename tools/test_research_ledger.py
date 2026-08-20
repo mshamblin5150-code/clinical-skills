@@ -1846,11 +1846,61 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         self.assertIn("no --draft was given", out)
 
     def test_with_the_flag_the_rows_carry_counts(self):
+        """**Keyed on the row lines and not on the whole report**, because the
+        coverage block below carries its own ``(not graded)`` qualifier and an
+        earlier version of this asserted the string was absent from the page --
+        which made a true claim about the rows by asserting a false one about the
+        report."""
         _, out, _ = self._run(ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE))
-        self.assertNotIn("not graded", out)
+        for kind in ledger.DRAFT_ROWS:
+            with self.subTest(row=kind):
+                self.assertNotIn("not graded", next(l for l in out.splitlines() if kind in l))
         self.assertIn("prescription drug rows           1", out)
         self.assertIn("continued unchanged, exempt    0", out)
         self.assertIn("needing a claim record         1", out)
+
+    def test_a_half_anchored_table_is_counted_on_the_page(self):
+        """#204's shape in a second tool: a draft whose Rx tables are mixed reads
+        a subset, grades it, and prints the shrunken count. The exit-2 limb
+        covers *no* table and never a short read, so the coverage line is what
+        makes a partial read visible."""
+        deviant = rx_table("metronidazole 500 mg PO q12h").replace("Disp: QS", "Dispense: QS")
+        # A blank line between them, because two table blocks written flush are
+        # one table in Markdown and one run to this parser -- which is correct,
+        # and which made the first version of this test measure nothing.
+        _, out, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)),
+            rx_table(CEFTRIAXONE) + "\n" + deviant,
+        )
+        self.assertIn("prescription drug rows           1", out)
+        self.assertIn("tables read with one anchor    1", out)
+
+    def test_a_whole_table_is_not_counted_as_half_anchored(self):
+        """The instrument, live. Without this the line above could read 1 for a
+        clean draft and prove nothing."""
+        _, out, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE)
+        )
+        self.assertIn("tables read with one anchor    0", out)
+
+    def test_the_line_prints_on_every_graded_run(self):
+        """#258's reasoning: a reader who has learned to read the qualifier takes
+        its absence as the stronger claim."""
+        _, clean, _ = self._run(ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)), rx_table(CEFTRIAXONE))
+        self.assertIn("tables read with one anchor", clean)
+
+    def test_a_short_read_is_outside_the_exit_status_and_says_so(self):
+        """``block_scan``'s arrangement for a reading rather than a violation. A
+        table carrying one anchor is *probably* a malformed prescription and this
+        cannot know it is one, and #204's own question -- whether a short read may
+        refuse -- is unruled."""
+        deviant = rx_table("metronidazole 500 mg PO q12h").replace("Disp: QS", "Dispense: QS")
+        status, out, _ = self._run(
+            ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM)),
+            rx_table(CEFTRIAXONE) + "\n" + deviant,
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("(not graded)", out)
 
     def test_a_sourced_prescription_exits_zero(self):
         status, _, _ = self._run(
@@ -2079,9 +2129,9 @@ class TheStyleSheetDeclaresWhatTheParserReads(unittest.TestCase):
     def test_the_worked_prose_block_cites_no_concrete_source(self):
         """#289's comment's live finding, pinned so a reword cannot undo it.
 
-        That block modeled `(Workowski et al., 2021)` -- the CDC guideline the
-        evidence dump cross-references thirteen times and does not carry -- so the
-        example taught citing a source the run had never read. It is a placeholder
+        That block modeled `(Workowski et al., 2021)` -- a CDC guideline the
+        evidence dump cross-references and does not carry -- so the example taught
+        citing a source the run had never read. It is a placeholder
         now, and **a prose edit putting a real citation back would have failed
         nothing**, which is #220's lesson and why this exists.
         """
@@ -2130,6 +2180,46 @@ class TheDoseRowAsksForANumberAndNotForTheNumber(unittest.TestCase):
         above this one."""
         found = rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim("Published in 2021."))
         self.assertEqual(found, [ledger.UNRESEARCHED_PRESCRIPTION])
+
+
+class OneDrugRowIsOneDrugAndNothingHereMakesThatTrue(unittest.TestCase):
+    """`#300`, documented rather than tightened, on ``UNRESOLVABLE_LOCATOR``'s
+    terms: a limit a reader cannot find reads as coverage.
+
+    **Found by the tracker sweep against `#127`**, whose shape is a count whose
+    denominator the graded run chooses. `style.md` §8 says *one table per drug*
+    and nothing grades it, so a run that welds two orders into one drug row makes
+    the expected set come out right by formatting -- and the second drug's dose,
+    which is exactly the recalled number `#289` was filed over, is invisible to
+    all three rows.
+
+    **Not narrowable here.** Splitting on ``and`` cuts ``normal saline and
+    potassium chloride``, and telling two drugs apart needs a drug vocabulary,
+    which is the table `#289` forbids in as many words.
+    """
+
+    BUNDLED = "doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7 days"
+
+    def test_a_welded_row_is_one_drug(self):
+        found = ledger.read_prescriptions(rx_table(self.BUNDLED))
+        self.assertEqual([rx.drug for rx in found], ["doxycycline"])
+
+    def test_the_second_drugs_dose_is_graded_by_nothing(self):
+        """The finding, stated as a passing assertion so it cannot be mistaken
+        for an oversight. Metronidazole is unsourced and the set is clean."""
+        found = rx_kinds(
+            rx_table(self.BUNDLED),
+            a_drug_claim(
+                "Doxycycline 100 mg twice daily for 7 days is the oral regimen for"
+                " pelvic inflammatory disease."
+            ),
+        )
+        self.assertEqual(found, [])
+
+    def test_the_module_writes_the_limit_down(self):
+        source = Path(ledger.__file__).read_text(encoding="utf-8")
+        self.assertIn("One drug row is one drug, and nothing here makes that true", source)
+        self.assertIn("clinical-skills/issues/300", source)
 
 
 class TheRowSplitIsTheRenderersOwn(unittest.TestCase):
