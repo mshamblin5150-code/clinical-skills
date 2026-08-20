@@ -99,16 +99,16 @@ Follow up: <interval, and what would bring them back sooner>
 **And once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry* and is not restated here; what this template adds is where it lands, which is inside the one-line form above — the label before the hyphen, the surviving code after it, and the refusal inside the rationale the colon opens, written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
-2. Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
+2. Pain in left elbow - M25.522: 5/10 pain after a fall, elbow radiographs ordered today to rule out a radial head fracture, no result. NOT CODED: S52.125A Nondisplaced fracture of head of left radius, initial encounter for closed fracture, nothing established it. Less likely.
 ```
 
 **The `Favored.` entry and the `Final diagnosis` line keep the hedge instead**, so on this template the two forms sit four lines apart and are meant to:
 
 ```
-1. Community-acquired pneumonia, mycoplasma suspected - J18.9: three weeks of cough, decreased air movement, documented sick contact; film ordered today with no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism. Favored.
-2. Acute bronchitis - J20.9: cough is productive, but the decreased air movement argues for consolidation. Less likely.
+1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9: five days of fever and focal crackles; film ordered today with no result. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, nothing tested for the organism. Favored.
+2. Acute bronchitis - J20.9: cough is productive, but the focal crackles argue for consolidation. Less likely.
 
-Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
+Final diagnosis: Community-acquired pneumonia, pneumococcal organism suspected - J18.9
 ```
 
 Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the limb that is mechanical. Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).

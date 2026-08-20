@@ -40,6 +40,7 @@ import spelling_scan as scan
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
+RECORD_README = REPO_ROOT / "fixtures" / "filled-anchor" / "notes" / "README.md"
 
 # day-b run 1, byte for byte apart from two redacted site names. Issue #73.
 #
@@ -484,17 +485,14 @@ class TheRecordView(unittest.TestCase):
             SKILL.read_text(encoding="utf-8"),
         )
 
-    def test_the_skills_stated_tally_is_the_one_the_scanner_computes(self):
-        """The figure in the skill's prose, bound rather than typed.
+    def test_the_records_stated_tally_is_the_one_the_scanner_computes(self):
+        """The figure in the withheld record, bound rather than typed.
 
-        `CLAUDE.md` names ``skills/clinical-note/SKILL.md`` under *Conventions*
-        as this tally's **one home**, so unlike every other figure this repo
-        withholds, that one is meant to be written down. What it was missing is
-        the other half of #220: a copy nothing can fail against. It was
-        unbound for the length of one review and a reviewer mutated it to a
-        triple the record has never held with all 59 spelling tests green --
-        [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
-        inside the change citing #143.
+        Issue #147 moved fixture-derived counts out of required generation
+        instructions.  The record's own README is both the natural home and a
+        file withheld from a generating pass.  The other half of #220 still
+        binds the prose to the computed value so a reviewer cannot mutate it to
+        a triple the record has never held with every spelling test green.
 
         **Only the current value is bound, and that asymmetry is deliberate.**
         The three before it are what the paragraph *used to read*; they are
@@ -513,12 +511,11 @@ class TheRecordView(unittest.TestCase):
         """
         stated = re.search(
             r"\*\*(\d+) forms / (\d+) occurrences / (\d+) of the twelve notes\*\*",
-            SKILL.read_text(encoding="utf-8"),
+            RECORD_README.read_text(encoding="utf-8"),
         )
         self.assertIsNotNone(
             stated,
-            "the skill's stated record tally moved or changed shape; it is the "
-            "one home CLAUDE.md names for this figure",
+            "the withheld record's stated tally moved or changed shape",
         )
         self.assertEqual(
             tuple(int(n) for n in stated.groups()),

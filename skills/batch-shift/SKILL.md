@@ -144,7 +144,7 @@ Show the first and last line of each encounter verbatim — that is what lets th
 
 **So the default must not reach step 5 disguised as a choice.** Print it as a default and let the clinician overturn it on the confirm — a shift that resumes on this block has a branch the clinician has *seen*, which is the thing step 5's *the branch the user named* assumes and cannot check.
 
-**A run can reason correctly and still choose the wrong branch when nobody states it.** A mixed-branch shift is not scoreable against a row that names one branch's fields, so confirm the branch before splitting the encounters. The run evidence and count remain in the withheld fixture record. #90.
+**Correct reasoning can still choose the wrong branch when nobody states it.** A mixed-branch shift is not scoreable against a row that names one branch's fields, so confirm the branch before splitting the encounters. Evidence for the ruling remains in the withheld fixture record. #90.
 
 Resume only on the clinician's confirmation or correction.
 

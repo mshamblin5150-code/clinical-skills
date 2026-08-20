@@ -6,9 +6,10 @@ general fixture policy remains linkable; set, case, run, row and score evidence
 belongs in the withheld fixture files instead.
 
 This guard deliberately checks identity, not semantic resemblance.  It can
-prove that a required file names a committed set.  It cannot prove that a
-synthetic example merely resembles an encounter, so review still owns that
-question.
+prove that a required file names a committed set, path, or numbered case/run.
+It cannot prove that an unattributed row, score or count came from a fixture, or
+that a synthetic example merely resembles an encounter, so review still owns
+those questions.
 """
 
 from __future__ import annotations
@@ -21,14 +22,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
 FIXTURES = ROOT / "fixtures"
+REFERENCE = ROOT / "reference"
 
-# Every skill entry point is mandatory when that skill runs.  clinical-note's
-# entry point additionally requires its glossary and the selected template.
-REQUIRED_INSTRUCTIONS = sorted(SKILLS.glob("*/SKILL.md")) + [
-    SKILLS / "clinical-note" / "GLOSSARY.md",
-    SKILLS / "clinical-note" / "HP.md",
-    SKILLS / "clinical-note" / "SOAP.md",
-]
+# Every Markdown file shipped inside a skill can become part of that skill's
+# required instructions.  The repo-wide agent rules and clinical-note's
+# required or conditionally required reference sheets sit outside that tree.
+# Guard the safe superset so a newly linked supporting file cannot open a gap.
+REQUIRED_INSTRUCTIONS = sorted(
+    {
+        ROOT / "AGENTS.md",
+        REFERENCE / "guidelines-uspstf.md",
+        REFERENCE / "medatrax-fields.md",
+        *SKILLS.rglob("*.md"),
+        *(REFERENCE / "thresholds").glob("*.md"),
+    }
+)
+
+CONCRETE_FIXTURE_PATH = re.compile(
+    r"fixtures/(?!README(?:\.md)?(?:[#)\s\]]|$))"
+)
+NUMBERED_CASE_OR_RUN = re.compile(r"(?i)\b(?:case|run)\s*-?\d+\b")
 
 
 def concrete_fixture_names() -> list[str]:
@@ -40,11 +53,14 @@ def findings(path: Path) -> list[str]:
     name_pattern = re.compile(
         r"(?<![A-Za-z0-9_-])(?:" + "|".join(map(re.escape, names)) + r")(?![A-Za-z0-9_-])"
     )
-    fixture_path = re.compile(r"fixtures/(?!README(?:\.md)?(?:[#)\s\]]|$))")
     found = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         normalized = line.replace("\\", "/")
-        if fixture_path.search(normalized) or name_pattern.search(normalized):
+        if (
+            CONCRETE_FIXTURE_PATH.search(normalized)
+            or name_pattern.search(normalized)
+            or NUMBERED_CASE_OR_RUN.search(normalized)
+        ):
             found.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
     return found
 
@@ -53,6 +69,8 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
     def test_the_required_instruction_population_is_real(self):
         self.assertGreater(len(REQUIRED_INSTRUCTIONS), 5)
         self.assertTrue(all(path.is_file() for path in REQUIRED_INSTRUCTIONS))
+        self.assertIn(ROOT / "AGENTS.md", REQUIRED_INSTRUCTIONS)
+        self.assertIn(REFERENCE / "medatrax-fields.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(SKILLS / "clinical-note" / "GLOSSARY.md", REQUIRED_INSTRUCTIONS)
 
     def test_no_required_instruction_names_a_concrete_fixture(self):
@@ -70,10 +88,17 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
         )
         self.assertIsNotNone(pattern.search(f"a run over {name} disclosed its score"))
 
+    def test_the_guard_detects_a_numbered_case_or_run_without_a_set_name(self):
+        self.assertIsNotNone(NUMBERED_CASE_OR_RUN.search("case 7 carried the answer"))
+        self.assertIsNotNone(NUMBERED_CASE_OR_RUN.search("run 2 scored it"))
+
     def test_the_general_policy_link_is_not_a_concrete_fixture_path(self):
-        fixture_path = re.compile(r"fixtures/(?!README(?:\.md)?(?:[#)\s\]]|$))")
-        self.assertIsNone(fixture_path.search("[fixtures/README](../../fixtures/README.md)"))
-        self.assertIsNotNone(fixture_path.search("../../fixtures/example-set/README.md"))
+        self.assertIsNone(
+            CONCRETE_FIXTURE_PATH.search("[fixtures/README](../../fixtures/README.md)")
+        )
+        self.assertIsNotNone(
+            CONCRETE_FIXTURE_PATH.search("../../fixtures/example-set/README.md")
+        )
 
 
 if __name__ == "__main__":

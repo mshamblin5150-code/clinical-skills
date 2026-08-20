@@ -37,7 +37,7 @@ Expansions [clinical-note](SKILL.md) applies at step 2. Anything absent here is 
 | `dx` | diagnosis |
 | `rtc` | return to clinic |
 | `us` | ultrasound |
-| `t 97.3` | temperature 97.3 °F |
+| `t 97.5` | temperature 97.5 °F |
 | `spo2 96` | oxygen saturation 96% |
 | `vaccs utd` | vaccinations up to date |
 | `OP` | oropharynx |
