@@ -85,9 +85,8 @@ row needed it.
     leave the gate unsatisfiable.
 
     **Warns rather than refuses, and that is a ruling deferred.** #83 decision 1 set
-    the posture per gate and never ruled this one, whose own line says *flags*; the
-    hook would make a refusal here the third thing in this repo that can turn a
-    commit away. [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296).
+    the posture per gate and never ruled this one, whose own line says *flags*.
+    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296).
 
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
@@ -163,7 +162,10 @@ Exit status
 ``0`` clean. ``1`` a gate that refuses found something. ``2`` **every way of not
 having graded** -- no sheet, no rows in it, an unreadable Sources table, **any source
 with no recommendation record**, a ``--recs`` argument naming a source the sheet
-does not declare, and a ``--second-read`` that was asked for and did not load.
+does not declare, a ``--second-read`` that was asked for and did not load, **and one
+that loaded and diffed no row at all** -- a record whose entries all land on pages the
+sheet cites nowhere made every row *uncovered* and printed ``0 refusing, 0 warning``,
+which is byte for byte what a clean diff prints.
 **An absent extracted corpus is deliberately NOT one of them**: ``WATERMARK`` skips
 with a banner on ``CITATION`` tier 2's terms rather than ``COVERAGE``'s, because
 making it a refusal would add a second reason the pre-commit hook turns away someone
@@ -751,15 +753,23 @@ def gate_watermark(
     judgment about severity.** #83 decision 1 set the posture *per gate* -- schema
     and citation refuse, recommendation counting warns -- and it never ruled gate 4,
     whose own line says **flags**. The pre-commit hook runs ``--all --quiet`` when a
-    sheet is staged, so anything routed into the refusal list becomes the **third**
-    thing in this repo that can refuse a commit; the hook's own comment records the
-    second as *"a deliberate change in posture, ruled on in #83 decision 1 rather
-    than drifted into"*. **The first version of this gate refused**, which would have
-    been a third refuser added by inference from a line that says *flags* -- caught
-    by the spec axis of ``/code-review``.
+    sheet is staged, so anything routed into the refusal list turns a commit away.
+    **The first version of this gate refused**, which was a posture set by inference
+    from a line that says *flags* -- caught by the spec axis of ``/code-review``.
     [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) carries
     the question to the clinician, and every mechanism a refusal would need is
     already here: the finding, its remedy, and the count.
+
+    **How much a refusal would change is smaller than this said**, and the overstated
+    version was a stated ground for deferring, which is what makes it worth recording
+    rather than quietly correcting. It read *"the third thing in this repo that can
+    refuse a commit"*, in four files. ``tools/hooks/pre-commit`` already calls
+    ``threshold_sheet.py`` **the second thing in this repo that can refuse a commit**,
+    invoked once under one staging condition -- so a gate-4 refusal adds no tool, no
+    invocation and no exit path, only another **reason** an existing refuser exits
+    non-zero. One figure copied into four files, inside a change whose own prose cites
+    #143 twice; found by the tracker sweep on
+    [#111](https://github.com/mshamblin5150-code/clinical-skills/issues/111).
 
     **Every probe that hits, not the first.** #83 asks for *every place*, and a row
     can carry two stripped strings -- a running head and a folio land on one line
@@ -1469,14 +1479,27 @@ def grade(
     # A sheet declaring no source has nothing for COVERAGE to iterate, which is a way
     # of not having graded and not a clean gate. SCHEMA refuses it too, so 1 wins --
     # this is what keeps the *report* from saying otherwise.
+    # **A read that covered none of this sheet's citations did not grade it**, and
+    # that is `gate_coverage`'s NOT RUN case one gate over rather than a new rule. A
+    # well-formed record whose entries all land on pages the sheet cites nowhere made
+    # every row `uncovered` and printed `0 refusing, 0 warning` -- byte for byte what
+    # a clean diff prints -- and exited 0. Every fixture handed the gate a read that
+    # covered at least one citation, so nothing in the suite could see it; the tracker
+    # sweep did. Partial coverage stays a floor and is reported as one.
+    second_read_graded = bool(
+        second_read is not None and second_read.ok and (pairings or five_refusals)
+    )
+
     # A `--second-read` that was asked for and did not resolve is a way of not
     # having graded, on `bind_recs`' ruling: the run asked for something and got
-    # nothing, and a typo is not a decision.
+    # nothing, and a typo is not a decision. So is one that resolved and diffed no
+    # row at all -- the run asked for a diff either way.
     not_graded = (
         bool(ungraded_sources)
         or bool(recs_errors)
         or not sheet.sources
         or (second_read is not None and not second_read.ok)
+        or (second_read is not None and not second_read_graded)
     )
 
     report(f"  rows            {len(sheet.rows)}")
@@ -1555,6 +1578,12 @@ def grade(
         report("  SECOND READ     NOT RUN -- no --second-read given; --brief prints the work order")
     elif not second_read.ok:
         report(f"  SECOND READ     NOT RUN -- {second_read.why_not}")
+    elif not second_read_graded:
+        report(
+            f"  SECOND READ     NOT RUN -- the read covers none of this sheet's "
+            f"citations, so no row was diffed ({len(second_read.values)} value(s) read "
+            f"on {second_read.read_on})"
+        )
     else:
         report(
             f"  SECOND READ     {len(five_refusals)} refusing, {len(five_warnings)} warning "

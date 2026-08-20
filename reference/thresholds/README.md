@@ -399,12 +399,14 @@ not left to be discovered:
   would be anything but invented.
 - **Gate 4 warns and does not refuse, and that is a ruling deferred rather than a
   judgment about severity.** #83 decision 1 set each gate's posture and never ruled
-  this one, whose own line says *flags*. A refusal here would be the **third** thing
-  in this repo that can turn a commit away, because the hook runs `--all --quiet`
-  whenever a sheet is staged — and the hook's own comment records the second refuser
-  as *"a deliberate change in posture, ruled on in #83 decision 1 rather than drifted
-  into"*. **The first build of this gate refused**, which would have added a third by
-  inference.
+  this one, whose own line says *flags*. The hook runs `--all --quiet` whenever a
+  sheet is staged, so a refusal here turns a commit away — but it is a **third reason
+  an existing refuser exits non-zero**, not a third refuser: `tools/hooks/pre-commit`
+  already calls `threshold_sheet.py` *"the second thing in this repo that can refuse a
+  commit"*, and a gate-4 refusal adds no tool and no invocation. **The first build of
+  this gate refused**, setting a posture by inference from a line that says *flags*;
+  and the first correction of it said *third thing* in four files, which overstated
+  the cost of the very thing being deferred.
   [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296)
   carries the question; every mechanism a refusal needs is already here.
 - **Gate 4, watermark interleave, is built on

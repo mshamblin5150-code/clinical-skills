@@ -2050,9 +2050,9 @@ class TheBriefAndTheDiffReadOneSetOfCitations(unittest.TestCase):
 class GateFourWarnsAndDoesNotRefuse(unittest.TestCase):
     """#83 decision 1 set each gate's posture and never ruled this one, whose own line
     says *flags*. The hook runs `--all --quiet` whenever a sheet is staged, so a
-    refusal here would be the third thing in this repo that can turn a commit away —
-    added by inference. #296 carries the question; this pins the answer that is in
-    force until it is ruled, in both directions, so moving it has to be a diff.
+    refusal here would turn a commit away — a posture set by inference. #296 carries
+    the question; this pins the answer that is in force until it is ruled, in both
+    directions, so moving it has to be a diff.
     """
 
     def setUp(self):
@@ -2218,3 +2218,61 @@ class OneStatementCanAnswerTwoRows(unittest.TestCase):
         _, warnings, _, _, _ = gate.gate_second_read(sheet(row(value="<130 mm Hg")), read)
         self.assertEqual(len(warnings), 1)
         self.assertIn("<80 mm Hg", warnings[0])
+
+
+class AReadThatCoversNothingIsNotAGradedSheet(unittest.TestCase):
+    """A well-formed record whose entries all land on pages the sheet does not cite
+    makes every row `uncovered` and used to print `SECOND READ  0 refusing, 0 warning`
+    and exit 0 — a gate that ran over nothing, reporting what a clean diff reports.
+
+    That is `gate_coverage`'s NOT RUN case one gate over, and the shape every scanner
+    in `tools/` exists to refuse. Found by the tracker sweep on this branch, not by a
+    fixture: every fixture handed the gate a read that covered at least one citation.
+    """
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.sheet_path = self.root / "sheet.md"
+        self.sheet_path.write_text(
+            header() + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row()
+            + "\n## Conflicts\n\n\n## Coverage\n\n",
+            encoding="utf-8",
+        )
+        self.read_path = self.root / "read.json"
+
+    def _grade(self, *values) -> tuple[int, str]:
+        self.read_path.write_text(json.dumps(second_read(*values)), encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            status = gate.grade(
+                sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                text_root=None, second_read_path=self.read_path,
+                recs_root=self.root / "recs",
+            )
+        return status, out.getvalue()
+
+    def test_a_wholly_off_brief_read_reports_not_run(self):
+        _, printed = self._grade(seen("<130 mm Hg", page=99))
+        self.assertIn("SECOND READ     NOT RUN", printed)
+        self.assertNotIn("SECOND READ     0 refusing", printed)
+
+    def test_a_read_of_nothing_at_all_reports_not_run(self):
+        _, printed = self._grade()
+        self.assertIn("SECOND READ     NOT RUN", printed)
+
+    def test_a_read_covering_one_citation_is_graded_and_not_reported_as_not_run(self):
+        """The other direction, so the limb cannot be satisfied by never grading."""
+        _, printed = self._grade(seen("<130 mm Hg"))
+        self.assertIn("SECOND READ     0 refusing", printed)
+        self.assertNotIn("SECOND READ     NOT RUN", printed)
+
+    def test_the_smoke_test_caveat_is_not_printed_for_a_read_that_graded_nothing(self):
+        """A caveat about what a diff is worth, printed over a diff that did not
+        happen, would read as a diff having happened."""
+        _, printed = self._grade(seen("<130 mm Hg", page=99))
+        self.assertNotIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
