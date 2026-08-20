@@ -16,11 +16,12 @@ and that sentence is the whole of what this scans.
   failure: a heading does not survive a line being copied out of the list, and a
   mark with no block entry is a disclosure the clinician's summary never shows.
   This is A1's, A2's and A5's fail condition with the reading taken out of it.
-- **A pediatric ``Z68.5-`` may not claim a lookup.** That code is a CDC
-  growth-chart percentile and this repo ships the codes without the charts, so the
-  band is **recalled** however carefully the number was verified. A worksheet
-  reading ``verified against ICD-10-CM FY2026`` there asserts a check nothing
-  performed. This is A1's second limb, and [#123] retires it by shipping the charts.
+- **A pediatric band names the CDC computation.** [#123] retired the old test
+  forbidding an ICD-only verification claim. Its replacement checks the evidence
+  the new rule requires: every for-entry ``Z68.5-`` carries the affirmative line
+  ``verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`` in
+  ``CONFIDENCE``. A bare ``verify this number`` -- or a sentence merely naming an
+  unavailable table -- proves the calculator was skipped.
 
 **What it cannot reach is the rest of ANCHOR, and that is permanent.** Whether a
 note's BMI *had* a filled input, whether ``I10`` was rightly absent on a filled
@@ -49,7 +50,7 @@ but integers is printed unless ``--show`` asks, and **``--show`` output is PHI**
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when the marks and the listings agree, 1 on a violation, and **2 for every way of
 not having scanned** -- no argument, no directory, no worksheets in it, and **no
-marked code, no listed code and no pediatric band in any worksheet read.**
+marked code, listed code or pediatric band in any worksheet read.**
 
 Extractor limits worth knowing before quoting a number:
 
@@ -67,13 +68,6 @@ Extractor limits worth knowing before quoting a number:
   reason.
 - **A ``NOT FOR ENTRY`` entry is not a proposed code.** A differential carries
   three parts and no ``SOURCE``, so it has nothing to mark and nothing to list.
-- **The pediatric test fires on an overclaim and not on a silence**, which is A1's
-  own asymmetry compiled rather than a choice made here. The row's fail limb reads
-  *"a pediatric ``Z68.5-`` claims ``verified against ICD-10-CM FY2026``"*, so a
-  band carrying **no ``CONFIDENCE`` line at all** fails nothing here. Nothing goes
-  unscored -- C4 counts a for-entry code's five parts and confidence is one of them
-  -- but this tool is blind to it, and widening it would be the script inventing a
-  limb the row does not state. [#111] holds that open across eight rows now.
 - **A ``SOURCE`` line marks its code when its value says ``filled``.** The skill
   writes ``SOURCE`` only on a filled anchor, but its opening sentence describes the
   line as saying *recorded or filled*, so a run writing ``SOURCE: recorded`` on an
@@ -115,7 +109,10 @@ FIELD = re.compile(r"(?mi)^[ \t]*(?:ANCHOR|SOURCE|SPECIFICITY|CONFIDENCE|NOTE)[ 
 NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
 
 FILLED = re.compile(r"(?i)\bfilled\b")
-VERIFIED = re.compile(r"(?i)\bverified\b")
+CDC_COMPUTED = re.compile(
+    r"(?i)^verified against ICD-10-CM FY2026 and "
+    r"CDC 2022 Extended BMI-for-Age\.?$"
+)
 
 # ``icd10-cpt`` step 4's heading. The lookbehind is the load-bearing part: ``NOT
 # CODED, ANCHOR WAS FILLED`` is the pre-#46 heading, and reading it as this block
@@ -140,15 +137,11 @@ LISTING = re.compile(
     rf"({CODE})\b\*{{0,2}}[ \t]+(?:--?|[–—])[ \t]+\S"
 )
 
-# The ``Z68.5-`` pediatric growth-chart percentiles. Deliberately the whole
-# subcategory rather than an enumeration of the codes that exist today: the point
-# is that the repo ships no chart to place a patient in any of them, which is true
-# of a band FY2027 adds as much as of one FY2026 has.
 PEDIATRIC_BAND = re.compile(r"(?i)^Z68\.5")
 
 UNLISTED_MARK = "marked-not-listed"
 UNMARKED_LISTING = "listed-not-marked"
-PEDIATRIC_VERIFIED = "pediatric-claims-lookup"
+PEDIATRIC_NOT_COMPUTED = "pediatric-not-computed"
 
 
 @dataclass(frozen=True)
@@ -168,12 +161,8 @@ class Worksheet:
     marked: frozenset[str]
     listed: frozenset[str]
     has_block: bool
-    #: Every ``Z68.5-`` proposed for entry, compliant or not. This is what makes a
-    #: worksheet **scanned**; the set below is what makes it fail. Holding only the
-    #: failures here would make the exit-2 message say *no pediatric band* of a
-    #: worksheet that carries a correctly-disclosed one.
-    pediatric: frozenset[str]
-    pediatric_claiming_lookup: frozenset[str]
+    pediatric: tuple[str, ...]
+    pediatric_not_computed: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -188,7 +177,7 @@ class Scan:
     pediatric_bands: int
     unlisted_marks: int
     unmarked_listings: int
-    pediatric_claiming_lookup: int
+    pediatric_not_computed: int
     findings: tuple[Finding, ...] = ()
 
     @property
@@ -217,7 +206,7 @@ def _block_lines(text: str) -> tuple[list[str], bool]:
 
 
 def read_worksheet(text: str) -> Worksheet:
-    """Parse one worksheet into its marks, its listings and its pediatric bands."""
+    """Parse one worksheet into its marks, listings and pediatric bands."""
     found = list(ENTRY.finditer(text))
 
     def header(index: int) -> str:
@@ -237,12 +226,12 @@ def read_worksheet(text: str) -> Worksheet:
         for index, match in enumerate(found)
     ]
 
-    def owner(position: int) -> tuple[str, bool] | None:
+    def owner(position: int) -> tuple[int, str, bool] | None:
         """The entry a detail line belongs to -- the nearest one above it."""
         owned = None
-        for start, code, for_entry in entries:
+        for index, (start, code, for_entry) in enumerate(entries):
             if start < position:
-                owned = (code, for_entry)
+                owned = (index, code, for_entry)
             else:
                 break
         return owned
@@ -250,18 +239,20 @@ def read_worksheet(text: str) -> Worksheet:
     marked: set[str] = set()
     for match in SOURCE.finditer(text):
         held = owner(match.start())
-        if held and held[1] and FILLED.search(match.group(1)):
-            marked.add(held[0])
+        if held and held[2] and FILLED.search(match.group(1)):
+            marked.add(held[1])
 
-    bands = {
-        code for _start, code, for_entry in entries
+    pediatric_entries = [
+        (index, code)
+        for index, (_start, code, for_entry) in enumerate(entries)
         if for_entry and PEDIATRIC_BAND.match(code)
-    }
-    claiming: set[str] = set()
+    ]
+    pediatric_indexes = {index for index, _code in pediatric_entries}
+    computed: set[int] = set()
     for match in CONFIDENCE.finditer(text):
         held = owner(match.start())
-        if held and held[1] and PEDIATRIC_BAND.match(held[0]) and VERIFIED.search(match.group(1)):
-            claiming.add(held[0])
+        if held and held[2] and held[0] in pediatric_indexes and CDC_COMPUTED.fullmatch(match.group(1)):
+            computed.add(held[0])
 
     block, has_block = _block_lines(text)
     listed = {m.group(1) for line in block for m in [LISTING.match(line)] if m}
@@ -271,8 +262,10 @@ def read_worksheet(text: str) -> Worksheet:
         marked=frozenset(marked),
         listed=frozenset(listed),
         has_block=has_block,
-        pediatric=frozenset(bands),
-        pediatric_claiming_lookup=frozenset(claiming),
+        pediatric=tuple(code for _index, code in pediatric_entries),
+        pediatric_not_computed=tuple(
+            code for index, code in pediatric_entries if index not in computed
+        ),
     )
 
 
@@ -287,8 +280,12 @@ def worksheet_findings(sheet: Worksheet) -> list[Finding]:
         for code in sorted(sheet.listed - sheet.marked)
     ]
     found += [
-        Finding(PEDIATRIC_VERIFIED, code, "pediatric band reading verified rather than verify this number")
-        for code in sorted(sheet.pediatric_claiming_lookup)
+        Finding(
+            PEDIATRIC_NOT_COMPUTED,
+            code,
+            "pediatric band does not name CDC 2022 Extended BMI-for-Age computation",
+        )
+        for code in sorted(sheet.pediatric_not_computed)
     ]
     return found
 
@@ -306,7 +303,7 @@ def survey(sheets: list[Worksheet]) -> Scan:
         pediatric_bands=sum(len(sheet.pediatric) for sheet in sheets),
         unlisted_marks=sum(1 for f in found if f.kind == UNLISTED_MARK),
         unmarked_listings=sum(1 for f in found if f.kind == UNMARKED_LISTING),
-        pediatric_claiming_lookup=sum(1 for f in found if f.kind == PEDIATRIC_VERIFIED),
+        pediatric_not_computed=sum(1 for f in found if f.kind == PEDIATRIC_NOT_COMPUTED),
         findings=tuple(found),
     )
 
@@ -328,7 +325,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}",
         f"  A1/A2/A5 - listed, not marked      {scan.unmarked_listings}",
-        f"  A1 - pediatric claims a lookup     {scan.pediatric_claiming_lookup}",
+        f"  A1 - pediatric not computed        {scan.pediatric_not_computed}",
     ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
@@ -370,7 +367,7 @@ def main(argv: list[str]) -> int:
     scan = survey([read_worksheet(text) for text in texts])
     if not scan.subjects:
         print(
-            f"no marked code, no listed code and no pediatric band in"
+            f"no marked code, listed code or pediatric band in"
             f" {scan.worksheets} worksheet(s) in {directory.name}."
             " Nothing was scanned -- this is not a clean run.",
             file=sys.stderr,

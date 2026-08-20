@@ -15,9 +15,11 @@ The corpus is also the reason no page text here is real guideline text: these
 fixtures are invented sentences shaped like guideline prose, not excerpts.
 """
 
+import ast
 import io
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -516,6 +518,185 @@ class CommandLineTests(TempCorpus):
         )
         self.assertEqual(status, 1)
         self.assertIn("0 match(es)", out)
+
+    # ------------------------------------------------------------------
+    # A society no document carries is not a genuine zero either, #271
+    # ------------------------------------------------------------------
+
+    def test_a_society_no_document_carries_exits_two_and_names_what_is_there(self):
+        """#271, and it is #185's defect on the second filter flag.
+
+        The corpus holds nine societies whose directory names are not obvious --
+        ``AHA ACC`` carries a space and ``USPSTF`` is easy to transpose -- so a
+        mistyped one is not hypothetical. Exit 1 is this tool's documented code for
+        *nothing in the corpus matches*, and a caller obeying that convention takes
+        it as evidence; a typo is a way of not having searched.
+        """
+        self.build_default_corpus()
+        status, out, err = self.run_search(
+            ["--db", str(self.db), "--society", "USPTF", "urine culture"]
+        )
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "", "nothing may be reported about a search that did not run")
+        self.assertIn("USPTF", err)
+        self.assertIn("IDSA", err, "the message says what the index does hold")
+
+    def test_a_society_prefix_is_not_a_society(self):
+        """``IDS`` is not ``IDSA``. The filter is an equality, so a prefix matches
+        nothing -- and returning 1 for it would certify that IDSA is silent on a
+        question it answers on the very next line."""
+        self.build_default_corpus()
+        status, _, err = self.run_search(
+            ["--db", str(self.db), "--society", "IDS", "urine culture"]
+        )
+        self.assertEqual(status, 2)
+        self.assertIn("IDS", err)
+
+    def test_a_society_the_index_carries_still_reports_its_hits(self):
+        self.build_default_corpus()
+        status, out, _ = self.run_search(
+            ["--db", str(self.db), "--society", "IDSA", "urine culture"]
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("IDSA/2010-uti", out)
+
+    def test_a_carried_society_with_no_hits_is_still_a_genuine_zero(self):
+        """The two limbs have to stay apart, exactly as they do for --class. A
+        society the index knows about, asked a question nothing answers, is 1 --
+        that is a real finding about the corpus, and turning it into 2 loses it."""
+        self.build_default_corpus()
+        status, out, _ = self.run_search(
+            ["--db", str(self.db), "--society", "IDSA", "aortic dissection"]
+        )
+        self.assertEqual(status, 1)
+        self.assertIn("0 match(es)", out)
+
+    def test_a_document_with_no_society_does_not_break_the_guard(self):
+        """The one place the two filters are not the same shape, and the reason this
+        is not a copy of the class limb.
+
+        ``document_class`` is NOT NULL and falls back to ``UNCLASSIFIED``; ``society``
+        is the first path segment and is **NULL** for a document at the root of the
+        text directory. A helper that sorted and joined the distinct values the way
+        the class one does raises ``TypeError`` on such a corpus -- and the traceback
+        escapes ``main`` and exits **1**, which this module's docstring reads as *a
+        genuine zero*. That is #150's back door reopened on the very flag whose bug
+        is a wrong 1, so it is pinned rather than left to the guard's own shape.
+        """
+        write_single(self.text_dir, "IDSA/2010-uti", ["cover page", PYELONEPHRITIS_PAGE])
+        write_single(self.text_dir, "loose", ["cover page"])
+        gi.build(self.text_dir, self.db)
+        status, out, err = self.run_search(
+            ["--db", str(self.db), "--society", "USPTF", "urine culture"]
+        )
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "")
+        self.assertIn("IDSA", err)
+        self.assertNotIn("None", err, "a document with no society is not a society")
+
+
+class EveryFilterHasAVocabularyGuard(unittest.TestCase):
+    """#271's decision, held in code. The reasoning for it is on ``gs.FILTERS``.
+
+    The columns are read off ``search``'s own ``WHERE`` clauses by AST rather
+    than typed here, on ``test_console_codec.py``'s instrument and for its
+    reason: a hand-typed list is a second copy of the thing under test, and it
+    goes green on the day the code moves.
+
+    **What it reaches is one SQL shape**, and the ceiling is written on
+    ``FILTERS`` beside the claim it qualifies. ``AND d.year >= ?``, an ``IN``,
+    an unaliased column and a named parameter all pass the walk unseen -- so a
+    green run here is a floor on the shapes in the file today, never a proof
+    that the next filter is guarded.
+    """
+
+    def filtered_columns(self):
+        """Every column ``search`` narrows on, read off the SQL it builds."""
+        source = (TOOLS / "guidelines_search.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "search"
+        )
+        clause = re.compile(r"\bAND\s+d\.(\w+)\s*=\s*\?")
+        return {
+            match.group(1)
+            for node in ast.walk(function)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            for match in clause.finditer(node.value)
+        }
+
+    def test_the_instrument_is_live(self):
+        """A walk that found nothing would pass every assertion below."""
+        self.assertTrue(self.filtered_columns(), "the AST walk found no WHERE clause")
+
+    def test_every_column_search_narrows_on_has_a_guard(self):
+        self.assertEqual(self.filtered_columns(), {column for _, column in gs.FILTERS})
+
+    def test_every_guarded_column_is_a_real_column_on_document(self):
+        """``index_values`` interpolates the column name into SQL, so the pairs are
+        the allowlist that keeps that safe as well as the completeness set."""
+        create = next(
+            statement
+            for statement in gi.SCHEMA.split(";")
+            if "CREATE TABLE document" in statement
+        )
+        for _, column in gs.FILTERS:
+            self.assertIn(column, create)
+
+    def test_a_column_outside_the_pairs_is_refused_rather_than_interpolated(self):
+        with self.assertRaises(ValueError):
+            gs.index_values(None, "doc_id; DROP TABLE document")
+
+    def test_every_flag_in_the_pairs_parses_to_a_dest_of_the_same_name(self):
+        """``main`` reads the value with ``getattr(args, column)``, which holds only
+        because each flag's argparse dest and its ``document`` column are the same
+        word -- ``--society`` by argparse's own default, ``--class`` because it says
+        ``dest="document_class"`` in as many words.
+
+        Nothing else makes that true. A third filter whose dest and column parted
+        would raise ``AttributeError`` in the loop, the traceback would escape
+        ``main``, and the process would exit **1** -- the same back door ``use_utf8``
+        was added for, on the flag whose whole bug is a wrong 1. So the coincidence
+        is pinned rather than relied on, and the dests are read off the parser's own
+        ``add_argument`` calls rather than typed here.
+        """
+        source = (TOOLS / "guidelines_search.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        main = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "main"
+        )
+        dests = {}
+        for node in ast.walk(main):
+            if not isinstance(node, ast.Call):
+                continue
+            if not (isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"):
+                continue
+            flags = [
+                argument.value
+                for argument in node.args
+                if isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+            ]
+            explicit = {
+                keyword.arg: keyword.value.value
+                for keyword in node.keywords
+                if keyword.arg == "dest" and isinstance(keyword.value, ast.Constant)
+            }
+            for flag in flags:
+                # argparse's own rule when `dest` is not given.
+                dests[flag] = explicit.get("dest", flag.lstrip("-").replace("-", "_"))
+
+        self.assertTrue(dests, "the AST walk found no add_argument call")
+        for flag, column in gs.FILTERS:
+            self.assertIn(flag, dests, f"{flag} is guarded but the parser does not take it")
+            self.assertEqual(
+                dests[flag],
+                column,
+                f"{flag} parses to {dests[flag]!r}, so getattr(args, {column!r}) raises",
+            )
 
 
 class Cp1252ConsoleTests(TempCorpus):

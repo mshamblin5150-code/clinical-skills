@@ -43,6 +43,21 @@ It answers four things: does the code exist, what is its official descriptor, is
 
 **What the lookup cannot do.** There is no alphabetic index in the database, so it verifies a candidate rather than finding one from a diagnosis phrase. `--find` is a substring match over descriptors, which is weaker: a miss is not evidence that no code exists. And nothing in it encodes the official coding guidelines. It answers *does this code exist and what governs it*, never *is this the right code*.
 
+### Pediatric BMI-for-age
+
+This repo also ships CDC's 2022 Extended BMI-for-Age table at `reference/cdc-bmi-for-age-2022.csv`. Ages 2–19 take `Z68.5-`, whose bands are percentiles rather than adult BMI intervals, so run the committed calculator for every pediatric BMI:
+
+```bash
+python tools/cdc_percentile.py male 198 21.6
+python tools/cdc_percentile.py female 16 21.6 --age-years
+```
+
+It returns the extended percentile, percent of the 95th percentile, the exact `Z68.5-` band and the corresponding `E66.-` code where the child is overweight or has class 1, 2 or 3 obesity. The `E66` pairing is not inferred from adult cutoffs: CDC pairs `Z68.53` with `E66.3`, `Z68.54` with `E66.811`, `Z68.55` with `E66.812` and `Z68.56` with `E66.813`. `Z68.51` and `Z68.52` produce no BMI-derived `E66` code.
+
+**Use the age the encounter can support.** A date of birth and encounter date produce completed months. Where the shorthand gives only whole years, use `--age-years`: the tool fills the midpoint month deterministically and says so. That filled month joins height and weight on `SOURCE: filled` and in step 4's `CODED, ANCHOR WAS FILLED` block; a guessed month never becomes a documented birth date. The clinician submitting the encounter confirms it during the ordinary filled-content review; nobody is an implementation-time approval gate.
+
+The confidence line names both checks: `verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`. A filled height, weight or age month still carries its provenance disclosure, but the band itself is computed rather than recalled.
+
 ## Steps
 
 ### 1. Read the FILLED and DERIVED lines first
@@ -102,7 +117,7 @@ SPECIFICITY: complete — I10 has no further axis        <- compliant
 SPECIFICITY: complete — laterality documented as left  <- compliant
 ```
 
-**The reason is the evidence that the check happened, and a bare word cannot be.** Nobody writes *"`Z98.51` has no further axis"* without having looked at `Z98.51`'s axes. Anybody can write `complete` without having opened the code at all, and the two outputs are indistinguishable on the page. This is the move [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46) already made on the neighboring flag, where a pediatric `Z68.5-` must carry `verify this number` rather than a bare `CONFIDENCE`.
+**The reason is the evidence that the check happened, and a bare word cannot be.** Nobody writes *"`Z98.51` has no further axis"* without having looked at `Z98.51`'s axes. Anybody can write `complete` without having opened the code at all, and the two outputs are indistinguishable on the page. A pediatric `Z68.5-` now supplies the same evidence by naming the committed CDC table and calculator rather than merely asserting a percentile.
 
 **The same holds on the other branch, and it is the same defect wearing the other keyword.**
 
@@ -181,7 +196,7 @@ One invented inch, a different code. Nothing in the finished note distinguishes 
 
 **The band code and the diagnosis code are not equally exposed to that, and the difference is checkable.** At a filled weight of 185 lb, *every* height from 5'6" to 6'0" lands in the overweight band, so `E66.3` holds across the whole plausible range and the invented inch is not what produced it. Those same seven heights produce **five different `Z68` codes**. A diagnosis code names a state that survives the invention; a band code encodes the invention to one decimal place. Both are proposed and both are marked — the mark simply matters more on one than the other, and a clinician confirming the pair should know which one the inch decided.
 
-**Age matters here too, and it is the one place the code cannot be derived at all.** `Z68` adult codes are for persons 20 years and older; ages 2–19 take `Z68.5-`, which is a **CDC growth-chart percentile**, not a BMI band. The database holds the codes and not the charts, so for an adolescent the band is **recalled** rather than looked up — `CONFIDENCE: verify this number`, on the rule above about working from recall. A filled height and weight for an adolescent is therefore invented twice over, and the `SOURCE` line says both. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123) ships the charts and removes the second one; until it lands, the double disclosure is the honest state.
+**Age matters here too, and the pediatric branch is computed separately.** `Z68` adult codes are for persons 20 years and older; ages 2–19 take `Z68.5-`, which is a **CDC growth-chart percentile**, not a BMI band. Run `tools/cdc_percentile.py` rather than applying adult cutoffs. A filled height, weight or midpoint age month still makes the proposal filled-anchored, and `SOURCE` names each filled input; the percentile and code band themselves are verified against the committed chart.
 
 **What codes without a mark, and this is most of it.** The mark reaches the value, not the patient.
 

@@ -24,18 +24,120 @@ Run with::
     python -m unittest discover -s tools -t tools
 """
 
+import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 
+import guidelines_extract as extract
 import uspstf_table as ut
 
 TESTDATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testdata", "uspstf")
 
 
 def fixture(name):
-    """One fixture page, as :func:`uspstf_table.read_pdf` would have returned it."""
+    """One fixture page, as #80's extracted corpus would provide it."""
     with open(os.path.join(TESTDATA, name + ".txt"), encoding="utf-8") as handle:
         return [handle.read()]
+
+
+class ReadingTheExtractedCorpus(unittest.TestCase):
+    """The table builder consumes #80's artifact and its metadata-title contract."""
+
+    def test_build_reads_uspstf_text_and_title_from_the_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/rhrs.pdf"),
+                fixture("ahrq-sentence-grade"),
+                text_dir,
+                "Screening for Rh (D) Incompatibility - Recommendation Statement",
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            results = ut.build(text_dir)
+
+            self.assertEqual(len(results), 1)
+            self.assertEqual(Path(results[0].filename).name, "rhrs.pdf")
+            self.assertEqual(
+                results[0].rows[0].topic,
+                "Screening for Rh (D) Incompatibility",
+            )
+            self.assertEqual([row.grade for row in results[0].rows], ["A", "B"])
+
+    def test_build_ignores_other_societies_in_the_extracted_corpus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("KDIGO/guideline.pdf"), ["KDIGO guideline"], text_dir, "KDIGO Guideline"
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertEqual(ut.build(text_dir), [])
+
+    def test_normalized_jama_label_still_opens_the_recommendation_region(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/thyroid.pdf"),
+                [
+                    "title page",
+                    "Conclusions and Recommendation  The USPSTF recommends against "
+                    "screening for thyroid cancer in asymptomatic adults. (D recommendation)",
+                ],
+                text_dir,
+                "Screening for Thyroid Cancer",
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertIn(
+                "Conclusions and Recommendation The USPSTF",
+                (text_dir / "USPSTF" / "thyroid.txt").read_text(encoding="utf-8"),
+            )
+            results = ut.build(text_dir)
+            self.assertEqual([row.grade for row in results[0].rows], ["D"])
+
+    def test_the_dated_abstract_citation_wins_after_an_undated_jama_masthead(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            citation = "JAMA. 2017;317(12):1252-1257"
+            raw_pages = [
+                "JAMA | US Preventive Services Task Force | RECOMMENDATION STATEMENT\n"
+                + fixture("ahrq-sentence-grade")[0]
+                + "\n"
+                + citation
+            ]
+            record = extract.build_document(
+                Path("USPSTF/celiac.pdf"),
+                raw_pages,
+                text_dir,
+                "Screening for Celiac Disease",
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertIn(
+                citation,
+                (text_dir / "USPSTF" / "celiac.txt").read_text(encoding="utf-8"),
+            )
+            results = ut.build(text_dir)
+            self.assertEqual({row.year for row in results[0].rows}, {"2017"})
+
+    def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/rhrs.pdf"), fixture("ahrq-sentence-grade"), text_dir
+            )
+            manifest_path = extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src")
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["documents"][0]["title"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "title"):
+                ut.build(text_dir)
 
 
 class GradeValidationTests(unittest.TestCase):

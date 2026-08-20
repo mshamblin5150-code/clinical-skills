@@ -4,8 +4,8 @@ These run against the committed fixtures in ``tools/testdata/`` and never agains
 ``C:/codeing/guidelines-src`` or ``reference/guidelines-catalog.md``. Same
 reasoning as ``test_icd10.py``: a test that read the real corpus would pass for
 two different reasons, one of them being that the extractor and the test are
-wrong in the same way. Nothing here opens a PDF, so ``pypdf``/``fitz`` are not
-needed to run the suite.
+wrong in the same way. Nothing here opens a PDF; the public reader fixture builds
+#80's text-and-manifest artifact directly.
 
 The page fixtures are ``%%PAGE%%``-delimited plain text standing in for what the
 extractor hands back per page. They carry no patient data of any kind — they are
@@ -23,10 +23,16 @@ this catalog has.
 
 from __future__ import annotations
 
+import json
+import contextlib
+import dataclasses
+import io
+import tempfile
 import unittest
 from pathlib import Path
 
 import guidelines_catalog as gc
+import guidelines_extract as extract
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
 
@@ -80,6 +86,135 @@ def doc(**overrides) -> gc.Document:
     )
     base.update(overrides)
     return gc.Document(**base)
+
+
+class ReadingTheExtractedCorpus(unittest.TestCase):
+    """The catalog consumes #80's public artifact, not the source PDFs."""
+
+    def test_manifest_metadata_and_stripped_year_survive_the_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            repeated = "Journal of Preventive Medicine 2021; 10: 1-4"
+            pages = [
+                f"{repeated}\nUS Preventive Services Task Force Recommendation Statement\n"
+                "The USPSTF recommends screening in adults.\nA recommendation."
+            ] + [f"{repeated}\nPrior recommendation published in 2014." for _ in range(3)]
+            record = extract.build_document(
+                Path("USPSTF/screening.pdf"),
+                pages,
+                text_dir,
+                "Screening for Example Disease",
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertNotIn(repeated, (text_dir / "USPSTF" / "screening.txt").read_text())
+            self.assertEqual(
+                gc.read_corpus(text_dir),
+                [
+                    gc.Document(
+                        society="USPSTF",
+                        filename="screening.pdf",
+                        page_count=4,
+                        cls=extract.CLASS_RECOMMENDATION_STATEMENT,
+                        title_guess="Screening for Example Disease",
+                        year_guess="2021",
+                    )
+                ],
+            )
+
+    def test_a_text_directory_without_the_manifest_is_not_a_catalog_corpus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            (text_dir / "USPSTF").mkdir()
+            (text_dir / "USPSTF" / "screening.txt").write_text("body\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "manifest.json"):
+                gc.read_corpus(text_dir)
+
+    def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(Path("KDIGO/guideline.pdf"), ["body"], text_dir)
+            manifest_path = extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src")
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["documents"][0]["title"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "title"):
+                gc.read_corpus(text_dir)
+
+    def test_year_voting_keeps_page_frequency_after_the_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            pages = [
+                "Journal 2019\nUpdate 2021 page 1\nbody",
+                "Journal 2019\nUpdate 2021 page 2\nbody",
+                "Journal 2019\nUpdate 2021 page 3\nbody",
+                "Journal 2019\nbody",
+            ]
+            record = extract.build_document(
+                Path("KDIGO/guideline.pdf"), pages, text_dir, "Clinical Practice Guideline"
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertEqual(gc.read_corpus(text_dir)[0].year_guess, "2019")
+
+
+def reading(column: str, value: str) -> gc.AuditReading:
+    return gc.AuditReading(
+        society="USPSTF",
+        filename="copd-screening.pdf",
+        column=column,
+        value=value,
+        page="1",
+        evidence="title-page",
+    )
+
+
+def ruling(column: str, value: str) -> gc.AuditRuling:
+    return gc.AuditRuling(
+        society="USPSTF",
+        filename="copd-screening.pdf",
+        column=column,
+        confirmed_value=value,
+        confirmed_date="2026-08-20",
+        rationale="Clinician confirmed the narrower front-matter population.",
+    )
+
+
+def audit_document() -> gc.AuditDocument:
+    return gc.AuditDocument(
+        society="USPSTF",
+        filename="copd-screening.pdf",
+        sha256="a" * 64,
+        audited="2026-08-20",
+    )
+
+
+AUDIT = """# Independent audit
+
+## Documents
+
+| society | filename | sha256 | audited |
+| --- | --- | --- | --- |
+| USPSTF | copd-screening.pdf | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | 2026-08-20 |
+
+## Independent readings
+
+| society | filename | column | value | page | evidence |
+| --- | --- | --- | --- | --- | --- |
+| USPSTF | copd-screening.pdf | title | Screening for Chronic Obstructive Pulmonary Disease | 1 | title-page |
+| USPSTF | copd-screening.pdf | topic | COPD screening | 1 | title-page |
+| USPSTF | copd-screening.pdf | population | adult | 1 | front-matter |
+| USPSTF | copd-screening.pdf | year | 2022 | 1 | title-page |
+
+## Clinician rulings
+
+| society | filename | column | confirmed_value | confirmed_date | rationale |
+| --- | --- | --- | --- | --- | --- |
+"""
 
 
 class TableRows(unittest.TestCase):
@@ -147,33 +282,6 @@ class ParsingTheCatalog(unittest.TestCase):
         text = CATALOG + "\n- `copd-screening.pdf` — `page_count` — nope\n"
         _, _, problems = gc.parse_catalog(text)
         self.assertTrue(any("page_count" in p for p in problems))
-
-
-class DocumentClass(unittest.TestCase):
-    def test_a_uspstf_title_page_is_a_recommendation_statement(self):
-        self.assertEqual(gc.classify(USPSTF_PAGES), "recommendation-statement")
-
-    def test_whitespace_is_squashed_before_the_markers_are_looked_for(self):
-        # Several USPSTF files extract as "USPreventiveServicesTaskForce
-        # RecommendationStatement" with the spaces gone.
-        run_together = ["USPreventiveServicesTaskForceRecommendationStatement"]
-        self.assertEqual(gc.classify(run_together), "recommendation-statement")
-
-    def test_a_summary_of_recommendation_statements_heading_is_not_one(self):
-        # Four KDIGO guidelines and the CDC opioid guideline carry this line in
-        # their table of contents. Matching the phrase alone classed all five
-        # wrongly.
-        self.assertEqual(gc.classify(JOURNAL_PAGES), "guideline")
-
-    def test_a_browser_print_is_a_web_capture(self):
-        self.assertEqual(gc.classify(CAPTURE_PAGES), "web-capture")
-
-    def test_a_capture_wins_over_the_words_on_the_captured_page(self):
-        both = [CAPTURE_PAGES[0] + "\nUS Preventive Services Task Force Recommendation Statement"]
-        self.assertEqual(gc.classify(both), "web-capture")
-
-    def test_anything_else_is_a_guideline(self):
-        self.assertEqual(gc.classify(["KDIGO 2024 Clinical Practice Guideline"]), "guideline")
 
 
 class AccessLinesAreNotPublicationDates(unittest.TestCase):
@@ -259,6 +367,177 @@ class CheckAgainstTheCorpus(unittest.TestCase):
     def test_the_same_file_twice_fails(self):
         failures = gc.check([row(), row()], {}, [doc()])
         self.assertTrue(any("more than one row" in f for f in failures))
+
+
+class CheckTheIndependentAudit(unittest.TestCase):
+    def complete_readings(self) -> list[gc.AuditReading]:
+        return [
+            reading("title", row().title),
+            reading("topic", row().topic),
+            reading("population", row().population),
+            reading("year", row().year),
+        ]
+
+    def test_deleting_one_hand_read_entry_fails(self):
+        readings = self.complete_readings()[:-1]
+
+        failures = gc.check_audit([row()], [audit_document()], readings, [])
+
+        self.assertTrue(any("year has no independent reading" in f for f in failures))
+
+    def test_a_disagreement_without_a_clinician_ruling_fails(self):
+        readings = self.complete_readings()
+        readings[2] = reading("population", "adult, older adult")
+
+        failures = gc.check_audit([row()], [audit_document()], readings, [])
+
+        self.assertTrue(any("population disagrees" in f for f in failures))
+
+    def test_a_clinician_ruling_can_confirm_the_catalog_value(self):
+        readings = self.complete_readings()
+        readings[2] = reading("population", "adult, older adult")
+
+        failures = gc.check_audit(
+            [row()], [audit_document()], readings, [ruling("population", "adult")]
+        )
+
+        self.assertEqual(failures, [])
+
+    def test_readings_without_a_document_binding_fail(self):
+        failures = gc.check_audit([row()], [], self.complete_readings(), [])
+
+        self.assertTrue(any("has no document audit" in f for f in failures))
+
+    def test_changed_pdf_bytes_fail_document_binding(self):
+        failures = gc.check_audit_digests(
+            [audit_document()], {("USPSTF", "copd-screening.pdf"): "b" * 64}
+        )
+
+        self.assertTrue(any("SHA-256 disagrees" in f for f in failures))
+
+    def test_duplicate_document_and_reading_entries_fail(self):
+        readings = self.complete_readings()
+        failures = gc.check_audit(
+            [row()],
+            [audit_document(), audit_document()],
+            readings + [readings[0]],
+            [],
+        )
+
+        self.assertTrue(any("document audit appears more than once" in f for f in failures))
+        self.assertTrue(any("title reading appears more than once" in f for f in failures))
+
+    def test_unrecognized_or_unbound_entries_fail(self):
+        extra = reading("summary", "anything")
+        extra = dataclasses.replace(extra, filename="gone.pdf")
+        failures = gc.check_audit(
+            [row()], [audit_document()], self.complete_readings() + [extra], []
+        )
+
+        self.assertTrue(any("unknown audit column" in f for f in failures))
+        self.assertTrue(any("has no catalog row" in f for f in failures))
+
+    def test_document_identity_and_completion_fields_are_validated(self):
+        document = dataclasses.replace(
+            audit_document(), society="IDSA", sha256="not-a-digest", audited="?"
+        )
+        failures = gc.check_audit([row()], [document], self.complete_readings(), [])
+
+        self.assertTrue(any("document society" in f for f in failures))
+        self.assertTrue(any("SHA-256 is not" in f for f in failures))
+        self.assertTrue(any("audit date" in f for f in failures))
+
+    def test_reading_locator_and_evidence_are_required(self):
+        readings = self.complete_readings()
+        readings[0] = dataclasses.replace(readings[0], page="0", evidence="")
+        failures = gc.check_audit([row()], [audit_document()], readings, [])
+
+        self.assertTrue(any("page '0' is not within" in f for f in failures))
+        self.assertTrue(any("evidence is empty" in f for f in failures))
+
+    def test_stale_and_incomplete_rulings_fail(self):
+        stale = dataclasses.replace(ruling("population", "adult"), rationale="")
+        failures = gc.check_audit(
+            [row()], [audit_document()], self.complete_readings(), [stale]
+        )
+
+        self.assertTrue(any("ruling exists without a disagreement" in f for f in failures))
+        self.assertTrue(any("rationale is empty" in f for f in failures))
+
+    def test_a_missing_corpus_digest_fails(self):
+        failures = gc.check_audit_digests([audit_document()], {})
+
+        self.assertTrue(any("missing from the corpus digest scan" in f for f in failures))
+
+
+class ParsingTheIndependentAudit(unittest.TestCase):
+    def test_the_three_named_tables_are_parsed(self):
+        documents, readings, rulings, problems = gc.parse_audit(AUDIT)
+
+        self.assertEqual(problems, [])
+        self.assertEqual(documents[0].filename, "copd-screening.pdf")
+        self.assertEqual([item.column for item in readings], list(gc.AUDITED_COLUMNS))
+        self.assertEqual(rulings, [])
+
+
+class DraftingTheIndependentAudit(unittest.TestCase):
+    def test_the_blind_draft_exposes_no_judgment_values_or_machine_guesses(self):
+        text = gc.render_audit_draft([audit_document()])
+
+        self.assertIn("copd-screening.pdf", text)
+        self.assertIn("a" * 64, text)
+        self.assertNotIn(row().title, text)
+        self.assertNotIn(row().year, text)
+        self.assertEqual(text.count("| ? | ? | ? |"), len(gc.AUDITED_COLUMNS))
+
+    def test_the_cli_builds_a_blind_draft_from_file_identity_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "corpus"
+            society = src / "USPSTF"
+            society.mkdir(parents=True)
+            (society / "opaque.pdf").write_bytes(b"not parsed")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                result = gc.main(["--audit-draft", str(src)])
+
+        self.assertEqual(result, 0)
+        self.assertIn("opaque.pdf", stdout.getvalue())
+
+
+class CheckingTheAuditFromTheCli(unittest.TestCase):
+    def test_absent_corpus_bytes_are_reported_as_skipped_not_passed(self):
+        catalog = (
+            "# Catalog\n\n"
+            "| `class` | `guideline`, `recommendation-statement`, `web-capture`, "
+            "`draft`, `errata`, or `scope-of-work` |\n\n"
+            + gc.render_table([row()])
+            + "\n\n## Unsettled cells\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog_path = root / "catalog.md"
+            audit_path = root / "audit.md"
+            catalog_path.write_text(catalog, encoding="utf-8")
+            audit_path.write_text(AUDIT, encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                result = gc.main(
+                    [
+                        "--catalog",
+                        str(catalog_path),
+                        "--audit",
+                        str(audit_path),
+                        "--src",
+                        str(root / "absent-corpus"),
+                        "--pdf-src",
+                        str(root / "absent-corpus"),
+                    ]
+                )
+
+        self.assertEqual(result, 0)
+        self.assertIn("SKIPPED document digest verification", stdout.getvalue())
 
 
 class CheckShape(unittest.TestCase):

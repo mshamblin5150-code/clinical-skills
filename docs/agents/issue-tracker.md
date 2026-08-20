@@ -69,7 +69,7 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 **`-` and not a path to a device.** This line first read `/dev/stdin`, which is not a file on the platform every commit here is made from — the command exited 2 saying *no harvest file named dev/stdin*, so a documented step could not run while reading as a checked one.
 
-**Nothing runs any of this, and saying so is the point.** `tools/hooks/` holds only `pre-commit`, and a commit is not a filing — the tracker is not in the tree, so no hook can reach it. The gap this closes is *there was no check*; the gap it leaves is *a check exists and somebody has to run it*, and a command nobody runs is a written instruction with extra steps.
+**Nothing runs any of this, and saying so is the point.** `tools/hooks/` holds `pre-commit` and `commit-msg`, and neither owns a filing — the tracker is not in the tree, so no local hook can reach it. The gap this closes is *there was no check*; the gap it leaves is *a check exists and somebody has to run it*, and a command nobody runs is a written instruction with extra steps.
 
 **Do not grade this with `gh issue list`, and that is #130's own finding rather than a preference.** That command **`gh issue list` excludes pull requests**. Two of the eight lost bodies in this repo are pull requests — #98 and #71 — so every sweep that ran #130's reproduce command re-derived *six, not eight* and concluded the ticket's title was stale. **Its count was right** — its *three are still open* half really had gone stale, which is what made the whole title easy to dismiss — and the instrument could not see two of its members and had no way to say so. The `issues` REST endpoint returns both, and a `pull_request` key is which.
 
@@ -188,7 +188,7 @@ The paragraph that filed a ticket usually cites it, and that paragraph is a spec
 
 ### Ticket text takes standing rule 4
 
-**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Nothing checks any of them — `tools/spelling_scan.py` reads tracked Markdown, and an issue body is neither — so this one is on you, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) is where the gap is tracked. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is narrower than the language. **Do not quote its width here** — derive it, because the figure in this sentence went stale twice on 2026-08-18 alone:
+**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Since [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104), the local `commit-msg` hook checks a commit message against the listed forms, advisory; ticket bodies, comments and PR bodies remain the clinician's explicit manual surface because no local hook owns them. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is narrower than the language. **Do not quote its width here** — derive it, because the figure in this sentence went stale twice on 2026-08-18 alone:
 
 ```bash
 python -c "import sys; sys.path.insert(0,'tools'); import spelling_scan as s; print('TABLE', len(s.TABLE), 'FORMS', len(s.FORMS), 'ALL_FORMS', len(s.ALL_FORMS))"
