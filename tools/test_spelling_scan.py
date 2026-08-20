@@ -286,10 +286,91 @@ class TheRecordView(unittest.TestCase):
             self.assertRegex(case, r"^case-\d\d$")
 
 
+class TheWalkedPopulation(unittest.TestCase):
+    """#258: what a clean result covers, on the page rather than in a docstring.
+
+    #254 ruled that every ``git ls-files`` walk states what a clean result
+    covers, and `tracked_markdown`'s statement went into its docstring. This
+    scanner prints ``no listed British spelling found.`` -- an unqualified clean
+    result, in the one walk with the **recorded** instance rather than the
+    hypothetical one: ``CLAUDE.md`` carries ``licence`` landing in a skill file
+    because the staged scan had crashed and ``--all`` cannot see a file until
+    the commit that makes it tracked.
+
+    **Advisory cuts both ways and the clinician ruled it cuts toward saying so**
+    (2026-08-19, #258 open question 3). A line read past costs nothing; an
+    unqualified clean line is what let the recorded instance through.
+
+    **Every mode, not only ``--all``.** A reader who has learned to read the
+    ``--all`` qualifier would read its absence anywhere else as a stronger
+    claim, which is the defect one level down.
+    """
+
+    def clean(self):
+        return scan.Report([], scan.Evidence({}, ()))
+
+    def dirty(self):
+        return scan.Report(scan.scan_text("no dyspnoea at rest\n", "a.md"),
+                           scan.Evidence({}, ()))
+
+    def population(self, lines):
+        found = [line for line in lines if "scanned" in line]
+        self.assertEqual(len(found), 1, f"expected one population line in:\n{lines}")
+        return found[0]
+
+    def test_every_mode_names_what_it_walked(self):
+        for mode in scan.POPULATIONS:
+            with self.subTest(mode=mode):
+                line = self.population(scan.render(self.clean(), False, mode))
+                self.assertTrue(line.strip())
+
+    def test_the_all_mode_line_names_tracked_and_what_that_excludes(self):
+        """Both limbs, on #254's reasoning: *tracked* alone is what the walk's
+        name already said, and *untracked* alone never says what a pass means."""
+        line = self.population(scan.render(self.clean(), False, "--all"))
+        self.assertRegex(line, r"(?<!un)tracked")
+        self.assertRegex(line, r"(?i)untracked")
+
+    def test_an_unrecognized_mode_fails_rather_than_printing_a_bare_clean(self):
+        """`research_ledger.py`'s ruling on an unrecognized ``STATUS``, for its
+        reason: the value picks which claim is printed, so a third one would
+        silently drop the qualifier and print the exact line this ticket is
+        about."""
+        with self.assertRaises(KeyError):
+            scan.render(self.clean(), False, "everything")
+
+    def test_a_clean_run_carries_the_qualifier_beside_the_clean_line(self):
+        lines = scan.render(self.clean(), False, "--all")
+        self.assertTrue(any("no listed British spelling found" in line for line in lines))
+        self.assertIn(self.population(lines), lines)
+
+    def test_findings_do_not_suppress_it(self):
+        """A finding is a floor rather than the whole, so the population still
+        has to be stated -- `differential_scan.py`'s ordering, one scanner over."""
+        lines = scan.render(self.dirty(), False, "--all")
+        self.assertTrue(any("a.md:1" in line for line in lines))
+        self.assertRegex(self.population(lines), r"(?i)untracked")
+
+    def test_quiet_and_clean_still_prints_nothing(self):
+        """``--quiet`` means *print nothing when clean*, and the hook runs it on
+        every commit. Widening it into *print one line when clean* would make
+        this advisory scanner noisy on the one path where noise is paid for
+        every time."""
+        self.assertEqual(scan.render(self.clean(), True, "staged"), [])
+
+    def test_quiet_with_findings_still_states_its_coverage(self):
+        """The hook's own case. Where the scanner is already speaking, the floor
+        has to be stated -- otherwise the one report a committer reads is the
+        one with no qualifier on it."""
+        lines = scan.render(self.dirty(), True, "staged")
+        self.assertTrue(lines)
+        self.assertTrue(self.population(lines).strip())
+
+
 class Reporting(unittest.TestCase):
     def test_a_clean_scan_exits_zero(self):
         report = scan.Report([], scan.Evidence({}, ()))
-        self.assertEqual(scan.render(report, quiet=True), [])
+        self.assertEqual(scan.render(report, quiet=True, mode='staged'), [])
 
     def test_findings_are_rendered_one_per_line(self):
         text = textwrap.dedent(
@@ -299,7 +380,7 @@ class Reporting(unittest.TestCase):
             """
         )
         report = scan.Report(scan.scan_text(text, "a.md"), scan.Evidence({}, ()))
-        lines = scan.render(report, quiet=False)
+        lines = scan.render(report, quiet=False, mode='staged')
         self.assertTrue(any("a.md:1" in line for line in lines))
         self.assertTrue(any("a.md:2" in line for line in lines))
 
