@@ -25,9 +25,11 @@ file was caught using both.
 """
 
 import ast
+import io
 import re
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import NamedTuple
 
@@ -71,6 +73,155 @@ DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
 DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
 DAY_B_SEVERITY_PAINFUL = (6, 9)  # B8's anchors: the complaint itself is painful
 DAY_B_B14 = (3,)  # B14's anchor, for issue #42. The complaint does not hurt
+
+
+class TopicCandidatePoolsCountEachFamilyOncePerEncounter(unittest.TestCase):
+    """The clinician's issue #175 ruling at the public survey seam."""
+
+    def test_follow_up_and_active_complaint_both_count(self):
+        census = cc.survey_topic_candidates(
+            ["f/u htn\nc/o cough x3d, sore throat\nassessment: pharyngitis"]
+        )
+
+        self.assertEqual(census.notes, 1)
+        self.assertEqual(census.count("hypertension"), 1)
+        self.assertEqual(census.count("streptococcal pharyngitis"), 1)
+
+    def test_pack_per_day_does_not_inflate_tuberculosis(self):
+        census = cc.survey_topic_candidates(["smokes 1 ppd x 20 yrs"])
+
+        self.assertEqual(census.count("tobacco use"), 1)
+        self.assertEqual(census.count("tuberculosis diagnosis"), 0)
+
+    def test_history_medication_and_ruled_out_mentions_stay_in_the_ceiling(self):
+        census = cc.survey_topic_candidates(
+            ["PMH asthma, albuterol prn; strep ruled out"]
+        )
+
+        self.assertEqual(census.count("asthma"), 1)
+        self.assertEqual(census.count("streptococcal pharyngitis"), 1)
+
+    def test_default_pattern_requires_the_familys_distinctive_words(self):
+        census = cc.survey_topic_candidates(
+            ["lungs clear", "lung cancer ruled out"]
+        )
+
+        self.assertEqual(census.count("lung cancer screening"), 1)
+
+
+class TopicCandidateReportStatesWhatItsNumbersCanMean(unittest.TestCase):
+    """The public report is safe to paste and cannot read as prevalence."""
+
+    def test_orders_counts_and_names_both_error_directions(self):
+        report = cc.format_topic_report(
+            cc.TopicCensus(
+                notes=10,
+                candidates=(("zeta", 2), ("alpha", 4), ("beta", 2), ("zero", 0)),
+            )
+        )
+
+        self.assertIn("whole-encounter keyword candidate pools", report)
+        self.assertLess(report.index("alpha"), report.index("beta"))
+        self.assertLess(report.index("beta"), report.index("zeta"))
+        self.assertIn("history, medications, or ruled-out diagnoses", report)
+        self.assertIn("unmatched shorthand or missing synonyms", report)
+        self.assertIn("alpha", report)
+        self.assertIn("4 of 10", report)
+        self.assertNotIn("  zero", report)
+        self.assertIn("1 mapped family yielded zero recognized-keyword candidates", report)
+        self.assertIn("not a negative finding", report)
+
+    def test_main_census_report_includes_the_topic_block(self):
+        notes = ["f/u htn"]
+        report = cc.format_report(
+            cc.survey(notes),
+            source="synthetic",
+            date="2026-08-20",
+            bands=cc.survey_bands(notes),
+            files=cc.FileCensus(
+                files=1,
+                unique_files=1,
+                with_no_stated_age=1,
+                with_age_in_every_note=0,
+                with_mixed_age=0,
+            ),
+            topics=cc.survey_topic_candidates(notes),
+        )
+
+        self.assertIn("topic candidate pools", report)
+        self.assertIn("hypertension", report)
+        self.assertIn("1 of 1", report)
+
+    def test_command_report_includes_topic_candidates(self):
+        with tempfile.TemporaryDirectory() as raw:
+            corpus = Path(raw)
+            (corpus / "day.txt").write_text(
+                "Note 1\nf/u htn\n", encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                result = cc.main(["corpus_census.py", str(corpus)])
+
+        self.assertEqual(result, 0)
+        self.assertIn("topic candidate pools", stdout.getvalue())
+        self.assertIn("hypertension", stdout.getvalue())
+
+
+class EveryCatalogTopicIsDeliberatelyAccountedFor(unittest.TestCase):
+    """A new catalog row cannot vanish behind the current registry. Issue #175."""
+
+    def test_real_catalog_is_fully_mapped_or_scoped_out(self):
+        topics = cc.read_catalog_topics(REPO_ROOT / "reference" / "guidelines-catalog.md")
+        coverage = cc.topic_registry_coverage(topics)
+
+        self.assertTrue(coverage.complete, coverage.describe())
+
+    def test_an_unknown_catalog_topic_is_reported_missing(self):
+        coverage = cc.topic_registry_coverage(("newly added patient topic",))
+
+        self.assertEqual(coverage.missing, ("newly added patient topic",))
+
+    def test_related_catalog_rows_share_the_approved_sheet_family(self):
+        self.assertEqual(
+            cc.topic_family_for("high blood pressure screening"), "hypertension"
+        )
+        self.assertEqual(
+            cc.topic_family_for("anxiety disorder screening"),
+            cc.topic_family_for("anxiety screening"),
+        )
+        self.assertIsNone(
+            cc.topic_family_for("antimicrobial stewardship leadership")
+        )
+
+    def test_distinct_decision_sets_stay_in_distinct_families(self):
+        pairs = (
+            ("high blood pressure", "hypertensive disorders of pregnancy screening"),
+            ("adult immunization schedule", "maternal immunization"),
+            (
+                "cardiovascular disease prevention, aspirin",
+                "cardiovascular disease prevention, statins",
+            ),
+            ("diabetes mellitus", "prediabetes and type 2 diabetes screening"),
+            ("chronic obstructive pulmonary disease", "COPD screening"),
+        )
+        for left, right in pairs:
+            with self.subTest(left=left, right=right):
+                self.assertNotEqual(
+                    cc.topic_family_for(left), cc.topic_family_for(right)
+                )
+
+    def test_default_family_pattern_reaches_ordinary_shorthand(self):
+        census = cc.survey_topic_candidates(["working dx CVA / stroke"])
+
+        self.assertEqual(census.count("acute ischemic stroke, early management"), 1)
+
+    def test_every_mapped_topic_reaches_a_countable_family(self):
+        family_names = {family.name for family in cc.TOPIC_FAMILIES}
+
+        for topic in cc.MAPPED_CATALOG_TOPICS:
+            with self.subTest(topic=topic):
+                self.assertIn(cc.topic_family_for(topic), family_names)
+
 
 # The exam findings B14's "reasoned from a pain source" limb rests on. Case 3's
 # shorthand never says pain and never says its absence, so the only thing that
