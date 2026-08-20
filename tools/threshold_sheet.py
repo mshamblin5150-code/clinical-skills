@@ -64,8 +64,10 @@ row needed it.
     decision 3 makes multi-source the normal case -- one row per society with a
     ``CONFLICT`` block where they disagree -- so the first sheet carrying ADA beside
     AHA/ACC would have hit it, and hit it reading green. ``--recs`` is
-    ``<source key>=<path>`` now and ``--recs-root`` resolves ``recs-<source key>.json``,
-    and a sheet where **any** source has no record exits 2.
+    ``<source key>=<path>`` now and ``--recs-root`` resolves
+    ``recs-<source key>.json``. A record absent from that lookup root warns loudly and
+    exits 0 on #181's ruling; an explicit path that does not resolve, an unreadable
+    record, or any refusal from a record that is present remains non-zero.
 
 ``WATERMARK`` warns, and skips loudly where the extracted corpus is absent
     #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
@@ -157,9 +159,12 @@ why ``--brief`` prints a work order for a reader instead of doing the work.
 Exit status
 -----------
 
-``0`` clean. ``1`` a gate that refuses found something. ``2`` **every way of not
-having graded** -- no sheet, no rows in it, an unreadable Sources table, **any source
-with no recommendation record**, a ``--recs`` argument naming a source the sheet
+``0`` no refusing finding. This includes a recommendation record that was never built
+under ``--recs-root``: COVERAGE prints ``NOT RUN`` through ``--quiet`` and calls the
+result a warning, never a clean COVERAGE pass. ``1`` a gate that refuses found
+something. ``2`` every other way of not having graded -- no sheet, no rows in it, an
+unreadable Sources table, no record lookup requested, an explicit ``--recs`` path that
+does not resolve, an unreadable record, a ``--recs`` argument naming a source the sheet
 does not declare, a ``--second-read`` that was asked for and did not load, **and one
 that loaded and diffed no row at all** -- a record whose entries all land on pages the
 sheet cites nowhere made every row *uncovered* and printed ``0 refusing, 0 warning``,
@@ -1242,11 +1247,11 @@ def gate_second_read(
 
 def bind_recs(
     sheet: Sheet, arguments: list[str], recs_root: Path | None
-) -> tuple[dict[str, dict | None], dict[str, str], list[str]]:
+) -> tuple[dict[str, dict | None], dict[str, str], list[str], set[str]]:
     """Which recommendation record answers for each source the sheet declares.
 
     Returns ``({source key: record or None}, {source key: why there is none},
-    [argument errors])``.
+    [argument errors], {source keys whose lookup-root record was never built})``.
 
     **Per source and not per sheet, which is #177.** A sheet citing two societies used
     to be graded against whichever single record ``--recs`` named, and the other
@@ -1295,6 +1300,7 @@ def bind_recs(
 
     records: dict[str, dict | None] = {}
     why_not: dict[str, str] = {}
+    missing_records: set[str] = set()
     for key in sorted(sheet.sources):
         path = explicit.get(key)
         named = path is not None
@@ -1311,6 +1317,8 @@ def bind_recs(
             why_not[key] = (
                 f"no such file: {path}" if named else f"no recommendation record at {path}"
             )
+            if not named:
+                missing_records.add(key)
         else:
             try:
                 loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -1335,7 +1343,7 @@ def bind_recs(
     # the JSON `null` above -- and the symptom was a KeyError in `grade` rather than
     # anything a reader could act on. `EveryAbsentRecordSaysWhy` walks all four ways
     # of not having one.
-    return records, why_not, errors
+    return records, why_not, errors, missing_records
 
 
 def _record_built_from_another_document(recs: dict, source: dict[str, str]) -> str:
@@ -1546,7 +1554,9 @@ def grade(
     # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
     # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
     # `why_not` so the report can say which source and which of the two it was.
-    records, why_not, recs_errors = bind_recs(sheet, recs_arguments or [], recs_root)
+    records, why_not, recs_errors, missing_records = bind_recs(
+        sheet, recs_arguments or [], recs_root
+    )
 
     schema = gate_schema(sheet)
     tier1 = gate_citation_tier1(sheet)
@@ -1587,8 +1597,11 @@ def grade(
     # having graded, on `bind_recs`' ruling: the run asked for something and got
     # nothing, and a typo is not a decision. So is one that resolved and diffed no
     # row at all -- the run asked for a diff either way.
+    blocking_ungraded_sources = [
+        key for key in ungraded_sources if key not in missing_records
+    ]
     not_graded = (
-        bool(ungraded_sources)
+        bool(blocking_ungraded_sources)
         or bool(recs_errors)
         or not sheet.sources
         or (second_read is not None and not second_read.ok)
@@ -1760,7 +1773,13 @@ def grade(
         print(f"  COVERAGE        NOT RUN -- {message}", file=sys.stderr)
     for key in ungraded_sources:
         print(f"  COVERAGE        NOT RUN for source '{key}' -- {why_not[key]}", file=sys.stderr)
-    if ungraded_sources or recs_errors:
+    if missing_records:
+        print(
+            "  The missing recommendation record(s) above are a warning, not a clean "
+            "COVERAGE pass.",
+            file=sys.stderr,
+        )
+    if blocking_ungraded_sources or recs_errors:
         print("  Omission was not checked for the source(s) above. A source with no", file=sys.stderr)
         print("  recommendation record is not a source that passed, and a --recs path", file=sys.stderr)
         print("  that does not resolve is a typo rather than a decision.", file=sys.stderr)

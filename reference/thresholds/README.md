@@ -338,22 +338,21 @@ not left to be discovered:
 - **The population key is a judgment.** The grader checks it is declared, never that it
   is right. A mis-keyed row hides a real conflict by making two rows look like
   different patients.
-- **On a machine without the recommendation records, the hook refuses every edit to a
-  sheet — including a prose typo fix.** `--all` resolves `recs-<source key>.json` under
+- **On a machine without the recommendation records, COVERAGE skips loudly and the
+  hook does not refuse the edit.** `--all` resolves `recs-<source key>.json` under
   `--recs-root`, which defaults outside the repo and is **not committed**, because it
-  holds the society's recommendation text in full. Absent, COVERAGE cannot run, `grade`
-  returns 2, and `tools/hooks/pre-commit` turns any non-zero into a refusal. So a fresh
-  clone, a new worktree and CI can all stage a sheet and be told no, with the recovery
-  being to rebuild the record with `tools/guidelines_recs.py` as shown at the top of
-  this file, or `--no-verify`.
+  holds the society's recommendation text in full. When a record was never built,
+  `grade` prints `COVERAGE NOT RUN` even through `--quiet`, calls the result a warning
+  rather than a clean COVERAGE pass, and exits 0 unless another gate refuses. An
+  explicit `--recs` path that does not resolve or a record that exists but is unreadable
+  still exits 2; a present record that exposes an exact-source omission still exits 1.
 
-  **This is deliberate and it is the opposite of what tier 2 does two bullets down**,
-  which skips loudly and passes. The asymmetry is the point: tier 2 not running leaves
-  every value still checked against its own snippet, whereas COVERAGE not running
-  leaves **omission** unchecked, and omission is the one failure no other gate in this
-  directory can see. A sheet that cannot be checked for what it left out is not a sheet
-  anyone should be able to commit by accident. **Named here rather than smoothed over**,
-  because the cost lands on someone editing prose who has done nothing wrong.
+  This is [#181](https://github.com/mshamblin5150-code/clinical-skills/issues/181)'s
+  ruling. Omission remains the one failure no other gate in this directory can see,
+  but refusing every sheet edit on a fresh clone made an uncommitted build artifact a
+  prerequisite even for a prose typo fix. The visible degradation preserves that
+  distinction without teaching committers to bypass the whole hook. The directory
+  `README.md` is not a sheet and does not trigger the grader.
 - **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
 - **A `bound` source is warned about and never refused.** `tools/guidelines_recs.py
   --json` reports which mode a document yields, and that is the number to look at

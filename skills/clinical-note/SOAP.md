@@ -19,8 +19,10 @@ Onset, Location, Duration, Character, Aggravating, Relieving, Timing, Severity
  here, never a semicolon — that is the element separator on this line.
  See SKILL.md>
 
-Allergies (reaction): <allergen - reaction; drug status first, NKDA if none;
-                      then environmental and food, each named by its kind>
+Allergies (reaction): <Drug - allergen - reaction, or NKDA;
+                      Food - allergen - reaction, or none reported;
+                      Environmental - allergen - reaction, or none reported;
+                      one category per line>
 Home meds: <drug dose route frequency (reason for taking)>
 PMH/PSH: <given>
 FH (3 generations): GP: … ; Parents: … ; Sibs: …
@@ -65,9 +67,9 @@ Follow up: <interval, and what would bring them back sooner>
 
 **Severity is a numeric pain scale.** `6/10 facial pressure`, never a word and never blank. It is the one OLDCARTS element that is not ordinary filled content — it takes the filled-vital treatment, and the reasoning, the 0/10 boundary and the two forms in which the score is a *given* are all in [SKILL.md](SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate them here; do apply them.
 
-**`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `NKDA if none` is what the template above says, and it means it: `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus and every other box by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issue #29.
+**`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: the drug-allergy and tobacco defaults are settled by corpus counts, while #168 supplies the silent Food and Environmental values. Drift row 17 checks them. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issues #29 and #168.
 
-**`NKDA if none` is a claim about drug allergies only, and the box holds more than drug allergies.** The placeholder above now says so; it read `<allergen - reaction; NKDA if none>` while [HP.md](HP.md) read `and drug allergies separately`, and the two branches were obeyed apart for months. Every allergen the shorthand names reaches this box, named by its kind, **and the box states a drug status whether or not a drug was named** — so a bare `NKDA` with the seasonal allergy routed to `PMH/PSH` fails, and so does a box naming the seasonal allergy and saying nothing about drugs. Where an allergen goes and what a food intolerance takes are [SKILL.md](SKILL.md)'s under the same heading. Issue #96.
+**The Allergies field always carries Drug, Food, and Environmental lines in that order.** Every allergen the shorthand names reaches the line for its kind under issue #96. Under issue #168, silence fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; a stated item replaces only its category's negative. Each filled line is declared in `FILLED·asserted` carrying its value. The category label takes a hyphen, never a second colon. Where an allergen goes and what a food intolerance takes are [SKILL.md](SKILL.md)'s under *Which way a social or allergy slot reads*.
 **The `- reaction` half of that line is written even where the shorthand supplies only the allergen.** It is inferred and declared like any other filled value, and **the box itself carries no marker** — `Penicillin - rash`, never `reaction not documented` and never a tier word. The rule, the drug-and-food disclosure floor and what it costs are [SKILL.md](SKILL.md)'s under *The reaction beside a given allergen*; the one clause worth carrying in a reader's head here is that **an inferred reaction never licenses a drug the allergen would otherwise bar.** Issue #94.
 
 **Screening keys to a *given* tobacco history and never to a filled one.** The pack-year note below computes from a history the shorthand supplied. A **positive** tobacco status is never filled into the `SH:` clause in the first place, so there is no case where this note's screening line rests on a smoking history the skill invented.
