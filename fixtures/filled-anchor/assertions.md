@@ -335,8 +335,9 @@ python tools/refusal_scan.py <the run directory>
 The command grades the mechanical limbs: block presence, code plus nonempty descriptor, `needs:`, `proposed instead:`, and the
 proposed/refused collision. It prints the count vector so the grader can compare it with F1 rather
 than accepting an aggregate 52 that one added record could preserve after another was silently
-dropped. It cannot decide whether the descriptor is the official one; C2's lookup-backed check
-does that. **Exit 0 does not perform the vector comparison and is not F1 by itself.** The default report is
+dropped. It cannot decide whether the descriptor is the official one. That is C2's subject, and C2
+was not re-scored on run 2, so official-descriptor fidelity across these 52 records remains
+ungraded. **Exit 0 does not perform the vector comparison and is not F1 by itself.** The default report is
 counts only and safe to paste; `--show` names codes and is PHI.
 
 **Differential entries are outside both the numerator and the collision test.** Twelve of run 2's
