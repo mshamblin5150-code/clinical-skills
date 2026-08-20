@@ -345,10 +345,18 @@ def render_record(rows: list[RecordRow]) -> list[str]:
         "byte apart from two redacted site names. Issue #73.",
         "",
     ]
+    # Derived rather than typed. The width was a literal 13 and had always been
+    # too narrow for ``catheterisation`` -- which never surfaced, because that
+    # form is not in the record and so was never rendered. #278's
+    # ``immobilisation`` is the first 14-character form the record holds, and it
+    # pushed its own count out of the column. A literal beside a table that
+    # grows is #143 with a schedule, which is the argument the count on the
+    # ``vocabulary_covered`` line already runs on.
+    width = max((len(row.form) for row in rows), default=0)
     for row in rows:
         where = ", ".join(f"{case} x{count}" for case, count in row.cases)
         lines.append(
-            f"  {row.form:<13} {row.british:>2}   {where}"
+            f"  {row.form:<{width}} {row.british:>2}   {where}"
             f"   ({row.american}: {row.american_count})"
         )
     lines.append("")

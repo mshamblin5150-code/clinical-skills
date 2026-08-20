@@ -25,6 +25,7 @@ anything.
 """
 
 import ast
+import re
 import tempfile
 import textwrap
 import unittest
@@ -310,6 +311,93 @@ class TheRecordView(unittest.TestCase):
         self.assertEqual((rows["caesarean"].british, rows["caesarean"].american_count), (2, 8))
         self.assertEqual((rows["dyspnoea"].british, rows["dyspnoea"].american_count), (3, 7))
         self.assertEqual((rows["fibre"].british, rows["fibre"].american_count), (4, 3))
+
+    def test_the_widest_ratio_in_the_set_was_invisible_until_2026_08_20(self):
+        """``counselling`` is #73's argument at its sharpest, and the table not
+        holding the form is the only reason nobody had seen it.
+
+        Every other pair here is close enough to read as a slip. This one is not
+        -- the run wrote the American form many times over and the British form
+        a handful, **in the same two notes**, which is drift rather than a
+        register and is exactly what #73 claims. Pinned because the skill's
+        prose states both numbers beside `cesarean`, `dyspnea` and `fiber`, and
+        a figure stated in prose with nothing able to fail against it is #143.
+        """
+        rows = {row.form: row for row in self.rows}
+        row = rows["counselling"]
+        self.assertEqual((row.british, row.american_count), (12, 57))
+        self.assertGreater(
+            row.american_count,
+            max(r.american_count for r in self.rows if r.form != "counselling"),
+        )
+        # **Bound to the prose, not merely pinned here**, which is the same
+        # #220 gap the stated tally had. The three pairs beside this one in the
+        # skill are prose nothing can fail against; they predate this and are
+        # left alone, but a pair added *by* the change that fixed the tally may
+        # not repeat the defect one sentence over. Written in digits so the
+        # assertion can be built from the values rather than transcribed.
+        self.assertIn(
+            f"`counseling` {row.american_count} against "
+            f"`counselling` {row.british}",
+            SKILL.read_text(encoding="utf-8"),
+        )
+
+    def test_the_skills_stated_tally_is_the_one_the_scanner_computes(self):
+        """The figure in the skill's prose, bound rather than typed.
+
+        `CLAUDE.md` names ``skills/clinical-note/SKILL.md`` under *Conventions*
+        as this tally's **one home**, so unlike every other figure this repo
+        withholds, that one is meant to be written down. What it was missing is
+        the other half of #220: a copy nothing can fail against. It was
+        unbound for the length of one review and a reviewer mutated it to a
+        triple the record has never held with all 59 spelling tests green --
+        [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
+        inside the change citing #143.
+
+        **Only the current value is bound, and that asymmetry is deliberate.**
+        The three before it are what the paragraph *used to read*; they are
+        history and no reader can act on them. This one is a claim about the
+        tree.
+
+        **The parser lives here rather than in the module**, which is where
+        ``parse_skill_table`` sits. That one parses a **rule the scanner
+        enforces** and the scanner is its caller. This parses a **figure the
+        test pins**, and ``spelling_scan`` has no use for it -- a public
+        function with no production caller is Speculative Generality, and the
+        constants it checks against are this file's already.
+
+        The wording is the command's own, so the sentence a reader checks and
+        the line the tool prints are the same shape.
+        """
+        stated = re.search(
+            r"\*\*(\d+) forms / (\d+) occurrences / (\d+) of the twelve notes\*\*",
+            SKILL.read_text(encoding="utf-8"),
+        )
+        self.assertIsNotNone(
+            stated,
+            "the skill's stated record tally moved or changed shape; it is the "
+            "one home CLAUDE.md names for this figure",
+        )
+        self.assertEqual(
+            tuple(int(n) for n in stated.groups()),
+            (RECORD_FORMS, RECORD_OCCURRENCES, RECORD_NOTES),
+        )
+
+    def test_the_form_column_fits_the_longest_form_it_renders(self):
+        """The width is derived, so a longer form cannot push its own count out
+        of the column. It was a literal ``13`` and was already too narrow for
+        ``catheterisation`` -- invisibly, because that form is not in the record
+        and so was never rendered. #278's ``immobilisation`` is the first
+        14-character form the record holds, and it is what made the defect
+        visible rather than what introduced it."""
+        rendered = scan.render_record(self.rows)
+        counts = [
+            line[2 + max(len(row.form) for row in self.rows):]
+            for line, row in zip(rendered[2:2 + len(self.rows)], self.rows)
+        ]
+        for line in counts:
+            with self.subTest(line=line):
+                self.assertTrue(line.startswith(" "), "the form column overflowed")
 
     def test_the_view_names_cases_and_counts_only(self):
         rendered = "\n".join(scan.render_record(self.rows))
