@@ -453,6 +453,31 @@ class TheReasonWordsAreStatedInOnePlaceAndDescribedInAnother(unittest.TestCase):
     def test_the_section_shows_the_summary_line_both_counts_sit_on(self):
         self.assertIn(f"{sm.LINE_ENDINGS})", self.section())
 
+    def test_the_quoted_block_is_what_the_renderer_produces(self):
+        """The section quotes a run verbatim, and a quotation is pinned by nothing.
+
+        Naming the two reason *words* leaves the summary format free to be reworded,
+        which would rot the block in silence -- the same shape #262 records one
+        artifact newer. So the block is re-derived from `render` rather than read:
+        these are the entries the documented run had, and every line the renderer
+        writes for them has to appear in the section as written.
+        """
+        entries = [
+            sm.Entry("clinical-note", sm.STALE,
+                     differs=[sm.Difference("HP.md", sm.LINE_ENDINGS)]),
+            sm.Entry("setup-clinical-skills", sm.STALE,
+                     differs=[sm.Difference("SKILL.md", sm.CONTENT)]),
+        ]
+        rendered = sm.render(entries, Path("anywhere"), verbose=True)
+        quoted = [
+            line for line in rendered
+            if line.lstrip().startswith(("WARN", "differs ("))
+        ]
+        self.assertEqual(len(quoted), 4, rendered)
+        section = self.section()
+        for line in quoted:
+            self.assertIn(line, section)
+
 
 if __name__ == "__main__":
     unittest.main()
