@@ -263,28 +263,35 @@ HYPHEN_PIN = re.compile(r"[ \t]-[ \t]+$")
 NOT_VALIDATED_AGAINST = (
     (
         "the exit-1 path on committed input",
-        "The exit-1 path fires on nothing committed, and every test of it builds a "
-        "synthetic note. **Not because a run cannot be committed** -- one has been, "
-        "and the first draft of this row said otherwise while the row below it "
-        "named two, which is a declared-limits object contradicting itself and is "
-        "why this one is worded from the tree rather than from the argument. A run "
-        "is ordinarily a patient record under gitignored ``scratch/`` or "
-        "``output/``; the exception was redacted by hand, predates the mandated slot "
-        "form, and parses no differential entry, so it cannot reach this path "
-        "either. Committing one that could is what #162 prices at a run plus a "
-        "human redaction pass. ``research_ledger.py`` and ``reference_scan.py`` hold "
-        "the stronger form of this -- their subjects are a claim and a draft written "
-        "about a patient, with no redacted shape to commit at all.",
+        "**The branch has still never fired on output nobody edited**, and that is "
+        "now the whole of this row rather than half of it. What used to be the "
+        "other half was that the path could not be reached at all: every committed "
+        "directory was turned away before a single entry was parsed, so an empty "
+        "``findings`` there said nothing was read rather than nothing violates. "
+        "``fixtures/slot-form-run`` retired that -- each of its notes parses slot "
+        "entries **and** welded refusals, so one displaced code in any of them "
+        "trips the branch, and the merge reads the directory. **What is missing is "
+        "a committed run that genuinely violates, and it should stay missing**: a "
+        "record edited until the checker complains is material authored to make a "
+        "check pass its own examination, and #162's CI comment names the trap. So "
+        "the branch is driven by **mutating** that run inside the suite, where the "
+        "planted defect is legible in the test instead of baked into the record. "
+        "``research_ledger.py`` and ``reference_scan.py`` keep the harder version "
+        "of the old claim -- what they read is an assertion and an essay composed "
+        "about a person, and neither has a redacted shape anyone could commit.",
     ),
     (
         "the aggregate of the exit-2 limbs",
         "Each of the four ways of not having scanned is separately correct and "
         "separately documented above, and none of them says what they come to "
-        "together: both committed sets are refused, so a reader who checks one limb "
-        "at a time infers a coverage this tool does not have. "
-        "``fixtures/filled-anchor/run-2`` is the sharp case -- the one committed "
-        "artifact written in the mandated welded form is an ``icd10-cpt`` worksheet "
-        "set, which this scanner is pointed away from by design.",
+        "together. **That total used to be *nothing committed is legible here at "
+        "all*, and ``fixtures/slot-form-run`` ended it.** The residue is narrower "
+        "and still worth declaring: most of the committed directories a reader "
+        "would try are turned away, so checking one limb at a time still yields a "
+        "coverage figure this tool has not earned. "
+        "``fixtures/filled-anchor/run-2`` remains the sharp case -- the sole "
+        "committed artifact composed in the required welded shape belongs to "
+        "``icd10-cpt``, and this scanner is aimed elsewhere deliberately.",
     ),
     (
         "partial coverage inside a run",

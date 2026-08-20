@@ -297,6 +297,16 @@ It shipped inputs-only for a while, on the argument that a filled vital was neve
 
 **`day-b`'s C2 had already written the first lesson down and this set repeated it anyway.** *"A row that punished the refusal for naming what it refused would have inverted the rule it was written to hold."* One set learning a row-wording lesson does not stop the next set making it, because rows are written against a **rule** and this class of defect only shows up against an **output**. That is an argument for running a new set early rather than for reading harder — and it is the third consecutive first run whose most useful product was a corrected row rather than a number.
 
+## A run record is not a set, and there are two of them now
+
+[filled-anchor/run-2](filled-anchor/run-2/) and [slot-form-run](slot-form-run/) are **kept output**, not sets: no `assertions.md`, no row, no column in the table above. The distinction earns its keep — a run record scored under its own denominator would score the same work twice, and `slot-form-run`'s six notes are already scored in [day-a](day-a/assertions.md), [day-b](day-b/assertions.md), [hedged-dx](hedged-dx/assertions.md) and [peds-bp](peds-bp/assertions.md) as [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96)'s cohort.
+
+**What a kept run is for is a checker, and that is why the second one exists.** `tools/differential_scan.py` was pointed at the fixture tree and turned away by every directory in it, so the merge graded no real `clinical-note` output at all — [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162). `slot-form-run` is that answered, at the price this file has recorded since `filled-anchor/notes`: **a run plus a human redaction pass.**
+
+**The pass was needed and it was needed for the reason already written down.** One note of the six named both practicum sites, reasoning from the site rule to pick a payer — [#50](https://github.com/mshamblin5150-code/clinical-skills/issues/50)'s *a fixture derived from a skill's output inherits that skill's whole context* arriving a second time, from the same direction, with `phi_scan` silent both times. The count and the mapping are in [that set's README](slot-form-run/README.md) and deliberately nowhere else. **Its inputs were already de-identified and that changed nothing**, which is the whole of what #50 established and the reason nobody may skip the pass by pointing at clean inputs.
+
+**Two things a kept run must not become.** It must not be **tuned** — edited until a checker fires, which is material written to pass its own test rather than evidence — and it must not be **corrected**, on the argument [filled-anchor/notes](filled-anchor/notes/README.md) makes at length about its British spellings: byte-for-byte apart from a recorded redaction is the property that makes a run worth keeping, and every departure from it has to be written down where the run lives.
+
 ## A set has two halves
 
 **Inputs** are whatever the set's skill consumes, committed under the set. For every `clinical-note` set that is the shorthand — extracted from the day-file scan, de-identified, under `shorthand/`. For `filled-anchor` it is finished notes with their tier blocks, under `notes/`, because that is what `icd10-cpt` takes.
