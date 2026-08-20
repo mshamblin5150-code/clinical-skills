@@ -1,0 +1,53 @@
+# Scan the tracker record at the event that publishes it. Issue #260.
+#
+# This is deliberately incremental. Re-harvesting the whole tracker on every
+# comment would replay #264's ruled historical findings forever; scanning the
+# changed record makes a red run belong to the edit that caused it.
+#
+# Advisory on the repository's standing CI ruling. The workflow guarantees the
+# detector ran; branch protection is the only place that could make it a gate.
+
+name: tracker PHI shape layer
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created, edited]
+  pull_request_target:
+    types: [opened, edited]
+  pull_request_review:
+    types: [submitted, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  changed-record:
+    name: tracker PHI shape layer only
+    # A review submission may be only an approval state, with no public text.
+    # There is then no record for this text scanner to read and no scan to fail.
+    if: github.event_name != 'pull_request_review' || (github.event.review.body != null && github.event.review.body != '')
+    runs-on: windows-latest
+
+    steps:
+      # `pull_request_target` carries a token for the base repository. Check out
+      # the trusted default branch explicitly; no pull-request code executes.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Changed tracker record; corpus layer cannot run in CI
+        run: |
+          $report = python tools/tracker_scan.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME --allow-no-corpus
+          $status = $LASTEXITCODE
+          $report
+          @('### Tracker PHI scan coverage', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status

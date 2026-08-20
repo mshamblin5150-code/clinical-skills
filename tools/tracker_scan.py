@@ -11,6 +11,7 @@ the last of those as scanned by nothing.
 **Four limbs, and the mapping to those three is not one-to-one:**
 
 - ``--harvest`` reads GitHub's own JSON for issues, pull requests and comments.
+- ``--github-event`` reads the one record a GitHub tracker event changed.
   **This tool opens no socket**, which is `research_ledger.py`'s ruling adopted
   whole -- the fetch is a documented ``gh`` command whose output is a file, so
   the scanner stays offline, testable and stdlib-only.
@@ -217,6 +218,37 @@ def records_from_github(data: object, source: str) -> list[Record]:
     return records
 
 
+EVENT_RECORD_KEYS = {
+    "issues": "issue",
+    "issue_comment": "comment",
+    "pull_request": "pull_request",
+    "pull_request_target": "pull_request",
+    "pull_request_review": "review",
+    "pull_request_review_comment": "comment",
+}
+
+
+def records_from_github_event(
+    data: object, event_name: str, source: str
+) -> list[Record]:
+    """The one record created or edited by a ruled GitHub tracker event.
+
+    Incremental is load-bearing. A full harvest on every comment would replay
+    every historical finding from #264, so an old warning would be the normal
+    result and a new one would hide inside it. GitHub has already selected the
+    changed object; this adapter only gives that object to the existing parser.
+    """
+    if not isinstance(data, dict):
+        raise HarvestError(f"{source}: not a JSON object")
+    key = EVENT_RECORD_KEYS.get(event_name)
+    if key is None:
+        raise HarvestError(f"{source}: unsupported GitHub event {event_name!r}")
+    item = data.get(key)
+    if not isinstance(item, dict):
+        raise HarvestError(f"{source}: event has no {key!r} record")
+    return records_from_github([item], source)
+
+
 def _label(item: dict, source: str) -> str:
     """The most openable name the payload offers.
 
@@ -243,6 +275,18 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
             raise HarvestError(f"{path}: {error}") from error
         records.extend(records_from_github(data, path.name))
     return records
+
+
+def load_github_event(path: Path, event_name: str) -> list[Record]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise HarvestError(f"{path}: {error}") from error
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise HarvestError(f"{path}: {error}") from error
+    return records_from_github_event(data, event_name, path.name)
 
 
 def pull_head_refs(repo: Path) -> list[str]:
@@ -428,6 +472,8 @@ def main(argv: list[str]) -> int:
         description="Scan tracker text, commit messages, blobs and paths for PHI.",
     )
     parser.add_argument("--harvest", nargs="+", type=Path, default=[])
+    parser.add_argument("--github-event", type=Path)
+    parser.add_argument("--event-name", choices=tuple(EVENT_RECORD_KEYS))
     parser.add_argument("--commits", action="store_true")
     parser.add_argument("--history", action="store_true")
     parser.add_argument("--paths", action="store_true")
@@ -441,9 +487,16 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--show", action="store_true")
     args = parser.parse_args(argv)
 
-    if not (args.harvest or args.commits or args.history or args.paths):
+    if args.github_event and not args.event_name:
+        parser.error("--github-event requires --event-name")
+    if args.event_name and not args.github_event:
+        parser.error("--event-name requires --github-event")
+
+    if not (args.harvest or args.github_event or args.commits or args.history
+            or args.paths):
         print("tracker-scan: DID NOT SCAN -- name a surface", file=sys.stderr)
-        print("  --harvest <file.json> ... | --commits | --history | --paths",
+        print("  --harvest <file.json> ... | --github-event <event.json> | "
+              "--commits | --history | --paths",
               file=sys.stderr)
         return NOT_SCANNED
 
@@ -456,6 +509,8 @@ def main(argv: list[str]) -> int:
     try:
         if args.harvest:
             records.extend(load_harvest(args.harvest))
+        if args.github_event:
+            records.extend(load_github_event(args.github_event, args.event_name))
 
         if args.commits or args.history:
             refs = pull_head_refs(repo)
@@ -518,6 +573,7 @@ def main(argv: list[str]) -> int:
             unscanned = True
 
     names, dates = phi_scan.corpus_identifiers()
+    banners.extend(phi_scan.shortfall_notice(phi_scan.corpus_coverage(), missing))
     findings = scan_records(records, phi_scan.build_index(names, dates))
     print(format_report(findings, records, context, banners, args.show))
 

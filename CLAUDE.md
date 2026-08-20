@@ -643,6 +643,27 @@ git fetch origin
 python tools/tracker_scan.py --commits --history --paths
 ```
 
+**The recurring trigger is the tracker event, owned by Actions.** Issue and
+pull-request titles and bodies, issue comments, review bodies and review
+comments run [.github/workflows/tracker.yml](.github/workflows/tracker.yml) when
+they are created or edited. The workflow scans the **changed record**, not a
+fresh copy of the whole tracker: replaying the historical surface would repeat
+#264's already-triaged findings on every comment until a new finding became one
+more line in an always-red report. Creation and edit are the publication events,
+so the incremental boundary loses none of the current text a full harvest can
+read. GitHub's retained pre-edit revisions remain outside the API on the ruling
+below.
+
+**It is a shape layer run and says so on the check.** `scratch/` must never
+reach a runner, so Actions passes `--allow-no-corpus`, preserves the scanner's
+dead-layer banner in the step summary and claims no patient-name coverage. The
+maintainer's clone remains the owner of a full harvest or git-surface run, where
+the corpus layer is live; if its name index is present but short,
+`tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
+hook was declined as the trigger: a comment is published without a push, and a
+push can happen before the finishing sweep writes its comments. This is #260's
+ruling, 2026-08-20.
+
 **It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
 **The refspec configuration is once per clone, and it is persistent on purpose.** A one-off fetch creates `refs/remotes/origin/pr/*` without teaching the remote where they came from, so `git fetch --prune` deletes every one and an ordinary fetch never refreshes them. With the refspec in `remote.origin.fetch`, prune preserves live pull heads and every ordinary fetch refreshes them. `tracker_scan` refuses the git surface when the configuration is absent even if old pull-head refs remain, because presence alone cannot distinguish current refs from stale ones. [#294](https://github.com/mshamblin5150-code/clinical-skills/issues/294).
