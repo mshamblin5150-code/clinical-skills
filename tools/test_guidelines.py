@@ -30,6 +30,7 @@ from tempfile import TemporaryDirectory
 
 import guidelines_index as gi
 import guidelines_search as gs
+from repo_root import InsideCheckout
 
 TOOLS = Path(__file__).resolve().parent
 
@@ -205,40 +206,54 @@ class ManifestTests(TempCorpus):
 
 
 class RepoContainmentTests(TempCorpus):
-    """The index is 65 MB and there are six live worktrees. Writing it inside the
-    repo is the failure this guard exists for, and `git status` being clean after
-    a build is a done-when on #84."""
+    """The index is large and every worktree materializes what lands in one.
+    Writing it inside a checkout is the failure this guard exists for, and `git status` being clean
+    after a build is a done-when on #84.
 
-    def test_a_path_inside_the_repo_is_refused(self):
-        repo = self.root / "clinical_skills"
-        (repo / "reference").mkdir(parents=True)
-        with self.assertRaises(gi.InsideRepo):
-            gi.ensure_outside_repo(repo / "reference" / "guidelines.sqlite", repo_roots=[repo])
+    **The detection rule is not tested here any more** -- it moved to
+    ``repo_root.enclosing_checkout`` on #176, and ``test_repo_root.py`` grades it.
+    What stays is the thing that is this module's own: that ``build`` consults it
+    before it writes, and that the refusal reaches a caller as one exception type.
+    ``repo_roots`` went with the rule; the seam is a real ``.git`` entry now,
+    which is a truer fixture than a list of paths asserted to be roots.
+    """
 
-    def test_the_repo_root_itself_is_refused(self):
-        repo = self.root / "clinical_skills"
-        repo.mkdir()
-        with self.assertRaises(gi.InsideRepo):
-            gi.ensure_outside_repo(repo / "guidelines.sqlite", repo_roots=[repo])
+    def checkout(self, name: str = "clinical_skills") -> Path:
+        repo = self.root / name
+        (repo / ".git").mkdir(parents=True)
+        return repo
 
-    def test_a_sibling_of_the_repo_is_allowed(self):
-        repo = self.root / "clinical_skills"
-        repo.mkdir()
-        gi.ensure_outside_repo(self.root / "guidelines-index" / "g.sqlite", repo_roots=[repo])
-
-    def test_a_path_that_only_shares_a_name_prefix_is_allowed(self):
-        """clinical_skills-notes is not inside clinical_skills. String prefixes would
-        say it is."""
-        repo = self.root / "clinical_skills"
-        repo.mkdir()
-        gi.ensure_outside_repo(self.root / "clinical_skills-notes" / "g.sqlite", repo_roots=[repo])
-
-    def test_build_refuses_a_database_inside_the_repo(self):
+    def test_build_refuses_a_database_inside_a_checkout(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
-        repo = self.root / "clinical_skills"
-        repo.mkdir()
-        with self.assertRaises(gi.InsideRepo):
-            gi.build(self.text_dir, repo / "reference" / "g.sqlite", repo_roots=[repo])
+        repo = self.checkout()
+        with self.assertRaises(InsideCheckout):
+            gi.build(self.text_dir, repo / "reference" / "g.sqlite")
+
+    def test_build_refuses_before_it_writes_anything(self):
+        """A guard consulted after ``mkdir`` leaves the directory behind, which is
+        the artifact the ticket is about arriving in the tree anyway."""
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        repo = self.checkout()
+        with self.assertRaises(InsideCheckout):
+            gi.build(self.text_dir, repo / "reference" / "g.sqlite")
+        self.assertFalse((repo / "reference").exists())
+
+    def test_the_command_line_reports_a_refusal_as_did_not_scan(self):
+        """``main`` needed no new handler: ``InsideCheckout`` is a ``ValueError``
+        and lands on the one already there, which returns 2 -- did not build."""
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        repo = self.checkout()
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            status = gi.main([str(self.text_dir), str(repo / "reference" / "g.sqlite")])
+        self.assertEqual(status, 2)
+        self.assertIn("git checkout", stderr.getvalue())
+
+    def test_a_sibling_of_the_checkout_is_built(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        self.checkout()
+        report = gi.build(self.text_dir, self.root / "guidelines-index" / "g.sqlite")
+        self.assertTrue(report.database.exists())
 
     def test_the_main_checkout_is_found_from_inside_a_worktree(self):
         """A worktree's .git is a file pointing at the main checkout. Resolving it
