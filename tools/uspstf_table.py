@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
-from guidelines_index import discover, read_manifest
+from guidelines_index import read_extracted_corpus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
@@ -613,20 +613,17 @@ def _looks_like_a_title(text: str) -> bool:
 YEAR = re.compile(r"\b(19[89]\d|20[0-4]\d)\b")
 
 
-def derive_year(
-    pages: list[str], stripped_lines: list[str] | tuple[str, ...] = ()
-) -> str:
+def derive_year(pages: list[str]) -> str:
     """Publication year, from the journal citation and then the online-publication line.
 
     The DOI is stripped before the year is looked for: ``doi:10.1001/jama.2023.5634``
-    otherwise reads as the year 1001. #80's manifest evidence is searched alongside
-    the first three pages because repeated journal citations are correctly stripped
-    from the text artifact.
+    otherwise reads as the year 1001. Every citation-shaped line is checked rather
+    than only the first: JAMA pages commonly open with a journal masthead before the
+    structured abstract's dated citation.
     """
-    evidence = [*pages[:3], "\n".join(stripped_lines)]
+    evidence = pages[:3]
     for page in (normalize(p) for p in evidence):
-        citation = CITATION.search(page)
-        if citation:
+        for citation in CITATION.finditer(page):
             year = YEAR.search(re.sub(r"doi:\S+", "", citation.group(0)))
             if year:
                 return year.group(1)
@@ -683,7 +680,6 @@ def parse_document(
     pages: list[str],
     filename: str,
     metadata_title: str = "",
-    stripped_lines: list[str] | tuple[str, ...] = (),
 ) -> DocumentResult:
     """Every recommendation row one document contributes, or why it contributed none."""
     if not pages:
@@ -693,7 +689,7 @@ def parse_document(
         return DocumentResult(filename, reason="no grade marker found in any recommendation region")
     region, statements = chosen
     topic = derive_topic(pages, filename, metadata_title)
-    year = derive_year(pages, stripped_lines)
+    year = derive_year(pages)
     fallback = document_population(pages)
     rows = [
         Row(
@@ -899,40 +895,21 @@ def render_markdown(results: list[DocumentResult]) -> str:
 
 
 # --------------------------------------------------------------------------------------
-# PDF I/O -- the only part of this module that opens a file
+# Extracted-corpus input
 # --------------------------------------------------------------------------------------
 
 
 def build(source_dir: Path) -> list[DocumentResult]:
     """Build rows from the USPSTF documents in #80's extracted corpus."""
-    manifest = read_manifest(source_dir)
-    if not manifest:
-        raise ValueError(f"{source_dir / 'manifest.json'} is required to build the table")
-    documents = {document.doc_id: document for document in discover(source_dir)}
     results = []
-    for doc_id, entry in sorted(manifest.items()):
-        society = entry.get("society") or doc_id.partition("/")[0]
-        if society != "USPSTF":
-            continue
-        filename = str(entry.get("source") or f"{doc_id}.pdf")
-        if entry.get("error"):
-            results.append(
-                DocumentResult(filename, reason=f"extraction failed: {entry['error']}")
-            )
-            continue
-        document = documents.get(doc_id)
-        if document is None:
-            results.append(DocumentResult(filename, reason="extracted text is missing"))
+    for document in read_extracted_corpus(source_dir):
+        if document.society != "USPSTF":
             continue
         results.append(
             parse_document(
                 [page.text for page in document.pages],
-                filename,
+                document.source,
                 document.title or "",
-                [
-                    *entry.get("boilerplate", []),
-                    *entry.get("margin_stripped", []),
-                ],
             )
         )
     return results

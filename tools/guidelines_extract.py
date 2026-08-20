@@ -585,6 +585,28 @@ CLASS_UNKNOWN = "unknown"
 #: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
 CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
 
+# The pre-strip page vote used by the catalog's publication-year guess. It lives
+# with the producer because the manifest has to retain the page frequency that
+# deduplicated ``boilerplate`` and ``margin_stripped`` literals cannot express.
+PUBLICATION_YEAR_RE = re.compile(r"(?:19|20)\d{2}")
+ACCESS_LINE_RE = re.compile(
+    r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
+)
+
+
+def publication_year_page_counts(pages: list[list[str]]) -> dict[str, int]:
+    """How many pages carry each non-access year before anything is stripped."""
+    hits: dict[str, int] = {}
+    for page in pages:
+        found: set[str] = set()
+        for line in page:
+            if ACCESS_LINE_RE.search(line):
+                continue
+            found.update(PUBLICATION_YEAR_RE.findall(line))
+        for year in found:
+            hits[year] = hits.get(year, 0) + 1
+    return dict(sorted(hits.items()))
+
 # A recommendation statement is a document that titles itself one. The two marks have
 # to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
 # line in four KDIGO guidelines and in the CDC opioid guideline, and matching the
@@ -959,6 +981,9 @@ class Record:
     # reshuffle of the old one.
     margin_patterns: list[str] = field(default_factory=list)
     margin_stripped: list[str] = field(default_factory=list)
+    # #108's exact pre-strip evidence. The two line lists above are deduplicated,
+    # so they cannot preserve the page vote the catalog's year rule makes.
+    year_page_counts: dict[str, int] = field(default_factory=dict)
     # #172's report, and deliberately a field rather than a printed line. A symbol
     # font this module's table does not name is decoded however the PDF says and
     # passes in silence -- which is the state the corpus was in for the whole of
@@ -1034,6 +1059,7 @@ def build_document(
         boilerplate=boilerplate,
         margin_patterns=fired,
         margin_stripped=margin_stripped,
+        year_page_counts=publication_year_page_counts(pages),
         symbol_glyphs=dict(symbol_glyphs or {}),
         error=None,
     )

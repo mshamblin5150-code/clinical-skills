@@ -23,6 +23,7 @@ this catalog has.
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -126,6 +127,36 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "manifest.json"):
                 gc.read_corpus(text_dir)
+
+    def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(Path("KDIGO/guideline.pdf"), ["body"], text_dir)
+            manifest_path = extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src")
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["documents"][0]["title"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "title"):
+                gc.read_corpus(text_dir)
+
+    def test_year_voting_keeps_page_frequency_after_the_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            pages = [
+                "Journal 2019\nUpdate 2021 page 1\nbody",
+                "Journal 2019\nUpdate 2021 page 2\nbody",
+                "Journal 2019\nUpdate 2021 page 3\nbody",
+                "Journal 2019\nbody",
+            ]
+            record = extract.build_document(
+                Path("KDIGO/guideline.pdf"), pages, text_dir, "Clinical Practice Guideline"
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertEqual(gc.read_corpus(text_dir)[0].year_guess, "2019")
 
 
 class TableRows(unittest.TestCase):

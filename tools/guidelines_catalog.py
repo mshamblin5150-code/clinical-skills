@@ -33,7 +33,7 @@ output, and the checker never prints document text.
 
 The builder consumes #80's extracted text and manifest, so it is stdlib-only and
 never opens a PDF. The manifest supplies the producer-owned class, metadata title,
-source filename, and pre-strip lines that the year rule needs.
+source filename, and exact pre-strip page vote that the year rule needs.
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
-from guidelines_extract import CLASSES
-from guidelines_index import discover, read_manifest
+from guidelines_extract import CLASSES, publication_year_page_counts
+from guidelines_index import read_extracted_corpus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
@@ -96,13 +96,6 @@ UNSETTLED = "?"
 UNSETTLED_HEADING = "## Unsettled cells"
 
 YEAR_RE = re.compile(r"(?:19|20)\d{2}")
-
-# Years on these lines date the download, not the document. Every AHA/ACC and
-# most IDSA files carry one on every page, so leaving them in makes 2026 the
-# apparent publication year of a 2018 guideline.
-ACCESS_LINE_RE = re.compile(
-    r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
-)
 
 @dataclass(frozen=True)
 class Row:
@@ -268,7 +261,7 @@ def parse_unsettled(lines: list[str], problems: list[str]) -> dict[str, set[str]
 
 
 def year_guess(
-    title: str, pages: list[str], stripped_lines: list[str] | tuple[str, ...] = ()
+    title: str, pages: list[str], year_page_counts: dict[str, int] | None = None
 ) -> str:
     """Guess the publication year, title first.
 
@@ -282,31 +275,21 @@ def year_guess(
     in_title = YEAR_RE.findall(title)
     if in_title:
         return in_title[0]
-    stripped = year_from_stripped_lines(stripped_lines)
-    if stripped != UNSETTLED:
-        return stripped
+    if year_page_counts is not None:
+        return year_from_page_counts(year_page_counts, len(pages))
     return year_from_running_head(pages)
 
 
-def year_from_stripped_lines(lines: list[str] | tuple[str, ...]) -> str:
-    """Recover the running-head year from #80's pre-strip manifest evidence.
-
-    Literal boilerplate is deduplicated by value and margin removals are likewise
-    recorded as their distinct literal lines. Counting the year-bearing literals
-    preserves the running-head winner without making the catalog reopen the PDF.
-    Access stamps stay excluded for the same reason as in
-    :func:`year_from_running_head`.
-    """
-    hits: dict[int, int] = {}
-    for line in lines:
-        if ACCESS_LINE_RE.search(line):
-            continue
-        for year in {int(value) for value in YEAR_RE.findall(line)}:
-            hits[year] = hits.get(year, 0) + 1
-    if not hits:
+def year_from_page_counts(
+    counts: dict[str, int], page_count: int, threshold: float = 0.5
+) -> str:
+    """Choose the running-head year from the producer's exact page vote."""
+    need = max(2, page_count * threshold)
+    winners = {int(year): count for year, count in counts.items() if count >= need}
+    if not winners:
         return UNSETTLED
-    best = max(hits.values())
-    return str(max(year for year, count in hits.items() if count == best))
+    best = max(winners.values())
+    return str(max(year for year, count in winners.items() if count == best))
 
 
 def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
@@ -321,20 +304,7 @@ def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
     """
     if not pages:
         return UNSETTLED
-    hits: dict[int, int] = {}
-    for page in pages:
-        found: set[int] = set()
-        for line in page.split("\n"):
-            if ACCESS_LINE_RE.search(line):
-                continue
-            found.update(int(y) for y in YEAR_RE.findall(line))
-        for year in found:
-            hits[year] = hits.get(year, 0) + 1
-    need = max(2, len(pages) * threshold)
-    winners = {y: n for y, n in hits.items() if n >= need}
-    if not winners:
-        return UNSETTLED
-    best = max(winners.values())
+    counts = publication_year_page_counts([page.splitlines() for page in pages])
     # Ties go to the later year. The case for the earlier one — a guideline dated
     # 2018 that reached print in a 2019 issue carries both on every page — never
     # reaches here, because ``year_guess`` takes the title's year first and those
@@ -344,7 +314,7 @@ def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
     # guideline, and the USPSTF carotid stenosis and genital herpes
     # reaffirmations) and wrong once, on a five-page ASCO/IDSA reprint carrying an
     # access year this rule does not recognize as one.
-    return str(max(y for y, n in winners.items() if n == best))
+    return year_from_page_counts(counts, len(pages), threshold)
 
 
 def title_guess(meta_title: str | None, pages: list[str], filename: str) -> str:
@@ -381,47 +351,19 @@ def read_corpus(src: Path) -> list[Document]:
     """Read every document from #80's extracted text and manifest.
 
     The manifest is required because it carries the source filename, metadata
-    title, producer-owned class, and the pre-strip lines used by the year rule.
+    title, producer-owned class, and the pre-strip page vote used by the year rule.
     A text tree without that contract is not a catalog corpus.
     """
-    manifest = read_manifest(src)
-    if not manifest:
-        raise ValueError(f"{src / 'manifest.json'} is required to build the catalog")
-
-    failed = sorted(doc_id for doc_id, entry in manifest.items() if entry.get("error"))
-    if failed:
-        raise ValueError(f"the extraction manifest records failed documents: {failed}")
-
-    indexed = list(discover(src))
-    indexed_ids = {document.doc_id for document in indexed}
-    expected_ids = {
-        doc_id for doc_id, entry in manifest.items() if entry.get("output") and not entry.get("error")
-    }
-    if indexed_ids != expected_ids:
-        missing = sorted(expected_ids - indexed_ids)
-        extra = sorted(indexed_ids - expected_ids)
-        raise ValueError(
-            f"extracted text and manifest disagree (missing text: {missing}; extra text: {extra})"
-        )
-
     docs: list[Document] = []
-    for document in indexed:
-        entry = manifest[document.doc_id]
+    for document in read_extracted_corpus(src):
         pages = [page.text for page in document.pages]
-        if entry.get("pages") != len(pages):
+        if document.year_page_counts is None:
             raise ValueError(
-                f"{document.doc_id}: manifest says {entry.get('pages')} pages, "
-                f"extracted text contains {len(pages)}"
+                f"{document.doc_id}: manifest entry has no year_page_counts; "
+                "rebuild the extracted corpus"
             )
-        source = entry.get("source")
-        if not source:
-            raise ValueError(f"{document.doc_id}: manifest entry has no source filename")
-        filename = Path(str(source)).name
+        filename = Path(document.source).name
         title = title_guess(document.title, pages, filename)
-        stripped_lines = [
-            *entry.get("boilerplate", []),
-            *entry.get("margin_stripped", []),
-        ]
         docs.append(
             Document(
                 society=document.society or "",
@@ -429,7 +371,7 @@ def read_corpus(src: Path) -> list[Document]:
                 page_count=len(pages),
                 cls=document.document_class,
                 title_guess=title,
-                year_guess=year_guess(title, pages, stripped_lines),
+                year_guess=year_guess(title, pages, document.year_page_counts),
             )
         )
     return docs

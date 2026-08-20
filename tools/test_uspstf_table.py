@@ -24,6 +24,7 @@ Run with::
     python -m unittest discover -s tools -t tools
 """
 
+import json
 import os
 import tempfile
 import unittest
@@ -97,12 +98,16 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             results = ut.build(text_dir)
             self.assertEqual([row.grade for row in results[0].rows], ["D"])
 
-    def test_a_stripped_journal_citation_still_supplies_the_year(self):
+    def test_the_dated_abstract_citation_wins_after_an_undated_jama_masthead(self):
         with tempfile.TemporaryDirectory() as tmp:
             text_dir = Path(tmp)
             citation = "JAMA. 2017;317(12):1252-1257"
-            raw_pages = [fixture("ahrq-sentence-grade")[0] + "\n" + citation]
-            raw_pages.extend(["body\n" + citation for _ in range(3)])
+            raw_pages = [
+                "JAMA | US Preventive Services Task Force | RECOMMENDATION STATEMENT\n"
+                + fixture("ahrq-sentence-grade")[0]
+                + "\n"
+                + citation
+            ]
             record = extract.build_document(
                 Path("USPSTF/celiac.pdf"),
                 raw_pages,
@@ -111,12 +116,28 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             )
             extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
 
-            self.assertNotIn(
+            self.assertIn(
                 citation,
                 (text_dir / "USPSTF" / "celiac.txt").read_text(encoding="utf-8"),
             )
             results = ut.build(text_dir)
             self.assertEqual({row.year for row in results[0].rows}, {"2017"})
+
+    def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/rhrs.pdf"), fixture("ahrq-sentence-grade"), text_dir
+            )
+            manifest_path = extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src")
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["documents"][0]["title"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "title"):
+                ut.build(text_dir)
 
 
 class GradeValidationTests(unittest.TestCase):
