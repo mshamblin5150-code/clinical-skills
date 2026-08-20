@@ -26,6 +26,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -1563,6 +1564,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             sheets.mkdir(parents=True)
             for name in (
                 "threshold_sheet.py",
+                "artifact_provenance.py",
                 "guidelines_extract.py",
                 "guidelines_index.py",
                 "console_codec.py",
@@ -1585,7 +1587,11 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             subprocess.run([git, "add", "--", str(sheet_path)], cwd=root, check=True)
             empty_recs = root / "empty-recs"
             empty_recs.mkdir()
-            environment = {**os.environ, "CLINICAL_GUIDELINES_RECS": str(empty_recs)}
+            environment = {
+                **os.environ,
+                "CLINICAL_GUIDELINES_RECS": str(empty_recs),
+                "CLINICAL_GUIDELINES_TEXT": str(root / "absent-text"),
+            }
             result = subprocess.run(
                 [shell, str(tools / "hooks" / "pre-commit")],
                 cwd=root,
@@ -2202,6 +2208,12 @@ class TheCommandLineRefusesWhatItCannotBind(unittest.TestCase):
             ["sheet.md", "--pdf-root", "/data/guidelines-src", "--text-root", "/elsewhere"]
         )
         self.assertEqual(gate.text_root_for(args), Path("/elsewhere"))
+
+    def test_the_text_root_can_be_supplied_to_the_hook_by_environment(self):
+        with mock.patch.dict(os.environ, {"CLINICAL_GUIDELINES_TEXT": "/shared/text"}):
+            args = gate.build_parser().parse_args(["sheet.md"])
+
+        self.assertEqual(gate.text_root_for(args), Path("/shared/text"))
 
 
 class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):

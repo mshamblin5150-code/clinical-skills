@@ -1864,10 +1864,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--text-root",
         type=Path,
-        default=None,
+        default=(
+            Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
+            if os.environ.get("CLINICAL_GUIDELINES_TEXT")
+            else None
+        ),
         help=(
             "#80's extracted-text directory, holding manifest.json, for WATERMARK. "
-            "Derived from --pdf-root when not given (absent is reported, never passed)"
+            "Defaults from CLINICAL_GUIDELINES_TEXT, then derives from --pdf-root "
+            "when neither is given (absent is reported, never passed)"
         ),
     )
     parser.add_argument(
