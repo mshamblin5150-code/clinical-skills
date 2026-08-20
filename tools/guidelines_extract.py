@@ -557,6 +557,15 @@ CLASS_RECOMMENDATION_STATEMENT = "recommendation-statement"
 # A browser print-to-PDF of a web page rather than a published document, which is the
 # three ACIP/ files and only those.
 CLASS_WEB_CAPTURE = "web-capture"
+# A document whose own title page says it is not final. Kept narrower than the word
+# ``draft`` so a final guideline discussing an earlier draft is not reclassified.
+CLASS_DRAFT = "draft"
+# A correction document that titles itself ``Errata`` or ``Erratum``. The classifier
+# matches a whole title line, never the word in body prose.
+CLASS_ERRATA = "errata"
+# Planning material for a guideline that has not been written. Both identity marks
+# are required so an ordinary scope section does not decide the document class.
+CLASS_SCOPE_OF_WORK = "scope-of-work"
 # For a document that was never read. It is not a guideline; nobody knows what it
 # is, and recording it as the default class would let a failure read as a finding.
 CLASS_UNKNOWN = "unknown"
@@ -575,7 +584,7 @@ CLASS_UNKNOWN = "unknown"
 #: carry that value -- and a catalog row that did carry it would be a filter value the
 #: index cannot answer, which is the whole defect. It is a manifest value only.
 #:
-#: **``guidelines_index.UNCLASSIFIED`` is a fourth value the index can carry and this
+#: **``guidelines_index.UNCLASSIFIED`` is an additional value the index can carry and this
 #: is deliberately not it either.** That one describes a *build* -- a document with no
 #: manifest entry at all -- rather than a document, so no catalog row could sensibly
 #: hold it. It is named here rather than left to be discovered, and pinned in
@@ -583,7 +592,14 @@ CLASS_UNKNOWN = "unknown"
 #:
 #: ``guidelines_catalog.py`` imports this rather than restating it, and
 #: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
-CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
+CLASSES = (
+    CLASS_GUIDELINE,
+    CLASS_RECOMMENDATION_STATEMENT,
+    CLASS_WEB_CAPTURE,
+    CLASS_DRAFT,
+    CLASS_ERRATA,
+    CLASS_SCOPE_OF_WORK,
+)
 
 # A recommendation statement is a document that titles itself one. The two marks have
 # to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
@@ -599,6 +615,16 @@ CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
 # it. Two copies of a rule that must agree is what #253 cost.
 TASK_FORCE_MARK = "taskforce"
 RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
+PUBLIC_REVIEW_DRAFT_TITLE = re.compile(
+    r"^\s*public\s+review\s+draft\s*$", re.IGNORECASE | re.MULTILINE
+)
+ERRATA_TITLE = re.compile(r"^\s*errat(?:a|um)\s*$", re.IGNORECASE | re.MULTILINE)
+ERRATA_RUNNING_HEAD = re.compile(r"errata\s*$", re.IGNORECASE | re.MULTILINE)
+ERRATUM_CORRECTION_TITLE = re.compile(
+    r"^\s*erratum\s+to\s*:", re.IGNORECASE | re.MULTILINE
+)
+GUIDELINE_MARK = "guideline"
+SCOPE_OF_WORK_TITLE = re.compile(r"^\s*scope\s+of\s+work\s*$", re.IGNORECASE | re.MULTILINE)
 
 # The three ACIP/ files are browser print-to-PDF captures of CDC schedule pages
 # rather than guideline documents, and this header is what says so. The URL and
@@ -889,6 +915,25 @@ def is_recommendation_statement(title_block: str) -> bool:
     return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
 
 
+def is_public_review_draft(title_block: str) -> bool:
+    """Whether the document identifies itself as a public review draft."""
+    return PUBLIC_REVIEW_DRAFT_TITLE.search(title_block) is not None
+
+
+def is_errata(title_block: str) -> bool:
+    """Whether a title line identifies the whole document as errata."""
+    return ERRATA_TITLE.search(title_block) is not None or (
+        ERRATA_RUNNING_HEAD.search(title_block) is not None
+        and ERRATUM_CORRECTION_TITLE.search(title_block) is not None
+    )
+
+
+def is_guideline_scope_of_work(title_block: str) -> bool:
+    """Whether the title identifies planning material for a future guideline."""
+    squashed = squash(title_block)
+    return GUIDELINE_MARK in squashed and SCOPE_OF_WORK_TITLE.search(title_block) is not None
+
+
 def classify(pages: list[list[str]]) -> str:
     """Which of ``CLASSES`` this document is.
 
@@ -903,16 +948,13 @@ def classify(pages: list[list[str]]) -> str:
     to trip MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page,
     would come back a guideline with nothing saying otherwise.
 
-    **The recommendation-statement test reads the first page only**, which is where the
-    document titles itself, and it runs here rather than in ``guidelines_catalog.py``
-    alone because #185 ruled the producer's vocabulary is the catalog's. Running the
-    catalog's classifier over the extracted ``.txt`` corpus reproduces every one of the
-    catalog's ``recommendation-statement`` and ``guideline`` cells, and misses all three
-    captures -- because the stamp it keys on is boilerplate and has been stripped by
-    then. This sees the pages **before** stripping, which is why both halves can live
-    here and neither could live there. **The counts are deliberately not stated**: the
-    only thing that produces them is an artifact outside every checkout, so nothing
-    committed re-derives them, and one of the three is a subtraction of the other two.
+    **Every content-form test reads the first page only**, which is where the document
+    identifies itself. The three #107 forms use whole title lines, so a final guideline
+    mentioning an earlier draft, errata, or its scope in prose keeps the fallback class.
+    This runs here rather than in ``guidelines_catalog.py`` alone because #185 ruled the
+    producer's vocabulary is the catalog's. The extractor sees the pages **before**
+    stripping, which is why the capture test must live here: its timestamp is
+    boilerplate and is absent from the extracted text the index reads.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:
@@ -924,6 +966,12 @@ def classify(pages: list[list[str]]) -> str:
     )
     if stamped >= BOILERPLATE_THRESHOLD * len(sampled):
         return CLASS_WEB_CAPTURE
+    if pages and is_public_review_draft("\n".join(pages[0])):
+        return CLASS_DRAFT
+    if pages and is_errata("\n".join(pages[0])):
+        return CLASS_ERRATA
+    if pages and is_guideline_scope_of_work("\n".join(pages[0])):
+        return CLASS_SCOPE_OF_WORK
     if pages and is_recommendation_statement(" ".join(pages[0])):
         return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE
