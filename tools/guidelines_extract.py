@@ -755,11 +755,13 @@ def classify(pages: list[list[str]]) -> str:
     **The recommendation-statement test reads the first page only**, which is where the
     document titles itself, and it runs here rather than in ``guidelines_catalog.py``
     alone because #185 ruled the producer's vocabulary is the catalog's. Running the
-    catalog's classifier over the extracted ``.txt`` corpus reproduces 90
-    recommendation statements and 86 guidelines exactly and misses all three captures
-    -- because the stamp it keys on is boilerplate and has been stripped by then. This
-    sees the pages **before** stripping, which is why both halves can live here and
-    neither could live there.
+    catalog's classifier over the extracted ``.txt`` corpus reproduces every one of the
+    catalog's ``recommendation-statement`` and ``guideline`` cells, and misses all three
+    captures -- because the stamp it keys on is boilerplate and has been stripped by
+    then. This sees the pages **before** stripping, which is why both halves can live
+    here and neither could live there. **The counts are deliberately not stated**: the
+    only thing that produces them is an artifact outside every checkout, so nothing
+    committed re-derives them, and one of the three is a subtraction of the other two.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:

@@ -39,14 +39,22 @@ without restriction, and `?` means it does not say. `?` is never a shorthand for
 "obviously adults" — several large cardiology and nephrology guidelines carry it
 for exactly that reason, and each one is listed at the bottom of this file.
 
-**`class` is the same vocabulary `tools/guidelines_search.py --class` takes**, so
-picking a class off this table and filtering the index with it works. It was not:
-until [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185) the
+**`class` is the same vocabulary `tools/guidelines_search.py --class` takes.** It was
+not: until [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185) the
 extractor emitted `print-capture` and `unknown` where this column says `web-capture`
 and nothing, so every row below not classed `guideline` named a filter value the index
-answered with a certified zero. `tools/guidelines_catalog.py` reads the legend row
-above against the extractor's own constants — no corpus needed — and fails if the two
-sets part again.
+answered with a **certified zero** — exit 1, that tool's code for a genuine absence.
+`tools/guidelines_catalog.py` reads the legend row above against the extractor's own
+constants — no corpus needed — and fails if the two sets part again.
+
+**What that check reaches is the *code*, not a built index**, and the difference is
+worth knowing before trusting a class off this table. The index is a build artifact
+outside every checkout, so one built by an older extractor still answers the retired
+vocabulary and no check here can see it. What says so is the search itself: since #185
+a `--class` value no document carries **exits 2 and names what the index does hold**,
+rather than reporting a zero. So a stale index is loud, and the honest form of the
+claim above is that this table and the tool agree — not that whatever database is on
+the machine does.
 
 **`class` is decided by what the document is, not what it covers.**
 `recommendation-statement` is USPSTF's document type and nobody else's here: the
