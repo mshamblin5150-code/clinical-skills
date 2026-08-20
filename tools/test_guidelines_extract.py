@@ -17,7 +17,7 @@ here and none is committed -- ``*.pdf`` is globally gitignored and stays that wa
 
 The excerpts are page text, not PDFs, which is the whole reason the module is cut
 where it is: everything that decides what the output says is a function over a
-list of page strings, and only ``extract_pages`` touches ``pypdf``. A test that
+list of page strings, and only ``extract_pages`` touches PyMuPDF. A test that
 had to open a PDF could not be committed at all.
 
 Two claims carry the most weight here:
@@ -37,6 +37,7 @@ import tempfile
 import unicodedata
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import guidelines_extract as extract
 import guidelines_index as index
@@ -266,7 +267,7 @@ class SpansDoNotShareMetrics(unittest.TestCase):
             ]}]}]
         }
 
-    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbour(self):
+    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbor(self):
         page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
         self.assertEqual(
             extract.rebuild_text(page), "AmericanJournalofTransplantation2009;9(Suppl3)"
@@ -707,15 +708,41 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
     def footer(self, text: str) -> dict:
         gaps = [self.FOOTER_TYPICAL] * len(text)
         for index, glyph in enumerate(text):
-            # Every gap that follows a digit or a bracket is one of the wide ones
-            # in this font -- which is precisely the set that was being split.
-            if glyph in "0123456789();:-" and index + 1 < len(text):
+            # Gaps after digits, brackets and some letters reach the top of the
+            # real font's spread -- precisely the set that was being split.
+            if glyph in "A0123456789();:-" and index + 1 < len(text):
                 gaps[index] = self.FOOTER_TOP
         return rawline(text, self.FOOTER_SIZE, gaps)
 
     def test_the_footer_is_left_alone(self):
         text = "American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9"
         self.assertEqual(extract.rebuild_text(self.footer(text)), text)
+
+    def test_real_spaces_bound_local_spacing_regimes(self):
+        """A long compressed phrase must not redefine normally spaced neighbors.
+
+        CDC's opioid MMWR extracted page 27 sets one line in one span, but its
+        ``Practice Guidelines ...`` middle is compressed by roughly 3 pt while
+        ``In April 2021 ...`` on either side uses ordinary bearings. A single
+        median for the span therefore turns every ordinary letter gap into an
+        apparent word break even though real spaces already bound each phrase.
+        """
+        text = "In April Practice Guidelines Administration"
+        gaps = [0.2] * len(text)
+        for index, glyph in enumerate(text[:-1]):
+            if glyph == " " or text[index + 1] == " ":
+                # With rawline's 4.5 pt glyph advance, these two bearings make
+                # the measured advance across a real space exactly 1.0 pt.
+                gaps[index] = -1.75
+        for word in ("Practice", "Guidelines", "Administration"):
+            start = text.index(word)
+            for index in range(start, start + len(word) - 1):
+                gaps[index] = -3.0
+
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, 9.0, gaps, font="Nunito-Regular")),
+            text,
+        )
 
     def test_without_the_second_bar_that_footer_is_split(self):
         """The counterfactual, so the test above cannot pass by having nothing to do.
@@ -741,12 +768,11 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
         finally:
             extract.SPACE_ADVANCE_FRACTION = original
         self.assertNotEqual(without, text)
-        # The damage this fixture reproduces is the digits and brackets coming
-        # apart -- `2009;` -> `2 0 0 9 ;`. The real page loses more than that,
-        # because there every gap is at the top of the spread and here only the
-        # ones `footer()` marks are; the name of this test says "split" rather
-        # than "split character by character" for that reason.
-        self.assertIn("2 0 0 9", without)
+        # The damage this fixture reproduces is a gap at the top of the font's
+        # spread becoming a word boundary. Real spaces now bound local baselines,
+        # so the short digit run no longer demonstrates the second bar by itself;
+        # the longer first word does, and keeps this counterfactual nonvacuous.
+        self.assertIn("A merican", without)
         self.assertEqual(extract.rebuild_text(page), text)
 
     def test_a_glued_line_that_also_carries_a_space_still_splits(self):
@@ -1455,10 +1481,8 @@ class DocumentClass(unittest.TestCase):
         self.assertEqual(extract.classify(pages), extract.CLASS_GUIDELINE)
 
     def test_a_capture_that_says_recommendation_statement_is_still_a_capture(self):
-        # The order is the whole rule. `guidelines_catalog.classify` has always
-        # read the two this way round and this adopts it: the JAMA page saved
-        # from a browser is the live case in the other direction, and a capture
-        # of a USPSTF page is the one here.
+        # The order is the whole rule: a capture of a USPSTF page is still a
+        # capture, and the catalog consumes this pre-strip answer from the manifest.
         stamped = [
             ["8/12/26, 10:25 AM Screening | USPSTF"] + self.USPSTF_TITLE
         ] + [["8/12/26, 10:25 AM Screening | USPSTF", "body"] for _ in range(3)]
@@ -1520,6 +1544,8 @@ class WritingADocument(unittest.TestCase):
 
     def setUp(self):
         self.out = Path(tempfile.mkdtemp())
+        self.producer = extract.artifact_provenance.current_producer()
+        self.producer["dirty"] = False
 
     def record(self, pages=AHA, name="AHA ACC/paper.pdf"):
         return extract.build_document(Path(name), pages, self.out)
@@ -1643,6 +1669,23 @@ class WritingADocument(unittest.TestCase):
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertIn("guidelines-src", manifest["source"])
 
+    def test_the_manifest_names_the_clean_commit_that_produced_it(self):
+        producer = {"commit": "a" * 40, "dirty": False}
+        with mock.patch.object(
+            extract.artifact_provenance,
+            "current_producer",
+            return_value=producer,
+        ):
+            extract.write_manifest(
+                self.out,
+                [self.record()],
+                Path("C:/codeing/guidelines-src"),
+            )
+
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["producer"], producer)
+
 
 class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
     """#84 landed first and reads this output, so the contract is executable here.
@@ -1659,12 +1702,19 @@ class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
 
     def setUp(self):
         self.out = Path(tempfile.mkdtemp())
+        self.producer = extract.artifact_provenance.current_producer()
+        self.producer["dirty"] = False
         self.records = [
             extract.build_document(Path("AHA ACC/paper.pdf"), AHA, self.out, "A Guideline"),
             extract.build_document(Path("ACIP/adult.pdf"), ACIP, self.out),
             extract.failed_document(Path("IDSA/broken.pdf"), "PdfReadError: x"),
         ]
-        extract.write_manifest(self.out, self.records, Path("C:/codeing/guidelines-src"))
+        extract.write_manifest(
+            self.out,
+            self.records,
+            Path("C:/codeing/guidelines-src"),
+            producer=self.producer,
+        )
         self.documents = {doc.doc_id: doc for doc in index.discover(self.out)}
 
     def test_the_manifest_is_a_shape_the_indexer_accepts(self):
@@ -1694,7 +1744,12 @@ class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
         # Dropping it would slide every later citation by one, and a citation off
         # by a page is worse than no citation.
         extract.build_document(Path("KDIGO/gappy.pdf"), ["one", "", "three"], self.out)
-        extract.write_manifest(self.out, self.records, Path("C:/codeing/guidelines-src"))
+        extract.write_manifest(
+            self.out,
+            self.records,
+            Path("C:/codeing/guidelines-src"),
+            producer=self.producer,
+        )
         pages = {d.doc_id: d for d in index.discover(self.out)}["KDIGO/gappy"].pages
         self.assertEqual([page.number for page in pages], [1, 2, 3])
         self.assertIn("three", pages[2].text)

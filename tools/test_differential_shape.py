@@ -1,13 +1,11 @@
 """Pin [#70]'s ruling to the three files a generating pass actually opens.
 
-**This is the one rule in ``clinical-note``'s differential that has no scanner,
-and the ruling is why.** The count runs to every diagnosis-shaped line in the
-Assessment rather than stopping at the ``Differential:`` heading, so locating an
-entry means telling a diagnosis from a line of reasoning under a heading a run
-invented -- a reader's judgment. A scanner reading the labeled block would be
-checking the **narrow** reading the clinician rejected, and would report clean on
-exactly the note that moved an uncoded diagnosis one heading down. ``#164`` holds
-what a partial one could still be worth.
+**The wide rule has no complete scanner, and the ruling is why.** The count runs
+to every diagnosis-shaped line in the Assessment rather than stopping at the
+``Differential:`` heading, so locating an entry means telling a diagnosis from a
+line of reasoning under a heading a run invented -- a reader's judgment. Ticket
+``#164`` added a declared floor over numbered items in the labeled block, with the
+scope printed on every run; it did not promote that narrow count to the wide one.
 
 So the check available here is ``test_spelling_scan.py``'s, and it is the same
 check ``test_block_scan.py`` and ``test_differential_scan.py`` make against their
@@ -124,11 +122,10 @@ class TheSkillCarriesTheShapeRule(unittest.TestCase):
             self.text,
         )
 
-    def test_the_section_says_no_tool_checks_it(self):
-        # If this goes, a later pass writes a scanner over the labeled block and
-        # a clean run starts reading as a walked row -- on the narrow reading the
-        # clinician rejected.
-        self.assertIn("**So these rows are counted by a reader**", self.text)
+    def test_the_section_declares_the_floor_and_the_reader_residue(self):
+        self.assertIn("supplies [#164]", self.text)
+        self.assertIn("wide Assessment count still needs a reader", self.text)
+        self.assertIn("a clean scan is not a walked row 13 or 23", self.text)
 
 
 class TheDriftMatrixCarriesBothRows(unittest.TestCase):
@@ -197,7 +194,7 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         self.assertIn("**Row 23 is appended for the reason rows 14 through 22 were.", self.text)
 
     def test_no_row_was_renumbered(self):
-        # The cheap guard on the convention: 24 rows, numbered 1 to 24 in order.
+        # The cheap guard on the convention: 26 rows, numbered 1 to 26 in order.
         # Scoped to rows whose second cell is a bolded test name, which is the
         # drift matrix's own shape -- an unrelated numbered table added to this
         # file later must not fail this test for a reason that is not about it.
@@ -206,11 +203,12 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # it. A contiguity-only check would pass an insert-at-13-and-renumber,
         # which is the exact move "append, never insert" exists to refuse, and
         # which silently redirects every citation of rows 14 and up across four
-        # fixture sets and ADR 0001. Read 23 until #85 added row 24.
+        # fixture sets and ADR 0001. Read 23 until #85 added row 24; #132 appended
+        # row 25; #159 appended row 26.
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 25)))
+        self.assertEqual(numbers, list(range(1, 27)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):
@@ -309,7 +307,7 @@ class TheFixtureRowSaysWhatItCounts(unittest.TestCase):
     def test_neither_recorded_digit_is_restated(self):
         # #70 put re-running day-b and re-scoring either run out of scope. This
         # sentence is what stops a later pass reading the new definition as
-        # licence to move a recorded score.
+        # license to move a recorded score.
         self.assertIn(
             "Neither run's `CODING` digit is restated here", self.text
         )

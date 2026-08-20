@@ -18,15 +18,20 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import guidelines_extract as extract  # noqa: E402
+import artifact_provenance  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
 
 def header(mode: str = "exact") -> str:
@@ -91,6 +96,10 @@ def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
         f"| {quantity} | {population} | {value} | \"{snippet}\" | {source} | {page} "
         f"| {rec} | {klass} |\n"
     )
+
+
+def conflicting_rows(second_value: str = "<120 mm Hg") -> str:
+    return row(value="<130 mm Hg") + row(value=second_value, rec="p50/goal/1")
 
 
 # A two-source sheet, which is what #177 is about: until that ticket the grader took
@@ -288,14 +297,55 @@ class TwoSlotsNoGateHereCanReach(unittest.TestCase):
 
 class ConflictRule(unittest.TestCase):
     def test_same_quantity_and_population_with_different_values_needs_a_conflict_block(self):
-        rows = row(value="<130 mm Hg") + row(value="<120 mm Hg", rec="p50/goal/1")
-        failures = gate.gate_schema(sheet(rows))
+        failures = gate.gate_schema(sheet(conflicting_rows()))
         self.assertTrue(any("CONFLICT" in message for message in failures))
 
-    def test_a_conflict_block_satisfies_it(self):
-        rows = row(value="<130 mm Hg") + row(value="<120 mm Hg", rec="p50/goal/1")
-        parsed = sheet(rows, conflicts="**CONFLICT: bp-goal** - the two societies differ because ...\n")
+    def test_a_conflict_block_that_names_both_values_satisfies_it(self):
+        parsed = sheet(
+            conflicting_rows(),
+            conflicts=(
+                "**CONFLICT: bp-goal** - one recommendation says below 130 mm Hg; "
+                "the other says <120 mm Hg.\n"
+            ),
+        )
         self.assertEqual(gate.gate_schema(parsed), [])
+
+    def test_a_conflict_block_that_names_only_one_value_fails(self):
+        parsed = sheet(
+            conflicting_rows(),
+            conflicts="**CONFLICT: bp-goal** - one recommendation says <130 mm Hg.\n",
+        )
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("<120 mm Hg" in message for message in failures), failures)
+
+    def test_a_todo_conflict_block_does_not_discharge_the_rule(self):
+        failures = gate.gate_schema(
+            sheet(conflicting_rows(), conflicts="**CONFLICT: bp-goal** - TODO\n")
+        )
+        self.assertTrue(any("CONFLICT" in message for message in failures), failures)
+
+    def test_one_longer_value_mention_cannot_satisfy_two_distinct_rows(self):
+        """The suffix of one value is not evidence that the other was compared."""
+        parsed = sheet(
+            conflicting_rows("<130 mm Hg in clinic"),
+            conflicts="**CONFLICT: bp-goal** - below 130 mm Hg in clinic.\n",
+        )
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("<130 mm Hg" in message for message in failures), failures)
+
+    def test_the_live_blocks_pass_and_the_instrument_reads_their_prose(self):
+        """#182's two correct blocks are the acceptance material, not imagined prose.
+
+        The mutation is the live-instrument half: a predicate that merely notices the
+        quantity key would leave the second assertion green after the prose vanished.
+        """
+        path = Path(__file__).resolve().parents[1] / "reference" / "thresholds" / "hypertension.md"
+        parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+        self.assertEqual(gate.gate_schema(parsed), [])
+
+        parsed.conflicts["acute-stroke-bp-treatment-threshold"] = "- TODO"
+        failures = gate.gate_schema(parsed)
+        self.assertTrue(any("acute-stroke-bp-treatment-threshold" in message for message in failures))
 
     def test_different_populations_are_not_a_conflict(self):
         """The clinician's ruling, made mechanical.
@@ -599,6 +649,48 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
                 gate.grade(path, ["C:/nowhere/recs.json"], Path("C:/nowhere"), quiet=True)
             self.assertIn("no such file", err.getvalue())
 
+    def test_a_record_never_built_under_the_lookup_root_warns_and_exits_0(self):
+        """The hook's ``--all`` lookup is not an explicit path somebody typed.
+
+        A fresh clone has no recommendation records, so that absence must remain loud
+        under ``--quiet`` without turning every sheet edit into a refused commit.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(self.CLEAN, encoding="utf-8")
+            empty_root = Path(directory) / "recs"
+            empty_root.mkdir()
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = gate.grade(
+                    path,
+                    [],
+                    Path("C:/nowhere-at-all"),
+                    quiet=True,
+                    recs_root=empty_root,
+                )
+            self.assertEqual(status, 0)
+            self.assertIn("COVERAGE", err.getvalue())
+            self.assertIn("NOT RUN", err.getvalue())
+            self.assertIn("not a clean COVERAGE pass", err.getvalue())
+
+    def test_an_unreadable_record_under_the_lookup_root_still_exits_2(self):
+        """Only absence is the declared degradation; a broken artifact is an error."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-src.json").write_text("{not json", encoding="utf-8")
+            path = root / "sheet.md"
+            path.write_text(self.CLEAN, encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = gate.grade(
+                    path,
+                    [],
+                    Path("C:/nowhere-at-all"),
+                    quiet=True,
+                    recs_root=root,
+                )
+            self.assertEqual(status, 2)
+
 
 class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
     """The sibling of the class above, and it survived that fix because every test
@@ -864,6 +956,22 @@ class TheGraderMatchesTheFormatItDocuments(unittest.TestCase):
         self.assertIn("everywhere", readme)
 
 
+def quote_footprint(sheet_name: str, *, strip_rendered: bool = False):
+    """Return the parser-backed quote measures shared by each shipped sheet."""
+    path = gate.SHEET_ROOT / sheet_name
+    sheet_ = gate.parse(path.read_text(encoding="utf-8"), path)
+    snippets = [row.snippet for row in sheet_.rows]
+    distinct = set(snippets)
+    quoted = [
+        snippet.removeprefix(gate.RENDERED_MARKER).strip()
+        if strip_rendered
+        else snippet
+        for snippet in distinct
+    ]
+    words = sorted(len(snippet.split()) for snippet in quoted)
+    return sheet_, snippets, distinct, words
+
+
 class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
     """README.md's *quoting posture* section states how much is quoted, and #223's
     ruling rests on those numbers -- so they are re-derived from the sheet here
@@ -884,8 +992,7 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
     SHEET = "hypertension.md"
 
     def _sheet(self) -> gate.Sheet:
-        path = gate.SHEET_ROOT / self.SHEET
-        return gate.parse(path.read_text(encoding="utf-8"), path)
+        return quote_footprint(self.SHEET)[0]
 
     def _readme(self) -> str:
         return (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
@@ -893,7 +1000,7 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
     def _snippets(self) -> list[str]:
         """``parse`` has already stripped the surrounding quotes, so there is one
         definition of a snippet here rather than two that agree by luck."""
-        return [row.snippet for row in self._sheet().rows]
+        return quote_footprint(self.SHEET)[1]
 
     def test_the_row_and_snippet_counts(self):
         snippets = self._snippets()
@@ -950,6 +1057,99 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
         self.assertIn("## The quoting posture", readme)
         for claim in ("tier 1", "tier 2", "Paraphrase"):
             self.assertIn(claim, readme, f"the posture no longer states: {claim}")
+
+
+class TheDiabetesQuotingPostureFiguresAreReDerived(unittest.TestCase):
+    """The second sheet gets its own measured public-repo ruling; #223 explicitly
+    says the hypertension figures do not license the class of future sheets."""
+
+    def test_the_diabetes_quote_footprint_is_measured_from_the_shipped_sheet(self):
+        # ``RENDERED:`` is this repo's evidentiary marker, not ADA expression. It
+        # stays in the cell count and is removed only from the copied-word measure.
+        sheet_, snippets, distinct, words = quote_footprint(
+            "diabetes.md", strip_rendered=True
+        )
+
+        self.assertEqual(len(snippets), 25)
+        self.assertEqual(len(distinct), 24)
+        self.assertEqual(sum(words), 87)
+        self.assertEqual((max(words), words[len(words) // 2], min(words)), (8, 3, 1))
+        self.assertEqual(len(sheet_.populations), 17)
+        self.assertEqual(sum(len(value.split()) for value in sheet_.populations.values()), 124)
+
+        readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
+        for claim in (
+            "| rows | **25** |",
+            "**24** are distinct",
+            "**87**",
+            "8 / 3 / 1",
+            "17 rows",
+            "**124**",
+            "**377**",
+        ):
+            self.assertIn(claim, readme)
+
+        catalog = (gate.SHEET_ROOT.parent / "guidelines-catalog.md").read_text(
+            encoding="utf-8"
+        )
+        matching = [
+            line
+            for line in catalog.splitlines()
+            if line.startswith("|") and "standards-of-care-2026.pdf" in line
+        ]
+        self.assertEqual(len(matching), 1)
+        cells = [cell.strip() for cell in matching[0].strip("|").split("|")]
+        self.assertEqual(cells[6], "377")
+
+
+class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
+    """The agreed #186 integration seam, skipped only where its deliberately
+    uncommitted source, recommendation record, or blind read is unavailable."""
+
+    PDF_ROOT = Path("C:/codeing/guidelines-src")
+    TEXT_ROOT = Path("C:/codeing/guidelines-text")
+    RECS_ROOT = Path("C:/codeing/guidelines-index")
+    SECOND_READ = RECS_ROOT / "second-read-diabetes.json"
+
+    def test_all_six_gates_grade_the_committed_diabetes_sheet(self):
+        required = (
+            self.PDF_ROOT / "ADA" / "standards-of-care-2026.pdf",
+            self.TEXT_ROOT / "manifest.json",
+            self.RECS_ROOT / "recs-ada-2026.json",
+            self.SECOND_READ,
+        )
+        absent = [str(path) for path in required if not path.is_file()]
+        if absent:
+            self.skipTest("external gate input absent: " + ", ".join(absent))
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = gate.main(
+                [
+                    str(gate.SHEET_ROOT / "diabetes.md"),
+                    "--recs-root",
+                    str(self.RECS_ROOT),
+                    "--pdf-root",
+                    str(self.PDF_ROOT),
+                    "--text-root",
+                    str(self.TEXT_ROOT),
+                    "--second-read",
+                    str(self.SECOND_READ),
+                ]
+            )
+
+        report = output.getvalue()
+        self.assertEqual(code, 0, report)
+        for verdict in (
+            "SCHEMA          0",
+            "CITATION tier 1 0",
+            "CITATION tier 2 0",
+            "COVERAGE        0 refusing, 0 warning",
+            "RANGE           0",
+            "WATERMARK       0 warning",
+            "SECOND READ     0 refusing",
+        ):
+            self.assertIn(verdict, report)
 
 
 class CoverageIsPerSource(unittest.TestCase):
@@ -1107,7 +1307,8 @@ class BindingARecordToEachSource(unittest.TestCase):
     """
 
     def bind(self, sheet_, arguments, recs_root=None):
-        return gate.bind_recs(sheet_, arguments, recs_root)
+        records, why, errors, _ = gate.bind_recs(sheet_, arguments, recs_root)
+        return records, why, errors
 
     def test_a_keyed_argument_binds_to_that_source(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1177,12 +1378,18 @@ class BindingARecordToEachSource(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertIsNone(records["src"])
         self.assertIn("no such file", why["src"])
+        _, _, _, missing = gate.bind_recs(
+            sheet(row()), ["src=C:/nowhere-at-all/recs.json"], None
+        )
+        self.assertEqual(missing, set())
 
     def test_a_record_the_root_does_not_hold_reads_as_never_built(self):
         with tempfile.TemporaryDirectory() as directory:
             _, why, _ = self.bind(sheet(row()), [], Path(directory))
             self.assertIn("no recommendation record", why["src"])
             self.assertNotIn("no such file", why["src"])
+            _, _, _, missing = gate.bind_recs(sheet(row()), [], Path(directory))
+            self.assertEqual(missing, {"src"})
 
     def test_no_argument_and_no_root_says_none_was_given(self):
         _, why, _ = self.bind(sheet(row()), [], None)
@@ -1396,13 +1603,114 @@ class TheRecordsStayOutsideTheRepo(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             empty_root = Path(directory) / "root"
             empty_root.mkdir()
-            for root in (None, empty_root):
-                with self.subTest(recs_root=root):
-                    with contextlib.redirect_stdout(io.StringIO()),                             contextlib.redirect_stderr(io.StringIO()):
-                        status = gate.grade(
-                            path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=root
-                        )
-                    self.assertEqual(status, 2)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                no_lookup_status = gate.grade(
+                    path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=None
+                )
+                empty_root_status = gate.grade(
+                    path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=empty_root
+                )
+            self.assertEqual(no_lookup_status, 2)
+            self.assertEqual(empty_root_status, 0)
+
+
+class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
+    """Drive the hook command itself, because that is where #181's cost lands."""
+
+    def test_readme_only_is_ignored_and_a_sheet_is_graded(self):
+        shell = shutil.which("sh")
+        git = shutil.which("git")
+        if not shell or not git:
+            self.skipTest("the hook contract needs sh and git")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tools" / "hooks").mkdir(parents=True)
+            (root / "reference" / "thresholds").mkdir(parents=True)
+            hook = root / "tools" / "hooks" / "pre-commit"
+            hook.write_text(
+                (gate.REPO_ROOT / "tools" / "hooks" / "pre-commit").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            marker = root / "threshold-ran"
+            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+                (root / "tools" / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
+            (root / "tools" / "threshold_sheet.py").write_text(
+                "import os, pathlib\n"
+                "pathlib.Path(os.environ['THRESHOLD_HOOK_MARKER']).write_text('ran')\n",
+                encoding="utf-8",
+            )
+            subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.name", "Threshold Test"], cwd=root, check=True)
+            subprocess.run([git, "commit", "--allow-empty", "--quiet", "-m", "base"], cwd=root, check=True)
+
+            readme = root / "reference" / "thresholds" / "README.md"
+            readme.write_text("prose only\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(readme)], cwd=root, check=True)
+            environment = {**os.environ, "THRESHOLD_HOOK_MARKER": str(marker)}
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertFalse(marker.exists(), "README.md invoked the sheet grader")
+
+            actual_sheet = root / "reference" / "thresholds" / "hypertension.md"
+            actual_sheet.write_text("a sheet\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(actual_sheet)], cwd=root, check=True)
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertTrue(marker.exists(), "an actual sheet did not invoke the grader")
+
+    def test_the_hook_command_warns_and_passes_without_a_recommendation_record(self):
+        shell = shutil.which("sh")
+        git = shutil.which("git")
+        if not shell or not git:
+            self.skipTest("the hook contract needs sh and git")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = root / "tools"
+            (tools / "hooks").mkdir(parents=True)
+            sheets = root / "reference" / "thresholds"
+            sheets.mkdir(parents=True)
+            for name in (
+                "threshold_sheet.py",
+                "artifact_provenance.py",
+                "guidelines_extract.py",
+                "guidelines_index.py",
+                "console_codec.py",
+                "repo_root.py",
+            ):
+                shutil.copy2(gate.REPO_ROOT / "tools" / name, tools / name)
+            shutil.copy2(
+                gate.REPO_ROOT / "tools" / "hooks" / "pre-commit",
+                tools / "hooks" / "pre-commit",
+            )
+            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+                (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
+            sheet_path = sheets / "hypertension.md"
+            shutil.copy2(gate.SHEET_ROOT / "hypertension.md", sheet_path)
+
+            subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run([git, "config", "user.name", "Threshold Test"], cwd=root, check=True)
+            subprocess.run([git, "commit", "--allow-empty", "--quiet", "-m", "base"], cwd=root, check=True)
+            subprocess.run([git, "add", "--", str(sheet_path)], cwd=root, check=True)
+            empty_recs = root / "empty-recs"
+            empty_recs.mkdir()
+            environment = {
+                **os.environ,
+                "CLINICAL_GUIDELINES_RECS": str(empty_recs),
+                "CLINICAL_GUIDELINES_TEXT": str(root / "absent-text"),
+            }
+            result = subprocess.run(
+                [shell, str(tools / "hooks" / "pre-commit")],
+                cwd=root,
+                env=environment,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("COVERAGE        NOT RUN for source 'aha-2025'", result.stderr)
+            self.assertIn("not a clean COVERAGE pass", result.stderr)
 
 
 if __name__ == "__main__":
@@ -1421,9 +1729,12 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
     output = f"{doc_id}.txt"
     (root / output).parent.mkdir(parents=True, exist_ok=True)
     (root / output).write_text(body, encoding="utf-8")
+    producer = artifact_provenance.current_producer()
+    producer["dirty"] = False
     (root / "manifest.json").write_text(
         json.dumps(
             {
+                "producer": producer,
                 "documents": [
                     {
                         "doc_id": doc_id,
@@ -1557,6 +1868,53 @@ class WatermarkGate(unittest.TestCase):
         self.assertIsNotNone(skip)
         self.assertIn("manifest", skip.lower())
 
+    def test_a_foreign_manifest_is_not_graded_without_the_override(self):
+        text_corpus(
+            self.root,
+            "Society/doc",
+            "an SBP goal of <130 mm Hg",
+            boilerplate=["Jones et al"],
+        )
+        path = self.root / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        _, skip, _, _ = gate.gate_watermark(sheet(row()), self.root)
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            _, allowed_skip, _, _ = gate.gate_watermark(
+                sheet(row()),
+                self.root,
+                allow_untrusted_provenance=True,
+            )
+
+        self.assertIn("different commit", skip)
+        self.assertIsNone(allowed_skip)
+
+    def test_a_foreign_manifest_makes_the_command_exit_two(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        sheet_path = self.root / "sheet.md"
+        sheet_path.write_text(header() + "\n## Thresholds\n\n" + row(), encoding="utf-8")
+        recs_path = self.root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+            status = gate.grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=self.root,
+            )
+
+        self.assertEqual(status, 2)
+        self.assertIn("different commit", stderr.getvalue())
+
     def test_the_manifest_reader_is_the_indexers_and_not_a_copy(self):
         """`reference_scan.py` importing `docx_write.REFERENCE_HEADING`, for that
         module's reason: #80 owns this file's shape, and a gate holding its own copy
@@ -1591,6 +1949,10 @@ class TheWatermarkGateAgainstTheCommittedSheet(unittest.TestCase):
         )
         if not (self.text_root / "manifest.json").is_file():
             self.skipTest(f"no extracted corpus at {self.text_root}")
+        try:
+            gate.read_manifest(self.text_root)
+        except ValueError as unusable:
+            self.skipTest(str(unusable))
 
     def test_the_committed_sheet_has_no_interleaved_row(self):
         path = gate.SHEET_ROOT / "hypertension.md"
@@ -1955,6 +2317,12 @@ class TheCommandLineRefusesWhatItCannotBind(unittest.TestCase):
         )
         self.assertEqual(gate.text_root_for(args), Path("/elsewhere"))
 
+    def test_the_text_root_can_be_supplied_to_the_hook_by_environment(self):
+        with mock.patch.dict(os.environ, {"CLINICAL_GUIDELINES_TEXT": "/shared/text"}):
+            args = gate.build_parser().parse_args(["sheet.md"])
+
+        self.assertEqual(gate.text_root_for(args), Path("/shared/text"))
+
 
 class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
     """`TheGraderMatchesTheFormatItDocuments`' reasoning, for the two gates #174 added:
@@ -2097,7 +2465,7 @@ class GateFourWarnsAndDoesNotRefuse(unittest.TestCase):
     def test_a_finding_here_alone_does_not_make_the_run_refuse(self):
         """The sheet is otherwise clean, so any non-zero would be this gate's."""
         status, _, _ = self._run()
-        self.assertEqual(status, 2, "2 is COVERAGE having no record, which is not gate 4")
+        self.assertEqual(status, 0)
 
     def test_every_probe_that_hits_is_reported_and_not_only_the_first(self):
         """#83 asks for *every place* the text stream was interleaved, and a running

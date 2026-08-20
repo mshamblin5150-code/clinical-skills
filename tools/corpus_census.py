@@ -188,6 +188,35 @@ Extractor limits worth knowing before quoting a number:
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
   the alternative is not carried; this is the line to change if one appears.
+- **Topic candidates are whole-encounter keyword pools, not complaint counts or
+  prevalence.** Issue #175 ruled that a follow-up, an active complaint and a
+  working diagnosis all count, and that one encounter may count once in every
+  family it documents. Searching the whole encounter deliberately includes
+  history, medications and ruled-out diagnoses, so every printed number is a
+  ceiling on how many recognized-keyword candidates could belong to the topic.
+  The opposite error still exists: unmatched shorthand and missing synonyms
+  lose candidates. A zero is therefore omitted from the ranking and explicitly
+  is not a negative finding.
+- The topic registry accounts for every clinician-facing topic in
+  ``reference/guidelines-catalog.md``. Related rows share a threshold-sheet
+  family; only four non-patient-level operational subjects are scoped out, each
+  with its reason in code. A new catalog topic makes ``main`` refuse the report
+  until it is mapped or scoped out. Families without a hand-carried shorthand
+  pattern require all distinctive words from their committed family name in
+  the encounter, in any order. That is deliberately coarse, but an abbreviation
+  or synonym carrying none of those words is still the main under-counting
+  direction to widen when a real form is found.
+- Re-derived 2026-08-20 over 551 encounters after removing ``ppd`` from the
+  tuberculosis pattern: diabetes 195, hypertension 175, tobacco use 174,
+  asthma 128, streptococcal pharyngitis 122, anxiety screening 109, COPD
+  screening 104, chronic obstructive pulmonary disease 104, COVID-19 treatment
+  93, and dyslipidemia 84. These are candidate pools on the terms above, never
+  confirmed cases. ``ppd`` produced a tuberculosis pool of 103 while this
+  module's own audit identifies it as packs per day by shape, so the
+  false-positive form is pinned out in ``test_corpus_census.py``. Widen a family
+  only with an observed shorthand form, pin its known over-count, rerun the
+  corpus, and update this dated paragraph rather than silently moving the
+  ranking.
 """
 
 from __future__ import annotations
@@ -341,10 +370,435 @@ BARIATRIC = re.compile(
 # left out and be checked on it -- OSA associates with obesity and entails none
 # of it. ``osa`` and ``cpap`` need their boundaries for the reason above;
 # ``apnea`` gets one for consistency rather than against a known decoy. The
-# British ``apnoea`` is deliberately not carried: this is an American corpus,
+# The British variant is deliberately not carried: this is an American corpus,
 # the spelling appears in it zero times, and an alternative matched by nothing
 # is one nothing can catch going wrong.
 SLEEP_APNEA = re.compile(r"(?i)\bosa\b|\bcpap\b|\bapnea")
+
+
+@dataclass(frozen=True)
+class TopicFamily:
+    """One catalog-backed threshold-sheet subject and its candidate markers."""
+
+    name: str
+    pattern: re.Pattern[str]
+
+
+MAPPED_CATALOG_TOPICS = frozenset(
+    {
+        "abdominal aortic aneurysm screening",
+        "acute bacterial arthritis",
+        "acute coronary syndromes",
+        "acute hematogenous osteomyelitis",
+        "acute ischemic stroke, early management",
+        "acute kidney injury and acute kidney disease",
+        "acute pulmonary embolism",
+        "adolescent idiopathic scoliosis screening",
+        "adult immunization schedule",
+        "ANCA-associated vasculitis",
+        "anemia in chronic kidney disease",
+        "antimicrobial prophylaxis in cancer-related immunosuppression",
+        "antimicrobial-resistant gram-negative infection",
+        "anxiety disorder screening",
+        "anxiety screening",
+        "aortic disease",
+        "asthma",
+        "asymptomatic bacteriuria screening",
+        "atrial fibrillation",
+        "atrial fibrillation screening",
+        "autism spectrum disorder screening",
+        "autosomal dominant polycystic kidney disease",
+        "bacterial vaginosis screening, preterm delivery prevention",
+        "beta-lactam antibiotic dosing",
+        "bladder cancer screening",
+        "blood cholesterol",
+        "blood pressure in chronic kidney disease",
+        "bradycardia and cardiac conduction delay",
+        "BRCA-related cancer risk assessment and genetic testing",
+        "breast cancer risk-reducing medication",
+        "breast cancer screening",
+        "breastfeeding support counseling",
+        "Candida auris infection prevention and control",
+        "cardiac arrest and life-threatening toxicity due to poisoning",
+        "cardiovascular disease prevention, aspirin",
+        "cardiovascular disease prevention, diet and physical activity counseling",
+        "cardiovascular disease prevention, statins",
+        "cardiovascular disease risk assessment, nontraditional risk factors",
+        "cardiovascular disease risk screening, electrocardiography",
+        "cardiovascular-kidney-metabolic syndrome",
+        "carotid artery stenosis screening",
+        "celiac disease screening",
+        "cervical cancer screening",
+        "chest pain evaluation",
+        "child maltreatment prevention",
+        "childhood and adolescent immunization schedule",
+        "childhood immunization schedule",
+        "chlamydia and gonorrhea screening",
+        "chronic coronary disease",
+        "chronic hepatitis B",
+        "chronic kidney disease",
+        "chronic kidney disease in HIV infection",
+        "chronic kidney disease-mineral and bone disorder",
+        "chronic obstructive pulmonary disease",
+        "chronic pain in HIV infection",
+        "Clostridioides difficile infection",
+        "Clostridium difficile infection",
+        "coccidioidomycosis",
+        "cognitive impairment screening",
+        "colorectal cancer screening",
+        "community-acquired pneumonia",
+        "congenital heart disease",
+        "COPD screening",
+        "COVID-19 serologic testing",
+        "COVID-19 treatment",
+        "dental caries prevention",
+        "depression and suicide risk screening",
+        "diabetes in chronic kidney disease",
+        "diabetes mellitus",
+        "diabetes-related foot infection",
+        "drug-susceptible tuberculosis treatment",
+        "dyslipidemia",
+        "eating disorder screening",
+        "falls prevention",
+        "food insecurity screening",
+        "fracture prevention, vitamin D and calcium supplementation",
+        "genital herpes serologic screening",
+        "gestational diabetes screening",
+        "gestational weight gain counseling",
+        "glomerular disease",
+        "gonococcal ophthalmia neonatorum prophylaxis",
+        "group A streptococcal pharyngitis",
+        "healthcare-associated ventriculitis and meningitis",
+        "hearing loss screening",
+        "heart failure",
+        "heart failure in chronic kidney disease",
+        "hepatitis B screening",
+        "hepatitis C in chronic kidney disease",
+        "hepatitis C screening",
+        "hepatitis C treatment trial, babesiosis treatment tables (corrections)",
+        "hepatitis C virus infection",
+        "high blood pressure",
+        "high blood pressure screening",
+        "high body mass index intervention",
+        "HIV preexposure prophylaxis",
+        "HIV primary care",
+        "HIV screening",
+        "hospital-acquired and ventilator-associated pneumonia",
+        "hypertension screening",
+        "hypertensive disorders of pregnancy screening",
+        "hypertrophic cardiomyopathy",
+        "IgA nephropathy and IgA vasculitis",
+        "illicit drug use prevention",
+        "impaired visual acuity screening",
+        "infectious diarrhea",
+        "intimate partner violence and elder abuse screening",
+        "iron deficiency anemia screening",
+        "iron deficiency anemia screening and supplementation",
+        "kidney transplant recipient care",
+        "kidney transplantation candidate evaluation",
+        "latent tuberculosis infection screening",
+        "leishmaniasis",
+        "lipid disorder screening",
+        "lipid management in chronic kidney disease",
+        "living kidney donor evaluation and care",
+        "lower extremity peripheral artery disease",
+        "lung cancer screening",
+        "lupus nephritis",
+        "Lyme disease",
+        "maternal immunization",
+        "native vertebral osteomyelitis",
+        "nephrotic syndrome",
+        "neural tube defect prevention, folic acid",
+        "neurocysticercosis",
+        "new fever in the intensive care unit",
+        "nontuberculous mycobacterial pulmonary disease",
+        "obesity, behavioral weight loss intervention",
+        "obstructive sleep apnea screening",
+        "opioid prescribing for pain",
+        "oral cancer screening",
+        "oral health screening and prevention",
+        "osteoporosis screening, fracture prevention",
+        "outpatient parenteral antimicrobial therapy",
+        "ovarian cancer screening",
+        "pancreatic cancer screening",
+        "perinatal depression prevention",
+        "peripheral artery disease screening, ankle-brachial index",
+        "postmenopausal hormone therapy for chronic disease prevention",
+        "prediabetes and type 2 diabetes screening",
+        "preeclampsia prevention, low-dose aspirin",
+        "primary open-angle glaucoma screening",
+        "prostate cancer screening",
+        "Rh(D) incompatibility screening",
+        "seasonal influenza",
+        "secondary stroke prevention",
+        "sepsis and septic shock",
+        "sexually transmitted infection prevention counseling",
+        "skin and soft tissue infection",
+        "skin cancer prevention counseling",
+        "skin cancer screening",
+        "speech and language delay screening",
+        "stroke primary prevention",
+        "syphilis screening",
+        "testicular cancer screening",
+        "thyroid cancer screening",
+        "thyroid dysfunction screening",
+        "tobacco smoking cessation",
+        "tobacco use prevention and cessation",
+        "tuberculosis diagnosis",
+        "unhealthy alcohol use screening and counseling",
+        "unhealthy drug use screening",
+        "valvular heart disease",
+        "vision screening, amblyopia",
+        "vitamin and mineral supplementation for cardiovascular disease and cancer prevention",
+        "vitamin D deficiency screening",
+    }
+)
+
+# Only non-patient-level operational subjects may sit here. The reason is part
+# of the registry so a scope-out cannot be a bare disappearance.
+SCOPED_OUT_CATALOG_TOPICS = {
+    "antibiotic stewardship program implementation": (
+        "health-system program implementation, not a patient-level encounter subject"
+    ),
+    "antimicrobial stewardship leadership": (
+        "organizational leadership, not a patient-level encounter subject"
+    ),
+    "COVID-19 infection prevention for healthcare personnel": (
+        "healthcare-personnel operations, not a patient-level encounter subject"
+    ),
+    "microbiology laboratory utilization for infectious disease diagnosis": (
+        "laboratory operations, not a patient-level encounter subject"
+    ),
+}
+
+TOPIC_FAMILY_OVERRIDES = {
+    "anxiety disorder screening": "anxiety screening",
+    "blood cholesterol": "dyslipidemia",
+    "Clostridium difficile infection": "Clostridioides difficile infection",
+    "dyslipidemia": "dyslipidemia",
+    "group A streptococcal pharyngitis": "streptococcal pharyngitis",
+    "high blood pressure": "hypertension",
+    "high blood pressure screening": "hypertension",
+    "hypertension screening": "hypertension",
+    "tobacco smoking cessation": "tobacco use",
+    "tobacco use prevention and cessation": "tobacco use",
+}
+
+# These are regex sources rather than recalled counts. A family absent from this
+# table still has a committed marker: its exact family name. That conservative
+# fallback is the under-counting risk the report prints, never an invisible one.
+TOPIC_PATTERN_SOURCES = {
+    "acute ischemic stroke, early management": r"\bstroke\b|\bcva\b",
+    "adult immunization schedule": r"\bimmuniz|\bvaccin|\bshots?\b",
+    "anxiety screening": r"\banxiety|\banxious|\bgad[- ]?7\b",
+    "asthma": r"\basthma|\bwheez|\balbuterol\b",
+    "atrial fibrillation": r"\b(?:afib|a-fib)\b|\batrial fibrillation\b",
+    "cardiovascular disease prevention, aspirin": r"\baspirin\b|\basa\b",
+    "cardiovascular disease prevention, diet and physical activity counseling": (
+        r"\bdiet|\bexercise|\bphysical activity\b"
+    ),
+    "cardiovascular disease prevention, statins": r"\bstatin|\batorvastatin|\brosuvastatin",
+    "chest pain evaluation": r"\bchest pain\b|\bangina\b",
+    "childhood and adolescent immunization schedule": r"\bimmuniz|\bvaccin|\bshots?\b",
+    "childhood immunization schedule": r"\bimmuniz|\bvaccin|\bshots?\b",
+    "chronic kidney disease": r"\bckd\b|\bchronic kidney|\brenal failure\b",
+    "chronic obstructive pulmonary disease": (
+        r"\bcopd\b|\bemphysema|\bchronic bronchitis\b"
+    ),
+    "community-acquired pneumonia": r"\bcap\b|\bpneumonia\b",
+    "COPD screening": r"\bcopd\b|\bemphysema|\bchronic bronchitis\b",
+    "depression and suicide risk screening": r"\bdepress|\bsuicid|\bphq[- ]?9\b",
+    "diabetes mellitus": r"\b(?:dm|t1dm|t2dm)\b|\bdiabet",
+    "dyslipidemia": r"\b(?:hld|ldl|hdl)\b|\b(?:hyperlipid|dyslipid|cholesterol)",
+    "heart failure": r"\b(?:chf|hfpef|hfref)\b|\bheart failure\b",
+    "hepatitis B screening": r"\b(?:hbv|hep(?:atitis)? b)\b",
+    "hepatitis C screening": r"\b(?:hcv|hep(?:atitis)? c)\b",
+    "high body mass index intervention": r"\bobes|\bbmi\b",
+    "HIV preexposure prophylaxis": r"\bhiv\b|\bprep\b",
+    "HIV primary care": r"\bhiv\b",
+    "HIV screening": r"\bhiv\b",
+    "hypertensive disorders of pregnancy screening": r"\bpreeclamp|\bgestational htn|\bhypertensi.*pregnan",
+    "maternal immunization": r"\bimmuniz|\bvaccin|\bshots?\b",
+    "obesity, behavioral weight loss intervention": r"\bobes",
+    "obstructive sleep apnea screening": r"\bosa\b|\bcpap\b|\bapnea",
+    "prediabetes and type 2 diabetes screening": r"\bprediabet|\ba1c\b|\btype 2 diabet",
+    "skin and soft tissue infection": r"\bcellulitis|\babscess|\bskin infection\b",
+    "skin cancer prevention counseling": r"\bskin cancer\b|\bmelanoma\b",
+    "skin cancer screening": r"\bskin cancer\b|\bmelanoma\b",
+    "streptococcal pharyngitis": r"\bsore throat\b|\bstrep\b|\bpharyng",
+    "tobacco use": r"\btobacco|\bsmok|\bppd\b|\bvap(?:e|ing)\b",
+    "tuberculosis diagnosis": r"\btb\b|\btubercu",
+}
+
+DEFAULT_TOPIC_STOPWORDS = frozenset(
+    {
+        "a",
+        "acute",
+        "adolescent",
+        "adult",
+        "and",
+        "associated",
+        "assessment",
+        "care",
+        "chronic",
+        "control",
+        "counseling",
+        "diagnosis",
+        "due",
+        "early",
+        "evaluation",
+        "for",
+        "in",
+        "intervention",
+        "management",
+        "new",
+        "of",
+        "prescribing",
+        "prevention",
+        "primary",
+        "prophylaxis",
+        "related",
+        "risk",
+        "schedule",
+        "screening",
+        "secondary",
+        "supplementation",
+        "support",
+        "testing",
+        "treatment",
+        "use",
+        "with",
+    }
+)
+
+
+def topic_family_for(catalog_topic: str) -> str | None:
+    """Return its committed sheet family, or ``None`` for a ruled scope-out."""
+    if catalog_topic in SCOPED_OUT_CATALOG_TOPICS:
+        return None
+    if catalog_topic not in MAPPED_CATALOG_TOPICS:
+        return None
+    return TOPIC_FAMILY_OVERRIDES.get(catalog_topic, catalog_topic)
+
+
+def _topic_pattern(family: str) -> re.Pattern[str]:
+    if family == "hypertension":
+        return HYPERTENSION
+    source = TOPIC_PATTERN_SOURCES.get(family)
+    if source is None:
+        words = [
+            word
+            for word in re.findall(r"[a-z0-9]+", family.casefold())
+            if len(word) >= 3 and word not in DEFAULT_TOPIC_STOPWORDS
+        ]
+        source = r"\A" + "".join(
+            rf"(?=[\s\S]*\b{re.escape(word)})" for word in dict.fromkeys(words)
+        )
+        if not source:
+            source = rf"\b{re.escape(family)}\b"
+    return re.compile(rf"(?i){source}")
+
+
+TOPIC_FAMILIES = tuple(
+    TopicFamily(name, _topic_pattern(name))
+    for name in sorted(
+        {topic_family_for(topic) for topic in MAPPED_CATALOG_TOPICS} - {None}
+    )
+)
+
+
+@dataclass(frozen=True)
+class TopicCensus:
+    """Counts only. Encounter text never crosses this survey boundary."""
+
+    notes: int
+    candidates: tuple[tuple[str, int], ...]
+
+    def count(self, family: str) -> int:
+        return dict(self.candidates).get(family, 0)
+
+
+def survey_topic_candidates(notes: list[str]) -> TopicCensus:
+    """Count each topic family at most once in each whole encounter."""
+    return TopicCensus(
+        notes=len(notes),
+        candidates=tuple(
+            (family.name, sum(bool(family.pattern.search(note)) for note in notes))
+            for family in TOPIC_FAMILIES
+        ),
+    )
+
+
+CATALOG_CLASSES = frozenset(
+    {
+        "guideline",
+        "recommendation-statement",
+        "web-capture",
+        "draft",
+        "errata",
+        "scope-of-work",
+    }
+)
+CATALOG_CELL_COUNT = 10
+CATALOG_TOPIC_COLUMN = 4
+CATALOG_CLASS_COLUMN = 8
+
+
+def read_catalog_topics(path: Path) -> tuple[str, ...]:
+    """Read the committed topic column, not titles or document contents."""
+    topics: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if (
+            len(cells) == CATALOG_CELL_COUNT
+            and cells[CATALOG_CLASS_COLUMN] in CATALOG_CLASSES
+        ):
+            topics.add(cells[CATALOG_TOPIC_COLUMN])
+    return tuple(sorted(topics))
+
+
+@dataclass(frozen=True)
+class TopicRegistryCoverage:
+    missing: tuple[str, ...]
+    unexpected: tuple[str, ...]
+    mapped_and_scoped_out: tuple[str, ...]
+    empty_scope_out_reasons: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not any(
+            (
+                self.missing,
+                self.unexpected,
+                self.mapped_and_scoped_out,
+                self.empty_scope_out_reasons,
+            )
+        )
+
+    def describe(self) -> str:
+        rows = (
+            ("missing", self.missing),
+            ("unexpected", self.unexpected),
+            ("mapped and scoped out", self.mapped_and_scoped_out),
+            ("empty scope-out reason", self.empty_scope_out_reasons),
+        )
+        return "; ".join(f"{label}: {', '.join(values)}" for label, values in rows if values)
+
+
+def topic_registry_coverage(catalog_topics: tuple[str, ...]) -> TopicRegistryCoverage:
+    """Compare the explicit registry to the catalog without a default mapping."""
+    catalog = set(catalog_topics)
+    mapped = set(MAPPED_CATALOG_TOPICS)
+    scoped = set(SCOPED_OUT_CATALOG_TOPICS)
+    accounted = mapped | scoped
+    return TopicRegistryCoverage(
+        missing=tuple(sorted(catalog - accounted)),
+        unexpected=tuple(sorted(accounted - catalog)),
+        mapped_and_scoped_out=tuple(sorted(mapped & scoped)),
+        empty_scope_out_reasons=tuple(
+            sorted(topic for topic, reason in SCOPED_OUT_CATALOG_TOPICS.items() if not reason.strip())
+        ),
+    )
 
 # A hedge on a diagnosis: the shorthand marks the thing as suspected rather than
 # established. Added for issue #19, whose rule for a hedged diagnosis fires on
@@ -823,11 +1277,24 @@ TOBACCO_NOT_PPD = (
 # ``HEIGHT`` for "ht5'7"" and ``PPD_AS_SKIN_TEST`` for "12mm" -- and all four are
 # repaired by adding an alternative rather than by loosening the boundary.
 #
-# **Widening by the quantity shape is what keeps the repair away from the other
-# sense.** A digit welded to ``ppd`` is *less* ambiguous with a purified protein
-# derivative than a bare ``ppd`` is, because nobody writes a count in front of a
-# tuberculin test. So this narrows the ambiguity the module documents rather than
-# widening it.
+# **Ruled by the clinician on 2026-08-20, and the ruling is a stronger thing
+# than the inference it replaces.** This first rested on *nobody writes a count
+# in front of a tuberculin test* -- true, and an argument from shape, which is
+# the same class of reasoning issue #78 was closed on. What he said instead is
+# what the string **is**: a welded ``1ppd`` is the spaced form *mistyped*, not a
+# token with a sense of its own. *"Though I welded it on the note it should read
+# as a positive tobacco history for 1 pack per day, because that is what that
+# welded though it shouldn't be welded thing means."*
+#
+# **So the welded form does not need a discriminator; it inherits one.** It
+# carries the spaced form's meaning entire, and a purified protein derivative is
+# not one of the things it could have meant -- which is why this narrows the
+# ambiguity the module documents rather than widening it, and why the repair is
+# an alternative rather than a judgment call about a second sense.
+#
+# **What it does not license is loosening the boundary.** The reading is *this
+# is a pack count with the space left out*, so the quantity is what carries it,
+# and a bare token welded to a letter is still outside both patterns.
 #
 # Widened deliberately and re-run against the corpus, on ``HEDGE``'s standing
 # rule. **The figures are in this module's docstring and deliberately not
@@ -1698,6 +2165,30 @@ def _pct(part: int, whole: int) -> str:
     return f"{round(100 * part / whole)}%" if whole else "n/a"
 
 
+def format_topic_report(census: TopicCensus) -> str:
+    """Render fixed labels and counts; encounter text is not accepted here."""
+    ordered = sorted(
+        (row for row in census.candidates if row[1]),
+        key=lambda row: (-row[1], row[0]),
+    )
+    zeros = sum(count == 0 for _, count in census.candidates)
+    noun = "family" if zeros == 1 else "families"
+    lines = [
+        "topic candidate pools - whole-encounter keyword candidate pools",
+        "  CEILINGS on recognized-keyword candidates, not complaint prevalence:",
+        "  matches may be follow-ups, active complaints, working diagnoses,",
+        "  history, medications, or ruled-out diagnoses (over-counting direction)",
+        "  unmatched shorthand or missing synonyms may under-count a family",
+        f"  {zeros} mapped {noun} yielded zero recognized-keyword candidates;",
+        "  omitted below, and not a negative finding about the clinical topic",
+    ]
+    lines.extend(
+        f"  {name:<40} {count:>3} of {census.notes}  {_pct(count, census.notes)}"
+        for name, count in ordered
+    )
+    return "\n".join(lines)
+
+
 def format_band_report(bands: dict[str, BandCensus]) -> list[str]:
     """The issue #11 claim, as lines. Integers and fixed labels only."""
     lines = [
@@ -1723,6 +2214,7 @@ def format_report(
     date: str,
     bands: dict[str, BandCensus],
     files: FileCensus,
+    topics: TopicCensus | None = None,
 ) -> str:
     c = census
     # ASCII only: this output is read in a Windows console and pasted into tickets.
@@ -1879,6 +2371,8 @@ def format_report(
         "  this is the row the NKDA fill rests on, and it is a floor",
     ]
     lines += ["", *format_band_report(bands)]
+    if topics is not None:
+        lines += ["", format_topic_report(topics)]
     return "\n".join(lines)
 
 
@@ -1990,6 +2484,11 @@ def main(argv: list[str]) -> int:
     if not corpus.notes:
         print(f"no notes found in {directory}", file=sys.stderr)
         return 1
+    catalog = Path(__file__).resolve().parent.parent / "reference" / "guidelines-catalog.md"
+    coverage = topic_registry_coverage(read_catalog_topics(catalog))
+    if not coverage.complete:
+        print(f"topic registry incomplete: {coverage.describe()}", file=sys.stderr)
+        return 1
     today = __import__("datetime").date.today().isoformat()
     print(
         format_report(
@@ -1998,6 +2497,7 @@ def main(argv: list[str]) -> int:
             date=today,
             bands=survey_bands(corpus.notes),
             files=survey_files(corpus),
+            topics=survey_topic_candidates(corpus.notes),
         )
     )
     return 0

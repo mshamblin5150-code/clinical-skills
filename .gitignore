@@ -16,6 +16,9 @@ patients/
 *.docx
 *.pdf
 
+# Public CDC reference data committed for the pediatric BMI calculator (#123).
+!reference/cdc-bmi-for-age-2022.csv
+
 # Local agent wiring (see README: junction setup)
 .claude/skills
 .codex/

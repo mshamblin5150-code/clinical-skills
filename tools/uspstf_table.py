@@ -9,20 +9,14 @@ builder emits to ``reference/guidelines-uspstf.md``.
 USPSTF recommendation statements are federal work and public domain, so unlike the
 society documents their content may be committed in full. Issue #82.
 
-Maintainer-only, like ``tools/icd10_build.py``: it takes the source directory as a
+Maintainer-only, like ``tools/icd10_build.py``: it takes #80's extracted directory as a
 positional argument and is run once per corpus refresh. Nothing a consumer runs imports
 it, and the committed Markdown is the whole deliverable.
 
-**It needs PyMuPDF** -- ``pip install pymupdf``, imported as ``fitz`` -- which makes it the
-one tool in ``tools/`` that is not stdlib-only. The import sits inside :func:`read_pdf`
-rather than at module scope, so importing this module needs nothing installed and the
-tests never load it.
-
-**It reads the PDFs directly rather than #80's extracted text.** #80 was unbuilt when this
-landed and its output format was not fixed, so coupling to it would have been a guess.
-``read_pdf`` is the only function in this module that touches a PDF; pointing it at #80's
-per-page text instead is a one-function change, and every parser below already takes a
-list of page strings so the tests never open a PDF at all.
+**It is stdlib-only and opens no PDF.** #80 owns PDF decoding, glyph repair and
+boilerplate stripping; this builder reads its per-page text and takes metadata titles
+from its manifest. Three documents have no usable title on page 1, so that manifest
+field is part of the handoff contract rather than optional decoration.
 
 **Why the grade marker is the anchor.** A USPSTF document states each recommendation two
 to four times -- in the structured abstract, in a summary figure, in the body -- and the
@@ -40,8 +34,8 @@ table is an index into the corpus, not a substitute for it.
 
 Usage::
 
-    python tools/uspstf_table.py "C:/codeing/guidelines-src/USPSTF"
-    python tools/uspstf_table.py "C:/codeing/guidelines-src/USPSTF" --out reference/guidelines-uspstf.md
+    python tools/uspstf_table.py "C:/codeing/guidelines-text"
+    python tools/uspstf_table.py "C:/codeing/guidelines-text" --out reference/guidelines-uspstf.md
 """
 
 from __future__ import annotations
@@ -53,6 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
+from guidelines_index import read_extracted_corpus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
@@ -98,14 +93,16 @@ MARK_SENTENCE = re.compile(
 # --------------------------------------------------------------------------------------
 
 # The structured-abstract recommendation field. JAMA sets the label in caps; Annals of
-# Internal Medicine sets it in title case with a colon. A bare title-case
+# Internal Medicine sets it in title case with a colon. JAMA also uses title case with
+# two spaces after ``Conclusions and Recommendation``; #80 normalizes them to one, which
+# remains safe because that branch requires the ``Conclusions`` prefix. A bare title-case
 # "Recommendation" with neither is *not* matched on purpose -- it is how the cover line
 # "US Preventive Services Task Force Recommendation Statement" reads, and matching it
 # swallows the masthead as if it were a recommendation.
 ABSTRACT_LABEL = re.compile(
     r"^[ \t]*(?:CONCLUSIONS? AND RECOMMENDATIONS?|RECOMMENDATIONS?)\s*:?[ \t]+"
     r"|^[ \t]*(?:Conclusions? and Recommendations?|Recommendations?)\s*:[ \t]*"
-    r"|^[ \t]*Conclusions? and Recommendations?[ \t]{2,}",
+    r"|^[ \t]*Conclusions? and Recommendations?[ \t]+",
     re.M,
 )
 
@@ -620,15 +617,17 @@ def derive_year(pages: list[str]) -> str:
     """Publication year, from the journal citation and then the online-publication line.
 
     The DOI is stripped before the year is looked for: ``doi:10.1001/jama.2023.5634``
-    otherwise reads as the year 1001.
+    otherwise reads as the year 1001. Every citation-shaped line is checked rather
+    than only the first: JAMA pages commonly open with a journal masthead before the
+    structured abstract's dated citation.
     """
-    for page in (normalize(p) for p in pages[:3]):
-        citation = CITATION.search(page)
-        if citation:
+    evidence = pages[:3]
+    for page in (normalize(p) for p in evidence):
+        for citation in CITATION.finditer(page):
             year = YEAR.search(re.sub(r"doi:\S+", "", citation.group(0)))
             if year:
                 return year.group(1)
-    for page in pages[:3]:
+    for page in evidence:
         for line in re.findall(r"(?:published online|copyright|\u00a9)[^\n]*", page, re.I):
             year = YEAR.search(re.sub(r"doi:\S+", "", line))
             if year:
@@ -677,7 +676,11 @@ class DocumentResult:
     reason: str = ""
 
 
-def parse_document(pages: list[str], filename: str, metadata_title: str = "") -> DocumentResult:
+def parse_document(
+    pages: list[str],
+    filename: str,
+    metadata_title: str = "",
+) -> DocumentResult:
     """Every recommendation row one document contributes, or why it contributed none."""
     if not pages:
         return DocumentResult(filename, reason="no extractable text")
@@ -892,72 +895,61 @@ def render_markdown(results: list[DocumentResult]) -> str:
 
 
 # --------------------------------------------------------------------------------------
-# PDF I/O -- the only part of this module that opens a file
+# Extracted-corpus input
 # --------------------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class Source:
-    """One PDF as this module needs it: page text, plus the metadata title."""
-
-    pages: list[str]
-    metadata_title: str = ""
-
-
-def read_pdf(pdf_path: Path) -> Source:
-    """Read one PDF.
-
-    The single seam between this builder and the source corpus, and the only function
-    here that opens a file. Swap it for a reader of #80's extracted text and nothing else
-    in the module changes -- though #80 would have to carry the metadata title too, which
-    its manifest does not currently promise: three documents have no usable title on page
-    1 and take theirs from the PDF metadata instead.
-
-    **PyMuPDF, not the standard library.** The rest of ``tools/`` is stdlib only; this is
-    the exception, and it is imported here rather than at module scope so that importing
-    this module -- which every test does -- does not require it.
-    """
-    import fitz  # PyMuPDF; maintainer-only, never on a consumer's path
-
-    document = fitz.open(pdf_path)
-    try:
-        return Source(
-            pages=[page.get_text() for page in document],
-            metadata_title=(document.metadata or {}).get("title") or "",
-        )
-    finally:
-        document.close()
-
-
-def build(source_dir: Path) -> list[DocumentResult]:
+def build(
+    source_dir: Path, *, allow_untrusted_provenance: bool = False
+) -> list[DocumentResult]:
+    """Build rows from the USPSTF documents in #80's extracted corpus."""
     results = []
-    for path in sorted(source_dir.glob("*.pdf")):
-        try:
-            source = read_pdf(path)
-        except Exception as exc:  # a corrupt PDF is a recorded reason, never a silent skip
-            results.append(DocumentResult(str(path), reason=f"extraction failed: {exc}"))
+    for document in read_extracted_corpus(
+        source_dir, allow_untrusted_provenance=allow_untrusted_provenance
+    ):
+        if document.society != "USPSTF":
             continue
-        results.append(parse_document(source.pages, str(path), source.metadata_title))
+        results.append(
+            parse_document(
+                [page.text for page in document.pages],
+                document.source,
+                document.title or "",
+            )
+        )
     return results
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("source", type=Path, help="directory holding the USPSTF PDFs")
+    parser.add_argument(
+        "source", type=Path, help="directory holding #80's extracted text and manifest"
+    )
     parser.add_argument(
         "--out",
         type=Path,
         default=DEFAULT_OUT,
         help=f"Markdown table to write (default: {DEFAULT_OUT.relative_to(REPO_ROOT)})",
     )
+    parser.add_argument(
+        "--allow-untrusted-provenance",
+        action="store_true",
+        help="read a dirty, foreign, or unstamped extracted corpus and warn",
+    )
     args = parser.parse_args(argv)
 
     if not args.source.is_dir():
         parser.error(f"no such directory: {args.source}")
 
-    results = build(args.source)
+    try:
+        results = build(
+            args.source,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+        )
+    except ValueError as unusable:
+        print(str(unusable), file=sys.stderr)
+        return 2
     if not results:
-        parser.error(f"no PDFs found in {args.source}")
+        parser.error(f"no USPSTF documents found in {args.source}")
 
     args.out.write_text(render_markdown(results), encoding="utf-8", newline="\n")
 

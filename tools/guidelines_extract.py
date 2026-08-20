@@ -66,13 +66,14 @@ glued runs, which is **worse than the library it replaced**. A reader trusting t
 table would have picked the one value that loses to pypdf. #83 published it, and it
 was caught by being asked to read every document rather than a selection.
 
-**What the rebuild costs, isolated rather than bounded.** ``split`` above is a set
-difference -- words present in ``get_text``'s output and absent after the rebuild --
-and it counts every short glued run the rebuild correctly broke apart as though it
-were damage. ``seethe`` -> ``see the`` is in it. So every split the rebuild makes
-was recorded as ``run -> pieces`` and classified against a lexicon built from tokens
-**the PDF itself delimited with real space glyphs**, which needs no outside
-dictionary and cannot be defined by the inference under test:
+**Historical measurement, 2026-08-16.** ``split`` above is a set difference -- words
+present in ``get_text``'s output and absent after the rebuild -- and it counts every
+short glued run the rebuild correctly broke apart as though it were damage. ``seethe``
+-> ``see the`` is in it. Every split in that run was recorded as ``run -> pieces`` and
+classified against a lexicon built from tokens **the PDF itself delimited with real
+space glyphs**, which needed no outside dictionary and was not defined by the inference
+under test. The classifier was not saved, so the table is preserved as a dated result,
+not a current cost:
 
 =================================  ======  =====  ==========================
 class                                   n      %  verdict
@@ -80,25 +81,22 @@ class                                   n      %  verdict
 glued run fixed                     9,622  70.3%  correct, the point
 punctuation, tab or bullet          3,179  23.2%  harmless separation
 digit-break                           390   2.8%  damage, all in citations
-letter-spaced word                    306   2.2%  **the real cost**
+letter-spaced word                    306   2.2%  classified as damage in that run
 word broken, pieces not all single    188   1.4%  mostly a footnote marker
 =================================  ======  =====  ==========================
 
 13,685 split occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
 
-**The number that matters for this repo is zero.** Of the 390 digit-breaks, every
-distinct run is citation apparatus -- a year (``2009;``, 158 of them),
+**The safety result from that historical run was zero damaged clinical units.** Of
+the 390 digit-breaks, every distinct run was citation apparatus -- a year
+(``2009;``, 158 of them),
 supplement page ranges (``S131-S155``), a superscript reference marker welded to
-its word (``al,23``). **Not one carries a clinical unit**, so no threshold value is
-broken anywhere in the corpus. That was the risk worth measuring: a repo whose
-subject is numbers cannot afford a reader that splits them, and this one does not.
+its word (``al,23``). **Not one carried a clinical unit**, so that run found no
+threshold value broken by the reader. That was the risk worth measuring: a repo whose
+subject is numbers cannot afford a reader that splits a clinical unit.
 
-So the true cost is **306 letter-spaced words** in readable text, or 696 counting
-the citation digit-breaks -- against 6,881 by set difference. The ``word broken`` row
-is mostly ``bThe -> b|The``, which is the rebuild correctly separating a footnote
-marker from the word after it and is miscounted as damage here rather than credited.
-
-**The table above is pre-#178 and is left as it was measured.** 284 of the 696 were
+**The table above is pre-#178 and is left as it was measured.** In that classification,
+284 of the 696 were
 one running footer in one document, and that footer is fixed below; the table is not
 restated against the new extraction because the classifier that produced its five
 buckets was never saved. **390 and 13,685 re-derive and 9,622 / 3,179 / 306 / 188 do
@@ -139,12 +137,15 @@ extracted text fall from **159 to 11, and the 142 letter-split ones to 0**; the 
 are the roman-numeral front-matter pages, which the margin rule cannot reach by
 design and which stay.
 
-**The CDC opioid MMWR p.26 is improved and not repaired, which is worth knowing
-before reading it as fixed.** Its letter-spaced paragraph has a gap spread wide
-enough that some of its gaps still clear the bar, so
-``I n A p r i l 2 0 2 1 , t o e x p a n d`` becomes ``I n Ap ril 2 0 2 1 , to e xp
-a nd`` rather than plain text. Neither form is searchable, so nothing regressed --
-but 37 of that page's splits survive and the line is still unusable.
+**The CDC opioid MMWR extracted page 27 is repaired.** Its one span holds normally
+spaced prose on both sides of a middle compressed by roughly 3 pt, so one median
+made the ordinary letter gaps look like word breaks. ``glyph_baselines`` lets the
+real space glyphs bound those regimes, and the line now reads as plain text. A
+same-source comparison over all 179 documents changes exactly two lines, both in
+that MMWR and both visibly repaired, removing 40 false spaces in all. The generic
+version was rejected because it erased real evidence-table footnote spaces in
+IDSA; the measured font boundary and its reason live on
+``LOCAL_SPACING_BASELINE_FONTS``.
 
 **And the footer is boilerplate that should never have reached a reader**: its page
 range varies per page, so the 75% rule never strips it. #178 read that as #100's
@@ -305,6 +306,7 @@ still report nothing stripped.
 from __future__ import annotations
 
 import argparse
+import artifact_provenance
 import json
 import os
 import re
@@ -442,6 +444,14 @@ SPACE_ADVANCE_FRACTION = 0.05
 # baseline. See `line_baseline` for why a low floor would be worse than none.
 MINIMUM_GAPS_FOR_BASELINE = 4
 
+# A font whose one-span lines contain two incompatible spacing regimes. On CDC's
+# opioid MMWR extracted page 27, ``Nunito-Regular`` compresses the middle of a
+# sentence by roughly 3 pt while leaving both ends at ordinary bearings. A local
+# baseline repairs that line; applying the same rule to every font erases real
+# inferred spaces before evidence-table footnotes in IDSA, so the boundary is a
+# measured font property rather than a general spacing heuristic. #178.
+LOCAL_SPACING_BASELINE_FONTS = frozenset({"Nunito-Regular"})
+
 # Fonts that lie about their own encoding, and what their glyphs really are --
 # #172. A comparison operator set in one of these comes back as something else,
 # from `pypdf` and PyMuPDF alike, because the mis-encoding is in the PDF rather
@@ -562,6 +572,15 @@ CLASS_RECOMMENDATION_STATEMENT = "recommendation-statement"
 # A browser print-to-PDF of a web page rather than a published document, which is the
 # three ACIP/ files and only those.
 CLASS_WEB_CAPTURE = "web-capture"
+# A document whose own title page says it is not final. Kept narrower than the word
+# ``draft`` so a final guideline discussing an earlier draft is not reclassified.
+CLASS_DRAFT = "draft"
+# A correction document that titles itself ``Errata`` or ``Erratum``. The classifier
+# matches a whole title line, never the word in body prose.
+CLASS_ERRATA = "errata"
+# Planning material for a guideline that has not been written. Both identity marks
+# are required so an ordinary scope section does not decide the document class.
+CLASS_SCOPE_OF_WORK = "scope-of-work"
 # For a document that was never read. It is not a guideline; nobody knows what it
 # is, and recording it as the default class would let a failure read as a finding.
 CLASS_UNKNOWN = "unknown"
@@ -580,7 +599,7 @@ CLASS_UNKNOWN = "unknown"
 #: carry that value -- and a catalog row that did carry it would be a filter value the
 #: index cannot answer, which is the whole defect. It is a manifest value only.
 #:
-#: **``guidelines_index.UNCLASSIFIED`` is a fourth value the index can carry and this
+#: **``guidelines_index.UNCLASSIFIED`` is an additional value the index can carry and this
 #: is deliberately not it either.** That one describes a *build* -- a document with no
 #: manifest entry at all -- rather than a document, so no catalog row could sensibly
 #: hold it. It is named here rather than left to be discovered, and pinned in
@@ -588,7 +607,36 @@ CLASS_UNKNOWN = "unknown"
 #:
 #: ``guidelines_catalog.py`` imports this rather than restating it, and
 #: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
-CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
+CLASSES = (
+    CLASS_GUIDELINE,
+    CLASS_RECOMMENDATION_STATEMENT,
+    CLASS_WEB_CAPTURE,
+    CLASS_DRAFT,
+    CLASS_ERRATA,
+    CLASS_SCOPE_OF_WORK,
+)
+
+# The pre-strip page vote used by the catalog's publication-year guess. It lives
+# with the producer because the manifest has to retain the page frequency that
+# deduplicated ``boilerplate`` and ``margin_stripped`` literals cannot express.
+PUBLICATION_YEAR_RE = re.compile(r"(?:19|20)\d{2}")
+ACCESS_LINE_RE = re.compile(
+    r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
+)
+
+
+def publication_year_page_counts(pages: list[list[str]]) -> dict[str, int]:
+    """How many pages carry each non-access year before anything is stripped."""
+    hits: dict[str, int] = {}
+    for page in pages:
+        found: set[str] = set()
+        for line in page:
+            if ACCESS_LINE_RE.search(line):
+                continue
+            found.update(PUBLICATION_YEAR_RE.findall(line))
+        for year in found:
+            hits[year] = hits.get(year, 0) + 1
+    return dict(sorted(hits.items()))
 
 # A recommendation statement is a document that titles itself one. The two marks have
 # to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
@@ -600,10 +648,20 @@ CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
 # ``USPreventiveServicesTaskForceRecommendationStatement``.
 #
 # These live here rather than in ``guidelines_catalog.py``, which is where they were
-# written, because the producer owns the vocabulary it emits and the auditor imports
-# it. Two copies of a rule that must agree is what #253 cost.
+# written, because the producer owns the vocabulary it emits and the auditor consumes
+# the manifest value. Two copies of a rule that must agree is what #253 cost.
 TASK_FORCE_MARK = "taskforce"
 RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
+PUBLIC_REVIEW_DRAFT_TITLE = re.compile(
+    r"^\s*public\s+review\s+draft\s*$", re.IGNORECASE | re.MULTILINE
+)
+ERRATA_TITLE = re.compile(r"^\s*errat(?:a|um)\s*$", re.IGNORECASE | re.MULTILINE)
+ERRATA_RUNNING_HEAD = re.compile(r"errata\s*$", re.IGNORECASE | re.MULTILINE)
+ERRATUM_CORRECTION_TITLE = re.compile(
+    r"^\s*erratum\s+to\s*:", re.IGNORECASE | re.MULTILINE
+)
+GUIDELINE_MARK = "guideline"
+SCOPE_OF_WORK_TITLE = re.compile(r"^\s*scope\s+of\s+work\s*$", re.IGNORECASE | re.MULTILINE)
 
 # The three ACIP/ files are browser print-to-PDF captures of CDC schedule pages
 # rather than guideline documents, and this header is what says so. The URL and
@@ -885,21 +943,35 @@ def squash(text: str) -> str:
 
 
 def is_recommendation_statement(title_block: str) -> bool:
-    """Whether a title block says the document is a USPSTF recommendation statement.
-
-    Shared with ``guidelines_catalog.classify`` by import rather than by copy, so the
-    producer and the auditor cannot come to hold different answers.
-    """
+    """Whether a title block says the document is a USPSTF recommendation statement."""
     squashed = squash(title_block)
     return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
+
+
+def is_public_review_draft(title_block: str) -> bool:
+    """Whether the document identifies itself as a public review draft."""
+    return PUBLIC_REVIEW_DRAFT_TITLE.search(title_block) is not None
+
+
+def is_errata(title_block: str) -> bool:
+    """Whether a title line identifies the whole document as errata."""
+    return ERRATA_TITLE.search(title_block) is not None or (
+        ERRATA_RUNNING_HEAD.search(title_block) is not None
+        and ERRATUM_CORRECTION_TITLE.search(title_block) is not None
+    )
+
+
+def is_guideline_scope_of_work(title_block: str) -> bool:
+    """Whether the title identifies planning material for a future guideline."""
+    squashed = squash(title_block)
+    return GUIDELINE_MARK in squashed and SCOPE_OF_WORK_TITLE.search(title_block) is not None
 
 
 def classify(pages: list[list[str]]) -> str:
     """Which of ``CLASSES`` this document is.
 
     **Ordered, and the order matters**: a browser capture of a page that happens to say
-    "recommendation statement" is still a capture. ``guidelines_catalog.classify`` has
-    always read the two in that order and this adopts it.
+    "recommendation statement" is still a capture.
 
     The capture test is counted over the sampled pages directly rather than read off
     the boilerplate set. Those look interchangeable on the three real captures, where
@@ -908,16 +980,14 @@ def classify(pages: list[list[str]]) -> str:
     to trip MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page,
     would come back a guideline with nothing saying otherwise.
 
-    **The recommendation-statement test reads the first page only**, which is where the
-    document titles itself, and it runs here rather than in ``guidelines_catalog.py``
-    alone because #185 ruled the producer's vocabulary is the catalog's. Running the
-    catalog's classifier over the extracted ``.txt`` corpus reproduces every one of the
-    catalog's ``recommendation-statement`` and ``guideline`` cells, and misses all three
-    captures -- because the stamp it keys on is boilerplate and has been stripped by
-    then. This sees the pages **before** stripping, which is why both halves can live
-    here and neither could live there. **The counts are deliberately not stated**: the
-    only thing that produces them is an artifact outside every checkout, so nothing
-    committed re-derives them, and one of the three is a subtraction of the other two.
+    **Every content-form test reads the first page only**, which is where the document
+    identifies itself. The three #107 forms use whole title lines, so a final guideline
+    mentioning an earlier draft, errata, or its scope in prose keeps the fallback class.
+    This runs here rather than in ``guidelines_catalog.py`` alone because #185 ruled the
+    producer's vocabulary is the catalog's. The catalog consumes this manifest value;
+    it does not reclassify extracted text. The extractor sees the pages **before**
+    stripping, which is why the capture test must live here: its timestamp is
+    boilerplate and is absent from the extracted text the index reads.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:
@@ -929,6 +999,12 @@ def classify(pages: list[list[str]]) -> str:
     )
     if stamped >= BOILERPLATE_THRESHOLD * len(sampled):
         return CLASS_WEB_CAPTURE
+    if pages and is_public_review_draft("\n".join(pages[0])):
+        return CLASS_DRAFT
+    if pages and is_errata("\n".join(pages[0])):
+        return CLASS_ERRATA
+    if pages and is_guideline_scope_of_work("\n".join(pages[0])):
+        return CLASS_SCOPE_OF_WORK
     if pages and is_recommendation_statement(" ".join(pages[0])):
         return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE
@@ -971,6 +1047,9 @@ class Record:
     # reshuffle of the old one.
     margin_patterns: list[str] = field(default_factory=list)
     margin_stripped: list[str] = field(default_factory=list)
+    # #108's exact pre-strip evidence. The two line lists above are deduplicated,
+    # so they cannot preserve the page vote the catalog's year rule makes.
+    year_page_counts: dict[str, int] = field(default_factory=dict)
     # #172's report, and deliberately a field rather than a printed line. A symbol
     # font this module's table does not name is decoded however the PDF says and
     # passes in silence -- which is the state the corpus was in for the whole of
@@ -1046,6 +1125,7 @@ def build_document(
         boilerplate=boilerplate,
         margin_patterns=fired,
         margin_stripped=margin_stripped,
+        year_page_counts=publication_year_page_counts(pages),
         symbol_glyphs=dict(symbol_glyphs or {}),
         error=None,
     )
@@ -1268,6 +1348,67 @@ def span_space_advances(line: dict) -> list[float | None]:
         for own in (advances(span) for span in spans)
     ]
 
+
+def glyph_baselines(line: dict) -> list[list[float]]:
+    """One spacing baseline per glyph, bounded by real space glyphs where present.
+
+    A span normally owns one spacing regime, and ``span_baselines`` remains the
+    fallback for spans that contain no real spaces. CDC's opioid MMWR extracted
+    page 27 is the counterexample: one span holds a normally spaced phrase, a
+    heavily compressed phrase, and normally spaced prose again. The compressed
+    middle dominates the span median and makes ordinary letter gaps on either
+    side look like word breaks.
+
+    Real spaces are boundaries the PDF supplied, so each run between them gets
+    its own baseline. A short run deliberately falls through ``line_baseline`` to
+    its absolute-rule value of zero; borrowing the compressed neighbor's median
+    would recreate the defect this boundary exists to prevent. Lines without a
+    real space keep the existing span behavior unchanged.
+    """
+    span_fallbacks = span_baselines(line)
+    result: list[list[float]] = []
+    for span_index, span in enumerate(line.get("spans", ())):
+        chars = list(span.get("chars", ()))
+        if (
+            font_key(span.get("font", "")) not in LOCAL_SPACING_BASELINE_FONTS
+            or not any(char["c"] == " " for char in chars)
+        ):
+            result.append([span_fallbacks[span_index]] * len(chars))
+            continue
+
+        segments: list[tuple[int, int, float]] = []
+        start = 0
+        while start < len(chars):
+            if chars[start]["c"] == " ":
+                start += 1
+                continue
+            end = start
+            while end < len(chars) and chars[end]["c"] != " ":
+                end += 1
+            baseline = line_baseline(
+                [(char, span.get("size", 0.0)) for char in chars[start:end]]
+            )
+            segments.append((start, end, baseline))
+            start = end
+
+        # Local baselines are a repair for a compressed regime that dominates the
+        # whole span, not a general replacement for its median. Ordinary kerning
+        # varies by word, and a compressed citation inside otherwise normal prose
+        # must not activate this rule. The span median itself has to overlap by
+        # more than this size's existing word-break threshold.
+        threshold = max(
+            SPACE_GAP_FRACTION * span.get("size", 0.0), SPACE_GAP_FLOOR
+        )
+        if not segments or span_fallbacks[span_index] >= -threshold:
+            result.append([span_fallbacks[span_index]] * len(chars))
+            continue
+
+        baselines = [0.0] * len(chars)
+        for start, end, baseline in segments:
+            baselines[start:end] = [baseline] * (end - start)
+        result.append(baselines)
+    return result
+
 def rebuild_text(raw: dict) -> str:
     """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
 
@@ -1291,7 +1432,7 @@ def rebuild_text(raw: dict) -> str:
         if block.get("type") != 0:
             continue
         for line in block.get("lines", ()):
-            baselines = span_baselines(line)
+            baselines = glyph_baselines(line)
             if not baselines:
                 continue
             advances = span_space_advances(line)
@@ -1299,13 +1440,13 @@ def rebuild_text(raw: dict) -> str:
             previous_right: float | None = None
             for index, span in enumerate(line.get("spans", ())):
                 size = span.get("size", 0.0)
-                baseline = baselines[index]
                 advance = advances[index]
                 threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
                 # #172. Looked up once per span rather than once per character,
                 # and empty for every font in the corpus but two.
                 operators = SYMBOL_FONT_OPERATORS.get(font_key(span.get("font", "")), {})
-                for char in span.get("chars", ()):
+                for char_index, char in enumerate(span.get("chars", ())):
+                    baseline = baselines[index][char_index]
                     # Substituted before the gap rule reads it, which is safe
                     # because every row is 1:1 and no row produces a space -- so
                     # `glyph != " "` below decides the same thing either way.
@@ -1438,7 +1579,13 @@ def orphaned_outputs(out_root: Path, records: list[Record]) -> list[Path]:
     return sorted(path for path in out_root.rglob("*.txt") if path not in claimed)
 
 
-def write_manifest(out_root: Path, records: list[Record], source_root: Path) -> Path:
+def write_manifest(
+    out_root: Path,
+    records: list[Record],
+    source_root: Path,
+    *,
+    producer: dict[str, str | bool] | None = None,
+) -> Path:
     """The audit trail, and #84's input. One entry per document, in source order.
 
     ``documents`` is the **list of entries**, which is the shape
@@ -1449,6 +1596,7 @@ def write_manifest(out_root: Path, records: list[Record], source_root: Path) -> 
     with no title, society or class. That refusal is the contract working.
     """
     manifest = {
+        "producer": producer or artifact_provenance.current_producer(),
         "source": str(source_root),
         "codec": OUTPUT_CODEC,
         "engine": _engine_version(),

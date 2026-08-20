@@ -289,14 +289,14 @@ def reachable_objects(repo: Path) -> dict[str, str]:
     is the harness artefact #212's body records having tripped over, and it is
     kept here as a label rather than trusted as *the* path.
     """
-    labelled = {}
+    labeled = {}
     for line in _git(repo, "rev-list", "--all", "--objects").splitlines():
         parts = line.split(" ", 1)
         if len(parts) == 2 and parts[1].strip():
-            labelled[parts[0]] = parts[1].strip()
+            labeled[parts[0]] = parts[1].strip()
         elif parts[0].strip():
-            labelled.setdefault(parts[0].strip(), "")
-    return labelled
+            labeled.setdefault(parts[0].strip(), "")
+    return labeled
 
 
 def path_records(repo: Path) -> list[Record]:

@@ -151,11 +151,11 @@ To audit a specific visit fast, `patList:txtSearch` on `/login/patient.aspx` acc
 | Interaction Level | picklist | given |
 | Race/Ethnicity | picklist | declared default — see Field selection rules |
 | Gender | picklist | given |
-| Age + unit | text + picklist | given |
+| Age + unit | text + picklist | given, derived, or filled; provenance stays outside the field |
 | Marital status at first contact | picklist | given |
 | Primary Payment Method | picklist | declared pattern — see Field selection rules |
 | Case Type | picklist | given |
-| Patient Time | picklist | derived from age and visit type |
+| Patient Time | picklist | derived from age and visit type; provenance stays outside the field |
 | Start time / End time | text | estimated — see Field selection rules |
 | Blood pressure | two text boxes | given, or filled — see Field selection rules |
 | Respiratory Rate | text | given, or filled — see Field selection rules |
@@ -180,9 +180,11 @@ Visit Time is derived from start and end, and varies — 0:30 to 0:45 across one
 
 Some fields are administrative and never appear in bedside shorthand. Without a stated rule the skill reports them missing on every note, which is what trains a clinician to skim the block that is supposed to catch real omissions. Each one below has a rule, so it is answered once here rather than ten times a day.
 
+**A filled age is entered without a provenance label.** `Age + unit` contains the age and unit, and `Patient Time` contains the band derived from that age. Neither field says `filled`, `inferred`, `guess`, or `confirm before entry`. The private `FILLED·asserted` record retains how the age was chosen; it is not part of the Medatrax entry. The clinical note body follows the same rule. Issue [#158](https://github.com/mshamblin5150-code/clinical-skills/issues/158).
+
 **Primary Payment Method — a site, age and status pattern, corrected on sight.**
 
-Payer data is not visible at the bedside. The value is *declared*, not derived — but it is not a constant either. The flat `Medicaid` default that used to sit here was **wrong close to two times in five**, measured field by field across every encounter of one account's sampled day rather than estimated. The ratio is what belongs here, because it is what decides the handling: a default wrong two times in five goes under `FILLED·asserted` for confirmation, and one wrong once in twenty could be filled silently. **The reading it came from is per-account and is recorded twice** — `scratch/medatrax-profile.md` under *Declared field defaults*, and `fixtures/day-a/assertions.md`, which is committed and so survives a clone that has no profile. Neither is re-derivable without the account: it was read off the portal, not computed.
+Payer data is not visible at the bedside. The value is *declared*, not derived — but it is not a constant either. The flat `Medicaid` default that used to sit here was wrong often enough that it must go under `FILLED·asserted` for confirmation rather than being filled silently. **The exact reading is per-account and lives in `scratch/medatrax-profile.md` under *Declared field defaults*.** It is not re-derivable without the account because it was read off the portal, not computed; any fixture evidence and count stay in the withheld fixture record.
 
 **The rule keys on the site, so the rule is per-account and lives with the picklist.** It is in `scratch/medatrax-profile.md` under *Declared field defaults*, read off the clinician's own entries, and it fits 16 of the 18 H&P encounters and most of the SOAP comparison set. **What generalizes is that the site is a key at all, not the mapping** — [setup-clinical-skills](../skills/setup-clinical-skills/SKILL.md) step 5 says to measure this against the account's own record rather than carry another one's across, and a payer table is exactly the field that ruling was written about.
 
@@ -205,6 +207,8 @@ The four vital and measurement fields are filled where the encounter does not su
 **The clinician's own practice settled this.** The 2025 Spring batch leaves `Height` and `BMI` blank; **every 2025 Fall and 2026 Spring encounter fills both**, inventing a height where the shorthand carries none. His words: *"the newer records everything is filled out."* The blank ones are the older habit, not the standard — the same shape as the flat visit lengths under Visit Time.
 
 Order matters for the pair: pick a plausible height, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and read the height and weight backwards out of it. There is no weight field in Medatrax, so the weight lives in the note only — but the BMI in the field must recompute from it.
+
+**A supplied but impossible number is not a value to enter and not an invitation to fill a replacement.** [clinical-note](../skills/clinical-note/SKILL.md)'s *An impossible given stays given* preserves the source token in the note, routes the ambiguity to `UNKNOWN` and the required verification to `FLAG`, and emits this structured field as `GAPS`: source value unusable, usable value unrecoverable, verify the source. A guessed correction never reaches the field.
 
 **Start time / End time — estimated, not missing.**
 

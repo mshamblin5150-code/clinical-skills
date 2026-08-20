@@ -48,7 +48,7 @@ A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit
 
 ### And a command that grades it
 
-**The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for the shapes a lost body arrives in: the literal `@-`, an empty or whitespace-only body, and a body that is one bare `@token` — what `--body @notes.md` writes.
+**The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for four shapes: the literal `@-`, an empty or whitespace-only body, a body that is one bare `@token` — what `--body @notes.md` writes — and [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s double-encoded body.
 
 ```bash
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > scratch/tracker-issues.json
@@ -59,7 +59,7 @@ python tools/tracker_bodies.py scratch/tracker-issues.json scratch/tracker-comme
 
 **All three surfaces, which is `tools/tracker_scan.py`'s set.** The review-comment endpoint is the one easiest to leave out; a harvest that omits it reports that as a clean scan of it rather than as not having read it.
 
-**It opens no socket**, on `tracker_scan.py`'s terms — the fetch is a documented `gh` command whose output is a file. Into `scratch/` for that tool's reason too: the harvest is the tracker's entire text, and `scratch/` is the PHI firewall's own directory. **Its report names a URL and a row name and never a body**, so its output is safe to paste, and there is no `--show` to widen it.
+**It opens no socket**, on `tracker_scan.py`'s terms — the fetch is a documented `gh` command whose output is a file. Into `scratch/` for that tool's reason too: the harvest is the tracker's entire text, and `scratch/` is the PHI firewall's own directory. **Its report names a URL and a row name and never a body**, so its output is safe to paste, and there is no `--show` to widen it. The fourth row catches both known encoding mechanisms: UTF-8 decoded through cp1252, and a literal `\uXXXX` escape left undecoded. It counts affected records rather than raw sequences. A shape inside inline or fenced code is a mention and does not fire.
 
 **It is also the read-back**, because it takes a single JSON object as well as a list — one command, and it catches the shape `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure:
 
@@ -69,13 +69,24 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 **`-` and not a path to a device.** This line first read `/dev/stdin`, which is not a file on the platform every commit here is made from — the command exited 2 saying *no harvest file named dev/stdin*, so a documented step could not run while reading as a checked one.
 
-**Nothing runs any of this, and saying so is the point.** `tools/hooks/` holds only `pre-commit`, and a commit is not a filing — the tracker is not in the tree, so no hook can reach it. The gap this closes is *there was no check*; the gap it leaves is *a check exists and somebody has to run it*, and a command nobody runs is a written instruction with extra steps.
+**Nothing runs any of this, and saying so is the point.** `tools/hooks/` holds `pre-commit` and `commit-msg`, and neither owns a filing — the tracker is not in the tree, so no local hook can reach it. The gap this closes is *there was no check*; the gap it leaves is *a check exists and somebody has to run it*, and a command nobody runs is a written instruction with extra steps.
 
 **Do not grade this with `gh issue list`, and that is #130's own finding rather than a preference.** That command **`gh issue list` excludes pull requests**. Two of the eight lost bodies in this repo are pull requests — #98 and #71 — so every sweep that ran #130's reproduce command re-derived *six, not eight* and concluded the ticket's title was stale. **Its count was right** — its *three are still open* half really had gone stale, which is what made the whole title easy to dismiss — and the instrument could not see two of its members and had no way to say so. The `issues` REST endpoint returns both, and a `pull_request` key is which.
 
-**A clean scan is not a body worth reading.** Every row here asks whether text landed, and none reads what it says — a body truncated at a shell metacharacter, or the right words about the wrong ticket, is a body with text in it and passes. Double-encoded bodies are [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s and are deliberately not a row here.
+**A clean scan is not a body worth reading.** The first three rows ask whether text landed; the fourth row reads only the two bounded encoding shapes above. A body truncated at a shell metacharacter, or the right words about the wrong ticket, has text, matches neither encoding shape, and passes.
 
 ## Pull requests as a triage surface
+
+### Check closing keywords before merge
+
+GitHub scans a pull request's title, body, and commit messages for closing keywords. It does not honor prose intent or Markdown quoting: a sentence explaining that a form would have settled a ticket can itself settle it. Run the repository scanner over all three fields before merging:
+
+```bash
+gh pr view <number> --json title,body,commits |
+  python tools/closing_keyword_scan.py --github-json -
+```
+
+The only allowed binding is `Closes #N` alone on its own line, when the whole ticket is done. Use `Implements #N's lead 1` or `Part of #N` for partial work. The local `commit-msg` hook checks commit messages, and CI checks PR text on edits plus every commit in a push to `main`, both advisory; the command above is the pre-merge check that reaches the whole PR artifact. Issue #183.
 
 **PRs as a request surface: no.**
 
@@ -188,7 +199,7 @@ The paragraph that filed a ticket usually cites it, and that paragraph is a spec
 
 ### Ticket text takes standing rule 4
 
-**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Nothing checks any of them — `tools/spelling_scan.py` reads tracked Markdown, and an issue body is neither — so this one is on you, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) is where the gap is tracked. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is narrower than the language. **Do not quote its width here** — derive it, because the figure in this sentence went stale twice on 2026-08-18 alone:
+**Everything the repo emits, which includes ticket bodies, comments, PR bodies and commit messages.** Since [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104), the local `commit-msg` hook checks a commit message against the listed forms, advisory; ticket bodies, comments and PR bodies remain the clinician's explicit manual surface because no local hook owns them. **A clean `spelling_scan` run says nothing about a ticket you just filed**, and the table it holds is narrower than the language. **Do not quote its width here** — derive it, because the figure in this sentence went stale twice on 2026-08-18 alone:
 
 ```bash
 python -c "import sys; sys.path.insert(0,'tools'); import spelling_scan as s; print('TABLE', len(s.TABLE), 'FORMS', len(s.FORMS), 'ALL_FORMS', len(s.ALL_FORMS))"

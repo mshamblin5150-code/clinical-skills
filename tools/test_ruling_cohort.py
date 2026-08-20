@@ -393,27 +393,36 @@ class TheRowTotalsAreReDerived(unittest.TestCase):
     made a test.
     """
 
-    def test_day_b_holds_forty_one_rows_and_says_so(self):
+    def test_day_b_holds_forty_two_rows_and_says_so(self):
         # 39 until 2026-08-18, when #200's B23 met #79's B19 through B22 in
         # this tree. Both branches were correct about their own; neither could
         # see the other, and this assertion is what made the merge say so.
-        self.assertEqual(len(_row_ids(DAY_B)), 41)
+        self.assertEqual(len(_row_ids(DAY_B)), 42)
         self.assertIn(
-            "24 scored by run 3, 2 scored by a targeted scoring, 9 unscored "
-            "and 6 promoted successors is 41",
+            "24 scored by run 3, 2 scored by a targeted scoring, 10 unscored "
+            "and 6 promoted successors is 42",
             DAY_B.read_text(encoding="utf-8"),
         )
 
-    def test_day_a_holds_thirty_four_rows_and_says_so(self):
-        self.assertEqual(len(_row_ids(DAY_A)), 34)
-        self.assertIn("the set now holds 34", DAY_A.read_text(encoding="utf-8"))
+    def test_day_b_names_the_two_targeted_scores_outside_the_unscored_set(self):
+        text = DAY_B.read_text(encoding="utf-8")
+        self.assertIn("Ten of the twelve still are. R6 and R7 are the exceptions", text)
+        self.assertIn(
+            "The ten rows without a value are G1, G2, B12, B13, R5, B14, "
+            "B15, B16, B17 and B18",
+            text,
+        )
+
+    def test_day_a_holds_thirty_five_rows_and_says_so(self):
+        self.assertEqual(len(_row_ids(DAY_A)), 35)
+        self.assertIn("the set now holds 35", DAY_A.read_text(encoding="utf-8"))
 
     def test_the_sets_table_carries_the_same_totals(self):
         # It read `31 of 31` for day-a while day-a's own file read `31 of 32`,
         # which is the same figure stale in two files at once.
         readme = FIXTURES_README.read_text(encoding="utf-8")
         self.assertIn("**31 of 34 rows**", readme)
-        self.assertIn("**24 of 41 rows**", readme)
+        self.assertIn("**24 of 42 rows**", readme)
 
 
 class TheCoverageBoundIsStated(unittest.TestCase):

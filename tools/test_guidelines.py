@@ -15,9 +15,11 @@ The corpus is also the reason no page text here is real guideline text: these
 fixtures are invented sentences shaped like guideline prose, not excerpts.
 """
 
+import ast
 import io
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -25,9 +27,11 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import guidelines_index as gi
 import guidelines_search as gs
+import artifact_provenance
 from repo_root import InsideCheckout
 
 TOOLS = Path(__file__).resolve().parent
@@ -68,7 +72,11 @@ def write_single(text_dir: Path, doc_id: str, pages):
 
 def write_manifest(text_dir: Path, documents):
     path = text_dir / "manifest.json"
-    path.write_text(json.dumps({"documents": documents}), encoding="utf-8")
+    producer = artifact_provenance.current_producer()
+    producer["dirty"] = False
+    path.write_text(
+        json.dumps({"producer": producer, "documents": documents}), encoding="utf-8"
+    )
     return path
 
 
@@ -85,10 +93,24 @@ class TempCorpus(unittest.TestCase):
         self.text_dir = self.root / "guidelines-text"
         self.text_dir.mkdir()
         self.db = self.root / "guidelines-index" / "guidelines.sqlite"
+        producer = artifact_provenance.current_producer()
+        producer["dirty"] = False
+        patcher = mock.patch.object(
+            artifact_provenance, "current_producer", return_value=producer
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def build_default_corpus(self):
         write_single(self.text_dir, "AHA ACC/2017-hypertension", ["cover page", HYPERTENSION_PAGE])
         write_single(self.text_dir, "IDSA/2010-uti", ["cover page", PYELONEPHRITIS_PAGE])
+        write_manifest(
+            self.text_dir,
+            [
+                {"doc_id": "AHA ACC/2017-hypertension"},
+                {"doc_id": "IDSA/2010-uti"},
+            ],
+        )
         return gi.build(self.text_dir, self.db)
 
 
@@ -149,6 +171,46 @@ class DiscoveryTests(TempCorpus):
 
 
 class ManifestTests(TempCorpus):
+    def test_an_unstamped_manifest_is_refused(self):
+        (self.text_dir / "manifest.json").write_text(
+            json.dumps({"documents": [{"doc_id": "USPSTF/example"}]}), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "producer"):
+            gi.read_manifest(self.text_dir)
+
+    def test_a_manifest_from_another_commit_is_refused(self):
+        write_manifest(self.text_dir, [{"doc_id": "USPSTF/example"}])
+        path = self.text_dir / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "different commit"):
+            gi.read_manifest(self.text_dir)
+
+    def test_a_manifest_from_a_dirty_tree_is_refused(self):
+        write_manifest(self.text_dir, [{"doc_id": "USPSTF/example"}])
+        path = self.text_dir / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["producer"]["dirty"] = True
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+            gi.read_manifest(self.text_dir)
+
+    def test_the_explicit_override_reads_and_warns(self):
+        (self.text_dir / "manifest.json").write_text(
+            json.dumps({"documents": [{"doc_id": "USPSTF/example"}]}), encoding="utf-8"
+        )
+
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            manifest = gi.read_manifest(
+                self.text_dir, allow_untrusted_provenance=True
+            )
+
+        self.assertIn("USPSTF/example", manifest)
+
     def test_manifest_supplies_title_and_class(self):
         write_single(self.text_dir, "ACIP/2026-schedule", ["one"])
         write_manifest(
@@ -249,6 +311,7 @@ class RepoContainmentTests(TempCorpus):
 
     def test_a_sibling_of_the_checkout_is_built(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
         self.checkout()
         report = gi.build(self.text_dir, self.root / "guidelines-index" / "g.sqlite")
         self.assertTrue(report.database.exists())
@@ -274,6 +337,48 @@ class RepoContainmentTests(TempCorpus):
 
 
 class BuildTests(TempCorpus):
+    def test_a_dirty_index_build_needs_the_explicit_override(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
+        dirty = artifact_provenance.current_producer()
+        dirty["dirty"] = True
+
+        with mock.patch.object(
+            artifact_provenance, "current_producer", return_value=dirty
+        ):
+            with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+                gi.build(self.text_dir, self.db)
+            with self.assertWarnsRegex(RuntimeWarning, "dirty"):
+                gi.build(
+                    self.text_dir,
+                    self.db,
+                    allow_untrusted_provenance=True,
+                )
+
+    def test_a_text_directory_without_a_manifest_is_refused(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "manifest.json"):
+            gi.build(self.text_dir, self.db)
+
+    def test_the_override_builds_from_unstamped_text_and_marks_the_index_untrusted(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            gi.build(
+                self.text_dir,
+                self.db,
+                allow_untrusted_provenance=True,
+            )
+
+        connection = sqlite3.connect(self.db)
+        try:
+            meta = dict(connection.execute("SELECT key, value FROM meta").fetchall())
+        finally:
+            connection.close()
+        provenance = json.loads(meta["provenance"])
+        self.assertTrue(provenance["untrusted_reasons"])
+
     def test_the_report_counts_what_went_in(self):
         report = self.build_default_corpus()
         self.assertEqual(report.documents, 2)
@@ -395,6 +500,7 @@ class LineAttributionTests(TempCorpus):
                 "Patients reporting near syncope are evaluated the same way.\n"
             ],
         )
+        write_manifest(self.text_dir, [{"doc_id": "AHA ACC/syncope"}])
         gi.build(self.text_dir, self.db)
         connection = gs.open_index(self.db)
         self.addCleanup(connection.close)
@@ -431,6 +537,66 @@ class MissingIndexTests(TempCorpus):
         with self.assertRaises(gs.NotAnIndex):
             gs.open_index(self.db)
 
+    def test_an_index_without_provenance_is_refused(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        connection.execute("DELETE FROM meta WHERE key = 'provenance'")
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "provenance"):
+            gs.open_index(self.db)
+
+    def test_an_index_from_another_commit_is_refused(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        provenance = json.loads(
+            connection.execute(
+                "SELECT value FROM meta WHERE key = 'provenance'"
+            ).fetchone()[0]
+        )
+        provenance["producer"]["commit"] = "f" * 40
+        connection.execute(
+            "UPDATE meta SET value = ? WHERE key = 'provenance'",
+            (json.dumps(provenance),),
+        )
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "different commit"):
+            gs.open_index(self.db)
+
+    def test_the_override_opens_an_untrusted_index_and_warns(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        with self.assertWarns(RuntimeWarning):
+            gi.build(self.text_dir, self.db, allow_untrusted_provenance=True)
+
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            connection = gs.open_index(
+                self.db, allow_untrusted_provenance=True
+            )
+        connection.close()
+
+    def test_a_dirty_embedded_source_stamp_cannot_be_laundered(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        provenance = json.loads(
+            connection.execute(
+                "SELECT value FROM meta WHERE key = 'provenance'"
+            ).fetchone()[0]
+        )
+        provenance["source"]["dirty"] = True
+        provenance["untrusted_reasons"] = []
+        connection.execute(
+            "UPDATE meta SET value = ? WHERE key = 'provenance'",
+            (json.dumps(provenance),),
+        )
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+            gs.open_index(self.db)
+
 
 class CommandLineTests(TempCorpus):
     def run_search(self, argv):
@@ -457,6 +623,29 @@ class CommandLineTests(TempCorpus):
         status, _, err = self.run_search(["--db", str(self.db), "aortic dissection"])
         self.assertEqual(status, 2)
         self.assertIn("guidelines_index.py", err)
+
+    def test_the_override_flag_can_search_a_tainted_index_and_warns(self):
+        write_single(self.text_dir, "IDSA/2010-uti", [PYELONEPHRITIS_PAGE])
+        with self.assertWarns(RuntimeWarning):
+            gi.build(self.text_dir, self.db, allow_untrusted_provenance=True)
+
+        refused, _, refused_err = self.run_search(
+            ["--db", str(self.db), "urine culture"]
+        )
+        allowed, out, allowed_err = self.run_search(
+            [
+                "--allow-untrusted-provenance",
+                "--db",
+                str(self.db),
+                "urine culture",
+            ]
+        )
+
+        self.assertEqual(refused, 2)
+        self.assertIn("untrusted", refused_err)
+        self.assertEqual(allowed, 0)
+        self.assertIn("IDSA/2010-uti", out)
+        self.assertIn("untrusted", allowed_err)
 
     def test_several_queries_are_reported_separately(self):
         """Query expansion is the answer to `keyword search cannot find a concept`,
@@ -517,6 +706,189 @@ class CommandLineTests(TempCorpus):
         self.assertEqual(status, 1)
         self.assertIn("0 match(es)", out)
 
+    # ------------------------------------------------------------------
+    # A society no document carries is not a genuine zero either, #271
+    # ------------------------------------------------------------------
+
+    def test_a_society_no_document_carries_exits_two_and_names_what_is_there(self):
+        """#271, and it is #185's defect on the second filter flag.
+
+        The corpus holds nine societies whose directory names are not obvious --
+        ``AHA ACC`` carries a space and ``USPSTF`` is easy to transpose -- so a
+        mistyped one is not hypothetical. Exit 1 is this tool's documented code for
+        *nothing in the corpus matches*, and a caller obeying that convention takes
+        it as evidence; a typo is a way of not having searched.
+        """
+        self.build_default_corpus()
+        status, out, err = self.run_search(
+            ["--db", str(self.db), "--society", "USPTF", "urine culture"]
+        )
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "", "nothing may be reported about a search that did not run")
+        self.assertIn("USPTF", err)
+        self.assertIn("IDSA", err, "the message says what the index does hold")
+
+    def test_a_society_prefix_is_not_a_society(self):
+        """``IDS`` is not ``IDSA``. The filter is an equality, so a prefix matches
+        nothing -- and returning 1 for it would certify that IDSA is silent on a
+        question it answers on the very next line."""
+        self.build_default_corpus()
+        status, _, err = self.run_search(
+            ["--db", str(self.db), "--society", "IDS", "urine culture"]
+        )
+        self.assertEqual(status, 2)
+        self.assertIn("IDS", err)
+
+    def test_a_society_the_index_carries_still_reports_its_hits(self):
+        self.build_default_corpus()
+        status, out, _ = self.run_search(
+            ["--db", str(self.db), "--society", "IDSA", "urine culture"]
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("IDSA/2010-uti", out)
+
+    def test_a_carried_society_with_no_hits_is_still_a_genuine_zero(self):
+        """The two limbs have to stay apart, exactly as they do for --class. A
+        society the index knows about, asked a question nothing answers, is 1 --
+        that is a real finding about the corpus, and turning it into 2 loses it."""
+        self.build_default_corpus()
+        status, out, _ = self.run_search(
+            ["--db", str(self.db), "--society", "IDSA", "aortic dissection"]
+        )
+        self.assertEqual(status, 1)
+        self.assertIn("0 match(es)", out)
+
+    def test_a_document_with_no_society_does_not_break_the_guard(self):
+        """The one place the two filters are not the same shape, and the reason this
+        is not a copy of the class limb.
+
+        ``document_class`` is NOT NULL and falls back to ``UNCLASSIFIED``; ``society``
+        is the first path segment and is **NULL** for a document at the root of the
+        text directory. A helper that sorted and joined the distinct values the way
+        the class one does raises ``TypeError`` on such a corpus -- and the traceback
+        escapes ``main`` and exits **1**, which this module's docstring reads as *a
+        genuine zero*. That is #150's back door reopened on the very flag whose bug
+        is a wrong 1, so it is pinned rather than left to the guard's own shape.
+        """
+        write_single(self.text_dir, "IDSA/2010-uti", ["cover page", PYELONEPHRITIS_PAGE])
+        write_single(self.text_dir, "loose", ["cover page"])
+        write_manifest(
+            self.text_dir,
+            [{"doc_id": "IDSA/2010-uti"}, {"doc_id": "loose"}],
+        )
+        gi.build(self.text_dir, self.db)
+        status, out, err = self.run_search(
+            ["--db", str(self.db), "--society", "USPTF", "urine culture"]
+        )
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "")
+        self.assertIn("IDSA", err)
+        self.assertNotIn("None", err, "a document with no society is not a society")
+
+
+class EveryFilterHasAVocabularyGuard(unittest.TestCase):
+    """#271's decision, held in code. The reasoning for it is on ``gs.FILTERS``.
+
+    The columns are read off ``search``'s own ``WHERE`` clauses by AST rather
+    than typed here, on ``test_console_codec.py``'s instrument and for its
+    reason: a hand-typed list is a second copy of the thing under test, and it
+    goes green on the day the code moves.
+
+    **What it reaches is one SQL shape**, and the ceiling is written on
+    ``FILTERS`` beside the claim it qualifies. ``AND d.year >= ?``, an ``IN``,
+    an unaliased column and a named parameter all pass the walk unseen -- so a
+    green run here is a floor on the shapes in the file today, never a proof
+    that the next filter is guarded.
+    """
+
+    def filtered_columns(self):
+        """Every column ``search`` narrows on, read off the SQL it builds."""
+        source = (TOOLS / "guidelines_search.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "search"
+        )
+        clause = re.compile(r"\bAND\s+d\.(\w+)\s*=\s*\?")
+        return {
+            match.group(1)
+            for node in ast.walk(function)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            for match in clause.finditer(node.value)
+        }
+
+    def test_the_instrument_is_live(self):
+        """A walk that found nothing would pass every assertion below."""
+        self.assertTrue(self.filtered_columns(), "the AST walk found no WHERE clause")
+
+    def test_every_column_search_narrows_on_has_a_guard(self):
+        self.assertEqual(self.filtered_columns(), {column for _, column in gs.FILTERS})
+
+    def test_every_guarded_column_is_a_real_column_on_document(self):
+        """``index_values`` interpolates the column name into SQL, so the pairs are
+        the allowlist that keeps that safe as well as the completeness set."""
+        create = next(
+            statement
+            for statement in gi.SCHEMA.split(";")
+            if "CREATE TABLE document" in statement
+        )
+        for _, column in gs.FILTERS:
+            self.assertIn(column, create)
+
+    def test_a_column_outside_the_pairs_is_refused_rather_than_interpolated(self):
+        with self.assertRaises(ValueError):
+            gs.index_values(None, "doc_id; DROP TABLE document")
+
+    def test_every_flag_in_the_pairs_parses_to_a_dest_of_the_same_name(self):
+        """``main`` reads the value with ``getattr(args, column)``, which holds only
+        because each flag's argparse dest and its ``document`` column are the same
+        word -- ``--society`` by argparse's own default, ``--class`` because it says
+        ``dest="document_class"`` in as many words.
+
+        Nothing else makes that true. A third filter whose dest and column parted
+        would raise ``AttributeError`` in the loop, the traceback would escape
+        ``main``, and the process would exit **1** -- the same back door ``use_utf8``
+        was added for, on the flag whose whole bug is a wrong 1. So the coincidence
+        is pinned rather than relied on, and the dests are read off the parser's own
+        ``add_argument`` calls rather than typed here.
+        """
+        source = (TOOLS / "guidelines_search.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        main = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "main"
+        )
+        dests = {}
+        for node in ast.walk(main):
+            if not isinstance(node, ast.Call):
+                continue
+            if not (isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"):
+                continue
+            flags = [
+                argument.value
+                for argument in node.args
+                if isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+            ]
+            explicit = {
+                keyword.arg: keyword.value.value
+                for keyword in node.keywords
+                if keyword.arg == "dest" and isinstance(keyword.value, ast.Constant)
+            }
+            for flag in flags:
+                # argparse's own rule when `dest` is not given.
+                dests[flag] = explicit.get("dest", flag.lstrip("-").replace("-", "_"))
+
+        self.assertTrue(dests, "the AST walk found no add_argument call")
+        for flag, column in gs.FILTERS:
+            self.assertIn(flag, dests, f"{flag} is guarded but the parser does not take it")
+            self.assertEqual(
+                dests[flag],
+                column,
+                f"{flag} parses to {dests[flag]!r}, so getattr(args, {column!r}) raises",
+            )
+
 
 class Cp1252ConsoleTests(TempCorpus):
     """Issue #150, end to end and in a real process.
@@ -547,6 +919,7 @@ class Cp1252ConsoleTests(TempCorpus):
 
     def build_threshold_corpus(self):
         write_single(self.text_dir, "IDSA/2023-foot", ["cover page", THRESHOLD_PAGE])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2023-foot"}])
         return gi.build(self.text_dir, self.db)
 
     def test_a_hit_carrying_a_non_cp1252_character_exits_zero(self):
@@ -593,6 +966,7 @@ class BuildCommandLineTests(TempCorpus):
 
     def test_a_build_reports_its_counts(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one", PYELONEPHRITIS_PAGE])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
         status, out, _ = self.run_build([str(self.text_dir), str(self.db)])
         self.assertEqual(status, 0)
         self.assertIn("1 document", out)
@@ -602,6 +976,23 @@ class BuildCommandLineTests(TempCorpus):
         status, _, err = self.run_build([str(self.root / "nowhere"), str(self.db)])
         self.assertEqual(status, 2)
         self.assertIn("nowhere", err)
+
+    def test_the_override_flag_builds_from_unstamped_text_and_warns(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+
+        refused, _, refused_err = self.run_build([str(self.text_dir), str(self.db)])
+        allowed, _, allowed_err = self.run_build(
+            [
+                "--allow-untrusted-provenance",
+                str(self.text_dir),
+                str(self.db),
+            ]
+        )
+
+        self.assertEqual(refused, 2)
+        self.assertIn("untrusted", refused_err)
+        self.assertEqual(allowed, 0)
+        self.assertIn("untrusted", allowed_err)
 
 
 if __name__ == "__main__":

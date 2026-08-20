@@ -50,19 +50,20 @@ segment and a hit names a file that can be opened beside the PDF of the same nam
 blank page keeps its number: dropping it would slide every later page's citation by
 one, and a citation off by a page is worse than no citation.
 
-An optional ``manifest.json`` supplies ``title``, ``society`` and ``document_class``
-per document -- the last of these is how the three ACIP browser captures stay
-distinguishable from guidelines. No manifest means derived values. A manifest that is
-present but unreadable, or present and keyed by something other than ``doc_id``,
-**raises** rather than degrading to derived values: a title silently missing from
-every hit looks exactly like a corpus that never had one. A manifest entry with no
-extracted text is likewise **reported**, never swallowed, because #80's contract is a
-recorded failure rather than a silent skip.
+``manifest.json`` supplies ``title``, ``society`` and ``document_class`` per document
+and names the clean commit that produced the extracted text. An index build requires
+it: without the manifest, the shared text directory has no owner. A dirty, foreign,
+unstamped or unreadable manifest **raises** rather than degrading to derived values.
+``--allow-untrusted-provenance`` is the explicit development escape hatch; the index
+records why its source was untrusted so a later search cannot launder the override.
+A manifest entry with no extracted text is likewise **reported**, never swallowed,
+because #80's contract is a recorded failure rather than a silent skip.
 """
 
 from __future__ import annotations
 
 import argparse
+import artifact_provenance
 import json
 import os
 import sqlite3
@@ -79,6 +80,7 @@ SCHEMA_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 UNCLASSIFIED = "unclassified"
 DATABASE_ENVIRONMENT_VARIABLE = "CLINICAL_GUIDELINES_INDEX"
+UntrustedProvenance = artifact_provenance.UntrustedProvenance
 
 # A page break inside a single-file document. pdftotext writes form feed and so does
 # every other extractor that keeps page boundaries at all.
@@ -120,6 +122,21 @@ class Document:
     title: str | None
     document_class: str
     pages: list[Page]
+
+
+@dataclass(frozen=True)
+class ExtractedDocument:
+    """One successful #80 extraction, joined to its manifest record."""
+
+    doc_id: str
+    society: str | None
+    title: str | None
+    source: str
+    document_class: str
+    pages: list[Page]
+    boilerplate: tuple[str, ...]
+    margin_stripped: tuple[str, ...]
+    year_page_counts: dict[str, int] | None
 
 
 @dataclass(frozen=True)
@@ -174,7 +191,12 @@ def normalize_doc_id(value: str) -> str:
     return cleaned[:-4] if cleaned.lower().endswith(".txt") else cleaned
 
 
-def read_manifest(text_dir: Path | str) -> dict[str, dict]:
+def _read_manifest(
+    text_dir: Path | str,
+    *,
+    allow_untrusted_provenance: bool = False,
+    expected_commit: str | None = None,
+) -> tuple[dict[str, dict], artifact_provenance.ProvenanceCheck | None]:
     """``manifest.json`` keyed by document id, or ``{}`` when there is none.
 
     A list of entries or ``{"documents": [...]}``, each entry naming its document
@@ -186,14 +208,27 @@ def read_manifest(text_dir: Path | str) -> dict[str, dict]:
     """
     path = Path(text_dir) / MANIFEST_NAME
     if not path.exists():
-        return {}
+        return {}, None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as bad:
         raise ValueError(f"{path} is present but could not be read as JSON: {bad}") from bad
 
     if isinstance(data, dict):
+        provenance = artifact_provenance.check_producer(
+            data.get("producer"),
+            path,
+            allow_untrusted=allow_untrusted_provenance,
+            expected_commit=expected_commit,
+        )
         data = data.get("documents")
+    else:
+        provenance = artifact_provenance.check_producer(
+            None,
+            path,
+            allow_untrusted=allow_untrusted_provenance,
+            expected_commit=expected_commit,
+        )
     if not isinstance(data, list):
         raise ValueError(
             f"{path} is not a list of entries or a {{\"documents\": [...]}} object. "
@@ -210,7 +245,16 @@ def read_manifest(text_dir: Path | str) -> dict[str, dict]:
             f"no entry in {path} carries a {DOC_ID_KEY!r}, so nothing in it can be "
             "matched to a document."
         )
-    return entries
+    return entries, provenance
+
+
+def read_manifest(
+    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
+) -> dict[str, dict]:
+    """Read and provenance-check ``manifest.json``; absent remains an optional input."""
+    return _read_manifest(
+        text_dir, allow_untrusted_provenance=allow_untrusted_provenance
+    )[0]
 
 
 def _describe(doc_id: str, entry: dict) -> tuple[str | None, str | None, str]:
@@ -234,7 +278,9 @@ def _sources(text_dir: Path) -> dict[str, _FormFeedFile]:
     }
 
 
-def discover(text_dir: Path | str) -> Iterator[Document]:
+def discover(
+    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
+) -> Iterator[Document]:
     """Yield one ``Document`` per source document, in document-id order.
 
     A generator rather than a list: 6,800 pages of extracted text is tens of
@@ -243,7 +289,14 @@ def discover(text_dir: Path | str) -> Iterator[Document]:
     text_dir = Path(text_dir)
     if not text_dir.is_dir():
         raise FileNotFoundError(f"no extracted-text directory at {text_dir}")
-    manifest = read_manifest(text_dir)
+    manifest = read_manifest(
+        text_dir, allow_untrusted_provenance=allow_untrusted_provenance
+    )
+    yield from _discover(text_dir, manifest)
+
+
+def _discover(text_dir: Path, manifest: dict[str, dict]) -> Iterator[Document]:
+    """Read documents against the already-validated manifest from this operation."""
     sources = _sources(text_dir)
 
     for doc_id in sorted(sources):
@@ -256,6 +309,83 @@ def discover(text_dir: Path | str) -> Iterator[Document]:
             document_class=document_class,
             pages=pages,
         )
+
+
+def read_extracted_corpus(
+    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
+) -> list[ExtractedDocument]:
+    """Read and validate #80's text/manifest handoff as one corpus.
+
+    Unlike :func:`discover`, this is for consumers whose results depend on the
+    manifest. Required keys are checked by presence, not truthiness: ``title``
+    may legitimately be null, but an absent title key means the producer and
+    consumer no longer agree on the contract.
+    """
+    text_dir = Path(text_dir)
+    manifest = read_manifest(
+        text_dir, allow_untrusted_provenance=allow_untrusted_provenance
+    )
+    if not manifest:
+        raise ValueError(f"{text_dir / MANIFEST_NAME} is required")
+
+    required = {
+        "society",
+        "title",
+        "source",
+        "output",
+        "document_class",
+        "pages",
+        "boilerplate",
+        "margin_stripped",
+    }
+    failed = sorted(doc_id for doc_id, entry in manifest.items() if entry.get("error"))
+    if failed:
+        raise ValueError(f"the extraction manifest records failed documents: {failed}")
+    for doc_id, entry in manifest.items():
+        missing_keys = sorted(required - entry.keys())
+        if missing_keys:
+            raise ValueError(f"{doc_id}: manifest entry is missing keys: {missing_keys}")
+        if not entry["source"]:
+            raise ValueError(f"{doc_id}: manifest entry has no source filename")
+        if not entry["output"]:
+            raise ValueError(f"{doc_id}: manifest entry has no output filename")
+
+    discovered = {document.doc_id: document for document in _discover(text_dir, manifest)}
+    expected = set(manifest)
+    if set(discovered) != expected:
+        missing = sorted(expected - set(discovered))
+        extra = sorted(set(discovered) - expected)
+        raise ValueError(
+            f"extracted text and manifest disagree (missing text: {missing}; extra text: {extra})"
+        )
+
+    result: list[ExtractedDocument] = []
+    for doc_id in sorted(expected):
+        entry = manifest[doc_id]
+        document = discovered[doc_id]
+        if entry["pages"] != len(document.pages):
+            raise ValueError(
+                f"{doc_id}: manifest says {entry['pages']} pages, "
+                f"extracted text contains {len(document.pages)}"
+            )
+        result.append(
+            ExtractedDocument(
+                doc_id=doc_id,
+                society=entry["society"],
+                title=entry["title"],
+                source=str(entry["source"]),
+                document_class=str(entry["document_class"]),
+                pages=document.pages,
+                boilerplate=tuple(entry["boilerplate"]),
+                margin_stripped=tuple(entry["margin_stripped"]),
+                year_page_counts=(
+                    {str(year): int(count) for year, count in entry["year_page_counts"].items()}
+                    if "year_page_counts" in entry
+                    else None
+                ),
+            )
+        )
+    return result
 
 
 SCHEMA = """
@@ -286,7 +416,12 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
-def build(text_dir: Path | str, database: Path | str | None = None) -> BuildReport:
+def build(
+    text_dir: Path | str,
+    database: Path | str | None = None,
+    *,
+    allow_untrusted_provenance: bool = False,
+) -> BuildReport:
     """Index every document under ``text_dir``, replacing any existing index.
 
     Built into a sibling temp file and moved into place, so a build that dies part
@@ -294,7 +429,28 @@ def build(text_dir: Path | str, database: Path | str | None = None) -> BuildRepo
     fine and answers short.
     """
     text_dir = Path(text_dir).resolve()
+    if not text_dir.is_dir():
+        raise FileNotFoundError(f"no extracted-text directory at {text_dir}")
     target = ensure_outside_checkout(database or default_database(), detail=WHY_OUTSIDE)
+    producer = artifact_provenance.current_producer()
+    producer_provenance = artifact_provenance.check_producer(
+        producer,
+        target,
+        allow_untrusted=allow_untrusted_provenance,
+        expected_commit=str(producer["commit"]),
+    )
+    manifest, source_provenance = _read_manifest(
+        text_dir,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+        expected_commit=str(producer["commit"]),
+    )
+    if source_provenance is None:
+        source_provenance = artifact_provenance.check_producer(
+            None,
+            text_dir / MANIFEST_NAME,
+            allow_untrusted=allow_untrusted_provenance,
+            expected_commit=str(producer["commit"]),
+        )
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".building")
     partial.unlink(missing_ok=True)
@@ -304,7 +460,7 @@ def build(text_dir: Path | str, database: Path | str | None = None) -> BuildRepo
     connection = sqlite3.connect(partial)
     try:
         connection.executescript(SCHEMA)
-        for document in discover(text_dir):
+        for document in _discover(text_dir, manifest):
             seen.add(document.doc_id)
             cursor = connection.execute(
                 "INSERT INTO document (doc_id, society, title, document_class, pages) "
@@ -333,6 +489,14 @@ def build(text_dir: Path | str, database: Path | str | None = None) -> BuildRepo
             )
 
         connection.execute("INSERT INTO page_fts(page_fts) VALUES ('rebuild')")
+        untrusted_reasons = list(
+            source_provenance.reasons + producer_provenance.reasons
+        )
+        provenance = {
+            "producer": producer_provenance.producer,
+            "source": source_provenance.producer,
+            "untrusted_reasons": untrusted_reasons,
+        }
         connection.executemany(
             "INSERT INTO meta (key, value) VALUES (?, ?)",
             [
@@ -342,6 +506,7 @@ def build(text_dir: Path | str, database: Path | str | None = None) -> BuildRepo
                 ("pages", str(pages)),
                 ("characters", str(characters)),
                 ("built_at", datetime.now(timezone.utc).isoformat(timespec="seconds")),
+                ("provenance", json.dumps(provenance, sort_keys=True)),
             ],
         )
         connection.commit()
@@ -352,7 +517,7 @@ def build(text_dir: Path | str, database: Path | str | None = None) -> BuildRepo
     connection.close()
     os.replace(partial, target)
 
-    manifest_only = sorted(set(read_manifest(text_dir)) - seen)
+    manifest_only = sorted(set(manifest) - seen)
     return BuildReport(
         database=target,
         documents=documents,
@@ -370,10 +535,19 @@ def main(argv: list[str]) -> int:
         nargs="?",
         help=f"where to write the index (default: {default_database()})",
     )
+    parser.add_argument(
+        "--allow-untrusted-provenance",
+        action="store_true",
+        help="index a dirty, foreign, or unstamped extracted corpus and warn",
+    )
     args = parser.parse_args(argv)
 
     try:
-        report = build(args.text_dir, args.database)
+        report = build(
+            args.text_dir,
+            args.database,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+        )
     except (FileNotFoundError, ValueError) as failure:
         print(str(failure), file=sys.stderr)
         return 2

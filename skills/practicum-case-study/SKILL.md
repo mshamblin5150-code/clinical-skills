@@ -262,9 +262,16 @@ correct claim for being old.
 with old, and the two are not the same thing:
 
 - **A society guideline is dated by the guideline, not by what it cites.** A current IDSA or KDIGO
-  document resting on a 2011 trial is a current source. `reference/guidelines-catalog.md` spans 2009
-  to 2026 and every document in it is in force — a rule that refused a 2013 KDIGO threshold on its
-  date would refuse *the* threshold, not an outdated one.
+  document resting on a 2011 trial is a current source — a rule that refused a 2013 KDIGO threshold
+  on its date would refuse *the* threshold, not an outdated one.
+- **Catalog membership is not standing**, and this rule shipped citing it as though it were.
+  `reference/guidelines-catalog.md`'s own legend names rows it declines to call in-force
+  guidelines — go and read them there rather than from here, because which rows those are is a
+  curation and this file cannot follow one. The catalog settles what a document *is* and never
+  whether it stands, so `guideline in force` is a reading of the document in front of the run and
+  never a fact read off a row. `clinical-note` already refuses to read a document's *content* off
+  a row; standing is the same refusal one axis over. Nothing grades that reading, which is what
+  makes it worth saying.
 - **Where nothing newer exists, the older source is the evidence.** The run must have looked, must
   say in the `PROPOSED` block that it looked, and the sentence carrying the citation says the
   evidence is the most recent available on that point. The citation's age stays visible.
@@ -588,8 +595,8 @@ can be several of them at once:
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
 
-**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, and they are
-the only ones here that read anything but the ledger:
+**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, which read
+the draft as well as the ledger the way #298's row below reads the evidence dump:
 
 ```bash
 python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
@@ -611,12 +618,60 @@ weight, renal function, pregnancy and route, so a row refusing a correct dose fo
 is #215's defect a fourth time. The reachable property is whether the dose was **sourced**, never
 whether it is right -- a record carrying a *different* number passes these rows.
 
-**Nothing downstream reads the number either, and that is stated rather than left to be assumed.**
-Step 9's `the Rx blocks` row asks a reader whether every drug has a table, whether every `Sig` ends
-in an indication and whether the prose block is there; it does not open the ledger and compare the
-dose. So *is this the dose the record sourced* is walked by nobody today —
-[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299). It is written here because
-a residue nobody names is a residue every reader assumes somebody else has.
+**Nothing downstream reads the number either, and that stopped being true on
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299).** Step 9's `the Rx blocks`
+row asks a reader whether every drug has a table, whether every `Sig` ends in an indication and
+whether the prose block is there; it does not open the ledger and compare the dose, and it still
+does not. `the dose against the record that sourced it` is the row that does — **a reader and not a
+row here**, because a string test can only ask whether the table's number appears in the record, and
+`1 g` against *1000 mg* and `q24h` against *once daily* are the same unit problem
+`NUMERIC_CLAIM_UNQUANTIFIED` above refuses to touch. **Its false-alarm rate could not be grounded
+either**: when it was ruled, the only run in the tree predated the rows above it and every one of its
+prescriptions reached no claim record at all, so there was not one drug-row-and-record pair anywhere
+to measure a string test against. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
+precedent is that a cut point is grounded where the corpus offers one and refused where it does not.
+
+**And grade what the run says it read against what you were actually handed** -- #298's row,
+ruled by the clinician 2026-08-20:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --evidence <the evidence dump>
+```
+
+| The citation | Why |
+| --- | --- |
+| an UpToDate topic cited here that the evidence dump does not carry | UpToDate is subscription-gated, so a topic you were not handed is one nobody opened, and citing it is the Module 1 defect exactly |
+| an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
+
+**The grounding is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)'s and it
+is what scopes the row.** A fetch of an UpToDate topic reaches a login wall rather than the page, so
+there is no reading of one outside the dump -- the dump is the whole of what the clinician handed
+over, and he hands topics over wholesale. **A journal article, a society guideline or a government
+page the dump lacks is left alone**, because that is this step's ordinary case: a claim record only
+exists because the evidence did *not* cover the claim, and a row firing on those would refuse the
+correct outcome.
+
+**A topic the dump merely *refers* to and does not carry is not a defect and is not graded.** The
+dump cross-references far more topics than it carries -- by better than an order of magnitude in the
+one this was measured on -- and the great majority will never be cited. Firing on those would fire on almost every case
+study, which is the rate at which a warning stops being read.
+
+**There is no escape hatch, and that is the ruling rather than an oversight.** If an UpToDate topic
+is worth citing it goes in the dump, and the remedy for a finding is one paste. **The second row is
+what keeps that true**: the first reads a topic only from the `UpToDate.` element APA gives it, so an
+entry that drops that element was invisible to the check *and* to the count of what the check read --
+four characters, and a citation walks around a row with no hatch. So an entry this cannot read is a
+finding, never a citation dropped from the set in silence. **Without
+`--evidence` the row does not run and the report prints `not graded` against it rather than `0`**,
+on the same reasoning as the prescription rows above. **An evidence file carrying no topic body at
+all is exit 2**, because a dump this cannot read would otherwise fire the row on every UpToDate
+citation in the ledger -- a mass false finding rather than a scan.
+
+**What it cannot reach is a claim that rested on a missing topic without citing it.** The join is on
+a citation, so a threshold, a screening interval or a discriminator taken from a topic nobody read
+and written without a reference is invisible here and to every other row --
+[#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298). **A clean scan is not a
+sourced document.**
 
 **Then grade it, and do not draft until it is clean:**
 
@@ -877,14 +932,19 @@ check that was never run is not.
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
+| the dose against the record that sourced it | every prescription table, and `scratch/case-study-claims.md` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
 is some rows rather than every row.** On a row marked *yes* a `clean` verdict has to say what the
 reader walked, and `tools/checks_ledger.py` fails a bare one. Those are the rows where a wrong
 `clean` is most expensive; everywhere else a bare `clean` still passes, which is the gap below. **Brief
-the two readers accordingly** — they report what they examined whichever verdict they return, and
-the clause is one sentence written by an agent that has just walked the thing.
+every reader on a marked row accordingly** — they report what they examined whichever verdict they
+return, and the clause is one sentence written by an agent that has just walked the thing. **How
+many rows are marked is the table's own column to say and is counted in no sentence about it**, on
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms: it read *two* in
+prose across this repo until #299 made it three, and the sweep that repaired those copies missed
+several, which both axes of `/code-review` then found.
 
 #### The house style is a command now, and it is the row this step gained on #277
 
@@ -983,7 +1043,7 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
     emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
-`VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the two rows the table
+`VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the rows the table
 above marks, a `clean` says what it walked** — the same field and the same substance test, and it
 is the only thing in the file that stands against a reader who skimmed. A heading with no `VERDICT`
 under it is a check that did not run, and the draft is not submitted on it.
@@ -994,6 +1054,17 @@ VERDICT: clean
 FINDINGS: Walked all five MDM entries. Each names a discriminator from this case — the
     36-hour onset, the absent rebound, the prior appendectomy — and each carries a
     citation.
+```
+
+**A marked row whose reading spans two documents says which pair it put side by side**, because
+*walked the Rx blocks* is a clause a reader who opened one of them can write:
+
+```
+## CHECK: the dose against the record that sourced it
+VERDICT: defect
+FINDINGS: Four drug rows state a dose. Three match the record naming that drug. The
+    ceftriaxone row orders 250 mg IM once and its record's restatement sources 1 g IV
+    daily — a different dose, not a different unit for the same one.
 ```
 
 **What makes a record bad, in full, so this can be walked without running anything.** A check can
@@ -1016,12 +1087,12 @@ them apart, which is the gap
 [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) named and left open. **There
 is no better string test to reach it with**; what reaches it is requiring the `clean` to say what it
 walked, and that is a change to what this step asks a reader to write rather than a grader of what it
-already asked. Ruled on differential ordering and MDM completeness, and **ruled against the rest**—
-so on those the shape is still exactly what #240 declared, and the reading below is still the only
+already asked. **#255 ruled it on differential ordering and MDM completeness and against the rest**, and #299 has
+since marked a third — so everywhere still unmarked the shape is exactly what #240 declared, and the reading below is still the only
 thing that reaches it. `the reference list` is the clearest of the ones left out: it is graded by a
 command, so its `clean` is an exit status and there was never a reader to have walked anything.
 
-**Which two, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
+**Which two #255 marked, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
 these two at *70 of the rubric's 100 points*, and [reference/rubric.md](reference/rubric.md) does
 not: *Differential Diagnoses and Clinical Reasoning* scores **15** and *Medical Decision Making*
 **10**, so the two criteria these rows name carry **25** between them. **Which criteria compose the
@@ -1032,6 +1103,14 @@ table does settle is that *Comprehensive Treatment Plan* at **20** is the single
 on the sheet, and `the Rx blocks` is the row that reads it — one of the ones left out. **The ruling
 stands on the 25.**
 
+**#299 then marked a row that reads that same 20-point criterion, and it did not disturb the 25.**
+`the dose against the record that sourced it` is marked because a wrong `clean` there is a **dose**,
+which is an argument about what the row costs when it is wrong and not about what the criterion
+scores — and it was an argument #255 could not weigh, because that reading did not exist when it was
+ruled. `the Rx blocks` itself stays unmarked: its three checks are shapes in one document, and
+marking the correspondence reading without marking them is the whole reason it is a row of its own
+rather than a clause in that one.
+
 **A draft of this paragraph said *the whole clinical-judgment cluster of seven criteria* and that
 was the same defect one sentence later** — a figure nothing re-derives, introduced by the sentence
 correcting a figure nothing re-derives. [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
@@ -1039,7 +1118,7 @@ arriving inside its own repair, which this repo has now recorded happening four 
 
 **What the new row buys is a shape, not a reading**, and that was priced rather than glossed. A lazy
 reader can satisfy it with one stock sentence — `specificity_scan.py`'s limit, inherited here — so it
-converts two records per run from unfalsifiable to *checkable by eye*, which is what the walk below
+converts the records on the marked rows from unfalsifiable to *checkable by eye*, which is what the walk below
 is for and previously had nothing to work with.
 
 **Then grade it, and do not submit until it is clean:**

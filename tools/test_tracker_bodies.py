@@ -144,6 +144,44 @@ class TheLiteralPathRow(unittest.TestCase):
         self.assertEqual(kinds_of(read(harvest(issue(6, body)))), [])
 
 
+class TheDoubleEncodedRow(unittest.TestCase):
+    """#155's first mechanism: UTF-8 bytes decoded through cp1252."""
+
+    def test_cp1252_mojibake_is_double_encoded(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
+        records = read(harvest(issue(97, f"before {mojibake_em_dash} after")))
+        self.assertEqual(kinds_of(records), [tb.DOUBLE_ENCODED])
+
+    def test_literal_unicode_escape_is_double_encoded(self):
+        records = read(harvest(issue(215, r"before \u2014 after")))
+        self.assertEqual(kinds_of(records), [tb.DOUBLE_ENCODED])
+
+    def test_a_shape_named_in_backticks_is_clean(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
+        body = f"Search for `{mojibake_em_dash}` and `\\u2014`."
+        self.assertEqual(kinds_of(read(harvest(issue(172, body)))), [])
+
+    def test_shapes_named_in_a_fenced_example_are_clean(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
+        body = f"Example:\n```text\n{mojibake_em_dash}\n\\u2014\n```"
+        self.assertEqual(kinds_of(read(harvest(comment(1, body)))), [])
+
+    def test_several_damaged_sequences_are_one_failed_record(self):
+        records = read(harvest(issue(215, r"\u2014 one \u2014 two \u2014")))
+        self.assertEqual(len(tb.grade(records)), 1)
+
+    def test_cp1252_threshold_and_pound_shapes_are_caught(self):
+        mojibake_greater_or_equal = "\u00e2\u2030\u00a5"
+        mojibake_pound = "\u00c2\u00a3"
+        for number, shape in ((97, mojibake_greater_or_equal),
+                              (190, mojibake_pound)):
+            with self.subTest(number=number):
+                self.assertEqual(
+                    kinds_of(read(harvest(issue(number, f"before {shape} after")))),
+                    [tb.DOUBLE_ENCODED],
+                )
+
+
 class ACleanHarvest(unittest.TestCase):
     def test_ordinary_bodies_produce_nothing(self):
         records = read(harvest(issue(6, "A real body.\n\nWith paragraphs."),
@@ -224,16 +262,17 @@ class TheSiblingsParserCannotBeReused(unittest.TestCase):
 class TheReportCarriesNoBodyText(unittest.TestCase):
     """The property the *no ``--show``* claim rests on, driven rather than argued.
 
-    Every row fires on a body drawn from a fixed set bar one, and that one --
-    the literal path -- is the reason this is a test and not a paragraph: it is
-    the only row whose trigger is run-authored text.
+    The encoding row reads arbitrary prose, so the report's safety rests on the
+    body never reaching it rather than on every trigger coming from a fixed set.
     """
 
     def test_a_marker_in_a_body_never_reaches_the_report(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
         records = read(harvest(
             issue(6, f"@{MARKER}.md"),
             issue(7, "@-"),
             issue(8, ""),
+            issue(9, f"{MARKER} {mojibake_em_dash}"),
             comment(1, f"@{MARKER}.md"),
         ))
         report = tb.format_report(tb.survey(records), source="t.json")
@@ -469,6 +508,16 @@ class TheCommandLine(unittest.TestCase):
             _, out, _ = self.run_main(str(path))
             self.assertIn("https://github.com/O/R/issues/6", out)
 
+    def test_a_comment_finding_does_not_offer_the_issue_edit_command(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(
+                Path(tmp), "t.json", harvest(comment(1, mojibake_em_dash))
+            )
+            _, _, err = self.run_main(str(path))
+            self.assertNotIn("gh issue edit", err)
+            self.assertIn("matching GitHub edit path", err)
+
 
 class TheDocSaysWhatThisChecks(unittest.TestCase):
     """``test_spelling_scan``'s reasoning.
@@ -488,6 +537,11 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
 
     def test_the_doc_records_that_gh_issue_list_hides_pull_requests(self):
         self.assertIn("`gh issue list` excludes pull requests", self.doc)
+
+    def test_the_doc_names_the_encoding_row_and_both_mechanisms(self):
+        self.assertIn("fourth row", self.doc)
+        self.assertIn("cp1252", self.doc)
+        self.assertIn(r"`\uXXXX`", self.doc)
 
 
 if __name__ == "__main__":

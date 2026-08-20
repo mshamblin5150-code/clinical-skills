@@ -158,13 +158,19 @@ class TheTwoBranchTemplatesGiveTheSameInstruction(unittest.TestCase):
     def test_the_placeholders_are_word_for_word_the_same(self) -> None:
         self.assertEqual(self.soap, self.hp)
 
-    def test_both_order_the_drug_status_first(self) -> None:
+    def test_both_enumerate_all_three_category_slots_in_order(self) -> None:
         for placeholder in (self.soap, self.hp):
-            self.assertIn("drug status first, NKDA if none", placeholder)
+            drug = placeholder.index("Drug - allergen - reaction, or NKDA")
+            food = placeholder.index("Food - allergen - reaction, or none reported")
+            environmental = placeholder.index(
+                "Environmental - allergen - reaction, or none reported"
+            )
+            self.assertLess(drug, food)
+            self.assertLess(food, environmental)
 
-    def test_both_name_the_other_two_kinds(self) -> None:
+    def test_both_put_each_category_on_its_own_line(self) -> None:
         for placeholder in (self.soap, self.hp):
-            self.assertIn("environmental and food, each named by its kind", placeholder)
+            self.assertIn("one category per line", placeholder)
 
     def test_neither_still_carries_the_pre_96_shape(self) -> None:
         """``<allergen - reaction; NKDA if none>`` was SOAP's for months."""
@@ -283,8 +289,15 @@ class TheSkillStillSaysWhatWasRuled(unittest.TestCase):
             self.skill,
         )
 
+    def test_silence_fills_all_three_category_values(self) -> None:
+        self.assertIn(
+            "Silence fills `Drug - NKDA`, `Food - none reported`, and "
+            "`Environmental - none reported`.",
+            self.skill,
+        )
+
     def test_the_drug_status_is_owed_whether_or_not_a_drug_was_named(self) -> None:
-        self.assertIn("Both halves are required", self.skill)
+        self.assertIn("All three lines are required", self.skill)
         self.assertIn(
             "The drug status is owed whether or not a drug allergen was named",
             self.skill,
@@ -316,6 +329,13 @@ class TheSkillStillSaysWhatWasRuled(unittest.TestCase):
         self.assertIn("routing a stated allergen to `pmh` instead fails", row.lower())
         self.assertIn("called an intolerance", row)
         self.assertIn("denies a given the note read", row)
+        for category in (
+            "`Drug - NKDA`",
+            "`Food - none reported`",
+            "`Environmental - none reported`",
+        ):
+            with self.subTest(category=category):
+                self.assertIn(category, row)
 
 
 class TheRulingIsHeldAtTheSameWidthInEverySet(unittest.TestCase):

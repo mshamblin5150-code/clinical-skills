@@ -9,8 +9,10 @@ Chief Complaint
 <one line>
 
 Allergies (with reaction)
-<allergen - reaction; drug status first, NKDA if none;
- then environmental and food, each named by its kind>
+<Drug - allergen - reaction, or NKDA;
+ Food - allergen - reaction, or none reported;
+ Environmental - allergen - reaction, or none reported;
+ one category per line>
 
 History of Present Illness (OLDCARTS)
 <all eight carry a value; none is left blank or "not documented">
@@ -116,14 +118,14 @@ illness but matters for counseling and future care>
 
 **Family History** is filled almost entirely. Phrase every one as a report of absence — `No chronic illness reported` — never as an examined finding. Nothing in the shorthand grounds a grandparent's disease, and the rubric wants three generations regardless.
 
-**Social History is no longer that**, and it used to be governed by the same sentence. Every one of the twelve lines carries a value, **and none of them is a hedge**: `tobacco not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Which value each line takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus, every other line by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled line in `FILLED·asserted` carrying its value. Issue #29.
+**Social History is no longer that**, and it used to be governed by the same sentence. Every one of the twelve lines carries a value, **and none of them is a hedge**: `tobacco not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Which value each line takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — tobacco is settled by a count over the corpus and every other social line by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled line in `FILLED·asserted` carrying its value. Issue #29.
 
-**Allergies (with reaction)** is the same class and takes the same treatment. `NKDA` where the shorthand is silent, never a hedge; a stated allergen is a given and survives unchanged; and where a drug the Plan proposes rests on an inferred `NKDA`, that FILLED line says so.
+**Allergies (with reaction)** is the same class and takes the same treatment. Its three ordered lines are always present: `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported` where the shorthand is silent. A stated item replaces only its category's negative; it is a given and survives unchanged. Where a drug the Plan proposes rests on an inferred `NKDA`, that FILLED line says so.
 
-**It survives *in this box*, and the box says which kind it is** — drug, environmental or food. The placeholder above has said `and drug allergies separately` since this template was written and [SOAP.md](SOAP.md) said nothing of the kind, so the two branches disagreed on the shape for months while both were being obeyed. They now read alike. Which kind an allergen is, and what a food intolerance takes, are [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: do not restate them here, do apply them. Issue #96.
-**This heading is the rubric's own and it asks for the reaction, so the reaction is written.** Where the shorthand names an allergen and stops — every allergen in the committed set — the reaction is inferred and declared in the tier block, and **the heading's line carries no marker of it**: `Penicillin - rash`, never `reaction not documented`. **An inferred reaction never licenses a drug the allergen would otherwise bar**, which is the limb that keeps a generated `rash` from making a cephalosporin look safe. The rest, including why the disclosure floor is drawn at drug and food, is [SKILL.md](SKILL.md)'s under *The reaction beside a given allergen*. **The template's separation of the drug status from the other kinds is load-bearing under that floor** rather than presentational — it is the split the ICD-10-CM code set makes between `Z88` and `Z91.0-`. Issue #94.
+**It survives *in this field*, on the line for its kind** — drug, food, or environmental. The branches now carry the same three-line instruction. Which kind an allergen is, and what a food intolerance takes, are [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: do not restate them here, do apply them. Issues #96 and #168.
+**This heading is the rubric's own and it asks for the reaction, so the reaction is written.** Where the shorthand names an allergen and stops, the reaction is inferred and declared in the tier block, and **the heading's line carries no marker of it**: `Penicillin - rash`, never `reaction not documented`. **An inferred reaction never licenses a drug the allergen would otherwise bar**, which is the limb that keeps a generated `rash` from making a cephalosporin look safe. The rest, including why the disclosure floor is drawn at drug and food, is [SKILL.md](SKILL.md)'s under *The reaction beside a given allergen*. **The template's separation of the drug status from the other kinds is load-bearing under that floor** rather than presentational — it is the split the ICD-10-CM code set makes between `Z88` and `Z91.0-`. Issue #94.
 
-**That sentence read `and drug allergies separately` and quoted a string the placeholder no longer contains.** [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) replaced it on 2026-08-16 with `drug status first, NKDA if none; then environmental and food, each named by its kind`, on the same day and from a branch that could not see this one. **The floor got sharper rather than blurrier**: the separation survives and the placeholder now *names* food, which is the other kind the floor covers and the one the old wording left implicit. What was lost was only the quotation — **a citation to a string, in a file where the string was about to change**, which is the shape [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) records for figures and which reaches wording too. Repaired at the merge.
+**The historical placeholder changed twice.** [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) first aligned the branches around one field with every stated allergen named by kind. [#168](https://github.com/mshamblin5150-code/clinical-skills/issues/168) then made the three category lines explicit and supplied their silent values. The separation survives both changes; quoting either retired placeholder as the live instruction would recreate the stale-string defect [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) records for figures.
 
 **`Lab, x-ray, other tests` is not a results-only line**, and its placeholder here said it was. A test the encounter ordered goes on it as an order carrying no result, because a given order is a given and having no value to report is not a reason to drop it. `No new testing today` is reserved for an encounter that ordered nothing — writing it over a plan line that names a test is a false statement about the visit, not a cautious one. [SKILL.md](SKILL.md)'s *A given order is a given* is the rule; drift row 18 counts it. Issue #66.
 
@@ -142,19 +144,19 @@ illness but matters for counseling and future care>
 **Once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry*; what this template decides is where the refusal goes, and on this branch it is **line two**. The rubric's shape puts the code on its own line, so line one stays `<diagnosis - code>` and carries nothing else, and the rationale line absorbs the refusal along with everything else it already carries — written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
-2. Pain in right leg - M79.604
-   Less likely because the 4/10 pain sits over a chronic wound and the tib/fib film ordered today has no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it.
+2. Pain in left elbow - M25.522
+   Less likely because the 5/10 pain followed a fall and the elbow radiographs ordered today have no result. NOT CODED: S52.125A Nondisplaced fracture of head of left radius, initial encounter for closed fracture, nothing established it.
 ```
 
 **The `Final diagnosis` line keeps the hedge instead**, the way [SOAP.md](SOAP.md)'s does — **and so does the most-likely entry**, which on this branch means the hedge lands on line one and the refusal on line two exactly as it does for an entry argued against:
 
 ```
 Differential diagnoses with rationale:
-1. Community-acquired pneumonia, mycoplasma suspected - J18.9
-   Most likely because three weeks of cough, decreased air movement and a documented sick contact fit; the film ordered today has no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism.
+1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9
+   Most likely because five days of fever and focal crackles fit; the film ordered today has no result. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, nothing tested for the organism.
 
-Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
-Nothing tested for the organism, so NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae; a positive titer would earn it.
+Final diagnosis: Community-acquired pneumonia, pneumococcal organism suspected - J18.9
+Nothing tested for the organism, so NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae; an organism-specific result would earn it.
 ```
 
 **This branch's conclusion is `Final diagnosis`, and that is a deliberate departure from the rubric.** The rubric's Assessment instruction — quoted verbatim in the template above — names *"Actual diagnosis/diagnoses with ICD-9 codes"*, and this file's opening rule says obey those instructions literally. **The clinician overruled it on 2026-08-16**, having been shown that the heading is the school's rather than this repo's: both branches now write `Final diagnosis`, so one encounter's conclusion reads the same whichever template it is written in, and drift row 22 has one heading to name instead of two.

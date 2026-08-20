@@ -32,12 +32,15 @@ from __future__ import annotations
 import ast
 import contextlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import guidelines_extract
 import guidelines_index
+import artifact_provenance
 import guidelines_recs
 import name_index
 import repo_root
@@ -122,6 +125,17 @@ class Checkout:
         self.text_dir = self.root / "guidelines-text"
         self.text_dir.mkdir()
         (self.text_dir / "IDSA-uti.txt").write_text("a page\n", encoding="utf-8")
+        self.producer = artifact_provenance.current_producer()
+        self.producer["dirty"] = False
+        (self.text_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "producer": self.producer,
+                    "documents": [{"doc_id": "IDSA-uti"}],
+                }
+            ),
+            encoding="utf-8",
+        )
 
     def _allowed(self, message: str) -> bool:
         """A verdict of *not refused* has to be earned, never inferred from silence.
@@ -148,7 +162,12 @@ class Checkout:
 
     def refused_by_index(self, target: Path) -> bool:
         try:
-            guidelines_index.build(self.text_dir, target / "guidelines.sqlite")
+            with mock.patch.object(
+                artifact_provenance,
+                "current_producer",
+                return_value=self.producer,
+            ):
+                guidelines_index.build(self.text_dir, target / "guidelines.sqlite")
         except InsideCheckout:
             return True
         return False

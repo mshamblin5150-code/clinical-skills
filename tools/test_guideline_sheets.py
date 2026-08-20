@@ -185,12 +185,14 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         for line in tails:
             # The tail closes the line, or is followed only by one of the two
             # clauses that are part of the same tail: `needs:` for a population
-            # condition the encounter never established, and `verify this number`
-            # for one this repo cannot evaluate. Nothing else may follow it --
-            # a free-text remark after the bracket is how the format erodes.
+            # condition the encounter never established, `verify this number`
+            # for one this repo cannot evaluate, or `age month filled` when the
+            # committed CDC calculator used the deterministic midpoint month.
+            # Nothing else may follow it -- a free-text remark after the bracket
+            # is how the format erodes.
             self.assertRegex(
                 line,
-                r"\[[^\[\]]+\](?: (?:needs: .+|verify this number))?$",
+                r"\[[^\[\]]+\](?: (?:needs: .+|verify this number|age month filled))?$",
                 f"citation not closing the item line: {line}",
             )
 
@@ -204,7 +206,8 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
 
     def test_the_population_is_not_optional_and_says_why(self):
         self.assertIn("The population is the field that is not optional", self.section)
-        self.assertIn("nine-item age-keyed screening list", self.section)
+        self.assertIn("fill the wrong age", self.section)
+        self.assertIn("owed to a different patient population", self.section)
 
     def test_the_population_cell_is_copied_and_its_two_caveats_are_stated(self):
         # The USPSTF column is derived rather than quoted, and one row of 143
@@ -249,11 +252,11 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         self.assertIn("It may be shortened; it may never be softened", self.section)
         self.assertIn("Dropping the risk threshold would be softening", self.section)
 
-    def test_a_population_this_repo_cannot_evaluate_is_marked(self):
-        # #123's hole reaching the citation rule: the repo ships the codes and
-        # the recommendations without the CDC growth charts, so a pediatric
-        # percentile population is recalled however carefully it was checked.
-        self.assertIn("A population this repo cannot evaluate takes `verify this number`", self.section)
+    def test_a_pediatric_percentile_population_uses_the_cdc_tool(self):
+        # #123 closes the hole: the population is now computed from the committed
+        # chart, and a midpoint month filled from whole-year age stays disclosed.
+        self.assertIn("cdc_percentile.py", self.section)
+        self.assertIn("age month filled", self.section)
         self.assertIn("95th percentile for age and sex", self.section)
 
     def test_the_calculator_follows_the_cited_row(self):
@@ -365,9 +368,10 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         cls.agents = AGENTS.read_text(encoding="utf-8")
         cls.sheet = (THRESHOLDS / "hypertension.md").read_text(encoding="utf-8")
 
-    def test_both_sheets_the_skill_names_are_on_disk(self):
+    def test_all_three_sheets_the_skill_names_are_on_disk(self):
         self.assertTrue(USPSTF.is_file())
         self.assertTrue(THRESHOLDS.is_dir())
+        self.assertTrue((THRESHOLDS / "diabetes.md").is_file())
         self.assertTrue((THRESHOLDS / "hypertension.md").is_file())
 
     def test_uspstf_is_still_complete_for_its_corpus(self):
@@ -383,12 +387,14 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         uspstf_docs = re.findall(r"^\| USPSTF \| ", self.catalog, re.M)
         self.assertEqual(len(uspstf_docs), 90)
 
-    def test_the_thresholds_directory_still_holds_one_topic(self):
-        # The skill says "one topic". A second sheet is good news and makes that
-        # sentence false, so it fails here rather than going stale in the file.
+    def test_the_thresholds_directory_holds_the_two_declared_topics(self):
+        # The consumer-facing skill and AGENTS.md both declare the shipped topic
+        # count. A new sheet is good news and makes that count false, so it fails
+        # here rather than going stale in either file.
         sheets = sorted(p.name for p in THRESHOLDS.glob("*.md") if p.name != "README.md")
-        self.assertEqual(sheets, ["hypertension.md"])
-        self.assertIn("**one topic**", self.text)
+        self.assertEqual(sheets, ["diabetes.md", "hypertension.md"])
+        self.assertIn("**two topics**", self.text)
+        self.assertIn("**two topics**", self.agents)
 
     def test_the_colorectal_example_is_a_real_uspstf_row(self):
         # One regex over the whole row, never a separate assertIn for the year --
@@ -542,15 +548,16 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         )
         self.assertIn("[uspstf: grade B, children and adolescents 6 years or older", self.text)
 
-    def test_no_scanner_claim_names_only_the_row_it_can_name(self):
-        # differential_scan.py reaches one limb of row 22 and nothing else. The
-        # skill claimed it reached a limb of row 23 too, while that tool's own
-        # docstring said otherwise -- a skill file disagreeing with the tool it
-        # cites is worse than silence, because it reads as agreement.
+    def test_the_row_13_floor_does_not_claim_to_grade_rows_23_or_24(self):
+        # #164 added a declared floor for row 13, so the old assertion that this
+        # module could not even name row 23 became stale. The invariant that
+        # matters is narrower: neither the tool nor the skill promotes that floor
+        # into a grade on the two rows it still cannot check.
         scanner = (REPO_ROOT / "tools" / "differential_scan.py").read_text(encoding="utf-8")
-        self.assertNotIn("row 23", scanner)
-        self.assertIn("reaches one limb of row 22 and nothing else", self.text)
-        self.assertIn("**not row 23 either**", self.text)
+        self.assertNotIn("fails row 23", scanner)
+        self.assertNotIn("fails row 24", scanner)
+        self.assertIn("does not grade row 23", self.text)
+        self.assertIn("still reaches **nothing in row 23 or 24**", self.text)
 
 
 class TheCoderGainsNoObligation(unittest.TestCase):

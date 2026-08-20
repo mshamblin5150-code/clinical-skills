@@ -25,9 +25,11 @@ file was caught using both.
 """
 
 import ast
+import io
 import re
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import NamedTuple
 
@@ -71,6 +73,155 @@ DAY_B_NO_PAIN = (2, 12)  # the shorthand writes the absence, so 0/10 is a given
 DAY_B_SEVERITY_FILLED = (3, 6, 9)  # neither a score nor an absence: the run invents one
 DAY_B_SEVERITY_PAINFUL = (6, 9)  # B8's anchors: the complaint itself is painful
 DAY_B_B14 = (3,)  # B14's anchor, for issue #42. The complaint does not hurt
+
+
+class TopicCandidatePoolsCountEachFamilyOncePerEncounter(unittest.TestCase):
+    """The clinician's issue #175 ruling at the public survey seam."""
+
+    def test_follow_up_and_active_complaint_both_count(self):
+        census = cc.survey_topic_candidates(
+            ["f/u htn\nc/o cough x3d, sore throat\nassessment: pharyngitis"]
+        )
+
+        self.assertEqual(census.notes, 1)
+        self.assertEqual(census.count("hypertension"), 1)
+        self.assertEqual(census.count("streptococcal pharyngitis"), 1)
+
+    def test_pack_per_day_does_not_inflate_tuberculosis(self):
+        census = cc.survey_topic_candidates(["smokes 1 ppd x 20 yrs"])
+
+        self.assertEqual(census.count("tobacco use"), 1)
+        self.assertEqual(census.count("tuberculosis diagnosis"), 0)
+
+    def test_history_medication_and_ruled_out_mentions_stay_in_the_ceiling(self):
+        census = cc.survey_topic_candidates(
+            ["PMH asthma, albuterol prn; strep ruled out"]
+        )
+
+        self.assertEqual(census.count("asthma"), 1)
+        self.assertEqual(census.count("streptococcal pharyngitis"), 1)
+
+    def test_default_pattern_requires_the_familys_distinctive_words(self):
+        census = cc.survey_topic_candidates(
+            ["lungs clear", "lung cancer ruled out"]
+        )
+
+        self.assertEqual(census.count("lung cancer screening"), 1)
+
+
+class TopicCandidateReportStatesWhatItsNumbersCanMean(unittest.TestCase):
+    """The public report is safe to paste and cannot read as prevalence."""
+
+    def test_orders_counts_and_names_both_error_directions(self):
+        report = cc.format_topic_report(
+            cc.TopicCensus(
+                notes=10,
+                candidates=(("zeta", 2), ("alpha", 4), ("beta", 2), ("zero", 0)),
+            )
+        )
+
+        self.assertIn("whole-encounter keyword candidate pools", report)
+        self.assertLess(report.index("alpha"), report.index("beta"))
+        self.assertLess(report.index("beta"), report.index("zeta"))
+        self.assertIn("history, medications, or ruled-out diagnoses", report)
+        self.assertIn("unmatched shorthand or missing synonyms", report)
+        self.assertIn("alpha", report)
+        self.assertIn("4 of 10", report)
+        self.assertNotIn("  zero", report)
+        self.assertIn("1 mapped family yielded zero recognized-keyword candidates", report)
+        self.assertIn("not a negative finding", report)
+
+    def test_main_census_report_includes_the_topic_block(self):
+        notes = ["f/u htn"]
+        report = cc.format_report(
+            cc.survey(notes),
+            source="synthetic",
+            date="2026-08-20",
+            bands=cc.survey_bands(notes),
+            files=cc.FileCensus(
+                files=1,
+                unique_files=1,
+                with_no_stated_age=1,
+                with_age_in_every_note=0,
+                with_mixed_age=0,
+            ),
+            topics=cc.survey_topic_candidates(notes),
+        )
+
+        self.assertIn("topic candidate pools", report)
+        self.assertIn("hypertension", report)
+        self.assertIn("1 of 1", report)
+
+    def test_command_report_includes_topic_candidates(self):
+        with tempfile.TemporaryDirectory() as raw:
+            corpus = Path(raw)
+            (corpus / "day.txt").write_text(
+                "Note 1\nf/u htn\n", encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                result = cc.main(["corpus_census.py", str(corpus)])
+
+        self.assertEqual(result, 0)
+        self.assertIn("topic candidate pools", stdout.getvalue())
+        self.assertIn("hypertension", stdout.getvalue())
+
+
+class EveryCatalogTopicIsDeliberatelyAccountedFor(unittest.TestCase):
+    """A new catalog row cannot vanish behind the current registry. Issue #175."""
+
+    def test_real_catalog_is_fully_mapped_or_scoped_out(self):
+        topics = cc.read_catalog_topics(REPO_ROOT / "reference" / "guidelines-catalog.md")
+        coverage = cc.topic_registry_coverage(topics)
+
+        self.assertTrue(coverage.complete, coverage.describe())
+
+    def test_an_unknown_catalog_topic_is_reported_missing(self):
+        coverage = cc.topic_registry_coverage(("newly added patient topic",))
+
+        self.assertEqual(coverage.missing, ("newly added patient topic",))
+
+    def test_related_catalog_rows_share_the_approved_sheet_family(self):
+        self.assertEqual(
+            cc.topic_family_for("high blood pressure screening"), "hypertension"
+        )
+        self.assertEqual(
+            cc.topic_family_for("anxiety disorder screening"),
+            cc.topic_family_for("anxiety screening"),
+        )
+        self.assertIsNone(
+            cc.topic_family_for("antimicrobial stewardship leadership")
+        )
+
+    def test_distinct_decision_sets_stay_in_distinct_families(self):
+        pairs = (
+            ("high blood pressure", "hypertensive disorders of pregnancy screening"),
+            ("adult immunization schedule", "maternal immunization"),
+            (
+                "cardiovascular disease prevention, aspirin",
+                "cardiovascular disease prevention, statins",
+            ),
+            ("diabetes mellitus", "prediabetes and type 2 diabetes screening"),
+            ("chronic obstructive pulmonary disease", "COPD screening"),
+        )
+        for left, right in pairs:
+            with self.subTest(left=left, right=right):
+                self.assertNotEqual(
+                    cc.topic_family_for(left), cc.topic_family_for(right)
+                )
+
+    def test_default_family_pattern_reaches_ordinary_shorthand(self):
+        census = cc.survey_topic_candidates(["working dx CVA / stroke"])
+
+        self.assertEqual(census.count("acute ischemic stroke, early management"), 1)
+
+    def test_every_mapped_topic_reaches_a_countable_family(self):
+        family_names = {family.name for family in cc.TOPIC_FAMILIES}
+
+        for topic in cc.MAPPED_CATALOG_TOPICS:
+            with self.subTest(topic=topic):
+                self.assertIn(cc.topic_family_for(topic), family_names)
+
 
 # The exam findings B14's "reasoned from a pain source" limb rests on. Case 3's
 # shorthand never says pain and never says its absence, so the only thing that
@@ -207,6 +358,29 @@ def case(directory: Path, number: int) -> str:
 
 
 OBESITY_BMI_SHORTHAND = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
+
+
+def table_cell(path: Path, row_label: str, heading: str) -> str:
+    """Return one named cell from a Markdown table row."""
+    column = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if heading in cells:
+            column = cells.index(heading)
+            continue
+        if cells and cells[0] == row_label:
+            if column is None:
+                raise AssertionError(
+                    f"{path.name} row {row_label} sits under no {heading!r} header"
+                )
+            if len(cells) <= column:
+                raise AssertionError(
+                    f"{path.name} row {row_label} has no {heading!r} column"
+                )
+            return cells[column]
+    raise AssertionError(f"{path.name} carries no table row labeled {row_label}")
 
 
 def all_fixture_shorthand():
@@ -1252,7 +1426,7 @@ class HedgedDiagnosis(unittest.TestCase):
         No committed fixture carries it and the corpus cannot be audited from
         every clone, so an alternative matched by nothing is one nothing can
         catch going wrong -- the reasoning ``SLEEP_APNEA`` already carries for
-        ``apnoea``. This is the line to change if the form turns up.
+        the British apnea variant. This is the line to change if the form turns up.
         """
         self.assertFalse(cc.has_hedge("?fx right wrist"))
 
@@ -2353,27 +2527,7 @@ class Row15AndB9StateOneRule(unittest.TestCase):
         several, and one shared index across all of them is the same guess in a
         cheaper disguise.
         """
-        column = None
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.startswith("|"):
-                continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if self.RULE_HEADING in cells:
-                column = cells.index(self.RULE_HEADING)
-                continue
-            if cells and cells[0] == row_label:
-                self.assertIsNotNone(
-                    column,
-                    f"{path.name} row {row_label} sits under no "
-                    f"{self.RULE_HEADING!r} header",
-                )
-                self.assertGreater(
-                    len(cells),
-                    column,
-                    f"{path.name} row {row_label} has no rule column",
-                )
-                return cells[column]
-        self.fail(f"{path.name} carries no table row labeled {row_label}")
+        return table_cell(path, row_label, self.RULE_HEADING)
 
     def rows(self):
         return (
@@ -2598,6 +2752,83 @@ class ObesityBmiIsTheDocumentedObesitySet(unittest.TestCase):
             int(p.stem.split("-")[1]) for p in sorted(self.OBESITY_BMI.glob("case-*.md"))
         ]
         self.assertEqual(numbers, sorted(self.ANCHORS + self.CONTROLS))
+
+
+class FilledZeroRulingIsFixtured(unittest.TestCase):
+    """Issue #138's two limbs, scored against the committed blind-run output."""
+
+    ASSERTIONS = REPO_ROOT / "fixtures" / "obesity-bmi" / "assertions.md"
+    BLIND_RUN = REPO_ROOT / "fixtures" / "blind-run"
+    CATALOG = REPO_ROOT / "fixtures" / "README.md"
+    CONFIRMED_CASES = (3,)
+
+    def shorthand(self, number: int) -> str:
+        return case(OBESITY_BMI_SHORTHAND, number)
+
+    def severity_fill(self, number: int) -> str:
+        output = (
+            self.BLIND_RUN / f"obesity-bmi-case-{number:02d}.md"
+        ).read_text(encoding="utf-8")
+        start = output.index("FILLED·asserted   SEVERITY 0/10")
+        end = output.find("\nFILLED·asserted", start + 1)
+        return output[start:] if end == -1 else output[start:end]
+
+    def test_the_inputs_leave_the_severity_to_fill(self):
+        for number in self.CONFIRMED_CASES:
+            with self.subTest(case=number):
+                shorthand = self.shorthand(number)
+                self.assertFalse(cc.has_pain_score(shorthand))
+                self.assertNotRegex(shorthand, NO_PAIN)
+
+    def test_o6_states_both_halves_of_the_value_ruling(self):
+        self.assertEqual(table_cell(self.ASSERTIONS, "O6", "Cases"), "3")
+        passes = table_cell(self.ASSERTIONS, "O6", "Passes when")
+        fails = table_cell(self.ASSERTIONS, "O6", "Fails when")
+        for clause in (
+            "The filled `0/10` itself is not a failure",
+            "creates no Plan obligation and discharges none",
+            "`PASS`, 2026-08-20, on `733a396`",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, passes)
+        self.assertIn("clinician confirmed", passes)
+        self.assertIn("The zero itself is rejected", fails)
+
+    def test_o7_states_the_search_and_closes_the_no_anchor_exit(self):
+        self.assertEqual(table_cell(self.ASSERTIONS, "O7", "Cases"), "3")
+        passes = table_cell(self.ASSERTIONS, "O7", "Passes when")
+        fails = table_cell(self.ASSERTIONS, "O7", "Fails when")
+        for clause in (
+            "names the search",
+            "what was read in the complaint and the exam",
+            "neither held a pain source",
+            "`PASS`, 2026-08-20, on `733a396`",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, passes)
+        self.assertIn("drift row 19's no-anchor exit", fails)
+
+    def test_each_scored_output_fills_zero_after_a_negative_search(self):
+        for number in self.CONFIRMED_CASES:
+            with self.subTest(case=number):
+                disclosure = self.severity_fill(number)
+                self.assertRegex(
+                    disclosure,
+                    r"Read the\s+complaint and the\s+exam(?:ination)?",
+                )
+                self.assertIn("pain source", disclosure)
+                self.assertRegex(disclosure, r"Nothing in the encounter\s+documents pain")
+                self.assertNotRegex(disclosure, r"(?i)no anchor")
+
+    def test_the_catalog_does_not_restate_targeted_scores_as_a_run(self):
+        entry = next(
+            line
+            for line in self.CATALOG.read_text(encoding="utf-8").splitlines()
+            if "[obesity-bmi]" in line
+        )
+        self.assertIn("never run", entry)
+        self.assertIn("O6 and O7", entry)
+        self.assertIn("targeted", entry)
 
 
 class SocialSlotsSplitTwoWays(unittest.TestCase):
@@ -3271,16 +3502,18 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
         Neither assertion moved, because the *right* reason was always the other
         one. This population is the encounters where the token is **ambiguous**
         -- a bare ``ppd`` that might be a purified protein derivative. A digit
-        welded to it is not ambiguous, since nobody writes a count in front of a
-        tuberculin test, so a welded form was never a candidate for the wrong
-        sense and does not belong in the denominator #78 was ruled on.
+        welded to it is not ambiguous, so a welded form was never a candidate for
+        the wrong sense and does not belong in the denominator #78 was ruled on.
 
-        **This is a reading and it is the conservative one**, stated here rather
-        than left implicit. Widening ``writes_bare_ppd`` with the slot is the
-        other option, and it would move figures the clinician ruled on
-        2026-08-16 -- ``with_bare_ppd`` and both shape counters. Leaving it
-        narrow moves none of them. If the wider population is wanted, that is a
-        change to #78 and not to #146, and it needs the person who closed it.
+        **That was the conservative reading when it was written and it is the
+        ruled one now.** The clinician settled #146 on 2026-08-20: a welded
+        ``1ppd`` is the spaced form mistyped and means one pack per day. A string
+        whose meaning is *settled* cannot be a candidate for the wrong sense, so
+        the narrow population is no longer a choice this test is making on
+        anyone's behalf -- it is what the ruling implies. Widening
+        ``writes_bare_ppd`` would put a decided token into a denominator that
+        exists to count undecided ones, and would move ``with_bare_ppd`` and both
+        shape counters for nothing.
         """
         self.assertFalse(cc.writes_bare_ppd("1ppd x 24 yrs"))
         self.assertTrue(cc.writes_bare_ppd("1 ppd x 24 yrs"))

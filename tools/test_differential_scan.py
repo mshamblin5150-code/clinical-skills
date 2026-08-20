@@ -1,11 +1,18 @@
 """Cover ``differential_scan``'s parser against synthetic notes built in this file.
 
-**There is no committed ``clinical-note`` run to test against.** The one candidate
-is ``fixtures/filled-anchor/notes/``, and **zero of its twelve notes use the
-``label - CODE`` slot form** -- measured 2026-08-15 and pinned below by
-``TheOnlyCommittedRunHasNothingToScan``, because every limit claimed in the module
-docstring rests on it. So the scanner exits 2 there, correctly, and the set is no
-use for exercising the slot test.
+**That used to be because there was no committed ``clinical-note`` run to test
+against, and since [#162] there is** -- ``fixtures/slot-form-run/``, a run in the
+mandated slot form whose size is that set's own to state, pinned by ``TheCommittedSlotFormRunIsReadable``. The tests
+below stay synthetic anyway, on ``test_icd10.py``'s reasoning: a test reading the
+run its own row graded would pass for two reasons, one of them being that the run
+and the scanner are wrong together.
+
+**The older candidate is still refused and that is still correct.**
+``fixtures/filled-anchor/notes/`` uses the ``label - CODE`` slot form in **zero**
+of its twelve notes -- measured 2026-08-15 and pinned below by
+``TheFilledAnchorRunHasNothingToScan``, because two of the module's declared
+limits rest on it. So the scanner exits 2 there and the set is no use for
+exercising the slot test.
 
 **Do not restate that as *those notes carry no codes*.** Four of them do: case 7's
 differential block carries 13 and case 8's nine, in the form
@@ -32,7 +39,7 @@ import io
 import re
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import differential_scan as ds
@@ -45,7 +52,7 @@ SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 CLEAN_SOAP = """A:
 
 Differential:
-Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
+1. Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
 """
 
 # ``hedged-dx`` run 1's case 2, verbatim, and **left in the retired form on
@@ -75,7 +82,7 @@ Contiguous osteomyelitis of the right tibia or fibula - M86.9: right tibia and f
 TWO_REFUSALS = """A:
 
 Differential:
-Chills - R68.83: chills over a chronic infected wound growing a resistant Klebsiella, but afebrile at 97.3, heart rate 77 and respiratory rate 18, so no SIRS criteria are met. CBC and lactate ordered today with no result. NOT CODED: A41.9 Sepsis, unspecified organism, the vitals do not support it; NOT CODED: R78.81 Bacteremia, no blood culture drawn. Less likely.
+1. Chills - R68.83: chills over a chronic infected wound growing a resistant Klebsiella, but afebrile at 97.3, heart rate 77 and respiratory rate 18, so no SIRS criteria are met. CBC and lactate ordered today with no result. NOT CODED: A41.9 Sepsis, unspecified organism, the vitals do not support it; NOT CODED: R78.81 Bacteremia, no blood culture drawn. Less likely.
 """
 
 # The H&P branch puts the code on its own line and the refusal on the next one, so
@@ -401,7 +408,156 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         self.assertEqual(scan.notes, 1)
 
 
-class TheOnlyCommittedRunHasNothingToScan(unittest.TestCase):
+class TheDeclaredFloorChecksNumberedDifferentialItems(unittest.TestCase):
+    """Ticket #164's additional QA check, exercised through the command seam."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def write(self, name: str, text: str) -> None:
+        (self.root / name).write_text(text, encoding="utf-8")
+
+    def run_command(self) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = ds.main([str(self.root)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_the_floor_limit_is_a_tested_artifact(self):
+        limits = dict(ds.NOT_VALIDATED_AGAINST)
+        self.assertIn("the row-13 labeled-block floor", limits)
+        self.assertIn("wide Assessment verdict", limits["the row-13 labeled-block floor"])
+
+    def test_a_numbered_item_without_a_code_is_a_finding_not_not_run(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n1. Viral upper respiratory infection: favored.\n",
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 1)
+        self.assertIn("numbered items in labeled blocks", report)
+        self.assertIn("numbered items carrying a code", report)
+        self.assertIn("row 13 floor - numbered item without a code  1", report)
+        self.assertIn("row 22 - refused code in a slot  NOT RUN", report)
+        self.assertIn("wide Assessment count still needs a reader", report)
+        self.assertIn("failing clinical-note drift row 13", error)
+
+    def test_a_row_22_finding_does_not_make_the_row_13_floor_look_clean(self):
+        self.write("case-01.md", WELDED_SLOT_VIOLATION)
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 22 - refused code in a slot  1", report)
+        self.assertIn("row 13 floor - numbered item without a code  NOT RUN", report)
+
+    def test_the_command_reports_both_the_population_and_the_join(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n"
+            "1. Acute bronchitis - J20.9: favored.\n"
+            "2. Pneumonia: less likely.\n",
+        )
+
+        _, report, _ = self.run_command()
+
+        self.assertIn("numbered items in labeled blocks     2", report)
+        self.assertIn("numbered items carrying a code       1 of 2", report)
+
+    def test_the_hp_heading_and_two_line_item_are_read(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential diagnoses with rationale:\n"
+            "1. Acute bronchitis - J20.9\n"
+            "   Favored because the cough has lasted three weeks.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 0)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+        self.assertIn("numbered items carrying a code       1 of 1", report)
+
+    def test_a_bold_soap_heading_is_read(self):
+        self.write(
+            "case-01.md",
+            "A:\n\n**Differential:**\n1. Acute bronchitis - J20.9: favored.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 0)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+
+    def test_the_block_stops_before_a_numbered_plan(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n1. Acute bronchitis - J20.9: favored.\n\n"
+            "P:\n1. Supportive care without a diagnosis code.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 0)
+        self.assertIn("numbered items in labeled blocks     1", report)
+
+    def test_a_code_in_parentheses_does_not_satisfy_the_required_slot(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n1. Acute bronchitis (J20.9): favored.\n",
+        )
+
+        status, _, _ = self.run_command()
+
+        self.assertEqual(status, 1)
+
+    def test_a_later_slot_in_the_rationale_does_not_rescue_the_item(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n"
+            "1. Viral upper respiratory infection: coded as cough - R05.9.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 1)
+        self.assertIn("numbered items carrying a code       0 of 1", report)
+
+    def test_no_labeled_block_is_not_reported_as_a_clean_qa_run(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nAlso addressed this visit:\n1. Acute bronchitis - J20.9: favored.\n",
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 2)
+        self.assertIn("labeled Differential blocks read      0 in 0 of 1 notes", report)
+        self.assertIn("wide Assessment count still needs a reader", report)
+        self.assertIn("row 13 floor was not run", error)
+
+    def test_an_unnumbered_labeled_block_prints_both_zero_populations(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\nAcute bronchitis: favored because of cough.\n",
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 2)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+        self.assertIn("numbered items in labeled blocks     0", report)
+        self.assertIn("numbered items carrying a code       0 of 0", report)
+        self.assertIn("wide Assessment count still needs a reader", report)
+        self.assertIn("row 13 floor was not run", error)
+
+
+class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):
     """Pin the measurement the module docstring's limits rest on.
 
     This is the one place the suite reads a real committed note set, and it reads
@@ -595,7 +751,7 @@ class ProseAboutTheRuleIsNotAnEntry(unittest.TestCase):
         self.assertEqual(scan_text(text).unwelded_marks, 0)
 
     def test_the_same_sentence_unbackticked_is_reported_rather_than_ignored(self):
-        # The mention rule is a span rule, not a licence for the whole file --
+        # The mention rule is a span rule, not a license for the whole file --
         # ``spelling_scan.py``'s reasoning. Prose that writes the mark bare is
         # indistinguishable from a retired-form refusal, and says so.
         note = ds.read_note(
@@ -696,7 +852,10 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
     def test_a_run_that_genuinely_refused_nothing_is_zero(self):
         # No mark of either kind. Row 22 is satisfied by construction here, and
         # this is the case the limb above must not swallow.
-        self.write("case-01.md", "Differential:\nAcute bronchitis - J20.9: cough. Favored.\n")
+        self.write(
+            "case-01.md",
+            "Differential:\n1. Acute bronchitis - J20.9: cough. Favored.\n",
+        )
         self.assertEqual(ds.main([str(self.root)]), 0)
 
     def test_a_run_mixing_the_two_forms_is_also_two(self):
@@ -894,11 +1053,11 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
     line-wise search does not see it.
 
     **And every row is live**, which is what #241 asks for over a sentence. Each is
-    re-derived below rather than stated -- **row 3 against a run built in this
-    file, rows 1 and 2 against the committed tree** -- so a limit cannot quietly
-    stop being true. That distinction is written out because the first version
-    claimed all three ran against the committed tree while row 3 hand-built a
-    ``Scan`` and matched a format string.
+    re-derived below rather than stated -- **rows 3 and 4 against runs built in
+    this file, rows 1 and 2 against the committed tree** -- so a limit cannot
+    quietly stop being true. That distinction is written out because the first
+    version claimed every row ran against the committed tree while row 3 hand-built
+    a ``Scan`` and matched a format string.
     """
 
     CLAUDE = REPO_ROOT / "CLAUDE.md"
@@ -1015,27 +1174,31 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         return found
 
     def test_no_committed_input_reaches_the_failure_path(self):
-        """The first row, and **the honest form of it rather than the vacuous one**.
+        """The first row, and it says less than it used to on purpose.
 
-        The first version asserted ``scan.findings == ()`` over every committed
-        directory. That passes, and it passes for the wrong reason: **not one of
-        those directories parses a single differential entry**, so ``findings`` is
-        empty because nothing was read rather than because nothing violates. A
-        check that cannot fail for the reason it names is this repo's own recurring
-        shape, and it arrived inside the change whose subject is that shape --
-        found by review.
+        **Two earlier versions of this were each wrong in the direction the row was
+        wrong in.** The first asserted ``scan.findings == ()`` over every committed
+        directory, which passed because **not one of them parsed a differential
+        entry** -- ``findings`` was empty for want of input rather than for want of
+        a violation, a check that cannot fail for the reason it names. The second
+        repaired that by asserting no committed directory holds an entry *and* a
+        refusal at once, with the message telling the next reader to re-examine the
+        row when one did. ``fixtures/slot-form-run`` is that day, and the tripwire
+        fired as written.
 
-        **What is actually true is stronger and is what is asserted**: a row-22
-        violation needs an entry *and* a refusal of the code in it, and **no
-        committed directory holds both at once**. So the failure path is
-        unreachable there by construction rather than by luck, and the day a
-        committed set gains both this goes red and the row is re-examined.
+        **So what is asserted now is the pair the row rests on.** Reachability:
+        some committed directory parses both halves, so the branch has real
+        material to fire on and CI carries it. Silence: no committed directory
+        produces a finding, so the branch has still never fired on a record nobody
+        edited. The second half is the surviving limit; the first is what retired
+        the other half of it.
 
-        The liveness guard counts what was **parsed**, not what was read: files
-        read is exactly the exit-0/exit-2 distinction this module exists to make,
-        and measuring the wrong one is how the first version went quiet.
+        The liveness guards count what was **parsed**, never what was read -- files
+        read is exactly the exit-0/exit-2 distinction this module exists to draw,
+        and measuring that instead is how the first version went quiet.
         """
         self.assertIn("the exit-1 path on committed input", self.keys())
+        reachable = []
         entries = refusals = 0
         for directory in self.committed_directories():
             notes = [ds.read_note(t) for t in ds.read_notes(directory)]
@@ -1043,31 +1206,53 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
             here_refusals = sum(len(note.refused) for note in notes)
             entries += here_entries
             refusals += here_refusals
+            if here_entries and here_refusals:
+                reachable.append(directory.name)
             with self.subTest(directory=directory.name):
-                self.assertEqual(ds.survey(notes).findings, ())
-                self.assertFalse(
-                    here_entries and here_refusals,
-                    f"{directory.name} now holds both an entry and a refusal, so the"
-                    " failure path is reachable on committed input -- re-examine the"
-                    " first row of NOT_VALIDATED_AGAINST",
+                self.assertEqual(
+                    ds.survey(notes).findings,
+                    (),
+                    f"{directory.name} now violates row 22, so the exit-1 branch has"
+                    " fired on committed output -- the first row of"
+                    " NOT_VALIDATED_AGAINST is retired rather than narrowed",
                 )
-        # Neither half is zero across the walk, so the assertion above is a real
-        # partition rather than a statement about an empty set.
+        # Neither half is zero across the walk, so the silence above is a statement
+        # about material that was actually parsed.
         self.assertTrue(entries, "no committed directory parsed an entry")
         self.assertTrue(refusals, "no committed directory parsed a refusal")
+        self.assertTrue(
+            reachable,
+            "no committed directory holds both an entry and a refusal, so the"
+            " failure path is unreachable on committed input again -- the first row"
+            " of NOT_VALIDATED_AGAINST claims more than the tree supports",
+        )
 
-    def test_the_two_committed_sets_are_both_refused(self):
+    def test_the_filled_anchor_sets_are_both_still_refused(self):
         """The second row -- the aggregate the docstring's four limbs never state.
 
         Each exit 2 is separately correct and separately documented. What none of
-        them says is that **together they leave the scanner with no committed
-        material it can read at all**, which is #162's finding and the thing a
-        reader infers coverage against. The ``notes`` half is re-asserted here
-        although ``TheOnlyCommittedRunHasNothingToScan`` already covers it, because
-        the row's claim is the **pair**: asserting either alone is the reading that
-        let the aggregate go unstated in the first place.
+        them said was the total, and the total used to be that **nothing committed
+        was legible to this scanner at all** -- #162's finding, and the thing a
+        reader infers coverage against. ``fixtures/slot-form-run`` ended that half,
+        so the third assertion below is what makes the row's current wording
+        honest: it names the directory that is *not* refused, and a day when that
+        stops being true is a day the row goes back to its old claim.
+
+        The ``notes`` half is re-asserted here although
+        ``TheFilledAnchorRunHasNothingToScan`` already covers it, because the row's
+        claim is the **pair**: asserting either alone is the reading that let the
+        aggregate go unstated in the first place.
         """
         self.assertIn("the aggregate of the exit-2 limbs", self.keys())
+        with redirect_stdout(io.StringIO()):
+            readable = ds.main([str(self.FIXTURES / "slot-form-run")])
+        self.assertEqual(
+            readable,
+            0,
+            "the committed slot-form run is no longer readable, so the second row's"
+            " residue is wrong -- it says most committed directories are refused,"
+            " not all of them",
+        )
         for name in ("notes", "run-2"):
             with self.subTest(name=name):
                 self.assertEqual(
@@ -1100,6 +1285,106 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         self.assertIn("read nothing from their differential", report)
         # Not graded: five of six notes ungraded is still a clean exit.
         self.assertEqual(status, 0)
+
+
+class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
+    """[#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s
+    first option, which is the one that puts real output in front of the parser.
+
+    ``fixtures/slot-form-run/`` is a ``clinical-note`` run in the mandated slot
+    form over committed shorthand cases, with site names redacted on the way
+    across. Its provenance and that edit are in the set's own README and
+    are deliberately not restated here.
+
+    **What this class pins is the property the first declared limit is worded
+    against**, and it pins it per note rather than per directory. A row-22
+    violation needs an entry *and* a refusal of the code in it **in the same
+    note**; a directory holding an entry in one file and a refusal in another
+    proves nothing about reachability. So the assertion is that every note carries
+    both, which is what makes one displaced code enough to fire the branch.
+
+    **No count from the scanner's report is asserted**, on
+    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+    terms: those are one command over a directory a reader can open, and the set's
+    README says which command. What is asserted is the shape, which no command
+    prints.
+    """
+
+    RUN = REPO_ROOT / "fixtures" / "slot-form-run"
+
+    def notes(self):
+        found = ds.read_notes(self.RUN)
+        self.assertTrue(found, "the committed slot-form run read nothing")
+        return [ds.read_note(text) for text in found]
+
+    def test_every_note_carries_both_halves_of_a_violation(self):
+        for index, note in enumerate(self.notes()):
+            with self.subTest(note=index):
+                self.assertTrue(note.entries, "a note parses no differential entry")
+                self.assertTrue(note.refused, "a note parses no welded refusal")
+
+    def test_the_run_is_clean_and_exits_zero(self):
+        """Untuned, and it must stay that way.
+
+        A run edited until the checker complains is material authored to make a
+        check pass its own examination. This asserts the honest outcome instead:
+        real output, read in full, violating nothing.
+
+        **The exit status is deliberately not re-asserted here.**
+        ``test_the_filled_anchor_sets_are_both_still_refused`` pins it,
+        because that row's wording is what depends on this run being readable; a
+        third copy was in the first draft and is duplication rather than cover.
+        """
+        self.assertEqual(ds.survey(self.notes()).findings, ())
+
+    def test_one_displaced_code_fires_the_exit_one_branch(self):
+        """**The exit-1 branch on real material**, and the mutation is the point.
+
+        Every other test of this branch builds a note from nothing, so it grades
+        the parser against a shape somebody imagined. Here the input is a committed
+        note, unaltered except that **one refused code is moved into the slot of
+        the entry that refuses it** -- the clinical mistake #68 was filed over,
+        planted into output that a skill really produced.
+
+        **The mutation lives here rather than in the fixture**, which is the whole
+        arrangement: the record stays what the run wrote, and the defect is legible
+        in the test to anyone reading why the branch is covered.
+
+        It is not a substitute for a committed run that genuinely violates, and
+        ``NOT_VALIDATED_AGAINST``'s first row says so. What it retires is the older
+        and weaker complaint that the branch had no real material to run against.
+        """
+        mutated = None
+        for text in ds.read_notes(self.RUN):
+            note = ds.read_note(text)
+            if not (note.entries and note.refused):
+                continue
+            code = sorted(note.refused)[0]
+            for entry in note.entries:
+                candidate = text.replace(f"- {entry.code}:", f"- {code}:", 1)
+                if candidate != text:
+                    mutated = candidate
+                    break
+            if mutated:
+                break
+        self.assertIsNotNone(
+            mutated, "no committed note offered an entry slot to displace a code into"
+        )
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "case-01.md").write_text(mutated, encoding="utf-8")
+            printed = io.StringIO()
+            with redirect_stdout(printed):
+                status = ds.main([str(root)])
+        self.assertEqual(status, 1, printed.getvalue())
+        # **Exactly one**, and the count is what makes this assertion able to fail.
+        # ``assertNotIn("... slot  0")`` was the first version and it cannot: an
+        # exit of 1 already implies a non-zero row, so it was a second mechanism
+        # with no failure of its own -- ``docx_write.py``'s recorded finding, which
+        # is that such a line costs a test rather than adding one. One refusal is
+        # displaced and the control run above is clean, so any other number means
+        # the mutation did more than it claims.
+        self.assertIn("row 22 - refused code in a slot  1", printed.getvalue())
 
 
 class TheSkillsWorkedExamplesPassTheScanner(unittest.TestCase):

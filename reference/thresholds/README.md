@@ -25,7 +25,7 @@ the answer is that nothing here changes — but the judgment is written down rat
 implied, because #223's whole point is that it had never been made.
 
 **What is quoted, measured rather than characterized.** In
-[hypertension.md](hypertension.md), the one sheet that exists today:
+[hypertension.md](hypertension.md):
 
 | | |
 | --- | --- |
@@ -36,8 +36,20 @@ implied, because #223's whole point is that it had never been made.
 | words in the `## Populations` table, 19 rows of verbatim scope wording | **115** |
 | pages in the source guideline | **105** |
 
-**Every row above is re-derived by a test, and none of them is a figure only this
-paragraph holds** — which is
+In [diabetes.md](diabetes.md), ruled on #186 rather than inheriting the first
+sheet's answer:
+
+| | |
+| --- | --- |
+| rows | **25** |
+| snippet cells, and distinct snippets among them | 25, of which **24** are distinct |
+| words across the distinct snippets, excluding the two `RENDERED:` markers | **87** |
+| longest / median / shortest quoted fragment, in words | 8 / 3 / 1 |
+| words in the `## Populations` table, 17 rows of verbatim scope wording | **124** |
+| pages in the source guideline | **377** |
+
+**Every row in both tables above is re-derived by a test, and none of them is a figure
+only this paragraph holds** — which is
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). The first five
 come from the sheet, read through `threshold_sheet.parse` rather than a reader of the
 test's own; **the page count comes from [guidelines-catalog.md](../guidelines-catalog.md)**,
@@ -57,7 +69,7 @@ fabricated citation stops being detectable. The verbatim string is doing evident
 that no paraphrase does, which is the fair-use factor that actually bites here.
 
 **And the attribution is per row, not per file.** Every row carries the society, the
-document, its DOI, the page, the recommendation identifier and the class of
+document, its source URL, the page, the recommendation identifier and the class of
 recommendation. A reader who doubts a row jumps to the page in one move; that jump is the
 whole reason `page` is a column.
 
@@ -67,10 +79,10 @@ for the guideline, and it says so in its own opener. Nothing here blesses commit
 `guidelines_recs.py` refuses to write inside a checkout and `.gitignore` now catches
 anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
 
-**A second sheet does not get this for free.** The figures above are one topic against one
-105-page guideline. A directory of twenty sheets quoting one society is a different
-quantity question, and it is worth re-asking there rather than reading this section as
-settling the class.
+**No later sheet gets this for free.** Diabetes was re-asked against one 377-page ADA
+standard and answered with 87 quoted words across 24 distinct minimal snippets. A directory
+of twenty sheets quoting one society is still a different quantity question, and it is
+worth re-asking there rather than reading either ruling as settling the class.
 
 ## Grading a sheet
 
@@ -291,10 +303,13 @@ Eight columns: `quantity | population | value | snippet | source | page | rec | 
 
 ### `## Conflicts`
 
-`CONFLICT: <quantity>` followed by prose naming every society, its number, and **why
+`CONFLICT: <quantity>` followed by prose naming every distinct row value and **why
 they differ**. The grader requires one wherever two rows share a quantity and a
-population with different values — so the honesty is structural rather than remembered,
-the same move as `differential_scan.py`'s welded `NOT CODED` pair.
+population with different values, and reads the prose to require a distinct mention of
+every value. One longer value cannot donate its matching prefix to a shorter one.
+Ordinary inequality wording is accepted (`below 180/105 mm Hg` names `<180/105 mm Hg`).
+This is a floor, not a clinical reading: it catches an empty block, `TODO`, or one side
+left unnamed, but cannot decide whether the explanation is correct.
 
 Why prose rather than a column: the KDIGO/AHA case turns entirely on *why* — different
 measurement method, different population — and a cell has no room for the only thing
@@ -335,22 +350,21 @@ not left to be discovered:
 - **The population key is a judgment.** The grader checks it is declared, never that it
   is right. A mis-keyed row hides a real conflict by making two rows look like
   different patients.
-- **On a machine without the recommendation records, the hook refuses every edit to a
-  sheet — including a prose typo fix.** `--all` resolves `recs-<source key>.json` under
+- **On a machine without the recommendation records, COVERAGE skips loudly and the
+  hook does not refuse the edit.** `--all` resolves `recs-<source key>.json` under
   `--recs-root`, which defaults outside the repo and is **not committed**, because it
-  holds the society's recommendation text in full. Absent, COVERAGE cannot run, `grade`
-  returns 2, and `tools/hooks/pre-commit` turns any non-zero into a refusal. So a fresh
-  clone, a new worktree and CI can all stage a sheet and be told no, with the recovery
-  being to rebuild the record with `tools/guidelines_recs.py` as shown at the top of
-  this file, or `--no-verify`.
+  holds the society's recommendation text in full. When a record was never built,
+  `grade` prints `COVERAGE NOT RUN` even through `--quiet`, calls the result a warning
+  rather than a clean COVERAGE pass, and exits 0 unless another gate refuses. An
+  explicit `--recs` path that does not resolve or a record that exists but is unreadable
+  still exits 2; a present record that exposes an exact-source omission still exits 1.
 
-  **This is deliberate and it is the opposite of what tier 2 does two bullets down**,
-  which skips loudly and passes. The asymmetry is the point: tier 2 not running leaves
-  every value still checked against its own snippet, whereas COVERAGE not running
-  leaves **omission** unchecked, and omission is the one failure no other gate in this
-  directory can see. A sheet that cannot be checked for what it left out is not a sheet
-  anyone should be able to commit by accident. **Named here rather than smoothed over**,
-  because the cost lands on someone editing prose who has done nothing wrong.
+  This is [#181](https://github.com/mshamblin5150-code/clinical-skills/issues/181)'s
+  ruling. Omission remains the one failure no other gate in this directory can see,
+  but refusing every sheet edit on a fresh clone made an uncommitted build artifact a
+  prerequisite even for a prose typo fix. The visible degradation preserves that
+  distinction without teaching committers to bypass the whole hook. The directory
+  `README.md` is not a sheet and does not trigger the grader.
 - **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
 - **A `bound` source is warned about and never refused.** `tools/guidelines_recs.py
   --json` reports which mode a document yields, and that is the number to look at
@@ -358,7 +372,7 @@ not left to be discovered:
   only ever be warned about*, and #173 made that false without touching the sentence**
   — the majority of the corpus is `exact` now. The standing figure is the table below
   and is deliberately not restated here.
-- **One topic has a sheet.** Everything else in the 179-document corpus is reachable
+- **Two topics have sheets.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
 - **Most of the corpus can be gated now, and the number is measured.**
