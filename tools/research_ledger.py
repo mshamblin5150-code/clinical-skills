@@ -358,7 +358,7 @@ from datetime import date
 from pathlib import Path
 
 from console_codec import use_utf8
-from docx_write import split_row
+from docx_write import markdown_tables, split_row
 
 # A record opens on a heading. The heading level is free, so the ledger can sit
 # under a document heading without the parser caring.
@@ -595,7 +595,6 @@ DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
 # ``main``'s exit-2 limb is what says so rather than a clean zero.
 DISP = re.compile(r"(?i)^disp\b[ \t]*:")
 SIG = re.compile(r"(?i)^sig\b[ \t]*:")
-TABLE_LINE = re.compile(r"^[ \t]*\|")
 SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 
 # The drug name is the leading token of the drug row and nothing cleverer.
@@ -1126,20 +1125,22 @@ def _drug_of(order: str) -> str:
 
 
 def _table_runs(text: str) -> list[list[list[str]]]:
-    """Every run of consecutive Markdown table lines, as rows of cells."""
-    runs: list[list[list[str]]] = []
-    lines = text.splitlines()
-    start = 0
-    while start < len(lines):
-        if not TABLE_LINE.match(lines[start]):
-            start += 1
-            continue
-        end = start
-        while end < len(lines) and TABLE_LINE.match(lines[end]):
-            end += 1
-        runs.append([_cells(line) for line in lines[start:end]])
-        start = end
-    return runs
+    """Every Markdown table in ``text``, as rows of cells.
+
+    **The blocks are the renderer's own**, imported rather than walked here, on
+    ``_cells``'s reasoning one level up: ``docx_write.markdown_tables`` is what
+    decides where a table begins and ends in the document a grader reads, and its
+    own docstring refuses a second copy of the loop in as many words. This module
+    had one -- written a day before that function existed, on a branch that could
+    not see it -- and the two disagreed about what a table *is*: this required
+    only consecutive rows and that requires a separator rule under the header, so
+    a block the renderer would set as paragraphs was a prescription table here.
+    Caught at the merge and by nothing either suite ran.
+    """
+    return [
+        [_cells(line) for line in block.splitlines() if line.strip()]
+        for block in markdown_tables(text)
+    ]
 
 
 def read_prescriptions(text: str) -> list[Prescription]:
