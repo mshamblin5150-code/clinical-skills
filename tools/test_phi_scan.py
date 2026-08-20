@@ -15,6 +15,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from random import Random
 
+import name_index as ni
 import phi_scan as ps
 
 NAMES = {"Jordan Vance", "Priya Raman"}
@@ -823,12 +824,340 @@ class LayerReport(unittest.TestCase):
         return self._line(text, "shape")
 
 
+class TheCorpusLayerStatesItsDenominator(unittest.TestCase):
+    """A name count is not a coverage claim and read as one until #141.
+
+    The index is harvested from the corpus and need not cover it, so an index
+    three encounters short printed exactly what a complete one printed --
+    ``ACTIVE`` and a number, on a page a reader trusts. The vocabulary could not
+    express the difference either: ``missing_corpus_sources`` tests a source's
+    presence on disk, so a file that is there and short is ``ACTIVE``.
+
+    **Declared, never enforced**, ruled 2026-08-19. These assert the line and
+    the absence of a status change together, because either alone is the wrong
+    ruling.
+    """
+
+    def report(self, covered, encounters, missing=()):
+        found = ni.Coverage(
+            files=1, unique_files=1, encounters=encounters, covered=covered,
+            entries=covered, orphans=0, unrecognized=0,
+            proposed=encounters - covered, proposed_named=0,
+            proposed_extra_strings=0,
+        )
+        return "\n".join(ps.layer_report(set(NAMES), set(DATES), False, list(missing), found))
+
+    def test_a_complete_index_states_both_numbers(self):
+        self.assertIn("names from 3 of 3 encounters", self.report(3, 3))
+
+    def test_a_short_index_states_both_numbers(self):
+        self.assertIn("names from 1 of 3 encounters", self.report(1, 3))
+
+    def test_a_short_index_names_the_shortfall_and_its_remedy(self):
+        text = self.report(1, 3)
+        self.assertIn("2 encounter(s) have no name-index entry", text)
+        self.assertIn("tools/name_index.py --write", text)
+
+    def test_a_complete_index_says_nothing_further(self):
+        self.assertNotIn("no name-index entry", self.report(3, 3))
+
+    def test_a_shortfall_does_not_claim_the_layer_did_not_run(self):
+        """The layer ran. What is short is the list it ran against, so this is
+        its own line and never a fourth entry in the dead-layer warning."""
+        self.assertNotIn('NOT "no PHI"', self.report(1, 3))
+
+    def test_an_absent_source_beats_a_shortfall(self):
+        """A missing ``name-index.json`` has no coverage to state, and PATIENT
+        NAMES ARE NOT CHECKED is the stronger thing to say about that run."""
+        text = self.report(1, 3, ["name-index.json"])
+        self.assertIn("PATIENT NAMES ARE NOT CHECKED", text)
+        self.assertNotIn("no name-index entry", text)
+
+    def test_no_coverage_leaves_the_line_as_it_was(self):
+        """``day-file-text/`` absent: there is no denominator to have."""
+        text = "\n".join(ps.layer_report(set(NAMES), set(DATES), False))
+        self.assertIn("ACTIVE", text)
+        self.assertNotIn("names from", text)
+
+    def test_it_reports_counts_and_never_an_identifier(self):
+        text = self.report(1, 3)
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, text)
+
+
+class TheWalkedPopulation(unittest.TestCase):
+    """#258: a clean result covers the set that was walked, and now says so.
+
+    #254 ruled that every ``git ls-files`` walk states what a clean result
+    covers, and `scan_all`'s statement landed in its docstring the way the four
+    test walks' did. It is the one walk with **user-visible output**, so the
+    honest form -- *no tracked file carries PHI* -- was written down and **not
+    on the page the reader is looking at**. CI is where that lands: the job runs
+    ``--all`` with nothing staged and prints `layer_report` beside its
+    checkmark, and that report's subject was *which layers ran* rather than
+    *what was scanned*.
+
+    **The fact was already on the page, attached to the wrong layer.** The
+    ``--all`` path-layer row read ``--all walks tracked files; nothing can be
+    staged from a gitignored directory`` -- the honest form, spent explaining
+    why the path layer is inapplicable rather than what the two live layers
+    covered.
+
+    Ruled 2026-08-19, all four of the ticket's open questions: the qualifier
+    goes **into** `layer_report`, whose subject widens from *which layers ran*
+    to *what was scanned*; it prints on **every** ``--all`` run, on
+    `phi_scan`'s own *neither door buys silence* precedent; ``spelling_scan``
+    gets the same treatment, being the walk with the recorded instance; and the
+    staged mode states its population too, so an absent row never reads as a
+    stronger claim.
+    """
+
+    def report(self, all_mode):
+        return "\n".join(ps.layer_report(set(NAMES), set(DATES), all_mode))
+
+    def scanned_row(self, text):
+        rows = [ln for ln in text.splitlines() if ln.strip().startswith("scanned")]
+        self.assertEqual(len(rows), 1, f"expected one scanned row in:\n{text}")
+        return rows[0]
+
+    def test_both_modes_name_the_set_they_walked(self):
+        """Open question 4. The staged mode's population is unsurprising, which
+        is not a reason to leave it silent: a reader who has learned to read
+        ``--all``'s row would read its absence as a stronger claim."""
+        for all_mode in (True, False):
+            with self.subTest(all_mode=all_mode):
+                self.assertTrue(self.scanned_row(self.report(all_mode)).strip())
+
+    def test_the_all_mode_row_names_tracked_files_and_what_that_excludes(self):
+        """Both limbs, on #254's reasoning: *tracked* alone is what the walk's
+        name already said, and *untracked* alone never says what a pass means."""
+        row = self.scanned_row(self.report(True))
+        self.assertRegex(row, r"(?<!un)tracked files")
+        self.assertRegex(row, r"(?i)untracked")
+
+    def test_the_staged_row_names_what_a_commit_does_not_reach(self):
+        row = self.scanned_row(self.report(False))
+        self.assertIn("staged", row)
+        self.assertRegex(row, r"(?i)not scanned")
+
+    def test_the_walked_set_is_stated_once_and_on_its_own_row(self):
+        """The ticket's own finding, made a rule: one fact, one row. Leaving the
+        clause on the path-layer row as well would restate it in the place that
+        made it unreadable -- and two copies of one claim, each editable without
+        failing anything, is #220."""
+        text = self.report(True)
+        carriers = [ln for ln in text.splitlines() if "tracked" in ln.lower()]
+        self.assertEqual(len(carriers), 1, f"expected one row about the walk in:\n{text}")
+        self.assertEqual(carriers[0], self.scanned_row(text))
+
+    def test_the_population_is_stated_before_the_layers(self):
+        """A reader meets the scope before the verdicts, which is the order the
+        claim has to be read in: every ACTIVE below is about this set."""
+        for all_mode in (True, False):
+            with self.subTest(all_mode=all_mode):
+                lines = self.report(all_mode).splitlines()
+                first_layer = next(
+                    i for i, ln in enumerate(lines) if ln.strip().startswith("path layer")
+                )
+                self.assertLess(lines.index(self.scanned_row(self.report(all_mode))),
+                                first_layer)
+
+    def test_the_header_names_what_was_scanned_rather_than_the_layers(self):
+        """Open question 1's cost, taken deliberately rather than absorbed. A
+        header still reading ``layers`` over a row that is not a layer is the
+        drift this repo refuses everywhere else."""
+        for all_mode in (True, False):
+            with self.subTest(all_mode=all_mode):
+                header = self.report(all_mode).splitlines()[0]
+                self.assertNotIn("layers", header)
+                self.assertIn("coverage", header)
+
+    def test_the_new_row_names_no_identifier(self):
+        """Counts-only holds on the widened report too. This text reaches a CI
+        step summary, which is a place people paste from."""
+        text = self.report(True) + "\n" + self.report(False)
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, text)
+
+
+class TheShortfallReachesTheCommitter(unittest.TestCase):
+    """The venue is the whole ruling, and the first version reached none of it.
+
+    #141 comment 4: *"on every commit from every worktree, which is where most
+    commits here are made."* The hook runs this scanner **bare**, so the only
+    callers of ``layer_report`` are ``--layers`` -- which a person has to type --
+    and the dead-corpus branch. A shortfall living only in that report printed on
+    no commit at all, while this repo's prose said it printed on every one. That
+    is #220's lesson: a prose claim no code change fails against.
+
+    So these drive ``main`` on the ordinary path rather than ``layer_report``,
+    which is the distinction the defect turned on.
+    """
+
+    def run_main(self, coverage):
+        """``main`` with the corpus present, the scan clean, and coverage stubbed."""
+        real = (ps.corpus_identifiers, ps.missing_corpus_sources,
+                ps.corpus_coverage, ps.scan_staged)
+        ps.corpus_identifiers = lambda: (set(NAMES), set(DATES))
+        ps.missing_corpus_sources = lambda: []
+        ps.corpus_coverage = lambda: coverage
+        ps.scan_staged = lambda index: []
+        try:
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                code = ps.main([])
+            return code, out.getvalue(), err.getvalue()
+        finally:
+            (ps.corpus_identifiers, ps.missing_corpus_sources,
+             ps.corpus_coverage, ps.scan_staged) = real
+
+    def coverage(self, covered, encounters):
+        return ni.Coverage(
+            files=1, unique_files=1, encounters=encounters, covered=covered,
+            entries=covered, orphans=0, unrecognized=0,
+            proposed=encounters - covered, proposed_named=0,
+            proposed_extra_strings=0,
+        )
+
+    def test_a_short_index_is_named_on_an_ordinary_commit(self):
+        code, out, err = self.run_main(self.coverage(548, 551))
+        self.assertIn("3 encounter(s) have no name-index entry", err)
+        self.assertIn("tools/name_index.py --write", err)
+
+    def test_a_covered_index_adds_nothing(self):
+        """This scanner cannot afford noise -- ``review_hint``'s argument.
+
+        **Not "prints nothing": #258 landed between the writing and the merge**,
+        and a staged run now always states the population it walked. What this
+        asserts is that a covered index adds no *second* line to it.
+        """
+        code, out, err = self.run_main(self.coverage(551, 551))
+        self.assertEqual(out, "")
+        self.assertNotIn("name-index entry", err)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+
+    def test_the_shortfall_does_not_refuse_the_commit(self):
+        """Declared, never enforced. Ruled 2026-08-19."""
+        self.assertEqual(self.run_main(self.coverage(548, 551))[0], 0)
+
+    def test_it_says_how_many_and_never_which(self):
+        """The hook's output has to stay safe to paste -- #12's rule."""
+        err = self.run_main(self.coverage(548, 551))[2]
+        for identifier in NAMES | DATES:
+            with self.subTest(identifier=identifier):
+                self.assertNotIn(identifier, err)
+
+    def test_no_coverage_adds_nothing(self):
+        """``day-file-text/`` absent: there is no denominator to have, so there
+        is nothing to say about one -- beside #258's population row, which is
+        about a different question and always prints."""
+        err = self.run_main(None)[2]
+        self.assertNotIn("name-index entry", err)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+
+class AnAllRunStatesItsCoverage(unittest.TestCase):
+    """#258 open question 2: on **every** ``--all`` run, not only a degraded one.
+
+    A clean ``--all`` printed nothing at all, so the population statement
+    reached a reader only through ``--layers`` or a dead corpus. `phi_scan`'s
+    own precedent cuts the other way -- ``PATIENT NAMES ARE NOT CHECKED`` prints
+    whether or not a door was taken, because *neither door buys silence* -- and
+    printing it conditionally would teach a reader that the silence means
+    something.
+
+    **Staged runs are untouched**, which is the same ruling read the other way:
+    the staged row exists in the report, and the report still prints there only
+    when a layer is degraded. The hook runs on every commit and this scanner
+    cannot afford noise -- `review_hint` carries that argument already.
+    """
+
+    def setUp(self):
+        self._saved = {
+            name: getattr(ps, name)
+            for name in ("corpus_identifiers", "_git", "scan_staged", "scan_all",
+                         "missing_corpus_sources", "corpus_coverage")
+        }
+        self.addCleanup(self.restore)
+        ps.scan_staged = lambda index: []
+        ps.scan_all = lambda index: []
+        ps.missing_corpus_sources = lambda: []
+        ps.corpus_identifiers = lambda: (set(NAMES), set(DATES))
+        # **The fifth stub, added when #141 merged.** Without it the one-line
+        # assertion below reads the real `scratch/`: a short name index adds a
+        # shortfall row, so this class would pass or fail on the state of
+        # somebody's working directory rather than on its own subject.
+        ps.corpus_coverage = lambda: None
+        ps._git = lambda *args: ""
+
+    def restore(self):
+        for name, value in self._saved.items():
+            setattr(ps, name, value)
+
+    def run_main(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = ps.main(list(argv))
+        return status, out.getvalue(), err.getvalue()
+
+    def test_a_clean_all_run_still_states_what_it_walked(self):
+        status, _, err = self.run_main(["--all"])
+        self.assertEqual(status, 0)
+        self.assertRegex(err, r"(?i)untracked")
+
+    def test_the_statement_goes_to_stderr(self):
+        """stdout is ``--layers``' channel and the CI job pipes it into the step
+        summary; a scanning run writing there would corrupt that report."""
+        _, out, _ = self.run_main(["--all"])
+        self.assertEqual(out, "")
+
+    def test_it_is_printed_once_when_the_corpus_is_also_dead(self):
+        """Both reasons to print are live at once in CI, which is the only
+        configuration that will ever happen there. Two copies of the report is
+        the failure this test exists to catch."""
+        ps.missing_corpus_sources = lambda: ["name-index.json", "day-file-text"]
+        ps.corpus_identifiers = lambda: (set(), set())
+        _, _, err = self.run_main(["--all", ps.ALLOW_NO_CORPUS_FLAG])
+        self.assertEqual(err.count("phi-scan coverage"), 1)
+
+    def test_a_clean_staged_run_states_its_population_and_nothing_else(self):
+        """Open question 4, and the clause it was ruled on -- *so an absent
+        banner never reads as a stronger claim*.
+
+        **The first version of this change asserted silence here**, which
+        satisfies *state it in both modes* on the letter by putting the row in
+        the staged rendering and never printing it: the ordinary commit said
+        nothing, and the row was reachable only through ``--layers`` or a
+        degraded corpus. That leaves ``--all``'s row the only one and therefore
+        the special case, which is exactly what the question was asked to
+        remove. Caught by the spec axis of ``/code-review``.
+
+        **One row and not the report**, which is where the noise argument
+        survives: the other four lines answer a question nobody asked on an
+        ordinary commit, and the full report still prints the moment a layer is
+        degraded.
+        """
+        status, _, err = self.run_main([])
+        self.assertEqual(status, 0)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn(ps.scanned_population(False), err)
+        self.assertNotIn("layer", err)
+
+
 class LayersCommandLine(unittest.TestCase):
     """``--layers`` reports and does not scan.
 
     Kept apart from a scanning run deliberately: the CI job prints the report as
-    its own step, so a reader can see which layers ran even when the scan itself
-    found nothing and printed nothing.
+    its own step, on the page the checkmark is attached to rather than in a log
+    nobody opens.
+
+    **The reason it was built is spent and the mode is not**, which is worth
+    saying so nobody deletes it as redundant. It existed because a clean scan
+    printed nothing at all, so the coverage had nowhere else to appear; since
+    #258 an ``--all`` scan prints the same report to **stderr**. The step
+    summary needs it on **stdout**, and a scanning run's stderr is where a
+    refusal goes -- so the two channels stay separate and the mode stays.
     """
 
     def run_main(self, argv):
@@ -974,10 +1303,17 @@ class DidNotScan(unittest.TestCase):
         self.assertNotEqual(ps.NOT_SCANNED, 0)
 
     def test_a_live_corpus_with_no_findings_is_still_zero(self):
-        """The ordinary passing commit, which must not have become noisier."""
+        """The ordinary passing commit, which must not have become noisier.
+
+        **It costs one line since #258 and the budget is asserted rather than
+        described.** A staged run states the set it walked, because a staged run
+        that said nothing would leave ``--all``'s row the only one; what it must
+        not do is print the whole layer report on every commit, which is the
+        noise `review_hint` already argues against.
+        """
         status, _, err = self.run_main(live=True)
         self.assertEqual(status, 0)
-        self.assertEqual(err, "")
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
 
     def test_the_flag_downgrades_the_status(self):
         status, _, _ = self.run_main([ps.ALLOW_NO_CORPUS_FLAG])

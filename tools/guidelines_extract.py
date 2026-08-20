@@ -94,38 +94,73 @@ the citation digit-breaks -- against 6,881 by set difference. The ``word broken`
 is mostly ``bThe -> b|The``, which is the rebuild correctly separating a footnote
 marker from the word after it and is miscounted as damage here rather than credited.
 
-**284 of those 696 are one running footer in one document, and it is unfinished
-work.** ``KDIGO-2009-Transplant-Recipient-Guideline-English.pdf`` carries
+**The table above is pre-#178 and is left as it was measured.** 284 of the 696 were
+one running footer in one document, and that footer is fixed below; the table is not
+restated against the new extraction because the classifier that produced its five
+buckets was never saved. **390 and 13,685 re-derive and 9,622 / 3,179 / 306 / 188 do
+not**, and reasonable bucket rules put ``letter-spaced word`` anywhere from 128 to
+466. What replaces it is the measured delta in the next paragraphs, which does
+re-derive from this module's own functions.
+
+**That footer is fixed -- #178.**
+``KDIGO-2009-Transplant-Recipient-Guideline-English.pdf`` carries
 
     American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9
 
-on every page, and it accounts for 142 of the 306 letter-spaced splits and 142 of
-the 390 digit-breaks. ``span_baselines`` fixed the 16 pages where that footer is set
-as three spans and **not the 142 where it is one**: there the whole footer is a
-single Univers-Light span whose per-glyph gaps run from -2.35 to 0.00 around a
-median of -1.36, so the top of its own spread clears any fixed offset from that
-median. It is a font with heavy and highly variable negative bearings, not tracked
-type, and the median-plus-offset rule cannot separate the two.
+on every page. ``span_baselines`` fixed the 16 pages where it is set as three spans
+and **not the 142 where it is one**: there the whole footer is a single
+Univers-Light span whose per-glyph gaps run from -2.35 to 0.00 around a median of
+-1.36, so the top of its own spread clears any fixed offset from that median. Heavy
+and highly variable negative bearings, not tracked type, and no median-plus-offset
+rule separates the two.
 
-**The line already carries real space glyphs**, which is the lead worth following:
-the PDF has already said where its words are, and nothing on that line needed
-inferring at all. A rule that measured a candidate gap against the width of an
-actual space on the same line -- rather than against the median -- would leave it
-alone. That is not built here, because the same rule must not undo the USPSTF case,
-where a line has a space after its bullet and its words are glued anyway. See #178.
+**What separates them is that the line already carries real space glyphs**, which
+is the lead #178 named and ``SPACE_ADVANCE_FRACTION`` is. The PDF has already said
+where that line's words are -- 1.056 pt across one of its own spaces, against the
+0.003 pt gaps that were being split -- so a candidate gap is measured against what
+this line charges for a word break rather than against the font size alone. The
+constraint the ticket names is met and is measured rather than asserted: **"the
+line has a space, infer nothing" is too blunt**, because 12,003 of the corpus's
+inferences are made on lines that already carry one -- USPSTF sets a real space
+after a bullet and glues the words after it anyway -- and the great majority are
+correct. So the rule is a floor on the gap, never a veto on the line.
+
+**Corpus-wide it removes 2,809 inferences and creates no glued run**, measured over
+all 179 documents and all 7,733 pages, 2026-08-19, by running this module's own
+``rebuild_text`` twice. All 2,809 were read and fall across **five** documents:
+2,741 are that footer, 33 are letter-spaced runs in ``ADA/standards-of-care-2026``
+and 33 in the CDC opioid MMWR, and the last two are one each in the ACIP captures
+and are a space after an opening bracket rather than letter-spacing. The footer's surviving lines in the
+extracted text fall from **159 to 11, and the 142 letter-split ones to 0**; the 11
+are the roman-numeral front-matter pages, which the margin rule cannot reach by
+design and which stay.
+
+**The CDC opioid MMWR p.26 is improved and not repaired, which is worth knowing
+before reading it as fixed.** Its letter-spaced paragraph has a gap spread wide
+enough that some of its gaps still clear the bar, so
+``I n A p r i l 2 0 2 1 , t o e x p a n d`` becomes ``I n Ap ril 2 0 2 1 , to e xp
+a nd`` rather than plain text. Neither form is searchable, so nothing regressed --
+but 37 of that page's splits survive and the line is still unusable.
 
 **And the footer is boilerplate that should never have reached a reader**: its page
-range varies per page, so the 75% rule never strips it. #178 reads that as #100's
-cause 1 and expects #100 to remove the damage without touching the space rule.
+range varies per page, so the 75% rule never strips it. #178 read that as #100's
+cause 1 and expected #100 to remove the damage without touching the space rule.
 
-**#100 has landed and it does not, and the reason is #178's own subject.** The
-letter-spacing damage sets every digit as its own run, so the page range masks to a
-different pattern depending on how many digits it has: ``S # - S #`` on one page and
-``S # # - S # #`` on the next. The footer produces **8 distinct masked patterns**
+**#100 landed and it did not, and the reason was #178's own subject.** The
+letter-spacing damage set every digit as its own run, so the page range masked to a
+different pattern depending on how many digits it had: ``S # - S #`` on one page and
+``S # # - S # #`` on the next. The footer produced **8 distinct masked patterns**
 across 32 sampled pages, the largest reaching 16, against a floor of 24 -- so
-nothing clears and all 166 lines stay. Measured 2026-08-16. The dependency runs the
-other way round from the one #178 states: the space rule has to be fixed first, or
-the two have to meet.
+nothing cleared and all 166 lines stayed. Measured 2026-08-16.
+
+**So the two had to meet, and they have.** With the spacing fixed the footer
+extracts identically on every arabic-folio page, the margin rule sees one repeated
+line, and ``American Journal of Transplantation #; # (Suppl #): S#-S#`` is a
+recorded margin pattern for the first time. That document's ``chars_stripped`` goes
+from 516 to 9,793, and the corpus's margin rule from 2,649 distinct lines to 2,688
+-- **the 39 added are all that one footer and nothing was removed anywhere**.
+Measured 2026-08-19. The dependency ran the other way round from the one #178
+stated: the space rule had to be fixed first.
 
 The trade favors the body over the front matter, which is the right way round: what
 splits is display type in headings and reference lists, and what is repaired is
@@ -195,8 +230,9 @@ margins it takes none of them, because a running head lives at a page edge and a
 table row does not.
 
 **Two is measured, not chosen.** Against the 179-document corpus, N=1 and N=2 remove
-bare folios and two welded running heads **and nothing else at all** -- 2,382 folios
-and 267 head lines at N=2. N=3 removes a further 574 lines across 11 documents, and
+bare folios and welded running heads **and nothing else at all** -- 2,382 folios and
+306 head lines at N=2, the head count having risen by 39 when #178 fixed the KDIGO
+transplant footer's spacing and the rule could see it for the first time. N=3 removes a further 574 lines across 11 documents, and
 most are genuine folios, but it also flips ``KDIGO-2013-Lipids-Guideline`` from
 stripping nothing to stripping its own **figure axis**: page 23 opens ``20 / 10 / 5
 / 2`` and N=3 takes the ``20`` and the ``10``. That is the same damage class the
@@ -228,8 +264,10 @@ because a rule that was never needed is invisible afterwards, and the next reade
 would otherwise find option 1 implemented and option 2 apparently forgotten.
 
 **What the run does.** 27 of 179 documents gain something the literal rule missed,
-2,649 distinct lines, of which 2,382 are bare folios and 267 are the two welded
-heads. Documents with nothing stripped by either rule fall from 12 to 5. The two
+2,688 distinct lines, of which 2,382 are bare folios and 306 are the three welded
+heads -- re-derived 2026-08-19. It read 2,649 and two heads until #178: the third
+head is the KDIGO transplant footer, which the rule could not see while the space
+reconstruction was setting each of its digits as a separate run. Documents with nothing stripped by either rule fall from 12 to 5. The two
 #100 names as true negatives that must stay true negatives -- the CDC opioid MMWR,
 a web-page print with no running head, and the 2-page ``IDSA/ciab275`` erratum --
 still report nothing stripped.
@@ -347,6 +385,53 @@ SPACE_GAP_FRACTION = 0.10
 # small. Without it such a span makes the threshold 0 and every character boundary
 # becomes a space, which turns one bad span into a page of single letters.
 SPACE_GAP_FLOOR = 0.25
+
+# The fraction of a line's *own* observed space advance that a gap has to reach
+# before it may be read as a word break -- #178.
+#
+# `span_baselines` fixed the pages where the running footer of
+# KDIGO-2009-Transplant-Recipient-Guideline-English.pdf is set as three spans. It
+# cannot fix the 142 where it is one: there the per-glyph gaps run from -2.35 to
+# 0.00 around a median of -1.36, so the top of the span's own spread clears any
+# fixed offset from that median. Heavy and variable negative bearings, not tracked
+# type, and no median-plus-offset rule separates the two.
+#
+# What separates them is that the line carries real space glyphs. The PDF has
+# already said where its words are -- 1.056 pt from the previous glyph's right
+# edge to the next glyph's left, across one of its own spaces -- while the gaps
+# being split measure 0.003. So a word break on that line is worth 350 times what
+# a letter join is, and the line states both quantities itself.
+#
+# **"The line has a space, so infer nothing" is too blunt, and that is measured
+# rather than assumed.** 12,003 of the corpus's inferences are made on lines that
+# already carry a space -- USPSTF sets a real space after a bullet and glues the
+# words after it anyway -- and the great majority are correct. So the rule is a
+# floor on the gap, not a veto on the line.
+#
+# **The value is the midpoint of a plateau rather than a tuned edge.** Every
+# constant in (0.0025, 0.0974] suppresses exactly the same 2,809 inferences -- a
+# 39-fold interval in which the answer does not move at all, because the highest
+# damaged ratio in the corpus is 0.0025 and the next ratio of any kind is 0.0974.
+# No tuning table is written out here: five rows reading 2,809 say only what that
+# sentence says, and #83's lesson is that a published tuning table is what goes
+# stale.
+#
+# All 2,809 were read, and they fall across **five** documents. 2,741 are that one
+# footer. 33 are letter-spaced runs in `ADA/standards-of-care-2026`
+# (`S i l v e r S p r i n g`, `D e x c o m , I n c`, `B e t h e s d a`) and 33 more
+# in the CDC opioid MMWR (`e x e m p t e d e l i g i b l e p h y s i c i a n s`).
+# The last two are one each in the two ACIP captures and are **not** letter-spacing
+# at all -- a space inserted after an opening bracket, `Hib ( Haemophilus`.
+#
+# The first *correct* split lost is at 0.1173, a GOLD citation marker
+# (`studied.(1650)` -> `studied. (1650)`), so 0.05 sits a factor of 2.3 below the
+# nearest real cost and a factor of 20 above the damage it exists to stop.
+#
+# Measured over all 179 documents and all 7,733 pages, 2026-08-19. #83 published a
+# tuning table built from 10 documents that named a value at an edge, and over the
+# corpus that value was the one setting worse than not making the change at all --
+# which is why the plateau matters more here than the number does.
+SPACE_ADVANCE_FRACTION = 0.05
 
 # How many inter-character gaps a line needs before its median is trusted as a
 # baseline. See `line_baseline` for why a low floor would be worse than none.
@@ -1042,6 +1127,62 @@ def symbol_glyph_census(raw: dict) -> dict[str, int]:
                     census[key] = census.get(key, 0) + 1
     return census
 
+def span_space_advances(line: dict) -> list[float | None]:
+    """What a word break is worth on this line, read off the spaces it already has.
+
+    One value per span, because a line's spans do not share metrics: a span with
+    spaces of its own is measured on them, a span with none borrows the line's, and
+    a line with none at all gets ``None``.
+
+    **That is ``span_baselines``'s fallback order with its count floor deliberately
+    absent, and the difference is not an oversight.** A *baseline* is a median gap,
+    so over one or two samples it is the gap itself -- degenerate, which is what
+    ``MINIMUM_GAPS_FOR_BASELINE`` exists for. An *advance* is not a summary of a
+    distribution: **one real space glyph is one word break the typesetter actually
+    set**, and is direct evidence rather than an estimate of it. A floor here would
+    throw that evidence away on exactly the short lines that have least of it, and
+    the quantity is used as a 5% floor with two orders of magnitude of headroom, so
+    an unrepresentative single sample cannot reach the decision. Pinned by a test
+    so the divergence is a decision rather than a copy that drifted.
+
+    **The advance is measured across the space, never of it.** A space glyph's own
+    width is not what separates two words -- the gaps on either side count too, and
+    on the KDIGO footer they are negative enough to more than halve it: the glyph
+    is 3.776 pt wide and the real separation is 1.056. So the quantity is the
+    previous glyph's right edge to the next glyph's left, which is exactly the
+    quantity a candidate gap is, and the two are comparable without adjustment.
+
+    A space beside another space is skipped, because a run of them is padding
+    rather than one word break and would report an advance no single break has.
+
+    **``None`` is not zero.** It means the line said nothing about what a space is
+    worth, and the caller must then infer on the older rule alone -- which is the
+    property that keeps this from reaching the 59,092 inferences the corpus makes
+    on lines carrying no space at all.
+
+    **A non-positive advance is the third answer and is treated as the same
+    silence.** Bearings negative enough can put the next glyph's left edge at or
+    behind the previous glyph's right edge even across a real space, and a floor
+    computed from such a value is either zero or backwards -- so ``rebuild_text``
+    disables the second bar there rather than applying a bar that cannot bind. It
+    is not observed in this corpus and is guarded anyway, because the failure it
+    would cause is the silent one: every gap on the line clearing a bar of zero.
+    """
+    def advances(chars: list[dict]) -> list[float]:
+        return [
+            chars[index + 1]["bbox"][0] - chars[index - 1]["bbox"][2]
+            for index in range(1, len(chars) - 1)
+            if chars[index]["c"] == " "
+            and chars[index - 1]["c"] != " "
+            and chars[index + 1]["c"] != " "
+        ]
+
+    spans = [list(span.get("chars", ())) for span in line.get("spans", ())]
+    fallback = advances([char for span in spans for char in span])
+    return [
+        statistics.median(own or fallback) if (own or fallback) else None
+        for own in (advances(span) for span in spans)
+    ]
 
 def rebuild_text(raw: dict) -> str:
     """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
@@ -1069,11 +1210,13 @@ def rebuild_text(raw: dict) -> str:
             baselines = span_baselines(line)
             if not baselines:
                 continue
+            advances = span_space_advances(line)
             buffer: list[str] = []
             previous_right: float | None = None
             for index, span in enumerate(line.get("spans", ())):
                 size = span.get("size", 0.0)
                 baseline = baselines[index]
+                advance = advances[index]
                 threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
                 # #172. Looked up once per span rather than once per character,
                 # and empty for every font in the corpus but two.
@@ -1084,9 +1227,23 @@ def rebuild_text(raw: dict) -> str:
                     # `glyph != " "` below decides the same thing either way.
                     glyph = operators.get(char["c"], char["c"])
                     left, _, right, _ = char["bbox"]
+                    # Two independent bars, and a gap has to clear both. The first
+                    # asks whether the gap stands out against the line's own
+                    # spacing; the second, where the line set real spaces, asks
+                    # whether it comes anywhere near what this line charges for a
+                    # word break. The second does not apply where the line never
+                    # said -- `None` -- or where what it said cannot bind, which is
+                    # a non-positive advance. Both are `span_space_advances`'s to
+                    # explain and both are pinned by tests.
                     gap_is_wide = (
                         previous_right is not None
                         and (left - previous_right) - baseline > threshold
+                        and (
+                            advance is None
+                            or advance <= 0.0
+                            or (left - previous_right)
+                            >= SPACE_ADVANCE_FRACTION * advance
+                        )
                     )
                     # Never two spaces, and never a space before one the PDF set
                     # itself: `buffer[-1] != " "` covers the first and

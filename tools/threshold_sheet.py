@@ -1,6 +1,6 @@
 """Grade a distilled threshold sheet against the guideline it claims to come from.
 
-    python tools/threshold_sheet.py <sheet.md> [--recs <recs.json>] [--pdf-root <dir>]
+    python tools/threshold_sheet.py <sheet.md> [--recs <key>=<recs.json> ...] [--pdf-root <dir>]
     python tools/threshold_sheet.py --all
 
 This is #83's gate set. A threshold sheet is the deliverable of the #80 series: per
@@ -49,6 +49,18 @@ Four gates, and what each one can and cannot see
     ``guidelines_recs.py``'s mode and never by this module: an exact count can be
     enforced, a marker bound over-reports and can only warn.
 
+    **One recommendation record per SOURCE, not per sheet** --
+    [#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177). It took
+    one ``--recs`` for the whole sheet and never filtered ``known`` by ``row.source``,
+    so a sheet citing two societies had the named source's omissions checked and the
+    other's silently not; the count that would have surfaced it was derived from
+    ``recs is None`` and could not exceed 1 however many sources were skipped. #83
+    decision 3 makes multi-source the normal case -- one row per society with a
+    ``CONFLICT`` block where they disagree -- so the first sheet carrying ADA beside
+    AHA/ACC would have hit it, and hit it reading green. ``--recs`` is
+    ``<source key>=<path>`` now and ``--recs-root`` resolves ``recs-<source key>.json``,
+    and a sheet where **any** source has no record exits 2.
+
 ``RANGE``   refuses
     Per-quantity bounds. A BP target of 1300, an eGFR of 450, a dose three orders of
     magnitude off. Decimal-place and unit errors are the highest-consequence
@@ -74,6 +86,12 @@ What no gate here reaches, stated the same day the gates were built
   population decides this at all came from the clinician, not from the corpus.
 - **A recommendation scoped out for a bad reason.** ``COVERAGE`` requires a reason
   string; it cannot grade one. ``out: not relevant`` passes.
+- **A row citing a ``rec_id`` its source's record does not carry.** ``COVERAGE``
+  subtracts what was cited from what the record holds, so an identifier belonging to
+  nothing simply reduces nothing -- and the class check declines rather than inventing
+  a disagreement, because there is no class to compare against. Named here when the
+  rows were partitioned by source on #177; it was equally true of the one-record
+  version and equally invisible.
 - **Anything at all about a ``bound`` source.** ``COVERAGE`` warns and moves on.
 
 **Deliberately not built, because it would pass for the wrong reason**: any gate
@@ -86,13 +104,15 @@ Exit status
 -----------
 
 ``0`` clean. ``1`` a gate that refuses found something. ``2`` **every way of not
-having graded** -- no sheet, no rows in it, an unreadable Sources table. A sheet
-whose rows were written in a shape the parser does not read would otherwise report
-zero violations and look like a pass, which is `differential_scan.py`'s ruling and
-the shape #153 caught in the wild at 2.4% coverage reading green.
+having graded** -- no sheet, no rows in it, an unreadable Sources table, **any source
+with no recommendation record**, and a ``--recs`` argument naming a source the sheet
+does not declare. A sheet whose rows were written in a shape the parser does not read
+would otherwise report zero violations and look like a pass, which is
+`differential_scan.py`'s ruling and the shape #153 caught in the wild at 2.4%
+coverage reading green.
 
-Where 1 and 2 both hold, **1 wins**, and the message names the ungraded count so the
-finding reads as a floor rather than the whole.
+Where 1 and 2 both hold, **1 wins**, and the message names every source that was not
+graded so the finding reads as a floor rather than the whole.
 
 Stdlib only. Tier 2 needs ``pymupdf`` and says ``SKIPPED`` without it rather than
 failing, which is the same hole -- named here rather than discovered later.
@@ -573,75 +593,232 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def gate_coverage(sheet: Sheet, recs: dict | None) -> tuple[list[str], list[str], int]:
-    """Gate 2. Returns (refusals, warnings, ungraded-source-count).
+def bind_recs(
+    sheet: Sheet, arguments: list[str], recs_root: Path | None
+) -> tuple[dict[str, dict | None], dict[str, str], list[str]]:
+    """Which recommendation record answers for each source the sheet declares.
+
+    Returns ``({source key: record or None}, {source key: why there is none},
+    [argument errors])``.
+
+    **Per source and not per sheet, which is #177.** A sheet citing two societies used
+    to be graded against whichever single record ``--recs`` named, and the other
+    source's omissions went unchecked with nothing saying so -- the ungraded signal
+    was derived from ``recs is None`` and so could not exceed 1 however many sources
+    were skipped. The `source` column exists because #83 decision 3 makes
+    multi-source the normal case: one row per society, with a ``CONFLICT`` block where
+    they disagree.
+
+    An argument is ``KEY=PATH``, or a bare path **only** where the sheet declares
+    exactly one source. A bare path on a two-source sheet is an error rather than a
+    guess, because guessing which source a record answers for is the defect this
+    function exists to remove.
+
+    **The lookup stays outside the repo.** ``recs_root`` resolves ``recs-<key>.json``
+    and there is deliberately no fallback to the sheet's own directory: a record holds
+    the society's recommendation text in full, which is the copyrighted expression the
+    sheet format exists to avoid committing, and ``guidelines_recs.ensure_outside_repo``
+    refuses to write one inside a checkout. A convenience that looked beside the sheet
+    would quietly invite someone to put one there to make ``--all`` work.
+    """
+    errors: list[str] = []
+    explicit: dict[str, Path] = {}
+    for argument in arguments or ():
+        key, separator, raw = str(argument).partition("=")
+        if not separator:
+            if len(sheet.sources) != 1:
+                errors.append(
+                    f"--recs {argument} names no source key, and the sheet declares "
+                    f"{len(sheet.sources)} sources ({', '.join(sorted(sheet.sources)) or 'none'}), "
+                    "so which source it answers for is unknowable. Write --recs <key>=<path>."
+                )
+                continue
+            key, raw = next(iter(sheet.sources)), argument
+        if key not in sheet.sources:
+            errors.append(
+                f"--recs names source '{key}', which the sheet does not declare under "
+                f"'## Sources' ({', '.join(sorted(sheet.sources)) or 'none'}). A record "
+                "bound to nothing checks nothing."
+            )
+            continue
+        if key in explicit:
+            errors.append(f"--recs names source '{key}' twice")
+            continue
+        explicit[key] = Path(raw)
+
+    records: dict[str, dict | None] = {}
+    why_not: dict[str, str] = {}
+    for key in sorted(sheet.sources):
+        path = explicit.get(key)
+        named = path is not None
+        if path is None and recs_root is not None:
+            path = recs_root / f"recs-{key}.json"
+        records[key] = None
+        if path is None:
+            why_not[key] = "no --recs given for this source, so omission was not checked"
+        elif not path.is_file():
+            # The typo and the never-built record are not the same event, which is
+            # `TheExitStatusSaysWhichKindOfNotGraded`'s finding read one level down: a
+            # path somebody typed that does not resolve is a mistake, and a record
+            # nobody has built yet is a machine without the corpus.
+            why_not[key] = (
+                f"no such file: {path}" if named else f"no recommendation record at {path}"
+            )
+        else:
+            try:
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as error:
+                why_not[key] = f"unreadable recommendation record {path}: {error}"
+            else:
+                # **A file that parses and is not a record is the same event as one
+                # that does not parse**, and it arrives through a door that looks
+                # legitimate: `null` and `[]` are valid JSON. Untyped, `null` left
+                # `records[key]` None with no `why_not` entry and the report raised a
+                # KeyError, and `[]` reached `gate_coverage` and raised there. A
+                # traceback out of the pre-commit hook is not a verdict.
+                if isinstance(loaded, dict):
+                    records[key] = loaded
+                else:
+                    why_not[key] = (
+                        f"unreadable recommendation record {path}: "
+                        f"the file holds a JSON {type(loaded).__name__}, not a record"
+                    )
+    # **The invariant the report reads is that every absent record says why**, and it
+    # is pinned by a test rather than asserted here: it was false for one branch --
+    # the JSON `null` above -- and the symptom was a KeyError in `grade` rather than
+    # anything a reader could act on. `EveryAbsentRecordSaysWhy` walks all four ways
+    # of not having one.
+    return records, why_not, errors
+
+
+def _record_built_from_another_document(recs: dict, source: dict[str, str]) -> str:
+    """The PDF the record came from, when that is not the one this source names.
+
+    Empty where they agree and where either side is silent -- so this refuses only a
+    knowable disagreement, which is the mode cross-check's own rule.
+
+    **The hazard is one #177's own fix introduces.** The record lookup is keyed on a
+    source key that is *sheet-local*, so two sheets using ``aha`` for different
+    guidelines resolve the same ``recs-aha.json`` and each is graded against the
+    other's document -- silently, because a ``rec_id`` absent from the record is never
+    counted as omitted and every other gate reads the sheet alone.
+
+    **It reads the record's ``source`` and deliberately NOT its ``doc_id``, and that
+    is the one thing to know before "fixing" this.** ``doc_id`` is whatever
+    ``guidelines_recs.py --doc-id`` was given and is free text: the record behind the
+    committed hypertension sheet carries ``AHA ACC/jones-et-al-2025`` while the sheet's
+    ``document`` cell carries the full stem, and comparing those would refuse the one
+    correct sheet in the repo. ``source`` is the PDF path, which is the same file the
+    ``document`` cell names -- tier 2 opens ``pdf_root / f"{document}.pdf"``, so the
+    suffix convention is the sheet format's already and not invented here.
+
+    Compared on the FILENAME alone: where the corpus was mounted when the record was
+    built is not a finding.
+    """
+    built_from = Path(str(recs.get("source") or "").replace("\\", "/")).name
+    document = Path(source.get("document", "").strip().replace("\\", "/")).name
+    if not built_from or not document:
+        return ""
+    return "" if built_from.lower() == f"{document.lower()}.pdf" else built_from
+
+
+def gate_coverage(
+    sheet: Sheet, records: dict[str, dict | None]
+) -> tuple[list[str], list[str], list[str]]:
+    """Gate 2. Returns (refusals, warnings, the source keys that were not graded).
 
     Refuses on an ``exact`` source and warns on a ``bound`` one, and **the mode is
     read off the recommendation record rather than decided here** -- what makes a
     count enforceable is that the recommendations were ruled into a table, not that
     the number looked tidy.
+
+    **Every check in here is per source since #177**: ``known`` is filtered to the
+    rows citing that source, the mode cross-check compares a source's declaration
+    against its own record, and the class check reads the record of the source the row
+    cites. A ``rec_id`` is unique within a document and nothing makes it unique across
+    two, so a row citing one society could otherwise discharge another's omission.
     """
-    if recs is None:
-        return [], [], 1
+    refusals: list[str] = []
+    warnings: list[str] = []
+    ungraded: list[str] = []
 
-    mode = recs.get("mode")
-    known = {record["rec_id"] for record in recs.get("recommendations", ())}
-    cited = {row.rec for row in sheet.rows}
-    unaccounted = sorted(known - cited - set(sheet.scoped_out))
+    for key in sorted(sheet.sources):
+        recs = records.get(key)
+        if recs is None:
+            ungraded.append(key)
+            continue
 
-    # **Structural findings, and they refuse whatever the mode is.** The refuse-or-warn
-    # split exists because a marker COUNT over-reports; it says nothing about whether a
-    # sheet's own declarations are self-consistent. Routing these through it would let
-    # a bound source declare itself exact and carry a mis-pinned class unremarked.
-    structural: list[str] = []
+        mode = recs.get("mode")
+        known = {record["rec_id"] for record in recs.get("recommendations", ())}
+        rows = [row for row in sheet.rows if row.source == key]
+        unaccounted = sorted(known - {row.rec for row in rows} - set(sheet.scoped_out))
 
-    # **The sheet's declared mode must agree with the record's, and a disagreement is
-    # a refusal rather than a preference for one of them.** README.md tells a reader
-    # that `mode` is what decides whether omissions are refused or warned about; a
-    # sheet declaring `exact` over a `bound` record would make that sentence false
-    # while every gate passed. Neither value is trusted over the other because only
-    # the disagreement is knowable -- what produced it is not.
-    for key, source in sorted(sheet.sources.items()):
-        declared = source.get("mode", "").strip().lower()
+        # **Structural findings, and they refuse whatever the mode is.** The
+        # refuse-or-warn split exists because a marker COUNT over-reports; it says
+        # nothing about whether a sheet's own declarations are self-consistent.
+        # Routing these through it would let a bound source declare itself exact and
+        # carry a mis-pinned class unremarked.
+
+        # **The sheet's declared mode must agree with the record's, and a disagreement
+        # is a refusal rather than a preference for one of them.** README.md tells a
+        # reader that `mode` is what decides whether omissions are refused or warned
+        # about; a sheet declaring `exact` over a `bound` record would make that
+        # sentence false while every gate passed. Neither value is trusted over the
+        # other because only the disagreement is knowable -- what produced it is not.
+        built_from = _record_built_from_another_document(recs, sheet.sources[key])
+        if built_from:
+            refusals.append(
+                f"{sheet.path.name}  source '{key}' names document "
+                f"'{sheet.sources[key].get('document', '').strip()}' but its recommendation "
+                f"record was built from '{built_from}'. A record bound to the wrong source "
+                "grades that source against another guideline."
+            )
+
+        declared = sheet.sources[key].get("mode", "").strip().lower()
         if declared and mode and declared != mode:
-            structural.append(
+            refusals.append(
                 f"{sheet.path.name}  source '{key}' declares mode '{declared}' but its "
                 f"recommendation record is '{mode}'. README.md says mode decides whether "
                 f"omission refuses or warns, so these cannot disagree."
             )
 
-    # A row's class must be the class of the recommendation it cites. This is the one
-    # thing here that catches a row pinned to the WRONG recommendation -- every other
-    # gate would pass such a row, because its number is real and its snippet is on the
-    # page it names. It is not a substitute for reading: a row can cite the right
-    # recommendation and still describe it wrongly, which stays in the holes list.
-    classes = {
-        record["rec_id"]: str(record.get("cor") or "").lower()
-        for record in recs.get("recommendations", ())
-    }
-    for row in sheet.rows:
-        expected = classes.get(row.rec)
-        if expected and row.klass.strip().lower() != expected:
-            structural.append(
-                f"{sheet.path.name}:{row.line}  class '{row.klass}' does not match "
-                f"{row.rec}, which is class '{expected}'"
-            )
+        # A row's class must be the class of the recommendation it cites. This is the
+        # one thing here that catches a row pinned to the WRONG recommendation --
+        # every other gate would pass such a row, because its number is real and its
+        # snippet is on the page it names. It is not a substitute for reading: a row
+        # can cite the right recommendation and still describe it wrongly, which stays
+        # in the holes list.
+        classes = {
+            record["rec_id"]: str(record.get("cor") or "").lower()
+            for record in recs.get("recommendations", ())
+        }
+        for row in rows:
+            expected = classes.get(row.rec)
+            if expected and row.klass.strip().lower() != expected:
+                refusals.append(
+                    f"{sheet.path.name}:{row.line}  class '{row.klass}' does not match "
+                    f"{row.rec}, which is class '{expected}'"
+                )
 
-    # The #153 lesson, from this ticket's own comment: count the unread and put it in
-    # the exit status, and fire on ANY unread item rather than on total absence. A
-    # gate that only fires when nothing was covered reads green over 2.4% coverage.
-    if not unaccounted:
-        return structural, [], 0
+        # The #153 lesson, from this ticket's own comment: count the unread and put it
+        # in the exit status, and fire on ANY unread item rather than on total
+        # absence. A gate that only fires when nothing was covered reads green over
+        # 2.4% coverage.
+        if not unaccounted:
+            continue
 
-    message = (
-        f"{sheet.path.name}  {len(unaccounted)} of {len(known)} recommendations in "
-        f"{recs.get('doc_id')} are neither a row nor scoped out: "
-        + ", ".join(unaccounted[:6])
-        + (f", and {len(unaccounted) - 6} more" if len(unaccounted) > 6 else "")
-    )
-    if mode == "exact":
-        return structural + [message], [], 0
-    return structural, [message + "  (source mode is 'bound', so this over-reports)"], 0
+        message = (
+            f"{sheet.path.name}  source '{key}': {len(unaccounted)} of {len(known)} "
+            f"recommendations in {recs.get('doc_id')} are neither a row nor scoped out: "
+            + ", ".join(unaccounted[:6])
+            + (f", and {len(unaccounted) - 6} more" if len(unaccounted) > 6 else "")
+        )
+        if mode == "exact":
+            refusals.append(message)
+        else:
+            warnings.append(message + "  (source mode is 'bound', so this over-reports)")
+
+    return refusals, warnings, ungraded
 
 
 def gate_range(sheet: Sheet) -> tuple[list[str], int]:
@@ -680,7 +857,13 @@ def gate_range(sheet: Sheet) -> tuple[list[str], int]:
     return failures, ungraded
 
 
-def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet: bool = False) -> int:
+def grade(
+    sheet_path: Path,
+    recs_arguments: list[str] | None,
+    pdf_root: Path | None,
+    quiet: bool = False,
+    recs_root: Path | None = None,
+) -> int:
     """Grade one sheet. ``quiet`` suppresses the report, never a finding.
 
     That asymmetry is the whole contract of the flag: the pre-commit hook runs with
@@ -705,26 +888,30 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
         return 2
 
     # **Why the missing-file case is separated from the not-asked-for case.** They
-    # produce the same `recs is None` and they are not the same event: one is a run
+    # produce the same absent record and they are not the same event: one is a run
     # that never intended to check omission, the other is a run that meant to and
     # silently did not. The first version collapsed them by testing `recs_path is
     # None` at the bottom, so `--recs <a path that does not exist>` graded four gates,
     # printed nothing about the fifth, and exited 0. That is this ticket's own #153
     # lesson failing on this ticket's own gate, and it was found by review rather than
     # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
-    recs = None
-    recs_missing = False
-    if recs_path is not None:
-        if recs_path.is_file():
-            recs = json.loads(recs_path.read_text(encoding="utf-8"))
-        else:
-            recs_missing = True
+    # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
+    # `why_not` so the report can say which source and which of the two it was.
+    records, why_not, recs_errors = bind_recs(sheet, recs_arguments or [], recs_root)
 
     schema = gate_schema(sheet)
     tier1 = gate_citation_tier1(sheet)
     tier2, tier2_skip, rendered_rows = gate_citation_tier2(sheet, pdf_root)
-    coverage_refusals, coverage_warnings, ungraded_sources = gate_coverage(sheet, recs)
+    coverage_refusals, coverage_warnings, ungraded_sources = gate_coverage(sheet, records)
     ranges, ungraded_rows = gate_range(sheet)
+    # An argument naming a source the sheet does not declare, or naming one twice, is
+    # a typo and never a decision -- and it is a way of not having graded even when
+    # every declared source resolved from `--recs-root`, because the run asked for
+    # something and got nothing.
+    # A sheet declaring no source has nothing for COVERAGE to iterate, which is a way
+    # of not having graded and not a clean gate. SCHEMA refuses it too, so 1 wins --
+    # this is what keeps the *report* from saying otherwise.
+    not_graded = bool(ungraded_sources) or bool(recs_errors) or not sheet.sources
 
     report(f"  rows            {len(sheet.rows)}")
     report(f"  sources         {len(sheet.sources)}")
@@ -754,8 +941,30 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
     # stdout -- the only reason to print a report at all -- kept the reassuring line
     # and dropped the one that withdrew it. `CITATION tier 2` above already says
     # SKIPPED in the body for the same situation; this is that, for its reason.
-    if recs_missing or ungraded_sources:
-        report("  COVERAGE        NOT RUN -- omission was not checked")
+    #
+    # **And it names how many sources, which is #177.** The count used to be derived
+    # from `recs is None` and so could only ever be 0 or 1: a sheet citing four
+    # societies with one record printed the same line as a sheet with one source and
+    # one record. A partly checked sheet gets the unchecked half FIRST in the line,
+    # because a count printed ahead of the caveat is read as the verdict.
+    total_sources = len(sheet.sources)
+    if not total_sources:
+        # A sheet whose Sources table did not parse. SCHEMA refuses every row for an
+        # undeclared source key, so the status is already 1 -- but the body line would
+        # read `0 refusing, 0 warning`, which is byte for byte what a clean coverage
+        # pass prints over a gate that had nothing to iterate.
+        report("  COVERAGE        NOT RUN -- the sheet declares no source to check against")
+    elif ungraded_sources and len(ungraded_sources) == total_sources:
+        report(
+            f"  COVERAGE        NOT RUN -- omission was not checked for any of "
+            f"{total_sources} source(s): {', '.join(ungraded_sources)}"
+        )
+    elif ungraded_sources:
+        report(
+            f"  COVERAGE        NOT RUN for {len(ungraded_sources)} of {total_sources} "
+            f"sources ({', '.join(ungraded_sources)}) -- {len(coverage_refusals)} refusing, "
+            f"{len(coverage_warnings)} warning over the rest, so that is a floor"
+        )
     else:
         report(f"  COVERAGE        {len(coverage_refusals)} refusing, {len(coverage_warnings)} warning")
     report(f"  RANGE           {len(ranges)}  ({ungraded_rows} numbers carried no unit this grades)")
@@ -779,44 +988,61 @@ def grade(sheet_path: Path, recs_path: Path | None, pdf_root: Path | None, quiet
     for message in coverage_warnings:
         print(f"  WARN  {message}", file=sys.stderr)
 
-    if recs_missing:
-        print(f"  COVERAGE        NOT RUN -- no such file: {recs_path}", file=sys.stderr)
-        print("  Omission was not checked. A recs path that does not resolve is a", file=sys.stderr)
-        print("  typo, not a decision, and must not be graded as one.", file=sys.stderr)
-    elif ungraded_sources:
-        print("  COVERAGE        NOT RUN -- no --recs given, so omission was not checked", file=sys.stderr)
+    for message in recs_errors:
+        print(f"  COVERAGE        NOT RUN -- {message}", file=sys.stderr)
+    for key in ungraded_sources:
+        print(f"  COVERAGE        NOT RUN for source '{key}' -- {why_not[key]}", file=sys.stderr)
+    if ungraded_sources or recs_errors:
+        print("  Omission was not checked for the source(s) above. A source with no", file=sys.stderr)
+        print("  recommendation record is not a source that passed, and a --recs path", file=sys.stderr)
+        print("  that does not resolve is a typo rather than a decision.", file=sys.stderr)
 
     if refusals:
         # 1 wins over 2 where both hold, and the message names the ungraded part so
         # the finding reads as a floor rather than the whole. Returning 2 would file
         # the strongest thing known about the sheet under the weakest heading --
         # `differential_scan.py`'s ordering, for its reason.
-        if recs_missing or ungraded_sources:
+        if not_graded:
             print(
-                "  note: COVERAGE did not run, so the count above is a floor.",
+                "  note: COVERAGE did not run on every source, so the count above is a floor.",
                 file=sys.stderr,
             )
         return 1
-    if recs_missing or ungraded_sources:
+    if not_graded:
         return 2
     return 0
 
 
-def main(argv: list[str]) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The command line, built apart from ``main`` so a test can read its defaults.
+
+    `TheRecordsStayOutsideTheRepo` asserts against ``--recs-root``'s default here, and
+    a default only a running command can observe is one no test pins.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("sheet", type=Path, nargs="?", help="the sheet to grade")
-    parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/")
+    parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/ (resolves from --recs-root; takes no --recs)")
     parser.add_argument(
         "--quiet",
         action="store_true",
         help="suppress the report; findings and the tier-2 banner still print",
     )
-    parser.add_argument("--recs", type=Path, default=None, help="guidelines_recs.py JSON for the source")
+    parser.add_argument(
+        "--recs",
+        action="append",
+        metavar="KEY=PATH",
+        default=None,
+        help=(
+            "guidelines_recs.py JSON for one source, keyed by its '## Sources' key. "
+            "Repeatable. A bare path is accepted only where the sheet declares exactly "
+            "one source."
+        ),
+    )
     parser.add_argument(
         "--recs-root",
         type=Path,
         default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", "C:/codeing/guidelines-index")),
-        help="where --all looks for recs-<sheet>.json (outside the repo, always)",
+        help="where recs-<source key>.json is looked for (outside the repo, always)",
         # Deliberately NOT a spelling of guidelines_index.py's
         # CLINICAL_GUIDELINES_INDEX, which names a database file. This names a
         # directory of recommendation records, and two env vars one word apart that
@@ -828,9 +1054,28 @@ def main(argv: list[str]) -> int:
         default=Path("C:/codeing/guidelines-src"),
         help="corpus root for citation tier 2 (absent is reported, never passed)",
     )
+    return parser
+
+
+def main(argv: list[str]) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.all:
+        # **`--all` takes no `--recs`, and refusing is cheaper than explaining.** A
+        # bare path binds to *the* source of a one-source sheet, so one society's
+        # record would bind to every sheet that cites one source; a keyed one binds by
+        # a key that is sheet-local, so it lands on every sheet declaring that key and
+        # exits 2 on every sheet that does not. Neither is a thing anybody means. The
+        # directory mode resolves from `--recs-root` and nothing else.
+        if args.recs:
+            parser.error(
+                "--all resolves recs-<source key>.json from --recs-root and takes no "
+                "--recs: a source key is sheet-local, so which sheet's source a "
+                "record answers for is unknowable across a directory. Name the sheet, "
+                "or point --recs-root at the records."
+            )
+
         sheets = sorted(SHEET_ROOT.glob("*.md"))
         sheets = [path for path in sheets if path.name.lower() != "readme.md"]
         if not sheets:
@@ -838,19 +1083,16 @@ def main(argv: list[str]) -> int:
             return 2
         worst = 0
         for path in sheets:
-            # Resolved OUTSIDE the repo, and that is not a convention. A recs file
-            # holds the society's recommendation text in full -- which is the
-            # copyrighted expression #83 exists to avoid committing, and which
-            # `guidelines_recs.ensure_outside_repo` refuses to write here. Looking
-            # for it beside the sheet would have quietly invited someone to put it
-            # there to make `--all` work.
-            recs = args.recs_root / f"recs-{path.stem}.json"
-            worst = max(worst, grade(path, recs if recs.is_file() else args.recs, args.pdf_root, args.quiet))
+            worst = max(worst, grade(path, [], args.pdf_root, args.quiet, args.recs_root))
         return worst
 
     if not args.sheet:
         parser.error("give a sheet, or --all")
-    return grade(args.sheet, args.recs, args.pdf_root, args.quiet)
+    # `--recs-root` applies here too, and it did not before #177: `--all` resolved a
+    # record and a named sheet did not, so the same sheet graded differently depending
+    # on which way it was reached. One rule, and the root stays outside the repo --
+    # see `bind_recs` for why there is no fallback beside the sheet.
+    return grade(args.sheet, args.recs, args.pdf_root, args.quiet, args.recs_root)
 
 
 if __name__ == "__main__":

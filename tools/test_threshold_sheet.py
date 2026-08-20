@@ -15,8 +15,12 @@ came from outside the corpus.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -81,8 +85,78 @@ def sheet(rows: str, conflicts: str = "", coverage: str = "", mode: str = "exact
 
 
 def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
-        snippet="an SBP goal of <130 mm Hg", page="p41", rec="p41/goal/1", klass="1") -> str:
-    return f"| {quantity} | {population} | {value} | \"{snippet}\" | src | {page} | {rec} | {klass} |\n"
+        snippet="an SBP goal of <130 mm Hg", page="p41", rec="p41/goal/1", klass="1",
+        source="src") -> str:
+    return (
+        f"| {quantity} | {population} | {value} | \"{snippet}\" | {source} | {page} "
+        f"| {rec} | {klass} |\n"
+    )
+
+
+# A two-source sheet, which is what #177 is about: until that ticket the grader took
+# one recommendation record for the whole sheet, so whichever source `--recs` did not
+# name went omission-unchecked and nothing said so. Every fixture in this file had
+# one source, which is why no test could express the defect.
+TWO_SOURCE_HEADER = f"""# Test sheet
+
+{gate.SCHEMA_MARKER}
+
+## Sources
+
+| key | society | document | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- |
+| aha | AHA/ACC | Society/aha | 2025 | 2025 | https://example.invalid | exact |
+| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | exact |
+
+## Scope
+
+**Read:** the recommendation tables.
+
+**Not read:** the narrative sections and the appendices.
+
+citations resolved against C:/nowhere on 2026-08-16
+
+## Populations
+
+| key | verbatim |
+| --- | --- |
+| adults | adults |
+| adults-ckd | adults with chronic kidney disease |
+"""
+
+
+def two_source_sheet(rows: str, coverage: str = "", header_text: str = "") -> gate.Sheet:
+    text = (
+        (header_text or TWO_SOURCE_HEADER)
+        + "\n## Thresholds\n\n"
+        + "| quantity | population | value | snippet | source | page | rec | class |\n"
+        + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        + rows
+        + "\n## Conflicts\n\n"
+        + "\n## Coverage\n\n"
+        + coverage
+    )
+    return gate.parse(text, Path("test-sheet.md"))
+
+
+def record(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
+           built_from: str | None = None, cor: dict[str, str] | None = None) -> dict:
+    """A `guidelines_recs.py` record. ``cor`` gives a class where a test needs one.
+
+    ``built_from`` is the ``source`` field -- the PDF the record was extracted from --
+    and it is left off by default so the document cross-check stays out of the way of
+    the tests that are not about it. That check claims nothing where the record is
+    silent, which is what makes leaving it off legitimate rather than convenient.
+    """
+    cor = cor or {}
+    record_ = {
+        "doc_id": doc_id,
+        "mode": mode,
+        "recommendations": [{"rec_id": rec_id, "cor": cor.get(rec_id)} for rec_id in rec_ids],
+    }
+    if built_from is not None:
+        record_["source"] = built_from
+    return record_
 
 
 class Parsing(unittest.TestCase):
@@ -285,7 +359,7 @@ class CoverageGate(unittest.TestCase):
 
     def test_an_uncited_unscoped_recommendation_refuses_on_an_exact_source(self):
         parsed = sheet(row(rec="p41/goal/1"), coverage="- `p41/goal/2` - no number stated\n")
-        refusals, warnings, _ = gate.gate_coverage(parsed, self.RECS)
+        refusals, warnings, _ = gate.gate_coverage(parsed, {"src": self.RECS})
         self.assertEqual(len(refusals), 1)
         self.assertIn("p41/goal/3", refusals[0])
         self.assertEqual(warnings, [])
@@ -299,7 +373,7 @@ class CoverageGate(unittest.TestCase):
             coverage="- `p41/goal/2` - no number stated\n",
             mode="bound",
         )
-        refusals, warnings, _ = gate.gate_coverage(parsed, {**self.RECS, "mode": "bound"})
+        refusals, warnings, _ = gate.gate_coverage(parsed, {"src": {**self.RECS, "mode": "bound"}})
         self.assertEqual(refusals, [])
         self.assertEqual(len(warnings), 1)
         self.assertIn("over-reports", warnings[0])
@@ -314,7 +388,7 @@ class CoverageGate(unittest.TestCase):
         knowable; what produced it is not.
         """
         parsed = sheet(row(rec="p41/goal/1"), mode="exact")
-        refusals, _, _ = gate.gate_coverage(parsed, {**self.RECS, "mode": "bound"})
+        refusals, _, _ = gate.gate_coverage(parsed, {"src": {**self.RECS, "mode": "bound"}})
         self.assertTrue(any("declares mode" in message for message in refusals))
 
     def test_a_row_carrying_the_wrong_class_for_its_recommendation_is_refused(self):
@@ -324,7 +398,7 @@ class CoverageGate(unittest.TestCase):
         page it names, and its rec_id exists. Only the class disagrees.
         """
         recs = {**self.RECS, "recommendations": [{"rec_id": "p41/goal/1", "cor": "2a"}]}
-        refusals, _, _ = gate.gate_coverage(sheet(row(rec="p41/goal/1", klass="1")), recs)
+        refusals, _, _ = gate.gate_coverage(sheet(row(rec="p41/goal/1", klass="1")), {"src": recs})
         self.assertTrue(any("does not match" in message for message in refusals))
 
     def test_a_bound_source_carries_no_class_so_the_class_check_stays_quiet(self):
@@ -336,7 +410,7 @@ class CoverageGate(unittest.TestCase):
             "mode": "bound",
             "recommendations": [{"rec_id": "p41/goal/1", "cor": None}],
         }
-        refusals, _, _ = gate.gate_coverage(sheet(row(rec="p41/goal/1"), mode="bound"), recs)
+        refusals, _, _ = gate.gate_coverage(sheet(row(rec="p41/goal/1"), mode="bound"), {"src": recs})
         self.assertEqual(refusals, [])
 
     def test_it_fires_on_one_unread_item_not_only_on_total_absence(self):
@@ -347,17 +421,17 @@ class CoverageGate(unittest.TestCase):
         """
         covered = "".join(f"- `p41/goal/{n}` - no number\n" for n in (2, 3))
         parsed = sheet(row(rec="p41/goal/1"), coverage=covered)
-        refusals, _, _ = gate.gate_coverage(parsed, self.RECS)
+        refusals, _, _ = gate.gate_coverage(parsed, {"src": self.RECS})
         self.assertEqual(refusals, [])
 
         parsed = sheet(row(rec="p41/goal/1"), coverage="- `p41/goal/2` - no number\n")
-        refusals, _, _ = gate.gate_coverage(parsed, self.RECS)
+        refusals, _, _ = gate.gate_coverage(parsed, {"src": self.RECS})
         self.assertEqual(len(refusals), 1)
 
     def test_no_recommendation_record_is_reported_as_ungraded_never_as_clean(self):
-        refusals, warnings, ungraded = gate.gate_coverage(sheet(row()), None)
+        refusals, warnings, ungraded = gate.gate_coverage(sheet(row()), {})
         self.assertEqual((refusals, warnings), ([], []))
-        self.assertEqual(ungraded, 1)
+        self.assertEqual(ungraded, ["src"])
 
 
 class RangeGate(unittest.TestCase):
@@ -438,7 +512,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
             path.write_text(sheet_text, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                status = gate.grade(path, None, Path("C:/nowhere-at-all"), quiet=quiet)
+                status = gate.grade(path, [], Path("C:/nowhere-at-all"), quiet=quiet)
             return status, out.getvalue(), err.getvalue()
 
     BROKEN = (
@@ -493,7 +567,7 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
         + row()
     )
 
-    def grade_with(self, recs_path: Path | None) -> int:
+    def grade_with(self, recs_arguments: list[str]) -> int:
         import contextlib
         import io
         import tempfile
@@ -502,13 +576,13 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             path = Path(directory) / "sheet.md"
             path.write_text(self.CLEAN, encoding="utf-8")
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                return gate.grade(path, recs_path, Path("C:/nowhere-at-all"), quiet=True)
+                return gate.grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=True)
 
     def test_a_recs_path_that_does_not_exist_is_2_and_not_0(self):
-        self.assertEqual(self.grade_with(Path("C:/nowhere-at-all/recs.json")), 2)
+        self.assertEqual(self.grade_with(["C:/nowhere-at-all/recs.json"]), 2)
 
     def test_no_recs_at_all_is_also_2(self):
-        self.assertEqual(self.grade_with(None), 2)
+        self.assertEqual(self.grade_with([]), 2)
 
     def test_a_missing_recs_file_says_so_by_name(self):
         """The two 2s are not the same event and the message has to distinguish them:
@@ -522,7 +596,7 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             path.write_text(self.CLEAN, encoding="utf-8")
             err = io.StringIO()
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-                gate.grade(path, Path("C:/nowhere/recs.json"), Path("C:/nowhere"), quiet=True)
+                gate.grade(path, ["C:/nowhere/recs.json"], Path("C:/nowhere"), quiet=True)
             self.assertIn("no such file", err.getvalue())
 
 
@@ -543,7 +617,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
     standing next to it rather than to invent a convention.
     """
 
-    def report_for(self, recs_path: Path | None) -> str:
+    def report_for(self, recs_arguments: list[str]) -> str:
         import contextlib
         import io
         import tempfile
@@ -553,7 +627,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                gate.grade(path, recs_path, Path("C:/nowhere-at-all"), quiet=False)
+                gate.grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=False)
             return out.getvalue()
 
     def coverage_line(self, report: str) -> str:
@@ -562,12 +636,12 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
         return lines[0]
 
     def test_a_missing_recs_file_does_not_print_a_zero_count(self):
-        line = self.coverage_line(self.report_for(Path("C:/nowhere/recs.json")))
+        line = self.coverage_line(self.report_for(["C:/nowhere/recs.json"]))
         self.assertIn("NOT RUN", line)
         self.assertNotIn("0 refusing", line)
 
     def test_no_recs_at_all_does_not_print_a_zero_count_either(self):
-        line = self.coverage_line(self.report_for(None))
+        line = self.coverage_line(self.report_for([]))
         self.assertIn("NOT RUN", line)
         self.assertNotIn("0 refusing", line)
 
@@ -586,7 +660,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
                 json.dumps(
                     {
                         "doc_id": "d",
-                        "source": "d.pdf",
+                        "source": "C:/corpus/Society/doc.pdf",
                         "mode": "exact",
                         "totals": {"recommendations": 1, "tables": 1},
                         "recommendations": [
@@ -600,7 +674,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                gate.grade(path, recs, Path("C:/nowhere-at-all"), quiet=False)
+                gate.grade(path, [str(recs)], Path("C:/nowhere-at-all"), quiet=False)
             line = self.coverage_line(out.getvalue())
             self.assertIn("refusing", line)
             self.assertNotIn("NOT RUN", line)
@@ -876,6 +950,458 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
         self.assertIn("## The quoting posture", readme)
         for claim in ("tier 1", "tier 2", "Paraphrase"):
             self.assertIn(claim, readme, f"the posture no longer states: {claim}")
+
+
+class CoverageIsPerSource(unittest.TestCase):
+    """[#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177).
+
+    ``gate_coverage`` took **one** recommendation record for the whole sheet and never
+    filtered ``known`` by ``row.source``. On a sheet citing two societies the named
+    source had its omissions checked and the other one silently did not -- and the
+    count that would have surfaced it was derived from ``recs is None``, so it could
+    only ever be 0 or 1 however many sources went unchecked.
+
+    It cost nothing while one sheet with one source existed, which is exactly why
+    every fixture above has one source and no test in this file could express it.
+    """
+
+    def test_a_second_sources_omissions_are_checked(self):
+        """The defect, stated as a test. Under the one-record grader the KDIGO
+        omission below was unreachable: whichever record `--recs` named, the other
+        source's `known` set was never built."""
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        refusals, _, ungraded = gate.gate_coverage(
+            sheet_,
+            {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1", "p9/kdigo/2")},
+        )
+        self.assertEqual(ungraded, [])
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("kdigo", refusals[0])
+        self.assertIn("p9/kdigo/1", refusals[0])
+
+    def test_known_is_filtered_to_the_rows_citing_that_source(self):
+        """The filtering is the fix and not a tidy-up. A row citing AHA must not
+        discharge a KDIGO recommendation that happens to share its identifier --
+        `rec_id` is unique within a document and nothing makes it unique across two.
+        """
+        sheet_ = two_source_sheet(row(rec="p1/goal/1", source="aha"))
+        refusals, _, _ = gate.gate_coverage(
+            sheet_,
+            {"aha": record("p1/goal/1"), "kdigo": record("p1/goal/1")},
+        )
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("kdigo", refusals[0])
+
+    def test_the_ungraded_count_is_a_real_count_of_sources(self):
+        """The ticket's headline: the old signal was derived from ``recs is None`` and
+        so could not exceed 1 regardless of how many sources went unchecked."""
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        _, _, ungraded = gate.gate_coverage(sheet_, {"aha": None, "kdigo": None})
+        self.assertEqual(ungraded, ["aha", "kdigo"])
+
+    def test_one_source_graded_and_one_not_reports_both_halves(self):
+        """Partial coverage is the shape this ticket series keeps finding. The graded
+        half still refuses, and the ungraded half is named rather than absorbed."""
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        refusals, _, ungraded = gate.gate_coverage(
+            sheet_, {"aha": record("p1/aha/1", "p1/aha/2"), "kdigo": None}
+        )
+        self.assertEqual(ungraded, ["kdigo"])
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("p1/aha/2", refusals[0])
+
+    def test_a_scope_out_still_discharges_its_recommendation(self):
+        """`## Coverage` is sheet-wide and stays so: a `rec_id` is scoped out once,
+        and which source it belongs to is decided by which record carries it."""
+        sheet_ = two_source_sheet(
+            row(rec="p1/aha/1", source="aha"),
+            coverage="- `p9/kdigo/1` - no number stated\n",
+        )
+        refusals, _, _ = gate.gate_coverage(
+            sheet_, {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1")}
+        )
+        self.assertEqual(refusals, [])
+
+    def test_the_mode_cross_check_is_per_source(self):
+        """It looped over every source comparing each against the one record's mode,
+        so on a two-source sheet it graded one source's declaration against the
+        other's record -- a false refusal and a missed one in the same loop."""
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        refusals, warnings, _ = gate.gate_coverage(
+            sheet_,
+            {
+                "aha": record("p1/aha/1"),
+                "kdigo": record("p9/kdigo/1", mode="bound"),
+            },
+        )
+        declared = [message for message in refusals if "declares mode" in message]
+        self.assertEqual(len(declared), 1)
+        self.assertIn("'kdigo'", declared[0])
+        # And the bound source's omission warns rather than refusing, per source.
+        self.assertTrue(any("over-reports" in message for message in warnings))
+
+    def test_a_record_built_from_another_document_is_refused(self):
+        """The hazard #177's own fix introduces, and it is not in the ticket.
+
+        The lookup is keyed on a source key that is **sheet-local**, so two sheets
+        using `aha` for different guidelines resolve one `recs-aha.json` and each is
+        graded against the other's document. Nothing else here would notice: a
+        `rec_id` absent from the record is never counted as omitted, and every other
+        gate reads the sheet alone.
+        """
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        refusals, _, _ = gate.gate_coverage(
+            sheet_,
+            {
+                "aha": record("p1/aha/1", built_from="C:/corpus/Society/lipids.pdf"),
+                "kdigo": record("p9/kdigo/1", built_from="C:/corpus/Society/kdigo.pdf"),
+            },
+        )
+        named = [message for message in refusals if "was built from" in message]
+        self.assertEqual(len(named), 1)
+        self.assertIn("'aha'", named[0])
+
+    def test_where_the_corpus_was_mounted_is_not_a_finding(self):
+        """Only the disagreement is claimed. The record names an absolute path from
+        the machine it was built on; the sheet names a `doc_id` relative to the corpus
+        root. Comparing those whole would refuse every correct record."""
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        refusals, _, _ = gate.gate_coverage(
+            sheet_,
+            {
+                "aha": record("p1/aha/1", built_from="D:/elsewhere/whatever/aha.pdf"),
+                "kdigo": record("p9/kdigo/1", built_from="C:\\corpus\\Society\\kdigo.pdf"),
+            },
+        )
+        self.assertEqual([message for message in refusals if "was built from" in message], [])
+
+    def test_a_record_that_names_no_document_is_not_guessed_at(self):
+        sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
+        refusals, _, _ = gate.gate_coverage(
+            sheet_, {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1")}
+        )
+        self.assertEqual([message for message in refusals if "was built from" in message], [])
+
+    def test_the_class_check_reads_the_rows_own_source_record(self):
+        """The one check that catches a row pinned to the wrong recommendation. Read
+        against the wrong source's record it either invents a disagreement or misses
+        a real one."""
+        sheet_ = two_source_sheet(row(rec="p9/kdigo/1", klass="1", source="kdigo"))
+        refusals, _, _ = gate.gate_coverage(
+            sheet_,
+            {
+                "aha": record("p9/kdigo/1", cor={"p9/kdigo/1": "1"}),
+                "kdigo": record("p9/kdigo/1", cor={"p9/kdigo/1": "2a"}),
+            },
+        )
+        self.assertTrue(any("does not match" in message for message in refusals))
+
+
+class BindingARecordToEachSource(unittest.TestCase):
+    """``--recs`` is per source now, and this is the seam that decides which record
+    answers for which key.
+
+    **A bare path is still accepted and only where it cannot be ambiguous.** A sheet
+    declaring one source binds it to that source; a sheet declaring two is asked
+    rather than guessed at, because guessing is what the ticket is about.
+    """
+
+    def bind(self, sheet_, arguments, recs_root=None):
+        return gate.bind_recs(sheet_, arguments, recs_root)
+
+    def test_a_keyed_argument_binds_to_that_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "anything.json"
+            path.write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            records, why, errors = self.bind(
+                two_source_sheet(row(source="aha")), [f"aha={path}"]
+            )
+            self.assertEqual(errors, [])
+            self.assertIsNotNone(records["aha"])
+            self.assertIsNone(records["kdigo"])
+            self.assertIn("kdigo", why)
+
+    def test_a_bare_path_binds_to_the_only_source(self):
+        """The form the README documents and the one a single-source sheet keeps."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+            records, _, errors = self.bind(sheet(row()), [str(path)])
+            self.assertEqual(errors, [])
+            self.assertIsNotNone(records["src"])
+
+    def test_a_bare_path_on_a_two_source_sheet_is_refused_rather_than_guessed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            records, _, errors = self.bind(two_source_sheet(row(source="aha")), [str(path)])
+            self.assertEqual(len(errors), 1)
+            self.assertIn("which source", errors[0])
+            self.assertEqual([key for key, value in records.items() if value], [])
+
+    def test_an_unknown_source_key_is_an_error_and_not_a_silent_no_op(self):
+        """A run that meant to check a source and named it wrongly checked nothing,
+        which is `--recs`' own typo lesson one level up."""
+        _, _, errors = self.bind(two_source_sheet(row(source="aha")), ["ada=C:/nowhere/x.json"])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("ada", errors[0])
+        self.assertIn("does not declare", errors[0])
+
+    def test_the_same_key_twice_is_an_error(self):
+        _, _, errors = self.bind(
+            two_source_sheet(row(source="aha")), ["aha=a.json", "aha=b.json"]
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("twice", errors[0])
+
+    def test_recs_root_resolves_one_record_per_source_key(self):
+        """`--all` used to resolve `recs-<sheet stem>.json`, which is one file for a
+        sheet however many societies it cites. Keyed on the source instead."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-aha.json").write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            (root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+            records, why, errors = self.bind(two_source_sheet(row(source="aha")), [], root)
+            self.assertEqual(errors, [])
+            self.assertEqual(why, {})
+            self.assertEqual(sorted(records), ["aha", "kdigo"])
+            self.assertTrue(all(records.values()))
+
+    def test_an_explicit_path_that_does_not_exist_says_no_such_file(self):
+        """The typo. It is not the same event as a record nobody has built yet, and
+        the two have to read differently -- `TheExitStatusSaysWhichKindOfNotGraded`
+        is that lesson, and this is it per source."""
+        records, why, errors = self.bind(sheet(row()), ["src=C:/nowhere-at-all/recs.json"])
+        self.assertEqual(errors, [])
+        self.assertIsNone(records["src"])
+        self.assertIn("no such file", why["src"])
+
+    def test_a_record_the_root_does_not_hold_reads_as_never_built(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, why, _ = self.bind(sheet(row()), [], Path(directory))
+            self.assertIn("no recommendation record", why["src"])
+            self.assertNotIn("no such file", why["src"])
+
+    def test_no_argument_and_no_root_says_none_was_given(self):
+        _, why, _ = self.bind(sheet(row()), [], None)
+        self.assertIn("no --recs", why["src"])
+
+    def test_a_file_that_parses_and_is_not_a_record_is_ungraded_too(self):
+        """The same event through a door that looks legitimate: `null` and `[]` are
+        valid JSON. Untyped, `null` left the record None with nothing saying why and
+        the report raised a KeyError; `[]` reached the gate and raised there. Found by
+        the Spec axis of `/code-review`."""
+        for payload in ("null", "[]", '"a string"', "7"):
+            with self.subTest(payload=payload):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "recs.json"
+                    path.write_text(payload, encoding="utf-8")
+                    records, why, errors = self.bind(sheet(row()), [f"src={path}"])
+                self.assertEqual(errors, [])
+                self.assertIsNone(records["src"])
+                self.assertIn("not a record", why["src"])
+
+    def test_every_absent_record_says_why(self):
+        """The invariant `grade`'s report reads, walked across every way of not having
+        a record rather than asserted in the module -- it was false for one of them,
+        and the symptom was a traceback rather than a verdict."""
+        with tempfile.TemporaryDirectory() as directory:
+            broken = Path(directory) / "broken.json"
+            broken.write_text("{not json", encoding="utf-8")
+            null = Path(directory) / "null.json"
+            null.write_text("null", encoding="utf-8")
+            cases = [
+                ([], None),                                    # never asked for
+                ([], Path(directory) / "empty-root"),          # never built
+                (["src=C:/nowhere-at-all/x.json"], None),      # a typo
+                ([f"src={broken}"], None),                     # does not parse
+                ([f"src={null}"], None),                       # parses, not a record
+            ]
+            for arguments, root in cases:
+                with self.subTest(arguments=arguments, root=root):
+                    records, why, _ = self.bind(sheet(row()), arguments, root)
+                    absent = [key for key, value in records.items() if value is None]
+                    self.assertEqual(absent, ["src"])
+                    self.assertIn("src", why)
+                    self.assertTrue(why["src"].strip())
+
+    def test_an_unreadable_record_is_ungraded_rather_than_a_traceback(self):
+        """A half-written JSON file is a way of not having graded, and a traceback out
+        of the pre-commit hook is not a verdict."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text("{not json", encoding="utf-8")
+            records, why, errors = self.bind(sheet(row()), [f"src={path}"])
+            self.assertEqual(errors, [])
+            self.assertIsNone(records["src"])
+            self.assertIn("unreadable", why["src"])
+
+
+class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
+    """`grade`'s half of #177: a partly checked sheet must not print a line a reader
+    takes for a pass, and it must not exit 0."""
+
+    TWO = (
+        TWO_SOURCE_HEADER
+        + "\n## Thresholds\n\n"
+        + "| quantity | population | value | snippet | source | page | rec | class |\n"
+        + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        + row(rec="p1/aha/1", source="aha")
+        + row(rec="p9/kdigo/1", source="kdigo")
+    )
+
+    def run_grade(self, arguments, recs_root=None):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(self.TWO, encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = gate.grade(
+                    path, arguments, Path("C:/nowhere-at-all"), quiet=False, recs_root=recs_root
+                )
+            return status, out.getvalue(), err.getvalue()
+
+    def coverage_line(self, report):
+        lines = [line for line in report.splitlines() if "COVERAGE" in line]
+        self.assertEqual(len(lines), 1, f"expected one COVERAGE line, got {lines}")
+        return lines[0]
+
+    def test_one_record_for_a_two_source_sheet_is_2_and_names_the_other(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            status, out, err = self.run_grade([f"aha={path}"])
+        self.assertEqual(status, 2)
+        self.assertIn("kdigo", self.coverage_line(out))
+        self.assertIn("NOT RUN", self.coverage_line(out))
+        self.assertIn("kdigo", err)
+
+    def test_the_body_line_does_not_read_as_a_pass(self):
+        """`0 refusing, 0 warning` is byte for byte what a clean pass prints, which is
+        `TheReportBodySaysCoverageDidNotRun`'s finding. Half a sheet is the same
+        event."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            _, out, _ = self.run_grade([f"aha={path}"])
+        self.assertNotEqual(
+            self.coverage_line(out).strip(), "COVERAGE        0 refusing, 0 warning"
+        )
+
+    def test_both_records_present_is_0_and_prints_the_ordinary_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-aha.json").write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            (root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+            status, out, _ = self.run_grade([], root)
+        self.assertEqual(status, 0)
+        line = self.coverage_line(out)
+        self.assertIn("refusing", line)
+        self.assertNotIn("NOT RUN", line)
+
+    def test_an_argument_error_is_2_rather_than_a_quiet_full_pass(self):
+        """Both records resolve from the root, so COVERAGE runs on everything -- and
+        the run still asked for a source that does not exist, which is a typo and not
+        a decision."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-aha.json").write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
+            (root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+            status, _, err = self.run_grade(["ada=x.json"], root)
+        self.assertEqual(status, 2)
+        self.assertIn("does not declare", err)
+
+    def test_a_sheet_declaring_no_source_does_not_print_a_clean_coverage_line(self):
+        """`gate_coverage` iterates the declared sources, so a sheet whose Sources
+        table did not parse has nothing to iterate -- and `0 refusing, 0 warning` is
+        byte for byte what a clean pass prints. SCHEMA already refuses every row for
+        an undeclared source key, so this is about what the *report* says."""
+        text = TheExitStatusSaysWhichKindOfNotGraded.CLEAN.replace(
+            "| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |\n",
+            "",
+        )
+        self.assertNotIn("| src |", text.split("## Scope")[0])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(text, encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                status = gate.grade(path, [], Path("C:/nowhere-at-all"), quiet=False)
+        line = [row_ for row_ in out.getvalue().splitlines() if "COVERAGE" in row_]
+        self.assertEqual(status, 1)
+        self.assertEqual(len(line), 1)
+        self.assertIn("NOT RUN", line[0])
+
+    def test_a_refusal_still_wins_over_a_source_that_was_not_checked(self):
+        """`differential_scan.py`'s ordering: 1 beats 2 where both hold, and the note
+        says the count is a floor."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(record("p1/aha/1", "p1/aha/2")), encoding="utf-8")
+            status, _, err = self.run_grade([f"aha={path}"])
+        self.assertEqual(status, 1)
+        self.assertIn("floor", err)
+
+
+class TheRecordsStayOutsideTheRepo(unittest.TestCase):
+    """#177's guard clause, and the reason it is a test rather than a comment.
+
+    A `recs-*.json` holds the society's recommendation text **in full**, which is the
+    copyrighted expression the sheet format exists to avoid committing.
+    `guidelines_recs.ensure_outside_repo` refuses to write one inside a checkout; what
+    this pins is the other end, that the lookup does not quietly invite one to be put
+    beside the sheet to make `--all` work.
+    """
+
+    def test_the_default_recs_root_is_outside_the_checkout(self):
+        root = Path(gate.build_parser().parse_args(["--all"]).recs_root).resolve()
+        self.assertFalse(
+            str(root).startswith(str(gate.REPO_ROOT.resolve())),
+            f"--recs-root defaults inside the repo: {root}",
+        )
+
+    def test_all_takes_no_recs_at_all(self):
+        """A bare path binds to *the* source of a one-source sheet, so it would bind
+        one society's record to every sheet citing a single source; a keyed one binds
+        by a key that is sheet-local, so it lands on every sheet declaring that key and
+        exits 2 on every sheet that does not. Neither is a thing anybody means, and the
+        document cross-check only reaches a record that names the PDF it came from."""
+        for argument in ("C:/anywhere/recs.json", "aha-2025=C:/anywhere/recs.json"):
+            with self.subTest(argument=argument):
+                with contextlib.redirect_stderr(io.StringIO()) as err:
+                    with self.assertRaises(SystemExit):
+                        gate.main(["--all", "--recs", argument])
+                self.assertIn("takes no", err.getvalue())
+
+    def test_the_lookup_never_falls_back_to_the_sheet_directory(self):
+        """The one convenience that would undo the guard: resolving beside the sheet
+        when the root holds nothing.
+
+        **Driven with a real, empty root and not with `recs_root=None`**, which is how
+        the first version was written -- with no root there is no lookup to fall back
+        *from*, so it would have stayed green with a sheet-directory fallback in place.
+        That is #137's instrument problem, in the test written to pin the guard.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            beside = Path(directory) / "recs-src.json"
+            beside.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+            path = Path(directory) / "sheet.md"
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
+            empty_root = Path(directory) / "root"
+            empty_root.mkdir()
+            for root in (None, empty_root):
+                with self.subTest(recs_root=root):
+                    with contextlib.redirect_stdout(io.StringIO()),                             contextlib.redirect_stderr(io.StringIO()):
+                        status = gate.grade(
+                            path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=root
+                        )
+                    self.assertEqual(status, 2)
 
 
 if __name__ == "__main__":
