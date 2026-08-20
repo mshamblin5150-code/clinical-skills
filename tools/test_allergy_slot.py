@@ -87,9 +87,10 @@ def committed_inputs():
     """Every committed shorthand input, keyed by its path under ``fixtures/``.
 
     Borrowed from ``test_corpus_census.py`` rather than re-globbed. That module
-    holds two readers and only one is right here: ``all_committed_cases`` names
-    four directories and is pinned at 31, so a fifth set landing is invisible to
-    it -- which is how #96's own figure went stale twice. ``all_fixture_shorthand``
+    held two readers until 2026-08-19 and only one was ever right here:
+    ``all_committed_cases`` named four directories and was pinned at 31, so a
+    fifth set landing was invisible to it -- which is how #96's own figure went
+    stale twice. #143 collapsed the pair onto ``all_fixture_shorthand``, which
     reads the tree, and reading the tree is what makes the count below fail
     loudly when a set lands. A second copy of that glob in this file would be the
     same figure derived two ways, which is the defect this module exists over.
