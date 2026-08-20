@@ -61,7 +61,7 @@ FIXTURES_README = REPO_ROOT / "fixtures" / "README.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
 AGENTS = REPO_ROOT / "AGENTS.md"
 MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
-DAY_A = REPO_ROOT / "fixtures" / "day-a" / "assertions.md"
+DAY_A_ASSERTIONS = REPO_ROOT / "fixtures" / "day-a" / "assertions.md"
 BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 CASE_STUDY = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 CASE_STUDY_STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
@@ -83,6 +83,7 @@ class InferredAgeHasOnePrivateRecordAndPlainEntry(unittest.TestCase):
         self.assertIn("plain field values", step_five)
         self.assertIn("only in `FILLED·asserted`", step_five)
         self.assertIn("never copied into the Medatrax block", step_five)
+        self.assertIn("The final note body follows the same boundary", step_five)
 
     def test_medatrax_reference_forbids_a_provenance_label_on_filled_age(self):
         text = read(MEDATRAX)
@@ -91,11 +92,17 @@ class InferredAgeHasOnePrivateRecordAndPlainEntry(unittest.TestCase):
 
     def test_f5_enforces_the_same_boundary(self):
         row = next(
-            line for line in read(DAY_A).splitlines() if line.startswith("| F5 |")
+            line for line in read(DAY_A_ASSERTIONS).splitlines()
+            if line.startswith("| F5 |")
         )
-        for required in ("FILLED·asserted", "Age + unit", "Patient Time", "note body", "Medatrax"):
+        for required in ("FILLED·asserted", "Age + unit", "Patient Time"):
             with self.subTest(required=required):
                 self.assertIn(required, row)
+        self.assertIn(
+            "neither the note body nor the Medatrax block labels the age or band "
+            "as filled, inferred, guessed, or needing confirmation",
+            row,
+        )
         self.assertNotIn("under GAPS", row)
         self.assertNotIn("unfilled", row)
 
