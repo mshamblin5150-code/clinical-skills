@@ -876,7 +876,7 @@ check that was never run is not.
 | the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
-| the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
+| the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
 | the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
@@ -1087,9 +1087,10 @@ Then walk this list, by eye — none of it is mechanical:
   skeleton section present regardless of what the faculty asked for**?
 - Is the differential **numbered**, and is `1.` defensible as the thing that would kill first?
 - Does every MDM entry name a discriminator from *this* case, and carry a citation?
-- Does every drug in the Plan have a prescription table, and every table a `Sig` ending in an
-  indication **and a prose block under it carrying class, contraindications, monitoring, adverse
-  effects and guideline support**?
+- Does every drug in the Plan have a prescription table — **including any drug row that welds a
+  second drug into it**, which is a drug in the Plan without its own table — and every table a
+  `Sig` ending in an indication **and a prose block under it carrying class, contraindications,
+  monitoring, adverse effects and guideline support**?
 - **Has the step 7 reference walk actually run**, against
   [reference/apa7.md](reference/apa7.md) rather than from memory, and does
   `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
