@@ -393,6 +393,30 @@ table, the threshold sheets or the guideline corpus already cover. **What is lef
 this step**, and *What none of that reaches gets researched, not deferred* above is the rule it
 applies.
 
+**Every drug you are going to prescribe is one of those claims, and since
+[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289) that is a rule rather than
+a reading.** The run that produced the Module 1 submission recorded in its own ledger that the
+treatment topic was missing from the companion evidence, and then wrote a specific dose into a
+prescription table citing it. **A prescription is a dose**, and it was the one claim in that
+document nothing sourced: this command graded the six records that existed, `tools/reference_scan.py`
+checked that the entry was well formed and that the citation resolved to it, `tools/checks_ledger.py`
+graded the readers, and **all three exited 0**.
+
+**So a record is required for every drug the run chose a number for.** Ruled by the clinician
+2026-08-19. A home medication continued unchanged at the patient's own dose is not one of them --
+the run did not choose that number, the patient arrived on it -- and such a row **declares itself**:
+`Continued home medication: prenatal vitamin one tablet PO daily`. **The exemption is declared and
+never inferred**, so a drug row that says nothing is graded, and that is the direction it has to
+fail in. A `Delayed order:` is graded too: a dose that has not started yet is still a dose the run
+chose. The declaration lives in [style.md](reference/style.md) §8 with the table it is written in.
+
+**The claim heading is what names the drug**, not the restatement buried under it — a record whose
+`## CLAIM:` line says *ceftriaxone* is a claim about ceftriaxone, and one that reaches the drug only
+in its `RESTATEMENT` is a record about something else that happened to mention it. Where the order
+states a dose, **the heading states a number too**: that is what puts the record in front of
+`NUMERIC_CLAIM_UNQUANTIFIED` above, so the restatement has to answer with a number and the chain
+runs from the table's dose to a source.
+
 **Write the claim list down before spawning anything.** `scratch/case-study-claims.md`, its `DATE`
 header and one `## CLAIM:` heading per claim, and nothing under them yet. That ordering is what
 makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
@@ -527,6 +551,30 @@ can be several of them at once:
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
 
+**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, and they are
+the only ones here that read anything but the ledger:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
+```
+
+| The prescription | Why |
+| --- | --- |
+| a drug in an Rx table that no claim record names | the dose is the highest-stakes claim in the document and the one every other gate exits 0 on |
+| an order stating a dose whose claim record states no number | a record naming the drug is not yet a record that sourced the dose, and this is the form of that a string test reaches |
+| a prescription table with no readable drug row | a table this cannot read is a finding and never a table quietly dropped from the set |
+
+**Without `--draft` those three rows do not run, and the report prints `not graded` against them
+rather than `0`.** A zero beside a row that never ran is the silent pass this whole arrangement
+exists to refuse, so the run that graded no prescriptions says so on the same page as its clean
+exit. A draft carrying no readable prescription table is exit 2 for the same reason.
+
+**What this must never become is a dose checked against a table.** A dose depends on indication,
+weight, renal function, pregnancy and route, so a row refusing a correct dose for the wrong reason
+is #215's defect a fourth time. The reachable property is whether the dose was **sourced**, never
+whether it is right -- a record carrying a *different* number passes these rows, and the reader in
+step 9 is what reads the number.
+
 **Then grade it, and do not draft until it is clean:**
 
 ```bash
@@ -611,6 +659,19 @@ point in the document.
 
 **Omitting them has never cost a point, which is not the same as being safe** — it is the mode
 finding again, one section down. See *Three modes, and none of them subtracts a section* above.
+
+**Then grade the ledger against what you have just written**, which is the half of step 3 that could
+not run before the tables existed:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
+```
+
+Every rule it applies is written out in step 3 above, so a harness with no Python walks the drug rows
+by eye instead. **A drug with no claim record goes back through step 3**, not into the document with
+a citation borrowed from the nearest source that mentions the disease --
+[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289) is that behavior and it is
+what this exists to replace.
 
 ### 7. Fix the references
 
