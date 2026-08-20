@@ -119,12 +119,17 @@ class ExcerptsAreWhatTheTestsThinkTheyAre(unittest.TestCase):
         self.assertIn("\ufb01", joined)  # fi ligature
 
 
-def rawline(text: str, size: float, gaps: list[float]) -> dict:
+def rawline(text: str, size: float, gaps: list[float], font: str | None = None) -> dict:
     """A PyMuPDF ``rawdict`` page holding one line, laid out to a gap pattern.
 
     ``gaps[i]`` is the horizontal space between character ``i`` and ``i+1``, in
     points, which is the only geometry ``rebuild_text`` reads. Every glyph is given
     the same advance, so the gaps are the whole variable.
+
+    ``font`` names the span's typeface where a test is about the font rather than
+    about the geometry, and is left off the span entirely otherwise -- a span with
+    no ``font`` key is what a caller that does not care looks like, and the
+    substitution table has to survive one.
 
     Built as a literal rather than read from a PDF, on this file's standing rule:
     ``*.pdf`` is globally gitignored and the corpus is 179 copyrighted documents
@@ -135,7 +140,10 @@ def rawline(text: str, size: float, gaps: list[float]) -> dict:
     for index, glyph in enumerate(text):
         chars.append({"c": glyph, "bbox": (cursor, 0.0, cursor + advance, size)})
         cursor += advance + (gaps[index] if index < len(gaps) else 0.0)
-    return {"blocks": [{"type": 0, "lines": [{"spans": [{"size": size, "chars": chars}]}]}]}
+    span = {"size": size, "chars": chars}
+    if font is not None:
+        span["font"] = font
+    return {"blocks": [{"type": 0, "lines": [{"spans": [span]}]}]}
 
 
 class RebuildText(unittest.TestCase):
@@ -289,6 +297,381 @@ class SpansDoNotShareMetrics(unittest.TestCase):
         self.assertAlmostEqual(baselines[0], self.TIGHT, places=6)
         self.assertAlmostEqual(baselines[1], baselines[0], places=6)
 
+
+class SymbolFontsThatLieAboutTheirOwnEncoding(unittest.TestCase):
+    """#172: the character a threshold is written with is the character that breaks.
+
+    Two fonts in the corpus render a comparison operator through a slot their own
+    ``ToUnicode`` map does not describe, so both readers hand back something else.
+    **Every row below was settled by rendering the page and looking at the glyph**,
+    which is ``span_baselines``'s method and the only evidence there is -- the PDFs
+    make no true statement about these characters anywhere. ``GMBEDM+AdvPS_SSYB``
+    declares ``/Encoding /WinAnsiEncoding``, which is a text encoding on a symbol
+    font; it ships no ``ToUnicode`` at all; and its embedded CFF subset names its
+    two glyphs ``sterling`` and ``daggerdbl``. All three statements are wrong.
+
+    Measured over all 179 documents, 2026-08-19 -- 256 operators across 12 files:
+
+    ==========  ======  =====  ====  =====
+    font        glyph   means     n   docs
+    ==========  ======  =====  ====  =====
+    AdvPS_SSYB  U+00A3     <=    71      9
+    AdvPS_SSYB  U+2021     >=   146     11
+    SymbolMT    U+001E     <=     2      1
+    SymbolMT    U+001F     >=    36      1
+    SymbolMT    U+F0B3     >=     1      1
+    ==========  ======  =====  ====  =====
+
+    **The ticket asked for a heuristic and the evidence retired it.** #172 proposed
+    a unit-aware rule -- a pound sign, a number, a clinical unit -- and priced it at
+    ~67 of 73. Keyed on the font instead the rule reads no text at all, and the two
+    genuine currency figures in the corpus are untouched *by construction* rather
+    than by a rule that mostly avoids them: both are set in an ordinary text face,
+    one ``MinionPro-Regular`` and one ``Berkeley-Medium``, each beside a euro sign
+    in a price list.
+
+    **The ticket was also understated threefold, and by looking at the wrong
+    character.** It records the greater-or-equal side as clean on ``0 occurrences of
+    the 0xB3 slot``, which is true; ``>=`` did not land on 0xB3. It landed on a
+    double dagger 146 times, on two C0 control codes 38 times, and on 0xB3 once but
+    in the *private use area*, which the ticket's scan could not have seen. So the
+    unit-aware rule would have reached none of the 183 ``>=``.
+
+    **39 of the 256 are worse than mangled -- they are deleted.** U+001E, U+001F and
+    U+F0B3 all fall inside ``_DISCARDED_RANGES``, so today
+    ``COPD and FEV1 <=50% predicted`` reaches the corpus as
+    ``COPD and FEV1 50% predicted``: a threshold flattened into an equality, with
+    no character left behind to notice it by.
+    """
+
+    def test_the_pound_sign_that_is_a_less_or_equal_becomes_one(self):
+        self.assertEqual(
+            extract.rebuild_text(rawline("\u00a3120", 9.0, [0.0] * 4, font="AdvPS_SSYB")),
+            "\u2264120",
+        )
+
+    def test_the_double_dagger_that_is_a_greater_or_equal_becomes_one(self):
+        """The 146 the ticket's own rule could not have reached. ``for >=6 months``
+        and ``a >=40% decline in eGFR`` read as footnote markers to every text
+        heuristic, and as prices to none of them."""
+        self.assertEqual(
+            extract.rebuild_text(rawline("\u20216", 9.0, [0.0] * 2, font="AdvPS_SSYB")),
+            "\u22656",
+        )
+
+    def test_the_control_codes_normalize_would_have_deleted_become_operators(self):
+        """These are the dangerous 38. Left alone they do not survive to be wrong:
+        ``_DISCARDED_RANGES`` removes them and the threshold reads as an equality,
+        so the second assertion is the one that matters."""
+        for glyph, operator in (("\u001e", "\u2264"), ("\u001f", "\u2265")):
+            with self.subTest(glyph=glyph):
+                rebuilt = extract.rebuild_text(
+                    rawline(glyph + "50", 9.0, [0.0] * 3, font="SymbolMT")
+                )
+                self.assertEqual(rebuilt, operator + "50")
+                self.assertEqual(extract.normalize(rebuilt), operator + "50")
+
+    def test_the_private_use_slot_that_is_a_greater_or_equal_becomes_one(self):
+        """U+F0B3 is the Symbol font's own 0xB3 surfacing unmapped. It is the slot
+        #172 went looking for, in the one place that ticket's scan could not see."""
+        self.assertEqual(
+            extract.rebuild_text(rawline("\uf0b34", 9.0, [0.0] * 3, font="SymbolMT")),
+            "\u22654",
+        )
+
+    def test_a_pound_sign_in_an_ordinary_text_face_is_left_alone(self):
+        """The corpus's two real currency figures, and the whole reason the rule is
+        keyed on the font rather than on what follows the character."""
+        for face in ("MinionPro-Regular", "Berkeley-Medium"):
+            with self.subTest(font=face):
+                self.assertEqual(
+                    extract.rebuild_text(rawline("\u00a31272", 9.0, [0.0] * 5, font=face)),
+                    "\u00a31272",
+                )
+
+    def test_a_double_dagger_in_an_ordinary_text_face_is_left_alone(self):
+        """787 double daggers are in the corpus and 146 of them are this defect.
+        The rest are footnote markers in AHA/ACC tables, and turning one into a
+        ``>=`` would invent a threshold rather than recover one."""
+        self.assertEqual(
+            extract.rebuild_text(
+                rawline("\u2021 p<0.05", 9.0, [0.0] * 8, font="TimesNewRomanPSMT")
+            ),
+            "\u2021 p<0.05",
+        )
+
+    def test_a_span_naming_no_font_is_not_an_error(self):
+        """Most spans built in this file carry no ``font`` key at all, and a table
+        lookup on a missing name has to come back empty rather than raise."""
+        self.assertEqual(
+            extract.rebuild_text(rawline("\u00a3120", 9.0, [0.0] * 4)), "\u00a3120"
+        )
+
+    def test_a_subset_prefix_does_not_hide_the_font(self):
+        """PyMuPDF strips the six-letter subset tag before it reaches ``rawdict``,
+        so the corpus never exercises this -- but the tag is in the PDF's own font
+        dictionary (``GMBEDM+AdvPS_SSYB``), one call away, and a reader who reached
+        for the name there would get one the table does not hold."""
+        self.assertEqual(
+            extract.rebuild_text(
+                rawline("\u00a3120", 9.0, [0.0] * 4, font="GMBEDM+AdvPS_SSYB")
+            ),
+            "\u2264120",
+        )
+
+    def test_a_lowercase_word_before_the_plus_is_not_a_subset_tag(self):
+        """A subset tag is exactly six uppercase letters. Stripping on the plus
+        alone would map a font nobody measured."""
+        self.assertEqual(extract.font_key("abcdef+AdvPS_SSYB"), "abcdef+AdvPS_SSYB")
+        self.assertEqual(extract.font_key("GMBEDM+AdvPS_SSYB"), "AdvPS_SSYB")
+
+    def test_the_substitution_does_not_disturb_the_space_reconstruction(self):
+        """``rebuild_text``'s own rule reads geometry, and the substitution is 1:1
+        and happens after the gap is measured. A replaced glyph must still take the
+        space in front of it that the gap calls for."""
+        text = "a\u00a3120"
+        gaps = [0.0] * len(text)
+        gaps[0] = 5.0
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, 9.0, gaps, font="AdvPS_SSYB")),
+            "a \u2264120",
+        )
+
+
+class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
+    """The table is a set of measurements, so its shape is asserted rather than
+    trusted -- ``NormalizationTablesHoldWhatTheyClaim``'s arrangement, for its
+    reason. Nothing here re-derives a *count*: the corpus is 179 copyrighted PDFs
+    outside the repo and no test in this file opens one.
+    """
+
+    def test_every_replacement_is_a_comparison_operator(self):
+        """What the table may claim is narrow. #172 is about the character a threshold
+        is written with, and a row producing anything else is a different ruling --
+        it has to be argued for rather than appended."""
+        for font, mapping in extract.SYMBOL_FONT_OPERATORS.items():
+            for glyph, replacement in mapping.items():
+                with self.subTest(font=font, glyph=glyph):
+                    self.assertIn(replacement, ("\u2264", "\u2265"))
+
+    def test_no_source_glyph_is_a_letter_or_a_digit(self):
+        """``SymbolMT`` also renders ``n`` as an up arrow and ``p`` as a down arrow,
+        in one KDIGO figure. Those are deliberately **not** here: mapping a letter
+        means a font name that is ever wrong corrupts prose rather than one symbol,
+        and an arrow is not what a threshold is written with."""
+        for font, mapping in extract.SYMBOL_FONT_OPERATORS.items():
+            for glyph in mapping:
+                with self.subTest(font=font, glyph=glyph):
+                    self.assertFalse(glyph.isalnum(), f"{font} maps {glyph!r}")
+
+    def test_nothing_a_correct_font_emits_is_mapped(self):
+        """``SymbolMT`` gets ``<=`` and ``>=`` right 2,078 times in this same
+        corpus under this same font name, in other documents. So the table may only
+        claim slots that are wrong *everywhere*: a mapping keyed on a character the
+        font also emits correctly would rewrite a correct one somewhere."""
+        for font, mapping in extract.SYMBOL_FONT_OPERATORS.items():
+            for glyph in mapping:
+                with self.subTest(font=font, glyph=glyph):
+                    self.assertNotIn(glyph, ("\u2264", "\u2265", "<", ">", "="))
+
+    def test_the_font_names_carry_no_subset_prefix(self):
+        """A key with a tag on it matches one document's subset and no other's."""
+        for font in extract.SYMBOL_FONT_OPERATORS:
+            with self.subTest(font=font):
+                self.assertEqual(extract.font_key(font), font)
+
+    def test_the_font_that_proves_a_font_name_is_not_always_a_verdict_stays_out(self):
+        """``MathematicalPi-One`` is the reason this table has a rule and not just
+        rows, and it is the closest this repo has come to shipping an inverted
+        threshold.
+
+        It sets comparison operators in two C0 slots that ``_DISCARDED_RANGES``
+        deletes -- the same class as ``SymbolMT``'s, in USPSTF, which is 90 of the
+        179 documents. Every instinct says add two rows. **Rendered, the two slots
+        are exactly inverted between two documents of the same society**:
+
+            abdom-aortic-aneurysm-screening-final-rs   U+0002 = >=   U+0003 = <=
+            osteoporosis-screening-final-recommendation U+0002 = <=   U+0003 = >=
+
+        Measured at 700 dpi, 2026-08-19, after four samples at 400 dpi had agreed
+        with each other and the fifth did not. Confirmed a second way, by hashing
+        the rasterized glyph box of every occurrence: no shape appears under both
+        of ``AdvPS_SSYB``'s codes, and **four shapes appear under both of
+        ``MathematicalPi-One``'s**. That instrument cannot prove two glyphs are the
+        same -- it hashes a rendering, so point size moves it -- but one shape
+        under two codes is a difference noise cannot manufacture, and that is the
+        only direction it was read in. A font-name-keyed row would
+        therefore have turned ``>=90% of screen-detected AAAs`` into ``<=90%`` --
+        **inverting a clinical threshold rather than losing one**, which is worse
+        than the defect #172 was filed about and is the one outcome no downstream
+        gate could catch, because the result is a well-formed operator.
+
+        So the rule the table states is load-bearing rather than decorative: *a row
+        may only claim a slot that is wrong everywhere*. A subsetted font reassigns
+        its codes per document, and a font **name** is a verdict about a slot only
+        where the outline behind it does not move. Settling that needs the embedded
+        glyph outline or a rendered page, and neither is in this repo -- so this is
+        a test that names the font and refuses it, and the census is what keeps it
+        visible. Filed rather than folded in.
+        """
+        self.assertNotIn("MathematicalPi-One", extract.SYMBOL_FONT_OPERATORS)
+        self.assertTrue(
+            extract.is_symbol_font("MathematicalPi-One"),
+            "the census must keep reporting it, or refusing to map it hides it",
+        )
+        self.assertEqual(
+            extract.symbol_glyph_census(
+                rawline("90", 9.0, [0.0] * 4, font="MathematicalPi-One")
+            ),
+            {"MathematicalPi-One U+0002": 1, "MathematicalPi-One U+0003": 1,
+             "MathematicalPi-One U+0039": 1, "MathematicalPi-One U+0030": 1},
+        )
+
+
+class TheCensusThatStopsThisRecurringInSilence(unittest.TestCase):
+    """``symbol_glyph_census`` -- the half of #172 that is not the substitution.
+
+    The substitution fixes five slots somebody went and looked at. The defect it
+    cannot fix is the next corpus refresh bringing a symbol font nobody has looked
+    at, whose comparison operators land wherever its broken map sends them, with
+    every check downstream reading clean. That is precisely the state this corpus
+    was in for the whole of #83, and it is why the report is unfiltered: an
+    allowlist of glyphs that look harmless is what would have hidden U+001F, which
+    reads as extraction debris and is a greater-or-equal sign.
+    """
+
+    def test_it_counts_an_unmapped_glyph_from_a_symbol_font(self):
+        census = extract.symbol_glyph_census(
+            rawline("\u00aa\u00aa", 9.0, [0.0] * 2, font="AdvPSSym")
+        )
+        self.assertEqual(census, {"AdvPSSym U+00AA": 2})
+
+    def test_it_says_nothing_about_a_glyph_the_table_already_maps(self):
+        """A mapped slot is answered, not outstanding. Reporting it would put the
+        two fonts this ticket fixed at the top of every refresh's diff forever, and
+        a report nobody reads is the shape the whole directory refuses.
+
+        The digits sit in a span of their own here because that is where the PDF
+        puts them -- corpus-wide ``AdvPS_SSYB`` emits three characters and none of
+        them is a digit. The first draft of this test wrote the whole of ``<=120``
+        into the symbol span and got three digits back, which is the census being
+        *right*: filtering ASCII to quiet it would have hidden ``SymbolMT``'s
+        ``n``, an up arrow set in a letter's slot. So nothing is filtered, and the
+        fixture moved instead of the rule.
+        """
+        self.assertEqual(
+            extract.symbol_glyph_census(rawline("\u00a3", 9.0, [0.0], font="AdvPS_SSYB")),
+            {},
+        )
+
+    def test_it_still_reports_an_unmapped_glyph_from_a_font_it_partly_maps(self):
+        """``SymbolMT`` has three rows and emits a dozen other characters. Being
+        named in the table exempts a *slot*, never a font."""
+        self.assertEqual(
+            extract.symbol_glyph_census(
+                rawline("\u001f\u2248", 9.0, [0.0] * 2, font="SymbolMT")
+            ),
+            {"SymbolMT U+2248": 1},
+        )
+
+    def test_a_text_face_is_not_censused_however_odd_its_glyphs(self):
+        """The report is scoped by the font-name guess, and that guess is only
+        affordable because nothing here changes a character."""
+        self.assertEqual(
+            extract.symbol_glyph_census(
+                rawline("\u00a31272", 9.0, [0.0] * 5, font="MinionPro-Regular")
+            ),
+            {},
+        )
+
+    def test_a_space_is_not_reported(self):
+        """Every symbol font in the corpus sets them and none means anything by
+        it, so 183 of ``AdvPS_SSYB``'s 400 glyphs would otherwise be the loudest
+        line in the report."""
+        self.assertEqual(
+            extract.symbol_glyph_census(rawline("  ", 9.0, [0.0] * 2, font="ZapfDingbats")),
+            {},
+        )
+
+    def test_the_subset_tag_does_not_split_one_font_into_two(self):
+        """Two documents embedding the same face report under one key, or the
+        report counts subsets rather than fonts and no total means anything."""
+        census = extract.symbol_glyph_census(
+            rawline("\u2248", 9.0, [0.0], font="ABCDEF+SymbolMT")
+        )
+        self.assertEqual(census, {"SymbolMT U+2248": 1})
+
+    def test_an_operator_the_font_already_got_right_is_not_reported(self):
+        """``SymbolMT`` renders 2,078 correct comparison operators across the
+        corpus -- two thirds of everything this would otherwise print, and all of
+        it the mechanism working. A report whose loudest line is the non-defect has
+        no usable baseline, and *"the same as last time"* is the only reading a
+        maintainer ever takes off it.
+
+        This is a statement about the module's own output vocabulary and not the
+        allowlist the class docstring refuses: what is dropped is a character
+        ``SYMBOL_FONT_OPERATORS`` *produces*, never one somebody judged harmless.
+        """
+        self.assertEqual(
+            extract.symbol_glyph_census(
+                rawline("\u2264\u2265", 9.0, [0.0] * 2, font="SymbolMT")
+            ),
+            {},
+        )
+
+    def test_the_exclusion_is_derived_from_the_table_and_not_typed(self):
+        """A sixth row replacing some third character must widen this with it, or
+        the census starts reporting the module's own output as an open question."""
+        replacements = {
+            replacement
+            for mapping in extract.SYMBOL_FONT_OPERATORS.values()
+            for replacement in mapping.values()
+        }
+        for replacement in replacements:
+            with self.subTest(replacement=f"U+{ord(replacement):04X}"):
+                self.assertEqual(
+                    extract.symbol_glyph_census(
+                        rawline(replacement, 9.0, [0.0], font="ZapfDingbats")
+                    ),
+                    {},
+                )
+
+    def test_an_image_block_and_an_empty_dictionary_contribute_nothing(self):
+        self.assertEqual(extract.symbol_glyph_census({"blocks": [{"type": 1}]}), {})
+        self.assertEqual(extract.symbol_glyph_census({}), {})
+
+    def test_it_survives_a_span_naming_no_font(self):
+        self.assertEqual(extract.symbol_glyph_census(rawline("x", 9.0, [0.0])), {})
+
+
+class TheCensusReachesTheManifest(unittest.TestCase):
+    """A report nothing writes down is an instruction, and #214's rule is that a
+    written instruction cannot fail. So the census is carried on the ``Record``,
+    lands in ``manifest.json``, and is summed on the run's own summary."""
+
+    def test_a_record_carries_the_census_it_was_built_with(self):
+        record = extract.build_document(
+            Path("SOC/doc.pdf"),
+            ["a page"],
+            Path(tempfile.mkdtemp()),
+            symbol_glyphs={"SymbolMT U+2248": 3},
+        )
+        self.assertEqual(record.symbol_glyphs, {"SymbolMT U+2248": 3})
+
+    def test_a_record_built_without_one_reports_nothing_rather_than_raising(self):
+        """Every other caller of ``build_document`` in this file passes no census,
+        and a default of "nothing was counted" is the only honest one -- the field
+        says what the walk found, not what it was able to look at."""
+        record = extract.build_document(
+            Path("SOC/doc.pdf"), ["a page"], Path(tempfile.mkdtemp())
+        )
+        self.assertEqual(record.symbol_glyphs, {})
+
+    def test_a_failed_document_carries_an_empty_census(self):
+        """A document that could not be read counted nothing, which is not the same
+        as a document whose symbol fonts were all mapped -- but the manifest field
+        is the same either way, and ``error`` is what tells them apart."""
+        self.assertEqual(extract.failed_document(Path("SOC/d.pdf"), "boom").symbol_glyphs, {})
 
 class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
     """#178: the damage ``span_baselines`` could not reach, and what fixes it.
@@ -462,7 +845,6 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
         space = next(c for c in chars if c["c"] == " ")
         self.assertLess(advance, space["bbox"][2] - space["bbox"][0])
 
-
 class LineBaseline(unittest.TestCase):
     def test_it_is_the_median_gap(self):
         page = rawline("abcdef", 10.0, [1.0, 1.0, 5.0, 1.0, 1.0])
@@ -575,7 +957,7 @@ class NormalizationTablesHoldWhatTheyClaim(unittest.TestCase):
     def test_nothing_a_threshold_is_written_with_is_in_any_table(self):
         # The tables are the blast radius. A clinical operator or unit landing in
         # one of them changes every number in the corpus that uses it.
-        clinical = "≥≤°µμ±×÷⁄/%.,"
+        clinical = "\u2265\u2264°µμ±×÷⁄/%.,"
         clinical += "0123456789<>=()[]-"
         for character in clinical:
             with self.subTest(character=f"U+{ord(character):04X}"):
@@ -966,7 +1348,7 @@ class DocumentClass(unittest.TestCase):
         # The three ACIP/ files are browser print-to-PDF captures of CDC schedule
         # pages. Issue #80 asks for them flagged rather than parsed as guidelines.
         self.assertEqual(
-            extract.classify(extract.clean_pages(ACIP)), extract.CLASS_PRINT_CAPTURE
+            extract.classify(extract.clean_pages(ACIP)), extract.CLASS_WEB_CAPTURE
         )
 
     def test_a_journal_pdf_is_a_guideline(self):
@@ -983,7 +1365,7 @@ class DocumentClass(unittest.TestCase):
         )
         self.assertEqual(
             extract.classify(self.every_page_carries("8/12/26, 10:25 AM")),
-            extract.CLASS_PRINT_CAPTURE,
+            extract.CLASS_WEB_CAPTURE,
         )
 
     def test_the_stamp_is_recognized_with_the_page_title_folded_in_after_it(self):
@@ -993,7 +1375,7 @@ class DocumentClass(unittest.TestCase):
             extract.classify(
                 self.every_page_carries("8/12/26, 10:25 AM Recommended Vaccinations | CDC")
             ),
-            extract.CLASS_PRINT_CAPTURE,
+            extract.CLASS_WEB_CAPTURE,
         )
 
     def test_a_date_and_time_part_way_through_a_line_is_prose(self):
@@ -1018,7 +1400,7 @@ class DocumentClass(unittest.TestCase):
         # 2-page document boilerplate, and the class must not ride on that.
         pages = self.every_page_carries("8/12/26, 10:25 AM Adult Schedule | CDC", count=2)
         self.assertEqual(extract.find_boilerplate(pages), [])
-        self.assertEqual(extract.classify(pages), extract.CLASS_PRINT_CAPTURE)
+        self.assertEqual(extract.classify(pages), extract.CLASS_WEB_CAPTURE)
 
     def test_a_stamp_on_one_page_of_many_is_not_a_capture(self):
         pages = [["body"], ["body"], ["body"], ["8/12/26, 10:25 AM Something | CDC"]]
@@ -1026,6 +1408,74 @@ class DocumentClass(unittest.TestCase):
 
     def test_a_document_with_no_pages_at_all_is_a_guideline(self):
         self.assertEqual(extract.classify([]), extract.CLASS_GUIDELINE)
+
+    # ------------------------------------------------------------------
+    # The recommendation-statement branch, #185
+    # ------------------------------------------------------------------
+
+    USPSTF_TITLE = [
+        "US Preventive Services Task Force Recommendation Statement",
+        "Screening for Colorectal Cancer",
+    ]
+
+    def test_a_document_that_titles_itself_a_recommendation_statement_is_one(self):
+        self.assertEqual(
+            extract.classify([self.USPSTF_TITLE, ["body"], ["body"], ["body"]]),
+            extract.CLASS_RECOMMENDATION_STATEMENT,
+        )
+
+    def test_the_title_block_is_matched_with_its_spaces_lost(self):
+        # Several USPSTF files render the line as one run of letters, which is
+        # the extraction losing the space glyphs rather than the page saying so.
+        glued = [["USPreventiveServicesTaskForceRecommendationStatement"]]
+        self.assertEqual(
+            extract.classify(glued + [["body"]] * 3),
+            extract.CLASS_RECOMMENDATION_STATEMENT,
+        )
+
+    def test_both_marks_are_required(self):
+        # "Summary of Recommendation Statements" is a table-of-contents line in
+        # four KDIGO guidelines and in the CDC opioid guideline. Matching the
+        # phrase alone classes all five wrongly.
+        for line in (
+            "Summary of Recommendation Statements",
+            "US Preventive Services Task Force",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(
+                    extract.classify([[line], ["body"], ["body"], ["body"]]),
+                    extract.CLASS_GUIDELINE,
+                )
+
+    def test_the_mark_is_read_off_the_first_page_only(self):
+        # A guideline citing a USPSTF recommendation statement in its references
+        # is not one. The document titles itself on its title page or not at all.
+        pages = [["KDIGO 2024 Clinical Practice Guideline"], ["body"], ["body"]]
+        pages.append(self.USPSTF_TITLE)
+        self.assertEqual(extract.classify(pages), extract.CLASS_GUIDELINE)
+
+    def test_a_capture_that_says_recommendation_statement_is_still_a_capture(self):
+        # The order is the whole rule. `guidelines_catalog.classify` has always
+        # read the two this way round and this adopts it: the JAMA page saved
+        # from a browser is the live case in the other direction, and a capture
+        # of a USPSTF page is the one here.
+        stamped = [
+            ["8/12/26, 10:25 AM Screening | USPSTF"] + self.USPSTF_TITLE
+        ] + [["8/12/26, 10:25 AM Screening | USPSTF", "body"] for _ in range(3)]
+        self.assertEqual(extract.classify(stamped), extract.CLASS_WEB_CAPTURE)
+
+    def test_every_value_classify_can_return_is_in_the_published_vocabulary(self):
+        # `CLASS_UNKNOWN` is deliberately outside `CLASSES` and is deliberately
+        # not reachable from here: it is what a document that was never read
+        # carries, and a document that was never read is never classified.
+        for pages in (
+            [],
+            self.every_page_carries("8/12/26, 10:25 AM Adult Schedule | CDC"),
+            [self.USPSTF_TITLE, ["body"], ["body"], ["body"]],
+            [["KDIGO 2024 Clinical Practice Guideline"], ["body"], ["body"]],
+        ):
+            with self.subTest(pages=pages[:1]):
+                self.assertIn(extract.classify(pages), extract.CLASSES)
 
 
 class OutputStaysOutOfTheRepo(unittest.TestCase):
@@ -1133,7 +1583,7 @@ class WritingADocument(unittest.TestCase):
         self.assertEqual(self.record().document_class, extract.CLASS_GUIDELINE)
         self.assertEqual(
             self.record(pages=ACIP, name="ACIP/adult.pdf").document_class,
-            extract.CLASS_PRINT_CAPTURE,
+            extract.CLASS_WEB_CAPTURE,
         )
 
     def test_records_how_many_pages_came_back_empty(self):
@@ -1235,7 +1685,7 @@ class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
         # The single reason document_class is in the manifest at all: it is a
         # column on `document` and guidelines_search.py --class filters on it.
         self.assertEqual(
-            self.documents["ACIP/adult"].document_class, extract.CLASS_PRINT_CAPTURE
+            self.documents["ACIP/adult"].document_class, extract.CLASS_WEB_CAPTURE
         )
 
     def test_the_page_count_survives_the_form_feeds(self):

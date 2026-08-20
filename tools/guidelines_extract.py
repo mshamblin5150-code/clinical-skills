@@ -166,6 +166,44 @@ The trade favors the body over the front matter, which is the right way round: w
 splits is display type in headings and reference lists, and what is repaired is
 running prose, where a threshold lives.
 
+**Fonts that lie about their own encoding, and the one thing that settles it.**
+#172. A comparison operator set in ``AdvPS_SSYB`` or in three slots of ``SymbolMT``
+comes back as a pound sign, a double dagger or a C0 control code, from ``pypdf``
+and PyMuPDF alike -- the mis-encoding is in the PDF, not in either reader.
+``rebuild_text`` repairs those slots, and it is the only place that can: it is the
+last function here that knows what typeface a character was set in. See
+``SYMBOL_FONT_OPERATORS`` for the table, the evidence and the counts.
+
+**The evidence is the rendered page, because the PDF offers nothing else.**
+``GMBEDM+AdvPS_SSYB`` declares ``/Encoding /WinAnsiEncoding``, a text encoding on a
+symbol font; it ships no ``ToUnicode``; and its embedded CFF subset names its two
+glyphs ``sterling`` and ``daggerdbl``. All three statements are false, so the page
+had to be rasterized and looked at -- ``span_baselines``'s method, for
+``span_baselines``'s reason, and the second time in this file that a rendered page
+found what no text metric could.
+
+**Keyed on the font, which is what makes it a decoding fix rather than a
+heuristic.** #172 proposed a unit-aware rule over the text -- a pound sign, a
+number, a clinical unit -- and this repo does not rewrite source text on a guess.
+It does not have to: the corpus's two genuine currency figures are set in an
+ordinary text face and are untouched *by construction*. The clinician ruled the
+substitution on 2026-08-19 on that basis.
+
+**And the ticket was understated threefold by looking at the wrong character.** It
+recorded the greater-or-equal side as clean on ``0 occurrences of the 0xB3 slot``,
+which is true and is not what it reads as. 183 of the 256 operators are ``>=``, and
+they landed on a double dagger, on two control codes, and on 0xB3 exactly once but
+in the private use area. A rule keyed on the pound sign reaches none of them.
+
+**``symbol_glyph_census`` is the other half, and it is the durable one.** The
+substitution repairs five slots somebody went and looked at. What it cannot reach
+is the next corpus refresh bringing a symbol font nobody has looked at -- decoded
+however the PDF says, with every check downstream reading clean, which is the state
+this corpus was in for the whole of #83. So every unmapped glyph from a symbol face
+is counted per document into ``manifest.json`` and summed on the run summary, and a
+refresh leaves a diff somebody has to look at rather than a silence somebody has to
+think of.
+
 **The boilerplate rule.** A line appearing on 75% or more of a document's sampled
 pages is boilerplate, is stripped from every page, and is recorded per document so
 the removal can be audited rather than believed. This is the point of the whole
@@ -399,11 +437,168 @@ SPACE_ADVANCE_FRACTION = 0.05
 # baseline. See `line_baseline` for why a low floor would be worse than none.
 MINIMUM_GAPS_FOR_BASELINE = 4
 
+# Fonts that lie about their own encoding, and what their glyphs really are --
+# #172. A comparison operator set in one of these comes back as something else,
+# from `pypdf` and PyMuPDF alike, because the mis-encoding is in the PDF rather
+# than in either reader's interpretation of it.
+#
+# **Keyed on the font, so no rule reads the text.** The ticket proposed a
+# unit-aware rule -- a pound sign, then a number, then a clinical unit -- and
+# priced it at ~67 of the 73 it knew about. Keyed on the font instead, the two
+# genuine currency figures in the corpus are untouched *by construction* rather
+# than by a rule that mostly avoids them: both are set in an ordinary text face,
+# one `MinionPro-Regular` and one `Berkeley-Medium`, each beside a euro sign in a
+# price list. That is what makes this a decoding fix and not a heuristic, and it
+# is why the clinician's ruling on 2026-08-19 was to substitute at all.
+#
+# **The evidence is the rendered glyph, because the PDF offers no other.**
+# `GMBEDM+AdvPS_SSYB` declares `/Encoding /WinAnsiEncoding`, which is a text
+# encoding on a symbol font; it ships no `ToUnicode` at all; and its embedded CFF
+# subset names its two glyphs `sterling` and `daggerdbl`. All three statements are
+# wrong, so nothing in the file can be trusted and the page had to be rasterized
+# and looked at -- `span_baselines`'s method, for `span_baselines`'s reason.
+#
+# Measured over all 179 documents, 2026-08-19. **256 operators across 12 files**,
+# against the 73 the ticket recorded:
+#
+#     AdvPS_SSYB  U+00A3 -> <=    71   9 docs, all KDIGO
+#     AdvPS_SSYB  U+2021 -> >=   146  11 docs, all KDIGO
+#     SymbolMT    U+001E -> <=     2   1 doc, AHA/ACC aortic disease 2022
+#     SymbolMT    U+001F -> >=    36   1 doc, the same one
+#     SymbolMT    U+F0B3 -> >=     1   1 doc, IDSA GAS pharyngitis
+#
+# **The ticket looked at the wrong character for the >= side.** It records that
+# side as clean on `0 occurrences of the 0xB3 slot`, which is true and does not
+# mean what it reads as: >= landed on a double dagger 146 times, on two C0 control
+# codes 38 times, and on 0xB3 exactly once but in the *private use area*, where a
+# scan for U+00B3 cannot see it. A rule keyed on the pound sign reaches none of
+# the 183.
+#
+# **39 of the 256 are deleted rather than mangled, which is worse.** U+001E,
+# U+001F and U+F0B3 all fall inside `_DISCARDED_RANGES`, so before this landed
+# `COPD and FEV1 <=50% predicted` reached the corpus as
+# `COPD and FEV1 50% predicted`: a threshold flattened into an equality with no
+# character left behind to notice it by. Nothing downstream could have caught
+# that -- `threshold_sheet.py`'s gate refuses a mis-encoded character in a value
+# cell, and there is no character.
+#
+# **What this cannot reach, and it is the reason for `symbol_glyph_census`
+# below.** A symbol font this table does not name is decoded however the PDF says
+# and passes in silence, which is exactly the state the corpus was in until
+# somebody went looking. `SymbolMT` is the standing warning: under that one font
+# name the corpus emits <= and >= *correctly* 2,078 times in other documents, so a
+# font name is not a verdict on a document, only on a slot -- and a row may only
+# claim a slot that is wrong everywhere.
+#
+# **`MathematicalPi-One` is the font that is not here, and it is why the rule
+# above is load-bearing rather than decorative.** It sets comparison operators in
+# two C0 slots `_DISCARDED_RANGES` deletes -- the same class as `SymbolMT`'s, and
+# in USPSTF, which is 90 of the 179 documents. 93 operators. Every instinct says
+# add two rows. **Rendered, the two slots are exactly inverted between two
+# documents of the same society:**
+#
+#     abdom-aortic-aneurysm-screening-final-rs     U+0002 = >=   U+0003 = <=
+#     osteoporosis-screening-final-recommendation  U+0002 = <=   U+0003 = >=
+#
+# So a font-name-keyed row would have turned `>=90% of screen-detected AAAs` into
+# `<=90%` -- **inverting a threshold rather than losing one**, which is worse than
+# the defect this table was built for and is the one outcome no gate downstream
+# can catch, because the result is a well-formed operator in a plausible place.
+#
+# **It was nearly missed, and how is the transferable part.** Four sampled
+# documents agreed at 400 dpi and the fifth did not; the disagreement was only
+# legible at 700 dpi. Confirmed independently by rasterizing every occurrence and
+# hashing the glyph box: no shape appears under both of `AdvPS_SSYB`'s two codes,
+# and **four shapes appear under both of `MathematicalPi-One`'s**. That instrument
+# cannot prove two glyphs are the *same* -- it hashes a rasterization, so point
+# size and subpixel offset move it -- but one shape sitting under two codes is a
+# difference noise cannot manufacture, which is the only direction it was trusted
+# in. Filed rather than folded in: settling it needs a *per document* decoding.
+#
+# **Two more mis-encodings are deliberately not here, on the narrower ground.**
+# `AdvPSSym` renders the copyright sign as U+00AA; `SymbolMT` renders an up arrow
+# as `n` and a down arrow as `p` in one KDIGO figure; `Universal-GreekwithMathP`
+# renders an equals sign in a deleted C0 slot. None is a character a threshold is
+# written with, which is the boundary of what this table may claim, and mapping a
+# *letter* would mean a font name that is ever wrong corrupts prose rather than
+# one symbol. All of them stay visible in `symbol_glyph_census`.
+SYMBOL_FONT_OPERATORS = {
+    "AdvPS_SSYB": {
+        "\u00a3": "\u2264",  # rendered: a less-or-equal sign
+        "\u2021": "\u2265",  # rendered: a greater-or-equal sign
+    },
+    "SymbolMT": {
+        "\u001e": "\u2264",
+        "\u001f": "\u2265",
+        "\uf0b3": "\u2265",  # the Symbol font's own 0xB3, surfacing unmapped
+    },
+}
+
+# A PDF font subset tag: exactly six uppercase letters and a plus, as in
+# `GMBEDM+AdvPS_SSYB`. PyMuPDF strips it before `rawdict`, so the corpus never
+# exercises this -- but the tag is one call away in the font dictionary itself,
+# and matching on the plus alone would let `abcdef+AdvPS_SSYB` through as a font
+# nobody measured.
+SUBSET_TAG = re.compile(r"^[A-Z]{6}\+")
+
+# Font names whose glyphs are worth counting even where nothing maps them. A
+# substring match and therefore a guess -- which is affordable here and nowhere
+# else in this module, because `symbol_glyph_census` only ever *reports*. Nothing
+# below changes a character.
+SYMBOL_FONT_MARKERS = (
+    "sym", "ssy", "dingbat", "wingding", "mathematicalpi", "mathpi", "universal",
+)
+
+
 CLASS_GUIDELINE = "guideline"
-CLASS_PRINT_CAPTURE = "print-capture"
+# USPSTF's document type and nobody else's in this corpus: the 90 USPSTF files each
+# title themselves one. #82 built a separate table for exactly that distinction.
+CLASS_RECOMMENDATION_STATEMENT = "recommendation-statement"
+# A browser print-to-PDF of a web page rather than a published document, which is the
+# three ACIP/ files and only those.
+CLASS_WEB_CAPTURE = "web-capture"
 # For a document that was never read. It is not a guideline; nobody knows what it
 # is, and recording it as the default class would let a failure read as a finding.
 CLASS_UNKNOWN = "unknown"
+
+#: The vocabulary a document that was **read** can carry, and the one
+#: ``reference/guidelines-catalog.md``'s ``class`` column publishes --
+#: [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185), where the
+#: two were different sets overlapping on ``guideline`` alone, so every document not
+#: classed ``guideline`` answered ``guidelines_search.py --class`` with a certified
+#: zero. **The count is stated in ``test_class_vocabulary.py`` and deliberately
+#: nowhere else**: it is a fact about a tree that no longer exists and nothing
+#: committed re-derives it.
+#:
+#: **``CLASS_UNKNOWN`` is deliberately not in it.** A document that failed to read has
+#: no ``.txt``, so ``guidelines_index.py`` never sees it and no row in the index can
+#: carry that value -- and a catalog row that did carry it would be a filter value the
+#: index cannot answer, which is the whole defect. It is a manifest value only.
+#:
+#: **``guidelines_index.UNCLASSIFIED`` is a fourth value the index can carry and this
+#: is deliberately not it either.** That one describes a *build* -- a document with no
+#: manifest entry at all -- rather than a document, so no catalog row could sensibly
+#: hold it. It is named here rather than left to be discovered, and pinned in
+#: ``test_class_vocabulary.py``.
+#:
+#: ``guidelines_catalog.py`` imports this rather than restating it, and
+#: ``guidelines_catalog.check_legend`` asserts the catalog's own legend row is this set.
+CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
+
+# A recommendation statement is a document that titles itself one. The two marks have
+# to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
+# line in four KDIGO guidelines and in the CDC opioid guideline, and matching the
+# phrase alone classes all five wrongly.
+#
+# Whitespace is squashed before matching because the extraction loses the spaces in
+# some of these title blocks: several USPSTF files render the line as
+# ``USPreventiveServicesTaskForceRecommendationStatement``.
+#
+# These live here rather than in ``guidelines_catalog.py``, which is where they were
+# written, because the producer owns the vocabulary it emits and the auditor imports
+# it. Two copies of a rule that must agree is what #253 cost.
+TASK_FORCE_MARK = "taskforce"
+RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
 
 # The three ACIP/ files are browser print-to-PDF captures of CDC schedule pages
 # rather than guideline documents, and this header is what says so. The URL and
@@ -423,7 +618,10 @@ CLASS_UNKNOWN = "unknown"
 # must never become is unanchored: a date and time part way through a sentence is
 # prose, and this must not read a guideline as a browser capture.
 #
-# All three ACIP files re-checked as print-capture under PyMuPDF on 2026-08-16.
+# All three ACIP files re-checked as web-capture under PyMuPDF on 2026-08-19.
+# The constant is named for the shape it matches -- a browser print stamp -- and the
+# class it decides is named for what the document is. #185 renamed the second and
+# deliberately left the first.
 PRINT_CAPTURE_STAMP = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}\s*[AP]M\b")
 
 # Characters that are noise or that render as something else, replaced explicitly
@@ -676,15 +874,45 @@ def margin_removals(
     return sorted(taken)
 
 
-def classify(pages: list[list[str]]) -> str:
-    """Whether this is a guideline document or a browser print-to-PDF capture.
+def squash(text: str) -> str:
+    """Whitespace out, lowercase, for matching a title block the extraction glued."""
+    return re.sub(r"\s+", "", text).lower()
 
-    Counted over the sampled pages directly rather than read off the boilerplate
-    set. Those look interchangeable on the three real captures, where the stamp is
-    on every page and clears every bar -- but reading the boilerplate set makes the
-    class a side effect of boilerplate detection, so a capture short enough to trip
-    MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page, would
-    come back a guideline with nothing saying otherwise.
+
+def is_recommendation_statement(title_block: str) -> bool:
+    """Whether a title block says the document is a USPSTF recommendation statement.
+
+    Shared with ``guidelines_catalog.classify`` by import rather than by copy, so the
+    producer and the auditor cannot come to hold different answers.
+    """
+    squashed = squash(title_block)
+    return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
+
+
+def classify(pages: list[list[str]]) -> str:
+    """Which of ``CLASSES`` this document is.
+
+    **Ordered, and the order matters**: a browser capture of a page that happens to say
+    "recommendation statement" is still a capture. ``guidelines_catalog.classify`` has
+    always read the two in that order and this adopts it.
+
+    The capture test is counted over the sampled pages directly rather than read off
+    the boilerplate set. Those look interchangeable on the three real captures, where
+    the stamp is on every page and clears every bar -- but reading the boilerplate set
+    makes the class a side effect of boilerplate detection, so a capture short enough
+    to trip MINIMUM_OCCURRENCES, or one whose stamp missed the threshold by a page,
+    would come back a guideline with nothing saying otherwise.
+
+    **The recommendation-statement test reads the first page only**, which is where the
+    document titles itself, and it runs here rather than in ``guidelines_catalog.py``
+    alone because #185 ruled the producer's vocabulary is the catalog's. Running the
+    catalog's classifier over the extracted ``.txt`` corpus reproduces every one of the
+    catalog's ``recommendation-statement`` and ``guideline`` cells, and misses all three
+    captures -- because the stamp it keys on is boilerplate and has been stripped by
+    then. This sees the pages **before** stripping, which is why both halves can live
+    here and neither could live there. **The counts are deliberately not stated**: the
+    only thing that produces them is an artifact outside every checkout, so nothing
+    committed re-derives them, and one of the three is a subtraction of the other two.
     """
     sampled = sample_indexes(len(pages))
     if not sampled:
@@ -695,7 +923,9 @@ def classify(pages: list[list[str]]) -> str:
         if any(PRINT_CAPTURE_STAMP.match(line) for line in pages[index])
     )
     if stamped >= BOILERPLATE_THRESHOLD * len(sampled):
-        return CLASS_PRINT_CAPTURE
+        return CLASS_WEB_CAPTURE
+    if pages and is_recommendation_statement(" ".join(pages[0])):
+        return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE
 
 
@@ -736,6 +966,13 @@ class Record:
     # reshuffle of the old one.
     margin_patterns: list[str] = field(default_factory=list)
     margin_stripped: list[str] = field(default_factory=list)
+    # #172's report, and deliberately a field rather than a printed line. A symbol
+    # font this module's table does not name is decoded however the PDF says and
+    # passes in silence -- which is the state the corpus was in for the whole of
+    # #83 -- so a refresh has to leave a diff somebody looks at. Keyed
+    # `<font> U+XXXX`, and empty means the walk found nothing rather than that
+    # nothing was looked at: `error` is what says the document was never read.
+    symbol_glyphs: dict[str, int] = field(default_factory=dict)
     error: str | None = None
 
 
@@ -753,9 +990,19 @@ def society_of(doc_id: str) -> str | None:
 
 
 def build_document(
-    relative: Path, raw_pages: list[str], out_root: Path, title: str | None = None
+    relative: Path,
+    raw_pages: list[str],
+    out_root: Path,
+    title: str | None = None,
+    symbol_glyphs: dict[str, int] | None = None,
 ) -> Record:
-    """Normalize, strip, write one text file, and describe what was done to it."""
+    """Normalize, strip, write one text file, and describe what was done to it.
+
+    ``symbol_glyphs`` is #172's census, which cannot be computed here: this takes
+    page *strings* and a font name exists only in the ``rawdict`` ``extract_pages``
+    walked. It is carried rather than derived for exactly that reason, and defaults
+    to nothing counted -- which is what every caller in the test file is.
+    """
     pages = clean_pages(raw_pages)
     boilerplate = find_boilerplate(pages)
     margin_patterns = find_margin_patterns(pages)
@@ -794,6 +1041,7 @@ def build_document(
         boilerplate=boilerplate,
         margin_patterns=fired,
         margin_stripped=margin_stripped,
+        symbol_glyphs=dict(symbol_glyphs or {}),
         error=None,
     )
 
@@ -888,6 +1136,76 @@ def span_baselines(line: dict) -> list[float]:
     ]
 
 
+def font_key(name: str) -> str:
+    """A span's font name with any subset tag dropped.
+
+    ``GMBEDM+AdvPS_SSYB`` and ``AdvPS_SSYB`` are the same typeface, and every
+    document embeds its own subset under its own tag -- so a table keyed on the
+    tagged name would match one document and no other.
+    """
+    return SUBSET_TAG.sub("", name)
+
+
+def is_symbol_font(name: str) -> bool:
+    """Whether a font name marks it as a symbol face rather than a text one."""
+    lowered = font_key(name).lower()
+    return any(marker in lowered for marker in SYMBOL_FONT_MARKERS)
+
+
+def symbol_glyph_census(raw: dict) -> dict[str, int]:
+    """Glyphs from a symbol font that ``SYMBOL_FONT_OPERATORS`` does not map.
+
+    **A report and never a rule** -- this is what stops #172 recurring in silence.
+    The defect it exists for is not a character that came out wrong; it is a
+    *corpus refresh* bringing a font nobody has looked at, whose comparison
+    operators land wherever its broken map sends them, with every downstream check
+    reading clean. That is the state this corpus was in for the whole of #83.
+    Recorded per document in ``manifest.json``, so a refresh produces a diff
+    somebody has to look at rather than a silence somebody has to think of.
+
+    Keyed ``<font> U+XXXX`` and counted. **Deliberately unfiltered beyond the two
+    exclusions below**, and an allowlist of glyphs that look harmless is exactly
+    what would have hidden U+001F -- which reads as extraction debris and is a
+    greater-or-equal sign.
+
+    A space is dropped because every symbol font in the corpus sets them and means
+    nothing by it. And a glyph that is already one of ``SYMBOL_FONT_OPERATORS``'s
+    *replacements* is dropped, which is a line about this module's own vocabulary
+    rather than a judgment about what looks harmless: a symbol font emitting a
+    correct ``<=`` is the non-defect this whole table exists to produce. Measured
+    2026-08-19 it is not a nicety -- ``SymbolMT`` alone renders 2,078 correct
+    operators across the corpus, which is two thirds of everything the census would
+    otherwise print, and a report whose loudest line is the thing working is a
+    report with no usable baseline.
+
+    **What that costs, named rather than discovered.** A font emitting ``<=`` where
+    the page shows ``<`` is now invisible here. It was never visible: no census over
+    a text layer can see a glyph that decoded to a plausible character, which is the
+    same reason the five rows above had to be settled by rendering a page.
+    """
+    replacements = {
+        replacement
+        for mapping in SYMBOL_FONT_OPERATORS.values()
+        for replacement in mapping.values()
+    }
+    census: dict[str, int] = {}
+    for block in raw.get("blocks", ()):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", ()):
+            for span in line.get("spans", ()):
+                name = font_key(span.get("font", ""))
+                if not is_symbol_font(name):
+                    continue
+                mapped = SYMBOL_FONT_OPERATORS.get(name, {})
+                for char in span.get("chars", ()):
+                    glyph = char["c"]
+                    if glyph in mapped or glyph in replacements or glyph == " ":
+                        continue
+                    key = f"{name} U+{ord(glyph):04X}"
+                    census[key] = census.get(key, 0) + 1
+    return census
+
 def span_space_advances(line: dict) -> list[float | None]:
     """What a word break is worth on this line, read off the spaces it already has.
 
@@ -945,7 +1263,6 @@ def span_space_advances(line: dict) -> list[float | None]:
         for own in (advances(span) for span in spans)
     ]
 
-
 def rebuild_text(raw: dict) -> str:
     """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
 
@@ -980,8 +1297,14 @@ def rebuild_text(raw: dict) -> str:
                 baseline = baselines[index]
                 advance = advances[index]
                 threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
+                # #172. Looked up once per span rather than once per character,
+                # and empty for every font in the corpus but two.
+                operators = SYMBOL_FONT_OPERATORS.get(font_key(span.get("font", "")), {})
                 for char in span.get("chars", ()):
-                    glyph = char["c"]
+                    # Substituted before the gap rule reads it, which is safe
+                    # because every row is 1:1 and no row produces a space -- so
+                    # `glyph != " "` below decides the same thing either way.
+                    glyph = operators.get(char["c"], char["c"])
                     left, _, right, _ = char["bbox"]
                     # Two independent bars, and a gap has to clear both. The first
                     # asks whether the gap stands out against the line's own
@@ -1016,8 +1339,12 @@ def rebuild_text(raw: dict) -> str:
     return "\n".join(lines)
 
 
-def extract_pages(path: Path) -> tuple[list[str], str | None]:
-    """Every page of a PDF as raw text in reading order, and its embedded title.
+def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
+    """Every page of a PDF as raw text, its embedded title, and #172's census.
+
+    The census comes back from here and not from anywhere downstream because this
+    is the last place a font name exists -- ``rebuild_text`` returns a string, and
+    every function after it takes page text.
 
     A page that raises comes back as an empty string rather than taking the
     document down with it -- the manifest counts it, and one unreadable page in a
@@ -1032,10 +1359,14 @@ def extract_pages(path: Path) -> tuple[list[str], str | None]:
     import pymupdf  # imported here so the pure functions above stay importable without it
 
     document = pymupdf.open(str(path))
-    pages = []
+    pages: list[str] = []
+    symbol_glyphs: dict[str, int] = {}
     for page in document:
         try:
-            pages.append(rebuild_text(page.get_text("rawdict")))
+            raw = page.get_text("rawdict")
+            pages.append(rebuild_text(raw))
+            for key, count in symbol_glyph_census(raw).items():
+                symbol_glyphs[key] = symbol_glyphs.get(key, 0) + count
         except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
             pages.append("")
 
@@ -1044,7 +1375,7 @@ def extract_pages(path: Path) -> tuple[list[str], str | None]:
     except Exception:  # noqa: BLE001 - a broken metadata dictionary is not a failed read
         title = None
     document.close()
-    return pages, title
+    return pages, title, dict(sorted(symbol_glyphs.items()))
 
 
 def _engine_version() -> str:
@@ -1085,8 +1416,8 @@ def _extract_one(job: tuple[Path, Path, Path]) -> Record:
     """
     source_root, relative, out_root = job
     try:
-        raw_pages, title = extract_pages(source_root / relative)
-        return build_document(relative, raw_pages, out_root, title)
+        raw_pages, title, symbol_glyphs = extract_pages(source_root / relative)
+        return build_document(relative, raw_pages, out_root, title, symbol_glyphs)
     except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
         return failed_document(relative, f"{type(error).__name__}: {error}")
 
@@ -1241,13 +1572,28 @@ def main(argv: list[str]) -> int:
     manifest = write_manifest(out_root, records, source_root)
 
     failures = [record for record in records if record.error]
-    captures = sum(1 for r in records if r.document_class == CLASS_PRINT_CAPTURE)
+    # Every class, not only the captures. Since #185 this is the vocabulary
+    # `reference/guidelines-catalog.md` publishes and `guidelines_search.py --class`
+    # filters on, so the breakdown is the one command that re-derives the figures
+    # CLAUDE.md states -- and a class that fell to zero is visible rather than
+    # implied by the one that did not.
+    #
+    # `CLASS_UNKNOWN` is counted here and is deliberately outside `CLASSES`, because a
+    # breakdown that did not sum to the document count would be a line inviting the
+    # reader to work out the difference -- and the missing term would be exactly the
+    # documents that failed to read. It prints only when it is non-zero, so an ordinary
+    # run is not given a column for a class it does not have.
+    counted = {cls: sum(1 for r in records if r.document_class == cls) for cls in CLASSES}
+    unread = sum(1 for r in records if r.document_class == CLASS_UNKNOWN)
+    if unread:
+        counted[CLASS_UNKNOWN] = unread
+    breakdown = ", ".join(f"{n} {cls}" for cls, n in counted.items())
 
     print()
     print(f"source      {source_root}")
     print(f"output      {out_root}")
     print(f"engine      {_engine_version()}, codec {OUTPUT_CODEC}")
-    print(f"documents   {len(records):,}  ({captures} print-capture)")
+    print(f"documents   {len(records):,}  ({breakdown})")
     print(
         f"pages       {sum(r.pages for r in records):,}  "
         f"({sum(r.empty_pages for r in records):,} with no text layer)"
@@ -1274,6 +1620,15 @@ def main(argv: list[str]) -> int:
     )
     unstripped = [r for r in records if r.output and not r.boilerplate and not r.margin_patterns]
     print(f"            {len(unstripped):,} document(s) had nothing stripped by either rule")
+    # #172. Printed on every run rather than only when it is non-zero, because a
+    # line that appears when something is wrong is a line nobody has a baseline
+    # for -- and the number a reader needs is "the same as last time".
+    unmapped = sum(sum(r.symbol_glyphs.values()) for r in records)
+    carriers = sum(1 for r in records if r.symbol_glyphs)
+    print(
+        f"symbols     {unmapped:,} glyph(s) in {carriers:,} document(s) from a symbol "
+        "font this build does not map; see symbol_glyphs in the manifest"
+    )
     print(f"manifest    {manifest}")
 
     orphans = orphaned_outputs(out_root, records)

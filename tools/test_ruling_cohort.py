@@ -33,8 +33,16 @@ no others, and a gate over the whole ``Sets`` column is a different ticket --
 (``peds-bp`` reads ``6 of 11`` and holds 12 rows; ``hedged-dx`` reads ``6 of 6``
 and holds 12). **The reason for saying so here is that the alternative is the
 defect this module cites #143 for**: an explicit list that reads as a repo-wide
-denominator gate is ``all_cases()``'s exact shape, and a silent cap reads as
-coverage. ``TheCoverageBoundIsStated`` below is what makes it noisy.
+denominator gate was ``all_committed_cases()``'s exact shape, and a silent cap
+reads as coverage. ``TheCoverageBoundIsStated`` below is what makes it noisy.
+
+**That exemplar is history rather than a live one, and #143 is closed** --
+ruled 2026-08-19, the other way: the enumerator there is a glob now and
+``all_committed_cases`` is deleted. **The ruling was a hybrid and it is what
+#202 should copy** -- glob for the population, an explicit declaration per
+member, and a gate that fails until a new member is declared. This module's own
+bound stays an explicit list until #202 rules, and the sentence above is left
+standing because the shape it names is what this bound is a bet against.
 
 **Nothing here reads a note.** It reads committed Markdown only, so it needs no
 fixtures, touches no run directory and can print anything it finds.

@@ -76,10 +76,22 @@ recommendation in GRADE terms, so reading the markers first would answer a curat
 
 **#173 limb 2 is IDSA, and it is a bound because the strength is a sentence.** IDSA
 writes *"(strong recommendation, moderate-quality evidence)"* -- newer files spell it
-*"certainty of evidence"* -- and three documents elide the words entirely and write
+*"certainty of evidence"* -- and **ten** documents elide the words entirely and write
 *"(strong, moderate)"*. Those are two markers rather than one alternation, because
 they are two conventions and a merged pattern would report a document as using a
-house style it does not. **The strength is in the parenthetical and is still not read
+house style it does not.
+
+**That ten read *three* for one merge, and how it went wrong is worth more than the
+number.** It was counted over ``guidelines-text/`` -- the extracted ``.txt`` corpus,
+which is **not what this module reads** -- with a hand-written pattern, and over ten
+files picked because a *different* pattern had returned nothing on them. A figure
+measured against the wrong input **and** over a selection, which is #137's shape and
+the trap `guidelines_extract.py` records in as many words: it reads exactly like one
+measured against the right input. Re-derived by running this module's own markers
+over all 179 PDFs, 2026-08-19: **ten** documents carry the terse form, **none**
+carries both forms, and **none of the ten is reached by any other marker here**. So
+the terse limb is not a minor variant -- without it IDSA would be 20 ``bound`` and 21
+counted at nothing, rather than 30 and 11. **The strength is in the parenthetical and is still not read
 into ``cor``**: gate 2's class check is the one thing catching a row pinned to the
 wrong recommendation, and filling it from an over-reporting marker would make that
 check fire on pairings the marker invented.

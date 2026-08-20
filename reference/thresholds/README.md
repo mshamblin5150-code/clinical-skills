@@ -210,10 +210,19 @@ rather than a silent miss.
 Eight columns: `quantity | population | value | snippet | source | page | rec | class`.
 
 - `value` uses **ASCII comparison operators only** — `<`, `>`, `<=`, `>=`. This is a
-  rule about the corpus rather than about taste: KDIGO's tables render the
-  less-or-equal sign through a Symbol-font slot that extracts as a pound sign, **73
-  times across the 179 documents**, measured 2026-08-16. A sheet holds the fact and
+  rule about the corpus rather than about taste: two fonts in it render a comparison
+  operator through a slot their own encoding does not describe, so a reader hands
+  back a pound sign, a double dagger or a control code. A sheet holds the fact and
   must not hold the mis-encoding.
+
+  Since [#172](https://github.com/mshamblin5150-code/clinical-skills/issues/172) the
+  extractor repairs those slots at the point the font is still known, so the extracted
+  text a sheet is transcribed from carries the operator the document prints. **The gate
+  stays**, because a sheet may be transcribed from a PDF opened by any reader on any
+  machine, and it now takes its list from `guidelines_extract.SYMBOL_FONT_OPERATORS`
+  rather than holding a copy. **How many slots there are is that table's to say, and
+  two of them no gate can reach at all** — `threshold_sheet.UNREACHABLE_IN_A_TABLE_CELL`
+  names them and says why.
 - `snippet` is a short **verbatim** run from the source containing the value's number.
   It is not decoration; it is what makes the citation checkable on a machine that does
   not have the PDFs.
