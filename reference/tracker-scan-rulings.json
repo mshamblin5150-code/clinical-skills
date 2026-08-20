@@ -12,6 +12,14 @@
     {
       "commit": "4d0347975524168a052aaafa8ed552f8afca0568",
       "line": 4,
+      "rule": "corpus-date",
+      "match_sha256": "0c549456a399f3cf6059a0058a3ae412b76689beb863728637a58f3117935338",
+      "verdict": "accepted-history",
+      "reason": "accepted-history-ruling"
+    },
+    {
+      "commit": "4d0347975524168a052aaafa8ed552f8afca0568",
+      "line": 4,
       "rule": "us-short-date",
       "match_sha256": "0c549456a399f3cf6059a0058a3ae412b76689beb863728637a58f3117935338",
       "verdict": "accepted-history",
@@ -96,6 +104,14 @@
       "match_sha256": "2becf26b69e9aaf71d0a5f7e3e5ee0a623c1c9521c11c72f1a0688e121b268ac",
       "verdict": "noise",
       "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "fa53a928a5c95fd9f803192dff172655fec66cb5",
+      "line": 16,
+      "rule": "corpus-date",
+      "match_sha256": "0c549456a399f3cf6059a0058a3ae412b76689beb863728637a58f3117935338",
+      "verdict": "accepted-history",
+      "reason": "accepted-history-ruling"
     },
     {
       "commit": "fa53a928a5c95fd9f803192dff172655fec66cb5",
