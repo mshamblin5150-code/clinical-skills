@@ -18,8 +18,10 @@ because it reads as agreement.
 
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import block_scan
@@ -193,7 +195,7 @@ class ALabelHeadsALineRatherThanOpeningAProseSentence(unittest.TestCase):
         )
 
     def test_valid_bare_and_aligned_labels_still_open_sections(self) -> None:
-        text = "FILLED·asserted\n  - Non-smoker\nGAPS              Marital status\n"
+        text = "FILLED·asserted\n  - Non-smoker\nGAPS  Marital status\n"
         block = block_scan.read_block(text)
         self.assertEqual(
             [entry.head for entry in block["FILLED·asserted"]],
@@ -387,7 +389,12 @@ class TheExitStatusSaysWhichKindOfNothing(unittest.TestCase):
             "FILLED·asserted item 11. Filled vitals are not results.\n" + CLEAN
         )
         with write_run({"case-01.md": prose_then_block}) as run:
-            self.assertEqual(block_scan.main([run]), 0)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(block_scan.main([run]), 0)
+        report = output.getvalue()
+        self.assertIn("label-line candidates            1", report)
+        self.assertNotIn("Filled vitals are not results", report)
 
     def test_no_argument_exits_two(self) -> None:
         self.assertEqual(block_scan.main([]), 2)

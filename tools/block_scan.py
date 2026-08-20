@@ -102,7 +102,7 @@ LABELS = ("DERIVED", ASSERTED, PROPOSED, "FLAG", GAPS, "UNKNOWN")
 # The separator in the two FILLED labels is the skill's middle dot; a hyphen or a
 # period is read as the same label rather than as a different one.
 #
-# **Three restrictions here are load-bearing, and each was found only after its
+# **The restrictions here are load-bearing, and each was found only after its
 # permissive form had already produced a wrong reading.**
 #
 # **Case-sensitive.** An earlier version carried ``re.IGNORECASE``, which made
