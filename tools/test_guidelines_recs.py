@@ -201,11 +201,16 @@ class IdsaProseMarkers(unittest.TestCase):
         self.assertEqual(len(found), 1)
 
     def test_finds_the_terse_form(self):
-        """Three documents in the corpus elide the words and write only the two grades.
+        """Ten documents in the corpus elide the words and write only the two grades.
 
         It is a separate marker because nothing else on the page says which convention
         is in use, and folding it into the spelled-out pattern would make a document
         that uses one look like a document that uses both.
+
+        **This docstring read *three* for one merge**, from a count taken over the
+        extracted text rather than over the PDFs and over a hand-picked ten files. None
+        of the ten is reached by any other marker in this module, so the limb carries
+        ten of the twenty-nine documents #173 moved and not three.
         """
         found = recs.read_marker_recommendations(
             4, "Obtain blood cultures (strong, moderate). Give fluids (weak, very low).", "IDSA/y"
