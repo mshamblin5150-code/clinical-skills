@@ -469,10 +469,18 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
     #: of ``Eighty-nine`` is not a figure. That sentence is real and it is a
     #: corpus one -- the fence is what keeps a corpus numeral from being read as
     #: a fixture one, which is the collision this whole gate is scoped around.
+    #: **Case-insensitive on the words, and that was a live hole rather than a
+    #: precaution.** Written case-sensitively this matched ``four of the eight``
+    #: and not ``Three of the five``, so any figure opening a sentence was
+    #: silently ungraded -- the exact class #275 is about, rebuilt inside #275's
+    #: own fix. It was found because the preserved-quotation guard below turned
+    #: out to be passing for the wrong reason: the quotation is sentence-initial,
+    #: so case was keeping it out rather than the claim-keying the docstring
+    #: credits. Scoped to the alternation, so ``NKDA`` stays case-sensitive.
     NUMERAL = (
-        r"(?<![\w-])(?:\d+|"
+        r"(?<![\w-])(?:\d+|(?i:"
         + "|".join(sorted(WORD_NUMERALS, key=len, reverse=True))
-        + r")(?![\w-])"
+        + r"))(?![\w-])"
     )
 
     PUBLISHED = {
@@ -641,9 +649,30 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
                         "the stale pair would not have failed the gate",
                     )
 
+    #: The quotation ``day-b/assertions.md`` preserves as an account of what was
+    #: found on 2026-08-16, matched on the **claim** it makes rather than on its
+    #: figures, which is the whole reason it is safe to leave ungraded.
+    PRESERVED_QUOTATION = "name seasonal allergies alone"
+
+    def preserved_quotation_sentences(self) -> list[str]:
+        """The file's **own** preserved quotation, never a hand-typed copy.
+
+        Read from the tree for ``corpus_sentences``' reason and found the same
+        way -- by the spec axis of ``/code-review``, one method later. The first
+        version drove a typed string, so a reworded quotation could have opened
+        a fresh match with this guard green, which is the defect the sibling was
+        rewritten to close surviving next door to the rewrite.
+        """
+        plain = read(self.GRADED_FILES[1]).replace("*", "").replace("`", "")
+        return [
+            sentence
+            for sentence in re.split(r"(?<=[.])\s", plain)
+            if self.PRESERVED_QUOTATION in sentence
+        ]
+
     def test_the_preserved_quotation_is_left_alone(self) -> None:
-        """``day-b/assertions.md`` keeps *"Three of the five name seasonal
-        allergies alone"* as an account of what was found, and says in as many
+        """``day-b/assertions.md`` keeps *"Three of the five name `seasonal
+        allergies` alone"* as an account of what was found, and says in as many
         words not to correct it. A gate matching that would fail the suite on a
         sentence the file forbids fixing, and the only repair available would be
         to falsify the record -- which is ``fixtures/``'s exclusion reasoning in
@@ -652,12 +681,15 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         So the pattern is keyed on the claim the two live sites make, and this
         quotation does not make it.
         """
-        self.assertEqual(
-            self.figures_published_in(
-                "Three of the five name seasonal allergies alone."
-            ),
-            [],
+        preserved = self.preserved_quotation_sentences()
+        self.assertTrue(
+            preserved,
+            "the preserved quotation is gone from the file -- this guard is "
+            "inert, and the account it protects may have been corrected away",
         )
+        for sentence in preserved:
+            with self.subTest(sentence=sentence.strip()[:60]):
+                self.assertEqual(self.figures_published_in(sentence), [])
 
     def corpus_sentences(self) -> list[str]:
         """The file's **own** corpus sentences, never a hand-typed copy.
@@ -767,6 +799,26 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
                     f"{foreign} no longer names a second population -- "
                     "option 2's collision may have closed, re-price it",
                 )
+
+    def test_a_figure_opening_a_sentence_is_still_read(self) -> None:
+        """A word numeral is a figure wherever it sits, capital or not.
+
+        **Pointed at a shape the two files do not contain today**, on
+        ``test_skill_agreement.py``'s reasoning: asserting the tree is clean
+        proves only that the walk found nothing, and every graded figure in
+        both files happens to sit mid-sentence. So reverting the case rule
+        failed nothing, and the hole would have reappeared in silence the first
+        time somebody opened a sentence with one.
+
+        It was **latent rather than live** -- no published figure was being
+        dropped when this was written -- and it was found only because
+        ``test_the_preserved_quotation_is_left_alone`` was passing for the wrong
+        reason: that quotation is sentence-initial, so case was what kept it
+        out, not the claim-keying its docstring credits.
+        """
+        opening = "Three of the five committed cases name nothing but a seasonal allergy."
+        graded = {key: value for key, value, _ in self.figures_published_in(opening)}
+        self.assertEqual(graded, {"environmental_only": 3, "names_allergen": 5})
 
     def test_the_gate_refuses_rather_than_drops(self) -> None:
         """A pattern may only capture something ``figure`` can read.
