@@ -990,6 +990,7 @@ class TheRulingDoesNotWiden(unittest.TestCase):
     STAYS_PHI = (
         "research_ledger.py",
         "checks_ledger.py",
+        "case_study_scan.py",
         "block_scan.py",
         "specificity_scan.py",
         "differential_scan.py",
@@ -1016,7 +1017,11 @@ class TheRulingDoesNotWiden(unittest.TestCase):
     #: fan-out a grader whose records
     #: are the same readers' prose one file later, and the first version of this
     #: test read that second correct line as the widening it exists to refuse.
-    PHI_COMMANDS_IN_THE_SKILL = ("research_ledger.py", "checks_ledger.py")
+    PHI_COMMANDS_IN_THE_SKILL = (
+        "research_ledger.py",
+        "case_study_scan.py",
+        "checks_ledger.py",
+    )
 
     def test_every_phi_line_in_the_skill_belongs_to_a_tool_that_stays_phi(self):
         """**#218's build spec names the ledger's line and says leave it exactly as
