@@ -35,6 +35,7 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 #: one, a green check answers a question nobody asked.
 SUITE_COMMAND = "python -m unittest discover -s tools -t tools"
 THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
+THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
 
 RUNNER = "windows-latest"
 PYTHON_VERSION = "3.14"
@@ -268,13 +269,29 @@ class ThePhiStepCannotReadAsCoverage(unittest.TestCase):
 class ThresholdSheetsAreGradedAtTheMerge(unittest.TestCase):
     """#190: a commit-refusing sheet gate must also run on the merge tree."""
 
-    def test_the_job_runs_the_threshold_sheet_cli(self):
-        live = [
-            line.strip()
-            for line in workflow_text().splitlines()
+    def threshold_step(self):
+        lines = workflow_text().splitlines()
+        step_start = next(
+            index
+            for index, line in enumerate(lines)
+            if line.strip() == f"- name: {THRESHOLD_STEP_NAME}"
+        )
+        step_end = next(
+            (
+                index
+                for index, line in enumerate(lines[step_start + 1 :], step_start + 1)
+                if re.match(r"^\s*- name:", line)
+            ),
+            len(lines),
+        )
+        return "\n".join(
+            line
+            for line in lines[step_start:step_end]
             if line.strip() and not line.strip().startswith("#")
-        ]
-        self.assertEqual(sum(THRESHOLD_COMMAND in line for line in live), 1)
+        )
+
+    def test_the_job_runs_the_threshold_sheet_cli(self):
+        self.assertEqual(self.threshold_step().count(THRESHOLD_COMMAND), 1)
 
     def test_claude_md_documents_that_same_command(self):
         section = CLAUDE_MD.read_text(encoding="utf-8").partition(
@@ -284,8 +301,9 @@ class ThresholdSheetsAreGradedAtTheMerge(unittest.TestCase):
         self.assertIn(THRESHOLD_COMMAND, section)
 
     def test_the_gate_report_reaches_the_step_summary(self):
-        self.assertIn("### Threshold sheet gate coverage", workflow_text())
-        self.assertIn("GITHUB_STEP_SUMMARY", workflow_text())
+        step = self.threshold_step()
+        self.assertIn("### Threshold sheet gate coverage", step)
+        self.assertRegex(step, r"Out-File .*GITHUB_STEP_SUMMARY")
 
 
 class TheFileIsValidYaml(unittest.TestCase):
