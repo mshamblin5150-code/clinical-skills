@@ -69,7 +69,8 @@ rather than inherited -- see the row below.
   in ``practicum-case-study`` step 9 does not put it, so a reader looking for the
   finding has nowhere fixed to look. An earlier draft here accepted both and was
   caught reading looser than the ticket it implements.
-- **A ``clean`` on one of two checks carries a ``FINDINGS`` too.**
+- **A ``clean`` on a check ``SUBSTANTIATED_CLEAN`` names carries a ``FINDINGS``
+  too.**
   [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
   is the row above's test applied to the other verdict:
   ``research_ledger.py``'s ``BARE_STATUS`` argument, one skill over. Anybody can
@@ -121,8 +122,9 @@ in silence.
 **What it buys is a shape rather than a reading**, and that was priced rather than
 glossed. A lazy reader satisfies it with one stock sentence --
 ``specificity_scan.py``'s R2 limit, inherited here as it is by every substance
-test in this directory. What changes is that two records per run stop being
-unfalsifiable and become checkable by eye, which is what the walk in
+test in this directory. What changes is that the records on the rows
+``SUBSTANTIATED_CLEAN`` names stop being unfalsifiable and become checkable by
+eye, which is what the walk in
 ``skills/practicum-case-study/SKILL.md`` step 9 is for and previously had
 nothing to work with.
 
@@ -137,8 +139,8 @@ already.
 Whether the differential's ``1.`` really is what would kill first, whether an MDM
 entry's discriminator is from this case, whether the reader looked at the draft at
 all -- none of it is in the record, and a well-formed ``clean`` from a reader that
-skimmed is indistinguishable from one that read. **#255 narrows that on two rows
-and does not close it**: a stock clause is still a clause. **A clean scan is not
+skimmed is indistinguishable from one that read. **#255 narrows that on the rows
+``SUBSTANTIATED_CLEAN`` names and does not close it**: a stock clause is still a clause. **A clean scan is not
 a checked draft**, ``skills/practicum-case-study/SKILL.md`` says so beside the
 command, and a test asserts that sentence is still there.
 
@@ -209,10 +211,22 @@ EXPECTED_CHECKS = (
     "differential ordering",
     "MDM completeness",
     "the Rx blocks",
+    # A correspondence between two documents rather than a shape in one, which
+    # is why it is its own row and not a clause in ``the Rx blocks``: that
+    # reader opens the draft, this one opens the draft and the ledger, and a
+    # reader holding two jobs is how a partial read comes back looking
+    # complete. Added on
+    # [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299).
+    "the dose against the record that sourced it",
     "the faculty's own to-do list",
 )
 
-# The two checks where a ``clean`` has to say what it examined --
+# The checks where a ``clean`` has to say what it examined -- how many is this
+# tuple's own business and is deliberately counted in no sentence about it, on
+# [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+# terms: it read *two* in prose across this repo until #299 made it three, the
+# sweep that repaired those copies missed several, and both axes of
+# ``/code-review`` had to find the rest. --
 # [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
 # is that ticket's **third option** rather than its headline. The argument is
 # ``research_ledger.py``'s ``BARE_STATUS``, one skill over: anybody can write
@@ -229,6 +243,7 @@ EXPECTED_CHECKS = (
 SUBSTANTIATED_CLEAN = (
     "differential ordering",
     "MDM completeness",
+    "the dose against the record that sourced it",
 )
 
 CLEAN = "clean"
@@ -608,7 +623,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # Printed on every run rather than only when the row fires, because *say which
     # is which* is the half of the grade-some-count-the-rest arrangement a report
     # can drop in silence -- and a reader who cannot see which rows carry the
-    # requirement reads four ungraded cleans as four checked ones. These strings
+    # requirement reads an ungraded clean as a checked one. These strings
     # are ``SUBSTANTIATED_CLEAN`` members, so they are this module's own text on
     # exactly the terms the missing-check list is.
     lines.append("")
