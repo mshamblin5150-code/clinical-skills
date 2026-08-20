@@ -246,6 +246,15 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   always ends `for <indication>`.
 - **Held orders are labeled in the drug row**: `Delayed order: metformin 500 mg PO BID, hold until
   the acute kidney injury resolves`.
+- **A home medication continued unchanged is labeled in the drug row too**: `Continued home
+  medication: prenatal vitamin one tablet PO daily`. Ruled 2026-08-19 on
+  [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289), and it is the label that
+  does the work rather than the fact. A record in the step 3 ledger is required for every drug the
+  run **chose a number for**; a dose the patient arrived on is not one, and this is how the row says
+  so. **The exemption is declared and never inferred** — an unlabeled row is graded, so a run that
+  forgets the label is asked for a record rather than let through. `Delayed order:` exempts nothing:
+  a dose that has not started yet is still a dose the run chose. `tools/research_ledger.py --draft`
+  reads both labels off this table.
 - **A drug held because it is contraindicated gets no table at all.** Ruled 2026-08-18 against a run
   that wrote one for doxycycline in pregnancy. A delayed order is for a drug that is coming later
   once a condition clears. A contraindicated drug is never coming, and a prescription block for it is
@@ -283,7 +292,20 @@ contraindications, monitoring, adverse effects, and the guideline supporting the
 > Third-generation cephalosporin. Contraindicated in anaphylaxis to cephalosporins or a severe
 > penicillin reaction. Monitor the injection site and observe for hypersensitivity over the
 > following 30 minutes. Adverse effects are injection-site pain, diarrhea and rash. First-line for
-> this indication in the CDC STI Treatment Guidelines (Workowski et al., 2021).
+> this indication in `<the guideline the step 3 record for this drug sourced>`
+> `(<Author> et al., <year>)`.
+
+**The guideline sentence carries a placeholder rather than a citation, and that is the one thing in
+this example that is not a style choice.** It named a specific CDC guideline until
+[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289), and the companion evidence
+does not carry that topic — it cross-references it repeatedly and carries none of its body — so the
+worked example was teaching a run to cite a source it had never read. **How many times is measured
+on #289 and deliberately not restated here**: it is a count over a dump under `scratch/`, so nothing
+committed re-derives it, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). **The citation here comes
+off the ledger record for this drug or it does not go in**: [SKILL.md](../SKILL.md) step 3 requires
+one for every drug the run chose a number for, and `tools/research_ledger.py --draft` fails a
+document whose prescriptions do not reach one.
 
 **Prose and not a second table, and not eleven rows in the first one.** The six-row table is a
 prescription and reads as one; the five added fields are graded reasoning, and graded reasoning

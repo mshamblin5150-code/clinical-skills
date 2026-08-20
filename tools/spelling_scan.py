@@ -96,7 +96,7 @@ EVIDENCE_PREFIXES = ("fixtures/filled-anchor/notes/case-",)
 
 # *Conventions > Spelling* in skills/clinical-note/SKILL.md, transcribed. Parity
 # is asserted rather than trusted; see `parse_skill_table`.
-# spelling-scan: mentions 27
+# spelling-scan: mentions 26
 TABLE = {
     "dyspnoea": "dyspnea",
     "apnoea": "apnea",
@@ -119,7 +119,6 @@ TABLE = {
     "colour": "color",
     "tumour": "tumor",
     "labelled": "labeled",
-    "recognisable": "recognizable",
     "programme": "program",
     "licence": "license",
     "neighbour": "neighbor",
