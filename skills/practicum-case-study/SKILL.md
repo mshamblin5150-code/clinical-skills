@@ -430,6 +430,30 @@ table, the threshold sheets or the guideline corpus already cover. **What is lef
 this step**, and *What none of that reaches gets researched, not deferred* above is the rule it
 applies.
 
+**Every drug you are going to prescribe is one of those claims, and since
+[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289) that is a rule rather than
+a reading.** The run that produced the Module 1 submission recorded in its own ledger that the
+treatment topic was missing from the companion evidence, and then wrote a specific dose into a
+prescription table citing it. **A prescription is a dose**, and it was the one claim in that
+document nothing sourced: this command graded the six records that existed, `tools/reference_scan.py`
+checked that the entry was well formed and that the citation resolved to it, `tools/checks_ledger.py`
+graded the readers, and **all three exited 0**.
+
+**So a record is required for every drug the run chose a number for.** Ruled by the clinician
+2026-08-19. A home medication continued unchanged at the patient's own dose is not one of them --
+the run did not choose that number, the patient arrived on it -- and such a row **declares itself**:
+`Continued home medication: prenatal vitamin one tablet PO daily`. **The exemption is declared and
+never inferred**, so a drug row that says nothing is graded, and that is the direction it has to
+fail in. A `Delayed order:` is graded too: a dose that has not started yet is still a dose the run
+chose. The declaration lives in [style.md](reference/style.md) §8 with the table it is written in.
+
+**The claim heading is what names the drug**, not the restatement buried under it — a record whose
+`## CLAIM:` line says *ceftriaxone* is a claim about ceftriaxone, and one that reaches the drug only
+in its `RESTATEMENT` is a record about something else that happened to mention it. Where the order
+states a dose, **the heading states a number too**: that is what puts the record in front of
+`NUMERIC_CLAIM_UNQUANTIFIED` above, so the restatement has to answer with a number and the chain
+runs from the table's dose to a source.
+
 **Write the claim list down before spawning anything.** `scratch/case-study-claims.md`, its `DATE`
 header and one `## CLAIM:` heading per claim, and nothing under them yet. That ordering is what
 makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
@@ -564,6 +588,36 @@ can be several of them at once:
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
 
+**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, and they are
+the only ones here that read anything but the ledger:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
+```
+
+| The prescription | Why |
+| --- | --- |
+| a drug in an Rx table that no claim record names | the dose is the highest-stakes claim in the document and the one every other gate exits 0 on |
+| an order stating a dose whose claim record states no number | a record naming the drug is not yet a record that sourced the dose, and this is the form of that a string test reaches |
+| a prescription table with no readable drug row | a table this cannot read is a finding and never a table quietly dropped from the set |
+
+**Without `--draft` those rows do not run, and the report prints `not graded` against them
+rather than `0`.** A zero beside a row that never ran is the silent pass this whole arrangement
+exists to refuse, so the run that graded no prescriptions says so on the same page as its clean
+exit. A draft carrying no readable prescription table is exit 2 for the same reason.
+
+**What this must never become is a dose checked against a table.** A dose depends on indication,
+weight, renal function, pregnancy and route, so a row refusing a correct dose for the wrong reason
+is #215's defect a fourth time. The reachable property is whether the dose was **sourced**, never
+whether it is right -- a record carrying a *different* number passes these rows.
+
+**Nothing downstream reads the number either, and that is stated rather than left to be assumed.**
+Step 9's `the Rx blocks` row asks a reader whether every drug has a table, whether every `Sig` ends
+in an indication and whether the prose block is there; it does not open the ledger and compare the
+dose. So *is this the dose the record sourced* is walked by nobody today —
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299). It is written here because
+a residue nobody names is a residue every reader assumes somebody else has.
+
 **Then grade it, and do not draft until it is clean:**
 
 ```bash
@@ -648,6 +702,19 @@ point in the document.
 
 **Omitting them has never cost a point, which is not the same as being safe** — it is the mode
 finding again, one section down. See *Three modes, and none of them subtracts a section* above.
+
+**Then grade the ledger against what you have just written**, which is the half of step 3 that could
+not run before the tables existed:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
+```
+
+Every rule it applies is written out in step 3 above, so a harness with no Python walks the drug rows
+by eye instead. **A drug with no claim record goes back through step 3**, not into the document with
+a citation borrowed from the nearest source that mentions the disease --
+[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289) is that behavior and it is
+what this exists to replace.
 
 ### 7. Fix the references
 
@@ -736,6 +803,39 @@ Write the Markdown to `output/case-studies/`, then render it:
 python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx
 ```
 
+**It refuses rather than overwriting a document it did not write** —
+[#279](https://github.com/mshamblin5150-code/clinical-skills/issues/279). `output/` is gitignored,
+so a destructive render has no recovery, and the `.docx` is the one file this repo produces that
+the clinician opens in Word. Two things stop it: Word's `~$` owner file beside the document, which
+means it is open right now, and an archive whose parts are not the ones this renderer writes, which
+means something else saved it. Either is **exit 2 with nothing written**, and the message names the
+flag that proceeds anyway:
+
+```bash
+python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx --force
+```
+
+**Ask him before passing it, and that is this step's rule rather than part of his ruling.** What
+he ruled on #279 is the mechanism — refuse, with a flag — not that an agent must confirm each
+override. The reason to ask anyway is narrower and is about who is running the command: a refusal
+on the second signal means hand-edits exist in that `.docx`, re-rendering destroys them, and
+`output/` is gitignored so there is nothing to restore from. An irreversible write over the
+clinician's own work is not a call a run makes for him. The flag is right where the Markdown is
+the newer draft, and he is the one who knows that. **The check is the command's and not this step's** — #279's
+decision 2 is that a written instruction to look first is exactly what the ticket exists to
+reject — so there is nothing here to run before the render.
+
+**A `warning:` line from that command means a table row put a cell separator into its own
+text.** That is the shape
+[#280](https://github.com/mshamblin5150-code/clinical-skills/issues/280) was filed over: a row faking a width the grid does not have renders into column 1, and a pipe
+written as `\|` or `&#124;` outside a table reaches the page as visible text. **Fix the row, not the
+warning** — [reference/style.md](reference/style.md) §8 is the worked example of a table that
+declares its columns. **Unless the pipe is genuinely content in that cell**, in which case the
+row is right and the warning is the price of a check that reads the output rather than the
+intent. The document is still written either way, because a blocked submission is a
+worse outcome than a separator on the page. The warning names the forms found and a count and
+**never a cell of the draft**, so it is safe to paste into a ticket.
+
 APA 7 page setup is applied by the renderer: Times New Roman 12 pt, double spaced, one inch
 margins, a page number top right, headings at body size in APA's own level styling, a 0.5 inch
 first-line indent on **body paragraphs only**, tables drawn with APA's horizontal rules rather
@@ -771,6 +871,7 @@ check that was never run is not.
 
 | Check | What it reads | How | A `clean` says what it walked |
 | --- | --- | --- | --- |
+| the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
 | the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
@@ -784,6 +885,76 @@ reader walked, and `tools/checks_ledger.py` fails a bare one. Those are the rows
 `clean` is most expensive; everywhere else a bare `clean` still passes, which is the gap below. **Brief
 the two readers accordingly** — they report what they examined whichever verdict they return, and
 the clause is one sentence written by an agent that has just walked the thing.
+
+#### The house style is a command now, and it is the row this step gained on #277
+
+**Ruled 2026-08-19.** The clinician read the first rendered submission and returned a list of
+findings. Some were renderer defects and are fixed; **the rest were house style, and every one of
+those is in the body of the draft** — which `tools/reference_scan.py` does not read and no reader
+was briefed on. **The arithmetic is on the ticket and in `CLAUDE.md`, once**, because a figure
+restated where nothing re-derives it is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). His framing is the ticket: *"is there some machine checkable way to get this right every
+time... this prevents me from using this skill for future work."*
+[#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277). The rules landed in
+[reference/style.md](reference/style.md) §1a and §8 as prose, which is exactly the arrangement
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) ruled insufficient: **a
+prose edit to a rule fails nothing.**
+
+**Run it on the Markdown — before step 8 renders it, and again after every repair:**
+
+```bash
+python tools/case_study_scan.py output/case-studies/<stem>.md
+```
+
+Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file, no section
+it recognizes in the document, a skeleton that disagrees with the one this file publishes above, or
+a `SKILL.md` it could not read at all. **The last is a claim about the *check* rather than about the
+rows**, which all still ran; what the status refuses is a clean set of them standing for a scan
+against a skeleton nobody confirmed.
+Re-run with `--show` to see which, and **that output is PHI**: read it, do not paste it.
+Deliberately **not** `tools/reference_scan.py`'s exception — that command's output is bounded by
+what its code can draw from, and this one's is not, because a bullet's finding is the bullet's own
+text.
+
+**Every row is a rule written in [reference/style.md](reference/style.md) §1a or §8**, and how many
+there are is `case_study_scan.KINDS`'s to say rather than this paragraph's. **This list is the one
+copy** — a test keyed on that tuple asserts each row has a sentence here, and `CLAUDE.md` points at
+it rather than repeating it. The rows are: no bullet anywhere in
+the document, no table under Demographics, the Review of Systems or the Physical Examination, the
+Review of Systems closing with the all-other-systems disclaimer **and the Physical Examination not
+carrying one**, no scaffolding language from §1a's closed set, the Most Likely Clinical Diagnosis
+not set wholly bold, the signature and its date on one line, the prescription table at six rows and
+three columns wide, and **a drug that continues carrying a stop criterion**.
+
+**It reads the Markdown through the renderer's own parser rather than a copy of it.** A line it
+calls a bullet is a `ListParagraph` in the `.docx`, because `docx_write.blocks` is what both of them
+read — `tools/reference_scan.py` importing `REFERENCE_HEADING` is the precedent, at the width of one
+heading rather than the whole parse. **A fenced code block is not an escape**: the renderer opens
+nothing on a fence, so a bulleted line inside one is a bullet in the finished document.
+
+**The em dash is counted and never graded, and that is a ruling rather than an omission.** His
+words: *"generally I prefer not to use em dashes, just saying, though I do use them sometimes."* A
+row keyed on a stated preference with a stated exception would refuse a document he would have
+written himself, which is
+[#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s own defect a third time —
+that ticket exists because a recency filter cut a correct claim for a property the rule did not care
+about, and its closing comment records the same mistake being made again inside the fix. The count
+prints; nothing fails on it.
+
+**A clean scan is not a checked draft.** Here is what no row of that command reaches: **the voice,
+and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop
+criterion's endpoint is the right endpoint**, **whether a drug ordered PRN needs an endpoint
+of its own**, **a second drug welded into one drug row, discharged by the first drug's endpoint**, **whether a dose is correct, or was sourced at all**,
+**a scaffolding phrase nobody has written yet**, and **anything the Markdown cannot show, which the
+rendered document can**.
+
+**The two findings in his list that mattered most clinically are in that list rather than in the
+rows** — the ceftriaxone order's missing endpoint being the *right* endpoint, and the growth and
+development section that should not have existed at all. The command reaches that a continuing drug
+states an endpoint and not whether the endpoint is defensible; the second is a reading, and it is
+the amended ruling above, *A wrapper instruction that does not fit this patient is reasoned about*.
+Both stay a reader's, and the last of them is why `the house style` row's `clean` is not one a
+command can substitute for the walk.
 
 **One reader per row, all of them at once, and none of them is the context that wrote the draft.**
 Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
