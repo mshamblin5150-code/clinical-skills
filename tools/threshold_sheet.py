@@ -247,9 +247,10 @@ WHY_NO_WRITE_GUARD = (
 # A text-marker record is a bound in both directions: it over-reports when prose
 # happens to match the marker, and it can under-report a real recommendation whose
 # wording does not. Absence from that record therefore proves nothing about a row's
-# identifier. #270 follows #298's ruling: narrow membership enforcement to the
-# source class where absence is dispositive, then refuse there; leave every other
-# class alone rather than turning an extractor limitation into a sheet finding.
+# identifier. The clinician ruled #270 on 2026-08-20, following #298's shape: narrow
+# membership enforcement to the source class where absence is dispositive, then
+# refuse there; leave every other class alone rather than turning an extractor
+# limitation into a sheet finding.
 WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED = (
     "A text-marker recommendation record can under-report a recommendation the "
     "sheet author read in the PDF. Membership is graded only for exact records, "
