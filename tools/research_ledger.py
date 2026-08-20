@@ -240,18 +240,22 @@ this closes it wherever the topic is **cited**.
   cover the claim, and a row firing on those would be #215's defect again.
 - **The topics the dump merely refers to are not graded, and that is the ruling
   rather than an omission.** A rendered dump cross-references far more topics than
-  it carries -- 320 distinct against 18 bodies in the one this was measured on, so
-  305 misses -- which is the ordinary case #298's own *What must not come out of
-  this* forbids firing on. Ranking them does not rescue it either: the reference
-  counts decay smoothly from 21 to 1 with **no plateau anywhere**, so any cut is a
-  value named at an edge, which is ``guidelines_extract.SPACE_ADVANCE_FRACTION``'s
-  recorded failure and #97's objection. **No threshold is built and none is
-  available.** What is graded is the join.
+  it carries -- by more than an order of magnitude in the one this was measured on
+  -- which is the ordinary case #298's own *What must not come out of this*
+  forbids firing on. Ranking them does not rescue it either: the reference counts
+  decay smoothly with **no plateau anywhere**, so any cut is a value named at an
+  edge, which is ``guidelines_extract.SPACE_ADVANCE_FRACTION``'s recorded failure
+  and #97's objection. **No threshold is built and none is available.** What is
+  graded is the join. **Every figure behind that is counted against a file under
+  ``scratch/``, so nothing committed re-derives one and the next article the
+  clinician pastes moves them all; they are stated on #298 and nowhere in this
+  tree**, on #143's terms.
 - **A body is recognized by its ``Authors:`` masthead and never by a heading.**
   #298 decision 2 proposed reading a title as a heading and that is not
   implementable against the artifact it describes -- the rendered dump carries no
-  headings of any kind. Measured before it was believed: of the 18 bodies the real
-  dump carries, 15 join a ``See "..."`` cross-reference exactly under this rule.
+  headings of any kind. **Measured before it was believed**: nearly every body the
+  real dump carries joins a ``See "..."`` cross-reference exactly under this rule,
+  and the count is #298's to state.
 - **No escape hatch, and it was asked rather than assumed.** If an UpToDate topic
   is worth citing it goes in the dump, and the remedy for a finding is one paste.
 - **The draft's reference list is parsed by ``reference_scan`` and not by a second
@@ -387,7 +391,18 @@ like a document whose every dose reaches a record, which is
 ``carried_topics`` cannot read carries **no** topic to join against, so every
 UpToDate citation in the ledger would fire at once -- a mass false finding rather
 than a silent pass, and the one not-scanned limb here whose failure is loud rather
-than quiet. It is still exit 2, because what did not happen is the scan.
+than quiet. So the row is left **ungraded** and prints *not graded*, and the exit
+2 is deferred to the tail like its two siblings.
+
+**Returning it early is the defect this module was built having already read
+about**, and it shipped anyway: it suppressed every other row's findings and
+printed no report at all, which is ``tracker_scan.py``'s recorded corpus-limb
+inversion -- *returning 2 before scanning, so a real hit was reported as did not
+scan* -- arriving in the one function whose own docstring, in the paragraph below,
+states the ordering it broke. Caught by the spec axis of ``/code-review``, and
+pinned by a test that drives ``main`` rather than the report, because every test
+that had been written for this limb asserted the status and none asserted that
+the other rows survived it.
 
 **Where a violation and any not-scanned limb both hold, 1 wins**, on
 ``differential_scan.py``'s and ``filled_vitals_census.py``'s ordering and for their
@@ -903,8 +918,10 @@ class Scan:
 # artifact it describes** -- the rendered dump carries no headings of any kind,
 # only prose, bullets and short all-caps section labels. The masthead is what
 # marks a body, and the title is the line above it. Measured before it was
-# believed: of the 18 bodies the real dump carries, 15 join a ``See "..."``
-# cross-reference exactly under this rule.
+# believed: nearly every body the real dump carries joins a ``See "..."``
+# cross-reference exactly under this rule. **The count is #298's to state and is
+# deliberately nowhere in this tree** -- it is measured against a file under
+# ``scratch/``, so nothing here re-derives it and the next paste moves it.
 TOPIC_MASTHEAD = re.compile(r"(?i)^[ \t]*authors?[ \t]*:")
 
 # The title element of [apa7.md](skills/practicum-case-study/reference/apa7.md)
@@ -932,9 +949,9 @@ def carried_topics(text: str) -> set[str]:
     """Every topic whose **body** the dump carries.
 
     A cross-reference is not a body and that distinction is the whole row: the
-    real dump refers to 320 distinct topics and carries 18, so reading a
-    reference as a body would report a clean join over a dump carrying almost
-    nothing.
+    real dump refers to more than an order of magnitude more topics than it
+    carries, so reading a reference as a body would report a clean join over a
+    dump carrying almost nothing. The two figures are #298's to state.
     """
     lines = text.splitlines()
     carried: set[str] = set()
@@ -1421,14 +1438,15 @@ def evidence_findings(
     """#298's row: an UpToDate topic the run cites that the dump does not carry.
 
     **The topics the dump merely refers to and does not carry are not graded**,
-    and that is the ruling rather than an omission. 305 of 320 in the real dump
-    are exactly that, which is the ordinary case the ticket's own *What must not
-    come out of this* forbids firing on, and their reference counts decay
-    smoothly from 21 to 1 with no plateau -- so any cut is a value named at an
-    edge, which is ``SPACE_ADVANCE_FRACTION``'s recorded failure and #97's
-    objection. What is graded is the **join**: the dump is the whole of what the
-    clinician handed over, so an UpToDate topic cited and absent from it is one
-    nobody read.
+    and that is the ruling rather than an omission. The overwhelming majority of
+    the real dump's cross-references are exactly that, which is the ordinary case
+    the ticket's own *What must not come out of this* forbids firing on, and their
+    reference counts decay smoothly with no plateau -- so any cut is a value named
+    at an edge, which is ``SPACE_ADVANCE_FRACTION``'s recorded failure and #97's
+    objection. **The figures are #298's to state**, being counted against a file
+    under ``scratch/`` that nothing committed re-derives. What is graded is the
+    **join**: the dump is the whole of what the clinician handed over, so an
+    UpToDate topic cited and absent from it is one nobody read.
 
     **No escape hatch, ruled 2026-08-20.** If an UpToDate topic is worth citing
     it goes in the dump, and the remedy is one paste.
@@ -1585,8 +1603,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     else:
         lines.append(f"  {'evidence topics carried':<32} {scan.evidence_topics}")
         # What the row read, beside what it read against. Both, because either
-        # alone reads as the stronger claim: 18 topics carried says nothing about
-        # whether a single citation was joined to them.
+        # alone reads as the stronger claim: a count of topics carried says
+        # nothing about whether a single citation was joined to them.
         lines.append(f"  {'UpToDate citations read':<32} {scan.uptodate_citations}")
     lines.append("")
     for kind, count in scan.counts:
@@ -1695,6 +1713,7 @@ def main(argv: list[str]) -> int:
         return 2
     prescriptions: list[Prescription] | None = None
     half_anchored = 0
+    draft_text = ""
     if draft is not None:
         draft_path = Path(draft)
         if not draft_path.is_file():
@@ -1705,37 +1724,51 @@ def main(argv: list[str]) -> int:
         half_anchored = half_anchored_tables(draft_text)
     carried: set[str] | None = None
     entries: tuple[str, ...] = ()
+    evidence_unreadable = False
     if evidence is not None:
         evidence_path = Path(evidence)
         if not evidence_path.is_file():
             print(f"no evidence file named {evidence_path.name}", file=sys.stderr)
             return 2
-        carried = carried_topics(
+        found = carried_topics(
             evidence_path.read_text(encoding="utf-8", errors="replace")
         )
-        if not carried:
-            # ``differential_scan``'s reasoning, and the limb that matters most
-            # here: a dump this parser cannot read carries no topic to join
-            # against, so **every** UpToDate citation in the ledger would fire.
-            # That is a mass false finding rather than a pass, and the status has
-            # to say the scan did not happen.
-            print(
-                f"no topic body found in {evidence_path.name} - a body is read by"
-                " its Authors: masthead, so #298's row was applied to nothing.",
-                file=sys.stderr,
-            )
-            return 2
-        if draft is not None:
+        # **A dump this parser cannot read leaves the row ungraded and does not
+        # end the run.** It carries no topic to join against, so grading the row
+        # would fire it on *every* UpToDate citation at once -- which is why
+        # ``carried`` stays ``None`` here and the row prints *not graded*. But the
+        # status is deferred to the tail rather than returned now, because
+        # returning 2 here suppressed every #214, #215, #231 and #289 finding in
+        # the ledger and printed no report at all. That is the defect ``CLAUDE.md``
+        # records against ``tracker_scan.py`` -- *"returning 2 before scanning at
+        # all, so a real hit was suppressed and reported as did not scan"* --
+        # reproduced in the one function whose own docstring cites the ordering it
+        # broke. Found by the spec axis of ``/code-review``.
+        evidence_unreadable = not found
+        if found:
+            carried = found
+        if carried is not None and draft is not None:
+            # ``draft_text`` and not a second read of the same path: a file read
+            # twice in one function is two chances to disagree about what the
+            # draft says, and the second read here also re-derived ``Path(draft)``
+            # where ``draft_path`` was already in hand.
             entries = tuple(
-                entry.text
-                for entry in read_document(
-                    Path(draft).read_text(encoding="utf-8", errors="replace")
-                ).entries
+                entry.text for entry in read_document(draft_text).entries
             )
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
     scan = survey(records, as_of, prescriptions, half_anchored, carried, entries)
     print(format_report(scan, source=path.name, show=show))
+    if evidence_unreadable:
+        # Beside the other banners rather than in place of the report, so an
+        # exit 1 below reads as a floor: this says one row did not run, never
+        # that nothing was graded.
+        print(
+            f"no topic body found in {Path(evidence).name} - a body is read by its"
+            " Authors: masthead, so #298's row was applied to nothing. Every other"
+            " row still ran.",
+            file=sys.stderr,
+        )
     if as_of is None:
         # Printed whichever status follows, so an exit 1 below reads as a floor
         # rather than as the whole of what is wrong.
@@ -1785,6 +1818,8 @@ def main(argv: list[str]) -> int:
             )
         return 1
     if as_of is None:
+        return 2
+    if evidence_unreadable:
         return 2
     return 2 if prescriptions is not None and not prescriptions else 0
 

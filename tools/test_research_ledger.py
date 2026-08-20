@@ -2631,6 +2631,52 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("no topic body", err)
 
+    def test_an_unreadable_dump_does_not_suppress_the_other_rows(self):
+        """The spec axis's finding, and the one this limb was shipped wrong on.
+
+        Returning 2 at the ``if not carried:`` branch happened **before**
+        ``survey``, so a ledger with real #214 findings printed no report at all
+        and reported *did not scan*. That is the inversion ``CLAUDE.md`` records
+        against ``tracker_scan.py``'s corpus limb, reproduced here.
+
+        Drives ``main`` and not ``format_report``, because every test already
+        written for this limb asserted the status and none asserted that the rows
+        beneath it survived.
+        """
+        broken = """\
+## CLAIM: A record broken in ways that have nothing to do with the evidence.
+STATUS: sourced
+SOURCE: not-a-real-class
+REFERENCE: Author, A. Something with no year.
+RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
+"""
+        led = self.write("led.md", ledger_text(broken))
+        ev = self.write("evidence.txt", 'See "A topic" for the regimen.\n')
+        status, out, err = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 1, "a finding outranks the not-scanned limb")
+        self.assertIn("records at fault", out, "the report still prints")
+        self.assertIn("no topic body", err, "and the limb still says so")
+        self.assertIn("not graded", out, "with the evidence row ungraded")
+
+    def test_an_unreadable_dump_alone_is_exit_2(self):
+        """The other half: with nothing else wrong, the deferred status is still
+        2, because what did not happen is the scan."""
+        led = self.write("led.md", ledger_text(CLEAN))
+        ev = self.write("evidence.txt", 'See "A topic" for the regimen.\n')
+        status, _, err = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 2)
+        self.assertIn("no topic body", err)
+
+    def test_an_unreadable_dump_does_not_grade_the_row(self):
+        """The reason the row is left ungraded rather than run over an empty set:
+        with nothing to join against, every UpToDate citation would fire."""
+        led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
+        ev = self.write("evidence.txt", 'See "A topic" for the regimen.\n')
+        status, out, _ = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 2, "not 1 - the row did not run, so it found nothing")
+        row = [ln for ln in out.splitlines() if ledger.CITED_TOPIC_NOT_IN_EVIDENCE in ln]
+        self.assertIn("not graded", row[0])
+
     def test_a_missing_evidence_file_is_exit_2(self):
         led = self.write("led.md", ledger_text(CLEAN))
         status, _, err = self.run_main([led, "--evidence", str(self.root / "nope.txt")])
@@ -2676,14 +2722,26 @@ class TheDraftsReferenceListComesFromTheRendererSideParser(unittest.TestCase):
     A second parser could put an entry in a different place than the module that
     grades that list does, which is exactly the ``REFERENCE_HEADING`` failure
     ``reference_scan`` records against itself.
+
+    **The identity is the whole guarantee here, and the second test below is not
+    #218's second half.** That ticket's lesson applies where two implementations
+    survive; sharing the object means none does, so what is left to pin is the
+    hand-off rather than the agreement.
     """
 
     def test_the_entries_come_from_reference_scan(self):
         self.assertIs(ledger.read_document, reference_scan.read_document)
 
-    def test_the_behavioral_half(self):
-        """A signature is not enough -- #218's finding, where an identity test
-        passed while the two still disagreed about where a list ends."""
+    def test_the_entries_are_what_the_row_is_handed(self):
+        """**Not #218's case, and saying so is the point.** There the two modules
+        held two parsers and an identity test passed while they still disagreed;
+        here the identity above means there is exactly one function, so nothing
+        can disagree with it and no second assertion could show that it did.
+
+        What this pins instead is the **hand-off**: that what ``main`` takes off a
+        ``Document`` is the entry string ``uptodate_topic`` can read. A rename of
+        ``Entry.text``, or a parser that returned entries some other shape, would
+        leave the identity test green and this one red."""
         draft = (
             "# A draft\n\nBody prose citing (Author, 2026).\n\n"
             "## References\n\n"

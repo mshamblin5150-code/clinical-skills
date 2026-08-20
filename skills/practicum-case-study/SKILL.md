@@ -638,8 +638,8 @@ exists because the evidence did *not* cover the claim, and a row firing on those
 correct outcome.
 
 **A topic the dump merely *refers* to and does not carry is not a defect and is not graded.** The
-dump cross-references far more topics than it carries -- 320 against 18 in the one this was measured
-on -- and the great majority will never be cited. Firing on those would fire on almost every case
+dump cross-references far more topics than it carries -- by better than an order of magnitude in the
+one this was measured on -- and the great majority will never be cited. Firing on those would fire on almost every case
 study, which is the rate at which a warning stops being read.
 
 **There is no escape hatch, and that is the ruling rather than an oversight.** If an UpToDate topic
