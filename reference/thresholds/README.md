@@ -206,6 +206,18 @@ be counted *exactly* or only *bounded* by matching a marker in running text. An 
 source has its omissions **refused**; a bound source has them **warned**. See #83
 decision 1.
 
+**Identifier membership follows the same evidentiary split.** A row citing an
+identifier absent from its source's `exact` record is refused. The same absence in a
+`bound` record is not graded: the marker reader can under-report a recommendation the
+sheet author read directly. A source-free `## Coverage` identifier absent from every
+record refuses only when every declared source has a loaded `exact` record; otherwise
+the gate cannot know which incomplete or absent record should have carried it.
+
+**This is identifier-level accounting, not occurrence-level accounting.** A real
+record can repeat one `rec_id` for more than one recommendation occurrence, so a set
+membership pass does not prove that every repeated occurrence was separately audited.
+That audit remains outside `COVERAGE`.
+
 **Exact arrives two ways since [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173),
 and the record's `counted_from` says which.** One is a ruled `COR | LOE` table in the
 document itself. The other is [`reference/guidelines-uspstf.md`](../guidelines-uspstf.md),

@@ -50,8 +50,9 @@ row needed it.
 
 ``COVERAGE`` refuses on an exact source, warns on a bound
     #83 gate 2, the omission check: *"everything else checks what was written, only
-    this checks what was not."* Every recommendation the source carries is a row or
-    is scoped out by ``rec_id``. Whether this may refuse is decided by
+    this checks what was not."* Every recommendation identifier the source carries
+    is a row or is scoped out by ``rec_id``. On an exact source, a row identifier
+    absent from its record refuses too. Whether omission may refuse is decided by
     ``guidelines_recs.py``'s mode and never by this module: an exact count can be
     enforced, a marker bound over-reports and can only warn.
 
@@ -134,13 +135,17 @@ What no gate here reaches, stated the same day the gates were built
   population decides this at all came from the clinician, not from the corpus.
 - **A recommendation scoped out for a bad reason.** ``COVERAGE`` requires a reason
   string; it cannot grade one. ``out: not relevant`` passes.
-- **A row citing a ``rec_id`` its source's record does not carry.** ``COVERAGE``
-  subtracts what was cited from what the record holds, so an identifier belonging to
-  nothing simply reduces nothing -- and the class check declines rather than inventing
-  a disagreement, because there is no class to compare against. Named here when the
-  rows were partitioned by source on #177; it was equally true of the one-record
-  version and equally invisible.
-- **Anything at all about a ``bound`` source.** ``COVERAGE`` warns and moves on.
+- **Identifier membership for a ``bound`` source.** A marker-derived record can
+  under-report a recommendation the sheet author read directly, so absence from that
+  record proves nothing. This is declared in
+  ``WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED`` rather than left as quiet arithmetic.
+- **Occurrence-level coverage where a record repeats a ``rec_id``.** The real ADA
+  record demonstrated that identifiers are not unique even within one document.
+  ``COVERAGE`` grades identifier membership and accounting; it cannot distinguish
+  two occurrences carrying the same identifier, so those occurrences need a separate
+  audit. A source-free scope-out is likewise not membership-graded when any declared
+  source is bound or ungraded, because the gate cannot know which source should carry
+  it.
 
 **Deliberately not built, because it would pass for the wrong reason**: any gate
 that re-extracts a value and compares it to the sheet through the path that wrote
@@ -237,6 +242,18 @@ WHY_NO_WRITE_GUARD = (
     "where such a record lives, and the enforceable half of that is that its "
     "default is absolute -- a relative one would resolve inside the checkout the "
     "command was run from."
+)
+
+# A text-marker record is a bound in both directions: it over-reports when prose
+# happens to match the marker, and it can under-report a real recommendation whose
+# wording does not. Absence from that record therefore proves nothing about a row's
+# identifier. #270 follows #298's ruling: narrow membership enforcement to the
+# source class where absence is dispositive, then refuse there; leave every other
+# class alone rather than turning an extractor limitation into a sheet finding.
+WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED = (
+    "A text-marker recommendation record can under-report a recommendation the "
+    "sheet author read in the PDF. Membership is graded only for exact records, "
+    "where an absent identifier is dispositive."
 )
 
 SCHEMA_MARKER = "<!-- schema: threshold-sheet/1 -->"
@@ -1393,11 +1410,14 @@ def gate_coverage(
     count enforceable is that the recommendations were ruled into a table, not that
     the number looked tidy.
 
-    **Every check in here is per source since #177**: ``known`` is filtered to the
-    rows citing that source, the mode cross-check compares a source's declaration
+    **Every row check in here is per source since #177**: ``known`` is filtered to
+    the rows citing that source, the mode cross-check compares a source's declaration
     against its own record, and the class check reads the record of the source the row
-    cites. A ``rec_id`` is unique within a document and nothing makes it unique across
-    two, so a row citing one society could otherwise discharge another's omission.
+    cites. Scope-outs have no source key, so their membership is checked against the
+    union only when every source record is exact. Records can repeat a ``rec_id``
+    within one document, and separate documents can share one too. This gate grades
+    identifier-level accounting per source; it does not claim occurrence-level
+    coverage for duplicate identifiers.
     """
     refusals: list[str] = []
     warnings: list[str] = []
@@ -1443,6 +1463,14 @@ def gate_coverage(
                 f"omission refuses or warns, so these cannot disagree."
             )
 
+        if mode == "exact":
+            for row in rows:
+                if row.rec not in known:
+                    refusals.append(
+                        f"{sheet.path.name}:{row.line}  source '{key}' cites {row.rec}, "
+                        "which its exact recommendation record does not carry"
+                    )
+
         # A row's class must be the class of the recommendation it cites. This is the
         # one thing here that catches a row pinned to the WRONG recommendation --
         # every other gate would pass such a row, because its number is real and its
@@ -1470,7 +1498,8 @@ def gate_coverage(
 
         message = (
             f"{sheet.path.name}  source '{key}': {len(unaccounted)} of {len(known)} "
-            f"recommendations in {recs.get('doc_id')} are neither a row nor scoped out: "
+            f"recommendation identifiers in {recs.get('doc_id')} are neither a row "
+            "nor scoped out: "
             + ", ".join(unaccounted[:6])
             + (f", and {len(unaccounted) - 6} more" if len(unaccounted) > 6 else "")
         )
@@ -1478,6 +1507,26 @@ def gate_coverage(
             refusals.append(message)
         else:
             warnings.append(message + "  (source mode is 'bound', so this over-reports)")
+
+    # Scope-outs carry no source key. Membership can therefore be graded only when
+    # every declared source has a loaded exact record: a bound record may have missed
+    # the identifier, and an absent record may have carried it. Under the all-exact
+    # condition, however, an identifier no record carries is inert work presented as
+    # completed work, the same fabrication surface as an unresolvable row citation.
+    loaded_records = [records.get(key) for key in sorted(sheet.sources)]
+    if loaded_records and all(
+        record is not None and record.get("mode") == "exact" for record in loaded_records
+    ):
+        known_anywhere = {
+            recommendation["rec_id"]
+            for record in loaded_records
+            for recommendation in record.get("recommendations", ())
+        }
+        for rec_id in sorted(set(sheet.scoped_out) - known_anywhere):
+            refusals.append(
+                f"{sheet.path.name}  ## Coverage scopes out {rec_id}, but no exact "
+                "recommendation record carries it"
+            )
 
     return refusals, warnings, ungraded
 

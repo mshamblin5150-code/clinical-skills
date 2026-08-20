@@ -414,6 +414,24 @@ class CoverageGate(unittest.TestCase):
         self.assertIn("p41/goal/3", refusals[0])
         self.assertEqual(warnings, [])
 
+    def test_an_exact_row_citing_an_identifier_its_record_does_not_carry_refuses(self):
+        """[#270](https://github.com/mshamblin5150-code/clinical-skills/issues/270).
+
+        The invented identifier used to disappear from both set differences. With
+        every real recommendation accounted for, all four gates read clean.
+        """
+        parsed = sheet(
+            row(rec="p999/invented/7"),
+            coverage="".join(
+                f"- `p41/goal/{number}` - no threshold stated\n" for number in (1, 2, 3)
+            ),
+        )
+        refusals, warnings, _ = gate.gate_coverage(parsed, {"src": self.RECS})
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("p999/invented/7", refusals[0])
+        self.assertIn("does not carry", refusals[0])
+        self.assertEqual(warnings, [])
+
     def test_the_same_omission_only_warns_on_a_bound_source(self):
         """Gate 2's two behaviors, and the mode is read off the recommendation record
         rather than decided here. A marker count over-reports, so enforcing it would
@@ -427,6 +445,53 @@ class CoverageGate(unittest.TestCase):
         self.assertEqual(refusals, [])
         self.assertEqual(len(warnings), 1)
         self.assertIn("over-reports", warnings[0])
+
+    def test_bound_row_membership_is_deliberately_not_graded(self):
+        """A marker record can under-report, so absence from it proves nothing."""
+        parsed = sheet(
+            row(rec="p999/extractor-missed/7"),
+            coverage="".join(
+                f"- `p41/goal/{number}` - no threshold stated\n" for number in (1, 2, 3)
+            ),
+            mode="bound",
+        )
+        refusals, warnings, _ = gate.gate_coverage(
+            parsed, {"src": {**self.RECS, "mode": "bound"}}
+        )
+        self.assertEqual(refusals, [])
+        self.assertEqual(warnings, [])
+        self.assertIn("under-report", gate.WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED)
+
+    def test_an_unknown_scope_out_refuses_when_every_source_record_is_exact(self):
+        parsed = sheet(
+            row(rec="p41/goal/1"),
+            coverage=(
+                "- `p41/goal/2` - no threshold stated\n"
+                "- `p41/goal/3` - no threshold stated\n"
+                "- `p999/invented/7` - reviewed separately\n"
+            ),
+        )
+        refusals, warnings, _ = gate.gate_coverage(parsed, {"src": self.RECS})
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("p999/invented/7", refusals[0])
+        self.assertIn("no exact recommendation record carries it", refusals[0])
+        self.assertEqual(warnings, [])
+
+    def test_unknown_scope_out_membership_is_not_graded_for_a_bound_record(self):
+        parsed = sheet(
+            row(rec="p41/goal/1"),
+            coverage=(
+                "- `p41/goal/2` - no threshold stated\n"
+                "- `p41/goal/3` - no threshold stated\n"
+                "- `p999/extractor-missed/7` - reviewed separately\n"
+            ),
+            mode="bound",
+        )
+        refusals, warnings, _ = gate.gate_coverage(
+            parsed, {"src": {**self.RECS, "mode": "bound"}}
+        )
+        self.assertEqual(refusals, [])
+        self.assertEqual(warnings, [])
 
     def test_a_sheet_declaring_a_mode_its_record_disagrees_with_is_refused(self):
         """Found in review: the `mode` column was decorative.
@@ -1182,7 +1247,8 @@ class CoverageIsPerSource(unittest.TestCase):
     def test_known_is_filtered_to_the_rows_citing_that_source(self):
         """The filtering is the fix and not a tidy-up. A row citing AHA must not
         discharge a KDIGO recommendation that happens to share its identifier --
-        `rec_id` is unique within a document and nothing makes it unique across two.
+        records can repeat a `rec_id` within one document and separate documents can
+        share one too, so the source key remains part of the membership boundary.
         """
         sheet_ = two_source_sheet(row(rec="p1/goal/1", source="aha"))
         refusals, _, _ = gate.gate_coverage(
