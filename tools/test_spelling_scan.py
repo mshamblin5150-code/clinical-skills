@@ -24,6 +24,7 @@ out below are out of its scope rather than exempt from it. Nothing here declares
 anything.
 """
 
+import ast
 import tempfile
 import textwrap
 import unittest
@@ -212,6 +213,20 @@ class ParityWithTheSkill(unittest.TestCase):
                 self.assertIn(british, scan.FORMS)
                 self.assertEqual(scan.FORMS[british], american)
 
+    def test_the_skill_carries_every_form_the_scanner_holds(self):
+        """The reverse direction, and #278 is what exercised it. Parity was one
+        way -- every skill row covered by the scanner -- so adding ``manoeuvre``
+        to ``TABLE`` left the whole suite green with the file a reader opens
+        never mentioning it. That is the ``.claude/skills/`` mirror problem
+        again: two files, two answers, and no way to tell which one a reader
+        got. ``STEM_CHANGES`` and ``DRUGS`` are deliberately outside it -- the
+        skill names those in prose, which the class below asserts.
+        """
+        pairs = dict(scan.parse_skill_table(SKILL.read_text(encoding="utf-8")))
+        for british, american in scan.TABLE.items():
+            with self.subTest(form=british):
+                self.assertEqual(pairs.get(british), american)
+
     def test_every_drug_form_is_named_by_the_skill(self):
         for british, american in scan.DRUGS.items():
             with self.subTest(form=british):
@@ -365,6 +380,199 @@ class TheWalkedPopulation(unittest.TestCase):
         lines = scan.render(self.dirty(), True, "staged")
         self.assertTrue(lines)
         self.assertTrue(self.population(lines).strip())
+
+
+class TheCheckedVocabulary(unittest.TestCase):
+    """#278: the *other* axis of what a clean result covers, on the page.
+
+    #258 put the walked **population** on the page -- which files were read.
+    That is half of what a clean line means, and the half this scanner is
+    weakest on is the other one: it holds a table rather than the language, so
+    a clean result is ``no form on an N-entry table appears in the walked set``
+    and reads as ``American English``.
+
+    **The recorded instance is two forms in one commit, minutes apart.**
+    ``licence`` was on the table and was caught; ``manoeuvres`` was not on it
+    and was not, and was found only by going and looking afterwards. Nothing in
+    the clean run said the second was never looked for.
+
+    **Declared rather than widened**, which is the clinician's #254 ruling and
+    the one he re-ruled here: adding ``manoeuvre`` closes today's instance and
+    the productive families (``-ise``, ``-our``, ``-re``) would fire on correct
+    words. What generalizes is saying so.
+    """
+
+    def clean(self):
+        return scan.Report([], scan.Evidence({}, ()))
+
+    def dirty(self):
+        return scan.Report(scan.scan_text("no dyspnoea at rest\n", "a.md"),
+                           scan.Evidence({}, ()))
+
+    def vocabulary(self, lines):
+        found = [line for line in lines if "listed form" in line]
+        self.assertEqual(len(found), 1, f"expected one vocabulary line in:\n{lines}")
+        return found[0]
+
+    def test_every_mode_states_the_vocabulary(self):
+        """Every mode, on #258's reasoning for the population line: a reader who
+        learns to read the qualifier in one mode reads its absence in another as
+        a stronger claim."""
+        for mode in scan.POPULATIONS:
+            with self.subTest(mode=mode):
+                self.assertTrue(self.vocabulary(scan.render(self.clean(), False, mode)).strip())
+
+    def test_the_count_is_the_one_the_scanner_matches_with(self):
+        """Derived from ``_PATTERNS`` rather than typed, so the printed number
+        cannot disagree with what actually ran -- which is the whole defect one
+        level down. A hand-typed figure here is #143 with a table that grows."""
+        line = self.vocabulary(scan.render(self.clean(), False, "--all"))
+        self.assertIn(str(len(scan._PATTERNS)), line)
+
+        # Asserting the two agree cannot tell a derived number from a typed one
+        # that happens to be right today -- which is the whole failure being
+        # guarded against, since the table grows and the literal would not. So
+        # the table is moved and the line has to follow it.
+        original = scan._PATTERNS
+        try:
+            scan._PATTERNS = original[:3]
+            moved = self.vocabulary(scan.render(self.clean(), False, "--all"))
+        finally:
+            scan._PATTERNS = original
+        self.assertIn("3 listed forms", moved)
+        self.assertNotEqual(line, moved)
+
+    def test_the_line_says_what_being_absent_from_the_table_means(self):
+        """Both limbs, on #254's reasoning. The count alone is what the table
+        already says about itself; what says *what a pass means* is that a form
+        the table does not hold was never looked for."""
+        line = self.vocabulary(scan.render(self.clean(), False, "--all"))
+        self.assertRegex(line, r"(?i)not (?:hold|a finding)")
+
+    def test_it_is_stated_once_and_beside_the_population(self):
+        """Two qualifiers, two rows, both present. Stated once on its own row is
+        #258's discipline; restating it on the population row is #220 -- two
+        copies of one claim, each editable without failing anything."""
+        lines = scan.render(self.clean(), False, "--all")
+        population = [line for line in lines if "scanned" in line]
+        self.assertEqual(len(population), 1)
+        self.assertNotIn("listed form", population[0])
+        self.assertIn(self.vocabulary(lines), lines)
+
+    def test_findings_do_not_suppress_it(self):
+        """A finding is a floor rather than the whole: the forms *not* checked
+        are exactly what a reader of a short finding list needs told."""
+        lines = scan.render(self.dirty(), False, "--all")
+        self.assertTrue(any("a.md:1" in line for line in lines))
+        self.assertTrue(self.vocabulary(lines).strip())
+
+    def test_quiet_and_clean_still_prints_nothing(self):
+        """#258's one kept silence, unchanged: what the ruling qualifies is a
+        **printed** clean result, and this pair prints none."""
+        self.assertEqual(scan.render(self.clean(), True, "staged"), [])
+
+    def test_quiet_with_findings_still_states_the_vocabulary(self):
+        """The hook's own case, and the one report a committer actually reads."""
+        self.assertTrue(self.vocabulary(scan.render(self.dirty(), True, "staged")).strip())
+
+    def test_an_unrecognized_mode_fails_before_printing_either_qualifier(self):
+        with self.assertRaises(KeyError):
+            scan.render(self.clean(), False, "everything")
+
+    def test_the_record_view_carries_the_same_line_rather_than_a_copy(self):
+        """``--record`` needs no *population* line -- #258 ruled that, and its
+        first printed line already names the one directory it reports on. It
+        does need this one: its tally is bounded by the same set, and adding a
+        form has moved it while the twelve notes did not move at all.
+
+        **The same object, not a second sentence.** Two hand-written copies of
+        one claim, each editable without failing anything, is #220 -- and a
+        substring assertion on each would let them diverge with the suite green.
+        The instance itself is stated once, in the skill's Conventions section,
+        which tells a reader to re-derive with ``--record`` rather than quote
+        it; printing it here would be the command quoting that sentence.
+        """
+        rows = scan.record_rows(scan.tracked_markdown(), scan.read_tracked)
+        self.assertIn(scan.vocabulary_covered(), scan.render_record(rows))
+
+    def test_both_renderers_call_it_rather_than_holding_the_sentence(self):
+        """By AST, and the substring test above is why it has to be.
+
+        ``assertIn(vocabulary_covered(), ...)`` catches a copy that has *drifted*
+        and passes a copy that agrees today -- so a typed literal lands green and
+        goes stale on the next form added, which is the whole defect. Mutation-
+        tested in exactly that direction: replacing the call with a byte-
+        identical literal left the suite green until this test existed.
+
+        `reference_scan.py` importing ``docx_write.REFERENCE_HEADING`` rather
+        than restating it is the precedent, and `test_console_codec.py` is the
+        instrument -- a walk rather than a search, because a docstring naming
+        the function satisfies a substring check while proving nothing.
+        """
+        tree = ast.parse(Path(scan.__file__).read_text(encoding="utf-8"))
+        callers = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and any(
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Name)
+                and inner.func.id == "vocabulary_covered"
+                for inner in ast.walk(node)
+            )
+        }
+        self.assertEqual({"render", "render_record"}, callers)
+
+    def test_the_parts_reconcile_to_the_total(self):
+        """A reader who counts the skill's table gets fewer rows than this set
+        has patterns -- the stem changes and the drug names are not rows of it.
+        A bare total is therefore a figure the file a reader opens disagrees
+        with, which is the two-files-two-answers failure the parity test exists
+        to close. So the line names its parts, and they have to add up."""
+        line = self.vocabulary(scan.render(self.clean(), False, "--all"))
+        self.assertEqual(
+            len(scan.TABLE) + len(scan.STEM_CHANGES) + len(scan.DRUGS),
+            len(scan._PATTERNS),
+        )
+        for part in (len(scan.TABLE), len(scan.STEM_CHANGES), len(scan.DRUGS)):
+            with self.subTest(part=part):
+                self.assertIn(str(part), line)
+
+    def test_the_table_row_count_is_the_one_the_skill_publishes(self):
+        """The half a reader can check by eye, and the reason the parts are
+        printed at all: the number this line attributes to the table has to be
+        the number of rows in the table itself."""
+        pairs = scan.parse_skill_table(SKILL.read_text(encoding="utf-8"))
+        self.assertEqual(len(pairs), len(scan.TABLE))
+
+
+class TheTicketsOwnInstance(unittest.TestCase):
+    """#278's finding, pinned. ``manoeuvres`` and ``licence`` were written into
+    skill files in one commit minutes apart and the scanner caught one.
+
+    On the table's documented growth rule, which is evidence and not families:
+    this form was written in this repo, the way ``neighbour``, ``judgement`` and
+    ``programme`` were. ``foetal`` and ``oesophag-`` were **not** added, because
+    no one has written them here -- that is #104's open question and not this
+    ticket's to answer.
+    """
+
+    def test_the_form_that_passed_clean_is_now_a_finding(self):
+        findings = scan.scan_text("Dix-Hallpike manoeuvres were negative.", "a.md")
+        self.assertEqual([(f.form, f.american) for f in findings],
+                         [("manoeuvre", "maneuver")])
+
+    def test_naming_it_inside_backticks_is_still_a_mention(self):
+        self.assertEqual(scan.scan_text("Never write `manoeuvre` here.", "a.md"), [])
+
+    def test_the_inflection_it_actually_arrived_as_is_the_one_caught(self):
+        """It arrived as ``manoeuvres``. ``manoeuvring`` drops the ``e`` and is a
+        stem change, so the suffix rule cannot reach it and ``STEM_CHANGES``
+        does not carry it -- that table is two entries because two are what this
+        repo has produced. **The declaration above is the answer to that**, not
+        a guess at English."""
+        self.assertTrue(scan.scan_text("repeated manoeuvres", "a.md"))
+        self.assertEqual(scan.scan_text("repeated manoeuvring", "a.md"), [])
 
 
 class Reporting(unittest.TestCase):
