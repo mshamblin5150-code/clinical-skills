@@ -34,7 +34,9 @@ Harvest first, then scan::
         > scratch/tracker-reviews.json
     python tools/tracker_scan.py --harvest scratch/tracker-*.json
 
-    git fetch origin "+refs/pull/*/head:refs/remotes/origin/pr/*"
+    git config --add remote.origin.fetch \
+        "+refs/pull/*/head:refs/remotes/origin/pr/*"
+    git fetch origin
     python tools/tracker_scan.py --commits --history --paths
 
 **Into ``scratch/`` and not into the checkout, and the reason is that the
@@ -59,11 +61,13 @@ once, and both directions are silent.
 
 ``--history`` prints the reachable and unreachable blob counts side by side, so
 the figure behind that paragraph is re-derived rather than quoted. And
-``--commits`` and ``--history`` **refuse until at least one pull-head ref is
-present**, printing the fetch command -- `phi_scan.py`'s absent-corpus
-arrangement, for its reason: a scan of half the published objects is not a clean
-scan, and nothing in a zero says which it was. ``--no-pull-refs`` is the
-acknowledgment for a repository that genuinely has none.
+``--commits`` and ``--history`` **refuse until the pull-head refspec is in the
+remote's persistent configuration and at least one pull-head ref is present**,
+printing the setup commands -- `phi_scan.py`'s absent-corpus arrangement, for
+its reason: a scan of half the published objects is not a clean scan, and
+nothing in a zero says which it was. A one-off fetch is insufficient: its refs
+can be pruned and cannot be refreshed by an ordinary fetch. ``--no-pull-refs``
+is the acknowledgment for a repository that genuinely has none.
 
 **A record cannot exempt itself and a file can, which is the one asymmetry here
 that is not `phi_scan`'s.** A blob **is** a file, so ``--history`` honours a
@@ -94,12 +98,12 @@ bounded by nothing, because it reads whatever anybody typed.
 Exit status distinguishes not having scanned from having found nothing -- 0
 clean, 1 for a finding, **2 for every way of not having scanned**: no surface
 named, a harvest file absent or not a JSON list, no record in any surface, a
-git command that failed, no pull-head ref without the acknowledgment, and no
-corpus without ``--allow-no-corpus`` or ``clinical.phiAllowNoCorpus``. **Where a
-finding and a not-scanned limb both hold, 1 wins**, on `phi_scan.py`'s own
-ordering -- returning 2 would file the strongest thing known about the surface
-under the weakest heading -- and every banner prints beside it so the finding
-reads as a floor.
+git command that failed, no persistent pull-head refspec, no pull-head ref
+without the acknowledgment, and no corpus without ``--allow-no-corpus`` or
+``clinical.phiAllowNoCorpus``. **Where a finding and a not-scanned limb both
+hold, 1 wins**, on `phi_scan.py`'s own ordering -- returning 2 would file the
+strongest thing known about the surface under the weakest heading -- and every
+banner prints beside it so the finding reads as a floor.
 """
 
 from __future__ import annotations
@@ -125,7 +129,11 @@ NOT_SCANNED = 2
 # present means somebody has fetched them.
 PULL_REF_MARKERS = ("refs/pull/", "/pr/")
 
-FETCH_PULL_REFS = 'git fetch origin "+refs/pull/*/head:refs/remotes/origin/pr/*"'
+PULL_REFSPEC = "+refs/pull/*/head:refs/remotes/origin/pr/*"
+CONFIGURE_PULL_REFS = (
+    f'git config --add remote.origin.fetch "{PULL_REFSPEC}"'
+)
+FETCH_PULL_REFS = "git fetch origin"
 
 
 class Record(NamedTuple):
@@ -233,6 +241,26 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
 def pull_head_refs(repo: Path) -> list[str]:
     refs = _git(repo, "for-each-ref", "--format=%(refname)").splitlines()
     return [r for r in refs if any(marker in r for marker in PULL_REF_MARKERS)]
+
+
+def pull_refspec_configured(repo: Path) -> bool:
+    """Whether ordinary fetches refresh, and prune preserves, pull heads."""
+    try:
+        done = subprocess.run(
+            ["git", "config", "--local", "--get-all", "remote.origin.fetch"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=repo,
+        )
+    except OSError as error:
+        raise GitError(f"git config: {error}") from error
+    if done.returncode not in (0, 1):
+        first = done.stderr.strip().splitlines()
+        raise GitError(f"git config: {first[0] if first else 'failed'}")
+    wanted = PULL_REFSPEC.removeprefix("+")
+    return any(
+        value.strip().removeprefix("+") == wanted
+        for value in done.stdout.splitlines()
+    )
 
 
 def commit_records(repo: Path) -> list[Record]:
@@ -432,11 +460,23 @@ def main(argv: list[str]) -> int:
         if args.commits or args.history:
             refs = pull_head_refs(repo)
             context.append(("pull-head refs", len(refs)))
-            if not refs and not args.no_pull_refs:
+            configured = pull_refspec_configured(repo)
+            if not configured and not args.no_pull_refs:
                 banners.append(
-                    "DID NOT SCAN the git surface -- no pull-head ref is present,\n"
-                    "so every pull request whose branch was deleted is outside\n"
-                    "this run.\n"
+                    "DID NOT SCAN the git surface -- the persistent pull-head\n"
+                    "refspec is absent, so existing refs may be stale or removed\n"
+                    "by an ordinary prune. Configure it once, then fetch:\n"
+                    f"  {CONFIGURE_PULL_REFS}\n"
+                    f"  {FETCH_PULL_REFS}\n"
+                    "  or --no-pull-refs if this repository has none."
+                )
+                unscanned = True
+            elif not refs and not args.no_pull_refs:
+                banners.append(
+                    "DID NOT SCAN the git surface -- the persistent pull-head\n"
+                    "refspec is configured but no pull-head ref is present, so\n"
+                    "every pull request whose branch was deleted is outside this\n"
+                    "run.\n"
                     f"  {FETCH_PULL_REFS}\n"
                     "  or --no-pull-refs if this repository has none."
                 )

@@ -191,6 +191,12 @@ class GitCheckout:
         head = self._run("rev-parse", "HEAD").stdout.strip()
         self._run("update-ref", "refs/remotes/origin/pr/1", head)
 
+    def configure_pull_refspec(self):
+        self._run(
+            "config", "--add", "remote.origin.fetch",
+            "+refs/pull/*/head:refs/remotes/origin/pr/*",
+        )
+
 
 class ATempRepo(unittest.TestCase):
 
@@ -362,14 +368,16 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
         self.assertNotIn(NAME, self.run_main("--harvest", path)[1])
 
 
-class TheGitSurfaceRefusesUntilThePullHeadsArePresent(MainInATempRepo):
+class TheGitSurfaceRefusesUntilPullHeadsArePersistentAndPresent(MainInATempRepo):
     """A scan of half the published objects is not a clean scan.
 
     A pull request whose branch was deleted after merging keeps its head at
     ``refs/pull/N/head`` on GitHub and an ordinary clone does not fetch it, so a
     run without them is the silent partial coverage this directory exists to
-    refuse. **How many merged pull requests this repository has is deliberately
-    not stated** -- it moved three times during the session that wrote this.
+    refuse. A one-off fetch is not enough: its refs may be stale and an ordinary
+    prune removes them. **How many merged pull requests this repository has is
+    deliberately not stated** -- it moved three times during the session that
+    wrote this.
     """
 
     def test_no_pull_head_ref_is_not_a_clean_scan(self):
@@ -381,7 +389,14 @@ class TheGitSurfaceRefusesUntilThePullHeadsArePresent(MainInATempRepo):
     def test_it_gates_the_history_limb_too(self):
         self.assertEqual(self.run_main("--history")[0], tracker_scan.NOT_SCANNED)
 
-    def test_a_pull_head_ref_lets_it_scan(self):
+    def test_a_pull_head_ref_without_the_persistent_refspec_is_not_clean(self):
+        self.checkout.make_pull_ref()
+        status, out = self.run_main("--commits")
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("remote.origin.fetch", out)
+
+    def test_a_persistent_refspec_and_pull_head_ref_let_it_scan(self):
+        self.checkout.configure_pull_refspec()
         self.checkout.make_pull_ref()
         status, out = self.run_main("--commits")
         self.assertEqual(status, tracker_scan.CLEAN)
@@ -400,6 +415,7 @@ class TheGitSurfaceRefusesUntilThePullHeadsArePresent(MainInATempRepo):
         self.assertIn("NOT in this run", out)
 
     def test_the_history_limb_prints_what_it_did_not_read(self):
+        self.checkout.configure_pull_refspec()
         self.checkout.make_pull_ref()
         _, out = self.run_main("--history")
         self.assertIn("blobs never pushed, unread", out)
