@@ -312,16 +312,23 @@ class TheRecordView(unittest.TestCase):
         self.assertEqual((rows["dyspnoea"].british, rows["dyspnoea"].american_count), (3, 7))
         self.assertEqual((rows["fibre"].british, rows["fibre"].american_count), (4, 3))
 
-    def test_the_widest_ratio_in_the_set_was_invisible_until_2026_08_20(self):
+    def test_the_largest_pair_in_the_set_is_partitioned_by_note(self):
         """``counselling`` is #73's argument at its sharpest, and the table not
         holding the form is the only reason nobody had seen it.
 
-        Every other pair here is close enough to read as a slip. This one is not
-        -- the run wrote the American form many times over and the British form
-        a handful, **in the same two notes**, which is drift rather than a
-        register and is exactly what #73 claims. Pinned because the skill's
-        prose states both numbers beside `cesarean`, `dyspnea` and `fiber`, and
-        a figure stated in prose with nothing able to fail against it is #143.
+        **The mechanism is a between-note partition, not a within-note ratio**,
+        and the skill's prose said the opposite for the length of one sweep: the
+        two notes carrying the British form carry **no** occurrence of the
+        American one, and the ten carrying the American form carry none of the
+        British. So a reader of any single note sees perfect internal
+        consistency and the drift exists only across the twelve -- which is
+        precisely why #73 needed twelve outputs in front of one reader.
+
+        Pinned in both directions because the prose states the pair and names
+        the two exceptions. **The count was right and the reading of it was
+        invented**, which no assertion on the count alone would have caught --
+        the version of this test that shipped first asserted exactly the two
+        numbers below and would have passed the wrong sentence unchanged.
         """
         rows = {row.form: row for row in self.rows}
         row = rows["counselling"]
@@ -330,6 +337,36 @@ class TheRecordView(unittest.TestCase):
             row.american_count,
             max(r.american_count for r in self.rows if r.form != "counselling"),
         )
+        self.assertEqual(self._notes_carrying_both("counselling"), [])
+        # The two the prose names as the genuine within-note case, and the
+        # reason ``slip`` is the wrong word for the pair above.
+        both = sorted(r.form for r in self.rows if self._notes_carrying_both(r.form))
+        self.assertEqual(both, ["caesarean", "fibre"])
+        # **Bound to the prose, not merely pinned here**, which is the same
+        # #220 gap the stated tally had. The three pairs beside this one in the
+        # skill are prose nothing can fail against; they predate this and are
+        # left alone, but a pair added *by* the change that fixed the tally may
+        # not repeat the defect one sentence over. Written in digits so the
+        # assertion can be built from the values rather than transcribed.
+        self.assertIn(
+            f"`counseling` {row.american_count} against "
+            f"`counselling` {row.british}",
+            SKILL.read_text(encoding="utf-8"),
+        )
+
+    def _notes_carrying_both(self, form):
+        """The record notes containing this form *and* its American counterpart."""
+        american = scan.ALL_FORMS[form]
+        british = re.compile(r"\b" + re.escape(form) + scan._SUFFIX + r"\b", re.I)
+        counterpart = re.compile(r"\b" + re.escape(american) + scan._SUFFIX + r"\b", re.I)
+        found = []
+        for path in scan.tracked_markdown():
+            if not scan.is_evidence(path):
+                continue
+            text = scan.read_tracked(path) or ""
+            if british.search(text) and counterpart.search(text):
+                found.append(path)
+        return found
         # **Bound to the prose, not merely pinned here**, which is the same
         # #220 gap the stated tally had. The three pairs beside this one in the
         # skill are prose nothing can fail against; they predate this and are
