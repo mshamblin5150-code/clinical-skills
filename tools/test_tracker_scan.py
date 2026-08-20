@@ -30,6 +30,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 
 import phi_scan
 import tracker_scan
@@ -95,6 +96,80 @@ class OneCodePathReadsIssuesPullRequestsAndComments(unittest.TestCase):
     def test_a_payload_that_is_not_a_list_is_a_harvest_error(self):
         with self.assertRaises(tracker_scan.HarvestError):
             tracker_scan.records_from_github({"message": "Not Found"}, "x.json")
+
+
+class OneChangedTrackerRecordComesFromAnEvent(unittest.TestCase):
+    """The event boundary is incremental: old tracker noise is not replayed."""
+
+    def test_an_issue_comment_event_reads_the_comment_not_the_issue(self):
+        records = tracker_scan.records_from_github_event(
+            {
+                "issue": {"number": 260, "title": "old title", "body": "old body"},
+                "comment": {"id": 7, "html_url": "https://x/c/7", "body": "new"},
+            },
+            "issue_comment",
+            "event.json",
+        )
+        self.assertEqual([record.text for record in records], ["new"])
+
+    def test_an_opened_pull_request_reads_its_title_and_body(self):
+        records = tracker_scan.records_from_github_event(
+            {
+                "action": "opened",
+                "pull_request": {
+                    "number": 3, "title": "changed", "body": "body"
+                },
+            },
+            "pull_request_target",
+            "event.json",
+        )
+        self.assertEqual([record.kind for record in records], ["title", "body"])
+
+    def test_a_body_edit_does_not_replay_an_unchanged_noisy_title(self):
+        records = tracker_scan.records_from_github_event(
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {
+                    "number": 260,
+                    "title": "unchanged 17/5/12 title",
+                    "body": "clean changed body",
+                },
+            },
+            "issues",
+            "event.json",
+        )
+        self.assertEqual([record.kind for record in records], ["body"])
+        self.assertEqual([record.text for record in records], ["clean changed body"])
+
+    def test_an_edit_without_a_changes_object_is_not_guessed_at(self):
+        with self.assertRaises(tracker_scan.HarvestError):
+            tracker_scan.records_from_github_event(
+                {"action": "edited", "issue": {"number": 260, "body": "body"}},
+                "issues",
+                "event.json",
+            )
+
+    def test_clearing_a_body_is_a_scanned_record_with_no_text(self):
+        records = tracker_scan.records_from_github_event(
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {"number": 260, "title": "title", "body": ""},
+            },
+            "issues",
+            "event.json",
+        )
+        self.assertEqual([(record.kind, record.text) for record in records],
+                         [("body", "")])
+
+    def test_an_unrecognized_event_is_not_a_clean_empty_scan(self):
+        with self.assertRaises(tracker_scan.HarvestError):
+            tracker_scan.records_from_github_event(
+                {"discussion": {"body": "not in the ruled surface"}},
+                "discussion",
+                "event.json",
+            )
 
 
 class ARecordCannotExemptItselfAndAFileCan(unittest.TestCase):
@@ -361,6 +436,32 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
         self.assertEqual(status, tracker_scan.FOUND)
         self.assertIn("corpus-date", out)
 
+    def test_a_github_event_is_a_first_class_surface(self):
+        path = self.harvest(
+            "event.json",
+            {"comment": {"id": 7, "body": f"dob {DATE}"}},
+        )
+        status, out = self.run_main(
+            "--github-event", path, "--event-name", "issue_comment"
+        )
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("corpus-date", out)
+
+    def test_clearing_an_event_body_is_clean_not_unscanned(self):
+        path = self.harvest(
+            "event.json",
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {"number": 260, "title": "title", "body": None},
+            },
+        )
+        status, out = self.run_main(
+            "--github-event", path, "--event-name", "issues"
+        )
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("no finding", out)
+
     def test_the_default_run_prints_no_match_text(self):
         path = self.harvest(
             "hit.json", [{"number": 9, "title": "t", "body": f"{NAME} seen"}]
@@ -475,6 +576,20 @@ class ADeadCorpusDoesNotSuppressAFinding(MainInATempRepo):
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertIn("CORPUS LAYER DID NOT RUN", out.upper())
 
+
+class AShortCorpusIsDisclosedOnTheRecurringPath(MainInATempRepo):
+    def setUp(self):
+        super().setUp()
+        self._coverage = phi_scan.corpus_coverage
+        phi_scan.corpus_coverage = lambda: SimpleNamespace(uncovered=2)
+        self.addCleanup(lambda: setattr(phi_scan, "corpus_coverage", self._coverage))
+
+    def test_the_report_names_the_shortfall_and_its_remedy(self):
+        path = self.harvest("ok.json", [{"number": 1, "body": "nothing here"}])
+        status, out = self.run_main("--harvest", path)
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("2 encounter(s) have no name-index entry", out)
+        self.assertIn("tools/name_index.py --write", out)
 
 class TheModuleTakesTheDirectorysStandingRules(unittest.TestCase):
 

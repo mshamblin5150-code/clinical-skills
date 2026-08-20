@@ -643,13 +643,38 @@ git fetch origin
 python tools/tracker_scan.py --commits --history --paths
 ```
 
+**The recurring trigger is the tracker event, owned by Actions.** Issue and
+pull-request titles and bodies, issue comments, review bodies and review
+comments run [.github/workflows/tracker.yml](.github/workflows/tracker.yml) when
+they are created or edited. The workflow scans the **changed record**, not a
+fresh copy of the whole tracker: replaying the historical surface would repeat
+#264's already-triaged findings on every comment until a new finding became one
+more line in an always-red report. Creation and edit are the publication events,
+and an edit scans only the title or body named in GitHub's `changes` object, so
+cleaning one field does not replay an unchanged finding in the other. The
+incremental boundary loses none of the current text a full harvest can read.
+GitHub's retained pre-edit revisions remain outside the API on the ruling below.
+
+**It is a shape layer run and says so on the check.** `scratch/` must never
+reach a runner, so Actions passes `--allow-no-corpus`, preserves the scanner's
+dead-layer banner in the step summary and claims no patient-name coverage. The
+maintainer's clone remains the owner of a full harvest or git-surface run, where
+the corpus layer is live; if its name index is present but short,
+`tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
+hook was declined as the trigger: a comment is published without a push, and a
+push can happen before the finishing sweep writes its comments. This is #260's
+ruling, 2026-08-20. The same day, a one-time full harvest was scanned from the
+maintainer clone after #141's completed name index landed. It produced only
+`us-short-date` shape findings -- no corpus-name or corpus-date row -- and no
+`--show` output; the three gitignored harvest files were deleted after the run.
+
 **It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
 **The refspec configuration is once per clone, and it is persistent on purpose.** A one-off fetch creates `refs/remotes/origin/pr/*` without teaching the remote where they came from, so `git fetch --prune` deletes every one and an ordinary fetch never refreshes them. With the refspec in `remote.origin.fetch`, prune preserves live pull heads and every ordinary fetch refreshes them. `tracker_scan` refuses the git surface when the configuration is absent even if old pull-head refs remain, because presence alone cannot distinguish current refs from stale ones. [#294](https://github.com/mshamblin5150-code/clinical-skills/issues/294).
 
 **Into `scratch/`, and that is not tidiness.** The harvest is the tracker's entire text, so a finding is *in the file you just wrote*. `scratch/` is the firewall's own directory — gitignored, and `phi_scan`'s path layer refuses to commit from it even under `git add -f`. Anywhere else in the tree it is a file full of tracker prose one `git add -A` from being tracked with no net under it, which is [#176](https://github.com/mshamblin5150-code/clinical-skills/issues/176) and [#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223)'s subject arriving on a file this tool tells you to create.
 
-**Four limbs against #212's three surfaces, and the mapping is deliberately not one-to-one.** `--history` reads every **blob** reachable from a ref, and that is the pull-request limb: a merged pull request's diff is made of blobs, every one reachable once the merge lands. It is also the limb `phi_scan` cannot reach at all, because a file deleted or rewritten five commits ago is not in `git ls-files` — **which is why #212's own scan had to be hand-written and why the figures it published were re-derivable by nothing.** `--paths` is the fourth and #212 never asks for it; it is here because a filename is published too and costs one `rev-list` to read.
+**The inputs do not map one-to-one to #212's surfaces.** `--history` reads every **blob** reachable from a ref, and that is the pull-request limb: a merged pull request's diff is made of blobs, every one reachable once the merge lands. It is also the limb `phi_scan` cannot reach at all, because a file deleted or rewritten five commits ago is not in `git ls-files` — **which is why #212's own scan had to be hand-written and why the figures it published were re-derivable by nothing.** `--paths` is an additional surface #212 never asks for; it is here because a filename is published too and costs one `rev-list` to read.
 
 **A record cannot exempt itself and a file can, which is the one asymmetry here that is not `phi_scan`'s.** `scan_lines` was split out of `scan_text` for it. A blob **was** a file that somebody reviewed, so `--history` honors a `phi-scan: synthetic` declaration exactly as `phi_scan` does; an issue body was typed by whoever opened the issue and may not. The argument is not hypothetical — **the finding this tool was built to catch is a ticket about the `dob` shape that quotes a real one**, so the record most likely to carry an identifier is exactly the record that would have carried the pragma. `Record.is_file` is which, and it is the only thing that field decides.
 
