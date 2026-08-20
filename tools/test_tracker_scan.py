@@ -29,6 +29,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from collections import Counter
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -478,7 +479,7 @@ class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
     without copying a possibly identifying literal into the tracked ledger.
     """
 
-    def write_rulings(self, match_digest):
+    def write_rulings(self, match_digest, reason="accepted-history-ruling"):
         oid = self.checkout._run("rev-parse", "HEAD").stdout.strip()
         target = self.repo / "reference" / "tracker-scan-rulings.json"
         target.parent.mkdir()
@@ -490,7 +491,7 @@ class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
                 "rule": "corpus-name",
                 "match_sha256": match_digest,
                 "verdict": "accepted-history",
-                "reason": "accepted-history-ruling",
+                "reason": reason,
             }],
         }), encoding="utf-8")
 
@@ -514,6 +515,17 @@ class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
 
         self.assertEqual(status, tracker_scan.FOUND)
         self.assertIn("corpus-name", out)
+
+    def test_a_new_noise_reason_needs_no_scanner_change(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        self.write_rulings(
+            hashlib.sha256(NAME.encode()).hexdigest(),
+            reason="a newly observed nonidentifier shape",
+        )
+
+        status, _ = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.CLEAN)
 
     def test_a_second_finding_in_the_same_commit_stays_live(self):
         self.checkout.commit(
@@ -549,6 +561,50 @@ class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
         self.assertEqual(status, tracker_scan.FOUND)
         self.assertIn("corpus-name", out)
         self.assertIn("DID NOT APPLY commit rulings", out)
+
+
+class TheCommittedRulingPopulationIsLive(unittest.TestCase):
+    """The real ledger, its extraction, and a dead-key mutant are independent.
+
+    Synthetic CLI cases prove the behavior. This ratchet proves the bounded
+    committed population still names findings that exist in actual history;
+    otherwise a typo in the artifact could ship while every synthetic case
+    stayed green.
+    """
+
+    def test_every_committed_ruling_matches_one_real_finding(self):
+        path = phi_scan.REPO_ROOT / tracker_scan.RULINGS_PATH
+        rows = json.loads(path.read_text(encoding="utf-8"))["commit_findings"]
+        rulings = tracker_scan.load_commit_rulings(phi_scan.REPO_ROOT)
+        self.assertTrue(rows)
+        self.assertEqual(len(rows), len(rulings))
+
+        records = tracker_scan.commit_records(phi_scan.REPO_ROOT)
+        names, dates = phi_scan.corpus_identifiers()
+        findings = tracker_scan.scan_records(
+            records, phi_scan.build_index(names, dates)
+        )
+        observed = Counter()
+        for finding in findings:
+            prefix, separator, commit = finding.path.partition(" ")
+            if prefix != "commit" or not separator or len(commit) != 40:
+                continue
+            observed[tracker_scan.RulingKey(
+                commit,
+                finding.line,
+                finding.rule,
+                hashlib.sha256(finding.match.encode("utf-8")).hexdigest(),
+            )] += 1
+
+        self.assertEqual(
+            rulings,
+            {key for key, count in observed.items() if count == 1 and key in rulings},
+        )
+
+        first = next(iter(rulings))
+        dead_digest = ("0" if first.match_sha256[0] != "0" else "1") * 64
+        mutant = first._replace(match_sha256=dead_digest)
+        self.assertNotIn(mutant, observed)
 
 
 class TheGitSurfaceRefusesUntilPullHeadsArePersistentAndPresent(MainInATempRepo):

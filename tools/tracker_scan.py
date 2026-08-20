@@ -151,12 +151,6 @@ CONFIGURE_PULL_REFS = (
 FETCH_PULL_REFS = "git fetch origin"
 RULINGS_PATH = Path("reference/tracker-scan-rulings.json")
 RULING_VERDICTS = {"noise", "accepted-history"}
-RULING_REASONS = {
-    "accepted-history-ruling",
-    "arithmetic-summary",
-    "census-or-fixture-ratio",
-    "synthetic-impossible-date",
-}
 COMMIT_FINDING = re.compile(r"^commit ([0-9a-f]{40})$")
 
 
@@ -418,7 +412,7 @@ def load_commit_rulings(repo: Path) -> set[RulingKey]:
             raise RulingError(f"{path}: row {number} has an invalid match_sha256")
         if verdict not in RULING_VERDICTS:
             raise RulingError(f"{path}: row {number} has an invalid verdict")
-        if reason not in RULING_REASONS:
+        if not isinstance(reason, str) or not reason.strip():
             raise RulingError(f"{path}: row {number} has an invalid reason")
         key = RulingKey(commit, line, rule, digest)
         if key in rulings:
