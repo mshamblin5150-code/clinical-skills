@@ -98,6 +98,16 @@ not paste it. Deliberately **not** `reference_scan.py`'s exception -- that
 module's output is bounded by what its code can draw from, and this one's is
 bounded by nothing, because it reads whatever anybody typed.
 
+**A human ruling on a commit finding is committed without repeating its
+literal.** ``reference/tracker-scan-rulings.json`` keys the verdict on the full
+commit id, line, rule and SHA-256 digest of the match. The full tuple is the
+finding: ruling a commit alone would let one reviewed ratio hide another match
+in the same message, and a copied literal could itself be PHI. A mismatch stays
+in the report; a malformed ledger applies no rulings and makes the run
+not-scanned unless an unruled finding supplies the stronger exit 1. The report
+states how many exact findings the ledger removed, so a clean result never
+silently means *nothing was detected before rulings*.
+
 Exit status distinguishes not having scanned from having found nothing -- 0
 clean, 1 for a finding, **2 for every way of not having scanned**: no surface
 named, a harvest file absent or not a JSON list, no record in any surface, a
@@ -112,7 +122,9 @@ banner prints beside it so the finding reads as a floor.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -137,6 +149,15 @@ CONFIGURE_PULL_REFS = (
     f'git config --add remote.origin.fetch "{PULL_REFSPEC}"'
 )
 FETCH_PULL_REFS = "git fetch origin"
+RULINGS_PATH = Path("reference/tracker-scan-rulings.json")
+RULING_VERDICTS = {"noise", "accepted-history"}
+RULING_REASONS = {
+    "accepted-history-ruling",
+    "arithmetic-summary",
+    "census-or-fixture-ratio",
+    "synthetic-impossible-date",
+}
+COMMIT_FINDING = re.compile(r"^commit ([0-9a-f]{40})$")
 
 
 class Record(NamedTuple):
@@ -165,6 +186,17 @@ class GitError(Exception):
     with no pull-head refs, and that reads as *fetch them* rather than as
     *something is wrong here*.
     """
+
+
+class RulingError(Exception):
+    """A committed ruling ledger that cannot safely identify its findings."""
+
+
+class RulingKey(NamedTuple):
+    commit: str
+    line: int
+    rule: str
+    match_sha256: str
 
 
 def _run_git(
@@ -347,8 +379,68 @@ def commit_records(repo: Path) -> list[Record]:
         oid, message = chunk.split("\x00", 1)
         oid = oid.strip()
         if oid and message.strip():
-            records.append(Record("commit", f"commit {oid[:10]}", message))
+            records.append(Record("commit", f"commit {oid}", message))
     return records
+
+
+def load_commit_rulings(repo: Path) -> set[RulingKey]:
+    """Read exact, non-revealing verdicts for immutable commit findings."""
+    path = repo / RULINGS_PATH
+    if not path.is_file():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RulingError(f"{path}: {error}") from error
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise RulingError(f"{path}: version must be 1")
+    rows = data.get("commit_findings")
+    if not isinstance(rows, list):
+        raise RulingError(f"{path}: commit_findings must be a list")
+
+    rulings: set[RulingKey] = set()
+    for number, row in enumerate(rows, 1):
+        if not isinstance(row, dict):
+            raise RulingError(f"{path}: row {number} must be an object")
+        commit = row.get("commit")
+        line = row.get("line")
+        rule = row.get("rule")
+        digest = row.get("match_sha256")
+        verdict = row.get("verdict")
+        reason = row.get("reason")
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise RulingError(f"{path}: row {number} has an invalid commit")
+        if not isinstance(line, int) or isinstance(line, bool) or line < 1:
+            raise RulingError(f"{path}: row {number} has an invalid line")
+        if not isinstance(rule, str) or not rule:
+            raise RulingError(f"{path}: row {number} has an invalid rule")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise RulingError(f"{path}: row {number} has an invalid match_sha256")
+        if verdict not in RULING_VERDICTS:
+            raise RulingError(f"{path}: row {number} has an invalid verdict")
+        if reason not in RULING_REASONS:
+            raise RulingError(f"{path}: row {number} has an invalid reason")
+        key = RulingKey(commit, line, rule, digest)
+        if key in rulings:
+            raise RulingError(f"{path}: row {number} duplicates an earlier ruling")
+        rulings.add(key)
+    return rulings
+
+
+def partition_ruled_findings(
+    findings: Sequence[Finding], rulings: set[RulingKey]
+) -> tuple[list[Finding], list[Finding]]:
+    """Separate only findings whose immutable commit identity matches exactly."""
+    unruled: list[Finding] = []
+    ruled: list[Finding] = []
+    for finding in findings:
+        match = COMMIT_FINDING.fullmatch(finding.path)
+        key = RulingKey(
+            match.group(1), finding.line, finding.rule,
+            hashlib.sha256(finding.match.encode("utf-8")).hexdigest(),
+        ) if match else None
+        (ruled if key in rulings else unruled).append(finding)
+    return unruled, ruled
 
 
 def reachable_objects(repo: Path) -> dict[str, str]:
@@ -530,6 +622,7 @@ def main(argv: list[str]) -> int:
     banners: list[str] = []
     context: list[tuple[str, int]] = []
     records: list[Record] = []
+    rulings: set[RulingKey] = set()
     unscanned = False
 
     try:
@@ -582,6 +675,13 @@ def main(argv: list[str]) -> int:
         print(f"tracker-scan: DID NOT SCAN -- {error}", file=sys.stderr)
         return NOT_SCANNED
 
+    if args.commits:
+        try:
+            rulings = load_commit_rulings(repo)
+        except RulingError as error:
+            banners.append(f"DID NOT APPLY commit rulings -- {error}")
+            unscanned = True
+
     if not records and not unscanned:
         print("tracker-scan: DID NOT SCAN -- no record in any surface named",
               file=sys.stderr)
@@ -601,6 +701,9 @@ def main(argv: list[str]) -> int:
     names, dates = phi_scan.corpus_identifiers()
     banners.extend(phi_scan.shortfall_notice(phi_scan.corpus_coverage(), missing))
     findings = scan_records(records, phi_scan.build_index(names, dates))
+    findings, ruled = partition_ruled_findings(findings, rulings)
+    if ruled:
+        context.append(("ruled findings", len(ruled)))
     print(format_report(findings, records, context, banners, args.show))
 
     if findings:

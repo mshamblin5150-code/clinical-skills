@@ -23,6 +23,7 @@ would still be refused here. Which is the same asymmetry
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
@@ -467,6 +468,87 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
             "hit.json", [{"number": 9, "title": "t", "body": f"{NAME} seen"}]
         )
         self.assertNotIn(NAME, self.run_main("--harvest", path)[1])
+
+
+class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
+    """#264's committed verdict is narrower than a commit or a rule.
+
+    The commit id makes the record immutable; line and rule distinguish two
+    findings in one message; the digest distinguishes two matches on one line
+    without copying a possibly identifying literal into the tracked ledger.
+    """
+
+    def write_rulings(self, match_digest):
+        oid = self.checkout._run("rev-parse", "HEAD").stdout.strip()
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text(json.dumps({
+            "version": 1,
+            "commit_findings": [{
+                "commit": oid,
+                "line": 1,
+                "rule": "corpus-name",
+                "match_sha256": match_digest,
+                "verdict": "accepted-history",
+                "reason": "accepted-history-ruling",
+            }],
+        }), encoding="utf-8")
+
+    def test_an_exact_ruling_leaves_the_commit_surface_clean(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        self.write_rulings(hashlib.sha256(NAME.encode()).hexdigest())
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("ruled findings", out)
+        self.assertIn("1", out)
+        self.assertIn("no finding", out)
+
+    def test_a_ruling_for_another_match_does_not_hide_the_finding(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        other_digest = hashlib.sha256(b"a different match").hexdigest()
+        self.write_rulings(other_digest)
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("corpus-name", out)
+
+    def test_a_second_finding_in_the_same_commit_stays_live(self):
+        self.checkout.commit(
+            "b.md", "y", f"{NAME} was on the list\nseen dob 3-04-88"
+        )
+        self.write_rulings(hashlib.sha256(NAME.encode()).hexdigest())
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("dob-with-date", out)
+        self.assertIn("ruled findings", out)
+
+    def test_a_malformed_ledger_cannot_be_mistaken_for_an_empty_one(self):
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text('{"version": 1, "commit_findings": "not a list"}',
+                          encoding="utf-8")
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("DID NOT APPLY commit rulings", out)
+
+    def test_an_unruled_finding_stays_stronger_than_a_malformed_ledger(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text("not json", encoding="utf-8")
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("corpus-name", out)
+        self.assertIn("DID NOT APPLY commit rulings", out)
 
 
 class TheGitSurfaceRefusesUntilPullHeadsArePersistentAndPresent(MainInATempRepo):

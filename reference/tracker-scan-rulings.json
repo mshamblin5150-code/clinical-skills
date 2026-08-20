@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "commit_findings": [
+    {
+      "commit": "3b82e06da996e77e0735491eacc392982ce13d68",
+      "line": 36,
+      "rule": "us-short-date",
+      "match_sha256": "d47ae928251800c91f8ef367a3ae9b51df175f1ec135f38f7bf910df38e94ada",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "4d0347975524168a052aaafa8ed552f8afca0568",
+      "line": 4,
+      "rule": "us-short-date",
+      "match_sha256": "0c549456a399f3cf6059a0058a3ae412b76689beb863728637a58f3117935338",
+      "verdict": "accepted-history",
+      "reason": "accepted-history-ruling"
+    },
+    {
+      "commit": "5c653aca053c619de768fbfc7a69c3f732ec7304",
+      "line": 4,
+      "rule": "us-short-date",
+      "match_sha256": "65c08afb89ad8bdc2340effc5d917cb287045f76f620233feeca4f605905122f",
+      "verdict": "noise",
+      "reason": "synthetic-impossible-date"
+    },
+    {
+      "commit": "5c653aca053c619de768fbfc7a69c3f732ec7304",
+      "line": 10,
+      "rule": "us-short-date",
+      "match_sha256": "65c08afb89ad8bdc2340effc5d917cb287045f76f620233feeca4f605905122f",
+      "verdict": "noise",
+      "reason": "synthetic-impossible-date"
+    },
+    {
+      "commit": "6012d1811110efa5e95d62a79cf52e7b12b592a4",
+      "line": 52,
+      "rule": "us-short-date",
+      "match_sha256": "65c08afb89ad8bdc2340effc5d917cb287045f76f620233feeca4f605905122f",
+      "verdict": "noise",
+      "reason": "synthetic-impossible-date"
+    },
+    {
+      "commit": "893bc5d42b86f428ccb396f8f3063fd7bfe734a0",
+      "line": 25,
+      "rule": "us-short-date",
+      "match_sha256": "b5a171cc3fc628e11e036fa53936e8e4f9103c36b3772ecdf4accbf29021532e",
+      "verdict": "noise",
+      "reason": "arithmetic-summary"
+    },
+    {
+      "commit": "9dd3ea5a94592a03fe05ac4665fbd9a6b5d86a27",
+      "line": 4,
+      "rule": "us-short-date",
+      "match_sha256": "b8cc0f914cc66db798241aeb3c046a7b51402f3ec87ab4af6e96823f3a68747f",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "bcff90da63658fde3cf26c7e7bd963a7f4168cbe",
+      "line": 46,
+      "rule": "us-short-date",
+      "match_sha256": "e8c33b169bf226149b8f3cd929ec1f2899ee85a71aed3ff7682be85b5d653021",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "be7005bc044115aacae48ef4c3e3594cb13ba018",
+      "line": 35,
+      "rule": "us-short-date",
+      "match_sha256": "d47ae928251800c91f8ef367a3ae9b51df175f1ec135f38f7bf910df38e94ada",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "da6f7914a453780e780d85f325e9eb39432a36ef",
+      "line": 52,
+      "rule": "us-short-date",
+      "match_sha256": "56cfacb0cadc0de7feb0bce1bf552034106704e7d3a25734351d65e14470f530",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "da6f7914a453780e780d85f325e9eb39432a36ef",
+      "line": 52,
+      "rule": "us-short-date",
+      "match_sha256": "b8cc0f914cc66db798241aeb3c046a7b51402f3ec87ab4af6e96823f3a68747f",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "e20a18629720e3b0b245614384fa10a9800388cd",
+      "line": 14,
+      "rule": "us-short-date",
+      "match_sha256": "2becf26b69e9aaf71d0a5f7e3e5ee0a623c1c9521c11c72f1a0688e121b268ac",
+      "verdict": "noise",
+      "reason": "census-or-fixture-ratio"
+    },
+    {
+      "commit": "fa53a928a5c95fd9f803192dff172655fec66cb5",
+      "line": 16,
+      "rule": "us-short-date",
+      "match_sha256": "0c549456a399f3cf6059a0058a3ae412b76689beb863728637a58f3117935338",
+      "verdict": "accepted-history",
+      "reason": "accepted-history-ruling"
+    }
+  ]
+}
