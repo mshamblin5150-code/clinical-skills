@@ -8,8 +8,9 @@ different answer than the file a reader opens.
 
 Usage:
 
-    python tools/spelling_scan.py               # staged Markdown (what the hook runs)
-    python tools/spelling_scan.py --all         # every tracked .md
+    python tools/spelling_scan.py               # staged source and filenames
+    python tools/spelling_scan.py --all         # tracked source and filenames
+    python tools/spelling_scan.py --commit-message .git/COMMIT_EDITMSG
     python tools/spelling_scan.py --record      # the run record, form by form
     python tools/spelling_scan.py <a run dir>   # grade a run's finished notes
     python tools/spelling_scan.py --quiet       # print nothing when clean
@@ -47,15 +48,15 @@ like any other prose.
 
 **Findings name the table's entry, never the bytes matched.** A note is a patient
 record, so a scanner that echoed the line it matched would have output nobody
-could paste into a ticket. What prints is a path, a line number and the entry
-this module already contains -- the same discipline ``corpus_census.py`` keeps,
-and the reason there is no ``--show``.
+could paste into a ticket. What prints is a path, a line number for content, and
+the entry this module already contains -- the same discipline
+``corpus_census.py`` keeps, and the reason there is no ``--show``.
 
 Known limits, stated so nobody reads this as the rule itself:
 
-- **Markdown only.** Standing rule 4 reaches commit messages, filenames and
-  ticket text, and this scans none of them. What it scans is every tracked
-  ``.md``, which is the notes, the fixtures, the skills and the prose about them.
+- **Local surfaces only.** Source modes scan ``.md`` and ``.py`` contents plus
+  filenames. The ``commit-msg`` hook scans a local commit message. Ticket and
+  PR text stay a documented manual check because no local hook owns them.
 - **It holds the table, not the language.** The ``-ise`` family beyond
   ``catheterise``, and every British form nobody has written here yet, are out.
   A scan that comes back clean means no *listed* form was used. **Since #278
@@ -76,9 +77,12 @@ Known limits, stated so nobody reads this as the rule itself:
 from __future__ import annotations
 
 import argparse
+import ast
+import io
 import re
 import subprocess
 import sys
+import tokenize
 from pathlib import Path
 from typing import Callable, Iterable, NamedTuple
 
@@ -91,6 +95,7 @@ EVIDENCE_PREFIXES = ("fixtures/filled-anchor/notes/case-",)
 
 # *Conventions > Spelling* in skills/clinical-note/SKILL.md, transcribed. Parity
 # is asserted rather than trusted; see `parse_skill_table`.
+# spelling-scan: mentions 27
 TABLE = {
     "dyspnoea": "dyspnea",
     "apnoea": "apnea",
@@ -124,6 +129,7 @@ TABLE = {
 # Inflections whose stem changes, so the suffix rule below cannot reach them from
 # the table's entry. Two, because two are what the corpus and the run record have
 # produced -- this is not an attempt at English.
+# spelling-scan: mentions 2
 STEM_CHANGES = {
     "labelling": "labeling",
     "catheterisation": "catheterization",
@@ -134,6 +140,7 @@ FORMS = {**TABLE, **STEM_CHANGES}
 # The same rule where it costs the most to get wrong: a clinician reading the
 # other name has to translate it before they can check the dose. Named in the
 # skill's prose rather than its table, so parity is asserted differently.
+# spelling-scan: mentions 3
 DRUGS = {
     "paracetamol": "acetaminophen",
     "adrenaline": "epinephrine",
@@ -148,7 +155,10 @@ ALL_FORMS = {**FORMS, **DRUGS}
 _SUFFIX = r"(?:ally|ing|es|ed|al|ly|s|d)?"
 
 _PATTERNS = tuple(
-    (form, american, re.compile(r"\b" + re.escape(form) + _SUFFIX + r"\b", re.I))
+    (form, american, re.compile(
+        r"(?<![A-Za-z0-9])" + re.escape(form) + _SUFFIX + r"(?![A-Za-z0-9])",
+        re.I,
+    ))
     for form, american in ALL_FORMS.items()
 )
 
@@ -164,6 +174,7 @@ _COUNTERPARTS = tuple(
 # fence line reduces to nothing, which leaves the fenced block's own lines to be
 # read as the prose they are.
 _CODE_SPAN = re.compile(r"`+[^`\n]*`+")
+_PYTHON_MENTION = re.compile(r"#\s*spelling-scan:\s*mentions\s+(\d+)\s*$")
 
 
 class Finding(NamedTuple):
@@ -173,6 +184,8 @@ class Finding(NamedTuple):
     american: str
 
     def render(self) -> str:
+        if self.line == 0:
+            return f"  {self.path}  {self.form} -> {self.american}"
         return f"  {self.path}:{self.line}  {self.form} -> {self.american}"
 
 
@@ -216,7 +229,7 @@ class _Tally:
         self.record: list[str] = []
 
     def add(self, finding: Finding) -> None:
-        if not is_evidence(finding.path):
+        if finding.line == 0 or not is_evidence(finding.path):
             self.findings.append(finding)
             return
         self.counts[finding.form] = self.counts.get(finding.form, 0) + 1
@@ -259,23 +272,84 @@ def scan_text(text: str, path: str) -> list[Finding]:
     return findings
 
 
+class MentionDeclarationError(ValueError):
+    """A Python mention declaration is detached, ambiguous, or miscounted."""
+
+
+def scan_python_text(text: str, path: str) -> list[Finding]:
+    """Scan Python while honoring counted declarations on exact AST statements."""
+    findings = scan_text(text, path)
+    source_lines = text.splitlines()
+    declarations = [
+        (token.start[0], matched)
+        for token in tokenize.generate_tokens(io.StringIO(text).readline)
+        if token.type == tokenize.COMMENT
+        if not source_lines[token.start[0] - 1][:token.start[1]].strip()
+        for matched in [_PYTHON_MENTION.fullmatch(token.string)]
+        if matched
+    ]
+    if not declarations:
+        return findings
+
+    tree = ast.parse(text, filename=path)
+    statements: dict[int, list[ast.stmt]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.stmt):
+            statements.setdefault(node.lineno, []).append(node)
+
+    exempt_lines: set[int] = set()
+    declared_statements: set[tuple[int, int]] = set()
+    for declaration_line, declaration in declarations:
+        candidates = statements.get(declaration_line + 1, [])
+        if len(candidates) != 1:
+            raise MentionDeclarationError(
+                f"{path}:{declaration_line}: mention declaration must be directly "
+                "above exactly one Python statement"
+            )
+        statement = candidates[0]
+        end_line = getattr(statement, "end_lineno", statement.lineno)
+        declared = int(declaration.group(1))
+        if declared < 1:
+            raise MentionDeclarationError(
+                f"{path}:{declaration_line}: mention declaration count must be positive"
+            )
+        statement_span = (statement.lineno, end_line)
+        if statement_span in declared_statements:
+            raise MentionDeclarationError(
+                f"{path}:{declaration_line}: statement already has a mention declaration"
+            )
+        declared_statements.add(statement_span)
+        covered = [f for f in findings if statement.lineno <= f.line <= end_line]
+        if len(covered) != declared:
+            raise MentionDeclarationError(
+                f"{path}:{declaration_line}: declares {declared} mentions but "
+                f"the statement contains {len(covered)}"
+            )
+        exempt_lines.update(range(statement.lineno, end_line + 1))
+
+    return [finding for finding in findings if finding.line not in exempt_lines]
+
+
 def is_evidence(path: str) -> bool:
     return path.startswith(EVIDENCE_PREFIXES)
 
 
-def is_markdown(path: str) -> bool:
-    return path.lower().endswith(".md")
+def is_scannable_source(path: str) -> bool:
+    return Path(path).suffix.lower() in {".md", ".py"}
 
 
 def scan(paths: Iterable[str], read: Callable[[str], str | None]) -> Report:
     tally = _Tally()
     for path in paths:
-        if not is_markdown(path):
+        for form, american in _matches(path):
+            tally.add(Finding(path, 0, form, american))
+        if not is_scannable_source(path):
             continue
         text = read(path)
         if text is None:
             continue
-        for finding in scan_text(text, path):
+        scanner = scan_python_text if path.lower().endswith(".py") else scan_text
+        for finding in scanner(text, path):
             tally.add(finding)
     return tally.report()
 
@@ -394,29 +468,23 @@ def _git(*args: str) -> str:
     ).stdout
 
 
-def tracked_markdown() -> list[str]:
-    """Every **tracked** ``.md``, which is the whole of what a clean result covers.
+def tracked_files() -> list[str]:
+    """Every tracked path, for source contents and filename scanning.
 
-    [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254).
-    The name said *tracked* and nothing said what a pass means, which is the
-    half of the statement that matters: ``git ls-files`` is the index, an
-    untracked file is not in it, and the honest form of a clean ``--all`` is
-    *no tracked file uses a listed form*.
-
-    **This walk has the recorded instance rather than the hypothetical one.**
-    ``CLAUDE.md`` carries it: ``licence`` landed in
-    ``skills/practicum-case-study/SKILL.md`` with neither net catching it --
-    the staged scan crashed inside ``staged_additions`` on a ``_git`` that had
-    raised ``UnicodeDecodeError``, and this mode *"cannot see a file until the
-    commit that makes it tracked"*. A commit is what turns this walk's blind
-    spot into its coverage, which is one commit too late to refuse it.
-
-    **Since [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)
-    that statement is on the page as well as here**, in `scanned_population` and
-    beside every clean line this scanner prints. A docstring is the page for a
-    walk whose only reader opens the file; this one prints.
+    An untracked file is invisible until the commit that tracks it, so a clean
+    result over this walk says nothing about a file still outside the index.
     """
-    return [p for p in _git("ls-files", "*.md").splitlines() if p.strip()]
+    return [p for p in _git("ls-files").splitlines() if p.strip()]
+
+
+def tracked_markdown() -> list[str]:
+    """Every **tracked** ``.md`` used by the preserved-record views.
+
+    ``--all`` uses `tracked_files`; this narrower view remains because the run
+    record contains Markdown notes only. Keeping the filter here prevents the
+    record renderer from acquiring the repository-wide filename surface.
+    """
+    return [path for path in tracked_files() if path.lower().endswith(".md")]
 
 
 def read_tracked(path: str) -> str | None:
@@ -442,6 +510,17 @@ def markdown_under(targets: Iterable[Path]) -> list[str]:
     return found
 
 
+def files_under(targets: Iterable[Path]) -> list[str]:
+    """Every file under explicit targets, so filenames cannot hide by type."""
+    found: list[str] = []
+    for target in targets:
+        if target.is_dir():
+            found.extend(str(path) for path in sorted(target.rglob("*")) if path.is_file())
+        elif target.is_file():
+            found.append(str(target))
+    return found
+
+
 def read_file(path: str) -> str | None:
     full = Path(path)
     if not full.is_file():
@@ -450,12 +529,15 @@ def read_file(path: str) -> str | None:
 
 
 def staged_additions() -> dict[str, list[tuple[int, str]]]:
-    """Added lines per staged Markdown file, numbered in the new file.
+    """Added lines per staged source file, numbered in the new file.
 
     Added lines only, so a commit touching one paragraph is not answerable for
     every form already in the file.
     """
-    diff = _git("diff", "--cached", "--unified=0", "--diff-filter=ACMR", "--", "*.md")
+    diff = _git(
+        "diff", "--cached", "--unified=0", "--diff-filter=ACMR",
+        "--", "*.md", "*.py",
+    )
     additions: dict[str, list[tuple[int, str]]] = {}
     path = ""
     number = 0
@@ -472,23 +554,52 @@ def staged_additions() -> dict[str, list[tuple[int, str]]]:
     return additions
 
 
+def staged_paths() -> list[str]:
+    """Every added, copied, modified, or renamed staged path."""
+    return [
+        path for path in _git(
+            "diff", "--cached", "--name-only", "--diff-filter=ACMR",
+        ).splitlines()
+        if path.strip()
+    ]
+
+
+def read_staged(path: str) -> str | None:
+    """The index version of a path, never an unstaged working-tree edit."""
+    try:
+        return _git("show", f":{path}")
+    except subprocess.CalledProcessError:
+        return None
+
+
 def scan_staged() -> Report:
     tally = _Tally()
-    for path, added in staged_additions().items():
-        if not is_markdown(path):
+    additions = staged_additions()
+    for path in staged_paths():
+        for form, american in _matches(path):
+            tally.add(Finding(path, 0, form, american))
+        if not is_scannable_source(path):
             continue
-        for number, text in added:
-            for form, american in _matches(strip_code_spans(text)):
-                tally.add(Finding(path, number, form, american))
+        text = read_staged(path)
+        if text is None:
+            continue
+        scanner = scan_python_text if path.lower().endswith(".py") else scan_text
+        added_lines = {number for number, _line in additions.get(path, [])}
+        for finding in scanner(text, path):
+            if finding.line in added_lines:
+                tally.add(finding)
     return tally.report()
 
 
 POPULATIONS = {
-    "--all": ("every tracked .md -- an untracked file is not scanned until the "
-              "commit that tracks it"),
-    "staged": ("the added lines in staged .md -- an unstaged or untracked file "
-               "is not scanned"),
-    "paths": "the .md under the paths given -- nothing else in the tree is scanned",
+    "--all": ("the contents of every tracked .md and .py, plus every tracked "
+              "filename -- an untracked file is not scanned until the commit "
+              "that tracks it"),
+    "staged": ("the added lines in staged .md and .py, plus every staged "
+               "filename -- an unstaged or untracked file is not scanned"),
+    "paths": ("the .md and .py contents plus filenames under the paths given -- "
+              "nothing else in the tree is scanned"),
+    "commit-message": "the supplied commit message -- no tracked file is scanned",
 }
 
 
@@ -556,7 +667,7 @@ def vocabulary_covered() -> str:
     every one of them fires on a correct word, and a scanner that refuses
     ``seizure`` and ``figure`` is worse than one that says what it holds.
     ``foetal`` and ``oesophag-`` stay off for the narrower reason that nobody
-    has written them here, which is #104's open question and not this one's.
+    has written them here; #278 settled that vocabulary question as evidence-only.
 
     **Derived from ``_PATTERNS`` rather than typed.** That tuple is what
     ``_matches`` iterates, so the printed number cannot disagree with what ran
@@ -597,7 +708,7 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
     lines: list[str] = []
     if report.findings:
         lines.append(
-            "spelling-scan: British spelling in Markdown. Standing rule 4: "
+            "spelling-scan: listed British spelling found. Standing rule 4: "
             "American English, always."
         )
         lines.append("")
@@ -605,7 +716,9 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
         lines.append("")
         lines.append(
             "A form named inside `backticks` is a mention and is not reported. "
-            "The table is in skills/clinical-note/SKILL.md under Conventions."
+            "Python statements declare intentional forms with "
+            "'# spelling-scan: mentions N'. The table is in "
+            "skills/clinical-note/SKILL.md under Conventions."
         )
     elif not quiet:
         lines.append("spelling-scan: no listed British spelling found.")
@@ -638,18 +751,20 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Report British spelling in Markdown. Standing rule 4, "
+        description="Report listed British spelling on local repository surfaces. "
+                    "Standing rule 4, "
                     "advisory -- this scanner refuses no commit.",
     )
     parser.add_argument(
         "paths", nargs="*", type=Path,
         help="files or directories to scan (default: the staged changes)",
     )
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--all", action="store_true",
-        help="scan every tracked .md rather than the staged changes",
+        help="scan tracked .md/.py contents and filenames rather than staged changes",
     )
-    parser.add_argument(
+    modes.add_argument(
         "--record", action="store_true",
         help="report the preserved run record form by form, and exit",
     )
@@ -657,7 +772,13 @@ def main(argv: list[str] | None = None) -> int:
         "--quiet", action="store_true",
         help="print nothing when clean; still exits non-zero when not",
     )
+    modes.add_argument(
+        "--commit-message", type=Path,
+        help="scan the commit message file supplied by Git's commit-msg hook",
+    )
     args = parser.parse_args(argv)
+    if args.paths and (args.all or args.record or args.commit_message):
+        parser.error("paths cannot be combined with --all, --record, or --commit-message")
 
     if args.record:
         for line in render_record(record_rows(tracked_markdown(), read_tracked)):
@@ -667,10 +788,17 @@ def main(argv: list[str] | None = None) -> int:
     # The mode travels with the report because the report cannot say what it
     # walked -- `_Tally` sees findings and never the paths it was handed. Chosen
     # here, where the branch already is, rather than threaded through `scan`.
-    if args.paths:
-        mode, report = "paths", scan(markdown_under(args.paths), read_file)
+    if args.commit_message:
+        text = args.commit_message.read_text(encoding="utf-8", errors="replace")
+        report = Report(
+            scan_text(text, args.commit_message.name),
+            Evidence({}, ()),
+        )
+        mode = "commit-message"
+    elif args.paths:
+        mode, report = "paths", scan(files_under(args.paths), read_file)
     elif args.all:
-        mode, report = "--all", scan(tracked_markdown(), read_tracked)
+        mode, report = "--all", scan(tracked_files(), read_tracked)
     else:
         mode, report = "staged", scan_staged()
 
@@ -681,4 +809,9 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
-    sys.exit(main())
+    try:
+        status = main()
+    except MentionDeclarationError as exc:
+        print(f"spelling-scan: {exc}", file=sys.stderr)
+        status = 2
+    sys.exit(status)

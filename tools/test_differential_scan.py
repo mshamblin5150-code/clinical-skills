@@ -592,7 +592,7 @@ class ProseAboutTheRuleIsNotAnEntry(unittest.TestCase):
         self.assertEqual(scan_text(text).unwelded_marks, 0)
 
     def test_the_same_sentence_unbackticked_is_reported_rather_than_ignored(self):
-        # The mention rule is a span rule, not a licence for the whole file --
+        # The mention rule is a span rule, not a license for the whole file --
         # ``spelling_scan.py``'s reasoning. Prose that writes the mark bare is
         # indistinguishable from a retired-form refusal, and says so.
         note = ds.read_note(

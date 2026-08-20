@@ -266,7 +266,7 @@ class SpansDoNotShareMetrics(unittest.TestCase):
             ]}]}]
         }
 
-    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbour(self):
+    def test_a_normally_set_span_is_not_split_by_a_tightly_set_neighbor(self):
         page = self.line("AmericanJournalofTransplantation", "2009;9(Suppl3)")
         self.assertEqual(
             extract.rebuild_text(page), "AmericanJournalofTransplantation2009;9(Suppl3)"
