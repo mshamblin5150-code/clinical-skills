@@ -31,12 +31,14 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
+import checks_ledger
 import docx_write
 import reference_scan
 import research_ledger as ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
+STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
 
 AS_OF = date(2026, 8, 19)
 
@@ -2289,6 +2291,246 @@ class TheRowSplitIsTheRenderersOwn(unittest.TestCase):
     def test_a_drug_row_carrying_an_escaped_pipe_is_still_one_drug(self):
         found = ledger.read_prescriptions(rx_table(r"ceftriaxone 1 g IV q24h \| pharmacy to verify"))
         self.assertEqual([rx.drug for rx in found], ["ceftriaxone"])
+
+class TheWeldedRowIsAReadingThatIsAskedFor(unittest.TestCase):
+    """`#300`'s ruling of 2026-08-20: the row above stays declared, and the reading
+    it names is written into a brief a run has to answer.
+
+    ``test_reference_scan.TheReadingTheCommandCannotDoIsAGradedCheck``'s
+    arrangement, and it is here for that class's reason. Option 3 of the ticket --
+    send it to ``skills/practicum-case-study/SKILL.md`` step 9's reader -- is a
+    prose claim in two files on its own;
+    what makes it more than that is
+    [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240)'s
+    grader over ``skills/practicum-case-study/SKILL.md`` step 9's fan-out, which
+    fails a run returning no verdict on the row. **So this asserts the chain end to
+    end** -- ``style.md`` section 8 names the reading, the step names it in the
+    row's reader column, and ``checks_ledger`` expects that row by name.
+
+    **The row was already the right reader and was simply not told.** Its brief
+    has always asked whether every drug in the Plan has a table, and a welded row
+    is exactly a drug in the Plan without one -- so the edit is one clause rather
+    than a new check, which is why option 3 was the cheapest of the three.
+
+    **What it cannot reach is the same thing every reading here cannot**: this
+    binds that the reader was asked, never that the reader looked. That row's
+    ``clean`` is one ``checks_ledger`` does not require to say what it walked --
+    [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255) ruled
+    which rows do and this is not one -- so a bare ``clean`` from a reader that
+    skimmed still passes, and that is the standing price of the option.
+    """
+
+    ROW = "the Rx blocks"
+    READING = "welds a second drug"
+
+    def test_the_grader_still_expects_the_row_by_name(self):
+        self.assertIn(self.ROW, checks_ledger.EXPECTED_CHECKS)
+
+    def row_line(self):
+        """The ``skills/practicum-case-study/SKILL.md`` step 9 table row, as one physical line.
+
+        A table row is one line in that file, so the row and its reader column are
+        read together and no cell of the row below can satisfy the assertion.
+        """
+        for line in SKILL.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("|") and self.ROW in stripped:
+                return stripped
+        return None
+
+    def test_the_step_names_the_row(self):
+        self.assertIsNotNone(
+            self.row_line(),
+            "skills/practicum-case-study/SKILL.md step 9 no longer carries the row",
+        )
+
+    def test_the_rows_reader_column_names_the_welded_row(self):
+        line = self.row_line()
+        self.assertIsNotNone(
+            line,
+            "skills/practicum-case-study/SKILL.md step 9 no longer carries the row",
+        )
+        self.assertIn(self.READING, line)
+
+    def test_the_by_eye_walk_names_it_too(self):
+        """The same step's by-eye list, which is what a harness with no subagent
+        tool walks instead. Naming the direction in the table row alone would put
+        it out of reach of exactly the run that has no reader to send."""
+        step = SKILL.read_text(encoding="utf-8")
+        step = " ".join(step[step.index("### 9. Check") :].split())
+        self.assertIn(self.READING, step[step.index("Then walk this list, by eye") :])
+
+    def test_the_rule_is_written_where_the_rule_lives(self):
+        """``style.md`` section 8 is where *one table per drug* is stated, so it is
+        where the way that rule is broken belongs. A reading briefed in the step
+        and absent from the sheet is a rule with no statement behind it.
+
+        **Whitespace-normalized, like its sibling above and for the same reason**:
+        every phrase in that sheet is hard-wrapped, and a phrase broken across two
+        lines is invisible to a substring search -- ``test_run_record_claim``'s
+        finding. This assertion read the file raw for one review, which is two
+        instruments for one claim and is the weaker of them going unnoticed.
+        """
+        text = " ".join(STYLE.read_text(encoding="utf-8").split())
+        section = text[text.index("## 8.") : text.index("## 9.")]
+        self.assertIn(self.READING, section)
+        self.assertIn("One table per drug", section)
+
+
+class TheDeclinedParserRowsFireOnCorrectOrders(unittest.TestCase):
+    """Why `#300` was ruled a reading rather than a row, re-derived rather than
+    cited.
+
+    **The ticket's decision 2 is the option a later session will re-propose**,
+    because it looks obvious: *a drug row whose text after the first dose contains
+    a second unit-bearing token*. It is refused on a measurement, and the
+    measurement is here so that re-proposing it costs a failing test rather than
+    an argument -- ``threshold_sheet.py``'s two heuristics tried against the corpus
+    before the constant was chosen, and
+    [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278)'s
+    finding that a proposal's supporting argument can be falsified by the artifact
+    it proposes to extend.
+
+    **Both declined forms are implemented here rather than described**, so what
+    fails is the rule and not a sentence about it. A taper, a titration, a repeat
+    dose and a bolus-then-infusion each put two dose-bearing tokens in one correct
+    row. **The conjunction narrowing drops the taper and keeps the other three** --
+    it helps and does not close it -- and narrowing past what is left needs a closed
+    set of continuation verbs, where a verb missing from that set is a false alarm
+    on a correct order: **the same failure
+    direction as the drug table
+    [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)
+    prohibits**, which is the ground the ticket rules decision 2's cousins out on.
+
+    **The orders are written here and were not measured against a corpus**, because
+    there is none to measure against: a finished draft lives under ``output/`` and
+    is written about a patient, which is ``test_reference_scan``'s position exactly.
+    So this is a floor -- these forms fire on at least these correct orders -- and
+    never a rate.
+    """
+
+    DOSE = re.compile(
+        r"\b\d+(?:\.\d+)?\s*"
+        r"(?:mg|mcg|ug|g|kg|mL|ml|L|units?|mEq|IU|%|tablets?|capsules?|puffs?|drops?"
+        r"|patch(?:es)?)"
+        r"\b(?:\s*/\s*(?:kg|m2|hr|hour|day))?",
+        re.I,
+    )
+    CONJUNCTION = re.compile(r"\band\b|\bplus\b|\s\+\s|\s&\s", re.I)
+
+    # One drug each, every one of them correct as written.
+    CORRECT = (
+        "Ceftriaxone 1 g IV every 24 hours x 14 days",
+        "Doxycycline 100 mg PO BID x 7 days",
+        "Amoxicillin-clavulanate 875 mg PO BID x 10 days",
+        "Prednisone 40 mg PO daily x 5 days, then 20 mg PO daily x 5 days",
+        "Lisinopril 10 mg PO daily, increase to 20 mg after 2 weeks if tolerated",
+        "Continued home medication: prenatal vitamin one tablet PO daily",
+        "Delayed order: metformin 500 mg PO BID, hold until the acute kidney injury resolves",
+        "Insulin glargine 10 units subcutaneously nightly and titrate by 2 units every 3 days",
+        "Albuterol 2 puffs inhaled every 4 hours PRN wheeze",
+        "Magnesium sulfate 4 g IV over 20 minutes, then 2 g per hour",
+        "Ondansetron 4 mg IV once and repeat 4 mg in 8 hours if needed",
+        "Normal saline 1 L IV bolus and then 100 mL per hour",
+        "Ceftriaxone 1 g IV every 24 hours, continued for the admission",
+    )
+
+    # Two drugs welded into one row. The first is the defect the ticket records.
+    WELDED = (
+        "Doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7 days",
+        "Ceftriaxone 500 mg IM once and azithromycin 1 g PO once",
+        "Amoxicillin 500 mg PO TID and clarithromycin 500 mg PO BID x 14 days",
+    )
+
+    @classmethod
+    def broad(cls, order: str) -> bool:
+        """Decision 2 as the ticket words it: a second unit-bearing token."""
+        return len(cls.DOSE.findall(order)) >= 2
+
+    @classmethod
+    def conjunction(cls, order: str) -> bool:
+        """The narrowest form that still catches the recorded defect: a
+        conjunction sitting between the first two dose tokens."""
+        hits = list(cls.DOSE.finditer(order))
+        if len(hits) < 2:
+            return False
+        return bool(cls.CONJUNCTION.search(order, hits[0].end(), hits[1].start()))
+
+    def test_the_instrument_is_live(self):
+        """Both forms catch every welded row, so a clean result below is the rule
+        declining to fire and not the rule failing to run. ``TheInstrumentIsLive``
+        in ``test_build_artifacts_ignored``, for its reason: most of that class once
+        passed against a check that said yes to everything."""
+        for order in self.WELDED:
+            with self.subTest(order=order):
+                self.assertTrue(self.broad(order))
+                self.assertTrue(self.conjunction(order))
+
+    def test_the_broad_form_fires_on_correct_orders(self):
+        fired = [order for order in self.CORRECT if self.broad(order)]
+        self.assertTrue(
+            fired,
+            "the ticket's decision 2 no longer fires on any correct order here,"
+            " so the ruling that declined it needs re-deriving",
+        )
+
+    def test_narrowing_to_a_conjunction_still_fires_on_correct_orders(self):
+        """The narrowing helps and does not close it, which is the finding: what
+        is left is a titration, a repeat dose and an infusion rate, all one drug."""
+        fired = [order for order in self.CORRECT if self.conjunction(order)]
+        self.assertTrue(
+            fired,
+            "narrowing to a conjunction now fires on no correct order here, so the"
+            " ruling that declined it needs re-deriving",
+        )
+        self.assertLess(
+            len(fired),
+            len([order for order in self.CORRECT if self.broad(order)]),
+            "the narrowing is supposed to be strictly better than the broad form",
+        )
+
+    def a_record_for(self, order: str) -> str:
+        """A ledger record naming this order's drug and stating a number.
+
+        Built through the module's own parser, because the drug a record has to
+        name is by definition the one the parser read -- whether it reads the
+        right one is ``OneDrugRowIsOneDrugAndNothingHereMakesThatTrue``'s
+        question, one class up, and not this one's.
+        """
+        found = ledger.read_prescriptions(rx_table(order))
+        drug = found[0].drug if found else "unreadable"
+        return a_drug_claim(f"{drug} at 500 mg is the sourced regimen for this indication.")
+
+    def test_the_module_grades_every_one_of_these_orders_clean(self):
+        """The ruling asserted against behavior rather than against a spelling.
+
+        **The first version of this asserted the two declined patterns were absent
+        from ``research_ledger`` as literal strings**, which any reimplementation
+        spelled differently would have passed -- a check that could not fail except
+        on verbatim copy-paste, reading as a gate while being none. That is this
+        repo's own recurring shape arriving inside the test written to prevent a
+        re-proposal, and both axes of ``/code-review`` found it independently.
+
+        What the ruling actually promises is that these orders grade clean, and
+        that holds however a future row is written: add either declined form to
+        ``prescription_findings`` and this goes red.
+        """
+        for order in self.CORRECT:
+            with self.subTest(order=order):
+                self.assertEqual(rx_kinds(rx_table(order), self.a_record_for(order)), [])
+
+    def test_that_clean_list_is_the_rows_declining_and_not_the_harness(self):
+        """``TheInstrumentIsLive``'s argument applied to the assertion above.
+
+        Drop the record and every order the sheet does not exempt fires, so a
+        clean list up there is the rows finding nothing rather than ``rx_kinds``
+        finding nothing to run.
+        """
+        for order in self.CORRECT:
+            if ledger.read_prescriptions(rx_table(order))[0].exempt:
+                continue
+            with self.subTest(order=order):
+                self.assertNotEqual(rx_kinds(rx_table(order)), [])
 
 
 # --------------------------------------------------------------------------

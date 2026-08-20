@@ -353,8 +353,10 @@ class TheDriftMatrixCarriesRow24(unittest.TestCase):
         # asks where the number came from, and case 10 passed 21 while failing 24.
         self.assertIn("it is not row 21 widened", self.text)
 
-    def test_the_absence_of_a_scanner_is_stated(self):
-        self.assertIn("Nothing checks this row", self.text)
+    def test_the_scanner_floor_and_its_ceiling_are_stated(self):
+        self.assertIn("supplies row 24's mechanical floor", self.text)
+        self.assertIn("missing tails on undecidable items are candidates", self.text)
+        self.assertIn("a clean scan is not a walked row 24", self.text)
 
 
 class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
@@ -548,16 +550,14 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         )
         self.assertIn("[uspstf: grade B, children and adolescents 6 years or older", self.text)
 
-    def test_the_row_13_floor_does_not_claim_to_grade_rows_23_or_24(self):
-        # #164 added a declared floor for row 13, so the old assertion that this
-        # module could not even name row 23 became stale. The invariant that
-        # matters is narrower: neither the tool nor the skill promotes that floor
-        # into a grade on the two rows it still cannot check.
+    def test_the_new_floors_keep_rows_23_and_24s_reader_residue(self):
+        # #192 makes their line shapes runnable and must not promote either
+        # mechanical floor into a clinical verdict.
         scanner = (REPO_ROOT / "tools" / "differential_scan.py").read_text(encoding="utf-8")
-        self.assertNotIn("fails row 23", scanner)
-        self.assertNotIn("fails row 24", scanner)
-        self.assertIn("does not grade row 23", self.text)
-        self.assertIn("still reaches **nothing in row 23 or 24**", self.text)
+        self.assertIn("Drift row 23's mechanical floor", scanner)
+        self.assertIn("Drift row 24's mechanical floor", scanner)
+        self.assertIn("clinical likelihood order still needs a reader", self.text)
+        self.assertIn("a clean scan is not a walked row 24", self.text)
 
 
 class TheCoderGainsNoObligation(unittest.TestCase):

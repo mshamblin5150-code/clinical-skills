@@ -59,6 +59,15 @@ python tools/tracker_bodies.py scratch/tracker-issues.json scratch/tracker-comme
 
 **All three surfaces, which is `tools/tracker_scan.py`'s set.** The review-comment endpoint is the one easiest to leave out; a harvest that omits it reports that as a clean scan of it rather than as not having read it.
 
+**New and edited tracker text is scanned at publication.** The `tracker.yml`
+workflow gives `tracker_scan.py` the one changed GitHub event record and runs
+the shape layer with the corpus absence stated in its job name and report. It
+does not replace the full-harvest command above: the runner can never hold
+`scratch/`, so patient names remain a maintainer-clone layer. Incremental input
+is deliberate -- a whole-tracker run on every comment would replay #264's
+historical findings rather than attach a result to the record that changed.
+Issue #260.
+
 **It opens no socket**, on `tracker_scan.py`'s terms — the fetch is a documented `gh` command whose output is a file. Into `scratch/` for that tool's reason too: the harvest is the tracker's entire text, and `scratch/` is the PHI firewall's own directory. **Its report names a URL and a row name and never a body**, so its output is safe to paste, and there is no `--show` to widen it. The fourth row catches both known encoding mechanisms: UTF-8 decoded through cp1252, and a literal `\uXXXX` escape left undecoded. It counts affected records rather than raw sequences. A shape inside inline or fenced code is a mention and does not fire.
 
 **It is also the read-back**, because it takes a single JSON object as well as a list — one command, and it catches the shape `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure:

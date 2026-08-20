@@ -26,23 +26,10 @@ place, and this one had gone stale in place twice already -- once inside one
 branch, and once in ``fixtures/README.md``'s own ``Sets`` column, which read
 ``31 of 31`` while day-a's own file read ``31 of 32``.
 
-**It covers two of the seven sets, deliberately, and that bound is asserted
-rather than left to be discovered.** #79 moved day-a's and day-b's totals and
-no others, and a gate over the whole ``Sets`` column is a different ticket --
-`#202 <https://github.com/mshamblin5150-code/clinical-skills/issues/202>`_, filed with the two stale figures a glob would fail on today
-(``peds-bp`` reads ``6 of 11`` and holds 12 rows; ``hedged-dx`` reads ``6 of 6``
-and holds 12). **The reason for saying so here is that the alternative is the
-defect this module cites #143 for**: an explicit list that reads as a repo-wide
-denominator gate was ``all_committed_cases()``'s exact shape, and a silent cap
-reads as coverage. ``TheCoverageBoundIsStated`` below is what makes it noisy.
-
-**That exemplar is history rather than a live one, and #143 is closed** --
-ruled 2026-08-19, the other way: the enumerator there is a glob now and
-``all_committed_cases`` is deleted. **The ruling was a hybrid and it is what
-#202 should copy** -- glob for the population, an explicit declaration per
-member, and a gate that fails until a new member is declared. This module's own
-bound stays an explicit list until #202 rules, and the sentence above is left
-standing because the shape it names is what this bound is a bet against.
+**#202 has since closed the bound over the whole ``Sets`` column.** Its
+population, row grammar and denominator gate live in
+``test_fixture_catalog.py``. This module remains the narrower record of #79's
+two-set ruling cohort.
 
 **Nothing here reads a note.** It reads committed Markdown only, so it needs no
 fixtures, touches no run directory and can print anything it finds.
@@ -425,33 +412,12 @@ class TheRowTotalsAreReDerived(unittest.TestCase):
         self.assertIn("**24 of 42 rows**", readme)
 
 
-class TheCoverageBoundIsStated(unittest.TestCase):
-    """What this module does not reach, made to fail if anyone forgets.
+class TheRulingCohortRemainsExactlyTwoSets(unittest.TestCase):
+    """#79's scope stays narrow after #202 gates the catalog elsewhere."""
 
-    ``fixtures/`` holds seven sets and #79 moved two. The risk is not that the
-    other five go unchecked today -- it is that a later reader takes a green run
-    here as *the Sets column is gated*, which is `#137
-    <https://github.com/mshamblin5150-code/clinical-skills/issues/137>`_'s
-    partial instrument arriving on the table `#143
-    <https://github.com/mshamblin5150-code/clinical-skills/issues/143>`_ is
-    about.
-    """
-
-    def test_exactly_two_sets_are_pinned(self):
+    def test_exactly_day_a_and_day_b_are_pinned(self):
         pinned = {member.fixture for member in COHORT}
         self.assertEqual(pinned, {DAY_A, DAY_B})
-
-    def test_the_repo_holds_more_sets_than_this_module_reads(self):
-        # If this ever stops being true, the bound has closed on its own and the
-        # docstring above is the thing to correct.
-        every = set((REPO_ROOT / "fixtures").glob("*/assertions.md"))
-        self.assertGreater(len(every), 2)
-        self.assertTrue({DAY_A, DAY_B} <= every)
-
-    def test_the_docstring_names_the_ticket_that_would_close_the_bound(self):
-        # A limit recorded only in a commit message is one the next reader of
-        # this file will not find.
-        self.assertIn("issues/202", __doc__)
 
 
 if __name__ == "__main__":

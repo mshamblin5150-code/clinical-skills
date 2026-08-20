@@ -4,7 +4,7 @@ Six finished `clinical-note` notes on the Comprehensive SOAP branch, produced 20
 
 ## What it is for
 
-`tools/differential_scan.py` grades drift row 22's mechanical limb: no code marked `NOT CODED` may sit in an entry's code slot. Until this landed, **every committed directory the scanner could be pointed at was refused before it read anything** — `fixtures/filled-anchor/notes` pins no code with a hyphen, and `fixtures/filled-anchor/run-2` is an `icd10-cpt` worksheet set the tool is pointed away from by design. So the check ran against synthetic notes in `tools/test_differential_scan.py` and against nothing else, and CI graded no real output.
+`tools/differential_scan.py` grades drift row 22's mechanical limb: no code marked `NOT CODED` may sit in an entry's code slot. It now also grades rows 23 and 24's mechanical floors. Until this directory landed, **every committed directory the row-22 scanner could be pointed at was refused before it read anything** — `fixtures/filled-anchor/notes` pins no code with a hyphen, and `fixtures/filled-anchor/run-2` is an `icd10-cpt` worksheet set the tool is pointed away from by design. So that check ran against synthetic notes in `tools/test_differential_scan.py` and against nothing else, and CI graded no real output.
 
 **Every one of these six carries both halves of a row-22 violation** — differential entries in the slot form *and* welded refusals — so the failure path is reachable on committed material rather than only on a note a test wrote. `differential_scan.NOT_VALIDATED_AGAINST`'s first row is what states the part that is still not reached, and it is re-derived by an assertion rather than written down twice.
 
@@ -83,9 +83,9 @@ python tools/phi_scan.py --all
 
 Recorded rather than pre-empted on [#321](https://github.com/mshamblin5150-code/clinical-skills/issues/321), and the ruling is the clinician's. Until then a reader who hits it should treat it as a finding about the *table's* reach rather than about these notes, which is what `filled-anchor`'s own README argues at length: the figure moved twice without a byte of the record changing, because it was a property of the instrument.
 
-**A clean scan is not a walked row.** `differential_scan.py` settles whether a refused code sits in a slot. Whether a label is what its descriptor says — row 22 proper — is a reading, and paraphrase is permitted. Nothing here has walked that.
+**A clean scan is not a walked row.** `differential_scan.py` settles whether a refused code sits in a slot, whether the ranked block has the required mechanical shape, and whether the row-24 tail passes the sheet-backed floor. Whether a label is what its descriptor says, whether the likelihood ordering is clinically right, and whether a cited recommendation applies to the patient remain readings.
 
-**And it must not be tuned.** These six exit 0 and that is the honest outcome; a run edited until the checker fires is material written to make a check pass its own test, which is the trap [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s own CI comment names. The exit-1 branch is exercised by **mutating** a copy of this material in `tools/test_differential_scan.py`, where the mutation is visible in the test rather than baked into the record.
+**And it must not be tuned.** The row-22 floor remains clean; the broader command now exits 1 because preserved guideline tails occur on continuation lines, the exact defect row 24's same-line rule names. That is an honest finding about historical output, not permission to rewrite a run record. The row-22 and sheet-comparison exit-1 predicates are also exercised by **mutating** copies of this material in `tools/test_differential_scan.py`, where each mutation is visible in the test rather than baked into the record.
 
 ## Figures, and the commands that recompute them
 

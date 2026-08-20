@@ -255,6 +255,20 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   forgets the label is asked for a record rather than let through. `Delayed order:` exempts nothing:
   a dose that has not started yet is still a dose the run chose. `tools/research_ledger.py --draft`
   reads both labels off this table.
+- **One table per drug means one drug per drug row, and a welded pair is how that rule gets
+  broken.** A row reading `doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7
+  days` is two prescriptions in one table, and the second drug's dose is then sourced by nothing:
+  `tools/research_ledger.py --draft` takes the leading token as the drug, so the expected set comes
+  out right by formatting, and `tools/case_study_scan.py`'s stop-criterion row reads the cell as one
+  order, so the first drug's `x 7 days` discharges it for the second. **Neither command reaches it
+  and neither will** — telling two drugs apart needs a drug vocabulary, which is the artifact
+  [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289) prohibits in as many
+  words, and every form that avoids one fires on correct orders instead — a titration, a repeat
+  dose, an infusion rate, and a taper too once the form is broad enough. **So a
+  run that welds a second drug into one row is caught by a reader and by nothing else**, and
+  [SKILL.md](../SKILL.md) step 9's `the Rx blocks` row asks for it by name. Ruled 2026-08-20 on
+  [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300), where the measurement
+  that declined the parser row is a test rather than a figure here.
 - **A drug held because it is contraindicated gets no table at all.** Ruled 2026-08-18 against a run
   that wrote one for doxycycline in pregnancy. A delayed order is for a drug that is coming later
   once a condition clears. A contraindicated drug is never coming, and a prescription block for it is
