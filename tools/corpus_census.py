@@ -170,7 +170,20 @@ Extractor limits worth knowing before quoting a number:
   tests anyway and tobacco is still 159 of 197 positive, **81%**, so no reading
   of them can move issue #29's ruling. Do not confuse this 13 with issue #146's:
   that is the opposite condition on the same token, encounters writing a
-  **welded** ``1ppd`` that ``\bppd\b`` cannot match at all.
+  **welded** ``1ppd``. Both 13s were measured over the same 551 encounters and
+  there is no reason for them to be the same number; they are, and that
+  coincidence is exactly what gets two findings merged by a later reader.
+- **Issue #146 is repaired and the audit's population deliberately did not
+  widen with it.** ``\bppd\b`` could not match a welded ``1ppd`` at all, so 13
+  encounters passed the tobacco slot for a reason nobody had recorded -- every
+  one carried an independent token. ``PPD_QUANTITY`` is composed into both
+  tobacco patterns now and they see the welded form; ``writes_bare_ppd`` still
+  does not, because the audit's population is the encounters where the token is
+  **ambiguous**, and a digit welded to ``ppd`` is the one shape that is not.
+  Re-run over 551 encounters on 2026-08-19 the whole report is byte-identical:
+  slot 197, positive 172, ``with_bare_ppd`` 102, ``bare_ppd_no_other_token`` 13.
+  **Measured, not guaranteed** -- the next corpus gets no such promise, and
+  ``HEDGE``'s standing rule is what to re-run.
 - ``dob`` welded straight to its date, with no space between token and value,
   is the shape that defeated ``\\bht\\b`` for ``ht5'7"`` and it would not match
   here either. There is no instance of it in the corpus as of 2026-08-11, so
@@ -754,6 +767,44 @@ ALLERGY_DRUG = re.compile(
 # which is what caught this alternative missing here.
 PACK_PER_DAY = r"\d+\s*(?:pack|pk)s?\s*(?:per|/|a)\s*day"
 
+# Issue #78's discriminator, and since issue #146 the third alternative in both
+# tobacco patterns. A packs-per-day quantity and a purified protein derivative
+# are the same three letters, but they are **not the same shape**, and the shape
+# is decidable without reading an encounter.
+#
+# A pack count is a small number in front of the token and usually a span behind
+# it -- "0.5 ppd x 15 yrs". A skin test has no quantity in front: it is placed,
+# it is read, and its result is millimeters of induration. **Nobody writes a
+# tuberculin test as a number of packs followed by years**, which is what makes
+# this a discriminator rather than a guess.
+#
+# **A source string rather than a compiled pattern, because three patterns need
+# it** -- ``PACK_PER_DAY``'s and ``TOBACCO_NOT_PPD``'s arrangement and for their
+# reason. A second copy of the shape is a second thing to keep in step, and issue
+# #146's repair is precisely that the two tobacco counters and issue #78's audit
+# agree about what a pack count looks like.
+# **Two limits, named rather than engineered around**, because both repairs
+# would narrow a discriminator the clinician ruled on 2026-08-16 and neither is
+# what issue #146 asked for.
+#
+# The second alternative is **inert inside the two tobacco patterns**: it needs a
+# bare ``ppd``, and ``\bppd\b`` sits in front of it in both. Measured over 551
+# encounters on 2026-08-19, no encounter matches it without a bare ``ppd``. It is
+# composed in whole anyway, because the thing being shared is the *shape* and a
+# second copy trimmed to the live limb is the second copy this constant exists to
+# prevent. Read "both patterns or neither" as being about the first alternative.
+#
+# The first alternative has **no left boundary**, so "helping1ppd" matches where
+# "helpingppd" does not. Adding ``(?<![a-z])`` -- which ``PPD_AS_SKIN_TEST`` does
+# carry, for a shape where it mattered -- changes the verdict on **no encounter
+# in the corpus and none of the committed inputs**, measured 2026-08-19. So it
+# would buy nothing and would move issue #78's ruled discriminator, and the
+# looseness is pinned by a test instead of removed.
+PPD_QUANTITY = (
+    r"(?:\d|\.\d|<|>|half|quarter|one|two|three)\s*-?\s*ppd\b"
+    r"|\bppd\b\s*(?:x|for|since|@)\s*\d"
+)
+
 # Every way this corpus names tobacco **except** a bare ``ppd``. Written once and
 # composed into both patterns rather than spelled twice, because the ``ppd``
 # audit below needs exactly "the slot, minus the ambiguous token" and a second
@@ -765,34 +816,61 @@ TOBACCO_NOT_PPD = (
     r"|\bchew(?:s|ing)?\s+tobacco|\bdips?\s+now\b|\bsnuff\b(?!\s*box)"
 )
 
-TOBACCO_SLOT = re.compile(r"(?i)\bppd\b|" + TOBACCO_NOT_PPD)
+# ``PPD_QUANTITY`` is the third limb and it is issue #146. ``\bppd\b`` cannot
+# match a digit-welded "1ppd": the leading boundary needs a non-word character
+# before it and a digit is a word character. That is this module's own named
+# failure class a fourth time -- ``AGE_IN_YEARS`` records it for "45yof",
+# ``HEIGHT`` for "ht5'7"" and ``PPD_AS_SKIN_TEST`` for "12mm" -- and all four are
+# repaired by adding an alternative rather than by loosening the boundary.
+#
+# **Ruled by the clinician on 2026-08-20, and the ruling is a stronger thing
+# than the inference it replaces.** This first rested on *nobody writes a count
+# in front of a tuberculin test* -- true, and an argument from shape, which is
+# the same class of reasoning issue #78 was closed on. What he said instead is
+# what the string **is**: a welded ``1ppd`` is the spaced form *mistyped*, not a
+# token with a sense of its own. *"Though I welded it on the note it should read
+# as a positive tobacco history for 1 pack per day, because that is what that
+# welded though it shouldn't be welded thing means."*
+#
+# **So the welded form does not need a discriminator; it inherits one.** It
+# carries the spaced form's meaning entire, and a purified protein derivative is
+# not one of the things it could have meant -- which is why this narrows the
+# ambiguity the module documents rather than widening it, and why the repair is
+# an alternative rather than a judgement call about a second sense.
+#
+# **What it does not license is loosening the boundary.** The reading is *this
+# is a pack count with the space left out*, so the quantity is what carries it,
+# and a bare token welded to a letter is still outside both patterns.
+#
+# Widened deliberately and re-run against the corpus, on ``HEDGE``'s standing
+# rule. **The figures are in this module's docstring and deliberately not
+# restated here** -- they are counted against ``scratch/``, nothing committed
+# re-derives them, and a second copy in the same file is issue #143 at the
+# shortest range this repo has recorded it. What the re-run establishes is that
+# the defect was 13 encounters passing for a reason nobody had written down, and
+# not a published figure being wrong.
+TOBACCO_SLOT = re.compile(
+    r"(?i)\bppd\b|" + PPD_QUANTITY + r"|" + TOBACCO_NOT_PPD)
 
 TOBACCO_INDEPENDENT = re.compile(r"(?i)" + TOBACCO_NOT_PPD)
 
 PPD_TOKEN = re.compile(r"(?i)\bppd\b")
 
-# Issue #78's audit, and the pair that settles it. A packs-per-day quantity and a
-# purified protein derivative are the same three letters, but they are **not the
-# same shape**, and the shape is decidable without reading an encounter.
-#
-# A pack count is a small number in front of the token and usually a span behind
-# it -- "0.5 ppd x 15 yrs". A skin test has no quantity in front: it is placed,
-# it is read, and its result is millimeters of induration. **Nobody writes a
-# tuberculin test as a number of packs followed by years**, which is what makes
-# this a discriminator rather than a guess.
-PPD_AS_QUANTITY = re.compile(
-    r"(?i)(?:\d|\.\d|<|>|half|quarter|one|two|three)\s*-?\s*ppd\b"
-    r"|\bppd\b\s*(?:x|for|since|@)\s*\d"
-)
+# Issue #78's audit, and the pair that settles it. The shape is ``PPD_QUANTITY``
+# above and the reasoning is written there; this is the compiled form the audit
+# reports through, and the tobacco patterns compose the same string. They cannot
+# disagree about what a pack count is, which is what issue #146's repair rests on.
+PPD_AS_QUANTITY = re.compile(r"(?i)" + PPD_QUANTITY)
 
 # ``(?<![a-z])mm\b`` rather than ``\bmm\b``, and it is this module's own named
 # failure class arriving again. ``\bmm\b`` cannot match inside "12mm" -- the
 # leading boundary needs a non-word character and a digit is a word character,
-# which is exactly what defeated ``\bht\b`` for "ht5'7"" and what defeats
-# ``\bppd\b`` for "1ppd" (issue #146). **An induration is written welded to its
-# number more often than not**, so the plain boundary would have missed the
-# commonest form of the very thing this pattern exists to find, and the audit
-# would have reported zero skin tests for the wrong reason. Caught by a test.
+# which is exactly what defeated ``\bht\b`` for "ht5'7"" and what defeated
+# ``\bppd\b`` for "1ppd" until issue #146 composed ``PPD_QUANTITY`` into the two
+# tobacco patterns. **An induration is written welded to its number more often
+# than not**, so the plain boundary would have missed the commonest form of the
+# very thing this pattern exists to find, and the audit would have reported zero
+# skin tests for the wrong reason. Caught by a test.
 PPD_AS_SKIN_TEST = re.compile(
     r"(?i)\bppd\b[^.\n]{0,25}(?<![a-z])mm\b|(?<![a-z])mm\b[^.\n]{0,25}\bppd\b"
     r"|\bindurat"
@@ -814,8 +892,15 @@ PPD_AS_SKIN_TEST = re.compile(
 # Second-hand exposure counts as positive. It is not the patient smoking, and it
 # is equally not an absence -- the slot was written because there was something to
 # write, which is the only thing being measured.
+#
+# ``PPD_QUANTITY`` is here for the reason ``PACK_PER_DAY`` is above it:
+# ``tobacco_negated`` is the slot count minus this one, so a form the slot admits
+# and this one does not reads a welded pack count as a **denial**, and makes the
+# subtraction go negative where nothing else in the encounter names tobacco.
+# Issue #146, and both patterns or neither.
 TOBACCO_POSITIVE = re.compile(
     r"(?i)\bppd\b"
+    r"|" + PPD_QUANTITY +
     r"|" + PACK_PER_DAY +
     r"|(?<!non-)\bsmoker\b|\bsmokes\b"
     r"|\bformer\s+(?:\d+\s*)?(?:ppd\s+)?(?:smok|vap)"
