@@ -471,7 +471,9 @@ def looks_like_title(candidate: str, filename: str) -> bool:
     return True
 
 
-def read_corpus(src: Path) -> list[Document]:
+def read_corpus(
+    src: Path, *, allow_untrusted_provenance: bool = False
+) -> list[Document]:
     """Read every document from #80's extracted text and manifest.
 
     The manifest is required because it carries the source filename, metadata
@@ -479,7 +481,9 @@ def read_corpus(src: Path) -> list[Document]:
     A text tree without that contract is not a catalog corpus.
     """
     docs: list[Document] = []
-    for document in read_extracted_corpus(src):
+    for document in read_extracted_corpus(
+        src, allow_untrusted_provenance=allow_untrusted_provenance
+    ):
         pages = [page.text for page in document.pages]
         if document.year_page_counts is None:
             raise ValueError(
@@ -889,6 +893,11 @@ def main(argv: list[str] | None = None) -> int:
         default=str(AUDIT),
         help=f"independent audit ledger to check (default {AUDIT})",
     )
+    parser.add_argument(
+        "--allow-untrusted-provenance",
+        action="store_true",
+        help="read a dirty, foreign, or unstamped extracted corpus and warn",
+    )
     args = parser.parse_args(argv)
 
     if args.audit_draft:
@@ -904,7 +913,15 @@ def main(argv: list[str] | None = None) -> int:
         if not src.is_dir():
             print(f"no extracted corpus at {src}", file=sys.stderr)
             return 2
-        print(render_table(draft_rows(read_corpus(src))))
+        try:
+            docs = read_corpus(
+                src,
+                allow_untrusted_provenance=args.allow_untrusted_provenance,
+            )
+        except ValueError as unusable:
+            print(str(unusable), file=sys.stderr)
+            return 2
+        print(render_table(draft_rows(docs)))
         return 0
 
     catalog_path = Path(args.catalog)
@@ -926,7 +943,15 @@ def main(argv: list[str] | None = None) -> int:
 
     text_src = Path(args.src)
     if text_src.is_dir():
-        mechanical_failures = check(rows, unsettled_index, read_corpus(text_src))
+        try:
+            docs = read_corpus(
+                text_src,
+                allow_untrusted_provenance=args.allow_untrusted_provenance,
+            )
+        except ValueError as unusable:
+            print(str(unusable), file=sys.stderr)
+            return 2
+        mechanical_failures = check(rows, unsettled_index, docs)
         scope = f"{len(rows)} row(s) against {text_src}"
     else:
         mechanical_failures = check_shape(rows, unsettled_index)

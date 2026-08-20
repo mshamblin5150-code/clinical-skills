@@ -306,6 +306,7 @@ still report nothing stripped.
 from __future__ import annotations
 
 import argparse
+import artifact_provenance
 import json
 import os
 import re
@@ -1578,7 +1579,13 @@ def orphaned_outputs(out_root: Path, records: list[Record]) -> list[Path]:
     return sorted(path for path in out_root.rglob("*.txt") if path not in claimed)
 
 
-def write_manifest(out_root: Path, records: list[Record], source_root: Path) -> Path:
+def write_manifest(
+    out_root: Path,
+    records: list[Record],
+    source_root: Path,
+    *,
+    producer: dict[str, str | bool] | None = None,
+) -> Path:
     """The audit trail, and #84's input. One entry per document, in source order.
 
     ``documents`` is the **list of entries**, which is the shape
@@ -1589,6 +1596,7 @@ def write_manifest(out_root: Path, records: list[Record], source_root: Path) -> 
     with no title, society or class. That refusal is the contract working.
     """
     manifest = {
+        "producer": producer or artifact_provenance.current_producer(),
         "source": str(source_root),
         "codec": OUTPUT_CODEC,
         "engine": _engine_version(),

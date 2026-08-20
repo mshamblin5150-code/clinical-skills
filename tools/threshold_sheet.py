@@ -834,7 +834,10 @@ def usable_probes(entry: dict, body: str) -> dict[str, str]:
 
 
 def gate_watermark(
-    sheet: Sheet, text_root: Path | None
+    sheet: Sheet,
+    text_root: Path | None,
+    *,
+    allow_untrusted_provenance: bool = False,
 ) -> tuple[list[str], str | None, int, list[str]]:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
@@ -903,7 +906,10 @@ def gate_watermark(
         return [], f"extracted corpus not found at {text_root}", 0, []
     text_root = Path(text_root)
     try:
-        manifest = read_manifest(text_root)
+        manifest = read_manifest(
+            text_root,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+        )
     except ValueError as error:
         return [], str(error), 0, []
     if not manifest:
@@ -1520,6 +1526,7 @@ def grade(
     recs_root: Path | None = None,
     text_root: Path | None = None,
     second_read_path: Path | None = None,
+    allow_untrusted_provenance: bool = False,
 ) -> int:
     """Grade one sheet. ``quiet`` suppresses the report, never a finding.
 
@@ -1563,7 +1570,11 @@ def grade(
     tier2, tier2_skip, rendered_rows = gate_citation_tier2(sheet, pdf_root)
     coverage_refusals, coverage_warnings, ungraded_sources = gate_coverage(sheet, records)
     ranges, ungraded_rows = gate_range(sheet)
-    watermark, watermark_skip, watermark_rendered, unprobed = gate_watermark(sheet, text_root)
+    watermark, watermark_skip, watermark_rendered, unprobed = gate_watermark(
+        sheet,
+        text_root,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+    )
     # **Gate 5 runs only when a read is handed to it, and never runs itself.** The
     # independence is the whole instrument: a second read this module produced would
     # be the same code path over the same page, which is the check `test_icd10.py`
@@ -1606,6 +1617,11 @@ def grade(
         or not sheet.sources
         or (second_read is not None and not second_read.ok)
         or (second_read is not None and not second_read_graded)
+    )
+    watermark_provenance_failed = bool(
+        watermark_skip
+        and text_root is not None
+        and Path(text_root).is_dir()
     )
 
     report(f"  rows            {len(sheet.rows)}")
@@ -1727,6 +1743,8 @@ def grade(
     if tier2_skip:
         print()
         print("  " + "=" * 66)
+        if watermark_provenance_failed:
+            print(f"  WATERMARK       NOT RUN -- {watermark_skip}", file=sys.stderr)
         print("  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against")
         print("  the source PDFs on this machine. Tier 1 proved each value is in its")
         print("  own snippet; nothing here proved the snippet is on the page it cites.")
@@ -1784,6 +1802,8 @@ def grade(
         print("  recommendation record is not a source that passed, and a --recs path", file=sys.stderr)
         print("  that does not resolve is a typo rather than a decision.", file=sys.stderr)
 
+    if watermark_provenance_failed:
+        return 2
     if refusals:
         # 1 wins over 2 where both hold, and the message names the ungraded part so
         # the finding reads as a floor rather than the whole. Returning 2 would file
@@ -1844,11 +1864,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--text-root",
         type=Path,
-        default=None,
+        default=(
+            Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
+            if os.environ.get("CLINICAL_GUIDELINES_TEXT")
+            else None
+        ),
         help=(
             "#80's extracted-text directory, holding manifest.json, for WATERMARK. "
-            "Derived from --pdf-root when not given (absent is reported, never passed)"
+            "Defaults from CLINICAL_GUIDELINES_TEXT, then derives from --pdf-root "
+            "when neither is given (absent is reported, never passed)"
         ),
+    )
+    parser.add_argument(
+        "--allow-untrusted-provenance",
+        action="store_true",
+        help="grade against a dirty, foreign, or unstamped extracted corpus and warn",
     )
     parser.add_argument(
         "--second-read",
@@ -1934,7 +1964,16 @@ def main(argv: list[str]) -> int:
         for path in sheets:
             worst = max(
                 worst,
-                grade(path, [], args.pdf_root, args.quiet, args.recs_root, text_root, None),
+                grade(
+                    path,
+                    [],
+                    args.pdf_root,
+                    args.quiet,
+                    args.recs_root,
+                    text_root,
+                    None,
+                    args.allow_untrusted_provenance,
+                ),
             )
         return worst
 
@@ -1946,7 +1985,7 @@ def main(argv: list[str]) -> int:
     # see `bind_recs` for why there is no fallback beside the sheet.
     return grade(
         args.sheet, args.recs, args.pdf_root, args.quiet, args.recs_root,
-        text_root, args.second_read,
+        text_root, args.second_read, args.allow_untrusted_provenance,
     )
 
 

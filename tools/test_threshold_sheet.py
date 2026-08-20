@@ -26,10 +26,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import guidelines_extract as extract  # noqa: E402
+import artifact_provenance  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
 
 def header(mode: str = "exact") -> str:
@@ -1562,6 +1564,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             sheets.mkdir(parents=True)
             for name in (
                 "threshold_sheet.py",
+                "artifact_provenance.py",
                 "guidelines_extract.py",
                 "guidelines_index.py",
                 "console_codec.py",
@@ -1584,7 +1587,11 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             subprocess.run([git, "add", "--", str(sheet_path)], cwd=root, check=True)
             empty_recs = root / "empty-recs"
             empty_recs.mkdir()
-            environment = {**os.environ, "CLINICAL_GUIDELINES_RECS": str(empty_recs)}
+            environment = {
+                **os.environ,
+                "CLINICAL_GUIDELINES_RECS": str(empty_recs),
+                "CLINICAL_GUIDELINES_TEXT": str(root / "absent-text"),
+            }
             result = subprocess.run(
                 [shell, str(tools / "hooks" / "pre-commit")],
                 cwd=root,
@@ -1614,9 +1621,12 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
     output = f"{doc_id}.txt"
     (root / output).parent.mkdir(parents=True, exist_ok=True)
     (root / output).write_text(body, encoding="utf-8")
+    producer = artifact_provenance.current_producer()
+    producer["dirty"] = False
     (root / "manifest.json").write_text(
         json.dumps(
             {
+                "producer": producer,
                 "documents": [
                     {
                         "doc_id": doc_id,
@@ -1750,6 +1760,53 @@ class WatermarkGate(unittest.TestCase):
         self.assertIsNotNone(skip)
         self.assertIn("manifest", skip.lower())
 
+    def test_a_foreign_manifest_is_not_graded_without_the_override(self):
+        text_corpus(
+            self.root,
+            "Society/doc",
+            "an SBP goal of <130 mm Hg",
+            boilerplate=["Jones et al"],
+        )
+        path = self.root / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        _, skip, _, _ = gate.gate_watermark(sheet(row()), self.root)
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            _, allowed_skip, _, _ = gate.gate_watermark(
+                sheet(row()),
+                self.root,
+                allow_untrusted_provenance=True,
+            )
+
+        self.assertIn("different commit", skip)
+        self.assertIsNone(allowed_skip)
+
+    def test_a_foreign_manifest_makes_the_command_exit_two(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        sheet_path = self.root / "sheet.md"
+        sheet_path.write_text(header() + "\n## Thresholds\n\n" + row(), encoding="utf-8")
+        recs_path = self.root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+            status = gate.grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=self.root,
+            )
+
+        self.assertEqual(status, 2)
+        self.assertIn("different commit", stderr.getvalue())
+
     def test_the_manifest_reader_is_the_indexers_and_not_a_copy(self):
         """`reference_scan.py` importing `docx_write.REFERENCE_HEADING`, for that
         module's reason: #80 owns this file's shape, and a gate holding its own copy
@@ -1784,6 +1841,10 @@ class TheWatermarkGateAgainstTheCommittedSheet(unittest.TestCase):
         )
         if not (self.text_root / "manifest.json").is_file():
             self.skipTest(f"no extracted corpus at {self.text_root}")
+        try:
+            gate.read_manifest(self.text_root)
+        except ValueError as unusable:
+            self.skipTest(str(unusable))
 
     def test_the_committed_sheet_has_no_interleaved_row(self):
         path = gate.SHEET_ROOT / "hypertension.md"
@@ -2147,6 +2208,12 @@ class TheCommandLineRefusesWhatItCannotBind(unittest.TestCase):
             ["sheet.md", "--pdf-root", "/data/guidelines-src", "--text-root", "/elsewhere"]
         )
         self.assertEqual(gate.text_root_for(args), Path("/elsewhere"))
+
+    def test_the_text_root_can_be_supplied_to_the_hook_by_environment(self):
+        with mock.patch.dict(os.environ, {"CLINICAL_GUIDELINES_TEXT": "/shared/text"}):
+            args = gate.build_parser().parse_args(["sheet.md"])
+
+        self.assertEqual(gate.text_root_for(args), Path("/shared/text"))
 
 
 class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):

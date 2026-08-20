@@ -27,9 +27,11 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import guidelines_index as gi
 import guidelines_search as gs
+import artifact_provenance
 from repo_root import InsideCheckout
 
 TOOLS = Path(__file__).resolve().parent
@@ -70,7 +72,11 @@ def write_single(text_dir: Path, doc_id: str, pages):
 
 def write_manifest(text_dir: Path, documents):
     path = text_dir / "manifest.json"
-    path.write_text(json.dumps({"documents": documents}), encoding="utf-8")
+    producer = artifact_provenance.current_producer()
+    producer["dirty"] = False
+    path.write_text(
+        json.dumps({"producer": producer, "documents": documents}), encoding="utf-8"
+    )
     return path
 
 
@@ -87,10 +93,24 @@ class TempCorpus(unittest.TestCase):
         self.text_dir = self.root / "guidelines-text"
         self.text_dir.mkdir()
         self.db = self.root / "guidelines-index" / "guidelines.sqlite"
+        producer = artifact_provenance.current_producer()
+        producer["dirty"] = False
+        patcher = mock.patch.object(
+            artifact_provenance, "current_producer", return_value=producer
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def build_default_corpus(self):
         write_single(self.text_dir, "AHA ACC/2017-hypertension", ["cover page", HYPERTENSION_PAGE])
         write_single(self.text_dir, "IDSA/2010-uti", ["cover page", PYELONEPHRITIS_PAGE])
+        write_manifest(
+            self.text_dir,
+            [
+                {"doc_id": "AHA ACC/2017-hypertension"},
+                {"doc_id": "IDSA/2010-uti"},
+            ],
+        )
         return gi.build(self.text_dir, self.db)
 
 
@@ -151,6 +171,46 @@ class DiscoveryTests(TempCorpus):
 
 
 class ManifestTests(TempCorpus):
+    def test_an_unstamped_manifest_is_refused(self):
+        (self.text_dir / "manifest.json").write_text(
+            json.dumps({"documents": [{"doc_id": "USPSTF/example"}]}), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "producer"):
+            gi.read_manifest(self.text_dir)
+
+    def test_a_manifest_from_another_commit_is_refused(self):
+        write_manifest(self.text_dir, [{"doc_id": "USPSTF/example"}])
+        path = self.text_dir / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "different commit"):
+            gi.read_manifest(self.text_dir)
+
+    def test_a_manifest_from_a_dirty_tree_is_refused(self):
+        write_manifest(self.text_dir, [{"doc_id": "USPSTF/example"}])
+        path = self.text_dir / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["producer"]["dirty"] = True
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+            gi.read_manifest(self.text_dir)
+
+    def test_the_explicit_override_reads_and_warns(self):
+        (self.text_dir / "manifest.json").write_text(
+            json.dumps({"documents": [{"doc_id": "USPSTF/example"}]}), encoding="utf-8"
+        )
+
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            manifest = gi.read_manifest(
+                self.text_dir, allow_untrusted_provenance=True
+            )
+
+        self.assertIn("USPSTF/example", manifest)
+
     def test_manifest_supplies_title_and_class(self):
         write_single(self.text_dir, "ACIP/2026-schedule", ["one"])
         write_manifest(
@@ -251,6 +311,7 @@ class RepoContainmentTests(TempCorpus):
 
     def test_a_sibling_of_the_checkout_is_built(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
         self.checkout()
         report = gi.build(self.text_dir, self.root / "guidelines-index" / "g.sqlite")
         self.assertTrue(report.database.exists())
@@ -276,6 +337,48 @@ class RepoContainmentTests(TempCorpus):
 
 
 class BuildTests(TempCorpus):
+    def test_a_dirty_index_build_needs_the_explicit_override(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
+        dirty = artifact_provenance.current_producer()
+        dirty["dirty"] = True
+
+        with mock.patch.object(
+            artifact_provenance, "current_producer", return_value=dirty
+        ):
+            with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+                gi.build(self.text_dir, self.db)
+            with self.assertWarnsRegex(RuntimeWarning, "dirty"):
+                gi.build(
+                    self.text_dir,
+                    self.db,
+                    allow_untrusted_provenance=True,
+                )
+
+    def test_a_text_directory_without_a_manifest_is_refused(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "manifest.json"):
+            gi.build(self.text_dir, self.db)
+
+    def test_the_override_builds_from_unstamped_text_and_marks_the_index_untrusted(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            gi.build(
+                self.text_dir,
+                self.db,
+                allow_untrusted_provenance=True,
+            )
+
+        connection = sqlite3.connect(self.db)
+        try:
+            meta = dict(connection.execute("SELECT key, value FROM meta").fetchall())
+        finally:
+            connection.close()
+        provenance = json.loads(meta["provenance"])
+        self.assertTrue(provenance["untrusted_reasons"])
+
     def test_the_report_counts_what_went_in(self):
         report = self.build_default_corpus()
         self.assertEqual(report.documents, 2)
@@ -397,6 +500,7 @@ class LineAttributionTests(TempCorpus):
                 "Patients reporting near syncope are evaluated the same way.\n"
             ],
         )
+        write_manifest(self.text_dir, [{"doc_id": "AHA ACC/syncope"}])
         gi.build(self.text_dir, self.db)
         connection = gs.open_index(self.db)
         self.addCleanup(connection.close)
@@ -433,6 +537,66 @@ class MissingIndexTests(TempCorpus):
         with self.assertRaises(gs.NotAnIndex):
             gs.open_index(self.db)
 
+    def test_an_index_without_provenance_is_refused(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        connection.execute("DELETE FROM meta WHERE key = 'provenance'")
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "provenance"):
+            gs.open_index(self.db)
+
+    def test_an_index_from_another_commit_is_refused(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        provenance = json.loads(
+            connection.execute(
+                "SELECT value FROM meta WHERE key = 'provenance'"
+            ).fetchone()[0]
+        )
+        provenance["producer"]["commit"] = "f" * 40
+        connection.execute(
+            "UPDATE meta SET value = ? WHERE key = 'provenance'",
+            (json.dumps(provenance),),
+        )
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "different commit"):
+            gs.open_index(self.db)
+
+    def test_the_override_opens_an_untrusted_index_and_warns(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        with self.assertWarns(RuntimeWarning):
+            gi.build(self.text_dir, self.db, allow_untrusted_provenance=True)
+
+        with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+            connection = gs.open_index(
+                self.db, allow_untrusted_provenance=True
+            )
+        connection.close()
+
+    def test_a_dirty_embedded_source_stamp_cannot_be_laundered(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        provenance = json.loads(
+            connection.execute(
+                "SELECT value FROM meta WHERE key = 'provenance'"
+            ).fetchone()[0]
+        )
+        provenance["source"]["dirty"] = True
+        provenance["untrusted_reasons"] = []
+        connection.execute(
+            "UPDATE meta SET value = ? WHERE key = 'provenance'",
+            (json.dumps(provenance),),
+        )
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+            gs.open_index(self.db)
+
 
 class CommandLineTests(TempCorpus):
     def run_search(self, argv):
@@ -459,6 +623,29 @@ class CommandLineTests(TempCorpus):
         status, _, err = self.run_search(["--db", str(self.db), "aortic dissection"])
         self.assertEqual(status, 2)
         self.assertIn("guidelines_index.py", err)
+
+    def test_the_override_flag_can_search_a_tainted_index_and_warns(self):
+        write_single(self.text_dir, "IDSA/2010-uti", [PYELONEPHRITIS_PAGE])
+        with self.assertWarns(RuntimeWarning):
+            gi.build(self.text_dir, self.db, allow_untrusted_provenance=True)
+
+        refused, _, refused_err = self.run_search(
+            ["--db", str(self.db), "urine culture"]
+        )
+        allowed, out, allowed_err = self.run_search(
+            [
+                "--allow-untrusted-provenance",
+                "--db",
+                str(self.db),
+                "urine culture",
+            ]
+        )
+
+        self.assertEqual(refused, 2)
+        self.assertIn("untrusted", refused_err)
+        self.assertEqual(allowed, 0)
+        self.assertIn("IDSA/2010-uti", out)
+        self.assertIn("untrusted", allowed_err)
 
     def test_several_queries_are_reported_separately(self):
         """Query expansion is the answer to `keyword search cannot find a concept`,
@@ -585,6 +772,10 @@ class CommandLineTests(TempCorpus):
         """
         write_single(self.text_dir, "IDSA/2010-uti", ["cover page", PYELONEPHRITIS_PAGE])
         write_single(self.text_dir, "loose", ["cover page"])
+        write_manifest(
+            self.text_dir,
+            [{"doc_id": "IDSA/2010-uti"}, {"doc_id": "loose"}],
+        )
         gi.build(self.text_dir, self.db)
         status, out, err = self.run_search(
             ["--db", str(self.db), "--society", "USPTF", "urine culture"]
@@ -728,6 +919,7 @@ class Cp1252ConsoleTests(TempCorpus):
 
     def build_threshold_corpus(self):
         write_single(self.text_dir, "IDSA/2023-foot", ["cover page", THRESHOLD_PAGE])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2023-foot"}])
         return gi.build(self.text_dir, self.db)
 
     def test_a_hit_carrying_a_non_cp1252_character_exits_zero(self):
@@ -774,6 +966,7 @@ class BuildCommandLineTests(TempCorpus):
 
     def test_a_build_reports_its_counts(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one", PYELONEPHRITIS_PAGE])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
         status, out, _ = self.run_build([str(self.text_dir), str(self.db)])
         self.assertEqual(status, 0)
         self.assertIn("1 document", out)
@@ -783,6 +976,23 @@ class BuildCommandLineTests(TempCorpus):
         status, _, err = self.run_build([str(self.root / "nowhere"), str(self.db)])
         self.assertEqual(status, 2)
         self.assertIn("nowhere", err)
+
+    def test_the_override_flag_builds_from_unstamped_text_and_warns(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+
+        refused, _, refused_err = self.run_build([str(self.text_dir), str(self.db)])
+        allowed, _, allowed_err = self.run_build(
+            [
+                "--allow-untrusted-provenance",
+                str(self.text_dir),
+                str(self.db),
+            ]
+        )
+
+        self.assertEqual(refused, 2)
+        self.assertIn("untrusted", refused_err)
+        self.assertEqual(allowed, 0)
+        self.assertIn("untrusted", allowed_err)
 
 
 if __name__ == "__main__":

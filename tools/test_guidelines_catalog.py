@@ -33,6 +33,13 @@ from pathlib import Path
 
 import guidelines_catalog as gc
 import guidelines_extract as extract
+import artifact_provenance
+
+
+def clean_producer():
+    producer = artifact_provenance.current_producer()
+    producer["dirty"] = False
+    return producer
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
 
@@ -91,6 +98,62 @@ def doc(**overrides) -> gc.Document:
 class ReadingTheExtractedCorpus(unittest.TestCase):
     """The catalog consumes #80's public artifact, not the source PDFs."""
 
+    def test_a_foreign_manifest_needs_the_explicit_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/screening.pdf"),
+                ["US Preventive Services Task Force Recommendation Statement"],
+                text_dir,
+                "Screening for Example Disease",
+            )
+            manifest_path = extract.write_manifest(
+                text_dir,
+                [record],
+                Path("C:/outside/guidelines-src"),
+                producer={"commit": "f" * 40, "dirty": False},
+            )
+
+            with self.assertRaisesRegex(ValueError, "different commit"):
+                gc.read_corpus(text_dir)
+            with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+                docs = gc.read_corpus(
+                    text_dir, allow_untrusted_provenance=True
+                )
+
+            self.assertEqual(len(docs), 1)
+
+    def test_the_draft_command_override_is_explicit_and_warns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/screening.pdf"),
+                ["US Preventive Services Task Force Recommendation Statement"],
+                text_dir,
+                "Screening for Example Disease",
+            )
+            extract.write_manifest(
+                text_dir,
+                [record],
+                Path("C:/outside/guidelines-src"),
+                producer={"commit": "f" * 40, "dirty": False},
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                refused = gc.main(["--draft", str(text_dir)])
+                allowed = gc.main(
+                    [
+                        "--allow-untrusted-provenance",
+                        "--draft",
+                        str(text_dir),
+                    ]
+                )
+
+            self.assertEqual(refused, 2)
+            self.assertEqual(allowed, 0)
+            self.assertIn("untrusted", err.getvalue())
+            self.assertIn("screening.pdf", out.getvalue())
+
     def test_manifest_metadata_and_stripped_year_survive_the_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
             text_dir = Path(tmp)
@@ -105,7 +168,10 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
                 text_dir,
                 "Screening for Example Disease",
             )
-            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+            extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src"),
+                producer=clean_producer(),
+            )
 
             self.assertNotIn(repeated, (text_dir / "USPSTF" / "screening.txt").read_text())
             self.assertEqual(
@@ -136,7 +202,8 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             text_dir = Path(tmp)
             record = extract.build_document(Path("KDIGO/guideline.pdf"), ["body"], text_dir)
             manifest_path = extract.write_manifest(
-                text_dir, [record], Path("C:/outside/guidelines-src")
+                text_dir, [record], Path("C:/outside/guidelines-src"),
+                producer=clean_producer(),
             )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             del manifest["documents"][0]["title"]
@@ -157,7 +224,10 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             record = extract.build_document(
                 Path("KDIGO/guideline.pdf"), pages, text_dir, "Clinical Practice Guideline"
             )
-            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+            extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src"),
+                producer=clean_producer(),
+            )
 
             self.assertEqual(gc.read_corpus(text_dir)[0].year_guess, "2019")
 

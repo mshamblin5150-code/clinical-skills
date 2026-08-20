@@ -25,6 +25,8 @@ Run with::
 """
 
 import json
+import contextlib
+import io
 import os
 import tempfile
 import unittest
@@ -32,6 +34,13 @@ from pathlib import Path
 
 import guidelines_extract as extract
 import uspstf_table as ut
+import artifact_provenance
+
+
+def clean_producer():
+    producer = artifact_provenance.current_producer()
+    producer["dirty"] = False
+    return producer
 
 TESTDATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testdata", "uspstf")
 
@@ -45,6 +54,66 @@ def fixture(name):
 class ReadingTheExtractedCorpus(unittest.TestCase):
     """The table builder consumes #80's artifact and its metadata-title contract."""
 
+    def test_a_foreign_manifest_needs_the_explicit_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/rhrs.pdf"),
+                fixture("ahrq-sentence-grade"),
+                text_dir,
+                "Screening for Rh (D) Incompatibility - Recommendation Statement",
+            )
+            extract.write_manifest(
+                text_dir,
+                [record],
+                Path("C:/outside/guidelines-src"),
+                producer={"commit": "f" * 40, "dirty": False},
+            )
+
+            with self.assertRaisesRegex(ValueError, "different commit"):
+                ut.build(text_dir)
+            with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
+                results = ut.build(
+                    text_dir, allow_untrusted_provenance=True
+                )
+
+            self.assertEqual(len(results), 1)
+
+    def test_the_command_override_is_explicit_and_warns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            text_dir = root / "text"
+            text_dir.mkdir()
+            record = extract.build_document(
+                Path("USPSTF/rhrs.pdf"),
+                fixture("ahrq-sentence-grade"),
+                text_dir,
+                "Screening for Rh (D) Incompatibility - Recommendation Statement",
+            )
+            extract.write_manifest(
+                text_dir,
+                [record],
+                Path("C:/outside/guidelines-src"),
+                producer={"commit": "f" * 40, "dirty": False},
+            )
+            out_path = root / "uspstf.md"
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                refused = ut.main([str(text_dir), "--out", str(out_path)])
+                allowed = ut.main(
+                    [
+                        str(text_dir),
+                        "--allow-untrusted-provenance",
+                        "--out",
+                        str(out_path),
+                    ]
+                )
+
+            self.assertEqual(refused, 2)
+            self.assertEqual(allowed, 0)
+            self.assertIn("untrusted", err.getvalue())
+            self.assertTrue(out_path.is_file())
+
     def test_build_reads_uspstf_text_and_title_from_the_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             text_dir = Path(tmp)
@@ -54,7 +123,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
                 text_dir,
                 "Screening for Rh (D) Incompatibility - Recommendation Statement",
             )
-            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"), producer=clean_producer())
 
             results = ut.build(text_dir)
 
@@ -72,7 +141,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             record = extract.build_document(
                 Path("KDIGO/guideline.pdf"), ["KDIGO guideline"], text_dir, "KDIGO Guideline"
             )
-            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"), producer=clean_producer())
 
             self.assertEqual(ut.build(text_dir), [])
 
@@ -89,7 +158,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
                 text_dir,
                 "Screening for Thyroid Cancer",
             )
-            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"), producer=clean_producer())
 
             self.assertIn(
                 "Conclusions and Recommendation The USPSTF",
@@ -114,7 +183,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
                 text_dir,
                 "Screening for Celiac Disease",
             )
-            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"), producer=clean_producer())
 
             self.assertIn(
                 citation,
@@ -130,7 +199,8 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
                 Path("USPSTF/rhrs.pdf"), fixture("ahrq-sentence-grade"), text_dir
             )
             manifest_path = extract.write_manifest(
-                text_dir, [record], Path("C:/outside/guidelines-src")
+                text_dir, [record], Path("C:/outside/guidelines-src"),
+                producer=clean_producer(),
             )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             del manifest["documents"][0]["title"]
