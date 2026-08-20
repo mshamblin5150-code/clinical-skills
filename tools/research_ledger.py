@@ -1,6 +1,6 @@
 """Grade the research ledger a ``practicum-case-study`` run writes before it drafts.
 
-    python tools/research_ledger.py <a ledger file> [--show]
+    python tools/research_ledger.py <a ledger file> [--draft <a draft .md>] [--show]
 
 [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) is this.
 The skill used to write an unsourced claim into the body and list it in the
@@ -135,6 +135,93 @@ wrap the way an APA entry wraps.
   ``UNSOURCED_WITH_CITATION_FIELD`` widened from one field to four: a locator on a record
   that says it found nothing is the same contradiction, and it was passing.
 
+**#289, and it is the only thing here that reads anything but the ledger.**
+
+- **Every drug the run chose a number for has a claim record.** The rows above
+  grade the records that exist, and this module has **no expected count of its
+  own and says so** -- so a dose nobody entered as a claim is invisible to every
+  one of them. That is exactly what happened: a run recorded in its own
+  ``REFUTATION`` field that the treatment topic was unavailable, wrote specific
+  doses citing it anyway, and ``research_ledger``, ``reference_scan`` and
+  ``checks_ledger`` all exited 0. **A prescription is a dose**, which makes it
+  the highest-stakes claim in the document and the one nothing reached.
+- **The set comes from the draft rather than from a table in here**, which is
+  the one way ``checks_ledger.py``'s expected-set arrangement transfers: there
+  ``skills/practicum-case-study/SKILL.md`` step 9's table fixes the checks, and
+  here the run's own Rx blocks fix the drugs. ``--draft`` is what supplies it.
+- **A record is required for every drug the run chose a number for**, ruled by
+  the clinician on 2026-08-19 against the alternative of every drug with a table.
+  A home medication continued unchanged at the patient's own dose is a number the
+  patient arrived on, and a row **declaring** itself ``Continued home
+  medication:`` is exempt. **Declared and never inferred**: an unlabeled row is
+  graded, so the direction the rule fails in is toward asking for a record.
+- **An order stating a dose is answered by a claim stating a number**, and that
+  is a chain rather than a second check: where the claim carries a number,
+  ``NUMERIC_CLAIM_UNQUANTIFIED`` above already forces the restatement to answer
+  with one. So the two rows compose into *the table's dose reaches a source*.
+- **A prescription table with no readable drug row is a finding**, not a table
+  subtracted from the set in silence.
+
+**It never compares the numbers, and that is #289's own closing prohibition.** A
+dose depends on indication, weight, renal function, pregnancy and route, so a row
+refusing a correct dose for the wrong reason is #215's defect a fourth time --
+and #215 has already produced three. The reachable property is whether the dose
+was **sourced**, never whether it is right: a record carrying a *different*
+number passes these rows. There is no drug table here and there will not be one.
+
+**Without ``--draft`` those rows do not run, and the report prints ``not
+graded`` against them rather than ``0``.** That is
+[#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling
+arriving at the one grader here that reads two files, and it is why
+``Scan.prescriptions`` is ``int | None`` rather than an ``int`` starting at zero:
+a zero beside a row that never ran is indistinguishable from a row that passed,
+which is the shape the whole ticket is about.
+
+**``DOSE_NOT_CLAIMED`` asks for a number and cannot ask for *the* number**, and
+that limit is documented rather than tightened, on ``UNRESOLVABLE_LOCATOR``'s
+terms. Any digit in the claim heading satisfies it, so a heading carrying a year
+and no dose passes -- and narrowing it is not available, because the heading is
+written in the source's own terms by design and this module's own
+``NUMERIC_CLAIM_UNQUANTIFIED`` exists because a claim about 15,000 cells is
+rightly answered in ``10^9/L``. **It only ever weakens the weaker half of a
+pair**: the row says *this claim was not asked numerically*, never *this dose is
+sourced*, and it is one row of three. Pinned by a test so it is a known behavior
+rather than an accident.
+
+**One drug row is one drug, and nothing here makes that true.** ``_drug_of``
+takes the leading token, so a row welding two orders together --
+``doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7 days``
+-- is one drug to this parser, and the second drug's dose is invisible to all
+three rows. ``style.md`` section 8 says *one table per drug* and this grades
+nothing about that, so **the run picks the denominator**, which is
+[#127](https://github.com/mshamblin5150-code/clinical-skills/issues/127)'s shape
+arriving in a set built to be an expected one. **It is not narrowable here**:
+splitting a drug row on ``and`` would cut ``normal saline and potassium
+chloride``, and telling two drugs apart needs a drug vocabulary, which is
+exactly the table #289 forbids. Written down and pinned by a test rather than
+guessed at, on ``UNRESOLVABLE_LOCATOR``'s terms, and filed --
+[#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300).
+
+**What it cannot reach, and the sharpest limb is a claim about coverage rather
+than about a dose.** Whether the dose is right for this patient, whether the
+record that names the drug sourced its *dose* rather than its indication --
+record 1 of the run that produced #289 sourced the **disposition**, and would
+have failed these rows only because it named no drug at all -- and whether the
+drug row and the ``Sig`` agree.
+
+**And no reader is looking at the number either.** This paragraph said
+``skills/practicum-case-study/SKILL.md`` step 9 sends a reader at the Rx blocks
+*for exactly that reason*, and that was false: step 9's row briefs a reader on
+whether every drug has a table, whether every ``Sig`` ends in an indication and
+whether the prose block is there, and ``checks_ledger.EXPECTED_CHECKS`` marks it
+as one whose ``clean`` need not say what it walked. **So the residue is declared
+covered and is covered nowhere**, which is this ticket's own shape arriving in
+the fix for it -- found by the spec axis of ``/code-review``, filed as
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299) rather
+than closed here, because widening what a step 9 reader is asked to do is a
+change to the skill's checks and #255 is the precedent for who rules those.
+**A clean scan is not a checked prescription.**
+
 **#215's first limb reaches no row here, and that is deliberate.** *Within two years
 is the target* is a target: a ``current`` disposition on a three-year-old reference
 is not a defect, and grading it would refuse what the ruling merely prefers.
@@ -240,13 +327,21 @@ transcribed from faculty material about a patient. **``--show`` output is PHI** 
 
 **Exit status distinguishes not having scanned from having found nothing** -- 0
 clean, 1 for a violation, **2 for every way of not having scanned**: no argument,
-no file, no ``## CLAIM:`` record in it, and **no ``DATE:`` header**. That last limb
-is the one that matters. The window is measured against the day the paper is
-written, so a ledger with no date was never measured by #215's rule at all, and a
-clean report would read as though it had been. **Two rows need that date now**, not
-one: #215's window and #231's read date both compare a date to ``DATE``.
+no file, no ``## CLAIM:`` record in it, **no ``DATE:`` header**, a ``--draft``
+naming a file that is not there, and a draft carrying **no readable prescription
+table**.
 
-**Where a violation and a missing ``DATE`` both hold, 1 wins**, on
+**Two of those limbs are the ones that matter, and they are the two where a row
+would otherwise print a zero it never earned.** The window is measured against
+the day the paper is written, so a ledger with no ``DATE`` was never measured by
+#215's rule at all and a clean report would read as though it had been -- **two
+rows need that date**, #215's window and #231's read date, both comparing to
+``DATE``. And a draft whose prescriptions are written in a shape
+``read_prescriptions`` does not read would report #289's rows as zeros and look
+like a document whose every dose reaches a record, which is
+``differential_scan.py``'s reasoning arriving at a second file.
+
+**Where a violation and any not-scanned limb both hold, 1 wins**, on
 ``differential_scan.py``'s and ``filled_vitals_census.py``'s ordering and for their
 reason: returning 2 would file the strongest thing known about the ledger under the
 weakest heading. The banner prints either way, so an exit 1 over a dateless ledger
@@ -263,6 +358,7 @@ from datetime import date
 from pathlib import Path
 
 from console_codec import use_utf8
+from docx_write import markdown_tables, split_row
 
 # A record opens on a heading. The heading level is free, so the ledger can sit
 # under a document heading without the parser caring.
@@ -393,9 +489,23 @@ BARE_REFUTATION = "bare-refutation"
 REFUTED_CITATION = "refuted-citation"
 REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
 
+# #289's three, and they are the only rows here that read anything but the
+# ledger. They grade the draft's prescriptions against it, so they run only
+# where ``--draft`` named one -- and ``format_report`` prints them as *not
+# graded* rather than as zeros where it did not, on
+# [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
+# ruling: a zero beside a row that never ran is the silent pass this whole
+# directory refuses.
+UNRESEARCHED_PRESCRIPTION = "unresearched-prescription"
+DOSE_NOT_CLAIMED = "dose-not-claimed"
+UNREADABLE_DRUG_ROW = "unreadable-drug-row"
+
 # Every row, in report order. Kept as one tuple so the report, the counter and the
 # ticket map cannot drift into listing different sets.
 KINDS = (
+    UNRESEARCHED_PRESCRIPTION,
+    DOSE_NOT_CLAIMED,
+    UNREADABLE_DRUG_ROW,
     MISSING_FIELD,
     UNKNOWN_STATUS,
     BARE_STATUS,
@@ -426,6 +536,9 @@ _KIND_ORDER = {kind: index for index, kind in enumerate(KINDS)}
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROW_TICKET = {
+    UNRESEARCHED_PRESCRIPTION: "#289",
+    DOSE_NOT_CLAIMED: "#289",
+    UNREADABLE_DRUG_ROW: "#289",
     MISSING_FIELD: "#214",
     UNKNOWN_STATUS: "#214",
     BARE_STATUS: "#214",
@@ -465,6 +578,49 @@ REQUIRED_WHEN_SOURCED = (
 # field to the four, because a locator on a record that found nothing is the same
 # defect and was passing.
 CITATION_FIELDS = ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION")
+
+# The rows #289 added, so ``format_report`` can tell a zero apart from a row
+# that never ran. **One tuple, and how many is its own to say** -- a second
+# list of the same rows is #220's drift, and a count of them in prose is
+# [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143),
+# which this module published in five places before a review re-derived it.
+DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
+
+# A prescription table is the one table in a case study carrying both of
+# these, and the drug row is the row above ``Disp:``. **A welded pair and a
+# position read off an anchor**, never a row counted from the top of the
+# table: ``differential_scan.py``'s first version read a refusal by position
+# and failed in both directions at once, and #153's repair was exactly this.
+# A run that omits either anchor has not written a prescription table, and
+# ``main``'s exit-2 limb is what says so rather than a clean zero.
+DISP = re.compile(r"(?i)^disp\b[ \t]*:")
+SIG = re.compile(r"(?i)^sig\b[ \t]*:")
+SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
+
+# The drug name is the leading token of the drug row and nothing cleverer.
+# ``ceftriaxone 1 g IV q24h`` gives ``ceftriaxone``; ``magnesium sulfate 4 g``
+# gives ``magnesium``, which still matches a claim naming the salt. **It errs
+# toward matching**, so what it costs is a missed finding rather than a
+# refused correct record -- the direction #215's three false alarms say to
+# take. A first token that is not a word is no drug at all, which is
+# ``UNREADABLE_DRUG_ROW`` rather than a guess.
+#
+# **The cost it names is a missed drug and not only a missed match**, and the
+# module docstring says which: a row welding two orders together is one drug
+# here, so the second one's dose is graded by nothing. #300.
+DRUG_NAME = re.compile(r"[A-Za-z][A-Za-z'-]*")
+
+# What a drug row may declare about itself. **The exemption is declared and
+# never inferred**, so the rule fails closed: a row saying nothing is graded.
+# ``continued home medication`` is the clinician's ruling of 2026-08-19 on
+# #289's decision 1 -- a home medication continued unchanged at the patient's
+# own dose is a number the run did not choose. ``delayed order`` is
+# ``style.md`` section 8's existing declaration and exempts nothing: a dose
+# that has not started yet is still a dose the run chose.
+CONTINUED_HOME = "continued home medication"
+DELAYED_ORDER = "delayed order"
+DRUG_ROW_DECLARATIONS = (CONTINUED_HOME, DELAYED_ORDER)
+EXEMPT_DECLARATIONS = (CONTINUED_HOME,)
 
 
 def normalize(text: str) -> str:
@@ -590,6 +746,36 @@ class Record:
 
 
 @dataclass(frozen=True)
+class Prescription:
+    """One drug row of one prescription table in the draft.
+
+    ``drug`` is empty where the row could not be read, which is a finding
+    rather than a table quietly dropped. ``order`` is the row with its
+    declaration stripped, so the dose test reads what was prescribed and not
+    a digit inside the words ``Continued home medication``.
+    """
+
+    drug: str
+    order: str
+    declaration: str = ""
+
+    @property
+    def exempt(self) -> bool:
+        return self.declaration in EXEMPT_DECLARATIONS
+
+    @property
+    def states_a_dose(self) -> bool:
+        """Whether the run chose a number here.
+
+        ``prenatal vitamin one tablet PO daily`` spells its number out and is
+        not asked for a quantified claim, which is
+        ``NUMERIC_CLAIM_UNQUANTIFIED``'s *a claim with no number is not asked
+        for one* arriving one artifact over.
+        """
+        return bool(DIGIT.search(self.order))
+
+
+@dataclass(frozen=True)
 class Finding:
     """One record failing one row."""
 
@@ -620,6 +806,17 @@ class Scan:
     behind_a_paywall: int
     counts: tuple[tuple[str, int], ...]
     failing_records: int
+    # ``None`` where no ``--draft`` was given, which is the whole reason it is
+    # not an ``int`` starting at zero: #289's rows did not run, and a
+    # zero beside a row that never ran reads exactly like a row that passed.
+    # ``format_report`` prints *not graded* off this, on #258's ruling.
+    prescriptions: int | None
+    continued_home: int
+    # Table runs carrying one anchor and not the other -- a partial read,
+    # counted and reported and outside the exit status. See
+    # ``half_anchored_tables``.
+    half_anchored: int
+    prescriptions_at_fault: int
     findings: tuple[Finding, ...]
 
 
@@ -875,7 +1072,207 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
 
 
-def survey(records: list[Record], as_of: date | None) -> Scan:
+def _cells(line: str) -> list[str]:
+    r"""The cells of one Markdown table row, unwrapped from their backticks.
+
+    **The split is the renderer's own**, imported rather than restated, on
+    ``reference_scan.py``'s ``REFERENCE_HEADING`` precedent and for its reason:
+    ``docx_write.split_row`` is what decides where a cell ends in the document
+    a grader actually reads, and a second reading of one table can put the
+    ``Disp:`` anchor in a different row than the one that renders. It honors an
+    escaped ``\|`` as a literal pipe; a copy here would not, and #215's follow-up
+    is the recorded instance of that exact divergence costing a rendered cell.
+
+    **A row's cell count varies by design and nothing here reads it.** Since
+    #293 that table is three columns wide: row 1 declares three cells, the drug,
+    ``Disp:``, ``Sig:`` and signature rows declare one and span, and the last
+    declares two.
+
+    The backticks are this module's own business -- ``style.md`` sets every cell
+    of that table as code, and the renderer keeps them because they are content.
+    """
+    return [cell.strip("`").strip() for cell in split_row(line)]
+
+
+def _declaration_of(order: str) -> tuple[str, str]:
+    """Split a drug row into what it declares about itself and the order.
+
+    **The boundary is #253's**, arriving at the declarations: a value merely
+    *opening* with a vocabulary word is not that word, so ``Continued home
+    medications reviewed:`` does not exempt the row it opens. The separator is a
+    colon, which is what ``style.md`` section 8 writes.
+    """
+    lowered = order.lower()
+    for name in sorted(DRUG_ROW_DECLARATIONS, key=len, reverse=True):
+        if not lowered.startswith(name):
+            continue
+        rest = order[len(name) :].lstrip()
+        if rest.startswith(":"):
+            return name, rest[1:].strip()
+    return "", order
+
+
+def _drug_of(order: str) -> str:
+    """The leading token of a drug row, or ``""`` where it is not a word.
+
+    Deliberately the first token and nothing cleverer -- see ``DRUG_NAME``.
+    """
+    tokens = order.split()
+    if not tokens:
+        return ""
+    token = tokens[0].strip(",;.:()")
+    return token if DRUG_NAME.fullmatch(token) else ""
+
+
+def _table_runs(text: str) -> list[list[list[str]]]:
+    """Every Markdown table in ``text``, as rows of cells.
+
+    **The blocks are the renderer's own**, imported rather than walked here, on
+    ``_cells``'s reasoning one level up: ``docx_write.markdown_tables`` is what
+    decides where a table begins and ends in the document a grader reads, and its
+    own docstring refuses a second copy of the loop in as many words. This module
+    had one -- written a day before that function existed, on a branch that could
+    not see it -- and the two disagreed about what a table *is*: this required
+    only consecutive rows and that requires a separator rule under the header, so
+    a block the renderer would set as paragraphs was a prescription table here.
+    Caught at the merge and by nothing either suite ran.
+    """
+    return [
+        [_cells(line) for line in block.splitlines() if line.strip()]
+        for block in markdown_tables(text)
+    ]
+
+
+def read_prescriptions(text: str) -> list[Prescription]:
+    """Every drug row in every prescription table of a draft.
+
+    A prescription table is a run of consecutive Markdown table lines carrying
+    both a ``Disp:`` cell and a ``Sig:`` cell, and the drug row is the row above
+    ``Disp:``. Any other table in the document -- the differential, the MDM, the
+    faculty's questions -- carries neither and is not read.
+
+    **A table carrying the pair with nothing readable above ``Disp:`` comes back
+    with an empty ``drug``** rather than being dropped, so a table this parser
+    cannot read is a finding instead of a silent subtraction from the set.
+    """
+    return [rx for rows in _table_runs(text) for rx in _prescriptions_in(rows)]
+
+
+def half_anchored_tables(text: str) -> int:
+    """Table runs carrying one of the two anchors and not the other.
+
+    **A partial read is what this exists to make visible**, and total absence is
+    not the only way to get one. A draft whose Rx tables are mixed -- one
+    canonical, one writing ``Dispense:``, which the word boundary in ``DISP``
+    rightly refuses -- yields a smaller set, and all three rows then grade a
+    subset while the report prints the shrunken count with nothing beside it.
+    ``main``'s exit-2 limb covers *no* prescription table and never a short one,
+    which is
+    [#204](https://github.com/mshamblin5150-code/clinical-skills/issues/204)'s
+    complaint -- a parser reading one declaration of eight and printing nothing
+    to say so -- arriving in a second tool. Found by the tracker sweep on #289's
+    own branch.
+
+    **Counted and reported, and deliberately outside the exit status**, which is
+    ``block_scan.py``'s arrangement for a reading rather than a violation: a
+    table carrying one anchor is *probably* a malformed prescription and this
+    cannot know it is one, and #204's own question -- whether a short read may
+    refuse -- is unruled. What the run gets is the number, on the same page as
+    its exit.
+    """
+    return sum(
+        1
+        for rows in _table_runs(text)
+        if any(DISP.match(c) for cells in rows for c in cells)
+        != any(SIG.match(c) for cells in rows for c in cells)
+    )
+
+
+def _prescriptions_in(rows: list[list[str]]) -> list[Prescription]:
+    """The drug rows of one run of table lines, empty where it is not a table of
+    prescriptions."""
+    opened = [index for index, cells in enumerate(rows) if any(DISP.match(c) for c in cells)]
+    if not opened or not any(SIG.match(c) for cells in rows for c in cells):
+        return []
+    found: list[Prescription] = []
+    for index in opened:
+        above = rows[index - 1] if index else []
+        order = next(
+            (
+                cell
+                for cell in above
+                if cell and not SEPARATOR_CELL.match(cell) and not DISP.match(cell)
+            ),
+            "",
+        )
+        declaration, order = _declaration_of(order)
+        found.append(Prescription(_drug_of(order), order, declaration))
+    return found
+
+
+def _records_naming(drug: str, records: list[Record]) -> list[Record]:
+    """Every claim heading naming this drug, as a word rather than as a prefix."""
+    word = re.compile(rf"(?i)(?<![0-9A-Za-z]){re.escape(drug)}(?![0-9A-Za-z])")
+    return [record for record in records if word.search(record.claim)]
+
+
+def prescription_findings(
+    prescriptions: list[Prescription], records: list[Record]
+) -> list[Finding]:
+    """#289's rows: the draft's prescriptions against the ledger.
+
+    The only grader here that reads anything but the ledger, and the only one
+    with an **expected set** -- which is the gap the ticket is about.
+    ``research_ledger`` has no expected count of its own and says so, so a dose
+    nobody entered as a claim is invisible to every other row in this module.
+    ``checks_ledger.py``'s arrangement, with the set derived from the document
+    the run wrote rather than from a table in here.
+
+    **It never compares the numbers**, which is the ticket's own closing
+    prohibition: a dose depends on indication, weight, renal function, pregnancy
+    and route, and a row refusing a correct dose for the wrong reason is #215's
+    defect a fourth time. What is reachable is whether the dose was *sourced*.
+    """
+    found: list[Finding] = []
+    for rx in prescriptions:
+        if rx.exempt:
+            continue
+        if not rx.drug:
+            found.append(
+                Finding(
+                    UNREADABLE_DRUG_ROW,
+                    "a prescription table",
+                    "carries Disp: and Sig: with no readable drug row above Disp:",
+                )
+            )
+            continue
+        naming = _records_naming(rx.drug, records)
+        if not naming:
+            found.append(
+                Finding(
+                    UNRESEARCHED_PRESCRIPTION,
+                    rx.drug,
+                    "prescribed in the draft, and no claim record names it",
+                )
+            )
+            continue
+        if rx.states_a_dose and not any(DIGIT.search(record.claim) for record in naming):
+            found.append(
+                Finding(
+                    DOSE_NOT_CLAIMED,
+                    rx.drug,
+                    "the order states a dose and no claim record naming the drug states a number",
+                )
+            )
+    return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
+
+
+def survey(
+    records: list[Record],
+    as_of: date | None,
+    prescriptions: list[Prescription] | None = None,
+    half_anchored: int = 0,
+) -> Scan:
     """Count across one ledger.
 
     Takes parsed records rather than paths, so the counts carry no provenance of
@@ -883,7 +1280,11 @@ def survey(records: list[Record], as_of: date | None) -> Scan:
     sibling prints a run directory's -- the name, never the path.
     """
     graded = [(record, record_findings(record, as_of)) for record in records]
-    found = [f for _, per_record in graded for f in per_record]
+    # The prescription rows lead, in the findings as well as in the counts:
+    # they are their own group rather than one more row of a record, and
+    # ``--show`` and the count column have to agree about the order.
+    on_the_draft = prescription_findings(prescriptions or [], records)
+    found = on_the_draft + [f for _, per_record in graded for f in per_record]
     sourced = [r for r in records if r.status == SOURCED]
     return Scan(
         as_of=as_of,
@@ -906,6 +1307,10 @@ def survey(records: list[Record], as_of: date | None) -> Scan:
         ),
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
         failing_records=sum(1 for _, per_record in graded if per_record),
+        prescriptions=None if prescriptions is None else len(prescriptions),
+        continued_home=sum(1 for rx in prescriptions or [] if rx.exempt),
+        half_anchored=half_anchored,
+        prescriptions_at_fault=len(on_the_draft),
         findings=tuple(found),
     )
 
@@ -933,14 +1338,48 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append(f"  standing past five years         {scan.standing_past_five}")
     lines.append(f"  citations behind a paywall       {scan.behind_a_paywall}")
     lines.append("")
+    # **The coverage line, and it prints on every run rather than only a short
+    # one.** #258's ruling: a reader who has learned to read the qualifier
+    # takes its absence as the stronger claim, so the run that graded no
+    # prescriptions says so on the same page as its clean exit.
+    if scan.prescriptions is None:
+        lines.append(
+            f"  {'prescription drug rows':<32} not graded - no --draft was given"
+        )
+    else:
+        lines.append(f"  prescription drug rows           {scan.prescriptions}")
+        lines.append(
+            f"    continued unchanged, exempt    {scan.continued_home}"
+        )
+        lines.append(
+            f"    needing a claim record         {scan.prescriptions - scan.continued_home}"
+        )
+        # Printed on every graded run rather than only a short one, on #258's
+        # reasoning: a reader who has learned to read the qualifier takes its
+        # absence as the stronger claim.
+        lines.append(
+            f"    tables read with one anchor    {scan.half_anchored}  (not graded)"
+        )
+    lines.append("")
     for kind, count in scan.counts:
         # Wide enough for the longest kind, so the count column stays a column.
         # ``refutation-echoes-restatement`` is 29 and overflowed 28 on the day it
         # was added, which is the report going ragged in the one output meant to
         # be pasted into a ticket.
-        lines.append(f"  {ROW_TICKET[kind]} - {kind:<31} {count}")
+        # A #289 row that did not run prints as such rather than as a zero,
+        # for the reason ``Scan.prescriptions`` is not an ``int``.
+        shown = (
+            "not graded"
+            if scan.prescriptions is None and kind in DRAFT_ROWS
+            else count
+        )
+        lines.append(f"  {ROW_TICKET[kind]} - {kind:<31} {shown}")
     lines.append("")
     lines.append(f"  records at fault                 {scan.failing_records}")
+    if scan.prescriptions is not None:
+        lines.append(
+            f"  prescriptions at fault           {scan.prescriptions_at_fault}"
+        )
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
         for finding in scan.findings:
@@ -949,12 +1388,53 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
+# One string, so the usage line and the flags cannot drift apart.
+USAGE = "usage: research_ledger.py <a ledger file> [--draft <a draft .md>] [--show]"
+
+
+def read_arguments(argv: list[str]) -> tuple[list[str], str | None, bool]:
+    """The positional arguments, the ``--draft`` path and ``--show``.
+
+    Hand-parsed rather than through ``argparse`` on the directory's precedent,
+    and split out of ``main`` because ``--draft`` takes a value: the one-line
+    filter this replaced would have read the draft's path as a second ledger.
+    ``None`` means the flag was absent, and ``""`` means it was given nothing --
+    two different mistakes, and only the first is a run that graded no
+    prescriptions on purpose.
+    """
+    positional: list[str] = []
+    draft: str | None = None
+    show = False
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--show":
+            show = True
+        elif argument == "--draft":
+            # A following flag is a missing value and not a path, and the flag is
+            # left where it is so it still parses. Without this ``--draft --show``
+            # reads ``--show`` as the draft, reports *no draft file named --show*,
+            # and drops ``--show`` besides -- two wrong answers where a usage line
+            # is the true one.
+            following = argv[index + 1] if index + 1 < len(argv) else ""
+            if following.startswith("--"):
+                draft = ""
+            else:
+                draft = following
+                index += 1
+        elif argument.startswith("--draft="):
+            draft = argument.split("=", 1)[1]
+        elif not argument.startswith("--"):
+            positional.append(argument)
+        index += 1
+    return positional, draft, show
+
+
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
-    show = "--show" in argv
-    if not args:
-        print("usage: research_ledger.py <a ledger file> [--show]", file=sys.stderr)
+    args, draft, show = read_arguments(argv)
+    if not args or draft == "":
+        print(USAGE, file=sys.stderr)
         return 2
     path = Path(args[0])
     # The name, never the path: a ledger sits under ``scratch/``.
@@ -966,9 +1446,19 @@ def main(argv: list[str]) -> int:
     if not records:
         print(f"no claim records found in {path.name}", file=sys.stderr)
         return 2
+    prescriptions: list[Prescription] | None = None
+    half_anchored = 0
+    if draft is not None:
+        draft_path = Path(draft)
+        if not draft_path.is_file():
+            print(f"no draft file named {draft_path.name}", file=sys.stderr)
+            return 2
+        draft_text = draft_path.read_text(encoding="utf-8", errors="replace")
+        prescriptions = read_prescriptions(draft_text)
+        half_anchored = half_anchored_tables(draft_text)
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
-    scan = survey(records, as_of)
+    scan = survey(records, as_of, prescriptions, half_anchored)
     print(format_report(scan, source=path.name, show=show))
     if as_of is None:
         # Printed whichever status follows, so an exit 1 below reads as a floor
@@ -982,17 +1472,37 @@ def main(argv: list[str]) -> int:
             " in it.",
             file=sys.stderr,
         )
-    if scan.failing_records:
-        # 1 outranks the missing header, on ``differential_scan.py``'s ordering:
-        # returning 2 would file the strongest thing known about this ledger under
-        # the weakest heading.
+    if prescriptions is not None and not prescriptions:
+        # #289's did-not-scan limb, and it is ``differential_scan.py``'s
+        # reasoning: a draft whose prescriptions are written in a shape this
+        # parser does not read would otherwise report its rows as zeros and look like
+        # document whose every dose reaches a record.
         print(
-            f"{scan.failing_records} record(s) fail the #214 fan-out contract."
-            " Re-run with --show to see which, and do not paste that output.",
+            f"no prescription table found in {Path(draft).name} - a table is read by its"
+            " Disp: and Sig: rows, so none of #289's rows was applied to it.",
             file=sys.stderr,
         )
+    if scan.failing_records or scan.prescriptions_at_fault:
+        # 1 outranks both not-scanned limbs, on ``differential_scan.py``'s
+        # ordering: returning 2 would file the strongest thing known about this
+        # ledger under the weakest heading.
+        if scan.failing_records:
+            print(
+                f"{scan.failing_records} record(s) fail the #214 fan-out contract."
+                " Re-run with --show to see which, and do not paste that output.",
+                file=sys.stderr,
+            )
+        if scan.prescriptions_at_fault:
+            print(
+                f"{scan.prescriptions_at_fault} prescription(s) in {Path(draft).name} reach"
+                " no claim record. Re-run with --show to see which, and do not paste"
+                " that output.",
+                file=sys.stderr,
+            )
         return 1
-    return 2 if as_of is None else 0
+    if as_of is None:
+        return 2
+    return 2 if prescriptions is not None and not prescriptions else 0
 
 
 if __name__ == "__main__":

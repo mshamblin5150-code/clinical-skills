@@ -103,7 +103,7 @@ Referral/Follow-up:
 Discussion
 <short paragraph: why this presentation fits the chosen diagnosis, and the
 significance of any genetic or chronic condition that is not driving the acute
-illness but matters for counselling and future care>
+illness but matters for counseling and future care>
 ```
 
 ## Section notes

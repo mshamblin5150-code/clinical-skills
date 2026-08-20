@@ -143,6 +143,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
+from repo_root import InsideCheckout, ensure_outside_checkout
 
 MODE_EXACT = "exact"
 MODE_BOUND = "bound"
@@ -634,20 +635,13 @@ def extract(path: Path, doc_id: str) -> tuple[list[Recommendation], str, str]:
     return marker_hits, MODE_BOUND, SOURCE_TEXT_MARKER
 
 
-def ensure_outside_repo(path: Path) -> None:
-    """Refuse to write the JSON inside any git checkout.
-
-    `guidelines_index.py`'s guard, for its reason and one more: this file holds the
-    society's own recommendation text in full, and #87 rules that stays outside.
-    """
-    resolved = path.resolve()
-    for candidate in (resolved, *resolved.parents):
-        if (candidate / ".git").exists():
-            raise SystemExit(
-                f"refusing to write inside a git checkout: {resolved}\n"
-                f"  {candidate} is a repository.\n"
-                "This file holds the society's recommendation text in full. #87."
-            )
+# Why *this* artifact stays out, which is not why the other two do: the JSON
+# holds the society's own recommendation text in full, and #87 rules that stays
+# outside every checkout. The detection is ``repo_root.enclosing_checkout`` --
+# this module was written after #176 was filed and grew a third copy of the rule
+# rather than importing one of the two that already existed, which is that
+# ticket's thesis demonstrated by the ticket's own aftermath.
+WHY_OUTSIDE = "This file holds the society's recommendation text in full. #87."
 
 
 def main(argv: list[str]) -> int:
@@ -665,6 +659,18 @@ def main(argv: list[str]) -> int:
         help="print recommendation text -- the society's expression, not for pasting",
     )
     args = parser.parse_args(argv)
+
+    # Before the PDF is opened, not after the records are printed. Where the
+    # JSON lands is a question about the arguments alone, and a run that reads
+    # a document and then refuses to write it has spent the expensive half for
+    # nothing. It also lets `test_write_guards.py` cross-check this command
+    # line against its three siblings without a PDF or a PDF library.
+    json_target = None
+    if args.json:
+        try:
+            json_target = ensure_outside_checkout(args.json, detail=WHY_OUTSIDE)
+        except InsideCheckout as refused:
+            raise SystemExit(str(refused)) from refused
 
     if not args.pdf.is_file():
         # 2 rather than 1, on `guidelines_search.py`'s arrangement: not having read
@@ -715,10 +721,12 @@ def main(argv: list[str]) -> int:
             classification = f"[{record.cor or '-'}/{record.loe or '-'}]"
             print(f"  {record.rec_id}  {classification}  {record.text[:110]}")
 
-    if args.json:
-        ensure_outside_repo(args.json)
-        args.json.parent.mkdir(parents=True, exist_ok=True)
-        args.json.write_text(
+    if json_target is not None:
+        # The path the guard resolved, never the one it was handed: writing to a
+        # different string than the one that was checked is how a guard comes to
+        # have been consulted about a path nothing wrote to.
+        json_target.parent.mkdir(parents=True, exist_ok=True)
+        json_target.write_text(
             json.dumps(
                 {
                     "doc_id": doc_id,
@@ -735,7 +743,7 @@ def main(argv: list[str]) -> int:
             encoding="utf-8",
             newline="\n",
         )
-        print(f"  json            {args.json}")
+        print(f"  json            {json_target}")
 
     return 0
 
