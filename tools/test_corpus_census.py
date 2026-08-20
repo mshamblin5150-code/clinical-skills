@@ -1252,7 +1252,7 @@ class HedgedDiagnosis(unittest.TestCase):
         No committed fixture carries it and the corpus cannot be audited from
         every clone, so an alternative matched by nothing is one nothing can
         catch going wrong -- the reasoning ``SLEEP_APNEA`` already carries for
-        ``apnoea``. This is the line to change if the form turns up.
+        the British apnea variant. This is the line to change if the form turns up.
         """
         self.assertFalse(cc.has_hedge("?fx right wrist"))
 
@@ -2794,6 +2794,55 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
                 self.assertTrue(cc.has_tobacco_status(text))
                 self.assertFalse(cc.has_positive_tobacco(text))
 
+    def test_a_welded_pack_count_is_in_both_tobacco_patterns(self):
+        """Issue #146, and it is this module's own named failure class again.
+
+        ``\\bppd\\b`` cannot match "1ppd": the leading boundary needs a non-word
+        character before it and a digit is a word character. That is exactly what
+        defeated ``\\bht\\b`` for "ht5'7\"" and ``\\bmm\\b`` for "12mm", and both
+        were repaired by adding an alternative rather than loosening the boundary.
+
+        **Both patterns, never one.** ``Census.tobacco_negated`` is the slot count
+        minus the positive count, so a form the second sees and the first does not
+        makes that subtraction go negative --
+        ``test_a_positive_tobacco_marker_always_implies_the_slot`` is the standing
+        assertion, and this is the shape that would have violated it.
+        """
+        for text in ("1ppd", "2ppd", ".5ppd", "1/2ppd",
+                     "smoked 1ppd x 24 yrs", "hx: 2ppd, htn, dm2"):
+            with self.subTest(text=text):
+                self.assertTrue(cc.has_tobacco_status(text))
+                self.assertTrue(cc.has_positive_tobacco(text))
+
+    def test_the_welded_form_is_admitted_as_a_quantity_and_not_as_a_bare_token(self):
+        """The widening is the pack-count shape, not a looser boundary.
+
+        ``PPD_QUANTITY`` is what is composed in, so a welded token with **no
+        quantity in front of it** is still outside both patterns -- which is what
+        keeps the widening away from a purified protein derivative, since nobody
+        writes a count in front of a tuberculin test. Every welded occurrence in
+        the corpus is welded to a single digit, measured over 551 encounters on
+        2026-08-19; nothing committed re-derives that, on ``DURATION``'s terms.
+
+        **What keeps the negatives out is the missing digit and not the letters**,
+        and the last pair is here because the first version of this test implied
+        otherwise. ``PPD_QUANTITY``'s leading limb carries no left boundary, so a
+        letter in front of the *digit* does not exclude it. That is a documented
+        limit rather than an oversight -- see the constant.
+        """
+        self.assertTrue(cc.ppd_written_as_quantity("1ppd"))
+        self.assertFalse(cc.ppd_written_as_skin_test("1ppd"))
+        for text in ("xppd", "sxppd"):
+            with self.subTest(text=text):
+                self.assertFalse(cc.has_tobacco_status(text))
+        self.assertFalse(cc.has_tobacco_status("helpingppd"))
+        self.assertTrue(cc.has_tobacco_status("helping1ppd"))
+        # A hyphen or a slash in front is not a welded form at all: both are
+        # non-word characters, so ``\bppd\b`` matched "-ppd" before this change
+        # as well. Asserting they stay out would be asserting a fix for a defect
+        # that does not exist, which is why the negatives above are all letters.
+        self.assertTrue(cc.has_tobacco_status("-ppd"))
+
     def test_a_positive_tobacco_marker_always_implies_the_slot(self):
         """The invariant ``tobacco_negated`` subtracts on, asserted rather than assumed.
 
@@ -2805,6 +2854,7 @@ class SocialSlotsSplitTwoWays(unittest.TestCase):
         was in neither, and no case-list test could have caught it.
         """
         for text in ("2 packs a day", "1 pack per day", "3 pks/day", "1 ppd",
+                     "1ppd", ".5ppd", "1/2ppd", "former 1ppd smoker",
                      "he is a smoker", "former vaper", "chews tobacco now",
                      "is exposed to second hand smoke"):
             with self.subTest(text=text):
@@ -3124,7 +3174,7 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
     **It was closed without one, on the clinician's ruling of 2026-08-16, because
     the two senses are not the same shape.** A pack count is a small number in
     front of the token and usually a span behind it. A skin test has no quantity
-    in front at all: it is placed, it is read, and its result is millimetres of
+    in front at all: it is placed, it is read, and its result is millimeters of
     induration. Nobody writes a tuberculin test as a number of packs followed by
     years.
 
@@ -3207,32 +3257,61 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
                 self.assertTrue(cc.ppd_written_as_quantity(text))
                 self.assertFalse(cc.ppd_written_as_skin_test(text))
 
-    def test_the_audit_population_is_the_one_the_tobacco_patterns_see(self):
-        """A welded ``1ppd`` is outside it, and that is issue #146 and not this.
+    def test_the_audit_population_is_the_ambiguous_token_and_not_the_slot(self):
+        """A welded ``1ppd`` is outside it, and since issue #146 that is a choice.
 
-        ``\\bppd\\b`` cannot match a digit-welded quantity -- the leading boundary
-        needs a non-word character and a digit is a word character. So the audit
-        counts what ``TOBACCO_SLOT`` counts and is silent about what it misses.
-        Counting the welded form here would make this class quietly answer a
-        different ticket.
+        This test was called
+        ``test_the_audit_population_is_the_one_the_tobacco_patterns_see``, and
+        the reason it gave was that ``\\bppd\\b`` was what ``TOBACCO_SLOT`` used --
+        so the audit counted what the slot counted and was silent about what it
+        missed. **#146 made that reason false.** The slot composes
+        ``PPD_QUANTITY`` now and does see the welded form; the audit still does
+        not.
+
+        Neither assertion moved, because the *right* reason was always the other
+        one. This population is the encounters where the token is **ambiguous**
+        -- a bare ``ppd`` that might be a purified protein derivative. A digit
+        welded to it is not ambiguous, so a welded form was never a candidate for
+        the wrong sense and does not belong in the denominator #78 was ruled on.
+
+        **That was the conservative reading when it was written and it is the
+        ruled one now.** The clinician settled #146 on 2026-08-20: a welded
+        ``1ppd`` is the spaced form mistyped and means one pack per day. A string
+        whose meaning is *settled* cannot be a candidate for the wrong sense, so
+        the narrow population is no longer a choice this test is making on
+        anyone's behalf -- it is what the ruling implies. Widening
+        ``writes_bare_ppd`` would put a decided token into a denominator that
+        exists to count undecided ones, and would move ``with_bare_ppd`` and both
+        shape counters for nothing.
         """
         self.assertFalse(cc.writes_bare_ppd("1ppd x 24 yrs"))
         self.assertTrue(cc.writes_bare_ppd("1 ppd x 24 yrs"))
+        # The slot does see it, and that divergence is the whole rename.
+        self.assertTrue(cc.has_tobacco_status("1ppd x 24 yrs"))
 
-    def test_the_slot_is_the_bare_token_or_an_independent_one(self):
+    def test_the_slot_is_a_ppd_of_either_shape_or_an_independent_token(self):
         """The composition the audit's exclusion rests on, asserted not assumed.
 
-        ``TOBACCO_SLOT`` and ``TOBACCO_INDEPENDENT`` are built from one shared
-        string so they cannot drift, and this is the test that says what the
-        relationship is meant to be: every slot match is either a bare ``ppd`` or
-        an independent token, and nothing else.
+        ``TOBACCO_SLOT``, ``TOBACCO_INDEPENDENT`` and ``PPD_AS_QUANTITY`` are
+        built from two shared strings so they cannot drift, and this is the test
+        that says what the relationship is meant to be: every slot match is a
+        bare ``ppd``, a ``ppd`` written as a quantity, or an independent token,
+        and nothing else.
+
+        **It read two limbs until issue #146** -- bare or independent -- and it
+        stayed green straight through the widening that made it wrong, because
+        no welded form was in its list. So a welded case leads the list now: a
+        composition test carrying no string of the shape it just gained is a
+        claim the composition cannot fail.
         """
-        for text in ("1 ppd x 20 yrs", "smoker", "chews tobacco", "non-smoker",
-                     "2 packs a day", "vapes", "nicotine", "cigarettes",
-                     "exposed to second hand smoke", "dips now"):
+        for text in ("1ppd x 24 yrs", ".5ppd", "1 ppd x 20 yrs", "smoker",
+                     "chews tobacco", "non-smoker", "2 packs a day", "vapes",
+                     "nicotine", "cigarettes", "exposed to second hand smoke",
+                     "dips now"):
             with self.subTest(text=text):
                 if cc.has_tobacco_status(text):
                     self.assertTrue(cc.writes_bare_ppd(text)
+                                    or cc.ppd_written_as_quantity(text)
                                     or cc.has_independent_tobacco(text))
 
     def test_survey_counts_the_audit(self):

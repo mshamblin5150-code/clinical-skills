@@ -335,7 +335,7 @@ def graded_files() -> list[Path]:
     naming its skill.
 
     **This module is dropped too, and it is the only other exclusion.** The
-    resolver's own test cases are deliberately hostile strings -- a link labelled
+    resolver's own test cases are deliberately hostile strings -- a link labeled
     for one skill pointing at another, a citation to a step that does not exist
     -- and grading them would fail the file for containing its own fixtures. The
     cost is real and narrow: a genuine ``step N`` citation written into the prose

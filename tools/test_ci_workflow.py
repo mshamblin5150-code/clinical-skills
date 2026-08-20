@@ -71,7 +71,7 @@ class TheJobRunsWhatTheDocsRun(unittest.TestCase):
         self.assertIn(SUITE_COMMAND, CLAUDE_MD.read_text(encoding="utf-8"))
 
     def test_nothing_is_installed(self):
-        """#86's cost argument in one assertion. Five tools here need PyMuPDF,
+        """#86's cost argument in one assertion. Three tools here need PyMuPDF,
         none of them at module scope, so a suite-only job resolves nothing --
         no package manager and no lockfile, exactly as CLAUDE.md claims. A
         ``pip install`` line here would falsify that sentence silently."""

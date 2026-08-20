@@ -52,9 +52,9 @@ tests:
 
 - ``phi_scan.scan_all`` -- standing rule 1's ``--all`` mode, which CI runs, and
   which had no docstring at all.
-- ``spelling_scan.tracked_markdown`` -- standing rule 4's ``--all`` mode. Its
-  **name** carried the qualifier and nothing else did, and ``CLAUDE.md`` already
-  records the instance: ``licence`` landed in a skill file because the staged
+- ``spelling_scan.tracked_files`` -- standing rule 4's ``--all`` mode. Its
+  predecessor's **name** carried the qualifier and nothing else did, and
+  ``CLAUDE.md`` already records a listed form landing in a skill file because the staged
   scan had crashed and *"``--all`` walks ``git ls-files``, so it cannot see a
   file until the commit that makes it tracked"*.
 
