@@ -610,7 +610,8 @@ class TheRxTableTheStyleSheetDocuments(unittest.TestCase):
         is asserted rather than left for a reader to trip over.
         """
         self.assertEqual(len(self.rows()), 7)
-        self.assertEqual(["".join(re.findall(r"<w:t[ >]", c)) for c in self.rows()[0]], ["", "", ""])
+        band = ["".join(re.findall(r"<w:t[ >]", c)) for c in self.rows()[0]]
+        self.assertEqual(band, ["", "", ""])
 
     def test_the_grid_is_three_columns_wide(self):
         xml = rendered_parts(self.block())["word/document.xml"]
@@ -730,7 +731,9 @@ class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
         that is what the parser consumes, so a lone one would otherwise reach the page
         reported by nothing. Found by the spec axis of ``/code-review``."""
         markdown = "| Head |\n| --- |\n| Jane Doe FNP-C \\ |\n"
-        self.assertIn(docx_write.CELL_BACKSLASH, docx_write.separator_artifacts(markdown))
+        self.assertIn(
+            docx_write.CELL_BACKSLASH, docx_write.separator_artifacts(markdown)
+        )
 
     def test_a_backslash_outside_a_table_is_left_alone(self):
         """The declared half of that narrowing, asserted rather than described: in

@@ -621,8 +621,8 @@ def separator_artifacts(markdown: str) -> list:
     r"""Runs of the rendered document carrying a cell separator as text -- #280.
 
     **No documented table shape may render to text containing its own separator
-    syntax**, which is the general row that ticket asked for. It has two limbs because
-    the defect has two forms, and **the ticket wrote only the second**:
+    syntax**, which is the general row that ticket asked for. It has three limbs
+    because the defect has three forms, and **the ticket wrote only the last**:
 
     * a **table cell whose text holds a pipe**, which is a row declaring a width the
       grid does not have. That is the shape section 8 documented, and the reason the
@@ -644,8 +644,9 @@ def separator_artifacts(markdown: str) -> list:
     the document gets.
 
     **One finding per offending run, and a finding is a form and nothing else** -- a
-    value of ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``. So the output is bounded by what
-    this code can draw on rather than by what a caller remembers not to print, and a
+    value of ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``. So the output
+    is bounded by what this code can draw on rather than by what a caller remembers not
+    to print, and a
     draft is written about a patient. **The first version returned the run's text
     beside the form and no caller ever read it**, which left the bounded claim resting
     on caller discipline; ``/code-review`` found it.
