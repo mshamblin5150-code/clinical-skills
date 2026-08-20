@@ -47,15 +47,18 @@ class AFlagReportsTheFinishedNote(unittest.TestCase):
 
     def test_an_addressed_finding_is_not_flagged(self):
         self.assertIn(
-            "If the Assessment or Plan addresses the finding, there is no FLAG",
+            "If the finished note supplies the action the FLAG says is absent, there is no FLAG",
             self.block,
         )
+        self.assertIn("Merely naming the finding does not clear", self.block)
 
     def test_an_encounter_omission_the_note_corrects_is_only_proposed(self):
         self.assertIn("belongs under `FILLED·proposed`, not `FLAG`", self.block)
 
     def test_the_voice_rule_no_longer_calls_every_tier_a_patient_claim(self):
         self.assertNotIn("a tier block is for claims about the patient", self.text)
+        self.assertIn("tier block is not one kind of claim", self.text)
+        self.assertIn("separate lanes hold arithmetic", self.text)
 
 
 class TheDriftMatrixWalksFlagScope(unittest.TestCase):
@@ -71,6 +74,8 @@ class TheDriftMatrixWalksFlagScope(unittest.TestCase):
         self.assertIn("finished note", self.row)
         self.assertIn("Assessment or Plan", self.row)
         self.assertIn("source encounter", self.row)
+        self.assertIn("the action it says is absent remains absent", self.row)
+        self.assertIn("Merely naming the finding does not clear", self.row)
 
     def test_the_append_convention_is_recorded(self):
         self.assertIn("**Row 26 is appended", self.text)
