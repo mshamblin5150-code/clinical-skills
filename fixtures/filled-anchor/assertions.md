@@ -396,6 +396,14 @@ phrases, which is the only thing R2 asks. And **the run contradicts itself on tw
 thing no single worksheet shows. Filed as
 [#154](https://github.com/mshamblin5150-code/clinical-skills/issues/154).
 
+**#154 closes that gap for future runs by separation, not by changing either row.** A fresh reader
+now receives the for-entry ICD-10 code numbers and no worksheet answers, records exact release
+facts plus an independent account, and `tools/specificity_scan.py --second-read` binds the facts to
+the committed database before placing the two prose accounts side by side for a human read. The
+prose remains ungraded and agreement is a smoke test, never proof. **Nothing was backfilled into
+run 2 and no historical score moved**: the preserved run is the evidence that made the new pass
+necessary, not output to edit until it clears it.
+
 ## Still unresolved
 
 - **A3 and A4 are answer-keyed in the direction they assert, and a copying run passes both for free.** This was raised in review and it is a real limit rather than a defect to argue away. A3 wants `Z68.25` on case 4 — the note already lists it. A4 wants `I10` on cases 2, 3, 8 and 9 — all four notes already carry it. So a run that transcribes every input list clears both rows.

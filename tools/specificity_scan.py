@@ -1,6 +1,8 @@
 """Grade the ``SPECIFICITY`` flags on a run of ``icd10-cpt``.
 
     python tools/specificity_scan.py <a run directory> [--show]
+    python tools/specificity_scan.py <a run directory> --brief
+    python tools/specificity_scan.py <a run directory> --second-read <record.json>
 
 ``fixtures/filled-anchor`` **C5** is this, and [#56] is why it exists. The
 ``icd10-cpt`` step-3 template used to read ``SPECIFICITY: <complete | needs: ...>``,
@@ -25,11 +27,13 @@ the whole ``filled-anchor`` set exists for.
   paraphrase it would prove nothing, which is worth knowing before trusting a
   clean scan over a run that has not been through C2.
 
-**What it does not test, and cannot.** Whether a reason is a real check or a stock
-phrase. ``L85.3`` has five siblings and ``Z98.51`` has one, and ruling that those
-are different conditions rather than axes of one thing takes a reader --
-``complete -- L85.3 has no further axis`` is true and no string test confirms it.
-That residue is ``filled-anchor``'s R2, counted rather than enforced.
+**What the first pass does not test, and cannot.** Whether a substantive reason is
+true. [#154] found four reasons in ``filled-anchor/run-2`` that were specific,
+checkable, and false. ``--brief`` now gives a fresh reader code numbers and no
+worksheet answers; ``--second-read`` binds that reader's cited descriptors,
+billability values, and inherited tabular notes to the committed database. The
+reader's prose is paired with the original reason under ``--show`` and deliberately
+not machine-graded. Agreement is a smoke test, never proof.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record. A
@@ -70,17 +74,21 @@ Extractor limits worth knowing before quoting a number:
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import re
+import sqlite3
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
+from icd10_lookup import describe, normalize, notes_for, open_database
 
 # ``ICD-10  M19.90  Unspecified osteoarthritis, unspecified site``. The trailing
 # ``NOT FOR ENTRY`` mark belongs to the differential shape and is not descriptor.
 ENTRY = re.compile(
-    r"(?mi)^[ \t]*(?:ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+"
+    r"(?mi)^[ \t]*(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+"
     r"([A-Z0-9][A-Z0-9.]*)[ \t]+(.+?)[ \t]*$"
 )
 SPECIFICITY = re.compile(r"(?mi)^[ \t]*SPECIFICITY[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -112,6 +120,20 @@ SUBSTANCE = re.compile(r"[0-9A-Za-z]")
 BARE = "bare-flag"
 UNSPECIFIED_COMPLETE = "unspecified-complete"
 
+SECOND_READ_IS_A_SMOKE_TEST = (
+    "a separated second read is a smoke test and never proof: two readers can "
+    "misread the same code family the same way, so agreement is cheap"
+)
+SECOND_READ_CODE_FIELDS = (
+    "code",
+    "descriptor",
+    "billable",
+    "notes",
+    "evidence",
+    "about",
+)
+SECOND_READ_FACT_FIELDS = ("code", "descriptor", "billable", "notes")
+
 
 @dataclass(frozen=True)
 class Flag:
@@ -123,6 +145,7 @@ class Flag:
     remainder: str
     value: str
     for_entry: bool = True
+    system: str = ""
 
     @property
     def has_substance(self) -> bool:
@@ -162,6 +185,27 @@ class Scan:
     findings: tuple[Finding, ...] = ()
 
 
+@dataclass
+class SecondRead:
+    """A separated reading, or the reason the file cannot be read as one."""
+
+    path: Path
+    codes: list[dict] = field(default_factory=list)
+    read_on: str | None = None
+    ok: bool = True
+    why_not: str | None = None
+
+
+@dataclass(frozen=True)
+class SecondReadGate:
+    """The machine verdict plus prose pairings it deliberately does not grade."""
+
+    refusals: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    pairings: tuple[str, ...] = ()
+    uncovered: tuple[str, ...] = ()
+
+
 def _keyword(value: str) -> tuple[str, str]:
     """Split a flag value into its branch keyword and everything after it."""
     stripped = value.lstrip()
@@ -194,14 +238,21 @@ def read_flags(text: str) -> list[Flag]:
         return text[start : field.start() if field else end]
 
     entries = [
-        (m.start(), m.group(1), m.group(2), not NOT_FOR_ENTRY.search(header(i)))
+        (
+            m.start(),
+            m.group(1),
+            m.group(2),
+            m.group(3),
+            not NOT_FOR_ENTRY.search(header(i)),
+        )
         for i, m in enumerate(found)
     ]
     flags: list[Flag] = []
     for match in SPECIFICITY.finditer(text):
-        code, descriptor, for_entry = "", "", True
-        for start, found_code, found_descriptor, entry_is_for_entry in entries:
+        system, code, descriptor, for_entry = "", "", "", True
+        for start, found_system, found_code, found_descriptor, entry_is_for_entry in entries:
             if start < match.start():
+                system = found_system
                 code = found_code
                 for_entry = entry_is_for_entry
                 descriptor = NOT_FOR_ENTRY.sub("", found_descriptor)
@@ -216,9 +267,191 @@ def read_flags(text: str) -> list[Flag]:
                 remainder=remainder,
                 value=match.group(1),
                 for_entry=for_entry,
+                system=system,
             )
         )
     return flags
+
+
+def brief(per_worksheet: list[list[Flag]], source: str) -> str:
+    """A locator-only work order for a reader who cannot see the worksheets.
+
+    A code is enough to open the committed release. Descriptors and flags are the
+    answers being checked, so neither crosses this boundary. ``source`` is accepted
+    for symmetry with ``format_report`` but deliberately not printed: run directory
+    names can carry a date or site.
+    """
+    del source
+    codes = sorted(
+        {
+            flag.code
+            for flags in per_worksheet
+            for flag in flags
+            if flag.for_entry and flag.system.upper().startswith("ICD") and flag.code
+        }
+    )
+    lines = [
+        "== a separated second read of ICD-10-CM specificity",
+        "",
+        "Open every code below in reference/icd10cm-2026.sqlite. Inspect whatever",
+        "parents, children, siblings, and tabular notes bear on its specificity.",
+        "Do not consult the worksheets or an existing SPECIFICITY reason: this read",
+        "is worth what its independence is worth.",
+        "",
+    ]
+    lines.extend(f"  {code}" for code in codes)
+    lines += [
+        "",
+        "Write the result as JSON. For each subject code, descriptor and billable",
+        "must be copied from the release; evidence is a list of every additional",
+        "code looked up; about is the independent reading in your own words:",
+        "",
+        '  {"read_on": "<YYYY-MM-DD>",',
+        '   "codes": [{"code": "<subject code>",',
+        '              "descriptor": "<official descriptor>",',
+        '              "billable": <true | false>,',
+        '              "notes": [{"code": "<where written>",',
+        '                         "kind": "<tabular note kind>",',
+        '                         "text": "<exact note text>"}],',
+        '              "evidence": [{"code": "<looked-up code>",',
+        '                            "descriptor": "<official descriptor>",',
+        '                            "billable": <true | false>,',
+        '                            "notes": [<same exact note shape>]}],',
+        '              "about": "<what the release shows about specificity>"}]}',
+        "",
+        f"  {SECOND_READ_IS_A_SMOKE_TEST}.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _record_problem(record: object, position: str, subject: bool) -> str | None:
+    """Return why one subject/evidence record is not structurally gradeable."""
+    if not isinstance(record, dict):
+        return f"{position} is not an object"
+    required = SECOND_READ_CODE_FIELDS if subject else SECOND_READ_FACT_FIELDS
+    missing = [name for name in required if name not in record]
+    if missing:
+        return f"{position} has no {', '.join(missing)}"
+    strings = ("code", "descriptor") + (("about",) if subject else ())
+    empty = [name for name in strings if not str(record.get(name, "")).strip()]
+    if empty:
+        return f"{position} has an empty {', '.join(empty)}"
+    if not isinstance(record.get("billable"), bool):
+        return f"{position} billable is not true or false"
+    notes = record.get("notes")
+    if not isinstance(notes, list):
+        return f"{position} notes is not a list"
+    for note_position, note in enumerate(notes, start=1):
+        if not isinstance(note, dict):
+            return f"{position} note {note_position} is not an object"
+        absent = [name for name in ("code", "kind", "text") if not str(note.get(name, "")).strip()]
+        if absent:
+            return f"{position} note {note_position} has no {', '.join(absent)}"
+    if subject:
+        evidence = record.get("evidence")
+        if not isinstance(evidence, list):
+            return f"{position} evidence is not a list"
+        for evidence_position, fact in enumerate(evidence, start=1):
+            problem = _record_problem(
+                fact, f"{position} evidence {evidence_position}", subject=False
+            )
+            if problem:
+                return problem
+    return None
+
+
+def load_second_read_record(loaded: object, path: Path) -> SecondRead:
+    """Parse the record's shape. Release facts are checked by ``gate_second_read``."""
+    if not isinstance(loaded, dict):
+        return SecondRead(path=path, ok=False, why_not="the file is not a JSON object")
+    if "codes" not in loaded or not isinstance(loaded.get("codes"), list):
+        return SecondRead(path=path, ok=False, why_not="no 'codes' list, so nothing was read")
+    read_on = loaded.get("read_on")
+    try:
+        dt.date.fromisoformat(str(read_on))
+    except (TypeError, ValueError):
+        return SecondRead(path=path, ok=False, why_not="no ISO 'read_on' date")
+    seen: set[str] = set()
+    for position, record in enumerate(loaded["codes"], start=1):
+        problem = _record_problem(record, f"code {position}", subject=True)
+        if problem:
+            return SecondRead(path=path, ok=False, why_not=problem)
+        code = normalize(str(record["code"]))
+        if code in seen:
+            return SecondRead(path=path, ok=False, why_not=f"code {record['code']} appears twice")
+        seen.add(code)
+    return SecondRead(path=path, codes=loaded["codes"], read_on=str(read_on))
+
+
+def load_second_read(path: Path) -> SecondRead:
+    if not path.is_file():
+        return SecondRead(path=path, ok=False, why_not=f"no such file: {path}")
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return SecondRead(path=path, ok=False, why_not=f"unreadable: {error}")
+    return load_second_read_record(loaded, path)
+
+
+def _note_tuples(record: dict) -> list[tuple[str, str, str]]:
+    return sorted(
+        (normalize(str(note["code"])), str(note["kind"]), str(note["text"]))
+        for note in record["notes"]
+    )
+
+
+def _fact_refusals(
+    fact: dict, connection: sqlite3.Connection, label: str
+) -> list[str]:
+    code = normalize(str(fact["code"]))
+    official = describe(connection, code)
+    if official is None:
+        return [f"{label} {fact['code']} is not in ICD-10-CM FY2026"]
+    refusals: list[str] = []
+    if fact["descriptor"] != official.long:
+        refusals.append(f"{label} {fact['code']} descriptor disagrees with FY2026")
+    if fact["billable"] is not official.billable:
+        refusals.append(f"{label} {fact['code']} billable disagrees with FY2026")
+    official_notes = sorted((note.code, note.kind, note.text) for note in notes_for(connection, code))
+    if _note_tuples(fact) != official_notes:
+        refusals.append(f"{label} {fact['code']} notes disagree with FY2026")
+    return refusals
+
+
+def gate_second_read(
+    per_worksheet: list[list[Flag]], read: SecondRead, connection: sqlite3.Connection
+) -> SecondReadGate:
+    """Check cited facts and pair, but never grade, the two specificity readings."""
+    expected_flags = [
+        flag
+        for flags in per_worksheet
+        for flag in flags
+        if flag.for_entry and flag.system.upper().startswith("ICD") and flag.code
+    ]
+    expected_codes = {normalize(flag.code): flag.code for flag in expected_flags}
+    expected = set(expected_codes)
+    records = {normalize(str(record["code"])): record for record in read.codes}
+    refusals: list[str] = []
+    warnings: list[str] = []
+    for code, record in records.items():
+        label = "subject" if code in expected else "off-brief subject"
+        refusals.extend(_fact_refusals(record, connection, label))
+        for fact in record["evidence"]:
+            refusals.extend(_fact_refusals(fact, connection, f"{record['code']} evidence"))
+        if code not in expected:
+            warnings.append(f"{record['code']} was read but no worksheet requested it")
+    uncovered = [expected_codes[code] for code in sorted(expected - records.keys())]
+    pairings = [
+        f"{flag.code}  SPECIFICITY: {flag.value}  <>  SECOND READ: {records[normalize(flag.code)]['about']}"
+        for flag in expected_flags
+        if normalize(flag.code) in records
+    ]
+    return SecondReadGate(
+        refusals=tuple(refusals),
+        warnings=tuple(warnings),
+        pairings=tuple(pairings),
+        uncovered=tuple(uncovered),
+    )
 
 
 def flag_findings(flag: Flag) -> list[Finding]:
@@ -308,12 +541,80 @@ def read_worksheets(directory: Path) -> list[str]:
     ]
 
 
+def format_second_read_report(gate: SecondReadGate, show: bool) -> str:
+    """Counts by default; the prose pairing is sensitive and requires ``--show``."""
+    state = (
+        "NOT COMPLETE"
+        if gate.uncovered
+        else "DEFECT FOUND"
+        if gate.refusals
+        else "complete"
+    )
+    lines = [
+        "separated specificity read",
+        "",
+        f"  state                           {state}",
+        f"  source fact(s) at fault         {len(gate.refusals)}",
+        f"  off-brief code(s)               {len(gate.warnings)}",
+        f"  subject code(s) uncovered       {len(gate.uncovered)}",
+        f"  prose pairing(s), ungraded      {len(gate.pairings)}",
+    ]
+    if not gate.uncovered and gate.pairings:
+        lines += ["", f"  {SECOND_READ_IS_A_SMOKE_TEST}."]
+    if show:
+        lines += ["", "  UNGRADED pairings (PHI - read, do not paste):"]
+        lines.extend(f"    {pairing}" for pairing in gate.pairings)
+        if gate.refusals:
+            lines += ["", "  release findings:"]
+            lines.extend(f"    {finding}" for finding in gate.refusals)
+        if gate.warnings:
+            lines += ["", "  warnings:"]
+            lines.extend(f"    {warning}" for warning in gate.warnings)
+    return "\n".join(lines)
+
+
+def _command_line(argv: list[str]) -> tuple[list[str], bool, bool, Path | None, str | None]:
+    """Parse the small CLI without letting ``argparse`` raise inside ``main`` tests."""
+    positional: list[str] = []
+    show = False
+    make_brief = False
+    second_read: Path | None = None
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--show":
+            show = True
+        elif argument == "--brief":
+            make_brief = True
+        elif argument == "--second-read":
+            if second_read is not None:
+                return [], show, make_brief, None, "--second-read was given twice"
+            index += 1
+            if index >= len(argv):
+                return [], show, make_brief, None, "--second-read needs a JSON path"
+            second_read = Path(argv[index])
+        elif argument.startswith("--"):
+            return [], show, make_brief, second_read, f"unknown option {argument}"
+        else:
+            positional.append(argument)
+        index += 1
+    if make_brief and (show or second_read is not None):
+        return [], show, make_brief, second_read, "--brief cannot be combined with --show or --second-read"
+    return positional, show, make_brief, second_read, None
+
+
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
-    show = "--show" in argv
+    args, show, make_brief, second_read_path, problem = _command_line(argv)
+    if problem:
+        print(problem, file=sys.stderr)
+        return 2
     if not args:
-        print("usage: specificity_scan.py <a run directory> [--show]", file=sys.stderr)
+        print(
+            "usage: specificity_scan.py <a run directory> "
+            "[--show | --brief | --second-read <record.json>]",
+            file=sys.stderr,
+        )
         return 2
     directory = Path(args[0])
     # The directory name, never the path: a run directory sits under ``scratch/``
@@ -325,8 +626,33 @@ def main(argv: list[str]) -> int:
     if not worksheets:
         print(f"no worksheets found in {directory.name}", file=sys.stderr)
         return 2
-    scan = survey([read_flags(text) for text in worksheets])
+    per_worksheet = [read_flags(text) for text in worksheets]
+    if make_brief:
+        print(brief(per_worksheet, source=directory.name), end="")
+        print(
+            "brief output contains diagnosis codes and is PHI - redirect it into scratch/; "
+            "do not paste it",
+            file=sys.stderr,
+        )
+        return 0
+    scan = survey(per_worksheet)
     print(format_report(scan, source=directory.name, show=show))
+    second_gate: SecondReadGate | None = None
+    if second_read_path is not None:
+        read = load_second_read(second_read_path)
+        if not read.ok:
+            print(f"\nseparated read not graded: {read.why_not}", file=sys.stderr)
+            return 1 if scan.failing_flags else 2
+        try:
+            connection = open_database()
+        except FileNotFoundError as missing:
+            print(f"\nseparated read not graded: {missing}", file=sys.stderr)
+            return 1 if scan.failing_flags else 2
+        try:
+            second_gate = gate_second_read(per_worksheet, read, connection)
+        finally:
+            connection.close()
+        print("\n" + format_second_read_report(second_gate, show=show))
     if scan.failing_flags:
         findings_count = len(scan.findings)
         detail = "" if findings_count == scan.failing_flags else f" ({findings_count} findings)"
@@ -336,6 +662,15 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+    if second_gate and second_gate.refusals:
+        print(
+            f"\n{len(second_gate.refusals)} source fact(s) fail the separated read. "
+            "Re-run with --show to see which, and do not paste that output.",
+            file=sys.stderr,
+        )
+        return 1
+    if second_gate and second_gate.uncovered:
+        return 2
     return 0
 
 
