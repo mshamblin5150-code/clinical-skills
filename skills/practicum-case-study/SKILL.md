@@ -601,7 +601,7 @@ python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
 | an order stating a dose whose claim record states no number | a record naming the drug is not yet a record that sourced the dose, and this is the form of that a string test reaches |
 | a prescription table with no readable drug row | a table this cannot read is a finding and never a table quietly dropped from the set |
 
-**Without `--draft` those three rows do not run, and the report prints `not graded` against them
+**Without `--draft` those rows do not run, and the report prints `not graded` against them
 rather than `0`.** A zero beside a row that never ran is the silent pass this whole arrangement
 exists to refuse, so the run that graded no prescriptions says so on the same page as its clean
 exit. A draft carrying no readable prescription table is exit 2 for the same reason.
@@ -609,8 +609,13 @@ exit. A draft carrying no readable prescription table is exit 2 for the same rea
 **What this must never become is a dose checked against a table.** A dose depends on indication,
 weight, renal function, pregnancy and route, so a row refusing a correct dose for the wrong reason
 is #215's defect a fourth time. The reachable property is whether the dose was **sourced**, never
-whether it is right -- a record carrying a *different* number passes these rows, and the reader in
-step 9 is what reads the number.
+whether it is right -- a record carrying a *different* number passes these rows.
+
+**Nothing downstream reads the number either, and that is stated rather than left to be assumed.**
+Step 9's `the Rx blocks` row asks a reader whether every drug has a table, whether every `Sig` ends
+in an indication and whether the prose block is there; it does not open the ledger and compare the
+dose. So *is this the dose the record sourced* is walked by nobody today. It is written here because
+a residue nobody names is a residue every reader assumes somebody else has.
 
 **Then grade it, and do not draft until it is clean:**
 

@@ -24,12 +24,14 @@ from __future__ import annotations
 import ast
 import inspect
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
+import docx_write
 import research_ledger as ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -1529,17 +1531,25 @@ def rx_table(order: str, disp: str = "QS", sig: str = "Infuse one gram daily for
     Written out in full rather than assembled from the drug row alone, because the
     parser keys on the ``Disp:``/``Sig:`` pair and a fixture omitting one would be
     testing a shape no run writes.
+
+    **Three columns, and it was one until the merge that brought #293 in.** That
+    ticket rebuilt this table -- row 1 carries three cells, the middle rows declare
+    one and span, and the last declares two -- and every test in this file stayed
+    green against the retired form, because a fixture is only ever the shape its
+    author last looked at. ``TheDocumentedTableIsStillReadable`` below is what makes
+    that a failure rather than a quiet drift, and it is why this docstring's own
+    claim is not the guarantee.
     """
     return "\n".join(
         [
-            "| |",
-            "| --- |",
-            "| `<patient>` &#124; `DOB x-x-xxx` &#124; `NPI # 0000000000` |",
+            "| | | |",
+            "| --- | --- | --- |",
+            "| `<patient>` | `DOB x-x-xxx` | `NPI # 0000000000` |",
             f"| `{order}` |",
             f"| `Disp: {disp}` |",
             f"| `Sig: {sig}` |",
-            "| `<name> FNP-C, CEN, TCRN` &#124; `DEA number on file with pharmacy` |",
-            "| `Refill: none` |",
+            "| `<name> FNP-C, CEN, TCRN` |",
+            "| `Refill: none` | `DEA number on file with pharmacy` |",
             "",
         ]
     )
@@ -1929,11 +1939,222 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         args, draft, _ = ledger.read_arguments(["ledger.md", "--draft=d.md"])
         self.assertEqual((args, draft), (["ledger.md"], "d.md"))
 
+    def test_a_following_flag_is_a_missing_value_and_not_a_path(self):
+        """``--draft --show`` gave two wrong answers at once before the standards
+        axis of `/code-review` priced it: it reported *no draft file named
+        --show*, which is a claim about a path nobody wrote, and it swallowed
+        ``--show`` so the findings could not be read either."""
+        args, draft, show = ledger.read_arguments(["ledger.md", "--draft", "--show"])
+        self.assertEqual((args, draft, show), (["ledger.md"], "", True))
+
     def test_an_absent_flag_is_none_and_not_an_empty_string(self):
         """Two different mistakes, and only one of them is a run that graded no
         prescriptions on purpose."""
         self.assertIsNone(ledger.read_arguments(["ledger.md"])[1])
         self.assertEqual(ledger.read_arguments(["ledger.md", "--draft"])[1], "")
+
+
+class TheDocumentedTableIsStillReadable(unittest.TestCase):
+    """Run the parser over `style.md` §8's own table, not over a fixture.
+
+    **This class exists because the fixture went stale inside one merge.** #293
+    rebuilt that table from one column to three while this branch was open, every
+    test in this file stayed green against the retired form, and the only thing
+    that caught it was reading the merged section by hand. That is
+    [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the
+    merge is the unguarded moment* arriving on a **fixture** -- where no assertion
+    can see it, because a fixture is only ever the shape its author last looked
+    at.
+
+    So the assertion is against the file a run copies, on
+    ``TheSkillSaysWhatThisChecks``'s reasoning one artifact over: a documented
+    table this parser cannot read teaches the next run to write prescriptions
+    ``--draft`` reports as unreadable, and every substring test here would still
+    be green.
+
+    **What it asserts is structural and never the drug**, because the documented
+    row is a template: ``<drug> <dose> <route> <frequency>`` is a placeholder and
+    the parser rightly reads no drug out of it. What has to hold is that the
+    ``Disp:``/``Sig:`` pair is found and that the row above ``Disp:`` is the one
+    the drug would be in.
+    """
+
+    STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+
+    @classmethod
+    def setUpClass(cls):
+        text = cls.STYLE.read_text(encoding="utf-8")
+        opened = text.index("## 8. Rx")
+        cls.section = text[opened : text.index("\n## ", opened + 1)]
+
+    def test_the_documented_table_reads_as_one_prescription(self):
+        found = ledger.read_prescriptions(self.section)
+        self.assertEqual(len(found), 1, "style.md section 8's table is not read as a prescription")
+
+    def test_the_row_above_disp_is_the_one_the_drug_goes_in(self):
+        """The template's placeholder is not a drug, and the order it lands in is
+        what says the parser found the right row rather than the patient row
+        above it or the ``Disp:`` row itself."""
+        found = ledger.read_prescriptions(self.section)[0]
+        self.assertIn("<drug>", found.order)
+        self.assertEqual(found.drug, "")
+
+    def test_the_fixture_in_this_file_is_the_documented_shape(self):
+        """**The narrow half, and the one that went stale.** Column counts, row
+        order and the separator row are what the parser walks, so the fixture and
+        the documented table have to agree about them -- and the cells' contents
+        are the fixture's own business, since it fills in a real drug where the
+        table writes a placeholder.
+        """
+        def skeleton(block: str) -> list[int]:
+            return [
+                len(_cells_of(line))
+                for line in block.splitlines()
+                if line.lstrip().startswith("|")
+            ]
+
+        def _cells_of(line: str) -> list[str]:
+            return ledger._cells(line)
+
+        documented = [
+            line for line in self.section.splitlines() if line.lstrip().startswith("|")
+        ]
+        self.assertEqual(
+            skeleton("\n".join(documented)),
+            skeleton(rx_table("ceftriaxone 1 g IV q24h")),
+            "style.md section 8's table and this file's fixture disagree about their shape",
+        )
+
+
+class TheStyleSheetDeclaresWhatTheParserReads(unittest.TestCase):
+    """`style.md` §8 is the file a run copies; this module holds the vocabulary.
+
+    **A scanner holding a different answer than the file a reader opens is worse
+    than none, because it reads as agreement** -- ``test_spelling_scan``'s
+    reasoning, and the arrangement ``checks_ledger`` uses with
+    ``skills/practicum-case-study/SKILL.md`` step 9's table.
+    Both files said *`tools/research_ledger.py --draft` reads both labels off this
+    table* and nothing made that true; the standards axis of `/code-review` found
+    it.
+
+    **Derived in the test rather than at run time**, because a case study run is
+    not a checkout and nothing this module does at run time can open `style.md`.
+
+    **Matched against a whitespace-normalized copy**, because `style.md` hard-wraps
+    and the first version of this class looked for `Continued home medication:`
+    where the sheet writes `Continued home` and `medication:` on two lines. That
+    is ``test_run_record_claim``'s finding exactly -- a search cannot see a phrase
+    broken across a line, and it answers like a settled negative rather than
+    saying it could not look.
+    """
+
+    STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+
+    @classmethod
+    def setUpClass(cls):
+        text = cls.STYLE.read_text(encoding="utf-8")
+        opened = text.index("## 8. Rx")
+        cls.raw = text[opened : text.index(chr(10) + "## ", opened + 1)]
+        cls.section = " ".join(cls.raw.split())
+
+    def test_the_sheet_writes_every_declaration_the_parser_reads(self):
+        for name in ledger.DRUG_ROW_DECLARATIONS:
+            with self.subTest(declaration=name):
+                self.assertIn(f"{name}:".capitalize(), self.section)
+
+    def test_the_sheet_says_which_one_exempts(self):
+        """The asymmetry is the ruling, so the sheet has to carry it: a delayed
+        order is still a dose the run chose."""
+        exempts, grades = ledger.EXEMPT_DECLARATIONS[0], ledger.DELAYED_ORDER
+        self.assertIn(f"{exempts}:".capitalize(), self.section)
+        self.assertIn(f"`{grades.capitalize()}:` exempts nothing", self.section)
+
+    def test_the_wrapping_is_what_this_class_reads_through(self):
+        """The instrument, live. Without it every assertion above is a search that
+        could not have worked answering like a settled negative -- which is this
+        repo's most-recorded shape, and it fired here on the first attempt."""
+        self.assertNotIn(f"{ledger.CONTINUED_HOME}:".capitalize(), self.raw)
+        self.assertIn(f"{ledger.CONTINUED_HOME}:".capitalize(), self.section)
+
+    def test_the_worked_prose_block_cites_no_concrete_source(self):
+        """#289's comment's live finding, pinned so a reword cannot undo it.
+
+        That block modeled `(Workowski et al., 2021)` -- the CDC guideline the
+        evidence dump cross-references thirteen times and does not carry -- so the
+        example taught citing a source the run had never read. It is a placeholder
+        now, and **a prose edit putting a real citation back would have failed
+        nothing**, which is #220's lesson and why this exists.
+        """
+        text = self.STYLE.read_text(encoding="utf-8")
+        opened = text.index("### The prose block under each table")
+        block = text[opened : text.index(chr(10) + "## ", opened + 1)]
+        quoted = " ".join(
+            line for line in block.splitlines() if line.startswith(">")
+        )
+        self.assertIn("<Author>", quoted, "the worked block lost its placeholder citation")
+        self.assertEqual(
+            re.findall(r"\((?!<)[A-Z][A-Za-z'-]+(?:[^)]*?),\s*(?:19|20)\d{2}[a-z]?\)", quoted),
+            [],
+            "the worked prose block models a concrete in-text citation again",
+        )
+
+
+class TheDoseRowAsksForANumberAndNotForTheNumber(unittest.TestCase):
+    """``UNRESOLVABLE_LOCATOR``'s arrangement, one row over: a limit that is
+    documented and pinned rather than tightened.
+
+    The claim heading is written in the source's own terms **by design** -- this
+    module's own ``NUMERIC_CLAIM_UNQUANTIFIED`` exists because a claim about
+    15,000 cells is rightly answered in ``10^9/L`` -- so a digit test is the widest
+    thing available and a heading carrying a year satisfies it. **It only ever
+    weakens the weaker half of a pair**: the row says *this claim was not asked
+    numerically*, never *this dose is sourced*, and ``UNRESEARCHED_PRESCRIPTION``
+    still asks that a record exist at all.
+    """
+
+    def test_a_year_in_the_heading_satisfies_the_row(self):
+        found = rx_kinds(
+            rx_table(CEFTRIAXONE),
+            a_drug_claim("Ceftriaxone is first-line for pelvic inflammatory disease since 2021."),
+        )
+        self.assertEqual(found, [], "the row is narrower than it is documented to be")
+
+    def test_the_module_writes_the_limit_down(self):
+        """``test_spelling_scan``'s reasoning: a limit a reader cannot find reads
+        as coverage."""
+        source = Path(ledger.__file__).read_text(encoding="utf-8")
+        self.assertIn("asks for a number and cannot ask for *the* number", source)
+
+    def test_the_sibling_row_still_asks_for_the_record(self):
+        """Why it is affordable. A heading with a year and no drug fails the row
+        above this one."""
+        found = rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim("Published in 2021."))
+        self.assertEqual(found, [ledger.UNRESEARCHED_PRESCRIPTION])
+
+
+class TheRowSplitIsTheRenderersOwn(unittest.TestCase):
+    """``reference_scan``'s ``REFERENCE_HEADING`` precedent, and it is the same
+    argument: ``docx_write.split_row`` decides where a cell ends in the document a
+    grader reads, so a second reading of one table can put the ``Disp:`` anchor in
+    a different row than the one that renders.
+
+    Restated rather than imported until the standards axis of `/code-review`
+    priced it, and the divergence was live: an escaped pipe splits a cell here
+    and does not there, which is the defect #215's follow-up recorded costing a
+    rendered cell.
+    """
+
+    def test_the_cells_come_from_the_renderer(self):
+        self.assertIs(ledger.split_row, docx_write.split_row)
+
+    def test_an_escaped_pipe_stays_one_cell(self):
+        """The behavioral half. A signature is not enough: ``_cells`` could re-split
+        what ``split_row`` returned."""
+        self.assertEqual(ledger._cells(r"| `ceftriaxone 1 g \| held` |"), ["ceftriaxone 1 g | held"])
+
+    def test_a_drug_row_carrying_an_escaped_pipe_is_still_one_drug(self):
+        found = ledger.read_prescriptions(rx_table(r"ceftriaxone 1 g IV q24h \| pharmacy to verify"))
+        self.assertEqual([rx.drug for rx in found], ["ceftriaxone"])
 
 if __name__ == "__main__":
     unittest.main()
