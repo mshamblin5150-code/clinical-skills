@@ -66,11 +66,10 @@ the same as the file being right.
 
 ## What this cannot reach
 
-**Whether the vocabulary is the right one.** Three values that agree across both files
-and describe the corpus badly pass every assertion below. #107 is the open question of
-whether ``class`` should record document *form* or document *standing*, and a scope of
-work, an errata and a public review draft are all ``guideline`` today because the
-vocabulary has nowhere better to put them.
+**Whether every future document fits the vocabulary.** Agreement across files cannot
+prove that. #107 ruled ``class`` records document form and added ``draft``, ``errata``
+and ``scope-of-work`` for the three documents that exposed the gap. The shipped-row
+assertion below pins those rulings, but a seventh form would still require a reading.
 
 **Whether a row's cell is the *correct* value for that document.** That is
 ``guidelines_catalog.py --check``'s job and it needs the corpus. This reaches only that
@@ -117,6 +116,20 @@ class TheCatalogPublishesOnlyValuesTheIndexCanAnswer(unittest.TestCase):
             "`guidelines_search.py --class <value>` answers them with a certified zero",
         )
 
+    def test_the_three_non_guidelines_publish_their_document_forms(self) -> None:
+        rows, _, problems = guidelines_catalog.parse_catalog(self.text)
+        self.assertEqual(problems, [], "the shipped catalog does not parse")
+        new_forms = {"draft", "errata", "scope-of-work"}
+        published = {row.filename: row.cls for row in rows if row.cls in new_forms}
+        self.assertEqual(
+            published,
+            {
+                "KDIGO-2026-AKI-AKD-Guideline-Public-Review-Draft-March-2026.pdf": "draft",
+                "ciab275.pdf": "errata",
+                "KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work.pdf": "scope-of-work",
+            },
+        )
+
     def test_the_auditor_holds_no_copy_of_the_vocabulary(self) -> None:
         """``guidelines_catalog.CLASSES`` is the producer's tuple, not a copy of it.
 
@@ -154,10 +167,14 @@ class TheInstrumentIsLive(unittest.TestCase):
         not the same one. A subset test in either direction alone would have passed on
         one of the two arrangements this ticket has seen.
         """
-        failures = guidelines_catalog.check_legend(
-            self.legend(guidelines_extract.CLASS_GUIDELINE)
-        )
-        self.assertEqual(len(failures), 2)
+        published = [
+            value
+            for value in guidelines_extract.CLASSES
+            if value != guidelines_extract.CLASS_WEB_CAPTURE
+        ]
+        failures = guidelines_catalog.check_legend(self.legend(*published))
+        self.assertEqual(len(failures), 1)
+        self.assertIn(guidelines_extract.CLASS_WEB_CAPTURE, failures[0])
 
     def test_a_file_with_no_class_legend_row_is_a_failure_and_not_a_pass(self) -> None:
         failures = guidelines_catalog.check_legend("# A catalog with no column legend\n")
@@ -207,6 +224,72 @@ class TheTwoClassifiersAgree(unittest.TestCase):
             guidelines_extract.CLASS_RECOMMENDATION_STATEMENT,
         )
 
+    def test_a_public_review_draft(self) -> None:
+        self.assert_agree(
+            [
+                [
+                    "KDIGO 2026 Clinical Practice Guideline for Acute Kidney Injury",
+                    "Public Review Draft",
+                ],
+                ["body"],
+            ],
+            "draft",
+        )
+
+    def test_a_public_review_draft_mentioned_in_prose_does_not_decide_class(self) -> None:
+        self.assert_agree(
+            [
+                [
+                    "KDIGO 2026 Clinical Practice Guideline",
+                    "This final guideline replaces the public review draft.",
+                ],
+                ["body"],
+            ],
+            guidelines_extract.CLASS_GUIDELINE,
+        )
+
+    def test_an_errata_document(self) -> None:
+        self.assert_agree(
+            [["Errata", "Corrections to two Clinical Infectious Diseases articles"], ["body"]],
+            "errata",
+        )
+
+    def test_an_errata_document_with_the_standalone_cover_word_dropped(self) -> None:
+        self.assert_agree(
+            [
+                [
+                    "172  cid  2021:73  (1 July)  ERRATA",
+                    "Erratum to: High Sustained Viral Response Rate",
+                ],
+                ["body"],
+            ],
+            "errata",
+        )
+
+    def test_a_guideline_scope_of_work(self) -> None:
+        self.assert_agree(
+            [
+                [
+                    "KDIGO Clinical Practice Guideline for the Management of Heart Failure",
+                    "Scope of Work",
+                ],
+                ["body"],
+            ],
+            "scope-of-work",
+        )
+
+    def test_scope_of_work_mentioned_in_prose_does_not_decide_class(self) -> None:
+        self.assert_agree(
+            [
+                [
+                    "KDIGO Clinical Practice Guideline",
+                    "The guideline's scope of work included these clinical questions.",
+                ],
+                ["body"],
+            ],
+            guidelines_extract.CLASS_GUIDELINE,
+        )
+
     def test_a_web_capture(self) -> None:
         self.assert_agree(
             [[self.CAPTURE, self.URL, "body"] for _ in range(4)],
@@ -225,8 +308,27 @@ class TheTwoClassifiersAgree(unittest.TestCase):
         ]
         self.assert_agree(pages, guidelines_extract.CLASS_WEB_CAPTURE)
 
+    def test_a_web_capture_wins_over_each_new_document_form(self) -> None:
+        for marker in ("PUBLIC REVIEW DRAFT", "ERRATA", "Scope of Work"):
+            with self.subTest(marker=marker):
+                pages = [[self.CAPTURE, self.URL, "Guideline", marker]] + [
+                    [self.CAPTURE, self.URL, "body"] for _ in range(3)
+                ]
+                self.assert_agree(pages, guidelines_extract.CLASS_WEB_CAPTURE)
+
+    def test_an_explicit_new_form_wins_over_recommendation_statement(self) -> None:
+        self.assert_agree(
+            [[self.USPSTF, "PUBLIC REVIEW DRAFT"], ["body"]],
+            "draft",
+        )
+
 
 class TheVocabularyIsBoundedInBothDirections(unittest.TestCase):
+    def test_the_three_new_document_forms_are_published(self) -> None:
+        self.assertTrue(
+            {"draft", "errata", "scope-of-work"}.issubset(guidelines_extract.CLASSES)
+        )
+
     def test_every_class_classify_can_return_is_published(self) -> None:
         """``CLASS_UNKNOWN`` is deliberately unreachable from ``classify``.
 
@@ -259,6 +361,11 @@ class TheVocabularyIsBoundedInBothDirections(unittest.TestCase):
             guidelines_extract.classify(
                 [["8/12/26, 10:25 AM Adult Schedule | CDC", "body"] for _ in range(4)]
             ),
+            guidelines_extract.classify([["PUBLIC REVIEW DRAFT"], ["body"]]),
+            guidelines_extract.classify([["ERRATA"], ["body"]]),
+            guidelines_extract.classify(
+                [["KDIGO Guideline", "Scope of Work"], ["body"]]
+            ),
         }
         self.assertEqual(reachable, set(guidelines_extract.CLASSES))
 
@@ -266,7 +373,7 @@ class TheVocabularyIsBoundedInBothDirections(unittest.TestCase):
         """``unclassified`` is real, is outside ``CLASSES``, and is not a hole.
 
         ``guidelines_index.py`` writes it where a document has no manifest entry at
-        all, so it is a fourth value ``--class`` can be asked about and the catalog
+        all, so it is an additional value ``--class`` can be asked about and the catalog
         never names. That is correct -- it describes a *build*, not a document, and a
         catalog row carrying it would be meaningless -- and it does not reopen #185,
         because a manifest that went missing puts every document under it and

@@ -460,7 +460,8 @@ class CheckingTheAuditFromTheCli(unittest.TestCase):
     def test_absent_corpus_bytes_are_reported_as_skipped_not_passed(self):
         catalog = (
             "# Catalog\n\n"
-            "| `class` | `guideline`, `recommendation-statement`, or `web-capture` |\n\n"
+            "| `class` | `guideline`, `recommendation-statement`, `web-capture`, "
+            "`draft`, `errata`, or `scope-of-work` |\n\n"
             + gc.render_table([row()])
             + "\n\n## Unsettled cells\n"
         )

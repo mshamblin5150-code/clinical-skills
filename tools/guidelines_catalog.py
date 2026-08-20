@@ -59,10 +59,16 @@ from pathlib import Path
 
 from console_codec import use_utf8
 from guidelines_extract import (
+    CLASS_DRAFT,
+    CLASS_ERRATA,
     CLASS_GUIDELINE,
     CLASS_RECOMMENDATION_STATEMENT,
     CLASS_WEB_CAPTURE,
+    CLASS_SCOPE_OF_WORK,
     CLASSES,
+    is_errata,
+    is_guideline_scope_of_work,
+    is_public_review_draft,
     is_recommendation_statement,
 )
 
@@ -418,6 +424,12 @@ def classify(pages: list[str]) -> str:
     """
     if any(CAPTURE_STAMP_RE.search(p) and CAPTURE_URL_RE.search(p) for p in pages[:3]):
         return CLASS_WEB_CAPTURE
+    if is_public_review_draft(pages[0] if pages else ""):
+        return CLASS_DRAFT
+    if is_errata(pages[0] if pages else ""):
+        return CLASS_ERRATA
+    if is_guideline_scope_of_work(pages[0] if pages else ""):
+        return CLASS_SCOPE_OF_WORK
     if is_recommendation_statement(pages[0] if pages else ""):
         return CLASS_RECOMMENDATION_STATEMENT
     return CLASS_GUIDELINE

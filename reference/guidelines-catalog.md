@@ -30,7 +30,7 @@ clinician ruling.
 | `population` | who the document's front matter says it applies to |
 | `year` | the publication year of **this** document |
 | `page_count` | extracted, not claimed |
-| `class` | `guideline`, `recommendation-statement`, or `web-capture` |
+| `class` | `guideline`, `recommendation-statement`, `web-capture`, `draft`, `errata`, or `scope-of-work` |
 
 **`year` is the load-bearing column.** The corpus holds a KDIGO 2009 document and
 a KDIGO 2013 document sitting beside a 2026 AHA one. There is no common release
@@ -69,15 +69,17 @@ the machine does.
 print-to-PDF of a web page rather than a published document, which is the three
 `ACIP/` files and only those — they carry a capture timestamp, a source URL and a
 page-of-N footer, and they are CDC schedule pages rather than guideline documents
-at all. Everything else is `guideline`.
+at all. `draft`, `errata`, and `scope-of-work` are likewise forms the document
+names on its own first page. Everything else is `guideline`.
 
-**Three rows are `guideline` because the vocabulary has nowhere better to put
-them**, and reading the row without knowing that would mislead:
+**The three narrower forms exist because calling them guidelines misled retrieval.**
 `KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work.pdf` is a nine-page scope of
 work for a guideline that does not exist yet, `ciab275.pdf` is a two-page errata
 correcting two unrelated articles, and
 `KDIGO-2026-AKI-AKD-Guideline-Public-Review-Draft-March-2026.pdf` says on its own
-cover that it is a public review draft. Going the other way,
+cover that it is a public review draft. They class `scope-of-work`, `errata`, and
+`draft`, respectively — [#107](https://github.com/mshamblin5150-code/clinical-skills/issues/107),
+ruled 2026-08-20. Going the other way,
 `Screening for Thyroid Cancer ... JAMA JAMA Network.pdf` is a JAMA article page
 saved from a browser, so it is a web capture by origin — it is classed
 `recommendation-statement` because `class` records what the document is, and what
@@ -136,7 +138,7 @@ python tools/guidelines_catalog.py
 | IDSA | amr-guidance-update.pdf | Infectious Diseases Society of America 2026 Guidance on the Treatment of Antimicrobial-Resistant Gram-Negative Infections | antimicrobial-resistant gram-negative infection | pediatric, adult | 2026 | 140 | guideline |
 | IDSA | ciaa1215.pdf | Clinical Practice Guidelines by the Infectious Diseases Society of America, American Academy of Neurology, and American College of Rheumatology: Guidelines for the Prevention, Diagnosis and Treatment of Lyme Disease | Lyme disease | pediatric, adult | 2021 | 48 | guideline |
 | IDSA | ciaa241.pdf | Treatment of Nontuberculous Mycobacterial Pulmonary Disease: An Official ATS/ERS/ESCMID/IDSA Clinical Practice Guideline | nontuberculous mycobacterial pulmonary disease | adult | 2020 | 36 | guideline |
-| IDSA | ciab275.pdf | Errata | hepatitis C treatment trial, babesiosis treatment tables (corrections) | ? | 2021 | 2 | guideline |
+| IDSA | ciab275.pdf | Errata | hepatitis C treatment trial, babesiosis treatment tables (corrections) | ? | 2021 | 2 | errata |
 | IDSA | ciab549.pdf | Clinical Practice Guideline by the Infectious Diseases Society of America (IDSA) and Society for Healthcare Epidemiology of America (SHEA): 2021 Focused Update Guidelines on Management of Clostridioides difficile Infection in Adults | Clostridioides difficile infection | adult | 2021 | 16 | guideline |
 | IDSA | ciab953.pdf | Infectious Diseases Society of America Guidelines on Infection Prevention for Healthcare Personnel Caring for Patients With Suspected or Known COVID-19 | COVID-19 infection prevention for healthcare personnel | general | 2021 | 20 | guideline |
 | IDSA | ciac724.pdf | Infectious Diseases Society of America Guidelines on the Treatment and Management of Patients With COVID-19 (September 2022) | COVID-19 treatment | adult | 2022 | 100 | guideline |
@@ -186,9 +188,9 @@ python tools/guidelines_catalog.py
 | KDIGO | KDIGO-2025-ADPKD-Guideline.pdf | KDIGO 2025 Clinical Practice Guideline for the Evaluation, Management, and Treatment of Autosomal Dominant Polycystic Kidney Disease (ADPKD) | autosomal dominant polycystic kidney disease | ? | 2025 | 240 | guideline |
 | KDIGO | KDIGO-2025-Guideline-for-Nephrotic-Syndrome-in-Children.pdf | KDIGO 2025 Clinical Practice Guideline for the Management of Nephrotic Syndrome in Children | nephrotic syndrome | pediatric | 2025 | 50 | guideline |
 | KDIGO | KDIGO-2025-IgAN-IgAV-Guideline.pdf | KDIGO 2025 Clinical Practice Guideline for the Management of Immunoglobulin A Nephropathy (IgAN) and Immunoglobulin A Vasculitis (IgAV) | IgA nephropathy and IgA vasculitis | pediatric, adult | 2025 | 71 | guideline |
-| KDIGO | KDIGO-2026-AKI-AKD-Guideline-Public-Review-Draft-March-2026.pdf | KDIGO 2026 Clinical Practice Guideline for Acute Kidney Injury (AKI) and Acute Kidney Disease (AKD): Public Review Draft | acute kidney injury and acute kidney disease | pediatric, adult | 2026 | 499 | guideline |
+| KDIGO | KDIGO-2026-AKI-AKD-Guideline-Public-Review-Draft-March-2026.pdf | KDIGO 2026 Clinical Practice Guideline for Acute Kidney Injury (AKI) and Acute Kidney Disease (AKD): Public Review Draft | acute kidney injury and acute kidney disease | pediatric, adult | 2026 | 499 | draft |
 | KDIGO | KDIGO-2026-Anemia-in-CKD-Guideline.pdf | KDIGO 2026 Clinical Practice Guideline for the Management of Anemia in Chronic Kidney Disease (CKD) | anemia in chronic kidney disease | ? | 2026 | 99 | guideline |
-| KDIGO | KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work.pdf | KDIGO Clinical Practice Guideline for the Management of Heart Failure in Chronic Kidney Disease: Scope of Work | heart failure in chronic kidney disease | ? | ? | 9 | guideline |
+| KDIGO | KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work.pdf | KDIGO Clinical Practice Guideline for the Management of Heart Failure in Chronic Kidney Disease: Scope of Work | heart failure in chronic kidney disease | ? | ? | 9 | scope-of-work |
 | KDIGO | KDIGO_2024_Lupus_Nephritis_Guideline.pdf | KDIGO 2024 Clinical Practice Guideline for the Management of Lupus Nephritis | lupus nephritis | ? | 2024 | 70 | guideline |
 | USPSTF | abdom-aortic-aneurysm-screening-final-rs.pdf | Screening for Abdominal Aortic Aneurysm: US Preventive Services Task Force Recommendation Statement | abdominal aortic aneurysm screening | adult | 2019 | 8 | recommendation-statement |
 | USPSTF | adult-obesity-intervention-final-rec-statement.pdf | Behavioral Weight Loss Interventions to Prevent Obesity-Related Morbidity and Mortality in Adults: US Preventive Services Task Force Recommendation Statement | obesity, behavioral weight loss intervention | adult | 2018 | 9 | recommendation-statement |
