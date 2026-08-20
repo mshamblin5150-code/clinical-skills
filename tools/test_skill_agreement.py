@@ -55,6 +55,8 @@ SELF = Path(__file__).resolve()
 SKILLS_DIR = REPO_ROOT / "skills"
 BATCH_SHIFT = REPO_ROOT / "skills" / "batch-shift" / "SKILL.md"
 CLINICAL_NOTE = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
+ICD10_CPT = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
+FILLED_ANCHOR_ASSERTIONS = REPO_ROOT / "fixtures" / "filled-anchor" / "assertions.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
 AGENTS = REPO_ROOT / "AGENTS.md"
 MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
@@ -77,6 +79,32 @@ def squashed(text: str) -> str:
     finding, and it holds for any needle longer than a few words.
     """
     return re.sub(r"\s+", " ", text)
+
+
+class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(unittest.TestCase):
+    """#149's converse descriptor rule stays aligned across both consumers."""
+
+    SHARED = (
+        "A pending test refuses only what its result would establish",
+        "A pending test is not a finding",
+        "Imaging is different because its result may establish the disease itself",
+        "Every refusal resting on a pending test names what that result would establish",
+    )
+
+    def test_both_skills_state_the_culture_and_imaging_rule(self):
+        for path in (CLINICAL_NOTE, ICD10_CPT):
+            text = squashed(read(path))
+            with self.subTest(path=path):
+                for clause in self.SHARED:
+                    self.assertIn(clause, text)
+
+    def test_filled_anchor_scores_the_committed_split(self):
+        text = squashed(read(FILLED_ANCHOR_ASSERTIONS))
+        self.assertIn("| F2 | 5, 7, 8, 10, 12 |", text)
+        self.assertIn(
+            "a pending culture does not by itself refuse a code whose descriptor names no organism",
+            text,
+        )
 
 
 #: A skill's own step heading -- ``### 4. Draft the body``. Two to four hashes
