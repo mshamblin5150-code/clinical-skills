@@ -189,10 +189,15 @@ claims transcribed from faculty material about a patient, nor
 ``checks_ledger.py``, whose records are those same readers' findings written down
 -- the same prose, one file later, and
 [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) put a
-grader in front of it rather than a new ruling about it. Nor the note scanners --
-``block_scan.py``, ``specificity_scan.py``, ``differential_scan.py``,
-``anchor_scan.py`` and ``filled_vitals_census.py`` all read note text or measured
-values directly, and their ``--show`` output stays PHI.
+grader in front of it rather than a new ruling about it. Nor
+``case_study_scan.py``, which grades the same skill's draft *body* and quotes a
+sentence of it back --
+[#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277), and it is
+this ruling's own test being met rather than another exception: what that module
+can draw from is the draft's prose, which is exactly what this one's is not. Nor
+the note scanners -- ``block_scan.py``, ``specificity_scan.py``,
+``differential_scan.py``, ``anchor_scan.py`` and ``filled_vitals_census.py`` all
+read note text or measured values directly, and their ``--show`` output stays PHI.
 
 **That list is the ruling's own and not a sweep of ``tools/`` for ``--show``**,
 which would be wider: ``guidelines_recs.py``'s is restrained by copyright rather
