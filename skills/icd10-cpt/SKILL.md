@@ -100,7 +100,7 @@ CPT entries take the same shape, plus the note text documenting anything the cod
 Rules:
 
 - Code to the specificity the documentation supports and no further. If the note says "wrist fracture" with no side, the laterality is `needs: laterality`, not a coin flip between left and right.
-- **Every `SPECIFICITY` flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail — and a code whose descriptor says `unspecified` does not read `complete` at all.** Below.
+- **Every `SPECIFICITY` flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** A code whose descriptor says `unspecified` normally reads `needs:`, but may read `complete` when its reason explains why nothing the bedside can supply would move the code. Below.
 - Say `verify this number` whenever you are working from recall rather than the code set. An honest flag costs the clinician ten seconds; a confident wrong code costs a rejected claim or a bad log entry.
 - Never invent a documented finding to justify a code. If a code needs an element the note lacks, that goes in step 4.
 - **A code whose only anchor is a filled value is proposed, and carries `SOURCE: filled`.** The rule and its reasoning are below.
@@ -128,7 +128,7 @@ SPECIFICITY: needs: site   <- compliant
 
 A bare `needs:` names a gap and then does not say what the gap is, which leaves a step-4 `UNDOCUMENTED` entry that cannot be written — so the clinician is told something is missing and not told what to document at the bedside. **The rule is therefore one rule, not two**: a flag carries substance beyond its keyword, whichever keyword it took.
 
-**And a code whose own official descriptor says `unspecified` may not read `complete`.** The descriptor is the code set stating that an axis exists and that this code declines to name it, so a flag calling that complete contradicts the line directly above it:
+**A code whose own official descriptor says `unspecified` demands an explanation, not an automatic `needs:`.** Usually the descriptor is the code set stating that an axis exists and that this code declines to name it, so `complete` would contradict the line directly above it:
 
 ```
 ICD-10  M19.90  Unspecified osteoarthritis, unspecified site
@@ -136,17 +136,77 @@ ICD-10  M19.90  Unspecified osteoarthritis, unspecified site
   SPECIFICITY: needs: site                   <- and this earns a step-4 bedside line
 ```
 
-That resolves without judgment, because the descriptor beside it is required to be the verbatim official string: does it contain `unspecified` or `not specified`, and does the flag say `complete`. `tools/specificity_scan.py` is the rule made runnable, and a withheld fixture row holds a run to it.
+**But the word is not proof that the encounter left an axis open.** `R00.1 Bradycardia, unspecified` is the only bradycardia code in its sibling set, so this is compliant:
+
+```
+ICD-10  R00.1  Bradycardia, unspecified
+  SPECIFICITY: complete — R00.1 is the only bradycardia code; nothing documented at the bedside would move it
+```
+
+**A substantive reason discharges the specificity flag rule.** `tools/specificity_scan.py` enforces that the reason exists and counts every `complete` on `unspecified` or `not specified` as an advisory review surface; it does not fail that shape merely because of the descriptor. Deciding whether the reason names a real exhausted axis or disguises a documentation gap takes a reader.
 
 **Measured rather than assumed, and re-derivable rather than quoted.** [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56) established the rule by checking committed diagnosis lists against `reference/icd10cm-2026.sqlite`. The audit, counts and record identity remain in the withheld fixture files, where `tools/test_specificity_scan.py` pins them against the committed notes.
 
 **Many descriptors name a detail the bedside could supply** — a lipid panel for `E78.5`, a rapid strep for `J02.9`, the joint for `M19.90`, an orthostatic component for `R51.9`, the duration for `R05.9 Cough, unspecified`.
 
-**The rule has known false positives.** For example, `R00.1 Bradycardia, unspecified` and `R19.7 Diarrhea, unspecified` have no sibling naming a more specific form of the same condition — `R00.1`'s neighbors are tachycardia and palpitations, `R19.7`'s are abdominal swelling and bowel sounds. The word is part of the condition's own name there, and **nothing at the bedside would move either code**. The rule fires on them anyway, because no mechanical test separates *the documentation is thin* from *the descriptor happens to contain the word*, and a rule with a hand-written exception list would be a worse thing than a known cost. These code-set examples are synthetic rather than extracted from a fixture audit. [#135](https://github.com/mshamblin5150-code/clinical-skills/issues/135) holds that open.
+**The descriptor has known false positives.** For example, `R00.1 Bradycardia, unspecified` and `R19.7 Diarrhea, unspecified` have no sibling naming a more specific form of the same condition — `R00.1`'s neighbors are tachycardia and palpitations, `R19.7`'s are abdominal swelling and bowel sounds. The word is part of the condition's own name there, and **nothing at the bedside would move either code**. [#135](https://github.com/mshamblin5150-code/clinical-skills/issues/135) therefore made the descriptor shape advisory and let a substantive reason carry the distinction. These code-set examples are synthetic rather than extracted from a fixture audit.
 
 **Two more distinctions matter.** A code that is already a billable leaf does not need a child merely because its descriptor is broad; verify the hierarchy rather than assuming one exists. And an `Other ...` residual is **not** an `unspecified` one: `R06.89 Other abnormalities of breathing` says the finding does not fit a named code, not that the documentation is thin. Those read `complete` with a reason like anything else. Exact audit counts remain in the withheld fixture record.
 
-**What none of this reaches is whether a reason is a real check or a stock phrase.** `L85.3` has five siblings and `Z98.51` has one, and ruling that those are different conditions rather than axes of one thing takes a reader — so `complete — L85.3 has no further axis` is true, and no string test can confirm it. A withheld counted row carries that residue rather than pretending to enforce it.
+**What the command cannot reach is whether a reason is a real check or a stock phrase.** `L85.3` has five siblings and `Z98.51` has one, and ruling that those are different conditions rather than axes of one thing takes a reader — so `complete — L85.3 has no further axis` can be true, and no string test confirms it. A withheld counted row carries that residue rather than pretending to enforce it.
+
+**What the worksheet's own pass cannot settle is whether its reason is true.** A reason can be specific, checkable, and false while every descriptor is official and every string test passes. The worksheet that wrote the reason is not its verifier; preserved run evidence and its verdict stay withheld under [#147](https://github.com/mshamblin5150-code/clinical-skills/issues/147). [#154](https://github.com/mshamblin5150-code/clinical-skills/issues/154).
+
+#### A fresh reader checks every ICD-10 specificity reason
+
+After every worksheet in a run is written, give a **fresh reader in a separate context** the for-entry ICD-10 code numbers and nothing else. The fresh reader **must not see the worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line. Parallelism is only a speed property; a serial harness may run the reader later, provided its context contains the brief and not the worksheet.
+
+The reader is briefed to **try to break each reason**, not to confirm it. For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children, siblings, and inherited tabular notes bear on specificity; and record:
+
+```json
+{
+  "read_on": "YYYY-MM-DD",
+  "codes": [{
+    "code": "I10",
+    "family": [{
+      "code": "I10",
+      "descriptor": "Essential (primary) hypertension",
+      "billable": true,
+      "notes": [{
+      "code": "I10",
+      "kind": "excludes1",
+      "text": "hypertensive disease complicating pregnancy, childbirth and the puerperium (O10-O11, O13-O16)"
+    }, {
+      "code": "I10",
+      "kind": "excludes2",
+      "text": "essential (primary) hypertension involving vessels of brain (I60-I69)"
+      }, {
+        "code": "I10",
+        "kind": "excludes2",
+        "text": "essential (primary) hypertension involving vessels of eye (H35.0-)"
+      }]
+    }],
+    "about": "what the release shows about this code's specificity, in the fresh reader's own words"
+  }]
+}
+```
+
+`"family"` is every code whose normalized number begins with the subject's three-character category — `I10` for `I10`, all of `Z90...` for `Z90.49` — each with its exact descriptor, billability, and **complete inherited note set**. The scanner recomputes that set from SQLite, so an omitted sibling, invented sibling, or empty family refuses rather than reading as a completed lookup. `"about"` states what the whole category means for the subject's specificity without copying the worksheet's reason.
+
+The committed scanner creates the answer-free brief and grades the record:
+
+```bash
+python tools/specificity_scan.py <run directory> --brief > scratch/specificity-brief.txt
+python tools/specificity_scan.py <run directory> --second-read scratch/specificity-second-read.json
+```
+
+The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every category member, descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a family/source fact or specificity flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the fresh reader's `"about"` prose for the final eye check; that output is PHI too.
+
+Without the scanner, do the same walk by eye: list each distinct for-entry ICD-10 code without copying its reason; hand that list alone to the fresh reader; require every field above; compare every source field to `tools/icd10_lookup.py` and the committed database; then place the original reason beside `"about"`. The command saves that mechanical comparison; it does not replace the reader.
+
+**`about` is never machine-graded.** It is free prose beside free prose, so judging whether the two agree is itself a reading. A source-field disagreement is a hard failure; a clean source comparison plus a human agreement is a **smoke test and never proof**. Two readers can misread the same code family the same way. This is separation as an instrument, not a claim that a second reason cannot also be wrong.
+
+The brief excludes CPT and HCPCS entries because this repo ships no corresponding code set to bind their family walks against. Their specificity reasons keep the ordinary human verification posture; a clean ICD-10 second read says nothing about them.
 
 #### A filled value is coded, and it is marked
 
@@ -226,6 +286,12 @@ COVID-19 — documented household contact, congruent symptoms, no test obtained
 ```
 
 **The test is the descriptor, read against the note.** `Acute upper respiratory infection, unspecified` says *unspecified* and asserts nothing the note lacks, so `probable viral URI` codes to `J06.9` and the hedge costs nothing. `COVID-19` names the organism, and a note saying nobody swabbed cannot support it. The limit is narrow by construction — it fires on organism-specific and disease-specific descriptors, not on every hedge.
+
+**A pending test refuses only what its result would establish.** Run the same descriptor test in the other direction: ask what the missing result would add, then ask whether the proposed descriptor asserts that thing. A culture can establish bacteria in blood or name an organism, so an unresulted culture can gate `R78.81 Bacteremia` and an organism-specific code such as `A41.50 Gram-negative sepsis, unspecified`. It cannot by itself gate `A41.9 Sepsis, unspecified organism`, `J18.9 Pneumonia, unspecified organism`, `L03.-` cellulitis or `N39.0 Urinary tract infection, site not specified`; none of those descriptors names the organism the culture would supply. Where the encounter clinically establishes one of those diagnoses, propose its code and route only the organism-specific code aside.
+
+**A pending test is not a finding.** If the code names nothing the unresulted test would establish, either the note's documented findings establish the diagnosis and it is coded, or documented findings reject it and those findings are named. *Culture pending*, *no culture drawn* and *no result yet* are not substitutes for that clinical reading. Sepsis may therefore be rejected on the documented bedside findings — for example, vitals meeting no SIRS criterion with no white count or organ dysfunction documented — but never merely because the culture that would name its organism is pending. This is the converse of the over-claiming limit above, not an instruction to code every suspected diagnosis.
+
+**Imaging is different because its result may establish the disease itself.** A film does not merely name pneumonia's organism; an infiltrate can establish pneumonia. A pending film may therefore leave a disease-specific descriptor unsupported where the note documents only a suspicion. It still is not a negative finding: when the note already establishes the diagnosis clinically, the pending film does not erase it; when documented findings argue against it, name those findings rather than the absent result. A resulted negative film is a finding and may reject the disease. The same test governs both branches: what would this result establish, and does the descriptor assert it? Issue [#149](https://github.com/mshamblin5150-code/clinical-skills/issues/149).
 
 **Submission coding for a claim is generally taught the other way, and this differs from it deliberately.** Outpatient claim coding is taught to code the signs and symptoms rather than a `probable`, `suspected` or `rule out` diagnosis. **That is recalled, and nothing in this repo verifies it** — the official guidelines are prose in a PDF, they are not shipped here, and `reference/icd10cm-2026.sqlite` holds the tabular alone. Say it as recall if it comes up; do not cite a section number this repo cannot check. The difference stands either way, because this worksheet feeds an academic clinical-hours record rather than a claim, and the differential codes below are documentation of reasoning rather than candidates for submission.
 
@@ -329,10 +395,14 @@ So the codes on the differential are required, and none of them is for entry. Th
 
 Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
 
-**Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail — and a code whose descriptor says `unspecified` does not read `complete` at all.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. `python tools/specificity_scan.py <run directory>` checks both.
+**Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
+
+**Every for-entry ICD-10 code has a separated second read by a fresh reader who did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing, partial, or self-authored read is not completion. Agreement is a smoke test and never proof.
 
 **A differential code is the one shape with fewer, and it is not an exception to that sentence** — it is a different thing being written down. Number, descriptor, confidence, three parts, plus `NOT FOR ENTRY` on the line. Anything with five parts or six is a code proposed for entry; anything with three is documentation of reasoning. **The count is still how the two are told apart** — the gap is five-or-six against three, and nothing lands between — which is why neither shape may borrow from the other.
 
 And every value the FILLED block declared has been accounted for: either it supports no code, or every code it supports carries `SOURCE: filled` **and** appears under `CODED, ANCHOR WAS FILLED`. **Both, not one instead of the other** — the block is the summary a clinician reads once, the `SOURCE` line is what survives the code being copied out of the list. A filled value that quietly supports an unmarked proposed code is the defect this skill was rewritten to catch, and marking rather than refusing did not retire it.
 
 Every hedged diagnosis in the Assessment has been accounted for the same way: coded, or sent to `NOT CODED, NOTHING ESTABLISHED IT` with the code the encounter does support proposed in its place. A hedge that produced no code and no refusal is a diagnosis this worksheet silently dropped.
+
+**Every refusal resting on a pending test names what that result would establish.** A culture-pending refusal is limited to bacteremia or an organism-specific descriptor; a pending culture alone never withholds an unspecified-organism diagnosis. An imaging-pending refusal says that the image would establish the disease itself, and where documented findings reject the disease those findings are the reason. A `needs:` line that merely says a test is pending has not completed the descriptor check in step 3.

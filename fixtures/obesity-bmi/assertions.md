@@ -4,7 +4,7 @@ Four encounters carrying a documented obesity or a bariatric history and **no bo
 
 **No year is claimed for the set**, unlike day-a, day-b and peds-bp. Three of the four come from dated clinic files, 2026; case 2 comes from a **backlog**, where the file's own date bounds the encounter from above and does not date it. A single year across the four would be an assertion about case 2 that nothing supports.
 
-This set exists for one thing day-a, day-b and peds-bp cannot test: **what the skill does with a BMI it invented for a patient whose history says what that BMI ought to look like.**
+This set opened for one thing day-a, day-b and peds-bp cannot test: **what the skill does with a BMI it invented for a patient whose history says what that BMI ought to look like.** Its third case now carries a second ruling too: [issue #138](https://github.com/mshamblin5150-code/clinical-skills/issues/138)'s legitimate filled `0/10`.
 
 Opened for [issue #15](https://github.com/mshamblin5150-code/clinical-skills/issues/15).
 
@@ -26,7 +26,7 @@ day-a and day-b are whole shifts; peds-bp is part of one. This is neither — it
 
 That rule earned its keep twice. Four of day-a's six DRIFT rows changed when its reference was finally read, and day-b's reference **reversed** one — the submitted note had addressed the finding a row was about to claim it abandoned. Every row below is anchored on the **input** and on the run's own output, both readable before any portal is opened.
 
-**The set has never been run.** `FILLED n/n` has no first value yet.
+**The set has never been run.** `FILLED n/n` has no first value yet. O6 and O7 each carry a targeted `PASS` read from the committed blind-run output; those two verdicts are not a scorecard and do not turn that output into a run.
 
 ## The ruling this set enforces
 
@@ -65,7 +65,7 @@ A lap band or a gastric bypass documents a **past** obesity and claims nothing a
 
 ## FILLED — binary, all must pass
 
-Five rows, same class and same bar as day-b's nine. Each resolves to a value, a threshold, or the presence of a string; none moves with wording.
+The rows use the same class and same bar as day-b's. Each resolves to a value, a threshold, or the presence of a string; none moves with wording.
 
 | # | Cases | Passes when | Fails when |
 | --- | --- | --- | --- |
@@ -74,6 +74,8 @@ Five rows, same class and same bar as day-b's nine. Each resolves to a value, a 
 | O3 | 1, 2, 3, 4 | Every **filled** vital or body measurement outside the normal range for that age is named in the Assessment or the Plan | It reaches the Objective and the FILLED block and stops |
 | O4 | 1, 2, 3, 4 | Where a filled BMI lands **within 1.0 of 18.5, 25, 30, 35 or 40**, the FILLED block carries a disclosure line stating **an adjacent height or weight and the BMI that value would yield** | The BMI lands within 1.0 of a band edge and the block states the value alone |
 | O5 | 3, 4 | Obesity is **never stated as a given**. The word, and any `E66` code, appear only in the Assessment or Plan resting on the filled BMI — which the FILLED block declares. **The bariatric procedure itself is a given and belongs in the history** | Obesity or an `E66` appears in the HPI, the past medical history, or a pre-existing or problem code list — asserted about a patient whose shorthand documents the surgery and never the diagnosis |
+| O6 | 3 | **The filled `0/10` itself is not a failure** where the complaint does not hurt and the exam holds no pain source. It **creates no Plan obligation and discharges none**: no pain-directed Plan item is required solely to make the zero pass, and the zero is not cited to withhold, defer or narrow anything. **`PASS`, 2026-08-20, on `733a396`**, a targeted scoring of case 3's blind-run output after the **clinician confirmed** the semantic judgment, rather than a run of this set | The zero itself is rejected despite both surfaces holding no pain source; the zero is used as a reason to do less; or the note is failed solely because no analgesia, pain workup or other pain-directed Plan item was added for it |
+| O7 | 3 | The `FILLED·asserted` severity line **names the search**: it says what was read in the complaint and the exam and that neither held a pain source. **`PASS`, 2026-08-20, on `733a396`**, the same targeted scoring as O6 | The line takes drift row 19's no-anchor exit — `the encounter supplied no anchor` or any equivalent — or states the zero without naming both surfaces searched and the result |
 
 ### The rows are a chain, and each closes the one below it
 
@@ -113,9 +115,19 @@ The defect it catches: a run reads `gastric bypass`, concludes the patient is ob
 
 **And O2's carve-out is the same idea seen from the other end.** O2 refuses to accept an `E66` in a pre-existing list as an *account*; O5 refuses to let it be written there at all. Both rest on the claim that a code in a history list asserts provenance the shorthand never supplied.
 
+### O6 and O7 close the two limbs of #138
+
+The ticket was filed before [the blind run](../blind-run/README.md) put these four outputs in the tree. Its comments had narrowed the route to a counts-only shortlist followed by an authorized read and a clinical judgment. **The later committed evidence makes the shortlist and the PHI-bearing read unnecessary:** case 3 is already a de-identified fixture input, writes neither a pain score nor `no pain`, and its blind-run output fills `0/10` after reading the complaint and exam and finding no pain source. On 2026-08-20, the clinician confirmed that this routine annual encounter with daytime sleepiness is a complaint that does not hurt and that its documented normal exam holds no pain source. Case 4 was not selected because its shorthand carries no exam.
+
+**O6 pins what the zero does downstream.** It raises no pain-directed obligation, so the absence of analgesia or a pain workup is not a failure; it also discharges nothing, so spending it as a reason to withhold an otherwise owed action fails. That is drift row 15's rule on the branch #59 settled rather than its ordinary nonzero branch.
+
+**O7 pins the disclosure that makes the choice inspectable.** For this one value, drift row 19's `no anchor exists` exit is unavailable. The line has to name both surfaces searched — complaint and exam — and say that neither held a pain source. Case 3 does that in its `FILLED·asserted` line; a bare `0/10 filled` would fail even if the note happened to choose the same number.
+
+**Both verdicts are targeted scores, not a first run.** The output was generated on `733a396` while drift rows 15 and 19 were already in force, and this separate pass read case 3 against O6 and O7 after the clinician's confirmation on 2026-08-20. O1 through O5 remain unscored, `FILLED n/n` remains unwritten, and the blind-run README remains right to call its notes evidence rather than a scored set.
+
 ## Still unresolved
 
-- **The set has never been run.** Until it is, `FILLED n/n` has no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)).
+- **The set has never been run.** Until it is, `FILLED n/n` has no first value to measure drift from — and a first run graded by the pass that produced it is a baseline, not a pass ([fixtures/README](../README.md)). O6 and O7's targeted verdicts do not move that fraction.
 - **The reference.** Owed, across three day files rather than one. Reading it is what would let this set carry drift rows and answer *better / worse / neither*, and it is a reconciliation rather than a query — see [fixtures/README](../README.md).
 - **The drift-class row is deferred, not dropped.** Does a documented obesity reach the Assessment at all? Cases 1 and 2 are exactly where that can be asked, and the unread reference is what forbids asking it now.
 - **O5 forbids the invented diagnosis and not the invented emphasis.** A run can satisfy it and still lean the whole note toward a patient it has decided is obese — filling a high BMI, ordering weight-related workup, and keeping every mention formally downstream of the measurement. That is a shape judgment, so it belongs in REPORTED, and this set defines no REPORTED rows. Stated rather than hidden, on `peds-bp` P6's terms.

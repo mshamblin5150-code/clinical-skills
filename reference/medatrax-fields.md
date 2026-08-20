@@ -151,11 +151,11 @@ To audit a specific visit fast, `patList:txtSearch` on `/login/patient.aspx` acc
 | Interaction Level | picklist | given |
 | Race/Ethnicity | picklist | declared default — see Field selection rules |
 | Gender | picklist | given |
-| Age + unit | text + picklist | given |
+| Age + unit | text + picklist | given, derived, or filled; provenance stays outside the field |
 | Marital status at first contact | picklist | given |
 | Primary Payment Method | picklist | declared pattern — see Field selection rules |
 | Case Type | picklist | given |
-| Patient Time | picklist | derived from age and visit type |
+| Patient Time | picklist | derived from age and visit type; provenance stays outside the field |
 | Start time / End time | text | estimated — see Field selection rules |
 | Blood pressure | two text boxes | given, or filled — see Field selection rules |
 | Respiratory Rate | text | given, or filled — see Field selection rules |
@@ -179,6 +179,8 @@ Visit Time is derived from start and end, and varies — 0:30 to 0:45 across one
 ### Field selection rules
 
 Some fields are administrative and never appear in bedside shorthand. Without a stated rule the skill reports them missing on every note, which is what trains a clinician to skim the block that is supposed to catch real omissions. Each one below has a rule, so it is answered once here rather than ten times a day.
+
+**A filled age is entered without a provenance label.** `Age + unit` contains the age and unit, and `Patient Time` contains the band derived from that age. Neither field says `filled`, `inferred`, `guess`, or `confirm before entry`. The private `FILLED·asserted` record retains how the age was chosen; it is not part of the Medatrax entry. The clinical note body follows the same rule. Issue [#158](https://github.com/mshamblin5150-code/clinical-skills/issues/158).
 
 **Primary Payment Method — a site, age and status pattern, corrected on sight.**
 
