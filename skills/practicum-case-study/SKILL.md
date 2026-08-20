@@ -699,6 +699,24 @@ Write the Markdown to `output/case-studies/`, then render it:
 python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx
 ```
 
+**It refuses rather than overwriting a document it did not write** —
+[#279](https://github.com/mshamblin5150-code/clinical-skills/issues/279). `output/` is gitignored,
+so a destructive render has no recovery, and the `.docx` is the one file this repo produces that
+the clinician opens in Word. Two things stop it: Word's `~$` owner file beside the document, which
+means it is open right now, and an archive whose parts are not the ones this renderer writes, which
+means something else saved it. Either is **exit 2 with nothing written**, and the message names the
+flag that proceeds anyway:
+
+```bash
+python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx --force
+```
+
+**Ask him before passing it.** A refusal on the second signal means hand-edits exist in that
+`.docx` and re-rendering destroys them with nothing to restore from; the flag is right only where
+the Markdown is the newer draft. **The check is the command's and not this step's** — #279's
+decision 2 is that a written instruction to look first is exactly what the ticket exists to
+reject — so there is nothing here to run before the render.
+
 APA 7 page setup is applied by the renderer: Times New Roman 12 pt, double spaced, one inch
 margins, a page number top right, headings at body size in APA's own level styling, a 0.5 inch
 first-line indent on **body paragraphs only**, tables drawn with APA's horizontal rules rather

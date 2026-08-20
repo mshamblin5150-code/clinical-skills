@@ -13,6 +13,7 @@ work are both outside this repo.
 
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 import unittest
@@ -546,6 +547,223 @@ class TheRendererClaimsInStepSeven(unittest.TestCase):
             "word/document.xml"
         ]
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
+
+
+class TheDestinationSurvivesAFailedRender(unittest.TestCase):
+    """#279's fourth mode: a render that raises used to destroy the previous document.
+
+    ``write_docx`` opened ``ZipFile(destination, "w")`` -- truncating -- and built the
+    content *inside* the ``with`` block, so the destination was already empty when
+    ``document_xml`` ran. A good seven-part archive became a six-part one with
+    ``word/document.xml`` absent, which is a file Word declines to open, and ``output/``
+    is gitignored so there is nothing to recover from. **No hand edit is involved and no
+    ``--force`` would have caught it**: the author did intend to write, which is why none
+    of the three signals in the ticket body reaches this mode.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.path = Path(self.directory.name) / "sample.docx"
+        docx_write.write_docx("# Title\n\nThe good document.\n", self.path)
+        self.before = self.path.read_bytes()
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def _render_that_raises(self, markdown="# New\n"):
+        def explode(_):
+            raise RuntimeError("the render died part way")
+
+        original = docx_write.document_xml
+        docx_write.document_xml = explode
+        try:
+            with self.assertRaises(RuntimeError):
+                docx_write.write_docx(markdown, self.path)
+        finally:
+            docx_write.document_xml = original
+
+    def test_the_previous_document_is_byte_for_byte_intact(self):
+        self._render_that_raises()
+        self.assertEqual(self.path.read_bytes(), self.before)
+
+    def test_the_previous_document_still_reads_back(self):
+        self._render_that_raises()
+        self.assertIn("The good document.", docx_read.read_docx(self.path))
+
+    def test_nothing_part_written_is_left_beside_it(self):
+        """A leftover partial is a file the next reader has to rule on."""
+        self._render_that_raises()
+        siblings = {p.name for p in self.path.parent.iterdir()}
+        self.assertEqual(siblings, {self.path.name})
+
+    def test_the_partial_name_is_unique_per_process(self):
+        """#279's own parenthetical: #276 is why a fixed shared temp name is not enough.
+
+        One writer and one destination here, so per-process is the honest width -- but
+        the name has to carry *something*, and ``guidelines_index.build``'s bare
+        ``.building`` carries nothing.
+        """
+        self.assertIn(str(os.getpid()), docx_write.partial_name(self.path).name)
+
+
+class RefusingToDestroyHandEdits(unittest.TestCase):
+    """#279's subject: the destination is a file a human opens in an editor.
+
+    Ruled by the clinician on 2026-08-19 -- refuse, with ``--force``. This renderer
+    writes a fixed set of parts, so an archive carrying any other set was written by
+    something else.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.source = self.root / "case.md"
+        self.source.write_text("# Fresh\n\nRendered.\n", encoding="utf-8")
+        self.path = self.root / "nur5144-m1-2026-08-19.docx"
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def _foreign(self):
+        """What a Word save leaves: this renderer's parts plus the ones Word adds."""
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in docx_write.parts("# Hand edited\n").items():
+                archive.writestr(name, content)
+            archive.writestr("docProps/core.xml", "<x/>")
+            archive.writestr("word/settings.xml", "<x/>")
+        return self.path.read_bytes()
+
+    def test_a_destination_that_does_not_exist_yet_needs_no_flag(self):
+        docx_write.write_docx("# Fresh\n", self.path)
+        self.assertIn("Fresh", docx_read.read_docx(self.path))
+
+    def test_a_document_this_renderer_wrote_is_overwritten_with_no_flag(self):
+        docx_write.write_docx("# First\n", self.path)
+        docx_write.write_docx("# Second\n", self.path)
+        self.assertIn("Second", docx_read.read_docx(self.path))
+
+    def test_a_word_saved_archive_is_refused(self):
+        before = self._foreign()
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_a_destination_that_is_not_a_zip_at_all_is_refused(self):
+        self.path.write_bytes(b"this is not a docx")
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+        self.assertEqual(self.path.read_bytes(), b"this is not a docx")
+
+    def test_an_archive_missing_one_of_our_parts_is_refused(self):
+        """A truncated archive is not one of ours either, and a set test says so."""
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in list(docx_write.parts("# x\n").items())[:-1]:
+                archive.writestr(name, content)
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_words_lock_file_refuses_even_over_our_own_document(self):
+        docx_write.write_docx("# Ours\n", self.path)
+        (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_the_truncated_lock_name_word_actually_wrote_is_recognized(self):
+        """#279 quotes the pair: ``nur5144-...`` locked by ``~$r5144-...``.
+
+        Word replaces the first two characters rather than prepending on a long name,
+        so both shapes have to be looked for -- read off the ticket's own directory
+        listing rather than off a remembered rule.
+        """
+        docx_write.write_docx("# Ours\n", self.path)
+        (self.root / ("~$" + self.path.name[2:])).write_bytes(b"lock")
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_force_writes_over_a_word_saved_archive(self):
+        self._foreign()
+        docx_write.write_docx("# Forced\n", self.path, force=True)
+        self.assertIn("Forced", docx_read.read_docx(self.path))
+
+    def test_force_writes_past_a_lock_file(self):
+        docx_write.write_docx("# Ours\n", self.path)
+        (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
+        docx_write.write_docx("# Forced\n", self.path, force=True)
+        self.assertIn("Forced", docx_read.read_docx(self.path))
+
+    def test_the_refusal_names_the_flag_that_overrides_it(self):
+        """A refusal that does not say how to proceed is a dead end, not a guard."""
+        self._foreign()
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
+            docx_write.write_docx("# New\n", self.path)
+        self.assertIn("--force", str(caught.exception))
+
+    def test_a_document_from_before_header1_was_a_part_is_refused(self):
+        """The pre-#217 shape, and it is in ``output/case-studies/`` today.
+
+        ``word/header1.xml`` arrived on #217, so every document rendered before that
+        reads as foreign -- correctly, since it *was* written by something other than
+        this renderer, one version back. Kept as its own case rather than folded into
+        the missing-part test above because it is the one the real directory holds.
+        """
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in docx_write.parts("# Older render\n").items():
+                if name != "word/header1.xml":
+                    archive.writestr(name, content)
+        with self.assertRaises(docx_write.RefusedToOverwrite):
+            docx_write.write_docx("# New\n", self.path)
+
+    def test_the_part_set_refusal_names_both_causes(self):
+        """A message guessing one cause reads as a diagnosis, and it was wrong first.
+
+        It said ``a Word save, most likely`` and nothing else, which is the wrong guess
+        for the older of the two documents in ``output/case-studies/``. Both causes are
+        pinned so neither can be quietly dropped back out.
+        """
+        self._foreign()
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
+            docx_write.write_docx("# New\n", self.path)
+        message = str(caught.exception)
+        self.assertIn("Word", message)
+        self.assertIn("older version of this renderer", message)
+
+    def test_the_command_line_refusal_is_two_and_writes_nothing(self):
+        before = self._foreign()
+        self.assertEqual(docx_write.main([str(self.source), str(self.path)]), 2)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_the_command_line_takes_the_flag(self):
+        self._foreign()
+        self.assertEqual(docx_write.main([str(self.source), str(self.path), "--force"]), 0)
+        self.assertIn("Rendered.", docx_read.read_docx(self.path))
+
+    def test_the_usage_line_names_the_flag(self):
+        self.assertIn("--force", docx_write.USAGE)
+
+
+class ThePartSetTheGuardReadsIsTheOneTheWriterWrites(unittest.TestCase):
+    """One object, so an eighth part cannot arrive with the guard still passing.
+
+    ``word/header1.xml`` is the recorded instance of a part arriving late -- it landed
+    on #217 -- and a hand-typed list in the guard would have called every document this
+    renderer produced afterwards foreign, or every one before it ours.
+    """
+
+    def test_the_names_are_derived_from_the_writer(self):
+        self.assertEqual(frozenset(docx_write.parts("# x\n")), docx_write.PART_NAMES)
+
+    def test_a_document_this_renderer_just_wrote_reads_as_ours(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.docx"
+            docx_write.write_docx("# Title\n\nBody.\n", path)
+            self.assertTrue(docx_write.written_by_this_renderer(path))
+
+    def test_the_archive_carries_exactly_those_names_and_no_others(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.docx"
+            docx_write.write_docx("# Title\n", path)
+            with zipfile.ZipFile(path) as archive:
+                self.assertEqual(frozenset(archive.namelist()), docx_write.PART_NAMES)
 
 
 class NotHavingRead(unittest.TestCase):
