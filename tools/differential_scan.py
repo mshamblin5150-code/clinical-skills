@@ -103,9 +103,17 @@ that stops being true fails the suite. **The reasons live on the rows**; what
 belongs here is the shape of the answer rather than a second copy of it.
 
 **The coverage row is that list's third item arriving in the report.** ``notes with
-a differential entry`` prints on every run, and a short one carries a line saying
-what the verdict covers. The **status is untouched** -- reported, not graded, the
-clinician's ruling on 2026-08-19, and the row says why.
+a differential entry`` prints on every run **this tool reports on at all**, and a
+short one carries a line saying what the verdict covers. The **status is
+untouched** -- reported, not graded, the clinician's ruling on 2026-08-19, and the
+row says why rather than this paragraph saying it again.
+
+**That qualifier is not pedantry, and the first draft of this sentence was wrong
+without it.** A run where *no* note carries a differential entry never reaches
+``format_report`` -- the exit-2 limb fires first -- so the most uncovered run of
+all prints no coverage row. It is louder rather than quieter, which is why the
+ordering stands: it exits 2 with its own message. What the row makes visible is
+the interval **between** those two, where the old report said nothing at all.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record; an
@@ -276,13 +284,13 @@ NOT_VALIDATED_AGAINST = (
     ),
     (
         "partial coverage inside a run",
-        "The *no differential entry* limb is evaluated per run rather than per note, "
-        "so one parsed entry rescues a run whose other notes contributed nothing to "
-        "the verdict. Since #162 the denominator is printed on every report; it is "
-        "deliberately not graded, ruled by the clinician on 2026-08-19, because a "
-        "per-note limb would exit 2 on a run where one note of twelve carries no "
-        "differential -- which is most real runs, and a check that refuses the "
-        "ordinary case is one people learn to work around.",
+        "The *no differential entry* limb hangs on the run rather than on the note, "
+        "so a single parsed entry carries a whole run past it and the notes that "
+        "contributed nothing are invisible in the verdict. Since #162 the "
+        "denominator is printed. Grading it was weighed and refused: a per-note "
+        "limb fails any shift where one encounter's assessment carries no ranked "
+        "list, which is the common case rather than the defective one, and a gate "
+        "that refuses ordinary work is a gate people route around.",
     ),
 )
 
@@ -337,7 +345,7 @@ class Scan:
     """Counts over a run, plus the findings ``--show`` prints."""
 
     notes: int
-    notes_with_entries: int
+    notes_with_differential: int
     differential_entries: int
     conclusion_entries: int
     refused_codes: int
@@ -505,22 +513,26 @@ def survey(notes: list[Note]) -> Scan:
     of them pins a differential code, so a single total would rescue that set
     into looking scanned on the strength of a conclusion nobody graded.
 
-    **``notes_with_entries`` counts a note's differential and not its entries**, and
-    it exists because the exit-2 limb hangs on the run rather than on the note --
-    ``NOT_VALIDATED_AGAINST``'s third row. One differential entry anywhere rescues a
-    whole run, so a recorded six-note run parsing one reports clean.
+    **``notes_with_differential`` is the coverage denominator**, and the reason it
+    is counted at all is ``NOT_VALIDATED_AGAINST``'s third row rather than this
+    docstring's to give.
 
-    **Against the differential deliberately, and the two denominators come apart.**
-    That same run is 1 of 6 by differential and 5 of 6 by any entry, because a note
-    with a ``Final diagnosis`` and no differential has its conclusion codes read by
-    position and graded. So this is the narrower count and the report says beside it
-    what the wider one covers, rather than claiming those five went ungraded.
+    **Against the differential and never against the note, which was measured
+    rather than reasoned.** The two denominators come apart on a recorded run: a
+    note carrying a ``Final diagnosis`` and no differential has its conclusion codes
+    read by position and graded, so counting notes with *any* entry would report
+    such a run as nearly covered when its differential went unread. This is the
+    narrower count, and ``format_report`` says beside it what the wider one still
+    covers rather than claiming those notes went ungraded. **The figures behind that
+    were taken against a run under ``scratch/``, so nothing committed re-derives
+    them and none is stated here** -- [#143], and the shape is pinned by
+    ``TheCoverageRowSeparatesReadableFromClean`` on notes built in that file.
     """
     found = [finding for note in notes for finding in note_findings(note)]
     entries = [entry for note in notes for entry in note.entries]
     return Scan(
         notes=len(notes),
-        notes_with_entries=sum(
+        notes_with_differential=sum(
             1 for note in notes if any(not entry.conclusion for entry in note.entries)
         ),
         differential_entries=sum(1 for entry in entries if not entry.conclusion),
@@ -548,7 +560,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"differential scan over {source}",
         "",
         f"  notes read                       {scan.notes}",
-        f"  notes with a differential entry  {scan.notes_with_entries} of {scan.notes}",
+        f"  notes with a differential entry  {scan.notes_with_differential} of {scan.notes}",
         f"  differential entries             {scan.differential_entries}",
         f"  conclusion entries               {scan.conclusion_entries}",
         f"  codes marked NOT CODED           {scan.refused_codes}",
@@ -557,14 +569,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  row 22 - refused code in a slot  {len(scan.findings)}",
     ]
-    ungraded = scan.notes - scan.notes_with_entries
+    ungraded = scan.notes - scan.notes_with_differential
     if ungraded > 0:
         # **Named against the differential and not against the note**, because the
-        # two come apart and the wider claim would be false. A note with a
-        # conclusion entry and no differential entry has its conclusion codes read
-        # by position and graded -- a recorded six-note run is 5 of 6 that way. So
-        # what went unread is the differential, which is what row 22 is about and
-        # what the exit-2 limb above keys on, and the second line says the rest.
+        # two come apart on a real run and the wider claim would be false. A note
+        # with a conclusion entry and no differential entry has its conclusion codes
+        # read by position and graded. So what went unread is the differential,
+        # which is what row 22 is about and what the exit-2 limb above keys on, and
+        # the second line says the rest rather than leaving it to be inferred.
         lines += [
             "",
             f"  {ungraded} note(s) carry no differential entry, so the slot limb"
