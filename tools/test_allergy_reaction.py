@@ -1,7 +1,7 @@
 """Pin the ruling [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94) settled.
 
-**The defect was a box with no legal value.** ``SOAP.md`` writes the slot as
-``Allergies (reaction): <allergen - reaction; NKDA if none>``, and where the
+**The defect was a box with no legal value.** When #94 was filed, ``SOAP.md``
+wrote ``Allergies (reaction): <allergen - reaction; NKDA if none>``, and where the
 shorthand gives an allergen and no reaction three rules bound it shut at once:
 the box demands a value, the grounding rule supplies none, and drift row 12 bans
 the hedge. **Three independent runs reached for the banned string**, one of them
