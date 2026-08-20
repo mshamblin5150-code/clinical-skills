@@ -290,6 +290,179 @@ class SpansDoNotShareMetrics(unittest.TestCase):
         self.assertAlmostEqual(baselines[1], baselines[0], places=6)
 
 
+class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
+    """#178: the damage ``span_baselines`` could not reach, and what fixes it.
+
+    That footer is three spans on 16 of its pages and **one span on 142**, and on
+    the one-span pages there is no neighbor to borrow a baseline from. Measured
+    off KDIGO-2009-Transplant-Recipient-Guideline-English.pdf p.18, Univers-Light
+    8.717 pt: the per-glyph gaps run from -2.352 to 0.003 around a median of
+    -1.358, so the top of the span's own spread clears any fixed offset from that
+    median. It is a font with heavy and variable negative bearings, not tracked
+    type, and no median-plus-offset rule can separate the two.
+
+    **What separates them is that the line already contains real space glyphs.**
+    The PDF has said where its words are: prev-right to next-left across one of
+    those spaces measures 1.056 pt, and the gaps that were being split measure
+    0.003. A word break on this line is worth 350 times what a letter join is,
+    and the line states both.
+    """
+
+    # The footer, one span. Gaps mostly at the median; the few at the top of the
+    # spread are the ones the old rule read as word breaks.
+    FOOTER_SIZE = 8.7173
+    FOOTER_TYPICAL = -1.358
+    FOOTER_TOP = 0.003
+
+    # USPSTF/hypertension-screening-adults-final-rec-statement.pdf p.4, and the
+    # constraint the ticket names: a line may carry a real space and still have
+    # its words glued, so "this line has a space, infer nothing" is too blunt.
+    GLUED_SIZE = 8.48
+    GLUED_INSIDE = -0.036
+    GLUED_BOUNDARY = 1.145
+
+    def footer(self, text: str) -> dict:
+        gaps = [self.FOOTER_TYPICAL] * len(text)
+        for index, glyph in enumerate(text):
+            # Every gap that follows a digit or a bracket is one of the wide ones
+            # in this font -- which is precisely the set that was being split.
+            if glyph in "0123456789();:-" and index + 1 < len(text):
+                gaps[index] = self.FOOTER_TOP
+        return rawline(text, self.FOOTER_SIZE, gaps)
+
+    def test_the_footer_is_left_alone(self):
+        text = "American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9"
+        self.assertEqual(extract.rebuild_text(self.footer(text)), text)
+
+    def test_without_the_second_bar_that_footer_is_split(self):
+        """The counterfactual, so the test above cannot pass by having nothing to do.
+
+        **It has to run ``rebuild_text``.** The first version of this asserted
+        ``excess > threshold`` over two class constants and never called the
+        module at all -- so breaking ``footer()`` would have left the positive test
+        green with an unsplittable fixture and this one green beside it, which is
+        the vacuous-check shape the rest of this repo is built to refuse. Found by
+        the standards axis of ``/code-review``.
+
+        The bar is disabled by driving ``SPACE_ADVANCE_FRACTION`` to zero rather
+        than by reimplementing the rule, which is #178's own warning about the
+        handoff script that reimplemented ``span_baselines`` and reported identical
+        totals before and after a fix.
+        """
+        text = "American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9"
+        page = self.footer(text)
+        original = extract.SPACE_ADVANCE_FRACTION
+        try:
+            extract.SPACE_ADVANCE_FRACTION = 0.0
+            without = extract.rebuild_text(page)
+        finally:
+            extract.SPACE_ADVANCE_FRACTION = original
+        self.assertNotEqual(without, text)
+        # The damage this fixture reproduces is the digits and brackets coming
+        # apart -- `2009;` -> `2 0 0 9 ;`. The real page loses more than that,
+        # because there every gap is at the top of the spread and here only the
+        # ones `footer()` marks are; the name of this test says "split" rather
+        # than "split character by character" for that reason.
+        self.assertIn("2 0 0 9", without)
+        self.assertEqual(extract.rebuild_text(page), text)
+
+    def test_a_glued_line_that_also_carries_a_space_still_splits(self):
+        """The constraint that makes this non-trivial, and the case the whole
+        reader change exists for. USPSTF sets a real space after a bullet and
+        glues the words after it anyway."""
+        text = "* Behavioralcounseling"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        gaps[text.index("counseling") - 1] = self.GLUED_BOUNDARY
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.GLUED_SIZE, gaps)),
+            "* Behavioral counseling",
+        )
+
+    def test_a_line_with_no_space_glyph_is_outside_the_rule_entirely(self):
+        """The safety property, and the reason this cannot regress the corpus's
+        fully-glued lines: with nothing to calibrate against the rule does not
+        fire, so the 59,092 inferences made on lines carrying no space at all are
+        untouched by it."""
+        text = "Behavioralcounseling"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        gaps[len("Behavioral") - 1] = self.GLUED_BOUNDARY
+        line = rawline(text, self.GLUED_SIZE, gaps)["blocks"][0]["lines"][0]
+        self.assertIsNone(extract.span_space_advances(line)[0])
+        self.assertEqual(
+            extract.rebuild_text(rawline(text, self.GLUED_SIZE, gaps)),
+            "Behavioral counseling",
+        )
+
+    def test_the_constant_is_not_perched_on_either_case(self):
+        """Corpus-wide, every constant in (0.0025, 0.0974] suppresses exactly the
+        same 2,809 inferences, and all 2,809 were read and are damage. The value
+        is the midpoint of that plateau rather than the edge of it -- #83's
+        tuning table named a value at an edge and it was the one setting worse
+        than not making the change at all.
+        """
+        self.assertLess(0.0025, extract.SPACE_ADVANCE_FRACTION)
+        self.assertLess(extract.SPACE_ADVANCE_FRACTION, 0.0974)
+
+    def test_one_space_is_enough_and_that_is_not_span_baselines_rule(self):
+        """The deliberate divergence from ``span_baselines``, pinned so it stays one.
+
+        A baseline is a median and needs ``MINIMUM_GAPS_FOR_BASELINE`` samples
+        before it means anything. An advance is not a summary -- one real space is
+        one word break the typesetter set -- so a single sample is evidence and is
+        used. Asserting both halves, because the claim is the *difference*: the
+        same line gives an advance off one space and no baseline off one gap.
+        """
+        text = "ab cdefgh"
+        gaps = [self.GLUED_INSIDE] * len(text)
+        line = rawline(text, self.GLUED_SIZE, gaps)["blocks"][0]["lines"][0]
+        spaces = [c for c in line["spans"][0]["chars"] if c["c"] == " "]
+        self.assertEqual(len(spaces), 1)
+        self.assertIsNotNone(extract.span_space_advances(line)[0])
+
+        short = rawline("ab", self.GLUED_SIZE, [self.GLUED_BOUNDARY])
+        glyphs = [
+            (char, self.GLUED_SIZE)
+            for char in short["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        ]
+        self.assertEqual(extract.line_baseline(glyphs), 0.0)
+
+    def test_a_non_positive_advance_disables_the_bar_rather_than_zeroing_it(self):
+        """The third answer, which is neither a measurement nor silence.
+
+        Bearings negative enough put the next glyph's left edge behind the
+        previous glyph's right edge even across a real space. A floor computed
+        from that is zero or backwards, so the bar is dropped -- because applying
+        it would be applying a bar every gap on the line clears, which is the
+        silent failure rather than a conservative one.
+        """
+        # A space whose neighbors close over it: the advance comes back negative.
+        text = "ab cd ef gh"
+        gaps = [-self.GLUED_SIZE] * len(text)
+        line = rawline(text, self.GLUED_SIZE, gaps)["blocks"][0]["lines"][0]
+        self.assertLess(extract.span_space_advances(line)[0], 0.0)
+
+        # And a genuinely glued line whose only space is of that kind still splits,
+        # which is what "disabled" has to mean for it to be the safe direction.
+        glued = "ab cdefghij"
+        gaps = [-self.GLUED_SIZE] * len(glued)
+        gaps[glued.index("cdefghij") - 1] = -self.GLUED_SIZE
+        gaps[glued.index("fghij") - 1] = self.GLUED_BOUNDARY - self.GLUED_SIZE
+        page = rawline(glued, self.GLUED_SIZE, gaps)
+        self.assertLess(extract.span_space_advances(page["blocks"][0]["lines"][0])[0], 0.0)
+        self.assertIn(" ", extract.rebuild_text(page).strip()[3:])
+
+    def test_the_advance_is_measured_across_the_space_and_not_of_it(self):
+        """A space glyph's own width is not what separates two words -- the gaps
+        on either side of it count too, and on this footer they are negative
+        enough to halve it. Measuring the glyph alone would put the advance at
+        3.776 where the real separation is 1.056."""
+        line = self.footer("ab cd ef gh")["blocks"][0]["lines"][0]
+        advance = extract.span_space_advances(line)[0]
+        chars = line["spans"][0]["chars"]
+        space = next(c for c in chars if c["c"] == " ")
+        self.assertLess(advance, space["bbox"][2] - space["bbox"][0])
+
+
 class LineBaseline(unittest.TestCase):
     def test_it_is_the_median_gap(self):
         page = rawline("abcdef", 10.0, [1.0, 1.0, 5.0, 1.0, 1.0])
