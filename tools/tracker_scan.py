@@ -164,7 +164,9 @@ class GitError(Exception):
     """
 
 
-def _git(repo: Path, *args: str) -> str:
+def _run_git(
+    repo: Path, *args: str, allowed_statuses: tuple[int, ...] = (0,)
+) -> subprocess.CompletedProcess[str]:
     try:
         done = subprocess.run(
             ["git", *args], capture_output=True, text=True, encoding="utf-8",
@@ -174,9 +176,14 @@ def _git(repo: Path, *args: str) -> str:
         # A working directory that is not one, or no git on PATH. Both are the
         # same thing to a caller: no answer, rather than an empty one.
         raise GitError(f"git {args[0]}: {error}") from error
-    if done.returncode != 0:
+    if done.returncode not in allowed_statuses:
         first = done.stderr.strip().splitlines()
         raise GitError(f"git {args[0]}: {first[0] if first else 'failed'}")
+    return done
+
+
+def _git(repo: Path, *args: str) -> str:
+    done = _run_git(repo, *args)
     return done.stdout
 
 
@@ -245,17 +252,10 @@ def pull_head_refs(repo: Path) -> list[str]:
 
 def pull_refspec_configured(repo: Path) -> bool:
     """Whether ordinary fetches refresh, and prune preserves, pull heads."""
-    try:
-        done = subprocess.run(
-            ["git", "config", "--local", "--get-all", "remote.origin.fetch"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=repo,
-        )
-    except OSError as error:
-        raise GitError(f"git config: {error}") from error
-    if done.returncode not in (0, 1):
-        first = done.stderr.strip().splitlines()
-        raise GitError(f"git config: {first[0] if first else 'failed'}")
+    done = _run_git(
+        repo, "config", "--local", "--get-all", "remote.origin.fetch",
+        allowed_statuses=(0, 1),
+    )
     wanted = PULL_REFSPEC.removeprefix("+")
     return any(
         value.strip().removeprefix("+") == wanted
@@ -461,14 +461,15 @@ def main(argv: list[str]) -> int:
             refs = pull_head_refs(repo)
             context.append(("pull-head refs", len(refs)))
             configured = pull_refspec_configured(repo)
-            if not configured and not args.no_pull_refs:
+            if not configured and (refs or not args.no_pull_refs):
                 banners.append(
                     "DID NOT SCAN the git surface -- the persistent pull-head\n"
                     "refspec is absent, so existing refs may be stale or removed\n"
                     "by an ordinary prune. Configure it once, then fetch:\n"
                     f"  {CONFIGURE_PULL_REFS}\n"
-                    f"  {FETCH_PULL_REFS}\n"
-                    "  or --no-pull-refs if this repository has none."
+                    f"  {FETCH_PULL_REFS}"
+                    + ("\n  or --no-pull-refs if this repository has none."
+                       if not refs else "")
                 )
                 unscanned = True
             elif not refs and not args.no_pull_refs:

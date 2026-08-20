@@ -395,6 +395,13 @@ class TheGitSurfaceRefusesUntilPullHeadsArePersistentAndPresent(MainInATempRepo)
         self.assertEqual(status, tracker_scan.NOT_SCANNED)
         self.assertIn("remote.origin.fetch", out)
 
+    def test_no_pull_refs_cannot_acknowledge_refs_that_are_present(self):
+        self.checkout.make_pull_ref()
+        status, out = self.run_main("--commits", "--no-pull-refs")
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("remote.origin.fetch", out)
+        self.assertNotIn("--no-pull-refs", out)
+
     def test_a_persistent_refspec_and_pull_head_ref_let_it_scan(self):
         self.checkout.configure_pull_refspec()
         self.checkout.make_pull_ref()
