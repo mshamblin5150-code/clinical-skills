@@ -69,7 +69,7 @@ Usage:
     python tools/phi_scan.py              # scan staged changes (what the hook runs)
     python tools/phi_scan.py --all        # scan every tracked file
     python tools/phi_scan.py --show       # reveal matches instead of redacting
-    python tools/phi_scan.py --layers     # report which layers would run; scan nothing
+    python tools/phi_scan.py --layers     # report what would be scanned and by which layers; scan nothing
 
 Exit status, and the three values mean three different things:
 
@@ -98,6 +98,7 @@ from pathlib import Path
 from typing import NamedTuple, Sequence
 
 from console_codec import use_utf8
+from name_index import coverage as index_coverage, looks_like_a_name
 from repo_root import scratch_root
 
 # The tree being committed from -- this worktree. `_git` runs here and `scan_all`
@@ -419,19 +420,28 @@ def _load_json(path: Path, fallback):
 def harvest_entries() -> list[dict]:
     """The raw name-index records, or [] where there is no corpus.
 
-    **The index does not cover the corpus, and this is where that starts.** It
-    carries one entry per encounter and holds 548 of the 551 the census counts;
-    the three with no entry each put something other than the patient's name on
-    the line after ``Note N``, which is the shape ``batch-shift`` step 3 warns a
-    one-line parser loses. So a patient named *only* in one of those three is in
-    no entry, no name of theirs is harvested, and the corpus layer never scans
-    for it. Measured 2026-08-15, issue #63.
+    **The index need not cover the corpus, and this is where that starts.** It
+    carries one entry per encounter, and an encounter with no entry contributes
+    no name -- so a patient named *only* there is in no entry, no name of theirs
+    is harvested, and the corpus layer never scans for it. The shape layer does
+    not catch a name. Issue #63, measured 2026-08-15, and #141.
 
-    Narrower than the hole the README states -- there the name is nowhere in the
-    corpus, here it is in the corpus and the harvest did not reach it -- and it
-    closes the same way, by rebuilding the index with a window rather than a
-    line. **No generator for it is committed**, only this consumer and
-    ``harvest_review.py``, so nothing here can rebuild it.
+    Narrower than the hole the module docstring states -- there the name is
+    nowhere in the corpus, here it is in the corpus and the harvest did not reach
+    it. **The three encounters this was written about each put something other
+    than the patient's name on the line after ``Note N``**, which is the shape
+    `batch-shift` step 3 warns a one-line parser loses.
+
+    **It has a producer now**, ``name_index.py``, which reads a window rather
+    than a line and merges the missing encounters in. So the gap is closeable by
+    running something -- and it re-opens every time a shift is scanned and the
+    index is not regenerated, which is why ``corpus_coverage`` prints the
+    denominator on every run rather than this docstring stating a figure.
+
+    **Still the fallback for a file that will not parse**, deliberately: a
+    scanner with no names is a scanner that finds none, which is the safe
+    direction here. ``name_index.load_index`` refuses that same file instead,
+    because writing over an index whose contents are unknown is not.
     """
     return _load_json(SCRATCH / "name-index.json", [])
 
@@ -462,17 +472,23 @@ def harvested_names(entries: Sequence[dict]) -> set[str]:
 def name_position_names(entries: Sequence[dict]) -> set[str]:
     """Strings the index itself puts where a name goes.
 
-    ``win[0]`` is the name's own line -- 491 of 548 entries on 2026-08-11 have
-    the ``name`` field there verbatim, which is also why the harvest carried 465
-    case-variant duplicates before #12 pruned them. Everything at ``win[1..3]``
+    ``win[0]`` is the name's own line -- of the 548 entries on **2026-08-11**,
+    491 had the ``name`` field there verbatim, which is also why the harvest
+    carried 465 case-variant duplicates before #12 pruned them. **That
+    denominator has since moved**: #141 gave the index a producer, and running
+    it appends entries. The figures are kept because they are dated rather than
+    current, which is the split-by-tense repair #262 is about -- but do not read
+    them as today's, and see ``corpus_coverage`` for the pair that is.
+    Everything at ``win[1..3]``
     is the shorthand that follows, and a string appearing only there has no
     positional evidence that it is a name at all.
 
-    **548 is a count of entries, not of encounters.** The corpus holds 551, and
-    ``batch-shift`` step 3 carries the reconciliation and what the gap costs;
-    ``harvest_entries`` above says what it costs *here*. Both are worth the
-    reminder because the same 548 sat in two skill files as the catalog's size
-    until 2026-08-15. Issue #63.
+    **The index's size is a count of entries, not of encounters**, and the two
+    were the same number in two skill files until 2026-08-15. `batch-shift` step
+    3 carries the reconciliation and what the gap costs; ``harvest_entries``
+    above says what it costs *here*, and ``corpus_coverage`` prints both figures
+    rather than any of us restating one. Issue #63, and #141 for the producer
+    that closes it.
     """
     found: set[str] = set()
     for entry in entries:
@@ -546,6 +562,45 @@ def missing_corpus_sources() -> list[str]:
     return absent
 
 
+def corpus_coverage():
+    """How much of the corpus the harvest's own source speaks for, or ``None``.
+
+    **The count of names is not a statement about coverage and reads as one.**
+    ``--layers`` prints `ACTIVE` and a number wherever it is asked for -- on a CI
+    step summary, and beside a dead corpus -- and until #141 that number said
+    nothing about the index covering the encounters it was harvested from. An
+    index three encounters short printed exactly what a complete one printed. The
+    vocabulary could not express it either: ``missing_corpus_sources`` tests a
+    source's presence on disk, so a file that is there and short is `ACTIVE`, and
+    there is no state between *the file exists* and *the file covers the corpus*.
+
+    So the denominator is printed beside the numerator. Ruled 2026-08-19:
+    **declared, never enforced** -- a short index states its shortfall and names
+    the remedy, and refuses nothing. A refuser here would fail an ordinary
+    ``git add`` on the day a shift is scanned, which is how a check gets learned
+    around.
+
+    **The declaration had to reach the committer, and at first it did not.** The
+    hook runs this scanner bare, so the shortfall living in ``layer_report``
+    alone meant it printed on no commit at all while this repo's prose said it
+    printed on every one. ``shortfall_notice`` is the split that fixed it, and
+    ``main`` prints it on the ordinary path.
+
+    **It reads the corpus a second time and that was measured rather than
+    waved past.** ``corpus_identifiers`` already walks every day file for date
+    literals, and this walks them again for their ``Note N`` lines; the corpus is
+    a third of a megabyte and a full read costs about five milliseconds, so the
+    ticket's *phi_scan deliberately does not read the corpus twice* is a real
+    objection with a small answer. The alternative -- folding coverage into
+    ``corpus_identifiers`` -- would widen a two-value return that
+    ``tracker_scan`` also calls.
+    """
+    day_files = SCRATCH / "day-file-text"
+    if not day_files.is_dir():
+        return None
+    return index_coverage(harvest_entries(), day_files)
+
+
 def kept_names(harvested: set[str]) -> set[str]:
     """The harvested strings the corpus layer will actually scan for.
 
@@ -568,7 +623,10 @@ def prune_covered(names: set[str]) -> set[str]:
     *names* -- to the shorter, more likely real one -- and cannot change whether
     the line is refused.
 
-    **Measured 2026-08-11, because the reason is not the one it looks like.**
+    **Measured 2026-08-11, and the denominator has since moved** -- #141's
+    producer appends entries and each one can add harvested strings, so read
+    every figure below as of that date rather than as of today. It is kept
+    because the *ratio* is the argument and no plausible growth touches it.
     Of 1031 harvested strings, 468 are dropped and **465 of those are case
     variants of a name that is kept** -- the harvest holds only 566 distinct
     names case-insensitively, and the corpus layer matches with ``re.I``, so
@@ -613,11 +671,13 @@ def prune_covered(names: set[str]) -> set[str]:
     return {name for name, _ in survivors}
 
 
-def _looks_like_a_name(text: str) -> bool:
-    return bool(
-        len(text) > 5
-        and re.fullmatch(r"[A-Za-z][A-Za-z'\-]+(?: [A-Za-z][A-Za-z'\-.]+){1,2}", text)
-    )
+# **The predicate lives in `name_index` and this is the same object.** The
+# generator that fills the index and the harvest that reads it have to recognize
+# the same shape: one that found a name this rejects would write a `name` field
+# nothing here ever scans for -- an entry covering an encounter and protecting
+# nobody. `reference_scan` importing `REFERENCE_HEADING` from the renderer, for
+# that reason. Kept under this name because it is what the harvest reads.
+_looks_like_a_name = looks_like_a_name
 
 
 def _pragma_window(text: str) -> str:
@@ -791,6 +851,16 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     ``spelling_scan``'s ``--all`` is this walk's twin, and ``CLAUDE.md`` records
     ``licence`` landing in a skill file because the staged scan had crashed and
     this mode could not see the file until the commit that made it tracked.
+
+    **Since [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)
+    that statement is on the page as well as here** -- `layer_report`'s
+    ``scanned`` row, printed on every ``--all`` run. **This walk feeds a command
+    that prints**, unlike the ones among #254's that are tests, where the only
+    reader is somebody opening the file and a docstring genuinely is the page.
+    ``spelling_scan.tracked_markdown`` is the other that prints and got the same
+    repair. **How many walks there are is still `test_ls_files_coverage.py`'s to
+    say and is not counted here**, on #143's terms and on that section's own
+    ruling -- naming the two that print is a derivation and a numeral is not.
     """
     findings: list[Finding] = []
     for path in _git("ls-files").splitlines():
@@ -804,10 +874,91 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     return findings
 
 
+def shortfall_notice(coverage, missing: Sequence[str] = ()) -> list[str]:
+    """The lines saying the harvest's own source does not cover the corpus.
+
+    **Split out of ``layer_report`` because that report is not where a committer
+    reads.** The hook runs this scanner bare, so the only callers of
+    ``layer_report`` are ``--layers`` -- which a person has to type -- and the
+    dead-corpus branch. The first version of #141's fix put the shortfall there
+    alone and this file then claimed in prose that it printed on every commit;
+    it printed on none of them. That is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
+    lesson exactly, a prose claim no code change fails against, and two
+    independent review passes found it before it reached `main`.
+
+    Silent where a source is missing, because ``layer_report`` is already saying
+    PATIENT NAMES ARE NOT CHECKED and there is no coverage to have.
+    """
+    if coverage is None or not coverage.uncovered or missing:
+        return []
+    return [
+        f"  ** {coverage.uncovered} encounter(s) have no name-index entry: a patient "
+        "named only there is scanned for by no layer.",
+        "     Close it with `python tools/name_index.py --write`. **",
+    ]
+
+def scanned_population(all_mode: bool) -> str:
+    """The set the run actually read, so a clean result cannot be read wider.
+
+    [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258).
+    `scan_all` walks ``git ls-files``, and #254 ruled that every such walk says
+    what a clean result covers. The walks among #254's that are tests have one
+    reader, somebody opening the file, so a docstring genuinely is the page.
+    **This one feeds a command that prints**, and the statement landed in its
+    docstring anyway -- so a clean ``--all`` said *no PHI* on the page and *no
+    tracked file carries PHI* somewhere else.
+
+    **The fact was already computed and already printed, attached to the wrong
+    layer.** The ``--all`` path-layer row opened ``--all walks tracked files``,
+    spending the honest form on why *that* layer is inapplicable rather than on
+    what the two live layers covered. It is stated here once instead, and
+    `layer_report` no longer restates it.
+
+    **Both modes, which is the ruling read the way it was made.** The staged
+    population is unsurprising -- it is what is being committed -- and that is
+    an argument for stating it rather than against: a reader who has learned to
+    read the ``--all`` row would read its absence as a stronger claim, which is
+    the defect one level down.
+
+    **And that reason is why the staged row is *printed* rather than only
+    rendered.** The first version of this change added the row to both
+    renderings and left `main`'s gate alone, so an ordinary commit printed
+    nothing and the staged row was reachable only through ``--layers`` or a
+    degraded corpus. That satisfies *state it in both modes* on the letter and
+    defeats the clause the ruling was made on -- ``--all``'s row would have been
+    the only one, which is the special case the question was asked to remove.
+    Caught by the spec axis of ``/code-review``.
+
+    **Lowercase, deliberately.** ``PATIENT NAMES ARE NOT CHECKED`` is shouted
+    because standing rule 1 is going unenforced; a scope statement at the same
+    volume would spend the register that line needs. This row is always true, on
+    every run, and a warning that fires every time is one people stop reading.
+
+    Not shared with ``spelling_scan``'s copy of this line. That is the house
+    pattern rather than an oversight -- `research_ledger.py` and
+    `checks_ledger.py` hold separate copies of one rule for the reason written
+    there: adopting the rule is what is wanted, and a shared helper would forbid
+    the divergence two scanners with different populations are entitled to.
+    """
+    if all_mode:
+        return ("tracked files -- git ls-files; an untracked file is not scanned "
+                "until the commit that tracks it")
+    return "staged changes -- an unstaged or untracked file is not scanned"
+
+
 def layer_report(
     names: set[str], dates: set[str], all_mode: bool, missing: Sequence[str] = (),
+    coverage=None,
 ) -> list[str]:
-    """What ran and what did not, one line per layer. #86 decision 2.
+    """What was scanned, and which layers ran over it. #86 decision 2, #258.
+
+    **Its subject is coverage rather than layers, and that widening was ruled
+    rather than drifted into** -- [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)
+    open question 1. The three layer rows answer *what was checked for*; the
+    ``scanned`` row above them answers *over which files*, and a clean result is
+    bounded by both. A report naming only the first reads as coverage in exactly
+    the configuration where the file most likely to carry a new mistake -- the
+    one being written -- is invisible to the walk. See `scanned_population`.
 
     **A layer that did not run is named as not having run, never omitted.** The
     omission is the whole defect this answers: a scanner that prints only its
@@ -830,11 +981,19 @@ def layer_report(
     """
     dead: list[str] = []
 
-    # `--all` walks `git ls-files`, and every guarded directory is gitignored,
-    # so no tracked path can ever be under one. The layer is inapplicable there
-    # rather than clean -- the distinction this whole report exists to draw.
+    # This layer tests staged paths and `--all` has none, so it is inapplicable
+    # there rather than clean -- the distinction this whole report exists to
+    # draw. Every guarded directory is gitignored besides, so nothing this mode
+    # walks could ever be under one.
+    #
+    # **The walked set is stated once, on its own row, and not here.** This
+    # clause used to open `--all walks tracked files`, which is #258's finding:
+    # the honest form of a clean result was already on the page, spent
+    # explaining why *this* layer is inapplicable rather than what the two live
+    # layers covered. Restating it here would put it back where it was
+    # unreadable, and two copies of one claim is #220.
     if all_mode:
-        path = "NOT RUN  -- --all walks tracked files; nothing can be staged from a gitignored directory"
+        path = "NOT RUN  -- this layer tests staged paths, and there are none in this mode"
         dead.append("path")
     else:
         path = "ACTIVE   -- " + ", ".join(PHI_DIRECTORIES)
@@ -854,16 +1013,36 @@ def layer_report(
         dead.append("corpus")
     elif names or dates:
         corpus = f"ACTIVE   -- {len(names)} name(s), {len(dates)} date literal(s) from scratch/"
+        # **The denominator, because the numerator reads as coverage and is not.**
+        # #141: the index is harvested from the corpus and may not cover it, and
+        # a name count says nothing about that. `corpus_coverage` carries why
+        # this is declared and never enforced.
+        if coverage is not None:
+            # **"names from" is load-bearing and the first version omitted it.**
+            # `corpus_identifiers` builds the two halves from different sources
+            # -- names from `name-index.json`, dates from a direct walk of every
+            # file in `day-file-text/`. A bare fraction at the end of the row
+            # reads as covering both, so the date count would have been audited
+            # by adjacency. #261 is the hole on the date half and this says
+            # nothing about it.
+            corpus += (
+                f"; names from {coverage.covered} of {coverage.encounters} encounters"
+            )
     else:
         corpus = "NOT RUN  -- no corpus under scratch/; PATIENT NAMES ARE NOT CHECKED"
         dead.append("corpus")
 
     lines = [
-        f"phi-scan layers ({'--all' if all_mode else 'staged'}):",
+        f"phi-scan coverage ({'--all' if all_mode else 'staged'}):",
+        f"  scanned        {scanned_population(all_mode)}",
         f"  path layer     {path}",
         f"  corpus layer   {corpus}",
         "  shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date",
     ]
+    # Its own line rather than a fourth `dead` entry: the layer ran, and saying
+    # it did not would be false in the other direction. What is short is the list
+    # it ran against.
+    lines.extend(shortfall_notice(coverage, missing))
     if dead:
         lines.append(
             f"  ** A clean result here is NOT \"no PHI\": the {' and '.join(dead)} "
@@ -927,7 +1106,7 @@ def main(argv: list[str]) -> int:
     # step -- a clean scan prints nothing, which is the moment the reader most
     # needs to be told what was not looked at.
     if "--layers" in argv:
-        for line in layer_report(names, dates, all_mode, missing):
+        for line in layer_report(names, dates, all_mode, missing, corpus_coverage()):
             print(line)
         return 0
 
@@ -945,9 +1124,44 @@ def main(argv: list[str]) -> int:
     # conjunction let a tree with `day-file-text/` and no `name-index.json` scan
     # on dates alone and exit 0 in silence, which is checking no patient name at
     # all -- #93's harm, reintroduced by #93's fix.
+    # **And on every `--all` run, whatever the layers did.** #258 open question
+    # 2, ruled on this scanner's own precedent: `PATIENT NAMES ARE NOT CHECKED`
+    # prints whether or not a door was taken, because neither door buys silence.
+    # A clean `--all` printed nothing at all, so the walked set reached a reader
+    # only through `--layers` or a degraded corpus -- and printing it only when
+    # something else was already wrong teaches a reader that the silence means
+    # something. CI is the case: it runs this mode with nothing staged, and the
+    # commit being written is the file the walk cannot see.
+    #
+    # **A staged run states its population too, and only that.** #258 open
+    # question 4, and the clause it was ruled on -- *so an absent banner never
+    # reads as a stronger claim*. A staged run that printed nothing would leave
+    # `--all`'s row the only one and therefore the special case, which is the
+    # asymmetry the question was asked to remove. One row rather than the whole
+    # report, because the hook runs this on every commit and the other four
+    # lines are answering a question nobody asked there: `review_hint` carries
+    # that argument already, and the full report still prints the moment a layer
+    # is degraded.
+    # **Two rulings meet at this gate and both had to survive it.** #258's
+    # `scanned` row states the population every run read; #141's shortfall
+    # states that the corpus layer's *name list* may not cover the corpus. They
+    # were written on branches off one base, a day apart, and each replaced this
+    # `else` whole -- so resolving the conflict by keeping a side would have
+    # dropped a clinician-ruled feature silently. `CLAUDE.md`'s *the merge is
+    # the unguarded moment*, arriving on the two changes that both exist to stop
+    # a clean result reading wider than it is.
+    #
+    # Scope first, then the warning: the `scanned` row is always true, and the
+    # shortfall fires only when the index is short. `layer_report` already
+    # carries the shortfall, so the branch above needs nothing added.
+    coverage = corpus_coverage()
     dead_corpus = bool(missing)
-    if dead_corpus:
-        for line in layer_report(names, dates, all_mode, missing):
+    if dead_corpus or all_mode:
+        for line in layer_report(names, dates, all_mode, missing, coverage):
+            print(line, file=sys.stderr)
+    else:
+        print(f"phi-scan: scanned {scanned_population(all_mode)}", file=sys.stderr)
+        for line in shortfall_notice(coverage, missing):
             print(line, file=sys.stderr)
 
     index = build_index(names, dates)

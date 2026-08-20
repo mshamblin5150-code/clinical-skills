@@ -71,7 +71,16 @@ if not "".join(p.get_text() for p in d).strip():
 
 **That page read is the warrant, and the census cannot be.** `tools/corpus_census.py` counts `Note N`-shaped lines, so quoting its total here would make the sentence true by construction: the delimiter can only ever agree that the delimiter matched. What a human reading rendered pages adds is the negative — 340 pages, and nothing starting an encounter any other way. Keep the two apart when you re-measure.
 
-**The catalog holds 551 encounters, and this step said 548 until 2026-08-15.** The pass reached the right pages and came away three short, which is why the sentence above still stands: it was the tally that was wrong, not the coverage. `scratch/name-index.json` carries one entry per encounter and holds exactly 548 of the 551 — **whether the skill copied its figure from that index or arrived at 548 independently is not recoverable**, because no generator for the index is committed, only the two consumers in `tools/`. Issue [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63).
+**The catalog holds 551 encounters, and this step said 548 until 2026-08-15.** The pass reached the right pages and came away three short, which is why the sentence above still stands: it was the tally that was wrong, not the coverage. The 548 was `scratch/name-index.json`'s size, and **whether the skill copied its figure from that index or arrived at the same number independently is not recoverable** — when [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63) was filed the index had two consumers in `tools/` and no producer at all.
+
+**It has one now, and the shortfall is a rate rather than a backlog** — [#141](https://github.com/mshamblin5150-code/clinical-skills/issues/141). Every shift you scan adds encounters no entry covers, and a patient named only inside one of them is scanned for by neither of `phi_scan`'s layers. The command re-derives the coverage and closes the gap:
+
+```bash
+python tools/name_index.py            # report; exits 1 if the index is short
+python tools/name_index.py --write    # merge the missing encounters in
+```
+
+**It merges and never rebuilds.** The `name` field carries corrections a human made to what was harvested, so an existing entry is copied through untouched and only uncovered encounters are appended. **Neither number above is restated here** — the command prints both, and a figure in prose that nothing re-derives is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
 
 The three blocks with no entry were read on 2026-08-15. Each is a full encounter — a name, an age and sex, a chief complaint, an exam with findings, a diagnosis and a plan, six hundred to a thousand characters — and each opens with `Note N` like the rest. **Each also puts something other than the name on the line after `Note N`**: one a stray punctuation character and a blank line, two a parenthetical annotation. That is exactly the shape the next paragraph warns about, and it is the one property all three share.
 
@@ -87,6 +96,8 @@ Note 1                          Note 22
 ```
 
 Read a **window** of the first few lines and take the first one shaped like a name. Reading exactly one line loses both patients above, and a patient whose name is lost is a patient who gets a second Patient Reference — see [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 6.
+
+`tools/name_index.py` is this rule made runnable, and it is the same predicate `phi_scan` harvests with rather than a second copy of one. **What it cannot recognize is a name that is not two or three words of letters** — a single word, or a spelling with a digit in it. Such an encounter gets an entry with no name, which covers it for the count and harvests nothing, and the run prints how many. Those go to `tools/harvest_review.py` for a human, on the same terms as every other string nothing can classify.
 
 **The demographic line takes four shapes, and only two of them state an age:**
 
