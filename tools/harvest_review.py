@@ -124,9 +124,11 @@ def render(found: Sequence[Sighting], unruled: set[str]) -> str:
             lines.append(f"{marker} {line.strip()}")
         lines.append("")
 
-    # A string can be harvested from a window this pass no longer walks -- the
-    # index is a scratch artifact with no generator in this repo, so its shape is
-    # not guaranteed. Say so rather than silently listing fewer than the count.
+    # A string can be harvested from a window this pass no longer walks. The
+    # index gained a producer on #141 -- `name_index.py` -- but that one merges
+    # rather than rebuilds, so every entry predating it keeps whatever shape it
+    # was written with and none of them is guaranteed. Say so rather than
+    # silently listing fewer than the count.
     unsighted = sorted(unruled - {s.text for s in found})
     if unsighted:
         lines.append(f"{len(unsighted)} with no window to show:")
