@@ -50,8 +50,8 @@ one file this repo produces that a human opens in an editor. Two failures, and n
 the other's:
 
 * **A render that raises** used to truncate the destination *before* building the content,
-  turning a good document into a six-part archive with ``word/document.xml`` absent, which
-  Word declines to open. The archive is built into a sibling and ``os.replace``d into place
+  turning a good document into an archive with ``word/document.xml`` absent, which Word
+  declines to open. The archive is built into a sibling and ``os.replace``d into place
   now -- ``guidelines_index.build``'s arrangement and its reason. **No hand edit is
   involved in this one**, so none of the three signals #279's body lists reaches it, and
   ``--force`` would not have helped: the author did intend to write.
@@ -67,16 +67,14 @@ implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``
 re-render while never once distinguishing a Word save from a render. The part-set test is
 exact in the direction that matters instead, and costs one ``namelist()``.
 
-**What that does not reach, declared rather than left to be found.** That a Word save
-always changes the part list is a claim about **Word** -- it rewrites the whole package and
-adds ``docProps/``, ``word/settings.xml`` and a theme -- and there is no Word in this repo
-to check it against, which is ``test_docx.py``'s standing limit arriving on a guard rather
-than on a document. An editor that rewrote exactly these seven parts is invisible. The
-owner file is Word's alone, so a document open in anything else shows nothing. And the
-check is a moment rather than a lock: a Word session that opens the file *after* ``refusal``
-returns is not caught -- though ``os.replace`` then fails rather than truncating, which is
-the safe direction. **``--force`` is a promise and not a backup**: there is still nothing to
-recover from.
+**What the guard does not reach is ``NOT_GUARDED`` below, not this paragraph** --
+``NOT_APPLIED``'s arrangement and its reason, which this module already carries one screen
+down. It was a paragraph here and a paragraph again in ``CLAUDE.md`` for the length of one
+review, and a prose edit to either would have failed nothing, so the reader misled would
+have been whichever one checked the file nearer to hand. That is
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a
+change whose own subject is a second copy of a rule. **``--force`` is a promise and not a
+backup**: there is still nothing to recover from.
 
 Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
 horizontal rules rather than a grid -- both #220, and both carved out where APA carves
@@ -157,6 +155,56 @@ NOT_APPLIED = (
         "and the second hangs on nothing. Joining them is an edit on the same terms "
         "as sorting, and it is caught as an author defect instead -- by "
         "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
+)
+
+
+# What the #279 destination guard does **not** reach. One object rather than prose here
+# and prose again in ``CLAUDE.md``, on ``NOT_APPLIED``'s precedent and for its reason: a
+# prose edit to either copy fails nothing. The first element is the key, the second is why
+# the row is here.
+NOT_GUARDED = (
+    (
+        "an editor that writes exactly these parts",
+        "That a Word save always changes the part list is a claim about **Word**, and "
+        "there is no Word in this repo to check it against -- ``test_docx.py``'s standing "
+        "limit arriving on a guard rather than on a document. Anything that rewrote "
+        "exactly this part set would read as ours. The certain direction is the other "
+        "one: what this renderer produces always matches, because both come from "
+        "``parts``.",
+    ),
+    (
+        "a part added here refuses every document already written",
+        "The cost of keying on the part set, and it is a standing cost rather than "
+        "history. The day an eighth part lands, **every ``.docx`` already in "
+        "``output/`` reads as foreign** and every re-render of one refuses until "
+        "``--force``. That is not hypothetical and it is live in the tree today: "
+        "``word/header1.xml`` arrived on #217, so the 2026-08-18 case study reads as "
+        "foreign for the version reason alone. The refusal message names this cause "
+        "beside the Word one for exactly that reason.",
+    ),
+    (
+        "an owner file belonging to a different document",
+        "``lock_files`` looks for the truncated ``~$`` name Word writes for a long "
+        "filename, which drops the first two characters -- so ``~$r5144-m1.docx`` is "
+        "also the owner file of any other ``??r5144-m1.docx`` in the same directory, and "
+        "a lock on one refuses a render of the other. It fails toward refusing rather "
+        "than toward destroying, and ``--force`` is the way past it, which is why it is "
+        "declared rather than narrowed.",
+    ),
+    (
+        "a document open in anything but Word",
+        "The owner file is Word's convention. An editor that takes no lock, or takes a "
+        "different one, is invisible to signal 1 -- though a hand-saved document is "
+        "still caught by the part set once it has been saved.",
+    ),
+    (
+        "the moment between the check and the write",
+        "``refusal`` is a moment rather than a lock: a Word session that opens the file "
+        "*after* it returns is not caught. On Windows ``os.replace`` then fails rather "
+        "than truncating, which is the safe direction and is measured rather than "
+        "assumed -- see ``TheDestinationHeldOpen`` in ``tools/test_docx.py``. On POSIX "
+        "it succeeds, and the holder keeps the old inode.",
     ),
 )
 
@@ -752,8 +800,11 @@ def parts(markdown: str) -> dict:
     }
 
 
-# Derived rather than restated, on ``NOT_APPLIED``'s and ``REFERENCE_HEADING``'s terms:
-# an eighth part cannot arrive with the guard below still passing.
+# Derived rather than restated, on ``NOT_APPLIED``'s and ``REFERENCE_HEADING``'s terms,
+# so a further part cannot arrive with the guard below still passing. **How many there are
+# is this object's to say and is deliberately counted nowhere in prose**, on #143's terms --
+# a numeral here goes stale the day a part is added, which is the one day the guard's
+# behavior changes for every document already written.
 PART_NAMES = frozenset(parts(""))
 
 
@@ -878,6 +929,15 @@ USAGE = "usage: docx_write.py <in.md> <out.docx> [--force]"
 
 def main(argv: list) -> int:
     force = "--force" in argv
+    # An unrecognized ``--`` argument is refused rather than sliding into a positional
+    # slot. ``--forse`` would otherwise be read as a third path, ignored in silence, and
+    # the guard it was meant to disable would refuse the write -- which reads as the
+    # guard being broken rather than as the flag being mistyped.
+    unknown = [a for a in argv if a.startswith("--") and a != "--force"]
+    if unknown:
+        print("unknown option: {o}".format(o=unknown[0]))
+        print(USAGE)
+        return 2
     argv = [argument for argument in argv if argument != "--force"]
     if len(argv) < 2:
         print(USAGE)
@@ -889,9 +949,26 @@ def main(argv: list) -> int:
     try:
         written = write_docx(source.read_text(encoding="utf-8"), Path(argv[1]), force=force)
     except RefusedToOverwrite as reason:
-        # 2 is every way of not having written, on ``docx_read.py``'s convention -- and
-        # there is no 1 here, because a writer has no "found nothing" to report.
+        # 2 is every way of not having written, on ``docx_read.py``'s convention. There
+        # is no 1, because a writer has no "found nothing" to report -- but that is a
+        # claim about what this function *returns*, and an uncaught exception still
+        # leaves the process on 1 through the traceback. Both axes of ``/code-review``
+        # found the unqualified form of this sentence, which is why it is qualified.
         print("refused: {r}".format(r=reason), file=sys.stderr)
+        return 2
+    except OSError as error:
+        # **The ticket's own headline scenario lands here**, and it exited 1 with a
+        # traceback until both review axes said so. Word holding the document open makes
+        # ``os.replace`` raise ``PermissionError`` on Windows -- which is the safe
+        # direction, since nothing was truncated -- but *did not write* is exactly what
+        # 2 means, and a traceback is not an operator-legible way to say it. The
+        # ``refusal`` check cannot close this: a Word session that opens the file after
+        # it returns is a race no check in this process wins.
+        print(
+            "could not write {p}: {e}. If it is open in Word, close it and run "
+            "again.".format(p=argv[1], e=error),
+            file=sys.stderr,
+        )
         return 2
     print("wrote {p} ({n} bytes)".format(p=written, n=written.stat().st_size))
     return 0

@@ -13,6 +13,7 @@ work are both outside this repo.
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import tempfile
@@ -23,6 +24,8 @@ from xml.etree import ElementTree
 
 import docx_read
 import docx_write
+
+SOURCE = Path(__file__).resolve().parent / "docx_write.py"
 
 
 class TheArchiveHasTheRequiredParts(unittest.TestCase):
@@ -746,6 +749,84 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         self.assertIn("--force", docx_write.USAGE)
 
 
+@unittest.skipUnless(os.name == "nt", "os.replace over an open file only refuses on Windows")
+class TheDestinationHeldOpen(unittest.TestCase):
+    """``NOT_GUARDED``'s last row, measured rather than described.
+
+    ``refusal`` is a moment and not a lock, so a Word session that opens the document
+    after it returns is a race nothing in this process wins. What the module claims is
+    that the *outcome* of losing that race is safe -- ``os.replace`` fails rather than
+    truncating. That is a claim about Windows, and it was written here unqualified
+    first; on POSIX ``os.replace`` succeeds over an open file and the holder keeps the
+    old inode, so the class skips there rather than asserting something false.
+
+    CI runs ``windows-latest`` -- #86's own reason, that a red run has to mean the
+    maintainer's machine would go red -- so this is exercised where it is true.
+    """
+
+    def test_the_previous_document_survives_and_no_partial_is_left(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.docx"
+            docx_write.write_docx("# Good\n\nOriginal body.\n", path)
+            before = path.read_bytes()
+            handle = open(path, "rb+")
+            try:
+                with self.assertRaises(OSError):
+                    docx_write.write_docx("# New\n", path, force=True)
+            finally:
+                handle.close()
+            self.assertEqual(path.read_bytes(), before)
+            self.assertIn("Original body.", docx_read.read_docx(path))
+            self.assertEqual({p.name for p in Path(directory).iterdir()}, {"case.docx"})
+
+    def test_the_command_line_reports_it_as_two_rather_than_a_traceback(self):
+        """The ticket's headline scenario exited 1 with a traceback until both axes said so."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# New\n", encoding="utf-8")
+            path = root / "case.docx"
+            docx_write.write_docx("# Good\n", path)
+            handle = open(path, "rb+")
+            try:
+                self.assertEqual(docx_write.main([str(source), str(path), "--force"]), 2)
+            finally:
+                handle.close()
+
+
+class TheGuardsDeclaredLimits(unittest.TestCase):
+    """``NOT_GUARDED`` is one object, on ``NOT_APPLIED``'s precedent and for its reason.
+
+    The list sat in this module's docstring *and* in ``CLAUDE.md``, and a prose edit to
+    either failed nothing -- #220, arriving inside a change whose own subject is a
+    second copy of a rule. Found by the standards axis of ``/code-review``.
+    """
+
+    def test_every_entry_carries_a_key_and_a_reason(self):
+        for entry in docx_write.NOT_GUARDED:
+            self.assertEqual(len(entry), 2)
+            key, reason = entry
+            self.assertTrue(key.strip())
+            self.assertGreater(len(reason), 80, key)
+
+    def test_the_docstring_points_at_the_object_rather_than_restating_it(self):
+        """A paragraph naming the limits again is the copy this replaced."""
+        self.assertIn("NOT_GUARDED", docx_write.__doc__)
+
+    def test_claude_md_names_the_object_rather_than_listing_them(self):
+        text = (SOURCE.parent.parent / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("NOT_GUARDED", text)
+
+    def test_the_standing_cost_of_the_part_set_is_declared(self):
+        """Spec axis: the false-positive class was disclosed only in the past tense.
+
+        A part added here refuses every document already written, and that is the price
+        of keying on the part set rather than a fact about #217.
+        """
+        keys = [key for key, _ in docx_write.NOT_GUARDED]
+        self.assertIn("a part added here refuses every document already written", keys)
+
+
 class ThePartSetTheGuardReadsIsTheOneTheWriterWrites(unittest.TestCase):
     """One object, so an eighth part cannot arrive with the guard still passing.
 
@@ -755,7 +836,47 @@ class ThePartSetTheGuardReadsIsTheOneTheWriterWrites(unittest.TestCase):
     """
 
     def test_the_names_are_derived_from_the_writer(self):
-        self.assertEqual(frozenset(docx_write.parts("# x\n")), docx_write.PART_NAMES)
+        """By AST, because the obvious form of this test cannot fail.
+
+        It read ``assertEqual(frozenset(parts("# x")), PART_NAMES)`` -- and
+        ``PART_NAMES`` *is* ``frozenset(parts(""))``, so both sides come from ``parts``
+        and it fires only if the part names vary by input, which is not the thing being
+        protected. A hand-typed list in the guard was invisible to it while the class
+        docstring said it was what stopped one: a check that could not have found the
+        thing it is named for, reading as a settled negative. That is
+        ``test_console_codec.py``'s instrument adopted for ``test_console_codec.py``'s
+        reason, and ``reference_scan.BODY_ROWS``'s completeness half made the same
+        correction. Found by the standards axis of ``/code-review``.
+        """
+        module = ast.parse(SOURCE.read_text(encoding="utf-8"))
+        assignments = [
+            node
+            for node in module.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "PART_NAMES"
+                for target in node.targets
+            )
+        ]
+        self.assertEqual(len(assignments), 1, "PART_NAMES is assigned once, at module level")
+        called = {
+            node.func.id
+            for node in ast.walk(assignments[0].value)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        self.assertIn(
+            "parts",
+            called,
+            "PART_NAMES must be derived by calling parts(), not typed beside it",
+        )
+
+    def test_the_guard_compares_against_that_object_and_not_its_own_list(self):
+        """The other half: deriving the names buys nothing if the guard ignores them."""
+        source = SOURCE.read_text(encoding="utf-8")
+        body = source[source.index("def written_by_this_renderer") :]
+        body = body[: body.index("\ndef ")]
+        self.assertIn("PART_NAMES", body)
+        self.assertNotIn("word/styles.xml", body)
 
     def test_a_document_this_renderer_just_wrote_reads_as_ours(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -769,6 +890,72 @@ class ThePartSetTheGuardReadsIsTheOneTheWriterWrites(unittest.TestCase):
             docx_write.write_docx("# Title\n", path)
             with zipfile.ZipFile(path) as archive:
                 self.assertEqual(frozenset(archive.namelist()), docx_write.PART_NAMES)
+
+
+class TheRefusalClaimsInStepEight(unittest.TestCase):
+    """``TheRendererClaimsInStepSeven``'s arrangement, one step later.
+
+    ``skills/practicum-case-study/SKILL.md`` step 8 tells the run what a refusal means -- two signals, exit 2, the flag that
+    proceeds. That was prose with nothing behind it, which is the shape that class
+    exists to refuse. Both directions again, because either alone reads as agreement:
+    the step still says it, **and** the command still does it.
+    """
+
+    SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+    def skill_text(self):
+        return (self.SKILL / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_the_step_still_names_both_signals(self):
+        text = self.skill_text()
+        self.assertIn("owner file", text)
+        self.assertIn("parts are not the ones this renderer writes", text)
+
+    def test_the_step_still_says_a_refusal_writes_nothing_and_exits_two(self):
+        self.assertIn("exit 2 with nothing written", self.skill_text())
+
+    def test_the_step_still_names_the_flag(self):
+        self.assertIn("--force", self.skill_text())
+
+    def test_the_command_really_exits_two_and_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# New\n", encoding="utf-8")
+            path = root / "case.docx"
+            path.write_bytes(b"not a docx at all")
+            self.assertEqual(docx_write.main([str(source), str(path)]), 2)
+            self.assertEqual(path.read_bytes(), b"not a docx at all")
+
+    def test_the_flag_really_proceeds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# Forced\n", encoding="utf-8")
+            path = root / "case.docx"
+            path.write_bytes(b"not a docx at all")
+            self.assertEqual(docx_write.main([str(source), str(path), "--force"]), 0)
+            self.assertIn("Forced", docx_read.read_docx(path))
+
+    def test_the_step_does_not_tell_the_run_to_perform_the_check_itself(self):
+        """#279's decision 2: a written instruction to look first is what it rejects."""
+        self.assertIn("there is nothing here to run before the render", self.skill_text())
+
+
+class AnUnrecognizedOption(unittest.TestCase):
+    """A mistyped flag is refused rather than read as a third path and ignored."""
+
+    def test_an_unknown_double_dash_option_is_two(self):
+        self.assertEqual(docx_write.main(["in.md", "out.docx", "--forse"]), 2)
+
+    def test_it_does_not_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "case.md"
+            source.write_text("# New\n", encoding="utf-8")
+            path = root / "case.docx"
+            self.assertEqual(docx_write.main([str(source), str(path), "--forse"]), 2)
+            self.assertFalse(path.exists())
 
 
 class NotHavingRead(unittest.TestCase):
