@@ -296,6 +296,18 @@ class TheSkillStillSaysWhatWasRuled(unittest.TestCase):
             self.skill,
         )
 
+    def test_silence_is_nkda_not_an_untaken_allergy_history(self) -> None:
+        self.assertIn(
+            "When the shorthand names no allergy, treat that silence as NKDA",
+            self.skill,
+        )
+        dependency_example = self.skill.split(
+            "**An inferred allergy status may raise an obligation and may never "
+            "discharge one.**",
+            1,
+        )[1].split("**A given allergy status is never overwritten", 1)[0]
+        self.assertNotIn("no allergy history was taken", dependency_example)
+
     def test_the_drug_status_is_owed_whether_or_not_a_drug_was_named(self) -> None:
         self.assertIn("All three lines are required", self.skill)
         self.assertIn(
