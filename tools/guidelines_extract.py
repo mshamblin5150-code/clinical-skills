@@ -139,8 +139,8 @@ extracted text fall from **159 to 11, and the 142 letter-split ones to 0**; the 
 are the roman-numeral front-matter pages, which the margin rule cannot reach by
 design and which stay.
 
-**The CDC opioid MMWR p.26 is improved and not repaired, which is worth knowing
-before reading it as fixed.** Its letter-spaced paragraph has a gap spread wide
+**The CDC opioid MMWR extracted page 27 is improved and not repaired, which is worth
+knowing before reading it as fixed.** Its letter-spaced paragraph has a gap spread wide
 enough that some of its gaps still clear the bar, so
 ``I n A p r i l 2 0 2 1 , t o e x p a n d`` becomes ``I n Ap ril 2 0 2 1 , to e xp
 a nd`` rather than plain text. Neither form is searchable, so nothing regressed --
