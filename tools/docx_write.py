@@ -491,13 +491,13 @@ def table(rows: list) -> str:
 # what ``style.md`` section 8 wrote; the backslash is what a run reached for when it
 # noticed the shape was wrong, and #293 taught ``split_row`` both.
 #
-# **It is declared for the reporting side rather than for the parser** --
-# ``separator_artifacts`` below names these forms to a run, and a scanner holding its own
-# copy of the rule could report a spelling the parser does not consume, or miss one it
-# does. ``split_row`` reads the backslash character by character because it has to look
-# ahead; ``tools/test_docx.py`` asserts it consumes every form named here, so the two
-# cannot drift. ``reference_scan.py`` importing ``REFERENCE_HEADING`` rather than
-# restating it, for that module's reason.
+# **It is declared for the reporting side, and ``split_row`` reads neither element** --
+# it walks the backslash character by character because it has to look ahead, and holds
+# its own ``&#124;`` literal. That is not the ``REFERENCE_HEADING`` arrangement and
+# should not be read as one: nothing here makes the parser and the scanner share an
+# object. What binds them is a **test** -- ``tools/test_docx.py`` asserts ``split_row``
+# consumes every form named here -- because a scanner reporting a spelling the parser
+# leaves alone would send a run chasing a cell that already works.
 PIPE_ESCAPES = ("\\|", "&#124;")
 
 
@@ -603,6 +603,14 @@ _TABLE_CELL = re.compile(r"<w:tc>.*?</w:tc>", re.DOTALL)
 # *where* it landed.
 CELL_SEPARATOR = "| in a table cell"
 
+# The ticket's row is *no run contains a literal backslash or* ``&#124;``, and the escape
+# limb narrows the first half to ``\\|`` because that is what the parser consumes. **A lone
+# backslash is the recorded symptom itself** -- *"the patient carries a ``\``"* -- so it
+# is reported where it was read off the page, in a cell. Outside a table it is left
+# alone and that is declared rather than widened: a backslash in running prose is
+# somebody quoting a path or a pattern, and this warning has to stay worth reading.
+CELL_BACKSLASH = "a backslash in a table cell"
+
 
 def _unesc(text: str) -> str:
     """``esc`` run backwards. The ampersand last, so a decoded ``&lt;`` is not re-read."""
@@ -610,7 +618,7 @@ def _unesc(text: str) -> str:
 
 
 def separator_artifacts(markdown: str) -> list:
-    """Runs of the rendered document carrying a cell separator as text -- #280.
+    r"""Runs of the rendered document carrying a cell separator as text -- #280.
 
     **No documented table shape may render to text containing its own separator
     syntax**, which is the general row that ticket asked for. It has two limbs because
@@ -618,7 +626,9 @@ def separator_artifacts(markdown: str) -> list:
 
     * a **table cell whose text holds a pipe**, which is a row declaring a width the
       grid does not have. That is the shape section 8 documented, and the reason the
-      whole prescription rendered into column 1; and
+      whole prescription rendered into column 1;
+    * a **table cell holding a backslash**, which is the clinician's own reading of the
+      rendered page and the half of the ticket's row that ``PIPE_ESCAPES`` narrows; and
     * a run anywhere carrying one of ``PIPE_ESCAPES`` **undecoded** -- which since #293
       can only happen outside a table, where nothing consumes it, so it reaches the page
       as a visible ``&#124;`` or the stray backslash the clinician read off the first
@@ -633,13 +643,24 @@ def separator_artifacts(markdown: str) -> list:
     ``tools/test_docx.py``'s standing instrument: the claim is about what a reader of
     the document gets.
 
-    Each finding is ``(form, text)``. **The form is bounded by what this code can draw
-    on** -- one of ``PIPE_ESCAPES`` or ``CELL_SEPARATOR``, all three module constants --
-    while the text is a line of the document. ``main`` prints the forms and a count and
-    never the text, because a case study draft is written about a patient.
+    **One finding per offending run, and a finding is a form and nothing else** -- a
+    value of ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``. So the output is bounded by what
+    this code can draw on rather than by what a caller remembers not to print, and a
+    draft is written about a patient. **The first version returned the run's text
+    beside the form and no caller ever read it**, which left the bounded claim resting
+    on caller discipline; ``/code-review`` found it.
 
-    **What it cannot reach** is a table that renders cleanly and is wrong: a six-row
-    ``Rx:`` whose ``Sig:`` says the wrong thing satisfies both limbs.
+    **It lives here rather than in a ``tools/*_scan.py`` because it reads this module's
+    own output**, and because the clinician ruled the check runs in the render command
+    -- which is this one. ``reference_scan.py`` is the other arrangement and has the
+    other subject: it grades a draft the renderer did not produce.
+
+    **What it cannot reach**, named rather than left to be found. A table that renders
+    cleanly and is **wrong**: a six-row ``Rx:`` whose ``Sig:`` says the wrong thing
+    satisfies every limb. A **backslash outside a table**, by the decision above. And
+    it cannot tell a faked width from a cell that **means** its pipe -- an author who
+    writes ``\|`` deliberately gets a warning, which is the price of a row that reads
+    the output rather than the intent, and is why this warns instead of refusing.
     """
     xml = body_xml(markdown)
     found = []
@@ -647,12 +668,14 @@ def separator_artifacts(markdown: str) -> list:
         for raw in _RUN_TEXT.findall(cell):
             text = _unesc(raw)
             if "|" in text:
-                found.append((CELL_SEPARATOR, text))
+                found.append(CELL_SEPARATOR)
+            if "\\" in text:
+                found.append(CELL_BACKSLASH)
     for raw in _RUN_TEXT.findall(xml):
         text = _unesc(raw)
         for escape in PIPE_ESCAPES:
             if escape in text:
-                found.append((escape, text))
+                found.append(escape)
     return found
 
 
@@ -828,12 +851,13 @@ def main(argv: list) -> int:
         print(
             "warning: {n} run(s) carry a cell separator as text rather than a cell "
             "boundary: {f}".format(
-                n=len(artifacts), f=", ".join(sorted({f for f, _ in artifacts}))
+                n=len(artifacts), f=", ".join(sorted(set(artifacts)))
             ),
             file=sys.stderr,
         )
         print(
-            "warning: a row that fakes its width renders into column 1. See "
+            "warning: a row faking its width renders into column 1, and an escape "
+            "nothing consumed reaches the page as text. See "
             "skills/practicum-case-study/reference/style.md section 8 for a table "
             "that declares its columns. #280.",
             file=sys.stderr,

@@ -741,7 +741,9 @@ text.** That is the shape
 [#280](https://github.com/mshamblin5150-code/clinical-skills/issues/280) was filed over: a row faking a width the grid does not have renders into column 1, and a pipe
 written as `\|` or `&#124;` outside a table reaches the page as visible text. **Fix the row, not the
 warning** — [reference/style.md](reference/style.md) §8 is the worked example of a table that
-declares its columns. The document is still written either way, because a blocked submission is a
+declares its columns. **Unless the pipe is genuinely content in that cell**, in which case the
+row is right and the warning is the price of a check that reads the output rather than the
+intent. The document is still written either way, because a blocked submission is a
 worse outcome than a separator on the page. The warning names the forms found and a count and
 **never a cell of the draft**, so it is safe to paste into a ticket.
 

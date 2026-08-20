@@ -550,6 +550,15 @@ class TheRendererClaimsInStepSeven(unittest.TestCase):
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
 
 
+SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+
+
+def section_eight():
+    """``style.md`` section 8, sliced once rather than in each class that reads it."""
+    text = (SKILL / "reference" / "style.md").read_text(encoding="utf-8")
+    return text[text.index("## 8.") : text.index("## 9.")]
+
+
 class TheRxTableTheStyleSheetDocuments(unittest.TestCase):
     """#280: nothing bound ``style.md`` section 8 to what this renderer does with it.
 
@@ -572,14 +581,11 @@ class TheRxTableTheStyleSheetDocuments(unittest.TestCase):
     stays the clinician's reading.
     """
 
-    SHEET = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
-
     def section_eight(self):
-        text = (self.SHEET / "reference" / "style.md").read_text(encoding="utf-8")
-        return text[text.index("## 8.") : text.index("## 9.")]
+        return section_eight()
 
     def block(self):
-        tables = docx_write.markdown_tables(self.section_eight())
+        tables = docx_write.markdown_tables(section_eight())
         self.assertTrue(tables, "no table in section 8 -- the instrument is dead")
         return tables[0]
 
@@ -659,17 +665,18 @@ class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
     carried an escape. So the wider walk costs nothing and fires on the one recorded
     defect.
 
-    **What it does not reach** is a table outside these sheets -- ``SKILL.md``'s own
-    tables are prose about the work rather than shapes a draft copies -- and a documented
-    shape that renders cleanly and is *wrong* passes here as it does everywhere.
+    **What it does not reach** is a table outside these sheets. ``SKILL.md``'s own are
+    prose about the work -- a defect table, a check table -- rather than shapes a draft
+    copies, so they are outside the row's *statement* rather than merely unwalked; that
+    was **measured** rather than assumed, by running this scanner over every table in
+    that file and finding none that fires. #137's shape is a generalization made from
+    the files a pass had open, so the fix for it is to go and look.
+
+    A documented shape that renders cleanly and is *wrong* passes here as it does
+    everywhere.
     """
 
-    SHEETS = (
-        Path(__file__).resolve().parent.parent
-        / "skills"
-        / "practicum-case-study"
-        / "reference"
-    )
+    SHEETS = SKILL / "reference"
 
     # A floor rather than the count, on #143's terms: a sheet gaining a table must not
     # turn the suite red, and a walk that found nothing must not read as a clean sweep.
@@ -705,14 +712,50 @@ class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
             "| --- |\n"
             "| `<patient placeholder>` &#124; `DOB x-x-xxx` &#124; `NPI # <number>` |\n"
         )
-        forms = {form for form, _ in docx_write.separator_artifacts(retired)}
-        self.assertIn(docx_write.CELL_SEPARATOR, forms)
+        self.assertIn(
+            docx_write.CELL_SEPARATOR, docx_write.separator_artifacts(retired)
+        )
 
     def test_an_escape_the_parser_never_sees_is_still_reported(self):
         """Outside a table nothing consumes either spelling, so both reach the page."""
         for escape in docx_write.PIPE_ESCAPES:
-            found = docx_write.separator_artifacts("A stray {e} in a sentence.\n".format(e=escape))
-            self.assertIn(escape, {form for form, _ in found}, escape)
+            found = docx_write.separator_artifacts(
+                "A stray {e} in a sentence.\n".format(e=escape)
+            )
+            self.assertIn(escape, found, escape)
+
+    def test_a_backslash_in_a_cell_is_reported(self):
+        """The recorded symptom itself -- *"the patient carries a backslash"*. The
+        escape limb narrows the ticket's row to a backslash **before a pipe**, because
+        that is what the parser consumes, so a lone one would otherwise reach the page
+        reported by nothing. Found by the spec axis of ``/code-review``."""
+        markdown = "| Head |\n| --- |\n| Jane Doe FNP-C \\ |\n"
+        self.assertIn(docx_write.CELL_BACKSLASH, docx_write.separator_artifacts(markdown))
+
+    def test_a_backslash_outside_a_table_is_left_alone(self):
+        """The declared half of that narrowing, asserted rather than described: in
+        running prose a backslash is somebody quoting a path or a pattern, and a
+        warning that fires on those is one a run learns to skip."""
+        self.assertEqual(
+            docx_write.separator_artifacts("A path C:\\temp in prose.\n"), []
+        )
+
+    def test_the_prose_that_documents_the_defect_is_a_mention_and_not_a_use(self):
+        """**Section 8 explains the retired shape, so both escapes are in that file** --
+        one in a sentence naming the spelling that rendered as text, one in the
+        clinician's quoted reading of the page.
+
+        The unit is the **table**, so neither is seen. Pointed at the whole section the
+        walk reports both, and would fail the sheet that documents the fix -- which is
+        ``spelling_scan.py``'s mention-versus-use distinction and #153's *describing the
+        rule broke the tool that checks the rule*, arriving here uninvited. Written down
+        because the first version of this test asserted the section rather than the
+        table and went red on exactly that.
+        """
+        section = section_eight()
+        self.assertEqual(docx_write.separator_artifacts(section), ["&#124;", "\\|"])
+        for block in docx_write.markdown_tables(section):
+            self.assertEqual(docx_write.separator_artifacts(block), [])
 
     def test_every_form_the_scanner_reports_is_one_the_parser_consumes(self):
         """``PIPE_ESCAPES`` is declared for the reporting side and read by only one limb
@@ -736,11 +779,11 @@ class TheRendererWarnsAboutSeparatorArtifacts(unittest.TestCase):
     consumer's critical path, and a blocked submission is a worse outcome than a
     separator on the page.
 
-    **The warning is bounded by what the code can draw on** -- one of three module
-    constants and an integer, never a run's text -- which is ``reference_scan.py``'s
-    discipline at the width ``tracker_bodies.py`` uses it at. A case study draft is
-    written about a patient, and printing a cell of it would make this command's output
-    PHI where it was not.
+    **The warning is bounded by what the code can draw on** -- a value of
+    ``PIPE_ESCAPES``, ``CELL_SEPARATOR`` or ``CELL_BACKSLASH``, and an integer, never a
+    run's text -- which is ``reference_scan.py``'s discipline at the width
+    ``tracker_bodies.py`` uses it at. A case study draft is written about a patient, and
+    printing a cell of it would make this command's output PHI where it was not.
     """
 
     def render(self, markdown):
@@ -790,16 +833,7 @@ class TheRendererWarnsAboutSeparatorArtifacts(unittest.TestCase):
         paragraph was rewrapped -- a phrase pin cannot see its own sentence hard-wrapped,
         which is exactly what ``test_run_record_claim.py`` was built to get past.
         """
-        skill = " ".join(
-            (
-                Path(__file__).resolve().parent.parent
-                / "skills"
-                / "practicum-case-study"
-                / "SKILL.md"
-            )
-            .read_text(encoding="utf-8")
-            .split()
-        )
+        skill = " ".join((SKILL / "SKILL.md").read_text(encoding="utf-8").split())
         self.assertIn(
             "A `warning:` line from that command means a table row put a cell separator into its own text",
             skill,
@@ -807,15 +841,7 @@ class TheRendererWarnsAboutSeparatorArtifacts(unittest.TestCase):
 
     def test_the_sheets_own_rx_table_renders_without_a_word_of_warning(self):
         """The end of the chain: what the sheet documents is what the command accepts."""
-        sheet = (
-            Path(__file__).resolve().parent.parent
-            / "skills"
-            / "practicum-case-study"
-            / "reference"
-            / "style.md"
-        ).read_text(encoding="utf-8")
-        section = sheet[sheet.index("## 8.") : sheet.index("## 9.")]
-        _, _, err, _ = self.render(docx_write.markdown_tables(section)[0])
+        _, _, err, _ = self.render(docx_write.markdown_tables(section_eight())[0])
         self.assertEqual(err, "")
 
 
