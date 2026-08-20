@@ -206,6 +206,8 @@ The four vital and measurement fields are filled where the encounter does not su
 
 Order matters for the pair: pick a plausible height, pick a plausible weight, then **derive** the BMI and show the arithmetic. Never pick a BMI and read the height and weight backwards out of it. There is no weight field in Medatrax, so the weight lives in the note only — but the BMI in the field must recompute from it.
 
+**A supplied but impossible number is not a value to enter and not an invitation to fill a replacement.** [clinical-note](../skills/clinical-note/SKILL.md)'s *An impossible given stays given* preserves the source token in the note, routes the ambiguity to `UNKNOWN` and the required verification to `FLAG`, and emits this structured field as `GAPS`: source value unusable, usable value unrecoverable, verify the source. A guessed correction never reaches the field.
+
 **Start time / End time — estimated, not missing.**
 
 The Times convention in [clinical-note](../skills/clinical-note/SKILL.md) assigns each visit 15–40 minutes across the shift and reports every time as estimated. Estimated is a property of the value, not the absence of one, so these do not belong under GAPS — a note that lists them there is spending a slot announcing that the skill obeyed its own instruction.

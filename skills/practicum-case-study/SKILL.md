@@ -262,9 +262,16 @@ correct claim for being old.
 with old, and the two are not the same thing:
 
 - **A society guideline is dated by the guideline, not by what it cites.** A current IDSA or KDIGO
-  document resting on a 2011 trial is a current source. `reference/guidelines-catalog.md` spans 2009
-  to 2026 and every document in it is in force — a rule that refused a 2013 KDIGO threshold on its
-  date would refuse *the* threshold, not an outdated one.
+  document resting on a 2011 trial is a current source — a rule that refused a 2013 KDIGO threshold
+  on its date would refuse *the* threshold, not an outdated one.
+- **Catalog membership is not standing**, and this rule shipped citing it as though it were.
+  `reference/guidelines-catalog.md`'s own legend names rows it declines to call in-force
+  guidelines — go and read them there rather than from here, because which rows those are is a
+  curation and this file cannot follow one. The catalog settles what a document *is* and never
+  whether it stands, so `guideline in force` is a reading of the document in front of the run and
+  never a fact read off a row. `clinical-note` already refuses to read a document's *content* off
+  a row; standing is the same refusal one axis over. Nothing grades that reading, which is what
+  makes it worth saying.
 - **Where nothing newer exists, the older source is the evidence.** The run must have looked, must
   say in the `PROPOSED` block that it looked, and the sentence carrying the citation says the
   evidence is the most recent available on that point. The citation's age stays visible.

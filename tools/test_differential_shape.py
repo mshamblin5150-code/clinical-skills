@@ -197,7 +197,7 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         self.assertIn("**Row 23 is appended for the reason rows 14 through 22 were.", self.text)
 
     def test_no_row_was_renumbered(self):
-        # The cheap guard on the convention: 24 rows, numbered 1 to 24 in order.
+        # The cheap guard on the convention: 25 rows, numbered 1 to 25 in order.
         # Scoped to rows whose second cell is a bolded test name, which is the
         # drift matrix's own shape -- an unrelated numbered table added to this
         # file later must not fail this test for a reason that is not about it.
@@ -206,11 +206,12 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # it. A contiguity-only check would pass an insert-at-13-and-renumber,
         # which is the exact move "append, never insert" exists to refuse, and
         # which silently redirects every citation of rows 14 and up across four
-        # fixture sets and ADR 0001. Read 23 until #85 added row 24.
+        # fixture sets and ADR 0001. Read 23 until #85 added row 24; #132 appended
+        # row 25.
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 25)))
+        self.assertEqual(numbers, list(range(1, 26)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):
@@ -309,7 +310,7 @@ class TheFixtureRowSaysWhatItCounts(unittest.TestCase):
     def test_neither_recorded_digit_is_restated(self):
         # #70 put re-running day-b and re-scoring either run out of scope. This
         # sentence is what stops a later pass reading the new definition as
-        # licence to move a recorded score.
+        # license to move a recorded score.
         self.assertIn(
             "Neither run's `CODING` digit is restated here", self.text
         )

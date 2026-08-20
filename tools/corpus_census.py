@@ -341,7 +341,7 @@ BARIATRIC = re.compile(
 # left out and be checked on it -- OSA associates with obesity and entails none
 # of it. ``osa`` and ``cpap`` need their boundaries for the reason above;
 # ``apnea`` gets one for consistency rather than against a known decoy. The
-# British ``apnoea`` is deliberately not carried: this is an American corpus,
+# The British variant is deliberately not carried: this is an American corpus,
 # the spelling appears in it zero times, and an alternative matched by nothing
 # is one nothing can catch going wrong.
 SLEEP_APNEA = re.compile(r"(?i)\bosa\b|\bcpap\b|\bapnea")
@@ -836,7 +836,7 @@ TOBACCO_NOT_PPD = (
 # carries the spaced form's meaning entire, and a purified protein derivative is
 # not one of the things it could have meant -- which is why this narrows the
 # ambiguity the module documents rather than widening it, and why the repair is
-# an alternative rather than a judgement call about a second sense.
+# an alternative rather than a judgment call about a second sense.
 #
 # **What it does not license is loosening the boundary.** The reading is *this
 # is a pack count with the space left out*, so the quantity is what carries it,
