@@ -337,6 +337,24 @@ class RepoContainmentTests(TempCorpus):
 
 
 class BuildTests(TempCorpus):
+    def test_a_dirty_index_build_needs_the_explicit_override(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
+        dirty = artifact_provenance.current_producer()
+        dirty["dirty"] = True
+
+        with mock.patch.object(
+            artifact_provenance, "current_producer", return_value=dirty
+        ):
+            with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+                gi.build(self.text_dir, self.db)
+            with self.assertWarnsRegex(RuntimeWarning, "dirty"):
+                gi.build(
+                    self.text_dir,
+                    self.db,
+                    allow_untrusted_provenance=True,
+                )
+
     def test_a_text_directory_without_a_manifest_is_refused(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
 
@@ -558,6 +576,26 @@ class MissingIndexTests(TempCorpus):
                 self.db, allow_untrusted_provenance=True
             )
         connection.close()
+
+    def test_a_dirty_embedded_source_stamp_cannot_be_laundered(self):
+        self.build_default_corpus()
+        connection = sqlite3.connect(self.db)
+        provenance = json.loads(
+            connection.execute(
+                "SELECT value FROM meta WHERE key = 'provenance'"
+            ).fetchone()[0]
+        )
+        provenance["source"]["dirty"] = True
+        provenance["untrusted_reasons"] = []
+        connection.execute(
+            "UPDATE meta SET value = ? WHERE key = 'provenance'",
+            (json.dumps(provenance),),
+        )
+        connection.commit()
+        connection.close()
+
+        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
+            gs.open_index(self.db)
 
 
 class CommandLineTests(TempCorpus):

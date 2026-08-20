@@ -1549,6 +1549,11 @@ def grade(
         or (second_read is not None and not second_read.ok)
         or (second_read is not None and not second_read_graded)
     )
+    watermark_provenance_failed = bool(
+        watermark_skip
+        and text_root is not None
+        and Path(text_root).is_dir()
+    )
 
     report(f"  rows            {len(sheet.rows)}")
     report(f"  sources         {len(sheet.sources)}")
@@ -1669,6 +1674,8 @@ def grade(
     if tier2_skip:
         print()
         print("  " + "=" * 66)
+        if watermark_provenance_failed:
+            print(f"  WATERMARK       NOT RUN -- {watermark_skip}", file=sys.stderr)
         print("  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against")
         print("  the source PDFs on this machine. Tier 1 proved each value is in its")
         print("  own snippet; nothing here proved the snippet is on the page it cites.")
@@ -1720,6 +1727,8 @@ def grade(
         print("  recommendation record is not a source that passed, and a --recs path", file=sys.stderr)
         print("  that does not resolve is a typo rather than a decision.", file=sys.stderr)
 
+    if watermark_provenance_failed:
+        return 2
     if refusals:
         # 1 wins over 2 where both hold, and the message names the ungraded part so
         # the finding reads as a floor rather than the whole. Returning 2 would file

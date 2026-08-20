@@ -36,6 +36,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import guidelines_extract
 import guidelines_index
@@ -124,12 +125,12 @@ class Checkout:
         self.text_dir = self.root / "guidelines-text"
         self.text_dir.mkdir()
         (self.text_dir / "IDSA-uti.txt").write_text("a page\n", encoding="utf-8")
-        producer = artifact_provenance.current_producer()
-        producer["dirty"] = False
+        self.producer = artifact_provenance.current_producer()
+        self.producer["dirty"] = False
         (self.text_dir / "manifest.json").write_text(
             json.dumps(
                 {
-                    "producer": producer,
+                    "producer": self.producer,
                     "documents": [{"doc_id": "IDSA-uti"}],
                 }
             ),
@@ -161,7 +162,12 @@ class Checkout:
 
     def refused_by_index(self, target: Path) -> bool:
         try:
-            guidelines_index.build(self.text_dir, target / "guidelines.sqlite")
+            with mock.patch.object(
+                artifact_provenance,
+                "current_producer",
+                return_value=self.producer,
+            ):
+                guidelines_index.build(self.text_dir, target / "guidelines.sqlite")
         except InsideCheckout:
             return True
         return False

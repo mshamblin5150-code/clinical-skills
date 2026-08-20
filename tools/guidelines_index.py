@@ -192,7 +192,10 @@ def normalize_doc_id(value: str) -> str:
 
 
 def _read_manifest(
-    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
+    text_dir: Path | str,
+    *,
+    allow_untrusted_provenance: bool = False,
+    expected_commit: str | None = None,
 ) -> tuple[dict[str, dict], artifact_provenance.ProvenanceCheck | None]:
     """``manifest.json`` keyed by document id, or ``{}`` when there is none.
 
@@ -216,6 +219,7 @@ def _read_manifest(
             data.get("producer"),
             path,
             allow_untrusted=allow_untrusted_provenance,
+            expected_commit=expected_commit,
         )
         data = data.get("documents")
     else:
@@ -223,6 +227,7 @@ def _read_manifest(
             None,
             path,
             allow_untrusted=allow_untrusted_provenance,
+            expected_commit=expected_commit,
         )
     if not isinstance(data, list):
         raise ValueError(
@@ -427,14 +432,24 @@ def build(
     if not text_dir.is_dir():
         raise FileNotFoundError(f"no extracted-text directory at {text_dir}")
     target = ensure_outside_checkout(database or default_database(), detail=WHY_OUTSIDE)
+    producer = artifact_provenance.current_producer()
+    producer_provenance = artifact_provenance.check_producer(
+        producer,
+        target,
+        allow_untrusted=allow_untrusted_provenance,
+        expected_commit=str(producer["commit"]),
+    )
     manifest, source_provenance = _read_manifest(
-        text_dir, allow_untrusted_provenance=allow_untrusted_provenance
+        text_dir,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+        expected_commit=str(producer["commit"]),
     )
     if source_provenance is None:
         source_provenance = artifact_provenance.check_producer(
             None,
             text_dir / MANIFEST_NAME,
             allow_untrusted=allow_untrusted_provenance,
+            expected_commit=str(producer["commit"]),
         )
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".building")
@@ -474,12 +489,11 @@ def build(
             )
 
         connection.execute("INSERT INTO page_fts(page_fts) VALUES ('rebuild')")
-        producer = artifact_provenance.current_producer()
-        untrusted_reasons = list(source_provenance.reasons)
-        if producer["dirty"]:
-            untrusted_reasons.append("index was produced by a dirty checkout")
+        untrusted_reasons = list(
+            source_provenance.reasons + producer_provenance.reasons
+        )
         provenance = {
-            "producer": producer,
+            "producer": producer_provenance.producer,
             "source": source_provenance.producer,
             "untrusted_reasons": untrusted_reasons,
         }

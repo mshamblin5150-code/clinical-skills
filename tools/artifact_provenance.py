@@ -96,10 +96,14 @@ def check_derived(
             None, artifact, allow_untrusted=allow_untrusted
         )
 
-    producer = provenance.get("producer")
     producer_check = check_producer(
-        producer,
+        provenance.get("producer"),
         artifact,
+        allow_untrusted=allow_untrusted,
+    )
+    source_check = check_producer(
+        provenance.get("source"),
+        f"{artifact} source manifest",
         allow_untrusted=allow_untrusted,
     )
     inherited = provenance.get("untrusted_reasons")
@@ -108,14 +112,12 @@ def check_derived(
         reasons.append("has no provenance trust record")
     else:
         reasons.extend(str(reason) for reason in inherited if reason)
-    if provenance.get("source") is None:
-        reasons.append("has no source-manifest provenance")
-
     if reasons:
         message = f"untrusted artifact {artifact}: " + "; ".join(reasons)
         if not allow_untrusted:
             raise UntrustedProvenance(message)
         warnings.warn(message, RuntimeWarning, stacklevel=2)
     return ProvenanceCheck(
-        producer_check.producer, producer_check.reasons + tuple(reasons)
+        producer_check.producer,
+        producer_check.reasons + source_check.reasons + tuple(reasons),
     )

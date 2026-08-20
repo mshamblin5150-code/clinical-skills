@@ -1584,6 +1584,30 @@ class WatermarkGate(unittest.TestCase):
         self.assertIn("different commit", skip)
         self.assertIsNone(allowed_skip)
 
+    def test_a_foreign_manifest_makes_the_command_exit_two(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "f" * 40
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        sheet_path = self.root / "sheet.md"
+        sheet_path.write_text(header() + "\n## Thresholds\n\n" + row(), encoding="utf-8")
+        recs_path = self.root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+            status = gate.grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=self.root,
+            )
+
+        self.assertEqual(status, 2)
+        self.assertIn("different commit", stderr.getvalue())
+
     def test_the_manifest_reader_is_the_indexers_and_not_a_copy(self):
         """`reference_scan.py` importing `docx_write.REFERENCE_HEADING`, for that
         module's reason: #80 owns this file's shape, and a gate holding its own copy
