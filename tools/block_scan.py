@@ -40,15 +40,26 @@ age and sex and are questions about an input this cannot see. All four stay
 counted by a reader.
 
 **The entry boundary is a reading, and [#127] is why it has to be.** An entry
-opens at a label line or a bullet; every other indented line is a **wrap** of the
-entry above it. That is right for a run repeating the label per entry, which is
-what ``day-a`` run 2 does, and it is a **floor** on a run using the canonical
-aligned-continuation form, where several entries share one label and only the
-first opens the item this grades. So the wrap count is printed beside the
-findings, and an aligned line that *would* have opened a matching entry is
-reported as a **candidate** rather than a failure -- counted, ``--show``-able, and
-not touching the exit status, on the arrangement ``specificity_scan.py`` uses for
-a flag on a ``NOT FOR ENTRY`` line. A non-zero there is worth going to look at.
+opens at a label that heads a line or at a bullet; every other indented line is a
+**wrap** of the entry above it. That is right for a run repeating the label per
+entry, which is what ``day-a`` run 2 does, and it is a **floor** on a run using
+the canonical aligned-continuation form, where several entries share one label
+and only the first opens the item this grades. So the wrap count is printed
+beside the findings, and an aligned line that *would* have opened a matching
+entry is reported as a **candidate** rather than a failure -- counted,
+``--show``-able, and not touching the exit status, on the arrangement
+``specificity_scan.py`` uses for a flag on a ``NOT FOR ENTRY`` line. A non-zero
+there is worth going to look at.
+
+**A tier label heads a line rather than merely landing at column 0.** It is alone,
+or its entry begins after an aligned column of two or more spaces. Hard-wrapped
+note prose can begin with ``FILLED-asserted.`` or ``FILLED-asserted item 11.``;
+before #297 each opened a phantom section, and prose carrying *race* could then
+discharge F3's absence limb. Such rejected label-like lines are a second
+candidate count, visible under ``--show`` and outside the exit status on the same
+arrangement as wrap candidates. **Starts are strict and ends are permissive**: a
+rejected label-like line still closes the section above, so a bulleted one cannot
+become an entry in the wrong section. That asymmetry is pinned in both directions.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record. A
@@ -91,8 +102,8 @@ LABELS = ("DERIVED", ASSERTED, PROPOSED, "FLAG", GAPS, "UNKNOWN")
 # The separator in the two FILLED labels is the skill's middle dot; a hyphen or a
 # period is read as the same label rather than as a different one.
 #
-# **Two restrictions here are load-bearing, and both were found by a review after
-# each had already produced a wrong number.**
+# **Three restrictions here are load-bearing, and each was found only after its
+# permissive form had already produced a wrong reading.**
 #
 # **Case-sensitive.** An earlier version carried ``re.IGNORECASE``, which made
 # ordinary prose open a section -- ``Unknown whether the patient smokes.`` and
@@ -110,11 +121,20 @@ LABELS = ("DERIVED", ASSERTED, PROPOSED, "FLAG", GAPS, "UNKNOWN")
 # column 0 and indents every continuation, which is the whole distinction this
 # parser runs on; a note that indents its entire block reads as no block, and the
 # exit status says so rather than scoring it.
-LABEL = re.compile(
+_LABEL_PREFIX = (
     r"^(?:>[ \t]*)*(?:[-*+][ \t]+)?\*{0,2}"
     r"(DERIVED|FILLED[·.\-](?i:ASSERTED)|FILLED[·.\-](?i:PROPOSED)|FLAG|GAPS|UNKNOWN)"
-    r"\*{0,2}[ \t]*:?[ \t]*(.*)$"
+    r"\*{0,2}[ \t]*:?"
 )
+# A label heads a line: it is alone, or its entry begins at an aligned column
+# after two or more spaces. A hard-wrapped prose sentence can put the same token
+# at column 0, so column 0 alone is not a section boundary. Issue #297.
+_HEADS_A_LINE = r"(?=[ \t]*$|[ \t]{2,}\S)"
+LABEL = re.compile(_LABEL_PREFIX + _HEADS_A_LINE + r"[ \t]*(.*)$")
+# The former, broader boundary remains observable as a review candidate. It is a
+# reading rather than a violation, so it follows the existing wrapped-line
+# candidate arrangement and does not affect the exit status.
+LABEL_LIKE = re.compile(_LABEL_PREFIX + r"[ \t]*(.*)$")
 # A line that ends a section without opening one.
 CLOSER = re.compile(r"^[ \t>]*(?:```|~~~|#{1,6}[ \t]|(?:[-*_][ \t]*){3,}$)")
 # An indented line, or a bullet at the margin. The bullet opens a new entry; the
@@ -199,6 +219,9 @@ class Scan:
     # An aligned continuation line that would have opened a matching entry. Not a
     # failure and not in the exit status -- see the module docstring on #127.
     candidates: tuple[Finding, ...] = field(default=())
+    # A column-zero tier label token that did not head a line. Counts by default;
+    # the note text is available only under ``--show``. Issue #297.
+    label_candidates: tuple[str, ...] = field(default=())
 
 
 def _canonical(label: str) -> str:
@@ -207,6 +230,15 @@ def _canonical(label: str) -> str:
     if upper.startswith("FILLED"):
         return ASSERTED if upper.endswith("ASSERTED") else PROPOSED
     return upper
+
+
+def label_candidates(text: str) -> tuple[str, ...]:
+    """Column-zero label-like lines rejected as section starts."""
+    return tuple(
+        raw
+        for raw in text.splitlines()
+        if LABEL_LIKE.match(raw) and not LABEL.match(raw)
+    )
 
 
 def read_block(text: str) -> dict[str, list[Entry]]:
@@ -225,6 +257,12 @@ def read_block(text: str) -> dict[str, list[Entry]]:
         if match:
             current = _canonical(match.group(1))
             block.setdefault(current, []).append([match.group(2).strip(), []])
+            continue
+        # Starts are strict, but ends are permissive. A rejected label-like line
+        # must still close the section above; otherwise a bulleted one is read as
+        # an entry in that section and can discharge an absence limb. Issue #297.
+        if LABEL_LIKE.match(raw):
+            current = None
             continue
         if current is None or not raw.strip():
             continue
@@ -275,7 +313,10 @@ def block_findings(
     return found, candidates
 
 
-def survey(blocks: list[dict[str, list[Entry]]]) -> Scan:
+def survey(
+    blocks: list[dict[str, list[Entry]]],
+    label_candidates: tuple[str, ...] = (),
+) -> Scan:
     """Count across a run. Takes parsed blocks rather than paths, so a ``Scan``
     never learns a filename -- a run directory's paths name the shift."""
     per_note = [block_findings(block) for block in blocks]
@@ -295,6 +336,7 @@ def survey(blocks: list[dict[str, list[Entry]]]) -> Scan:
         failing_notes=sum(1 for note, _ in per_note if note),
         findings=tuple(found),
         candidates=tuple(candidates),
+        label_candidates=label_candidates,
     )
 
 
@@ -317,6 +359,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  F3 - {WHY[F3]:<28}{scan.f3_failures}",
         f"  notes at fault                   {scan.failing_notes}",
         f"  wrapped-line candidates          {len(scan.candidates)}",
+        f"  label-line candidates            {len(scan.label_candidates)}",
     ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
@@ -326,6 +369,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines += ["", "  candidates - wrapped lines, not scored:"]
         for candidate in scan.candidates:
             lines.append(f"    {candidate.row}  {'wrap':<16} {candidate.line}")
+        lines += ["", "  candidates - label-like lines, not section starts:"]
+        for candidate in scan.label_candidates:
+            lines.append(f"    {candidate}")
     return "\n".join(lines)
 
 
@@ -359,7 +405,14 @@ def main(argv: list[str]) -> int:
     if not notes:
         print(f"no notes found in {directory.name}", file=sys.stderr)
         return 2
-    scan = survey([read_block(text) for text in notes])
+    scan = survey(
+        [read_block(text) for text in notes],
+        label_candidates=tuple(
+            candidate
+            for text in notes
+            for candidate in label_candidates(text)
+        ),
+    )
     print(format_report(scan, source=directory.name, show=show))
     if not scan.notes_with_block:
         print(

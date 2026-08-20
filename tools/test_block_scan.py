@@ -169,6 +169,49 @@ class TheParserReadsTheBlock(unittest.TestCase):
                 self.assertIn("FILLED·asserted", block)
 
 
+class ALabelHeadsALineRatherThanOpeningAProseSentence(unittest.TestCase):
+    """Issue #297's phantom-section mechanism at the public parser seam."""
+
+    PHANTOM = "FILLED·asserted. Race and ethnicity were not supplied.\n"
+    REAL_WITHOUT_RACE = (
+        "FILLED·asserted   Non-smoker\nGAPS              Marital status\n"
+    )
+
+    def test_hard_wrapped_prose_does_not_open_an_asserted_section(self) -> None:
+        block = block_scan.read_block(self.PHANTOM)
+        self.assertEqual(block, {})
+
+    def test_a_phantom_section_cannot_discharge_f3s_absence_limb(self) -> None:
+        block = block_scan.read_block(self.PHANTOM + self.REAL_WITHOUT_RACE)
+        scan = block_scan.survey([block])
+        self.assertEqual(rows(scan), ["F3"])
+
+    def test_a_rejected_label_like_line_is_a_review_candidate(self) -> None:
+        self.assertEqual(
+            block_scan.label_candidates(self.PHANTOM),
+            (self.PHANTOM.rstrip(),),
+        )
+
+    def test_valid_bare_and_aligned_labels_still_open_sections(self) -> None:
+        text = "FILLED·asserted\n  - Non-smoker\nGAPS              Marital status\n"
+        block = block_scan.read_block(text)
+        self.assertEqual(
+            [entry.head for entry in block["FILLED·asserted"]],
+            ["", "Non-smoker"],
+        )
+        self.assertEqual([entry.head for entry in block["GAPS"]], ["Marital status"])
+
+    def test_a_rejected_bulleted_label_still_closes_the_section_above(self) -> None:
+        """Strict starts and permissive ends are deliberately asymmetric."""
+        text = "FILLED·asserted   Non-smoker\n- GAPS Race/Ethnicity missing\n"
+        block = block_scan.read_block(text)
+        self.assertEqual(
+            [entry.text for entry in block["FILLED·asserted"]],
+            ["Non-smoker"],
+        )
+        self.assertEqual(rows(block_scan.survey([block])), ["F3"])
+
+
 class TheThreeRowsFireOnWhatOpensAnEntry(unittest.TestCase):
     def test_a_clean_note_fails_nothing(self) -> None:
         scan = block_scan.survey([block_scan.read_block(CLEAN)])
@@ -311,6 +354,24 @@ class TheReportCarriesNoNoteText(unittest.TestCase):
         scan = block_scan.survey([block_scan.read_block(CLEAN)])
         block_scan.format_report(scan, source="a-run").encode("ascii")
 
+    def test_rejected_label_like_lines_are_counted_without_note_text(self) -> None:
+        line = "FILLED·asserted. Race and ethnicity were not supplied."
+        scan = block_scan.survey(
+            [block_scan.read_block(CLEAN)], label_candidates=(line,)
+        )
+        report = block_scan.format_report(scan, source="a-run")
+        self.assertIn("label-line candidates            1", report)
+        self.assertNotIn("Race and ethnicity", report)
+
+    def test_show_reveals_rejected_label_like_lines_as_candidates(self) -> None:
+        line = "FILLED·asserted item 11. Filled vitals are not results."
+        scan = block_scan.survey(
+            [block_scan.read_block(CLEAN)], label_candidates=(line,)
+        )
+        report = block_scan.format_report(scan, source="a-run", show=True)
+        self.assertIn("label-like lines, not section starts", report)
+        self.assertIn(line, report)
+
 
 class TheExitStatusSaysWhichKindOfNothing(unittest.TestCase):
     def test_clean_run_exits_zero(self) -> None:
@@ -320,6 +381,13 @@ class TheExitStatusSaysWhichKindOfNothing(unittest.TestCase):
     def test_a_violation_exits_one(self) -> None:
         with write_run({"case-01.md": CLEAN, "case-02.md": TIMES_UNDER_GAPS}) as run:
             self.assertEqual(block_scan.main([run]), 1)
+
+    def test_a_rejected_label_like_line_does_not_change_the_exit_status(self) -> None:
+        prose_then_block = (
+            "FILLED·asserted item 11. Filled vitals are not results.\n" + CLEAN
+        )
+        with write_run({"case-01.md": prose_then_block}) as run:
+            self.assertEqual(block_scan.main([run]), 0)
 
     def test_no_argument_exits_two(self) -> None:
         self.assertEqual(block_scan.main([]), 2)
