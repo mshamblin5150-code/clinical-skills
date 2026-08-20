@@ -7,7 +7,7 @@ A finished case study is submitted to Canvas as a Word document, and no PDF libr
 authors one. A ``.docx`` is a zip archive of XML parts -- ``zipfile`` and string
 formatting are the whole dependency list -- so this stays on the consumer's critical
 path without putting a ``pip install`` there. See *Console codec* in ``CLAUDE.md`` for
-why five tools here are allowed a dependency and the rest are not: all five open a PDF.
+why three tools here are allowed a dependency and the rest are not: all three open a PDF.
 
 **The Markdown subset is deliberately small**, and it is exactly what a case study uses:
 

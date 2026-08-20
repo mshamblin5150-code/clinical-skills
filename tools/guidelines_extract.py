@@ -595,8 +595,8 @@ CLASSES = (CLASS_GUIDELINE, CLASS_RECOMMENDATION_STATEMENT, CLASS_WEB_CAPTURE)
 # ``USPreventiveServicesTaskForceRecommendationStatement``.
 #
 # These live here rather than in ``guidelines_catalog.py``, which is where they were
-# written, because the producer owns the vocabulary it emits and the auditor imports
-# it. Two copies of a rule that must agree is what #253 cost.
+# written, because the producer owns the vocabulary it emits and the auditor consumes
+# the manifest value. Two copies of a rule that must agree is what #253 cost.
 TASK_FORCE_MARK = "taskforce"
 RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
 
@@ -880,11 +880,7 @@ def squash(text: str) -> str:
 
 
 def is_recommendation_statement(title_block: str) -> bool:
-    """Whether a title block says the document is a USPSTF recommendation statement.
-
-    Shared with ``guidelines_catalog.classify`` by import rather than by copy, so the
-    producer and the auditor cannot come to hold different answers.
-    """
+    """Whether a title block says the document is a USPSTF recommendation statement."""
     squashed = squash(title_block)
     return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
 
@@ -893,8 +889,7 @@ def classify(pages: list[list[str]]) -> str:
     """Which of ``CLASSES`` this document is.
 
     **Ordered, and the order matters**: a browser capture of a page that happens to say
-    "recommendation statement" is still a capture. ``guidelines_catalog.classify`` has
-    always read the two in that order and this adopts it.
+    "recommendation statement" is still a capture.
 
     The capture test is counted over the sampled pages directly rather than read off
     the boilerplate set. Those look interchangeable on the three real captures, where
@@ -904,13 +899,11 @@ def classify(pages: list[list[str]]) -> str:
     would come back a guideline with nothing saying otherwise.
 
     **The recommendation-statement test reads the first page only**, which is where the
-    document titles itself, and it runs here rather than in ``guidelines_catalog.py``
-    alone because #185 ruled the producer's vocabulary is the catalog's. Running the
-    catalog's classifier over the extracted ``.txt`` corpus reproduces every one of the
-    catalog's ``recommendation-statement`` and ``guideline`` cells, and misses all three
-    captures -- because the stamp it keys on is boilerplate and has been stripped by
-    then. This sees the pages **before** stripping, which is why both halves can live
-    here and neither could live there. **The counts are deliberately not stated**: the
+    document titles itself, and it runs here because #185 ruled the producer's
+    vocabulary is the catalog's. The catalog consumes this manifest value: reclassifying
+    extracted ``.txt`` would miss all three captures because the stamp has already been
+    stripped. This sees the pages **before** stripping, which is why the rule lives here.
+    **The counts are deliberately not stated**: the
     only thing that produces them is an artifact outside every checkout, so nothing
     committed re-derives them, and one of the three is a subtraction of the other two.
     """

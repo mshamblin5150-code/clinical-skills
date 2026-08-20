@@ -2,22 +2,9 @@
 
 phi-scan: synthetic
 
-The pragma is above because ``TheTwoClassifiersAgree`` pins the browser print
-timestamp that tells an ACIP print-to-PDF capture apart from a guideline, and the
-ordering rule it exists for cannot be exercised without a timestamp-shaped literal.
-It is an artifact of a public CDC page and no patient is near it, but the shape layer
-cannot know that -- ``test_guidelines_extract.py`` declares the same pragma for the
-same literal and for the same reason. Writing it in pieces would dodge the scanner
-without declaring anything, which is worse than saying so here. The corpus layer is
-untouched: no name and no corpus date is exempted by this.
-
-**It shipped once without the pragma and the reason is worth keeping.**
-``phi_scan --all`` ran clean over this change minutes before the commit, because this
-file was still **untracked** and ``--all`` walks ``git ls-files``. ``git add`` turned
-the same tree red. That is
-[#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)'s window
-exactly, arriving on the firewall rather than on a step citation, and the hook is what
-caught it.
+The classifier-boundary assertions retain the timestamp-shaped browser capture that
+distinguishes ``web-capture`` from ``guideline``. It is a public CDC fixture shape;
+no patient or corpus date is exempted.
 
 [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185). They were
 two. ``reference/guidelines-catalog.md`` documented ``guideline``,
@@ -76,13 +63,10 @@ vocabulary has nowhere better to put them.
 ``guidelines_catalog.py --check``'s job and it needs the corpus. This reaches only that
 the value is one the index could answer.
 
-**And the two classifiers' shared ordering is pinned by agreement, not by one copy.**
-``guidelines_extract.classify`` and ``guidelines_catalog.classify`` read different
-inputs -- pre-strip line lists against page strings -- so neither can call the other,
-and the capture rule stays written twice. What the class below asserts is that they
-return the same answer on the same document, including on the case the order exists
-for. [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) is where
-the duplication itself is reconciled.
+**Whether the producer classified a row correctly.** That rule lives only in
+``guidelines_extract.classify`` now. #108 removed the catalog's second classifier, so
+the manifest value is the value this auditor reads rather than one it re-derives from
+already-stripped text.
 """
 
 from __future__ import annotations
@@ -163,67 +147,6 @@ class TheInstrumentIsLive(unittest.TestCase):
         failures = guidelines_catalog.check_legend("# A catalog with no column legend\n")
         self.assertEqual(len(failures), 1)
         self.assertIn("cannot be read", failures[0])
-
-
-class TheTwoClassifiersAgree(unittest.TestCase):
-    """One ordering rule, written twice, and nothing asserted it until #185.
-
-    The marks moved to the producer and the auditor imports them, but the *order* --
-    a capture that says "recommendation statement" is still a capture -- stayed in both
-    ``classify`` functions, and so did the capture test itself, because the two read
-    different inputs and neither can call the other. Reversing either copy alone left
-    the whole suite green.
-
-    So the pin is behavioral: the same document, in each module's own input shape,
-    must come back the same class. The stamped-and-titled case is the one the order
-    exists for and is why this is not merely three tidy cases.
-    """
-
-    CAPTURE = "8/12/26, 10:25 AM Recommended Vaccinations | CDC"
-    URL = "https://www.cdc.gov/vaccines/index.html"
-    USPSTF = "US Preventive Services Task Force Recommendation Statement"
-
-    def both(self, pages: list[list[str]]) -> tuple[str, str]:
-        """``classify`` from each module, over one document in each one's own shape."""
-        return (
-            guidelines_extract.classify(pages),
-            guidelines_catalog.classify(["\n".join(page) for page in pages]),
-        )
-
-    def assert_agree(self, pages: list[list[str]], expected: str) -> None:
-        produced, audited = self.both(pages)
-        self.assertEqual(produced, expected)
-        self.assertEqual(audited, expected, "the auditor disagrees with the producer")
-
-    def test_a_guideline(self) -> None:
-        self.assert_agree(
-            [["KDIGO 2024 Clinical Practice Guideline"], ["body"], ["body"], ["body"]],
-            guidelines_extract.CLASS_GUIDELINE,
-        )
-
-    def test_a_recommendation_statement(self) -> None:
-        self.assert_agree(
-            [[self.USPSTF, "Screening for Colorectal Cancer"], ["body"], ["body"], ["body"]],
-            guidelines_extract.CLASS_RECOMMENDATION_STATEMENT,
-        )
-
-    def test_a_web_capture(self) -> None:
-        self.assert_agree(
-            [[self.CAPTURE, self.URL, "body"] for _ in range(4)],
-            guidelines_extract.CLASS_WEB_CAPTURE,
-        )
-
-    def test_a_capture_of_a_recommendation_statement_is_a_capture_in_both(self) -> None:
-        """The case the shared ordering exists for.
-
-        Live in the other direction in this corpus: the catalog's own prose records a
-        JAMA article page saved from a browser that is classed
-        ``recommendation-statement`` because that is what the document *is*.
-        """
-        pages = [[self.CAPTURE, self.URL, self.USPSTF]] + [
-            [self.CAPTURE, self.URL, "body"] for _ in range(3)
-        ]
-        self.assert_agree(pages, guidelines_extract.CLASS_WEB_CAPTURE)
 
 
 class TheVocabularyIsBoundedInBothDirections(unittest.TestCase):

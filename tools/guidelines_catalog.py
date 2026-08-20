@@ -2,7 +2,7 @@
 index of the guideline corpus.
 
     python tools/guidelines_catalog.py                       # check the committed catalog
-    python tools/guidelines_catalog.py --draft <src-dir>     # emit a scaffold to curate
+    python tools/guidelines_catalog.py --draft <text-dir>    # emit a scaffold to curate
 
 The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
 repo** and stays there: 410 MB, most of it society-copyrighted, and no consumer
@@ -31,11 +31,9 @@ that exists here. Same reasoning that put ``meta.release`` in
 **Metadata only.** No extracted body text goes in the catalog or in this file's
 output, and the checker never prints document text.
 
-Stdlib for everything except reading the PDFs themselves, which needs ``pypdf``
-or ``fitz``. That import is deliberately lazy and confined to ``read_corpus``:
-the parsers and the comparison are pure functions over data, so
-``test_guidelines_catalog.py`` covers them against committed fixtures without a
-PDF or a corpus anywhere in reach.
+The builder consumes #80's extracted text and manifest, so it is stdlib-only and
+never opens a PDF. The manifest supplies the producer-owned class, metadata title,
+source filename, and pre-strip lines that the year rule needs.
 """
 
 from __future__ import annotations
@@ -47,17 +45,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
-from guidelines_extract import (
-    CLASS_GUIDELINE,
-    CLASS_RECOMMENDATION_STATEMENT,
-    CLASS_WEB_CAPTURE,
-    CLASSES,
-    is_recommendation_statement,
-)
+from guidelines_extract import CLASSES
+from guidelines_index import discover, read_manifest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
-DEFAULT_SRC = Path("C:/codeing/guidelines-src")
+DEFAULT_SRC = Path("C:/codeing/guidelines-text")
 
 COLUMNS = (
     "society",
@@ -104,25 +97,12 @@ UNSETTLED_HEADING = "## Unsettled cells"
 
 YEAR_RE = re.compile(r"(?:19|20)\d{2}")
 
-# A browser print-to-PDF stamps the page with the moment of capture and the URL
-# it came from. The three ACIP files are captures of CDC schedule pages rather
-# than guideline documents, and this is how they say so.
-CAPTURE_STAMP_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2},\s*\d{1,2}:\d{2}\s*[AP]M\b")
-CAPTURE_URL_RE = re.compile(r"https?://\S+")
-
 # Years on these lines date the download, not the document. Every AHA/ACC and
 # most IDSA files carry one on every page, so leaving them in makes 2026 the
 # apparent publication year of a 2018 guideline.
 ACCESS_LINE_RE = re.compile(
     r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
 )
-
-# The recommendation-statement test is ``guidelines_extract.is_recommendation_statement``
-# now, with ``TASK_FORCE_MARK``, ``RECOMMENDATION_STATEMENT_MARK`` and ``squash``. All
-# four were written here and moved on #185, when the extractor gained the branch that
-# needs them: two copies of a rule that must agree is what #253 cost. The reasoning
-# they carry moved with them and is not restated here.
-
 
 @dataclass(frozen=True)
 class Row:
@@ -287,20 +267,9 @@ def parse_unsettled(lines: list[str], problems: list[str]) -> dict[str, set[str]
 # --------------------------------------------------------------------------
 
 
-def classify(pages: list[str]) -> str:
-    """Decide the document class from its text.
-
-    Ordered, and the order matters: a browser capture of a page that happens to
-    say "recommendation statement" is still a capture.
-    """
-    if any(CAPTURE_STAMP_RE.search(p) and CAPTURE_URL_RE.search(p) for p in pages[:3]):
-        return CLASS_WEB_CAPTURE
-    if is_recommendation_statement(pages[0] if pages else ""):
-        return CLASS_RECOMMENDATION_STATEMENT
-    return CLASS_GUIDELINE
-
-
-def year_guess(title: str, pages: list[str]) -> str:
+def year_guess(
+    title: str, pages: list[str], stripped_lines: list[str] | tuple[str, ...] = ()
+) -> str:
     """Guess the publication year, title first.
 
     Where a society dates its own title — ``2022 AHA/ACC/HFSA Guideline for...``,
@@ -313,7 +282,31 @@ def year_guess(title: str, pages: list[str]) -> str:
     in_title = YEAR_RE.findall(title)
     if in_title:
         return in_title[0]
+    stripped = year_from_stripped_lines(stripped_lines)
+    if stripped != UNSETTLED:
+        return stripped
     return year_from_running_head(pages)
+
+
+def year_from_stripped_lines(lines: list[str] | tuple[str, ...]) -> str:
+    """Recover the running-head year from #80's pre-strip manifest evidence.
+
+    Literal boilerplate is deduplicated by value and margin removals are likewise
+    recorded as their distinct literal lines. Counting the year-bearing literals
+    preserves the running-head winner without making the catalog reopen the PDF.
+    Access stamps stay excluded for the same reason as in
+    :func:`year_from_running_head`.
+    """
+    hits: dict[int, int] = {}
+    for line in lines:
+        if ACCESS_LINE_RE.search(line):
+            continue
+        for year in {int(value) for value in YEAR_RE.findall(line)}:
+            hits[year] = hits.get(year, 0) + 1
+    if not hits:
+        return UNSETTLED
+    best = max(hits.values())
+    return str(max(year for year, count in hits.items() if count == best))
 
 
 def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
@@ -385,57 +378,61 @@ def looks_like_title(candidate: str, filename: str) -> bool:
 
 
 def read_corpus(src: Path) -> list[Document]:
-    """Open every PDF under ``src`` and return what can be read without judgment.
+    """Read every document from #80's extracted text and manifest.
 
-    The only place a PDF is touched. ``fitz`` is preferred for speed and falls
-    back to ``pypdf``; both are maintainer-only dependencies and neither is
-    reachable from anything a consumer of these skills runs.
+    The manifest is required because it carries the source filename, metadata
+    title, producer-owned class, and the pre-strip lines used by the year rule.
+    A text tree without that contract is not a catalog corpus.
     """
-    extract = _pdf_reader()
-    docs: list[Document] = []
-    for society_dir in sorted(p for p in src.iterdir() if p.is_dir()):
-        for pdf in sorted(society_dir.glob("*.pdf")):
-            meta_title, pages = extract(pdf)
-            title = title_guess(meta_title, pages, pdf.name)
-            docs.append(
-                Document(
-                    society=society_dir.name,
-                    filename=pdf.name,
-                    page_count=len(pages),
-                    cls=classify(pages),
-                    title_guess=title,
-                    year_guess=year_guess(title, pages),
-                )
-            )
-    return docs
+    manifest = read_manifest(src)
+    if not manifest:
+        raise ValueError(f"{src / 'manifest.json'} is required to build the catalog")
 
+    failed = sorted(doc_id for doc_id, entry in manifest.items() if entry.get("error"))
+    if failed:
+        raise ValueError(f"the extraction manifest records failed documents: {failed}")
 
-def _pdf_reader():
-    try:
-        import fitz  # type: ignore
-
-        def extract(path: Path) -> tuple[str | None, list[str]]:
-            with fitz.open(path) as doc:
-                meta = (doc.metadata or {}).get("title")
-                return meta, [doc[i].get_text() for i in range(doc.page_count)]
-
-        return extract
-    except ImportError:
-        pass
-    try:
-        from pypdf import PdfReader  # type: ignore
-
-        def extract(path: Path) -> tuple[str | None, list[str]]:
-            reader = PdfReader(str(path))
-            meta = (reader.metadata or {}).get("/Title")
-            return (str(meta) if meta else None), [p.extract_text() or "" for p in reader.pages]
-
-        return extract
-    except ImportError:
-        raise SystemExit(
-            "reading the corpus needs pypdf or PyMuPDF (fitz). Both are "
-            "maintainer-only; --check without a corpus is not supported."
+    indexed = list(discover(src))
+    indexed_ids = {document.doc_id for document in indexed}
+    expected_ids = {
+        doc_id for doc_id, entry in manifest.items() if entry.get("output") and not entry.get("error")
+    }
+    if indexed_ids != expected_ids:
+        missing = sorted(expected_ids - indexed_ids)
+        extra = sorted(indexed_ids - expected_ids)
+        raise ValueError(
+            f"extracted text and manifest disagree (missing text: {missing}; extra text: {extra})"
         )
+
+    docs: list[Document] = []
+    for document in indexed:
+        entry = manifest[document.doc_id]
+        pages = [page.text for page in document.pages]
+        if entry.get("pages") != len(pages):
+            raise ValueError(
+                f"{document.doc_id}: manifest says {entry.get('pages')} pages, "
+                f"extracted text contains {len(pages)}"
+            )
+        source = entry.get("source")
+        if not source:
+            raise ValueError(f"{document.doc_id}: manifest entry has no source filename")
+        filename = Path(str(source)).name
+        title = title_guess(document.title, pages, filename)
+        stripped_lines = [
+            *entry.get("boilerplate", []),
+            *entry.get("margin_stripped", []),
+        ]
+        docs.append(
+            Document(
+                society=document.society or "",
+                filename=filename,
+                page_count=len(pages),
+                cls=document.document_class,
+                title_guess=title,
+                year_guess=year_guess(title, pages, stripped_lines),
+            )
+        )
+    return docs
 
 
 # --------------------------------------------------------------------------
@@ -584,15 +581,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--draft",
-        metavar="SRC",
+        metavar="TEXT",
         nargs="?",
         const=str(DEFAULT_SRC),
-        help="emit a scaffold table read from the corpus at SRC instead of checking",
+        help="emit a scaffold table read from extracted corpus TEXT instead of checking",
     )
     parser.add_argument(
         "--src",
         default=str(DEFAULT_SRC),
-        help=f"corpus directory to check against (default {DEFAULT_SRC})",
+        help=f"extracted corpus directory to check against (default {DEFAULT_SRC})",
     )
     parser.add_argument(
         "--catalog",
@@ -604,7 +601,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.draft:
         src = Path(args.draft)
         if not src.is_dir():
-            print(f"no corpus at {src}", file=sys.stderr)
+            print(f"no extracted corpus at {src}", file=sys.stderr)
             return 2
         print(render_table(draft_rows(read_corpus(src))))
         return 0
