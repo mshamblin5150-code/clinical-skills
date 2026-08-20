@@ -295,7 +295,12 @@ def _abstract_num(num_id: int, fmt: str) -> str:
     for level in range(3):
         indent = 720 * (level + 1)
         if fmt == "bullet":
-            marker = "•"
+            # U+F0B7 and not U+2022. The run is set in ``Symbol``, which is a
+            # symbol-encoded font: Word looks the code point up *in Symbol* rather
+            # than in Unicode, and Symbol has no glyph at U+2022, so a bullet
+            # written there renders as an empty box. The clinician reported exactly
+            # that -- "I don't know what those square blocks are supposed to be".
+            marker = ""
             font = '<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr>'
         else:
             marker = "%" + str(level + 1) + "."
@@ -312,15 +317,40 @@ def _abstract_num(num_id: int, fmt: str) -> str:
     )
 
 
-NUMBERING = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+def numbering_xml(decimal_lists: int = 1) -> str:
+    """The ``word/numbering.xml`` part, sized to the body that will reference it.
+
+    **One ``w:num`` per numbered list, and that is the whole restart mechanism.**
+    Word restarts a list at 1 for each ``w:num`` that points at an abstract
+    definition; two lists sharing one ``numId`` are *one* list to Word, however far
+    apart they sit and whatever comes between them. Before #215's follow-up every
+    numbered list in the document shared ``numId`` 2, so the Differential ran 1-7,
+    the MDM opened at 8 and the Plan carried on from wherever the MDM stopped --
+    the clinician's *"each section that is broken up is a continuation of the
+    previous section's number, that is bad, it should start over"*.
+
+    ``numId`` 1 is the bullet list. The decimal lists are numbered from 2 up, in the
+    order ``render_body`` meets them, and all of them share abstract definition 1 --
+    so the format is defined once and only the restart point is per-list.
+    """
+    nums = ['<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>']
+    for index in range(max(decimal_lists, 1)):
+        nums.append(
+            '<w:num w:numId="{n}"><w:abstractNumId w:val="1"/></w:num>'.format(
+                n=index + 2
+            )
+        )
+    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering {w}>
 {bullet}
 {decimal}
-<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
-<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+{nums}
 </w:numbering>""".format(
-    w=W, bullet=_abstract_num(0, "bullet"), decimal=_abstract_num(1, "decimal")
-)
+        w=W,
+        bullet=_abstract_num(0, "bullet"),
+        decimal=_abstract_num(1, "decimal"),
+        nums="\n".join(nums),
+    )
 
 
 def esc(text: str) -> str:
@@ -341,7 +371,17 @@ def runs(text: str, bold: bool = False) -> str:
         is_bold, is_italic, is_mono = bold, False, False
         body = piece
         if piece.startswith("**") and piece.endswith("**") and len(piece) > 4:
-            is_bold, body = True, piece[2:-2]
+            inner = piece[2:-2]
+            # **One level of nesting, and it is the level the corpus actually
+            # writes.** A bold statement carrying an italicised organism name --
+            # ``**... due to *Neisseria gonorrhoeae* ...**`` -- used to emit the
+            # inner asterisks as literal text, because the outer span was consumed
+            # whole and never re-split. That is the stray ``*`` the clinician found
+            # in the Most Likely Clinical Diagnosis line of a graded document.
+            if _INLINE.search(inner):
+                out.append(runs(inner, bold=True))
+                continue
+            is_bold, body = True, inner
         elif piece.startswith("*") and piece.endswith("*") and len(piece) > 2:
             is_italic, body = True, piece[1:-1]
         elif piece.startswith("`") and piece.endswith("`") and len(piece) > 2:
@@ -409,15 +449,27 @@ def table(rows: list) -> str:
     body = []
     for index, row in enumerate(rows):
         cells = []
-        for column in range(width):
-            text = row[column] if column < len(row) else ""
-            # ``CT_TcPrBase`` is a sequence too: ``tcW`` before ``tcBorders``.
+        for column, text in enumerate(row):
+            # **A short row merges rather than padding, and its last cell takes the
+            # slack.** A Markdown table has no span syntax, so the number of cells a
+            # row declares is the only signal available. Before #215's follow-up a
+            # short row was right-padded with empties, which is why every line of an
+            # ``Rx:`` block below the first sat in column 1 with two blank columns
+            # beside it -- the clinician's *"everything was put into the left sided
+            # column"*. One cell now spans the table, and a two-cell row puts the
+            # first cell on the left and the second on the right.
+            span = width - len(row) + 1 if column == len(row) - 1 else 1
+            # ``CT_TcPrBase`` is a sequence: ``tcW``, ``gridSpan``, then ``tcBorders``.
             cells.append(
-                '<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/>{b}</w:tcPr>'
-                '<w:p><w:pPr><w:spacing w:line="240" w:lineRule="auto"/></w:pPr>'
+                '<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/>{g}{b}</w:tcPr>'
+                '<w:p><w:pPr><w:spacing w:line="240" w:lineRule="auto"/>{j}</w:pPr>'
                 "{r}</w:p></w:tc>".format(
-                    w=cell_width,
+                    w=cell_width * span,
+                    g='<w:gridSpan w:val="{n}"/>'.format(n=span) if span > 1 else "",
                     b=HEADER_RULE if index == 0 else "",
+                    j='<w:jc w:val="right"/>'
+                    if len(row) > 1 and column == len(row) - 1 and span > 1
+                    else "",
                     r=runs(text, bold=index == 0),
                 )
             )
@@ -431,7 +483,37 @@ def table(rows: list) -> str:
 
 
 def split_row(line: str) -> list:
-    return [c.strip() for c in line.strip().strip("|").split("|")]
+    r"""Split a Markdown table row on its **unescaped** pipes.
+
+    ``\|`` is a literal pipe in the cell, which is how a Markdown table carries a
+    pipe as content at all. Before #215's follow-up this split on every ``|`` and
+    left the backslash sitting in the cell, so ``Rx:`` row 1 rendered as
+    ``<patient> \`` -- the clinician's *"the patient carries a \ and so do the end
+    of my titles"*. ``style.md`` section 8 wrote the same pipe as ``&#124;``, which
+    ``esc`` turns into a literal ``&#124;``; both spellings are handled here so the
+    sheet and the runs agree.
+    """
+    line = line.strip()
+    if line.startswith("|"):
+        line = line[1:]
+    if line.endswith("|") and not line.endswith(r"\|"):
+        line = line[:-1]
+    cells, buf, index = [], [], 0
+    while index < len(line):
+        char = line[index]
+        if char == "\\" and index + 1 < len(line) and line[index + 1] == "|":
+            buf.append("|")
+            index += 2
+            continue
+        if char == "|":
+            cells.append("".join(buf).strip())
+            buf = []
+            index += 1
+            continue
+        buf.append(char)
+        index += 1
+    cells.append("".join(buf).strip())
+    return [c.replace("&#124;", "|") for c in cells]
 
 
 def is_rule(line: str) -> bool:
@@ -471,10 +553,24 @@ def table_first_cells(block: str) -> list:
 
 def body_xml(markdown: str) -> str:
     """Convert the Markdown subset to the payload of a ``w:body`` element."""
+    return render_body(markdown)[0]
+
+
+def render_body(markdown: str):
+    """``(body payload, number of decimal lists)``.
+
+    The count is what ``numbering_xml`` has to be sized by, and it is returned
+    rather than recomputed because a second pass over the same Markdown is a
+    second parser to keep in step -- which is the duplication
+    ``table_first_cells`` above was consolidated to refuse.
+    """
     lines = markdown.replace("\r\n", "\n").split("\n")
     out = []
     in_references = False
     has_content = False
+    # 0 means "no list open": the next numbered line allocates a fresh ``numId``.
+    decimal_id = 0
+    decimal_lists = 0
     index = 0
     while index < len(lines):
         line = lines[index]
@@ -493,6 +589,11 @@ def body_xml(markdown: str) -> str:
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
             in_references = bool(REFERENCE_HEADING.match(text))
+            # A heading closes whatever list was open, so the next numbered line
+            # allocates a fresh ``w:num`` and Word restarts it at 1. This is the
+            # only place the counter resets: a plain paragraph *between* two
+            # numbered items is a continuation of one list and must not restart it.
+            decimal_id = 0
             out.append(
                 para(
                     text,
@@ -529,7 +630,17 @@ def body_xml(markdown: str) -> str:
         numbered = re.match(r"([ \t]*)\d+[.)]\s+(.*)", line)
         if numbered:
             level = min(len(numbered.group(1).expandtabs(4)) // 2, 2)
-            out.append(para(numbered.group(2), style="ListParagraph", num_id=2, level=level))
+            if not decimal_id:
+                decimal_lists += 1
+                decimal_id = decimal_lists + 1
+            out.append(
+                para(
+                    numbered.group(2),
+                    style="ListParagraph",
+                    num_id=decimal_id,
+                    level=level,
+                )
+            )
             has_content = True
             index += 1
             continue
@@ -546,7 +657,7 @@ def body_xml(markdown: str) -> str:
         has_content = True
         index += 1
 
-    return "".join(out)
+    return "".join(out), decimal_lists
 
 
 def document_xml(markdown: str) -> str:
@@ -573,7 +684,7 @@ def write_docx(markdown: str, destination) -> Path:
         archive.writestr("_rels/.rels", ROOT_RELS)
         archive.writestr("word/_rels/document.xml.rels", DOC_RELS)
         archive.writestr("word/styles.xml", STYLES)
-        archive.writestr("word/numbering.xml", NUMBERING)
+        archive.writestr("word/numbering.xml", numbering_xml(render_body(markdown)[1]))
         archive.writestr("word/header1.xml", HEADER)
         archive.writestr("word/document.xml", document_xml(markdown))
     return destination

@@ -572,5 +572,127 @@ class NotHavingRead(unittest.TestCase):
         self.assertEqual(docx_write.main(["no-such-file.md", "out.docx"]), 2)
 
 
+class TheFourDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
+    r"""#215 follow-up. Four defects, found by reading the rendered document rather
+    than the code, and every one of them invisible in the Markdown source.
+
+    They are pinned together because they were found together and because they
+    share the property that makes them expensive: **the Markdown looked correct and
+    the ``.docx`` did not.** ``TheRoundTrip`` above cannot see any of them --
+    ``docx_read`` reads ``word/document.xml`` and three of these live in
+    ``word/numbering.xml`` or in cell properties -- so each takes an assertion
+    about the part that actually carries the behavior.
+    """
+
+    def test_the_bullet_glyph_is_symbol_encoded(self):
+        """A box, not a bullet. The run is set in ``Symbol``, which Word looks up by
+        code point *in Symbol*; it has no glyph at U+2022, so the bullet rendered as
+        an empty square -- *"I don't know what those square blocks are supposed to
+        be"*."""
+        numbering = docx_write.numbering_xml(1)
+        markers = re.findall(r'<w:lvlText w:val="([^"]*)"/>', numbering)
+        bullets = [m for m in markers if not m.startswith("%")]
+        self.assertTrue(bullets, "no bullet level found")
+        for marker in bullets:
+            self.assertEqual(marker, "")
+            self.assertNotEqual(marker, "•")
+
+    def test_each_section_gets_its_own_numbered_list(self):
+        """Two lists under two headings are two ``w:num`` entries, which is the
+        whole restart mechanism: Word restarts numbering per ``numId``, so lists
+        sharing one are a single list however far apart they sit."""
+        body, count = docx_write.render_body(
+            "## One\n\n1. a\n2. b\n\n## Two\n\n1. c\n2. d\n"
+        )
+        self.assertEqual(count, 2)
+        used = sorted(set(re.findall(r'<w:numId w:val="(\d+)"/>', body)))
+        self.assertEqual(used, ["2", "3"], "the two lists must not share a numId")
+        declared = re.findall(
+            r'<w:num w:numId="(\d+)">', docx_write.numbering_xml(count)
+        )
+        self.assertEqual(declared, ["1", "2", "3"])
+
+    def test_a_paragraph_between_items_does_not_restart_the_list(self):
+        """The mirror of the rule above, and the reason the reset is keyed on a
+        heading rather than on any interruption: an MDM entry may run to a second
+        paragraph without becoming a second list."""
+        body, count = docx_write.render_body("## One\n\n1. a\n\nprose\n\n2. b\n")
+        self.assertEqual(count, 1)
+        self.assertEqual(set(re.findall(r'<w:numId w:val="(\d+)"/>', body)), {"2"})
+
+    def test_an_escaped_pipe_is_content_and_not_a_column(self):
+        r"""``\|`` is a literal pipe. It used to split the cell and leave the
+        backslash sitting in the text -- *"the patient carries a \ and so does the
+        end of my titles"*."""
+        self.assertEqual(
+            docx_write.split_row(r"| `<patient>` \| `DOB x-x-xxx` |"),
+            ["`<patient>` | `DOB x-x-xxx`"],
+        )
+        self.assertEqual(docx_write.split_row("| a | b |"), ["a", "b"])
+        self.assertNotIn("\\", docx_write.split_row(r"| x \| y |")[0])
+
+    def test_the_sheets_own_entity_spelling_is_also_a_pipe(self):
+        """``style.md`` section 8 wrote the separator as ``&#124;``, which ``esc``
+        would otherwise render literally -- so the sheet and a run that copies it
+        both arrive at one pipe."""
+        self.assertEqual(docx_write.split_row("| a &#124; b |"), ["a | b"])
+
+    def test_a_short_row_merges_instead_of_padding_the_left_column(self):
+        """The ``Rx:`` layout. One cell spans the table; a two-cell row puts the
+        first on the left and the second on the right. Before this, a short row was
+        right-padded with empties -- *"everything was put into the left sided
+        column"*."""
+        rows = [
+            ["", "", ""],
+            ["patient", "dob", "npi"],
+            ["drug"],
+            ["Refill: none", "DEA"],
+        ]
+        xml = docx_write.table(rows)
+        spans = re.findall(r'<w:gridSpan w:val="(\d+)"/>', xml)
+        self.assertEqual(spans, ["3", "2"], "one full-width merge, one right cell")
+        self.assertIn('<w:jc w:val="right"/>', xml)
+
+    def test_a_rectangular_table_gains_no_spans(self):
+        """The intake and results tables must be untouched by the merge rule, which
+        is what keeps this a fix rather than a second layout."""
+        xml = docx_write.table([["Field", "Value"], ["Age", "26 years"]])
+        self.assertNotIn("w:gridSpan", xml)
+        self.assertNotIn('<w:jc w:val="right"/>', xml)
+
+    def test_bold_carrying_an_italic_span_emits_no_literal_asterisk(self):
+        """The fifth defect, and the one the clinician spotted as *"a * slipped
+        past"*: an italicised organism name inside a bold statement used to have its
+        asterisks rendered as text, in the Most Likely Clinical Diagnosis line."""
+        xml = docx_write.runs(
+            "**Acute PID due to *Neisseria gonorrhoeae*, complicating pregnancy.**"
+        )
+        self.assertNotIn("*", xml)
+        self.assertIn("<w:b/><w:i/>", xml)
+        self.assertIn("Neisseria gonorrhoeae", xml)
+
+    def test_an_unnested_bold_span_is_unchanged(self):
+        """The nesting branch must not fire on ordinary bold, which is almost all
+        of it."""
+        xml = docx_write.runs("**plain bold**")
+        self.assertEqual(xml.count("<w:r>"), 1)
+        self.assertIn("<w:b/>", xml)
+        self.assertNotIn("<w:i/>", xml)
+
+    def test_the_rendered_document_still_opens_as_xml(self):
+        """Every edit above writes into a part Word parses, and a malformed part is
+        a file Word declines to open rather than one that looks wrong."""
+        source = (
+            "## A\n\n1. one\n\n- b\n\n| x | y | z |\n| --- | --- | --- |\n| p |\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "out.docx"
+            docx_write.write_docx(source, path)
+            with zipfile.ZipFile(path) as archive:
+                for name in archive.namelist():
+                    if name.endswith(".xml"):
+                        ElementTree.fromstring(archive.read(name))
+
+
 if __name__ == "__main__":
     unittest.main()
