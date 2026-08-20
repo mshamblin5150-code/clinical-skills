@@ -263,14 +263,18 @@ HYPHEN_PIN = re.compile(r"[ \t]-[ \t]+$")
 NOT_VALIDATED_AGAINST = (
     (
         "the exit-1 path on committed input",
-        "The exit-1 path fires on nothing committed and never will. A run directory "
-        "is a patient record under gitignored ``scratch/`` or ``output/``, so no run "
-        "can be committed and CI can never see one -- every test of the violation "
-        "path builds a synthetic note. ``research_ledger.py`` and "
-        "``reference_scan.py`` have the same property for the same reason, so it is "
-        "a class of three rather than a fixture that went stale. What the tests "
-        "below can still do is re-derive that no committed set reaches it, which is "
-        "the honest half of the claim.",
+        "The exit-1 path fires on nothing committed, and every test of it builds a "
+        "synthetic note. **Not because a run cannot be committed** -- one has been, "
+        "and the first draft of this row said otherwise while the row below it "
+        "named two, which is a declared-limits object contradicting itself and is "
+        "why this one is worded from the tree rather than from the argument. A run "
+        "is ordinarily a patient record under gitignored ``scratch/`` or "
+        "``output/``; the exception was redacted by hand, predates the mandated slot "
+        "form, and parses no differential entry, so it cannot reach this path "
+        "either. Committing one that could is what #162 prices at a run plus a "
+        "human redaction pass. ``research_ledger.py`` and ``reference_scan.py`` hold "
+        "the stronger form of this -- their subjects are a claim and a draft written "
+        "about a patient, with no redacted shape to commit at all.",
     ),
     (
         "the aggregate of the exit-2 limbs",
