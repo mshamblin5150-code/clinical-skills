@@ -262,9 +262,8 @@ class TheSiblingsParserCannotBeReused(unittest.TestCase):
 class TheReportCarriesNoBodyText(unittest.TestCase):
     """The property the *no ``--show``* claim rests on, driven rather than argued.
 
-    Every row fires on a body drawn from a fixed set bar one, and that one --
-    the literal path -- is the reason this is a test and not a paragraph: it is
-    the only row whose trigger is run-authored text.
+    The encoding row reads arbitrary prose, so the report's safety rests on the
+    body never reaching it rather than on every trigger coming from a fixed set.
     """
 
     def test_a_marker_in_a_body_never_reaches_the_report(self):
@@ -508,6 +507,16 @@ class TheCommandLine(unittest.TestCase):
             path = self.write(Path(tmp), "t.json", harvest(issue(6, "@-")))
             _, out, _ = self.run_main(str(path))
             self.assertIn("https://github.com/O/R/issues/6", out)
+
+    def test_a_comment_finding_does_not_offer_the_issue_edit_command(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(
+                Path(tmp), "t.json", harvest(comment(1, mojibake_em_dash))
+            )
+            _, _, err = self.run_main(str(path))
+            self.assertNotIn("gh issue edit", err)
+            self.assertIn("matching GitHub edit path", err)
 
 
 class TheDocSaysWhatThisChecks(unittest.TestCase):

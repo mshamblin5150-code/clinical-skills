@@ -490,8 +490,7 @@ def main(argv: list[str], stdin=None) -> int:
     if scan.findings:
         print(
             f"{len(scan.findings)} body/bodies failed tracker checks."
-            " Rewrite each with 'gh issue edit <n> --body-file -'"
-            " and read it back.",
+            " Repair each through its matching GitHub edit path and read it back.",
             file=sys.stderr,
         )
         return FOUND
