@@ -77,6 +77,17 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 ## Pull requests as a triage surface
 
+### Check closing keywords before merge
+
+GitHub scans a pull request's title, body, and commit messages for closing keywords. It does not honor prose intent or Markdown quoting: a sentence explaining that a form would have settled a ticket can itself settle it. Run the repository scanner over all three fields before merging:
+
+```bash
+gh pr view <number> --json title,body,commits |
+  python tools/closing_keyword_scan.py --github-json -
+```
+
+The only allowed binding is `Closes #N` alone on its own line, when the whole ticket is done. Use `Implements #N's lead 1` or `Part of #N` for partial work. The local `commit-msg` hook checks commit messages, and CI checks PR text on edits plus every commit in a push to `main`, both advisory; the command above is the pre-merge check that reaches the whole PR artifact. Issue #183.
+
 **PRs as a request surface: no.**
 
 ## When a skill says "publish to the issue tracker"

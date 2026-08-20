@@ -30,12 +30,17 @@ on:
   # moves, so a PR opened before another one lands can still go green on a
   # stale merge; the `push` trigger above is what catches that on the way in.
   pull_request:
+    # A PR body is written after its commits and can be edited again without a
+    # branch update. `edited` is the surface #183 found after commit messages
+    # were already clean; the other three preserve GitHub's default triggers.
+    types: [opened, synchronize, reopened, edited]
   # A merge that has already landed is the one moment somebody wants to re-run
   # a check against a tree neither parent had.
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   suite:
@@ -44,6 +49,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # A push may carry more than one commit. Its `before..sha` range must
+          # exist locally or the last clean message can hide an earlier hazard.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
@@ -54,6 +63,29 @@ jobs:
 
       - name: Interpreter
         run: python -VV
+
+      # #183 has three surfaces. The local hook sees commit messages, while a
+      # PR title/body is created later and the final merge message later still.
+      # A PR run grades its metadata and every commit message through GitHub's
+      # own JSON; a push to main grades every commit in the pushed range. The
+      # latter is detection after a close, not prevention, and the advisory
+      # label says so instead of presenting this as a gate it cannot be.
+      - name: Closing keyword scan, advisory
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            gh pr view $env:PR_NUMBER --json title,body,commits |
+              python tools/closing_keyword_scan.py --github-json -
+          } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git log --format=%B "$env:BEFORE_SHA..$env:GITHUB_SHA" |
+              python tools/closing_keyword_scan.py -
+          } else {
+            git log -1 --format=%B | python tools/closing_keyword_scan.py -
+          }
 
       # Before the suite, so it is on the page even when the suite dies. The
       # report is computed by the scanner from its own inputs rather than
