@@ -197,7 +197,7 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         self.assertIn("**Row 23 is appended for the reason rows 14 through 22 were.", self.text)
 
     def test_no_row_was_renumbered(self):
-        # The cheap guard on the convention: 25 rows, numbered 1 to 25 in order.
+        # The cheap guard on the convention: 26 rows, numbered 1 to 26 in order.
         # Scoped to rows whose second cell is a bolded test name, which is the
         # drift matrix's own shape -- an unrelated numbered table added to this
         # file later must not fail this test for a reason that is not about it.
@@ -207,11 +207,11 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # which is the exact move "append, never insert" exists to refuse, and
         # which silently redirects every citation of rows 14 and up across four
         # fixture sets and ADR 0001. Read 23 until #85 added row 24; #132 appended
-        # row 25.
+        # row 25; #159 appended row 26.
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 26)))
+        self.assertEqual(numbers, list(range(1, 27)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):

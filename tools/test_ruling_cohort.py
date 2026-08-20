@@ -413,9 +413,9 @@ class TheRowTotalsAreReDerived(unittest.TestCase):
             text,
         )
 
-    def test_day_a_holds_thirty_four_rows_and_says_so(self):
-        self.assertEqual(len(_row_ids(DAY_A)), 34)
-        self.assertIn("the set now holds 34", DAY_A.read_text(encoding="utf-8"))
+    def test_day_a_holds_thirty_five_rows_and_says_so(self):
+        self.assertEqual(len(_row_ids(DAY_A)), 35)
+        self.assertIn("the set now holds 35", DAY_A.read_text(encoding="utf-8"))
 
     def test_the_sets_table_carries_the_same_totals(self):
         # It read `31 of 31` for day-a while day-a's own file read `31 of 32`,
