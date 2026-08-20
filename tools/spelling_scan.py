@@ -113,7 +113,6 @@ TABLE = {
     "colour": "color",
     "tumour": "tumor",
     "labelled": "labeled",
-    "recognisable": "recognizable",
     "programme": "program",
     "licence": "license",
     "neighbour": "neighbor",
