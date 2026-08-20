@@ -386,13 +386,18 @@ def runs(text: str, bold: bool = False) -> str:
             is_italic, body = True, piece[1:-1]
         elif piece.startswith("`") and piece.endswith("`") and len(piece) > 2:
             is_mono, body = True, piece[1:-1]
+        # ``CT_RPr`` is a sequence like ``CT_PPrBase`` in ``para`` above --
+        # ``rStyle``, ``rFonts``, ``b``, ``i`` -- and Word refuses a file whose
+        # run properties arrive out of order. ``rFonts`` therefore goes first.
+        # This was unreachable from body text until bold learned to nest, and a
+        # bold span carrying a monospace one now produces both at once.
         props = ""
+        if is_mono:
+            props += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>'
         if is_bold:
             props += "<w:b/>"
         if is_italic:
             props += "<w:i/>"
-        if is_mono:
-            props += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>'
         rpr = "<w:rPr>{p}</w:rPr>".format(p=props) if props else ""
         out.append(
             '<w:r>{rpr}<w:t xml:space="preserve">{t}</w:t></w:r>'.format(rpr=rpr, t=esc(body))
@@ -660,7 +665,13 @@ def render_body(markdown: str):
     return "".join(out), decimal_lists
 
 
-def document_xml(markdown: str) -> str:
+def document_xml(markdown: str, body: str = None) -> str:
+    # ``body`` is accepted so ``write_docx`` can parse once and spend the result
+    # on both parts. ``render_body``'s docstring is explicit that a second pass
+    # over the same Markdown is a second parser to keep in step; this function
+    # took one anyway until #215's follow-up review caught it.
+    if body is None:
+        body = body_xml(markdown)
     # ``headerReference`` is the first child of ``sectPr`` because the schema puts it
     # there; a reference written after ``pgSz`` is a file Word declines to open.
     sect = (
@@ -672,7 +683,7 @@ def document_xml(markdown: str) -> str:
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         "<w:document {w} {r}><w:body>{b}{s}</w:body></w:document>"
-    ).format(w=W, r=R, b=body_xml(markdown), s=sect)
+    ).format(w=W, r=R, b=body, s=sect)
 
 
 def write_docx(markdown: str, destination) -> Path:
@@ -684,9 +695,10 @@ def write_docx(markdown: str, destination) -> Path:
         archive.writestr("_rels/.rels", ROOT_RELS)
         archive.writestr("word/_rels/document.xml.rels", DOC_RELS)
         archive.writestr("word/styles.xml", STYLES)
-        archive.writestr("word/numbering.xml", numbering_xml(render_body(markdown)[1]))
+        body, decimal_lists = render_body(markdown)
+        archive.writestr("word/numbering.xml", numbering_xml(decimal_lists))
         archive.writestr("word/header1.xml", HEADER)
-        archive.writestr("word/document.xml", document_xml(markdown))
+        archive.writestr("word/document.xml", document_xml(markdown, body))
     return destination
 
 

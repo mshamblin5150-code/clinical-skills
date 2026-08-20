@@ -679,6 +679,49 @@ class TheFourDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         self.assertIn("<w:b/>", xml)
         self.assertNotIn("<w:i/>", xml)
 
+    def test_run_properties_arrive_in_schema_order(self):
+        """``CT_RPr`` is a sequence -- ``rStyle``, ``rFonts``, ``b``, ``i`` -- and
+        Word refuses a file whose properties arrive out of order, exactly as
+        ``para``'s docstring says of ``CT_PPrBase``. Bold learning to nest made a
+        bold-plus-monospace run reachable from ordinary body text for the first
+        time, and it was emitting ``<w:b/>`` before ``<w:rFonts/>``."""
+        for text, bold in (
+            ("**see `tools/x.py` now**", False),
+            ("`code`", True),
+            ("**a *b* and `c`**", False),
+        ):
+            xml = docx_write.runs(text, bold=bold)
+            for props in re.findall(r"<w:rPr>(.*?)</w:rPr>", xml):
+                order = [
+                    props.index(tag)
+                    for tag in ("<w:rFonts", "<w:b/>", "<w:i/>")
+                    if tag in props
+                ]
+                self.assertEqual(
+                    order, sorted(order), "out of CT_RPr order: " + props
+                )
+
+    def test_the_body_is_parsed_once_per_render(self):
+        """``render_body``'s docstring rejects a second pass over the same Markdown
+        as a second parser to keep in step. ``write_docx`` took one anyway, for the
+        numbering count, until the #215 follow-up review caught it."""
+        calls = []
+        original = docx_write.render_body
+
+        def counted(markdown):
+            calls.append(markdown)
+            return original(markdown)
+
+        docx_write.render_body = counted
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                docx_write.write_docx(
+                    "## A\n\n1. one\n", Path(directory) / "once.docx"
+                )
+        finally:
+            docx_write.render_body = original
+        self.assertEqual(len(calls), 1, "the body was parsed more than once")
+
     def test_the_rendered_document_still_opens_as_xml(self):
         """Every edit above writes into a part Word parses, and a malformed part is
         a file Word declines to open rather than one that looks wrong."""
