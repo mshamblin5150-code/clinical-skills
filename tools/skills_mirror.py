@@ -1,4 +1,4 @@
-"""Check that .claude/skills/ mirrors skills/ by link, and repair it when it does not.
+r"""Check that .claude/skills/ mirrors skills/ by link, and repair it when it does not.
 
 `.claude/skills/` is how Claude Code loads this repo's skills natively. README.md
 tells you to make each entry a **junction** to the canonical `skills/<name>/`, so
@@ -24,10 +24,29 @@ otherwise. Nothing here needs to know which link flavor made it.
 only until the next edit to `skills/`; `identical` and `stale` differ in how much time
 is left, not in whether the wiring is broken.
 
+**A difference in line endings alone is named rather than normalized away.** `filecmp`
+is byte-exact, so a mirror copy made before anything rewrote a skill file with `\n`
+reads `copy-stale` on carriage returns and nothing else -- and `copy-stale` is the word
+this repo cites as evidence that an agent has *already* followed a retired rule. #93's
+one citable instance is in a worktree that is gone, so it can no longer be told apart
+from three carriage returns, which is the cost. Normalizing the comparison was declined:
+a copy that differs on disk is still a copy, and a byte check is the thing that cannot
+be argued with. **So the comparison is untouched and every differing file carries its
+reason** -- `content` or `line endings only` -- with both counts printed on every run,
+whether or not each fired.
+
+**`_normalized` is where the rule that decides the word lives**, and it is the only
+authoritative statement of it -- every other one in the tree, this paragraph included,
+describes that line. A file the copy does not hold at all counts as content, because it
+is not carriage returns, which is the whole question the split answers; and the partition
+is two-way so the two counts sum to the total, which is the one thing a reader checks the
+summary line against.
+
 **Output is paths and status words only.** It reads `skills/` and `.claude/skills/`,
 neither of which may contain PHI under standing rule 1, and it never prints file
-contents. Its output is safe to paste into a ticket, like `corpus_census.py` and
-unlike `harvest_review.py`.
+contents. The reason beside a differing file is one of two fixed strings held here
+rather than anything read out of the file. Its output is safe to paste into a ticket,
+like `corpus_census.py` and unlike `harvest_review.py`.
 """
 
 from __future__ import annotations
@@ -39,6 +58,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Iterable, NamedTuple
 
 from console_codec import use_utf8
 
@@ -61,6 +81,47 @@ NOT_A_DIR = "not-a-directory"
 # Everything except LINKED is a finding. MISSING is the mildest -- the skill simply
 # does not load -- and STALE is the one that answers questions wrongly.
 OK_STATUSES = {LINKED}
+
+# Why a file under a STALE copy differs. Two values and no third, so the counts in
+# the report sum to the number of differing files. #198.
+CONTENT = "content"
+LINE_ENDINGS = "line endings only"
+
+
+class Difference(NamedTuple):
+    """One file the copy gets wrong, and which of the two ways it gets it wrong.
+
+    A plain pair would compare and sort identically; naming the fields is what stops
+    `differs` reading as a list of paths at the one signature a reader checks.
+    """
+
+    rel: str
+    reason: str
+
+
+def _normalized(data: bytes) -> bytes:
+    r"""`\r\n` -> `\n`, and nothing else. **This function is the rule.**
+
+    Deliberately not *strip every* `\r`, so a lone carriage return sitting inside
+    content stays a content difference -- under-claiming that a difference is
+    harmless is the safe direction. Every other statement of this in the tree is a
+    description of this line and none of them is authoritative.
+    """
+    return data.replace(b"\r\n", b"\n")
+
+
+def difference_reason(canonical_file: Path, mirror_file: Path) -> str | None:
+    """CONTENT, LINE_ENDINGS, or None when the two files are byte-identical.
+
+    The byte comparison comes first and decides *whether* they differ. Normalization
+    only ever names a difference the byte check has already found, which is what
+    keeps `copy-stale` byte-exact.
+    """
+    if filecmp.cmp(canonical_file, mirror_file, shallow=False):
+        return None
+    if _normalized(canonical_file.read_bytes()) == _normalized(mirror_file.read_bytes()):
+        return LINE_ENDINGS
+    return CONTENT
 
 
 def repo_root(start: Path | None = None) -> Path:
@@ -94,14 +155,19 @@ def skill_names(root: Path) -> list[str]:
     )
 
 
-def _differing_files(canonical: Path, mirror: Path) -> tuple[list[str], list[str]]:
-    """(files that differ or are missing from the mirror, files only in the mirror).
+def _differing_files(
+    canonical: Path, mirror: Path,
+) -> tuple[list[Difference], list[str]]:
+    """(one Difference per file that differs or is missing, files only in the mirror).
 
     The second list is the one that blocks repair. A file present only in the copy
     is either someone's stray edit or work that never reached `skills/`, and either
     way deleting the copy would be the only record of it going away.
+
+    A file the mirror does not hold is CONTENT rather than a third reason -- see the
+    module docstring for why the partition is two-way.
     """
-    differs: list[str] = []
+    differs: list[Difference] = []
     extra: list[str] = []
 
     canonical_rel = {
@@ -114,18 +180,26 @@ def _differing_files(canonical: Path, mirror: Path) -> tuple[list[str], list[str
     }
 
     for rel in sorted(canonical_rel - mirror_rel):
-        differs.append(rel)
+        differs.append(Difference(rel, CONTENT))
     for rel in sorted(mirror_rel - canonical_rel):
         extra.append(rel)
     for rel in sorted(canonical_rel & mirror_rel):
-        if not filecmp.cmp(canonical / rel, mirror / rel, shallow=False):
-            differs.append(rel)
+        reason = difference_reason(canonical / rel, mirror / rel)
+        if reason is not None:
+            differs.append(Difference(rel, reason))
 
     return sorted(differs), extra
 
 
 class Entry:
-    def __init__(self, name: str, status: str, differs=(), extra=(), target=None):
+    def __init__(
+        self,
+        name: str,
+        status: str,
+        differs: Iterable[Difference] = (),
+        extra: Iterable[str] = (),
+        target: Path | None = None,
+    ):
         self.name = name
         self.status = status
         self.differs = list(differs)
@@ -135,6 +209,20 @@ class Entry:
     @property
     def ok(self) -> bool:
         return self.status in OK_STATUSES
+
+    def _differs_for(self, reason: str) -> list[str]:
+        return [d.rel for d in self.differs if d.reason == reason]
+
+    @property
+    def content_differs(self) -> list[str]:
+        """The files a reader has to act on. This is the drift `copy-stale` means."""
+        return self._differs_for(CONTENT)
+
+    @property
+    def endings_differs(self) -> list[str]:
+        """The files that differ and say nothing about drift. Still a copy, still
+        a finding, and not evidence that a rule was answered wrongly."""
+        return self._differs_for(LINE_ENDINGS)
 
 
 def inspect(root: Path) -> list[Entry]:
@@ -248,15 +336,24 @@ def render(entries: list[Entry], root: Path, verbose: bool) -> list[str]:
         mark = "ok  " if entry.ok else "WARN"
         detail = ""
         if entry.status == STALE:
-            detail = f" ({len(entry.differs)} file(s) differ)"
+            # Both counts on every run, whether or not each fired. A reader who has
+            # learned to read one of them reads its absence as the other being zero,
+            # which is checks_ledger.py's argument for naming its rows unconditionally.
+            detail = (
+                f" ({len(entry.differs)} file(s) differ: "
+                f"{len(entry.content_differs)} {CONTENT}, "
+                f"{len(entry.endings_differs)} {LINE_ENDINGS})"
+            )
         elif entry.status == FOREIGN:
             detail = f" -> {entry.target}"
         elif entry.status == IDENTICAL:
             detail = " (matches today, will drift)"
         lines.append(f"  {mark} {entry.name:<{width}}  {entry.status}{detail}")
         if verbose and entry.differs:
-            for rel in entry.differs:
-                lines.append(f"         differs: {rel}")
+            for difference in entry.differs:
+                lines.append(
+                    f"         differs ({difference.reason}): {difference.rel}"
+                )
         if entry.extra:
             for rel in entry.extra:
                 lines.append(f"         only in mirror: {rel}")
@@ -268,6 +365,17 @@ def render(entries: list[Entry], root: Path, verbose: bool) -> list[str]:
             f"{len(broken)} of {len(entries)} skill(s) are not linked. An agent "
             "reading the mirror may follow a retired rule."
         )
+        # That sentence is what `copy-stale` is cited for, and it is the claim a
+        # CRLF-only difference cannot support. The rows above already say which kind
+        # each file is; this qualifies the sentence a skimming reader actually reads,
+        # which is #198's stated harm rather than the row. Withdrawn by a single
+        # content difference anywhere, because the sentence is about the whole report.
+        found = [d for e in entries for d in e.differs]
+        if found and not any(d.reason == CONTENT for d in found):
+            lines.append(
+                "No copy differs in content: every difference found is line endings "
+                "only, which is not evidence a rule has been answered wrongly."
+            )
         lines.append("Repair with: python tools/skills_mirror.py --repair")
     return lines
 

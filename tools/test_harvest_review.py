@@ -111,7 +111,7 @@ class Rendering(unittest.TestCase):
     def test_it_shows_the_string_and_its_context(self):
         out = self.render([JORDAN], {"reaction latex"})
         self.assertIn("'reaction latex'", out)
-        self.assertIn("denies fever", out)      # a neighbouring line
+        self.assertIn("denies fever", out)      # a neighboring line
         self.assertIn("    > reaction latex", out)  # the disputed line, marked
 
     def test_a_clean_review_says_so_and_offers_nothing_to_paste(self):

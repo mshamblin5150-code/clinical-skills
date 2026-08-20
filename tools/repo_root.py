@@ -1,4 +1,20 @@
-"""Which checkout holds the corpus, which is not the one this file is in.
+"""Which checkout holds the corpus, and which paths are inside a checkout at all.
+
+Two questions about the same subject, and both used to be answered in several
+places at once. ``main_repo_root`` and ``scratch_root`` are #93's half: *which
+tree am I standing in*. ``enclosing_checkout`` and ``ensure_outside_checkout``
+are #176's: *would writing here land inside one*. They share the fact that a
+worktree's ``.git`` is a file rather than a directory, which is the detail every
+copy of either had to get right independently.
+
+**This module is infrastructure rather than a tool another tool happens to
+need**, which is the line ``CLAUDE.md`` draws around ``console_codec.py`` and the
+test #253 states for when a helper may be shared: depending on it is the point,
+not that two callers currently agree. A policy about where an artifact may land
+passes that test -- #176's four writers were not converging by accident, they
+were each encoding one rule about one repository. ``keyword_of`` fails it, and
+stays copied.
+
 
 ``Path(__file__).resolve().parent.parent`` is the **worktree** root. That is the
 right answer for almost everything in ``tools/`` -- a test reading a committed
@@ -16,7 +32,7 @@ worktrees.
 **One place, because the ticket asked for one place.** #93's body says *if the
 resolution changes, it should change in one place*, and when it was filed there
 was none. ``main_repo_root`` already existed in ``guidelines_index.py``, written
-for a different symptom of the same trap -- defaulting a 65 MB index relative to
+for a different symptom of the same trap -- defaulting the index relative to
 a worktree puts it *inside* the repo while reading as outside one. It moved here
 rather than being copied.
 
@@ -44,6 +60,7 @@ fact, readable.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 
@@ -84,3 +101,95 @@ def scratch_root(start: Path | None = None) -> Path:
     Absence is a finding, and the caller is the one that has to report it.
     """
     return main_repo_root(start) / "scratch"
+
+
+class InsideCheckout(ValueError):
+    """A build artifact was aimed at a path inside a git checkout.
+
+    **One exception type, because a caller could not handle *refused* uniformly**
+    -- #176. The three writers raised ``SystemExit``, a module-local
+    ``InsideRepo`` and nothing at all, so a fourth author choosing between them
+    had three answers to pick from and wrote a fourth.
+
+    A ``ValueError`` rather than a ``SystemExit``: this is a library refusal, and
+    a command line that wants to exit converts it at its own boundary. The
+    reverse cannot be done -- a helper raising ``SystemExit`` takes the decision
+    to terminate away from every caller that is not a ``main``.
+
+    ``target`` and ``checkout`` are carried rather than only formatted, because
+    **the callers' reasons genuinely differ and the detection does not**: one is
+    protecting an artifact from being materialized into every worktree, one
+    is protecting a society's copyrighted expression (#87), and one is protecting
+    a list of patient names. The rule is shared; the sentence is the caller's.
+    """
+
+    def __init__(self, target: Path, checkout: Path, detail: str = "") -> None:
+        self.target = target
+        self.checkout = checkout
+        self.detail = detail
+        message = (
+            f"refusing to write inside a git checkout: {target}\n"
+            f"  {checkout} is a repository."
+        )
+        super().__init__(f"{message}\n{detail}" if detail else message)
+
+
+def enclosing_checkout(
+    path: Path | str, permitted: Iterable[Path | str] = ()
+) -> Path | None:
+    """The git checkout this path would land in, or ``None``.
+
+    **Walks up for a ``.git`` entry, which is the stronger of the two rules #176
+    found.** Comparing against a list of known roots -- the worktree plus the
+    clone that owns it -- misses a *sibling* worktree, and under
+    ``.claude/worktrees/`` a sibling is the ordinary case here rather than an
+    exotic one. It also misses any other repository the maintainer keeps nearby.
+    The walk catches all three for the same cost.
+
+    **A worktree's ``.git`` is a file, not a directory**, so this tests for
+    existence and never for directory-ness. That is the detail each of the three
+    copies had to get right independently.
+
+    **The target itself is walked, not only its parents.** A directory target may
+    *be* a checkout -- ``--out C:/codeing/clinical_skills`` -- and a rule that
+    started at the parent would bless it.
+
+    ``permitted`` is the parameter a shared rule needs and a single rule cannot
+    have. ``name_index`` writes a list of patient names *inside* the repo on
+    purpose, under ``scratch/``: it is gitignored, and ``phi_scan``'s path layer
+    refuses a commit from there even under ``git add -f``. Each entry is a
+    **resolved directory** and never a path component -- keyed on the name it
+    would bless somebody else's ``~/scratch/`` on a coincidence, which is the
+    narrowing that module found on its own first version. Containment is path
+    ancestry rather than a string prefix, so ``scratch-old`` is not ``scratch``.
+
+    **It answers *where*, and deliberately not *whose*.** Which directory a given
+    worktree should write into is #276, and nothing here constrains it: the
+    defaults live with the tools that own them, and a per-worktree output root is
+    a change to a default rather than to this rule.
+    """
+    target = Path(path).expanduser().resolve()
+    for allowed in permitted:
+        if target.is_relative_to(Path(allowed).expanduser().resolve()):
+            return None
+    for candidate in (target, *target.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def ensure_outside_checkout(
+    path: Path | str,
+    permitted: Iterable[Path | str] = (),
+    detail: str = "",
+) -> Path:
+    """The resolved target, or ``InsideCheckout`` naming what it landed in.
+
+    ``detail`` is the caller's own sentence -- why *this* artifact must stay out
+    -- appended to the two facts every refusal states.
+    """
+    target = Path(path).expanduser().resolve()
+    checkout = enclosing_checkout(target, permitted)
+    if checkout is not None:
+        raise InsideCheckout(target, checkout, detail)
+    return target

@@ -309,7 +309,7 @@ class TheFixtureRowSaysWhatItCounts(unittest.TestCase):
     def test_neither_recorded_digit_is_restated(self):
         # #70 put re-running day-b and re-scoring either run out of scope. This
         # sentence is what stops a later pass reading the new definition as
-        # licence to move a recorded score.
+        # license to move a recorded score.
         self.assertIn(
             "Neither run's `CODING` digit is restated here", self.text
         )
