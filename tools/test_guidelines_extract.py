@@ -37,6 +37,7 @@ import tempfile
 import unicodedata
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import guidelines_extract as extract
 import guidelines_index as index
@@ -1518,6 +1519,8 @@ class WritingADocument(unittest.TestCase):
 
     def setUp(self):
         self.out = Path(tempfile.mkdtemp())
+        self.producer = extract.artifact_provenance.current_producer()
+        self.producer["dirty"] = False
 
     def record(self, pages=AHA, name="AHA ACC/paper.pdf"):
         return extract.build_document(Path(name), pages, self.out)
@@ -1641,6 +1644,23 @@ class WritingADocument(unittest.TestCase):
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertIn("guidelines-src", manifest["source"])
 
+    def test_the_manifest_names_the_clean_commit_that_produced_it(self):
+        producer = {"commit": "a" * 40, "dirty": False}
+        with mock.patch.object(
+            extract.artifact_provenance,
+            "current_producer",
+            return_value=producer,
+        ):
+            extract.write_manifest(
+                self.out,
+                [self.record()],
+                Path("C:/codeing/guidelines-src"),
+            )
+
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["producer"], producer)
+
 
 class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
     """#84 landed first and reads this output, so the contract is executable here.
@@ -1657,12 +1677,19 @@ class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
 
     def setUp(self):
         self.out = Path(tempfile.mkdtemp())
+        self.producer = extract.artifact_provenance.current_producer()
+        self.producer["dirty"] = False
         self.records = [
             extract.build_document(Path("AHA ACC/paper.pdf"), AHA, self.out, "A Guideline"),
             extract.build_document(Path("ACIP/adult.pdf"), ACIP, self.out),
             extract.failed_document(Path("IDSA/broken.pdf"), "PdfReadError: x"),
         ]
-        extract.write_manifest(self.out, self.records, Path("C:/codeing/guidelines-src"))
+        extract.write_manifest(
+            self.out,
+            self.records,
+            Path("C:/codeing/guidelines-src"),
+            producer=self.producer,
+        )
         self.documents = {doc.doc_id: doc for doc in index.discover(self.out)}
 
     def test_the_manifest_is_a_shape_the_indexer_accepts(self):
@@ -1692,7 +1719,12 @@ class TheIndexerCanReadWhatThisWrites(unittest.TestCase):
         # Dropping it would slide every later citation by one, and a citation off
         # by a page is worse than no citation.
         extract.build_document(Path("KDIGO/gappy.pdf"), ["one", "", "three"], self.out)
-        extract.write_manifest(self.out, self.records, Path("C:/codeing/guidelines-src"))
+        extract.write_manifest(
+            self.out,
+            self.records,
+            Path("C:/codeing/guidelines-src"),
+            producer=self.producer,
+        )
         pages = {d.doc_id: d for d in index.discover(self.out)}["KDIGO/gappy"].pages
         self.assertEqual([page.number for page in pages], [1, 2, 3])
         self.assertIn("three", pages[2].text)

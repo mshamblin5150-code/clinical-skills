@@ -29,12 +29,13 @@ search cannot reach "renal replacement therapy" from "kidney failure"; the agent
 supplying the synonyms can. Firing six exact queries with provenance on every hit is
 the answer to that, so positional arguments repeat.
 
-**A missing index is not zero hits.** Exit status is 0 for hits, 1 for a genuine zero,
-and 2 for every way of not having searched -- no index, a file that is not one, one
-built by another schema version, a query that would not parse, or a ``--class`` or
-``--society`` value no document in the index carries. An index that had quietly failed
-to build would otherwise answer every clinical question with silence and look like a
-settled negative.
+**A missing or unowned index is not zero hits.** Exit status is 0 for hits, 1 for a
+genuine zero, and 2 for every way of not having searched -- no index, a file that is
+not one, one built by another schema or commit, one carrying inherited distrust from
+its source manifest, a query that would not parse, or a ``--class`` or ``--society``
+value no document in the index carries. ``--allow-untrusted-provenance`` is explicit
+and warns. An index that had quietly failed to build would otherwise answer every
+clinical question with silence and look like a settled negative.
 
 **That last limb is #185's**, and it is the same defect one level up. The catalog and
 the extractor held two ``class`` vocabularies overlapping on ``guideline`` alone, so
@@ -69,6 +70,8 @@ querying costs no dependency at all.
 from __future__ import annotations
 
 import argparse
+import artifact_provenance
+import json
 import re
 import sqlite3
 import sys
@@ -119,7 +122,9 @@ class Hit:
     from_snippet: bool  # True when no single line carried a query term; see `_best_line`
 
 
-def open_index(path: Path | str | None = None) -> sqlite3.Connection:
+def open_index(
+    path: Path | str | None = None, *, allow_untrusted_provenance: bool = False
+) -> sqlite3.Connection:
     """Open the index read-only, or raise loudly. Never returns an empty index."""
     target = Path(path) if path is not None else default_database()
     if not target.exists():
@@ -131,21 +136,30 @@ def open_index(path: Path | str | None = None) -> sqlite3.Connection:
         )
     connection = sqlite3.connect(f"file:{Path(target).as_posix()}?mode=ro", uri=True)
     try:
-        row = connection.execute(
-            "SELECT value FROM meta WHERE key = 'schema_version'"
-        ).fetchone()
+        meta = dict(connection.execute("SELECT key, value FROM meta").fetchall())
     except sqlite3.DatabaseError as bad:
         connection.close()
         raise NotAnIndex(f"{target} is not a guideline index ({bad}).") from bad
-    if row is None:
+    if "schema_version" not in meta:
         connection.close()
         raise NotAnIndex(f"{target} has no schema version; it is not a guideline index.")
-    if row[0] != str(SCHEMA_VERSION):
+    if meta["schema_version"] != str(SCHEMA_VERSION):
         connection.close()
         raise NotAnIndex(
-            f"{target} was built by schema version {row[0]}, this reads "
+            f"{target} was built by schema version {meta['schema_version']}, this reads "
             f"{SCHEMA_VERSION}. Rebuild it with tools/guidelines_index.py."
         )
+    try:
+        raw_provenance = meta.get("provenance")
+        provenance = json.loads(raw_provenance) if raw_provenance is not None else None
+        artifact_provenance.check_derived(
+            provenance,
+            target,
+            allow_untrusted=allow_untrusted_provenance,
+        )
+    except (json.JSONDecodeError, artifact_provenance.UntrustedProvenance):
+        connection.close()
+        raise
     return connection
 
 
@@ -294,6 +308,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("query", nargs="+", help="one or more queries; each is a phrase")
     parser.add_argument("--db", help=f"index to read (default: {default_database()})")
     parser.add_argument(
+        "--allow-untrusted-provenance",
+        action="store_true",
+        help="read a dirty, foreign, or unstamped index and warn",
+    )
+    parser.add_argument(
         "--society",
         help="restrict to one society, e.g. IDSA; the directory name it is filed "
         "under. A value no document carries exits 2 rather than reporting a zero",
@@ -312,8 +331,16 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     try:
-        connection = open_index(args.db)
-    except (FileNotFoundError, NotAnIndex) as unusable:
+        connection = open_index(
+            args.db,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+        )
+    except (
+        FileNotFoundError,
+        NotAnIndex,
+        json.JSONDecodeError,
+        artifact_provenance.UntrustedProvenance,
+    ) as unusable:
         print(str(unusable), file=sys.stderr)
         return 2
 

@@ -899,10 +899,14 @@ def render_markdown(results: list[DocumentResult]) -> str:
 # --------------------------------------------------------------------------------------
 
 
-def build(source_dir: Path) -> list[DocumentResult]:
+def build(
+    source_dir: Path, *, allow_untrusted_provenance: bool = False
+) -> list[DocumentResult]:
     """Build rows from the USPSTF documents in #80's extracted corpus."""
     results = []
-    for document in read_extracted_corpus(source_dir):
+    for document in read_extracted_corpus(
+        source_dir, allow_untrusted_provenance=allow_untrusted_provenance
+    ):
         if document.society != "USPSTF":
             continue
         results.append(
@@ -926,12 +930,24 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_OUT,
         help=f"Markdown table to write (default: {DEFAULT_OUT.relative_to(REPO_ROOT)})",
     )
+    parser.add_argument(
+        "--allow-untrusted-provenance",
+        action="store_true",
+        help="read a dirty, foreign, or unstamped extracted corpus and warn",
+    )
     args = parser.parse_args(argv)
 
     if not args.source.is_dir():
         parser.error(f"no such directory: {args.source}")
 
-    results = build(args.source)
+    try:
+        results = build(
+            args.source,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+        )
+    except ValueError as unusable:
+        print(str(unusable), file=sys.stderr)
+        return 2
     if not results:
         parser.error(f"no USPSTF documents found in {args.source}")
 
