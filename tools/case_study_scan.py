@@ -277,6 +277,7 @@ NOT_REACHED = (
     "a wrapper section that does not apply to this patient",
     "whether a stop criterion's endpoint is the right endpoint",
     "whether a drug ordered PRN needs an endpoint of its own",
+    "a second drug welded into one drug row, discharged by the first drug's endpoint",
     "whether a dose is correct, or was sourced at all",
     "a scaffolding phrase nobody has written yet",
     "anything the Markdown cannot show, which the rendered document can",
@@ -635,6 +636,14 @@ def _rx_findings(sections: list[Section]) -> list[Finding]:
                     )
                 )
                 continue
+            # **One cell is read as one order, and a welded second drug is not
+            # reached.** `doxycycline ... x 7 days and metronidazole ... TID`
+            # carries an endpoint, so the row is discharged for a second drug
+            # that states none. That is
+            # [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300)'s
+            # hole arriving in a second tool; declared in ``NOT_REACHED`` rather
+            # than guessed at, because splitting an order on ``and`` would split
+            # `metronidazole 500 mg PO TID and hold if the creatinine rises` too.
             order = rows[RX_DRUG_ROW][0]
             if RECURRING.search(order) and not ENDPOINT.search(order):
                 findings.append(Finding(NO_STOP_CRITERION, section.name, block.line, order))

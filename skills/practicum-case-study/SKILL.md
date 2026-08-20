@@ -855,7 +855,7 @@ prints; nothing fails on it.
 **A clean scan is not a checked draft.** Here is what no row of that command reaches: **the voice,
 and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop
 criterion's endpoint is the right endpoint**, **whether a drug ordered PRN needs an endpoint
-of its own**, **whether a dose is correct, or was sourced at all**,
+of its own**, **a second drug welded into one drug row, discharged by the first drug's endpoint**, **whether a dose is correct, or was sourced at all**,
 **a scaffolding phrase nobody has written yet**, and **anything the Markdown cannot show, which the
 rendered document can**.
 
