@@ -69,6 +69,16 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def squashed(text: str) -> str:
+    """``text`` with every run of whitespace collapsed to one space.
+
+    This repo hard-wraps its prose, so a phrase broken across two lines is
+    invisible to a search for it -- ``test_run_record_claim.normalized``'s
+    finding, and it holds for any needle longer than a few words.
+    """
+    return re.sub(r"\s+", " ", text)
+
+
 #: A skill's own step heading -- ``### 4. Draft the body``. Two to four hashes
 #: because the skills are not uniform about depth and the number is the subject.
 STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
@@ -2173,14 +2183,22 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
     standing field outright, so nothing in the catalog answers *is this in
     force* and nothing is going to.
 
+    **Keyed on the legend and never on the ``class`` cell**, which is what makes
+    it true either side of a merge rather than only today. #107's widening --
+    ``draft``, ``errata`` and ``scope-of-work`` as class values -- is ruled and
+    is **not in this tree**; those three rows still read ``guideline`` here.
+    Anything keyed on the new values would be wrong now, and anything keyed on
+    the old ones would be wrong later.
+
     **The direction of the harm is the reason this is a defect rather than a
     slip.** ``RECENCY: guideline in force`` stands the five-year window down,
     and ``research_ledger.py`` grades that excuse's presence and its reason and
     never its truth -- so the excuse is worth exactly the run's belief about
     standing. Telling a run that catalog membership settles standing hands it a
-    warrant for three documents where it is false, and the costly one is the
-    499-page public review draft, which out-ranks real guidelines on size and
-    recency while carrying recommendations that may not survive review. That is
+    warrant for every row where it is false, and the costly one is the public
+    review draft -- the largest document in the corpus, so it out-ranks real
+    guidelines on size and on recency while carrying recommendations that may
+    not survive review. That is
     #215's own thesis pointing the other way: the shipped five-year rule refused
     a source for a property the rule did not care about, and this would have
     excused one for a property the row does not carry.
@@ -2192,11 +2210,16 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
     it cites; the 2013 KDIGO threshold is a real in-force guideline and the
     worked case is unmoved.
 
-    **The wording it moves to is not invented here.**
-    ``skills/clinical-note/SKILL.md`` already had it right -- *"The catalog says
-    what each of the 179 documents is and never what it says"* -- so this is one
-    skill being brought to the reading another skill already published, which is
-    why the repair needed no ruling from the clinician.
+    **The reading it moves to is one axis over from one this repo already
+    published**, and the first draft of this docstring called them the same
+    thing. ``skills/clinical-note/SKILL.md`` refuses to read a document's
+    **content** off a catalog row -- *"the catalog says what each document is
+    and never what it says"* -- and standing is a different question about the
+    same row. So the repair extends a settled refusal rather than inventing one,
+    which is why it needed no ruling from the clinician; calling it the same
+    ruling would be [#165](https://github.com/mshamblin5150-code/clinical-skills/issues/165)'s
+    shape, where the wrong citation is the one a later sentence copies. Caught
+    by the spec axis of ``/code-review``.
 
     **The needles for the catalog half are read out of the catalog and never
     typed here**, on
@@ -2249,7 +2272,15 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         self.catalog = read(CATALOG)
 
     def instruction_files(self):
-        """Every Markdown file under ``skills/`` -- what a run reads as a rule."""
+        """Every Markdown file under ``skills/`` -- what a run reads as a rule.
+
+        **A directory walk and deliberately not ``git ls-files``**, which is the
+        opposite narrowing from
+        [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)
+        and is the safe direction here: an untracked draft under ``skills/`` is
+        a file an agent can already load and follow, so it is graded before the
+        commit that tracks it rather than after.
+        """
         return sorted(SKILLS_DIR.rglob("*.md"))
 
     def citing_paragraph(self):
@@ -2274,8 +2305,16 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         return found[0]
 
     def test_the_instrument_is_live(self):
-        """Every pattern matches something, and the two skill patterns are
-        mutually exclusive.
+        """Every pattern in the class matches something, and the two skill
+        patterns are mutually exclusive.
+
+        **Every pattern, and the first version exercised half of them.** It
+        opened on this same sentence while leaving ``NOT_IN_FORCE_FORMS``
+        untested -- and because ``test_the_catalog_still_carries_a_row…`` passes
+        on **any** one match, two of those three could have been typos and
+        stayed green forever. That is the failure the paragraph below names,
+        committed one method away from naming it, and it was found by the
+        standards axis of ``/code-review`` rather than by a run.
 
         ``TheWorkedReadingBehindTheDuplicateArgumentLivesInOnePlace.test_the_instrument_is_live``'s
         reasoning: ``BLANKET_STANDING`` is asserted only in the negative against
@@ -2301,6 +2340,23 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
             ),
             "NARROWER_RULING matches nothing, so the over-correction guard is dead",
         )
+        # Synthetic, one per form, because the catalog test passes on any single
+        # match and so cannot tell a live needle from a dead one.
+        for form, sentence in zip(
+            self.NOT_IN_FORCE_FORMS,
+            (
+                "a nine-page scope of work for a guideline that does not exist yet",
+                "a two-page errata correcting two unrelated articles",
+                "its cover says it is a public review draft",
+            ),
+            strict=True,
+        ):
+            self.assertTrue(
+                form.search(sentence),
+                f"NOT_IN_FORCE_FORMS entry {form.pattern!r} matches nothing, so "
+                "it can never be the reason this class passes and a typo in it "
+                "is indistinguishable from a form the catalog retired",
+            )
         # The two skill patterns must not be satisfiable by one sentence: the
         # qualifier is not allowed to carry the claim it replaces.
         self.assertFalse(
@@ -2323,8 +2379,8 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         last of them -- at which point the skill is telling a run something
         nothing in the tree supports any more, and a person should look.
         """
-        squashed = re.sub(r"\s+", " ", self.catalog)
-        matched = [form.pattern for form in self.NOT_IN_FORCE_FORMS if form.search(squashed)]
+        legend = squashed(self.catalog)
+        matched = [form.pattern for form in self.NOT_IN_FORCE_FORMS if form.search(legend)]
         self.assertTrue(
             matched,
             "reference/guidelines-catalog.md names no document it declines to "
@@ -2336,8 +2392,7 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         """The defect itself, over every file a run reads as instruction."""
         offenders = []
         for path in self.instruction_files():
-            text = re.sub(r"\s+", " ", read(path))
-            for found in self.BLANKET_STANDING.finditer(text):
+            for found in self.BLANKET_STANDING.finditer(squashed(read(path))):
                 offenders.append(f"{path.relative_to(REPO_ROOT)}: {found.group(0)}")
         self.assertEqual(
             offenders,
