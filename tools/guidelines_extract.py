@@ -66,13 +66,14 @@ glued runs, which is **worse than the library it replaced**. A reader trusting t
 table would have picked the one value that loses to pypdf. #83 published it, and it
 was caught by being asked to read every document rather than a selection.
 
-**What the rebuild costs, isolated rather than bounded.** ``split`` above is a set
-difference -- words present in ``get_text``'s output and absent after the rebuild --
-and it counts every short glued run the rebuild correctly broke apart as though it
-were damage. ``seethe`` -> ``see the`` is in it. So every split the rebuild makes
-was recorded as ``run -> pieces`` and classified against a lexicon built from tokens
-**the PDF itself delimited with real space glyphs**, which needs no outside
-dictionary and cannot be defined by the inference under test:
+**Historical measurement, 2026-08-16.** ``split`` above is a set difference -- words
+present in ``get_text``'s output and absent after the rebuild -- and it counts every
+short glued run the rebuild correctly broke apart as though it were damage. ``seethe``
+-> ``see the`` is in it. Every split in that run was recorded as ``run -> pieces`` and
+classified against a lexicon built from tokens **the PDF itself delimited with real
+space glyphs**, which needed no outside dictionary and was not defined by the inference
+under test. The classifier was not saved, so the table is preserved as a dated result,
+not a current cost:
 
 =================================  ======  =====  ==========================
 class                                   n      %  verdict
@@ -80,25 +81,22 @@ class                                   n      %  verdict
 glued run fixed                     9,622  70.3%  correct, the point
 punctuation, tab or bullet          3,179  23.2%  harmless separation
 digit-break                           390   2.8%  damage, all in citations
-letter-spaced word                    306   2.2%  **the real cost**
+letter-spaced word                    306   2.2%  classified as damage in that run
 word broken, pieces not all single    188   1.4%  mostly a footnote marker
 =================================  ======  =====  ==========================
 
 13,685 split occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
 
-**The number that matters for this repo is zero.** Of the 390 digit-breaks, every
-distinct run is citation apparatus -- a year (``2009;``, 158 of them),
+**The safety result from that historical run was zero damaged clinical units.** Of
+the 390 digit-breaks, every distinct run was citation apparatus -- a year
+(``2009;``, 158 of them),
 supplement page ranges (``S131-S155``), a superscript reference marker welded to
-its word (``al,23``). **Not one carries a clinical unit**, so no threshold value is
-broken anywhere in the corpus. That was the risk worth measuring: a repo whose
-subject is numbers cannot afford a reader that splits them, and this one does not.
+its word (``al,23``). **Not one carried a clinical unit**, so that run found no
+threshold value broken by the reader. That was the risk worth measuring: a repo whose
+subject is numbers cannot afford a reader that splits a clinical unit.
 
-So the true cost is **306 letter-spaced words** in readable text, or 696 counting
-the citation digit-breaks -- against 6,881 by set difference. The ``word broken`` row
-is mostly ``bThe -> b|The``, which is the rebuild correctly separating a footnote
-marker from the word after it and is miscounted as damage here rather than credited.
-
-**The table above is pre-#178 and is left as it was measured.** 284 of the 696 were
+**The table above is pre-#178 and is left as it was measured.** In that classification,
+284 of the 696 were
 one running footer in one document, and that footer is fixed below; the table is not
 restated against the new extraction because the classifier that produced its five
 buckets was never saved. **390 and 13,685 re-derive and 9,622 / 3,179 / 306 / 188 do
