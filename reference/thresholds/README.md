@@ -79,18 +79,37 @@ settling the class.
 # society's recommendation text in full, which is the copyrighted expression this
 # whole format exists to avoid committing, and guidelines_recs.py refuses to write
 # it inside any git checkout.
+# One record per SOURCE, named for the key that source carries in the sheet's
+# `## Sources` table -- `aha-2025` here.
 python tools/guidelines_recs.py \
     "C:/codeing/guidelines-src/AHA ACC/jones-et-al-2025-....pdf" \
     --doc-id "AHA ACC/jones-et-al-2025" \
-    --json C:/codeing/guidelines-index/recs-hypertension.json
+    --json C:/codeing/guidelines-index/recs-aha-2025.json
 
 python tools/threshold_sheet.py reference/thresholds/hypertension.md \
-    --recs C:/codeing/guidelines-index/recs-hypertension.json
+    --recs aha-2025=C:/codeing/guidelines-index/recs-aha-2025.json
 
-# --all resolves recs-<sheet stem>.json from --recs-root, which defaults outside the
-# repo for the same reason. A sheet whose record it cannot find exits 2, never 0.
+# `--recs` is repeatable, once per source. Give it twice for a sheet citing two
+# societies, or leave it off and let `--recs-root` resolve `recs-<source key>.json`
+# for every one of them -- which the command above does too since #177, so a sheet
+# grades the same whichever way it is reached.
+#
+# `--all` resolves from `--recs-root` and takes no `--recs`: a source key is
+# sheet-local, so which sheet's source a record answers for is unknowable across a
+# directory. A sheet where ANY source has no record exits 2, never 0.
 python tools/threshold_sheet.py --all
 ```
+
+**A bare `--recs <path>` is still accepted where the sheet declares exactly one
+source**, and refused where it declares two — because which source it answers for is
+then a guess, and guessing is what
+[#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177) is about.
+
+**The record is matched to the source by the PDF it was built from, not by
+`--doc-id`.** `guidelines_recs.py` writes the PDF's path into the record's `source`
+field, and that is what the grader compares against this table's `document` cell;
+`--doc-id` is free text and the record behind the sheet above carries an abbreviated
+one. A record built from another guideline is **refused** — see the holes below.
 
 Four gates. What each one can see, and what it cannot, is written out in full in
 `tools/threshold_sheet.py`'s docstring rather than summarized here, on
@@ -121,9 +140,28 @@ omission refuses or merely warns.
 
 **Mode is not a style choice and is not set by hand.** It comes from
 `tools/guidelines_recs.py`, and it says whether that document's recommendations could
-be counted *exactly* — read out of a ruled `COR | LOE` table — or only *bounded* by
-matching a marker in running text. An exact source has its omissions **refused**; a
-bound source has them **warned**. See #83 decision 1.
+be counted *exactly* or only *bounded* by matching a marker in running text. An exact
+source has its omissions **refused**; a bound source has them **warned**. See #83
+decision 1.
+
+**Exact arrives two ways since [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173),
+and the record's `counted_from` says which.** One is a ruled `COR | LOE` table in the
+document itself. The other is [`reference/guidelines-uspstf.md`](../guidelines-uspstf.md),
+which is **also** a ruled table — one recommendation per row, the grade in a cell — and
+is where the 90 USPSTF documents are answered from. **That second one is read out of a
+committed file rather than out of the PDF's own layout**, which is an objection the
+first one does not have to meet, so every row is checked to be on the page it cites
+before it is counted and a document whose rows do not check is reported as **not
+scanned** rather than counted short. That check is what earns the word, and it is the
+answer to #173's own prohibition — *do not promote a document to exact that is not read
+out of a ruled table*.
+
+**What the mode still does not say is whether the source is complete.** Neither reading
+claims every recommendation in the document was found; a table the parser did not
+recognize and a curated row the builder did not extract are the same hole, and gate 2 is
+silent about both. *The sheet accounted for everything the record holds* and *the record
+holds everything the guideline states* are separate claims, and only the first is
+checked here.
 
 ### `## Scope`
 
@@ -239,7 +277,7 @@ not left to be discovered:
   is right. A mis-keyed row hides a real conflict by making two rows look like
   different patients.
 - **On a machine without the recommendation records, the hook refuses every edit to a
-  sheet — including a prose typo fix.** `--all` resolves `recs-<stem>.json` under
+  sheet — including a prose typo fix.** `--all` resolves `recs-<source key>.json` under
   `--recs-root`, which defaults outside the repo and is **not committed**, because it
   holds the society's recommendation text in full. Absent, COVERAGE cannot run, `grade`
   returns 2, and `tools/hooks/pre-commit` turns any non-zero into a refusal. So a fresh
@@ -255,37 +293,61 @@ not left to be discovered:
   anyone should be able to commit by accident. **Named here rather than smoothed over**,
   because the cost lands on someone editing prose who has done nothing wrong.
 - **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
-- **A `bound` source is warned about and never refused**, so most of the corpus can
-  only ever be warned about. `tools/guidelines_recs.py --json` reports which mode a
-  document yields, and that is the number to look at before trusting a clean run.
+- **A `bound` source is warned about and never refused.** `tools/guidelines_recs.py
+  --json` reports which mode a document yields, and that is the number to look at
+  before trusting a clean run. **This bullet used to close *so most of the corpus can
+  only ever be warned about*, and #173 made that false without touching the sentence**
+  — the majority of the corpus is `exact` now. The standing figure is the table below
+  and is deliberately not restated here.
 - **One topic has a sheet.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
-- **Most of the corpus cannot be gated at all yet, and the number is measured.**
-  `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-16:
+- **Most of the corpus can be gated now, and the number is measured.**
+  `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-19, after
+  [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173) added the
+  two readings it was filed for:
 
-  | mode | docs | what a gate can do |
-  | --- | ---: | --- |
-  | `exact` | **22** | omissions **refused**; 22 of 23 AHA/ACC files, 2,969 recommendations |
-  | `bound` | 19 | omissions **warned**; 16 KDIGO, 2 IDSA, 1 ADA |
-  | nothing found | **138** | nothing counted, so nothing gated |
+  | mode | `counted_from` | docs | recommendations | what a gate can do |
+  | --- | --- | ---: | ---: | --- |
+  | `exact` | `ruled-table` | **22** | 2,969 | omissions **refused**; 22 of 23 AHA/ACC files |
+  | `exact` | `curated-table` | **90** | 143 | omissions **refused**; every USPSTF document |
+  | `bound` | `text-marker` | 48 | 4,618 | omissions **warned**; 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
+  | nothing found | — | **19** | 0 | nothing counted, so nothing gated |
 
-  **The 138 is a limit of this extractor, not a finding about those guidelines.** It
-  knows two house styles — a ruled `COR | LOE` table and a `Recommendation N.N.N` /
-  `Practice Point` marker. USPSTF grades recommendations with a letter (A/B/C/D/I) and
-  IDSA writes *"strong recommendation, moderate-quality evidence"* in prose; neither is
-  matched. `guidelines_recs.py` exits 2 on those and says so in as many words rather
-  than reporting a zero, and all 90 USPSTF documents are separately covered by
-  `reference/guidelines-uspstf.md`. **A sheet built on any of the 138 would have its
-  omission gate silently do nothing**, which is why the mode is recorded per source and
-  cross-checked rather than trusted.
+  **It read 22 / 19 / 138 on 2026-08-16 and that is what #173 was filed over.** The
+  138 was 90 USPSTF plus 39 IDSA plus 9 others — two house styles, not a scatter —
+  and both were closed: USPSTF from the committed
+  [`reference/guidelines-uspstf.md`](../guidelines-uspstf.md), IDSA by matching the
+  GRADE parenthetical it writes in prose.
+
+  **The 143 being small beside the 2,969 is the artifact and not a defect.** A USPSTF
+  recommendation statement states one to four recommendations; an AHA/ACC guideline
+  states a hundred.
+
+  **The 19 left is still a limit of this extractor, not a finding about those
+  guidelines** — 11 IDSA documents that state no graded recommendation in either form
+  this reads, 3 ACIP print captures, 2 KDIGO, and one each of AHA/ACC, CDC and GINA.
+  `guidelines_recs.py` exits 2 on them and says so in as many words rather than
+  reporting a zero. **A sheet built on any of the 19 would have its omission gate
+  silently do nothing**, which is why the mode is recorded per source and cross-checked
+  rather than trusted.
+
+  **One document moved from *nothing* to a bound of one and that is worth knowing
+  before reading it as coverage.** The GOLD report states a single recommendation in
+  GRADE terms in running prose, so the IDSA marker finds exactly one in a document
+  holding hundreds. That is a true statement about markers and a poor description of
+  the document; it is a bound, a bound may only warn, and no threshold on the number
+  would be anything but invented.
 - **Gate 4, watermark interleave, was not built.** #83 describes it: *"If a string
   stripped by #80 appears inside an extracted table row, that row is suspect and must
   be read off the rendered page."* **This ticket widened the exposure rather than
   narrowing it** — boilerplate stripping went from 554,372 characters to **921,093**
   under the new reader, across 167 of 179 documents, so there is more stripped text
-  that could have been interleaved, not less. **#100 widened it again**, by 32,995
-  characters and 2,649 lines across a further 27 documents, for 954,088 together. The
+  that could have been interleaved, not less. **#100 widened it again**, by 42,272
+  characters and 2,688 lines across a further 27 documents, for 963,365 together --
+  **9,277 of which is [#178](https://github.com/mshamblin5150-code/clinical-skills/issues/178)**,
+  which fixed the KDIGO transplant footer's spacing and so let the margin rule see a
+  running head it had never been able to match. The
   `RENDERED:` marker gives a row a way to *declare* it was read off the page; nothing
   yet *detects* that it should have been.
   ([#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174) holds this
@@ -294,9 +356,11 @@ not left to be discovered:
   exact strings stripped per document, so this is a comparison against a recorded
   list". Still true, and the list is split: `boilerplate` holds what the literal rule
   took and `margin_stripped` holds what #100's margin rule took. A detector reading
-  only `boilerplate` misses 2,649 lines across 27 documents and reports a clean gate.
-  The two documents that matter most lose a **welded running head** rather than a
-  folio — `GOLD/GOLD-REPORT-2026` and `IDSA/ciw670` — and prose is what interleaves.
+  only `boilerplate` misses 2,688 lines across 27 documents and reports a clean gate.
+  The three documents that matter most lose a **welded running head** rather than a
+  folio — `GOLD/GOLD-REPORT-2026`, `IDSA/ciw670` and, since #178,
+  `KDIGO/KDIGO-2009-Transplant-Recipient-Guideline-English` — and prose is what
+  interleaves.
 - **Gate 5, the second independent read, was not built.** #83 describes it as the only
   mechanism that catches *misreading* rather than *miscitation*, and says in the same
   breath that its weakness is correlated error — same model, same PDF, same mangling,
@@ -309,8 +373,19 @@ not left to be discovered:
   genuinely different code paths over different structures, and they did catch a
   planted defect. But both are PyMuPDF, so **a mis-extraction at the library level is
   invisible to tier 2** — it would corrupt the snippet and the page identically.
-- **COVERAGE reads one recommendation record per sheet.** A sheet citing two societies
-  gets omission checked against whichever record `--recs` names and silently not
-  against the other. The one sheet that exists has one source; a second source is the
-  point at which this has to change, and the count printed as "source(s) had no
-  recommendation record" cannot currently exceed 1.
+- **COVERAGE read one recommendation record per sheet until
+  [#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177).** A sheet
+  citing two societies got omission checked against whichever record `--recs` named and
+  silently not against the other, and the count that would have surfaced it was derived
+  from *was there a record at all*, so it could not exceed 1 however many sources went
+  unchecked. It is per source now — `known` filtered to the rows citing that source, the
+  mode cross-check and the class check reading each source's own record, a real count of
+  the sources with no record, and exit 2 where **any** of them lacks one. **Fixed on 2026-08-19, while
+  one sheet with one source existed, which is the only reason it had cost nothing**:
+  #83 decision 3 makes multi-source the normal case.
+- **What that fix newly makes possible is a record bound to the wrong source**, because
+  the lookup is keyed on a source key that is *sheet-local* — two sheets using `aha` for
+  different guidelines resolve one `recs-aha.json`. The record names the PDF it was
+  built from and the Sources table names the same file, so a mismatch is **refused**;
+  the comparison is on the filename alone, since where the corpus was mounted when the
+  record was built is not a finding. A record carrying no `source` field claims nothing.
