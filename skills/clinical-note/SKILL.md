@@ -148,7 +148,7 @@ Charted normals and filled normals read identically in the finished note. They a
 
 #### Which way a social or allergy slot reads
 
-**The templates enumerate these slots, so each one is a box.** [SOAP.md](SOAP.md) writes `SH: <occupation; education; marital; tobacco; alcohol; drugs; spiritual; environmental; nutrition; fitness; sleep — one clause each>` and `Allergies (reaction): <allergen - reaction; drug status first, NKDA if none; then environmental and food, each named by its kind>`; [HP.md](HP.md) lists twelve social lines *"one line each, in that order"*. So the two-part test that licenses a filled vital holds of every one of them — a box demands a value, and the shorthand constrains none.
+**The templates enumerate these slots, so each one is a box.** [SOAP.md](SOAP.md) writes `SH: <occupation; education; marital; tobacco; alcohol; drugs; spiritual; environmental; nutrition; fitness; sleep — one clause each>` and an Allergies field with `Drug`, `Food`, and `Environmental` lines; [HP.md](HP.md) lists the same three allergy lines and twelve social lines *"one line each, in that order"*. So the two-part test that licenses a filled vital holds of every one of them — a box demands a value, and the shorthand constrains none.
 
 **No slot ever reads `not documented`, and that was never new law.** `Allergies (reaction): Not documented this visit.` reports nothing about the patient: strike the inference above it and the sentence has nothing left to do. It is `No medication reconciliation was performed this visit` with the nouns changed — the sentence issue #28 banned, and **drift row 12 has forbidden it since.** The same goes for `tobacco status not documented`, `alcohol not documented`, `status unknown` and `not reported this visit`. What row 12's test permits is a claim about the patient: `Non-smoker`, `no smoke exposure reported`, `No chronic illness reported` all report, and all stay. Issue #29.
 
@@ -161,7 +161,7 @@ Charted normals and filled normals read identically in the finished note. They a
 
 | Slot | Written | Says the unremarkable thing | So silence is | Filled value |
 | --- | --- | --- | --- | --- |
-| Allergies | 284 of 551 | **no drug allergen, 195 of 284 — 69%** | a gap | `NKDA` |
+| Allergies | 284 of 551 | **no drug allergen, 195 of 284 — 69%** | a gap | `Drug - NKDA`; silent food and environmental lines take `none reported` under #168 |
 | Tobacco | 197 of 551 | denied, 25 of 197 — 13% | an absence | `Non-smoker` |
 
 **The allergy row counts *no drug allergen* and not *says nothing*, and that distinction is the whole of issue #78.** `NKDA` is *no known **drug** allergy*, so a patient with hay fever is NKDA and a note naming a seasonal allergy is no evidence against filling it. Counted undivided, the corpus reverses the ruling because the column measures the wrong thing. **Split on the kind `NKDA` is a claim about, the two slots land as far apart as they ever did — 69% against 13%** — and the clinician confirmed the reading on 2026-08-16: *silence about drug allergies takes `NKDA`; seasonal allergies fall under environmental, which is a separate category, as is food.*
@@ -183,26 +183,31 @@ Charted normals and filled normals read identically in the finished note. They a
 **The note still proposes the drug.** Withholding treatment over a gap in the paperwork is the worse failure, and the givens are what the proposal rests on. What changes is the disclosure: **where a proposed drug rests on an inferred allergy status, that FILLED line says so**, in the shape *Where a filled normal pressure is what the Assessment's account rests on* uses below:
 
 ```
-FILLED·asserted   ALLERGIES NKDA inferred; the Plan's amoxicillin-clavulanate
-                  rests on it, and no allergy history was taken.
+FILLED·asserted   ALLERGIES Drug - NKDA; Food - none reported; Environmental -
+                  none reported, all inferred. The Plan's amoxicillin-clavulanate
+                  rests on the drug status, and no allergy history was taken.
 ```
 
 The reason is that rule's reason. Two independent FILLED lines say an allergy status was inferred and a drug was proposed; **neither says the second is standing on the first.** Eighty-nine of the 284 written statuses in the corpus name a drug allergy, so `NKDA` is usually right — and *usually* is exactly what a prescribing decision may not rest on silently. **That is roughly one written status in three.** The fixture evidence and its changing count belong only in the withheld record.
 
 **A given allergy status is never overwritten, and a stated allergen is never dropped.** In the synthetic example `allergic to aztreonam`, the allergen is a given like any other, and it behaves like the conflict rule below: a drug proposed against a documented allergy is called out, and no inferred status dissolves it.
 
-**Never dropped means never moved out of the box either, and the box names which kind each allergen is.** Ruled by the clinician 2026-08-16, issue [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96). The box states the drug status first and then names any environmental or food allergen after it, each named by its kind:
+**Never dropped means never moved out of the box either, and the box names which kind each allergen is.** Ruled by the clinician 2026-08-16, issue [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96). Every stated allergen stays in the one Allergies field and lands on the line for its kind.
+
+**The one field always enumerates all three categories, one line each and in this order: Drug, Food, Environmental.** Ruled by the clinician 2026-08-20, issue [#168](https://github.com/mshamblin5150-code/clinical-skills/issues/168). Silence fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`. A stated allergen replaces only its category's filled negative; the other two lines remain. Every filled category value is declared in `FILLED·asserted` carrying its value.
 
 ```
-Allergies (reaction): NKDA for drug allergies. Grass pollen environmental allergy -
-itching and sneezing. Sorbitol intolerance, a food intolerance rather than an allergy.
+Allergies (reaction):
+Drug - NKDA
+Food - Sorbitol intolerance, a food intolerance rather than an allergy
+Environmental - Grass pollen - itching and sneezing
 ```
 
-**The kind is carried in the allergen's own wording rather than as a sub-heading, and that is *Punctuation*'s doing rather than a style preference.** `Environmental: grass pollen` pins a value to a label with a colon, which is the `Cephalexin - hives` shape that section rules on — **and that section names this box as its example.** The box has already spent its one colon on its own label, so a second is the doubling-up the rule exists to stop. `grass pollen environmental allergy` says which kind without spending anything.
+**The category label takes a hyphen rather than a colon.** The field heading has already spent its colon, so `Environmental: grass pollen` would create the doubled label nesting that *Punctuation* forbids. `Environmental - Grass pollen - itching and sneezing` uses the first hyphen to pin the category to its entry and the second to pin the allergen to its reaction.
 
 **The reaction on that line is grounded, not invented, and #29 is why it is shown.** Itching and sneezing are ordinary manifestations of pollen allergy, so they are read off the given rather than added beside it. **An example writing the allergen bare would model the opposite**, which is a position #96 has no business taking on the way past.
 
-**Both halves are required.** A bare `NKDA` with an environmental allergy routed to `PMH/PSH` fails, and a box naming the environmental allergy with no drug statement fails too. The drug status is owed whether or not a drug allergen was named, because `NKDA` is the only thing in the note that answers *may this patient have the drug the Plan is proposing*.
+**All three lines are required.** A bare `Drug - NKDA` with an environmental allergy routed to `PMH/PSH` fails, and a field naming the environmental allergy while omitting Food fails too. The drug status is owed whether or not a drug allergen was named, because `NKDA` is the only thing in the note that answers *may this patient have the drug the Plan is proposing*. The Food and Environmental lines are owed even when silent because #168 ruled those category slots visible rather than implicit.
 
 **Where the clinician typed the words does not decide it.** #96 rejected placement as the discriminator — words under an `allergies:` label to the box, words inside an `hx:` list to `PMH`. The clinician writes the drug denial beside an environmental allergen in **that same slot**, so both belong in one box regardless of the source label. **The kind decides, not the label** — and a rule keyed to where a word landed in shorthand would put the same clinical fact in different sections of two notes. Counts and fixture evidence remain in the withheld assertion records.
 
@@ -212,14 +217,14 @@ itching and sneezing. Sorbitol intolerance, a food intolerance rather than an al
 
 **None of this settles what a named allergen's *reaction* reads**, which is [#94](https://github.com/mshamblin5150-code/clinical-skills/issues/94)'s. #96 decides which allergens reach the box and how each is named; #94 decides what the box says where the shorthand names an allergen and no reaction. The two were one ticket and were split because either can be settled without the other — **and both were ruled on 2026-08-16, on separate branches, neither able to see the other.** *The reaction beside a given allergen* below is #94's answer; this paragraph said it was still open for as long as it took the two branches to meet, which is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment* arriving in a cross-reference rather than in a suite.
 
-**The split held under the test that matters: the two rulings do not contradict each other.** #94 makes the `- reaction` half of the line satisfiable; #96 decides how many entries that line carries and what each is called. Drift row 17 carries both sets of limbs, and the reaction limb applies to every entry #96 puts in the box rather than only to the drug one — so a `grass pollen environmental allergy` entry takes an inferred reaction like any other, which is what the synthetic example above already shows.
+**The split held under the test that matters: the three rulings do not contradict each other.** #94 makes the `allergen - reaction` value satisfiable; #96 decides that every stated allergen reaches the Allergies field on the line for its kind; #168 makes all three category lines visible even when one is silent. Drift row 17 carries all three sets of limbs, and the reaction limb applies to every allergen #96 routes rather than only to a drug one.
 
 **And a `FILLED·asserted` line may not deny a given the note itself read.** A declaration claiming no allergy history is false when the same note carried a given environmental allergen into other sections. **That is worse than the hedge drift row 12 bans and not a milder cousin of it:** `tobacco status not documented` is evasive about the record, and this is false about it. Where the shorthand names any allergen, the declaration names the kind the fill covers and names the given beside it rather than in place of it:
 
 ```
-FILLED·asserted   ALLERGIES NKDA inferred — drug allergies only; the Plan's
-                  doxycycline rests on it. The GIVEN grass pollen allergy is
-                  environmental and is carried in the box as a given, not filled.
+FILLED·asserted   ALLERGIES Drug - NKDA and Food - none reported inferred; the
+                  Plan's doxycycline rests on the drug status. The GIVEN grass
+                  pollen allergy is carried on Environmental as a given, not filled.
 ```
 
 **That shape is required.** Without a scored rule, even a correct rendering is only incidental. Drift row 17 makes it an obligation.
@@ -269,7 +274,7 @@ So a **drug or food** allergen with no documented reaction always takes the disc
 
 **The allergy slot is the only one of these that needs the disclosure, and that is a fact about the slots rather than a narrowing of the rule.** The rule is general — **an inferred detail that drives a downstream clinical action discloses what leans on it** — and it comes out satisfied everywhere else by construction. The tobacco slot never reaches it, because a positive fill is forbidden outright and a negative one triggers nothing: there is no screening, no cessation counseling and no differential entry owed for a non-smoker, and [SOAP.md](SOAP.md)'s pack-year screening line keys to a **given** history. The remaining slots carry no clinical action at all — an occupation, an education level and a marital status change nothing the Plan does. **A future slot that did would take this same disclosure**, and the test for it is the one stated here: does the note do something differently because of the inferred value.
 
-**Every filled slot is declared in `FILLED·asserted` carrying its value**, on the rule the filled-vital block states for the same reason: the clinician confirms a value, not a category. Not `social history filled` — `SH tobacco Non-smoker filled`, `ALLERGIES NKDA filled`, `SH occupation Employed filled`.
+**Every filled slot is declared in `FILLED·asserted` carrying its value**, on the rule the filled-vital block states for the same reason: the clinician confirms a value, not a category. Not `social history filled` — `SH tobacco Non-smoker filled`, `ALLERGIES Drug - NKDA; Food - none reported; Environmental - none reported filled`, `SH occupation Employed filled`.
 
 #### Filled vitals, body measurements and the pain score
 
@@ -546,7 +551,7 @@ Grounded, and expected:
 - Testing for a documented infectious exposure — see below.
 - Screenings appropriate to the patient's age — **checked against the shipped sheet rather than recalled**. The Plan line reads as it always did; the population the recommendation is keyed to goes in the **tier block**, never beside the screening in the note. See *Guideline sheets*. This prevents an age-keyed screening list from looking supported when the age itself was filled incorrectly.
 - The exam of a system the shorthand never mentions.
-- **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes, and two of them are settled by a count rather than by inference: the allergy slot fills `NKDA` and the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
+- **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes. The Allergies field fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
 - **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
 
 **A documented infectious exposure with a congruent presentation orders testing by default.** The contact is a given; testing for what the contact had is standard care for that presentation, and it belongs in the Plan the way return precautions do. Respiratory contact plus respiratory symptoms means **COVID-19 and influenza at minimum**, and **group A streptococcus where the pharynx is involved** — a sore throat, pharyngeal erythema, tonsillar exudate. Name the agent and name the specimen: `COVID-19 and influenza A/B, nasopharyngeal swab`, never `viral testing`.
@@ -750,8 +755,8 @@ belong in a note.
 **Nothing in the model bends a structural rule, and the list is closed.** The tier block's grammar,
 the Medatrax field strings, the drift matrix, an ICD-10 descriptor, the template's own formatting
 instructions, **row 22's welded refusal — `NOT CODED: <code> <descriptor>, <reason>`, on one line**
-— and the two rules below this one, *Punctuation* and *Spelling*, are all fixed. **The model governs
-the prose between them and nothing else.**
+— and the three rules below this one, *Spirometry*, *Punctuation* and *Spelling*, are all fixed.
+**The model governs the prose between them and nothing else.**
 
 **The refusal is on that list because the table above hands its rationale to the model, and the two
 together were a hole.** A `NOT CODED` rationale is register-1 prose and reads as the model's to
@@ -776,6 +781,21 @@ tier block is not one kind of claim: its separate lanes hold arithmetic, generat
 unresolved finished-note defects, genuine source gaps and unknown tokens.
 **That is the one place this differs from
 `practicum-case-study`**, which declares an unmodeled voice because it has somewhere to put it.
+
+### Spirometry
+
+**Every occurrence this skill writes identifies which spirometry it means.** `Office spirometry`,
+`diagnostic spirometry`, `spirometry with bronchodilator response` and `incentive spirometry` are
+qualified; the bare term is not. Office or diagnostic spirometry may appropriately be deferred
+through an acute illness, while incentive spirometry is used during the period in which that same
+wording would defer it. A reader must never have to infer which opposite disposition the note means.
+
+**The qualifier travels with every occurrence.** One in the Plan does not license a bare occurrence
+in the Assessment, tier block or another section: those surfaces are read independently, and a line
+copied out of one of them loses the context from the others. This is a rule for `spirometry`, not an
+open-ended table of words that may be ambiguous, and it is a human-read convention rather than a
+drift-matrix row. Ruled by the clinician 2026-08-20, issue
+[#166](https://github.com/mshamblin5150-code/clinical-skills/issues/166).
 
 ### Punctuation
 
@@ -830,7 +850,7 @@ Lightheadedness - R42
 
 **The clinician ruled all four of these on 2026-08-16**, each against a rendered example rather than a description of one, which is #68's method reused. Drift rows 13 and 23 walk them. [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 
-**What no tool checks, and that is a consequence of the ruling rather than a gap in the tooling.** Deciding that `Body mass index 28.6, in the overweight range` is a diagnosis and `Drug and condition conflict: …` is not takes a reader, and so does finding a diagnosis-shaped line under a heading a run invented. A scanner could read the block headed `Differential:` and would then be checking the narrow reading this ruling rejected — reporting clean on exactly the note that moved a line one heading down. **So these rows are counted by a reader**, the way rows 2, 16, 18 and 21 are counted by one, and [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164) holds what a partial scanner could still be worth.
+**What only a reader can finish, and that is a consequence of the ruling rather than a gap in the tooling.** Deciding that `Body mass index 28.6, in the overweight range` is a diagnosis and `Drug and condition conflict: …` is not takes a reader, and so does finding a diagnosis-shaped line under a heading a run invented. `python tools/differential_scan.py <a run directory>` now supplies [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164)'s declared floor: it counts the labeled Differential blocks, the numbered items inside them, and the items carrying the required `Name - CODE` slot; a numbered item without one fails row 13. **Every report says the count covers only those labeled blocks and that the wide Assessment count still needs a reader.** No numbered item in any labeled block exits 2 rather than printing a clean zero, and a confirmed missing code exits 1 before that not-run path can hide it. The command does not grade row 23 and does not find a diagnosis moved under another heading, so **a clean scan is not a walked row 13 or 23**.
 
 ### Naming a differential entry
 
@@ -1092,7 +1112,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 14 | **Control** | A **filled** value that is a documented condition's own diagnostic measure and lands **normal** is accounted for **in the Assessment**. Hypertension: called *controlled*, *treated*, *on therapy*, or with the medication named. Obesity: called resolved, improved or post-surgical, or with the weight-loss intervention named. A code in a pre-existing or problem list is not an account, and neither is a monitoring instruction. A **given** value never fails this row, and neither does a filled abnormal — row 4 already holds that one |
 | 15 | **Filled reassurance** | No decision to withhold, defer or narrow the workup of a documented finding rests on a filled vital, body measurement or pain score, and any cause a filled abnormal is attributed to is a **given finding**. **A reassuring clause that changes no action is not a discharge** — a filled normal named inside a differential ranking passes where the workup is ordered anyway. A filled 0/10 is not a discharge — row 4 owns that direction. **And a test the encounter itself ordered is not a workup this note withheld**: removing a given order and then citing its absence here is row 18's defect being scored as this row's pass |
 | 16 | **Duration** | Every stated duration reaches the HPI attached to the symptoms it was written beside, written `<duration> for <symptoms>`. None is dropped, and none is applied to a symptom the shorthand did not attach it to. Two durations for the **same** symptom are written as a span containing both, never one endpoint chosen over the other and never a FLAG. **Both a span and an attribution that rested on resolving a pronoun are declared in `FILLED·asserted` carrying their value**; an attribution whose onset line named its own symptom is not |
-| 17 | **Inferred history** | Every social and allergy slot the branch template enumerates carries a value, **none of them a hedge** — no `not documented`, `not reported this visit` or `status unknown`. No **positive** tobacco or vaping status is filled. A slot the corpus cannot classify is **grounded in the shorthand**, not invented beside it. Every filled slot is declared in `FILLED·asserted` carrying its value, and where a **proposed drug** rests on an inferred allergy status, that line names the dependency. **Every allergen the shorthand names reaches the Allergies box named by its kind** — drug, environmental or food — and the box states a drug status whether or not a drug allergen was named: routing a stated allergen to `PMH` instead fails, and so does a box carrying an allergen and no drug status. A food intolerance is carried and is **called an intolerance**. **A given allergen with no documented reaction carries an inferred reaction** — never `reaction not documented` — declared the same way, and for a **drug or food** allergen that line also names what leans on it. **No inferred reaction licenses a drug the allergen would otherwise bar.** **And no `FILLED·asserted` line denies a given the note read** — `NKDA filled. No allergy history was taken this visit.` beside a stated seasonal allergy fails this row, and fails it for being false rather than for hedging. A **given** status never fails this row, but a reaction inferred beside a given allergen is graded like any other filled value |
+| 17 | **Inferred history** | Every social and allergy slot the branch template enumerates carries a value, **none of them a hedge** — no `not documented`, `not reported this visit` or `status unknown`. No **positive** tobacco or vaping status is filled. A slot the corpus cannot classify is **grounded in the shorthand**, not invented beside it. Every filled slot is declared in `FILLED·asserted` carrying its value, and where a **proposed drug** rests on an inferred allergy status, that line names the dependency. **The Allergies field always carries Drug, Food, and Environmental lines in that order.** Silence fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; a stated item replaces only its category's negative. **Every allergen the shorthand names reaches the Allergies field, named by its kind on the category line** — drug, food, or environmental: routing a stated allergen to `PMH` instead fails, and so does omitting any category line. A food intolerance is carried and is **called an intolerance**. **A given allergen with no documented reaction carries an inferred reaction** — never `reaction not documented` — declared the same way, and for a **drug or food** allergen that line also names what leans on it. **No inferred reaction licenses a drug the allergen would otherwise bar.** **And no `FILLED·asserted` line denies a given the note read** — `Drug - NKDA filled. No allergy history was taken this visit.` beside a stated seasonal allergy fails this row, and fails it for being false rather than for hedging. A **given** status never fails this row, but a reaction inferred beside a given allergen is graded like any other filled value |
 | 18 | **Orders** | Every order the shorthand records — a test, an imaging study, a referral, a drug, an immunization — appears in the finished note as an order. **Checked by counting, the way rows 2 and 16 are:** list every order token in step 2's expansion, wherever it was written, then name where each one landed. **And no sentence anywhere in the note says a given order was not placed** — that limb is checked separately, because retaining the order does not make the denial true. An objection to a given order is written beside the retained order as a recommendation, never in its place and never as a `FILLED·proposed` line |
 | 19 | **Choice** | Every filled vital, body measurement and pain score's `FILLED·asserted` line names what the value was **reasoned from** — or states that the encounter supplied no anchor for it, **which every value but one may say**. No value is chosen to give the note an abnormal to work up, and none is moved to avoid a disclosure. A **given** value never fails this row, and neither does an unanchored one that says it is unanchored. **The one exception is a filled `0/10` pain score, which may not say it had no anchor and names the search instead** — what in the complaint and the exam was read, and that no pain source was in either. **A filled height names the age and the sex as well**, and the *no anchor* exit still passes beside them rather than instead of them. **Across a set, the filled pressures may not land not-normal far more often than a fair split explains** — `python tools/filled_vitals_census.py <the run directory>` settles both, and a clean run leaves the rest of this row to a reader |
 | 20 | **Filled-anchored codes** | Every ICD-10-CM code in `Preexisting diagnoses` or `Final diagnosis` is derived from the note's own stated value and **verified against `reference/icd10cm-2026.sqlite`**. A pediatric `Z68.5-` and its BMI-derived `E66.-` also use `tools/cdc_percentile.py` against `reference/cdc-bmi-for-age-2022.csv`; adult cutoffs and recall both fail. Where a code's supporting value was filled — or derived from any filled input — the note **names which inputs were filled**, including a midpoint age month, beside the field. **No code is withheld *for resting on a filled value*, and none is written as if measured**: both halves fail. Withholding on a **coding-guidelines** ground is outside this row, and a code resting only on **given** values never fails it |
@@ -1213,7 +1233,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 
 **Its quiet failure is a note that reads better for having failed.** A recalled threshold and a cited one are the same sentence in the body — that is what *Block only* guarantees — so the only place the difference shows is the block, and a note that simply omits the tail looks tidier than one carrying `needs: 10-year risk not calculated`. **The row is failed by an absence that improves the document**, which is the shape rows 12 and 19 also have and the reason none of them survives being skimmed for.
 
-**Nothing checks this row, and that is worth stating rather than leaving to be found.** `tools/differential_scan.py` reaches one limb of row 22 and nothing else — **not row 23 either**, whose `malformed slot pins` count is scoped to the conclusion line that row exempts. So rows 23 and 24 both go unchecked, and every limb of this one is walked by a reader today. This sentence said the scanner reached a limb of each; it does not, and the tool's own docstring said so while this file claimed otherwise. The mechanical limbs are there to be built — a tail is a string on a line and the sheets are greppable — but until something exists, *a clean read is the only read there is*.
+**Nothing checks this row, and that is worth stating rather than leaving to be found.** `tools/differential_scan.py` reaches one limb of row 22 and supplies a declared floor for row 13; it still reaches **nothing in row 23 or 24**, and its `malformed slot pins` count is scoped to the conclusion line row 23 exempts. So every limb of this row is walked by a reader today. The mechanical limbs are there to be built — a tail is a string on a line and the sheets are greppable — but until something exists, *a clean read is the only read there is*.
 
 **And no scanner ever built for it will reach the limb that matters.** Whether a correctly extracted recommendation applies to the patient in front of the clinician is a clinical judgment, and the citation exists to put the population where a reader can rule on it — never to rule on it. A row that scored applicability would be asserting exactly the thing this whole section is arranged to avoid asserting. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
 

@@ -1,4 +1,4 @@
-"""Check the mechanical limb of ``clinical-note``'s drift row 22.
+"""Check declared mechanical floors for ``clinical-note``'s differential.
 
     python tools/differential_scan.py <a run directory> [--show]
 
@@ -69,14 +69,20 @@ the narrow reading is escapable by moving an uncoded diagnosis one heading down.
 So this parser's omission is now the rule, written in ``SKILL.md`` under *The
 shape of the differential* and in both templates.
 
-**What the same ruling puts out of reach is C1's own count**, and that is a
+**What the same ruling puts out of reach is C1's wide count**, and that is a
 consequence rather than a gap. Telling ``Body mass index 28.6, in the overweight
 range`` -- a diagnosis, which takes a ``Z68`` -- from ``Drug and condition
 conflict: ...`` -- reasoning, which takes no code and no line of its own -- is a
 reader's judgment, and so is finding a diagnosis-shaped line under a heading a run
-invented. **A scanner reading the labeled block would be checking the narrow
-reading the ruling rejected**, reporting clean on precisely the note that moved a
-line down one heading. [#164] holds what a partial one could still be worth.
+invented.
+
+**Ticket #164 nevertheless ruled for an additional QA floor.** Inside the two
+template-labeled Differential blocks, this command counts numbered items, joins
+them to required ``Name - CODE`` slots, and fails row 13 when an item has no slot.
+The report prints both populations and states on every run that the wide Assessment
+count still needs a reader. No numbered item in any labeled block is NOT RUN
+(exit 2), never a clean zero; a confirmed missing code is exit 1 even when the old
+slot limb read nothing. See ``NOT_VALIDATED_AGAINST`` for the limits.
 
 **What it cannot reach is row 22 itself.** Deciding whether ``Pain in right leg``
 is what ``M79.604`` says takes a reader, and paraphrase is permitted:
@@ -109,11 +115,11 @@ untouched** -- reported, not graded, the clinician's ruling on 2026-08-19, and t
 row says why rather than this paragraph saying it again.
 
 **That qualifier is not pedantry, and the first draft of this sentence was wrong
-without it.** A run where *no* note carries a differential entry never reaches
-``format_report`` -- the exit-2 limb fires first -- so the most uncovered run of
-all prints no coverage row. It is louder rather than quieter, which is why the
-ordering stands: it exits 2 with its own message. What the row makes visible is
-the interval **between** those two, where the old report said nothing at all.
+without it.** Every run that contains notes now reaches ``format_report`` before
+an exit-2 limb, including a labeled block written as unnumbered prose. The report
+therefore prints both zero populations before stderr says the QA floor was NOT
+RUN. A missing-code finding still exits 1 first, so incomplete coverage cannot
+suppress the defect it was meant to qualify.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record; an
@@ -125,7 +131,8 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when every slot is clean, 1 on a violation, and **2 for every way of not having
 scanned** -- no argument, no directory, no notes in it, **no differential entry in
-any note read, and any bare ``NOT CODED`` mark.** The last two matter most: a run
+any note read, no numbered item in a labeled block, and any bare ``NOT CODED``
+mark.** The last three matter most: a run
 whose differential was written in some shape this parser does not read, or whose
 refusals are written in the form row 22 retired, would otherwise report zero
 violations and look like a pass.
@@ -204,6 +211,11 @@ CODE_TOKEN = re.compile(rf"\b{CODE}\b")
 # second pinned pair rather than swallowing the first.
 SLOT = re.compile(rf"([^;:\n]{{2,120}}?)[ \t]+-[ \t]+({CODE})\b")
 
+# The same pair at the opening of a numbered item. A later pair in the rationale
+# cannot rescue an uncoded label; row 23 requires ``Name - CODE`` as the item's
+# form, not merely as a substring somewhere on its line.
+ITEM_SLOT = re.compile(rf"^[^;:\n]{{2,120}}?[ \t]+-[ \t]+{CODE}\b")
+
 # The welded pair row 22 requires, and the only thing read as a refusal.
 # Case-sensitive on purpose: the skill specifies the uppercase form, and matching
 # ``not coded`` in prose would sweep up sentences discussing the rule.
@@ -242,6 +254,16 @@ CONCLUSION_PREFIX = re.compile(rf"{_OPENER}[^:]*:")
 
 # A conclusion code pinned the way the punctuation rule requires.
 HYPHEN_PIN = re.compile(r"[ \t]-[ \t]+$")
+
+# The two headings the branch templates render. This deliberately does not try
+# to discover synonyms: ticket #164 ruled this check a declared floor over the
+# labeled block, never the wide Assessment count that still needs a reader.
+DIFFERENTIAL_HEADING = re.compile(
+    r"^[ \t]*(?:#{1,6}[ \t]+)?(?:\*\*|__)?"
+    r"Differential(?: diagnoses with rationale)?[ \t]*:?(?:\*\*|__)?[ \t]*$",
+    re.IGNORECASE,
+)
+ITEM_NUMBER_PREFIX = re.compile(r"^[ \t]*\d+\.[ \t]+")
 
 
 # **What this scanner's validation set does not reach**, declared rather than
@@ -309,6 +331,15 @@ NOT_VALIDATED_AGAINST = (
         "list, which is the common case rather than the defective one, and a gate "
         "that refuses ordinary work is a gate people route around.",
     ),
+    (
+        "the row-13 labeled-block floor",
+        "The additional QA join sees numbered items only inside the two template "
+        "headings. A diagnosis-shaped line under another heading, an unnumbered "
+        "prose diagnosis, and the clinical distinction between a diagnosis and "
+        "reasoning remain outside it. The command therefore prints the narrow "
+        "populations and the reader residue on every report; it never promotes "
+        "its clean count to the wide Assessment verdict.",
+    ),
 )
 
 
@@ -329,6 +360,15 @@ class Entry:
 
 
 @dataclass(frozen=True)
+class NumberedItem:
+    """One numbered item inside a template-labeled Differential block."""
+
+    label: str
+    line: int
+    coded: bool
+
+
+@dataclass(frozen=True)
 class Span:
     """Half-open ``[start, end)`` over one line: the text of a refusal clause."""
 
@@ -346,6 +386,8 @@ class Note:
     entries: tuple[Entry, ...]
     refused: frozenset[str]
     unwelded_marks: int = 0
+    labeled_differential_blocks: int = 0
+    numbered_items: tuple[NumberedItem, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -368,6 +410,11 @@ class Scan:
     refused_codes: int
     unwelded_marks: int
     malformed_pins: int
+    labeled_differential_blocks: int
+    notes_with_labeled_differential: int
+    numbered_items: int
+    coded_numbered_items: int
+    missing_code_items: tuple[NumberedItem, ...] = ()
     findings: tuple[Finding, ...] = ()
 
 
@@ -462,6 +509,44 @@ def _label_before(line: str, position: int) -> str:
     return segment.strip(" \t-:.*_—–")
 
 
+def _without_item_number(label: str) -> str:
+    """Remove the visible ranking numeral from a slot label used by ``--show``."""
+    return ITEM_NUMBER_PREFIX.sub("", label).strip()
+
+
+def _labeled_differential_items(lines: list[str]) -> tuple[int, list[NumberedItem]]:
+    """Count template-labeled blocks and their numbered items.
+
+    A block ends at its first blank line, matching both branch templates. Only a
+    ``Name - CODE`` slot on the numbered item's opening line satisfies the code
+    join. Parentheses and colons are intentionally not accepted: drift row 23
+    requires the hyphen-pinned form, and accepting a retired form here would let
+    this QA row report a stronger result than the note earned.
+    """
+    blocks = 0
+    items: list[NumberedItem] = []
+    index = 0
+    while index < len(lines):
+        if not DIFFERENTIAL_HEADING.match(lines[index]):
+            index += 1
+            continue
+        blocks += 1
+        index += 1
+        while index < len(lines) and lines[index].strip():
+            prefix = ITEM_NUMBER_PREFIX.match(lines[index])
+            if prefix:
+                item_text = lines[index][prefix.end() :]
+                items.append(
+                    NumberedItem(
+                        label=item_text,
+                        line=index + 1,
+                        coded=bool(ITEM_SLOT.search(item_text)),
+                    )
+                )
+            index += 1
+    return blocks, items
+
+
 def read_note(text: str) -> Note:
     """Parse one note into its slots, its refusals and its bare marks.
 
@@ -471,6 +556,7 @@ def read_note(text: str) -> Note:
     positionally the way ``specificity_scan.py`` pairs a flag to its code.
     """
     lines = [_readable(line) for line in text.splitlines()]
+    labeled_blocks, numbered_items = _labeled_differential_items(lines)
     refused, spans = _refusals(lines)
     conclusion = _conclusion_lines(lines)
     unwelded = sum(
@@ -504,10 +590,18 @@ def read_note(text: str) -> Note:
             if in_a_clause(index, match.start(2)):
                 continue
             entries.append(
-                Entry(label=match.group(1).strip(), code=match.group(2), line=number)
+                Entry(
+                    label=_without_item_number(match.group(1)),
+                    code=match.group(2),
+                    line=number,
+                )
             )
     return Note(
-        entries=tuple(entries), refused=frozenset(refused), unwelded_marks=unwelded
+        entries=tuple(entries),
+        refused=frozenset(refused),
+        unwelded_marks=unwelded,
+        labeled_differential_blocks=labeled_blocks,
+        numbered_items=tuple(numbered_items),
     )
 
 
@@ -547,6 +641,7 @@ def survey(notes: list[Note]) -> Scan:
     """
     found = [finding for note in notes for finding in note_findings(note)]
     entries = [entry for note in notes for entry in note.entries]
+    numbered_items = [item for note in notes for item in note.numbered_items]
     return Scan(
         notes=len(notes),
         notes_with_differential=sum(
@@ -557,6 +652,15 @@ def survey(notes: list[Note]) -> Scan:
         refused_codes=sum(len(note.refused) for note in notes),
         unwelded_marks=sum(note.unwelded_marks for note in notes),
         malformed_pins=sum(1 for entry in entries if entry.conclusion and not entry.pinned),
+        labeled_differential_blocks=sum(
+            note.labeled_differential_blocks for note in notes
+        ),
+        notes_with_labeled_differential=sum(
+            bool(note.labeled_differential_blocks) for note in notes
+        ),
+        numbered_items=len(numbered_items),
+        coded_numbered_items=sum(item.coded for item in numbered_items),
+        missing_code_items=tuple(item for item in numbered_items if not item.coded),
         findings=tuple(found),
     )
 
@@ -570,6 +674,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     *qualifier* beneath the verdict is a finding about the run and prints only when
     the run is short, because a caveat printed unconditionally is one nobody reads.
     """
+    # A zero is earned only where the limb had a population to inspect. Another
+    # limb's finding must not turn absence here into a plausible clean count.
+    row_22 = str(len(scan.findings)) if scan.differential_entries else "NOT RUN"
+    row_13 = str(len(scan.missing_code_items)) if scan.numbered_items else "NOT RUN"
+
     # Plain ASCII throughout, on ``specificity_scan.py``'s reasoning: this prints
     # to a Windows console, where anything outside cp1252 comes back as a question
     # mark and reads like corruption in the one output meant to be pasted.
@@ -584,7 +693,16 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  unwelded NOT CODED marks         {scan.unwelded_marks}",
         f"  malformed slot pins              {scan.malformed_pins}",
         "",
-        f"  row 22 - refused code in a slot  {len(scan.findings)}",
+        f"  labeled Differential blocks read      {scan.labeled_differential_blocks}"
+        f" in {scan.notes_with_labeled_differential} of {scan.notes} notes",
+        f"  numbered items in labeled blocks     {scan.numbered_items}",
+        f"  numbered items carrying a code       {scan.coded_numbered_items}"
+        f" of {scan.numbered_items}",
+        "  declared floor: these counts cover labeled Differential blocks only;",
+        "  the wide Assessment count still needs a reader.",
+        "",
+        f"  row 22 - refused code in a slot  {row_22}",
+        f"  row 13 floor - numbered item without a code  {row_13}",
     ]
     ungraded = scan.notes - scan.notes_with_differential
     if ungraded > 0:
@@ -605,6 +723,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines += ["", "  findings (PHI - read, do not paste):"]
         for finding in scan.findings:
             lines.append(f"    line {finding.line:<5} {finding.code:<9} {finding.label}")
+        for item in scan.missing_code_items:
+            lines.append(f"    line {item.line:<5} NO CODE   {item.label}")
     return "\n".join(lines)
 
 
@@ -639,14 +759,49 @@ def main(argv: list[str]) -> int:
         print(f"no notes found in {directory.name}", file=sys.stderr)
         return 2
     scan = survey([read_note(text) for text in texts])
+    # A numbered item without a code is a confirmed row-13 failure even though
+    # the older slot parser necessarily found nothing on that item. Findings run
+    # before the not-scanned exits so the coverage qualifier cannot suppress the
+    # defect it exists to describe.
+    has_findings = bool(scan.findings or scan.missing_code_items)
+    print(format_report(scan, source=directory.name, show=show))
+    if has_findings:
+        messages = []
+        if scan.findings:
+            messages.append(
+                f"{len(scan.findings)} entry/entries hold a code the note refused,"
+                " failing clinical-note drift row 22."
+            )
+        if scan.missing_code_items:
+            messages.append(
+                f"{len(scan.missing_code_items)} numbered differential item(s)"
+                " carry no code in the required slot, failing clinical-note"
+                " drift row 13."
+            )
+        message = "\n" + " ".join(messages)
+        message += " Re-run with --show to see which, and do not paste that output."
+        if scan.unwelded_marks:
+            message += (
+                f" {scan.unwelded_marks} further mark(s) are unwelded and were not"
+                " read, so this is a floor rather than the whole count."
+            )
+        print(message, file=sys.stderr)
+        return 1
     if not scan.differential_entries:
+        row_13 = (
+            " row 13 floor was not run: no numbered item was found inside a"
+            " labeled Differential block."
+            if not scan.numbered_items
+            else ""
+        )
         print(
             f"no differential entry found in {scan.notes} note(s) in {directory.name}."
-            " Nothing was scanned -- this is not a clean run.",
+            " The row 22 slot limb was not run."
+            + row_13
+            + " This is not a clean run.",
             file=sys.stderr,
         )
         return 2
-    print(format_report(scan, source=directory.name, show=show))
     # **A confirmed violation outranks an incomplete scan, and the ordering is a
     # decision rather than an accident.** Both conditions can hold at once, and a
     # status can carry one. A run holding a real row-22 failure *and* a bare mark
@@ -654,20 +809,6 @@ def main(argv: list[str]) -> int:
     # strongest thing known about it under the weakest heading. Nothing is hidden
     # either way -- ``unwelded NOT CODED marks`` is printed above both messages,
     # so an exit 1 still shows how much went unread.
-    if scan.findings:
-        print(
-            f"\n{len(scan.findings)} entry/entries hold a code the note refused,"
-            " failing clinical-note drift row 22."
-            " Re-run with --show to see which, and do not paste that output."
-            + (
-                f" {scan.unwelded_marks} further mark(s) are unwelded and were not"
-                " read, so this is a floor rather than the whole count."
-                if scan.unwelded_marks
-                else ""
-            ),
-            file=sys.stderr,
-        )
-        return 1
     if scan.unwelded_marks:
         # **Any** bare mark, not only a run with no welded refusal at all. The
         # weaker test was written first and a real run refuted it, clearing the
@@ -679,6 +820,14 @@ def main(argv: list[str]) -> int:
             " welded to a code, so no rule could pair them with one."
             " Refusals here are written in the form row 22 retired."
             " The slot limb was not evaluated -- this is not a clean run.",
+            file=sys.stderr,
+        )
+        return 2
+    if not scan.numbered_items:
+        print(
+            f"\nrow 13 floor was not run in {directory.name}: no numbered item"
+            " was found inside a labeled Differential block. This is not a clean"
+            " QA result; the wide Assessment count still needs a reader.",
             file=sys.stderr,
         )
         return 2

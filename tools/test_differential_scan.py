@@ -39,7 +39,7 @@ import io
 import re
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import differential_scan as ds
@@ -52,7 +52,7 @@ SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 CLEAN_SOAP = """A:
 
 Differential:
-Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
+1. Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
 """
 
 # ``hedged-dx`` run 1's case 2, verbatim, and **left in the retired form on
@@ -82,7 +82,7 @@ Contiguous osteomyelitis of the right tibia or fibula - M86.9: right tibia and f
 TWO_REFUSALS = """A:
 
 Differential:
-Chills - R68.83: chills over a chronic infected wound growing a resistant Klebsiella, but afebrile at 97.3, heart rate 77 and respiratory rate 18, so no SIRS criteria are met. CBC and lactate ordered today with no result. NOT CODED: A41.9 Sepsis, unspecified organism, the vitals do not support it; NOT CODED: R78.81 Bacteremia, no blood culture drawn. Less likely.
+1. Chills - R68.83: chills over a chronic infected wound growing a resistant Klebsiella, but afebrile at 97.3, heart rate 77 and respiratory rate 18, so no SIRS criteria are met. CBC and lactate ordered today with no result. NOT CODED: A41.9 Sepsis, unspecified organism, the vitals do not support it; NOT CODED: R78.81 Bacteremia, no blood culture drawn. Less likely.
 """
 
 # The H&P branch puts the code on its own line and the refusal on the next one, so
@@ -408,6 +408,155 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         self.assertEqual(scan.notes, 1)
 
 
+class TheDeclaredFloorChecksNumberedDifferentialItems(unittest.TestCase):
+    """Ticket #164's additional QA check, exercised through the command seam."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def write(self, name: str, text: str) -> None:
+        (self.root / name).write_text(text, encoding="utf-8")
+
+    def run_command(self) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = ds.main([str(self.root)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_the_floor_limit_is_a_tested_artifact(self):
+        limits = dict(ds.NOT_VALIDATED_AGAINST)
+        self.assertIn("the row-13 labeled-block floor", limits)
+        self.assertIn("wide Assessment verdict", limits["the row-13 labeled-block floor"])
+
+    def test_a_numbered_item_without_a_code_is_a_finding_not_not_run(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n1. Viral upper respiratory infection: favored.\n",
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 1)
+        self.assertIn("numbered items in labeled blocks", report)
+        self.assertIn("numbered items carrying a code", report)
+        self.assertIn("row 13 floor - numbered item without a code  1", report)
+        self.assertIn("row 22 - refused code in a slot  NOT RUN", report)
+        self.assertIn("wide Assessment count still needs a reader", report)
+        self.assertIn("failing clinical-note drift row 13", error)
+
+    def test_a_row_22_finding_does_not_make_the_row_13_floor_look_clean(self):
+        self.write("case-01.md", WELDED_SLOT_VIOLATION)
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 22 - refused code in a slot  1", report)
+        self.assertIn("row 13 floor - numbered item without a code  NOT RUN", report)
+
+    def test_the_command_reports_both_the_population_and_the_join(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n"
+            "1. Acute bronchitis - J20.9: favored.\n"
+            "2. Pneumonia: less likely.\n",
+        )
+
+        _, report, _ = self.run_command()
+
+        self.assertIn("numbered items in labeled blocks     2", report)
+        self.assertIn("numbered items carrying a code       1 of 2", report)
+
+    def test_the_hp_heading_and_two_line_item_are_read(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential diagnoses with rationale:\n"
+            "1. Acute bronchitis - J20.9\n"
+            "   Favored because the cough has lasted three weeks.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 0)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+        self.assertIn("numbered items carrying a code       1 of 1", report)
+
+    def test_a_bold_soap_heading_is_read(self):
+        self.write(
+            "case-01.md",
+            "A:\n\n**Differential:**\n1. Acute bronchitis - J20.9: favored.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 0)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+
+    def test_the_block_stops_before_a_numbered_plan(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n1. Acute bronchitis - J20.9: favored.\n\n"
+            "P:\n1. Supportive care without a diagnosis code.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 0)
+        self.assertIn("numbered items in labeled blocks     1", report)
+
+    def test_a_code_in_parentheses_does_not_satisfy_the_required_slot(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n1. Acute bronchitis (J20.9): favored.\n",
+        )
+
+        status, _, _ = self.run_command()
+
+        self.assertEqual(status, 1)
+
+    def test_a_later_slot_in_the_rationale_does_not_rescue_the_item(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\n"
+            "1. Viral upper respiratory infection: coded as cough - R05.9.\n",
+        )
+
+        status, report, _ = self.run_command()
+
+        self.assertEqual(status, 1)
+        self.assertIn("numbered items carrying a code       0 of 1", report)
+
+    def test_no_labeled_block_is_not_reported_as_a_clean_qa_run(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nAlso addressed this visit:\n1. Acute bronchitis - J20.9: favored.\n",
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 2)
+        self.assertIn("labeled Differential blocks read      0 in 0 of 1 notes", report)
+        self.assertIn("wide Assessment count still needs a reader", report)
+        self.assertIn("row 13 floor was not run", error)
+
+    def test_an_unnumbered_labeled_block_prints_both_zero_populations(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential:\nAcute bronchitis: favored because of cough.\n",
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 2)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+        self.assertIn("numbered items in labeled blocks     0", report)
+        self.assertIn("numbered items carrying a code       0 of 0", report)
+        self.assertIn("wide Assessment count still needs a reader", report)
+        self.assertIn("row 13 floor was not run", error)
+
+
 class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):
     """Pin the measurement the module docstring's limits rest on.
 
@@ -703,7 +852,10 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
     def test_a_run_that_genuinely_refused_nothing_is_zero(self):
         # No mark of either kind. Row 22 is satisfied by construction here, and
         # this is the case the limb above must not swallow.
-        self.write("case-01.md", "Differential:\nAcute bronchitis - J20.9: cough. Favored.\n")
+        self.write(
+            "case-01.md",
+            "Differential:\n1. Acute bronchitis - J20.9: cough. Favored.\n",
+        )
         self.assertEqual(ds.main([str(self.root)]), 0)
 
     def test_a_run_mixing_the_two_forms_is_also_two(self):
@@ -901,11 +1053,11 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
     line-wise search does not see it.
 
     **And every row is live**, which is what #241 asks for over a sentence. Each is
-    re-derived below rather than stated -- **row 3 against a run built in this
-    file, rows 1 and 2 against the committed tree** -- so a limit cannot quietly
-    stop being true. That distinction is written out because the first version
-    claimed all three ran against the committed tree while row 3 hand-built a
-    ``Scan`` and matched a format string.
+    re-derived below rather than stated -- **rows 3 and 4 against runs built in
+    this file, rows 1 and 2 against the committed tree** -- so a limit cannot
+    quietly stop being true. That distinction is written out because the first
+    version claimed every row ran against the committed tree while row 3 hand-built
+    a ``Scan`` and matched a format string.
     """
 
     CLAUDE = REPO_ROOT / "CLAUDE.md"
