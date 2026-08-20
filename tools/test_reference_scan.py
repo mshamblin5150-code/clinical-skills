@@ -293,14 +293,14 @@ class ARetrievalDateBelongsWhereAPAPutsOne(unittest.TestCase):
         self.assertNotIn(scan.RETRIEVAL_DATE_ON_ARCHIVED, kinds(draft(bare, UPTODATE)))
 
     def test_a_retrieval_date_before_the_exam_date_is_a_finding(self):
-        early = UPTODATE.replace("August 19, 2026", "August 19, 2025")
+        early = UPTODATE.replace("August 19, 2026", "August 19, 1800")
         self.assertIn(scan.RETRIEVAL_DATE_BEFORE_EXAM, kinds(draft(ACOG, early)))
 
     def test_the_same_day_is_on_or_after(self):
         self.assertNotIn(scan.RETRIEVAL_DATE_BEFORE_EXAM, kinds(CLEAN))
 
     def test_the_window_is_the_one_row_a_dateless_run_loses(self):
-        early = UPTODATE.replace("August 19, 2026", "August 19, 2025")
+        early = UPTODATE.replace("August 19, 2026", "August 19, 1800")
         self.assertNotIn(scan.RETRIEVAL_DATE_BEFORE_EXAM, kinds(draft(ACOG, early), as_of=None))
 
     def test_every_other_row_still_fires_without_an_exam_date(self):

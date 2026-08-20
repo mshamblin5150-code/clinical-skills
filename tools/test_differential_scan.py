@@ -541,7 +541,7 @@ class TheDeclaredFloorChecksNumberedDifferentialItems(unittest.TestCase):
         self.assertIn("wide Assessment count still needs a reader", report)
         self.assertIn("row 13 floor was not run", error)
 
-    def test_an_unnumbered_labeled_block_prints_both_zero_populations(self):
+    def test_an_unnumbered_labeled_block_is_a_row_23_finding(self):
         self.write(
             "case-01.md",
             "A:\n\nDifferential:\nAcute bronchitis: favored because of cough.\n",
@@ -549,12 +549,227 @@ class TheDeclaredFloorChecksNumberedDifferentialItems(unittest.TestCase):
 
         status, report, error = self.run_command()
 
-        self.assertEqual(status, 2)
+        self.assertEqual(status, 1)
         self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
         self.assertIn("numbered items in labeled blocks     0", report)
         self.assertIn("numbered items carrying a code       0 of 0", report)
         self.assertIn("wide Assessment count still needs a reader", report)
-        self.assertIn("row 13 floor was not run", error)
+        self.assertIn("failing clinical-note drift row 23", error)
+
+
+class TheRow23MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
+    """Ticket #192's reachable ranking limbs, exercised through ``main``."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def run_command(self, text: str) -> tuple[int, str, str]:
+        (self.root / "case-01.md").write_text(text, encoding="utf-8")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = ds.main([str(self.root)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_a_compliant_ranked_block_has_no_row_23_shape_finding(self):
+        status, report, _ = self.run_command(
+            "A:\n\nDifferential:\n"
+            "1. Viral upper respiratory infection - J06.9: favored.\n"
+            "2. Streptococcal pharyngitis - J02.0: less likely.\n"
+        )
+
+        self.assertEqual(status, 0)
+        self.assertIn("row 23 floor - ranking shape violations  0", report)
+        self.assertIn("clinical likelihood order still needs a reader", report)
+
+    def test_prose_instead_of_numbered_items_is_a_finding_not_not_run(self):
+        status, report, error = self.run_command(
+            "A:\n\nDifferential:\n"
+            "Viral upper respiratory infection - J06.9: favored.\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 23 floor - ranking shape violations  1", report)
+        self.assertIn("failing clinical-note drift row 23", error)
+
+    def test_numbering_must_start_at_one_and_remain_contiguous(self):
+        status, report, _ = self.run_command(
+            "A:\n\nDifferential:\n"
+            "2. Viral upper respiratory infection - J06.9: favored.\n"
+            "4. Streptococcal pharyngitis - J02.0: less likely.\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 23 floor - ranking shape violations  1", report)
+
+    def test_one_number_cannot_open_two_pinned_entries(self):
+        status, report, _ = self.run_command(
+            "A:\n\nDifferential:\n"
+            "1. Cough - R05.9; dyspnea - R06.02: favored.\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 23 floor - ranking shape violations  1", report)
+
+    def test_an_unnumbered_entry_cannot_hide_below_a_numbered_one(self):
+        status, report, _ = self.run_command(
+            "A:\n\nDifferential:\n"
+            "1. Viral upper respiratory infection - J06.9: favored.\n"
+            "Pneumonia - J18.9: less likely.\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 23 floor - ranking shape violations  1", report)
+
+    def test_an_unnumbered_entry_cannot_hide_above_a_numbered_one(self):
+        status, report, _ = self.run_command(
+            "A:\n\nDifferential:\n"
+            "Pneumonia - J18.9: less likely.\n"
+            "1. Viral upper respiratory infection - J06.9: favored.\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 23 floor - ranking shape violations  1", report)
+
+    def test_a_missing_hyphen_pinned_opener_fails_rows_13_and_23_once_each(self):
+        status, report, error = self.run_command(
+            "A:\n\nDifferential:\n1. Viral upper respiratory infection (J06.9): favored.\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 13 floor - numbered item without a code  1", report)
+        self.assertIn("row 23 floor - ranking shape violations  1", report)
+        self.assertIn("drift row 13", error)
+        self.assertIn("drift row 23", error)
+
+
+class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
+    """Ticket #192's sheet-backed tail checks, exercised through ``main``."""
+
+    DIFFERENTIAL = (
+        "A:\n\nDifferential:\n"
+        "1. Viral upper respiratory infection - J06.9: favored.\n\n"
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def run_command(self, proposed: str) -> tuple[int, str, str]:
+        text = self.DIFFERENTIAL + proposed + "\nFLAG              none\n"
+        (self.root / "case-01.md").write_text(text, encoding="utf-8")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = ds.main([str(self.root)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. HIV screening [uspstf: grade A, adolescents and adults aged 15 to 65 years, 2019]\n"
+            "FILLED·proposed   2. Weight target [thresholds/hypertension: aha-2025 Class 1, adults-overweight, >=5% of body weight]"
+        )
+
+        self.assertEqual(status, 0)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("guideline tails checked against shipped sheets  2", report)
+
+    def test_a_known_population_subject_without_a_tail_is_a_finding(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. HIV screening"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+        self.assertIn("failing clinical-note drift row 24", error)
+
+    def test_an_item_whose_dependency_is_not_mechanical_is_a_candidate(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Oral hydration and rest"
+        )
+
+        self.assertEqual(status, 0)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+    def test_a_tail_on_a_continuation_line_is_a_finding(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. HIV screening\n"
+            "                  [uspstf: grade A, adolescents and adults aged 15 to 65 years, 2019]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_a_uspstf_tuple_that_is_not_in_the_sheet_is_a_finding(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. HIV screening [uspstf: grade D, adolescents and adults aged 15 to 65 years, 2019]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_a_threshold_tail_must_name_a_shipped_topic(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Weight target [thresholds/obesity: aha-2025 Class 1, adults-overweight, >=5% of body weight]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_a_false_no_uspstf_row_is_a_finding(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. HIV screening [uspstf: no row]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_a_no_row_claim_with_no_sheet_topic_match_is_a_candidate(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Adult immunization review [uspstf: no row]"
+        )
+
+        self.assertEqual(status, 0)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+    def test_sheet_does_not_settle_fails_when_the_item_names_a_sheet_value(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Blood pressure target 130/80 [thresholds/hypertension: sheet does not settle it]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_sheet_does_not_settle_fails_for_a_plain_comparator_threshold(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Blood pressure treatment threshold SBP >=140 "
+            "[thresholds/hypertension: sheet does not settle it]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_threshold_fields_must_share_one_shipped_row(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Sodium target "
+            "[thresholds/hypertension: aha-2025 Class 2a, adults-men, <2300 mg/d]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_threshold_comparator_must_match_the_shipped_row(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Blood pressure treatment threshold "
+            "[thresholds/hypertension: aha-2025 Class 1, adults-htn, <=140 mm Hg]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
 
 
 class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):
@@ -639,9 +854,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
             "`NOT CODED: <code> <official descriptor>, <reason>`", self.text
         )
 
-    def test_the_skill_says_the_retired_form_exits_two(self):
-        # Otherwise a run rewritten in good faith reads exit 2 as a broken tool.
-        self.assertIn("A run written in the retired form exits 2, not 0", self.text)
+    def test_the_skill_says_the_retired_form_never_reads_clean(self):
+        # Row 23 can now make exit 1 outrank the unread row-22 limb.
+        self.assertIn("A run written in the retired form never exits 0", self.text)
+        self.assertIn("row-22 slot limb exits 2", self.text)
 
     def test_the_skill_names_this_scanner(self):
         self.assertIn("tools/differential_scan.py", self.text)
@@ -653,6 +869,15 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
             "The scanner reaches the slot limb and neither of the other two", self.text
         )
         self.assertIn("a clean scan is not a walked row", self.text)
+
+    def test_the_skill_names_the_row_23_floor_and_reader_residue(self):
+        self.assertIn("row 23's mechanical floor", self.text)
+        self.assertIn("clinical likelihood order still needs a reader", self.text)
+
+    def test_the_skill_names_the_row_24_floor_candidates_and_reader_residue(self):
+        self.assertIn("row 24's mechanical floor", self.text)
+        self.assertIn("missing tails on undecidable items are candidates", self.text)
+        self.assertIn("a clean scan is not a walked row 24", self.text)
 
 
 class TheWeldedFormIsWhatCountsAsARefusal(unittest.TestCase):
@@ -845,9 +1070,11 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
     def write(self, name: str, text: str) -> None:
         (self.root / name).write_text(text, encoding="utf-8")
 
-    def test_a_run_in_the_retired_form_is_two(self):
+    def test_a_run_in_the_retired_form_is_one_when_row_23_also_fails(self):
         self.write("case-01.md", RETIRED_FORM)
-        self.assertEqual(ds.main([str(self.root)]), 2)
+        # Ticket #192 adds a definite prose-ranking failure. Exit 1 outranks the
+        # unread refusal limb, whose count still prints in the report.
+        self.assertEqual(ds.main([str(self.root)]), 1)
 
     def test_a_run_that_genuinely_refused_nothing_is_zero(self):
         # No mark of either kind. Row 22 is satisfied by construction here, and
@@ -858,7 +1085,7 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
         )
         self.assertEqual(ds.main([str(self.root)]), 0)
 
-    def test_a_run_mixing_the_two_forms_is_also_two(self):
+    def test_a_run_mixing_the_two_forms_is_one_when_row_23_also_fails(self):
         # **Any** bare mark, not only a run with none welded. The weaker test
         # was written first and a real run refuted it, clearing that guard on a
         # handful of welded refusals while the rest went unread beneath a clean
@@ -868,7 +1095,7 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
         # what pins the behavior instead**, which is the durable half.
         self.write("case-01.md", WRAPPED_REFUSAL)
         self.write("case-02.md", RETIRED_FORM)
-        self.assertEqual(ds.main([str(self.root)]), 2)
+        self.assertEqual(ds.main([str(self.root)]), 1)
         scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
         self.assertEqual(scan.unwelded_marks, 1)
         self.assertEqual(scan.refused_codes, 1)
@@ -1246,9 +1473,9 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         self.assertIn("the aggregate of the exit-2 limbs", self.keys())
         with redirect_stdout(io.StringIO()):
             readable = ds.main([str(self.FIXTURES / "slot-form-run")])
-        self.assertEqual(
+        self.assertNotEqual(
             readable,
-            0,
+            2,
             "the committed slot-form run is no longer readable, so the second row's"
             " residue is wrong -- it says most committed directories are refused,"
             " not all of them",
@@ -1336,6 +1563,34 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
         third copy was in the first draft and is duplication rather than cover.
         """
         self.assertEqual(ds.survey(self.notes()).findings, ())
+
+    def test_the_run_carries_sheet_backed_row_24_instances(self):
+        """The new floor reads committed positive material, not synthetic tails alone."""
+        self.assertTrue(
+            any(note.guideline_tails_checked for note in self.notes()),
+            "the committed run offered no sheet-backed guideline tail",
+        )
+
+    def test_one_committed_uspstf_tail_mutation_fires_row_24_through_main(self):
+        """Plant one wrong grade in a clean committed note; leave the record untouched."""
+        text = next(note for note in ds.read_notes(self.RUN) if "[uspstf: grade A" in note)
+        control = ds.read_note(text)
+        baseline = len(control.guideline_findings)
+        mutated = text.replace("[uspstf: grade A", "[uspstf: grade D", 1)
+        self.assertNotEqual(mutated, text, "the committed note offered no grade-A tail")
+
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "case-01.md").write_text(mutated, encoding="utf-8")
+            printed = io.StringIO()
+            with redirect_stdout(printed):
+                status = ds.main([str(root)])
+
+        self.assertEqual(status, 1, printed.getvalue())
+        self.assertIn(
+            f"row 24 - guideline tail violations  {baseline + 1}",
+            printed.getvalue(),
+        )
 
     def test_one_displaced_code_fires_the_exit_one_branch(self):
         """**The exit-1 branch on real material**, and the mutation is the point.

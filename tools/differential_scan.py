@@ -2,6 +2,23 @@
 
     python tools/differential_scan.py <a run directory> [--show]
 
+Ticket #192 extends the same run-directory command across the adjacent shapes it
+already parses. **Drift row 23's mechanical floor** grades labeled Differential
+blocks for a numbered, contiguous sequence beginning at ``1.``, one required
+``Name - CODE`` opener per item, and no prose substitute. It never grades whether
+the clinical likelihood order is right or discovers diagnosis-shaped prose under
+an invented Assessment heading.
+
+**Drift row 24's mechanical floor** reads every physical ``FILLED·proposed``
+opener, including an unnumbered one, and checks same-line guideline tails against
+the shipped USPSTF and threshold sheets wherever a direct join is mechanical. A
+known screening, counseling, immunization, vaccination, target, cutoff or threshold
+subject without a tail is a finding. Any other absent tail is a candidate outside
+the exit status, because the scanner cannot decide whether that item rests on a
+population or threshold. It also cannot decide whether a correctly extracted
+recommendation applies to the patient. A clean scan is therefore not a walked row
+23 or 24.
+
 [#68] asked what a differential entry is *called* once its organism-specific code
 is refused, and the answer -- **the entry is named for the code it carries** --
 closed a hole that had nothing to do with naming. One run produced three
@@ -129,7 +146,7 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 
 **Exit status distinguishes not having scanned from having found nothing**, on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
-when every slot is clean, 1 on a violation, and **2 for every way of not having
+when every reached floor is clean, 1 on a violation, and **2 for every way of not having
 scanned** -- no argument, no directory, no notes in it, **no differential entry in
 any note read, no numbered item in a labeled block, and any bare ``NOT CODED``
 mark.** The last three matter most: a run
@@ -142,7 +159,9 @@ is a decision.** A run carrying a real row-22 failure *and* a bare mark is
 definitely not clean, so returning 2 would file the strongest thing known about
 it under the weakest heading. Nothing is hidden by the choice: the unwelded count
 prints above either message, and the exit-1 message names it, so a 1 still says
-the finding is a floor rather than the whole count.
+the finding is a floor rather than the whole count. Row 23's definite prose-shape
+finding and row 24's definite tail findings use the same ordering; candidate tails
+never affect it.
 
 **The bare-mark limb is *any* bare mark, and the weaker version of it was wrong.**
 It first fired only where a run had no welded refusal at all, and a real run
@@ -265,6 +284,50 @@ DIFFERENTIAL_HEADING = re.compile(
 )
 ITEM_NUMBER_PREFIX = re.compile(r"^[ \t]*\d+\.[ \t]+")
 
+# A proposed item is opened by the tier label, whether or not the run obeyed row
+# 21's numbering rule. Row 24 explicitly reaches an unnumbered screening item, so
+# refusing that shape here would make the guideline floor easiest to evade where
+# the proposal floor already failed.
+PROPOSED_ITEM = re.compile(
+    r"^FILLED·proposed[ \t]+(?:(\d+)\.[ \t]+)?(.*)$"
+)
+TIER_LABEL = re.compile(
+    r"^(?:DERIVED|FILLED·asserted|FILLED·proposed|FLAG|GAPS|UNKNOWN)\b"
+)
+GUIDELINE_TAIL = re.compile(
+    r"\[((?:uspstf|thresholds/[^:\]]+):[^\]]+|recalled, no shipped sheet[^\]]*)\]",
+    re.IGNORECASE,
+)
+GUIDELINE_TAIL_START = re.compile(
+    r"\[(?:uspstf|thresholds/[^:\]]+):|\[recalled, no shipped sheet",
+    re.IGNORECASE,
+)
+GUIDELINE_TRIGGER = re.compile(
+    r"\b(?:screen(?:ing)?|counsel(?:ing)?|immuniz\w*|vaccin\w*|target|cutoff|threshold)\b",
+    re.IGNORECASE,
+)
+NO_GUIDELINE_DEPENDENCY = re.compile(
+    r"\b(?:rests?|resting) on no population or threshold\b", re.IGNORECASE
+)
+USPSTF_CITATION = re.compile(
+    r"^(?:grade[ \t]+([ABCDI])[^,]*|([ABCDI])[ \t]+statement),"
+    r"[ \t]*(.+),[ \t]*(\d{4})$",
+    re.IGNORECASE,
+)
+THRESHOLD_CITATION = re.compile(
+    r"^([a-z0-9-]+)[ \t]+Class[ \t]+([A-Za-z0-9]+),[ \t]*([^,]+),[ \t]*(.+)$",
+    re.IGNORECASE,
+)
+THRESHOLD_SIGNAL = re.compile(
+    r"(?:>=|<=|>|<|≥|≤)[ \t]*\d+(?:\.\d+)?(?:/\d+(?:\.\d+)?)?%?"
+    r"|\d+(?:/\d+)(?:\.\d+)?%?"
+    r"|\d+(?:\.\d+)?%"
+)
+
+REFERENCE_ROOT = Path(__file__).resolve().parent.parent / "reference"
+USPSTF_SHEET = REFERENCE_ROOT / "guidelines-uspstf.md"
+THRESHOLD_ROOT = REFERENCE_ROOT / "thresholds"
+
 
 # **What this scanner's validation set does not reach**, declared rather than
 # described -- [#162], option 4, and it is an object rather than a sentence for
@@ -363,9 +426,56 @@ class Entry:
 class NumberedItem:
     """One numbered item inside a template-labeled Differential block."""
 
+    number: int
     label: str
     line: int
     coded: bool
+    slot_count: int
+
+
+@dataclass(frozen=True)
+class RankingFinding:
+    """One mechanically certain drift-row-23 shape violation."""
+
+    line: int
+    reason: str
+    label: str = ""
+
+
+@dataclass(frozen=True)
+class ProposedItem:
+    """One physical ``FILLED·proposed`` opener and its wrapped lines."""
+
+    line: int
+    text: str
+    continuation: tuple[tuple[int, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class GuidelineFinding:
+    """One mechanically certain drift-row-24 violation."""
+
+    line: int
+    reason: str
+    label: str = ""
+
+
+@dataclass(frozen=True)
+class GuidelineCandidate:
+    """An absent tail whose population-or-threshold dependency needs a reader."""
+
+    line: int
+    label: str
+
+
+@dataclass(frozen=True)
+class ThresholdRow:
+    """One shipped threshold row, kept intact for citation joins."""
+
+    source: str
+    strength: str
+    value: str
+    context: str
 
 
 @dataclass(frozen=True)
@@ -388,6 +498,11 @@ class Note:
     unwelded_marks: int = 0
     labeled_differential_blocks: int = 0
     numbered_items: tuple[NumberedItem, ...] = ()
+    ranking_findings: tuple[RankingFinding, ...] = ()
+    proposed_items: tuple[ProposedItem, ...] = ()
+    guideline_tails_checked: int = 0
+    guideline_findings: tuple[GuidelineFinding, ...] = ()
+    guideline_candidates: tuple[GuidelineCandidate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -415,6 +530,11 @@ class Scan:
     numbered_items: int
     coded_numbered_items: int
     missing_code_items: tuple[NumberedItem, ...] = ()
+    ranking_findings: tuple[RankingFinding, ...] = ()
+    proposed_items: int = 0
+    guideline_tails_checked: int = 0
+    guideline_findings: tuple[GuidelineFinding, ...] = ()
+    guideline_candidates: tuple[GuidelineCandidate, ...] = ()
     findings: tuple[Finding, ...] = ()
 
 
@@ -514,7 +634,9 @@ def _without_item_number(label: str) -> str:
     return ITEM_NUMBER_PREFIX.sub("", label).strip()
 
 
-def _labeled_differential_items(lines: list[str]) -> tuple[int, list[NumberedItem]]:
+def _labeled_differential_items(
+    lines: list[str],
+) -> tuple[int, list[NumberedItem], list[RankingFinding]]:
     """Count template-labeled blocks and their numbered items.
 
     A block ends at its first blank line, matching both branch templates. Only a
@@ -525,6 +647,7 @@ def _labeled_differential_items(lines: list[str]) -> tuple[int, list[NumberedIte
     """
     blocks = 0
     items: list[NumberedItem] = []
+    findings: list[RankingFinding] = []
     index = 0
     while index < len(lines):
         if not DIFFERENTIAL_HEADING.match(lines[index]):
@@ -532,19 +655,374 @@ def _labeled_differential_items(lines: list[str]) -> tuple[int, list[NumberedIte
             continue
         blocks += 1
         index += 1
+        block_items: list[NumberedItem] = []
+        content_lines: list[int] = []
+        unnumbered_entry_lines: list[tuple[int, str]] = []
         while index < len(lines) and lines[index].strip():
+            content_lines.append(index + 1)
             prefix = ITEM_NUMBER_PREFIX.match(lines[index])
             if prefix:
                 item_text = lines[index][prefix.end() :]
-                items.append(
-                    NumberedItem(
-                        label=item_text,
-                        line=index + 1,
-                        coded=bool(ITEM_SLOT.search(item_text)),
+                slots = list(SLOT.finditer(item_text))
+                item = NumberedItem(
+                    number=int(prefix.group(0).strip().removesuffix(".")),
+                    label=item_text,
+                    line=index + 1,
+                    coded=bool(ITEM_SLOT.search(item_text)),
+                    slot_count=len(slots),
+                )
+                items.append(item)
+                block_items.append(item)
+            elif ITEM_SLOT.search(lines[index]):
+                unnumbered_entry_lines.append((index + 1, lines[index].strip()))
+            index += 1
+        if content_lines and not block_items:
+            findings.append(
+                RankingFinding(
+                    line=content_lines[0],
+                    reason="labeled Differential block is prose, not a numbered list",
+                )
+            )
+            continue
+        findings.extend(
+            RankingFinding(
+                line=line,
+                reason="entry-shaped line is not its own numbered item",
+                label=label,
+            )
+            for line, label in unnumbered_entry_lines
+        )
+        numbers = [item.number for item in block_items]
+        if numbers and numbers != list(range(1, len(numbers) + 1)):
+            findings.append(
+                RankingFinding(
+                    line=block_items[0].line,
+                    reason="numbering does not start at 1 and remain contiguous",
+                )
+            )
+        for item in block_items:
+            if not item.coded:
+                findings.append(
+                    RankingFinding(
+                        line=item.line,
+                        reason="numbered item lacks the required Name - CODE opener",
+                        label=item.label,
                     )
                 )
+            elif item.slot_count != 1:
+                findings.append(
+                    RankingFinding(
+                        line=item.line,
+                        reason="one numbered item opens more than one pinned entry",
+                        label=item.label,
+                    )
+                )
+    return blocks, items, findings
+
+
+def _pipe_cells(line: str) -> list[str]:
+    """Cells from one simple Markdown table row."""
+    return [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
+
+
+def _uspstf_index() -> tuple[tuple[str, str, str], ...]:
+    """Citation tuples from the shipped USPSTF sheet."""
+    rows: list[tuple[str, str, str]] = []
+    for line in USPSTF_SHEET.read_text(encoding="utf-8").splitlines():
+        cells = _pipe_cells(line) if line.startswith("|") else []
+        if len(cells) != 8 or cells[2] not in {"A", "B", "C", "D", "I"}:
+            continue
+        if not re.fullmatch(r"\d{4}", cells[4]):
+            continue
+        rows.append((cells[0], cells[2].casefold(), cells[4]))
+    return tuple(rows)
+
+
+USPSTF_ROWS = _uspstf_index()
+
+
+def _topic_words(text: str) -> set[str]:
+    stop = {
+        "adult",
+        "adults",
+        "and",
+        "discussed",
+        "for",
+        "infection",
+        "offered",
+        "of",
+        "review",
+        "screening",
+        "status",
+        "the",
+    }
+    words = {
+        word
+        for word in re.findall(r"[a-z0-9]+", text.casefold())
+        if word not in stop and len(word) >= 3
+    }
+    lowered = text.casefold()
+    if (
+        "blood pressure" in lowered
+        or "hypertension" in words
+        or words & {"bp", "sbp", "dbp"}
+    ):
+        words.update(("blood", "pressure", "hypertension"))
+    if words & {"target", "threshold", "cutoff"}:
+        words.update(("target", "threshold", "cutoff"))
+    return words
+
+
+def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
+    """High-confidence lexical joins only; synonym-shaped misses stay candidates."""
+    words = _topic_words(item)
+    decisive: list[tuple[str, str, str]] = []
+    for row in USPSTF_ROWS:
+        shared = words & _topic_words(row[0])
+        if not shared:
+            continue
+        # A one-token subject such as HIV is decisive. Longer subjects need most
+        # of their informative words joined; ``blood pressure`` alone must not
+        # join an adult screening item to the pediatric sheet row.
+        if words <= shared or (len(shared) >= 2 and len(shared) / len(words) >= 0.67):
+            decisive.append(row)
+    return decisive
+
+
+def _uspstf_citation_matches(item: str, grade: str, year: str) -> bool | None:
+    """Whether a directly joined topic carries the cited grade and year.
+
+    ``None`` means the subject could not be joined mechanically; it is a
+    candidate for a reader, never a fabricated clean sheet comparison.
+    """
+    matches = _uspstf_subject_topics(item)
+    if not matches:
+        return None
+    return any(row[1] == grade.casefold() and row[2] == year for row in matches)
+
+
+def _normalized_value(text: str) -> str:
+    return "".join(
+        text.casefold()
+        .replace("≥", ">=")
+        .replace("≤", "<=")
+        .replace(",", "")
+        .split()
+    )
+
+
+def _threshold_index(path: Path) -> tuple[ThresholdRow, ...]:
+    """Intact citation rows from one shipped threshold sheet."""
+    rows: list[ThresholdRow] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        cells = _pipe_cells(line) if line.startswith("|") else []
+        if len(cells) != 8 or cells[0] in {"quantity", "---"}:
+            continue
+        source, population, value, strength = cells[4], cells[1], cells[2], cells[7]
+        if not source or not population or not value or not strength:
+            continue
+        rows.append(
+            ThresholdRow(
+                source=source.casefold(),
+                strength=strength.casefold(),
+                value=_normalized_value(value),
+                context=" ".join((cells[0], cells[3])),
+            )
+        )
+    return tuple(rows)
+
+
+def _threshold_signals(text: str) -> set[str]:
+    """Comparator, ratio, and percent values strong enough for a direct join."""
+    return {_normalized_value(signal) for signal in THRESHOLD_SIGNAL.findall(text)}
+
+
+def _threshold_signal_values(text: str) -> set[str]:
+    """Numeric cores used to disprove a claim that the sheet has no value."""
+    return {signal.lstrip("<>=") for signal in _threshold_signals(text)}
+
+
+def _read_proposed_items(lines: list[str]) -> list[ProposedItem]:
+    """Read physical proposed-item openers and retain their continuation lines."""
+    items: list[ProposedItem] = []
+    index = 0
+    while index < len(lines):
+        match = PROPOSED_ITEM.match(lines[index])
+        if not match:
             index += 1
-    return blocks, items
+            continue
+        continuation: list[tuple[int, str]] = []
+        following = index + 1
+        while following < len(lines) and not TIER_LABEL.match(lines[following]):
+            continuation.append((following + 1, lines[following]))
+            following += 1
+        items.append(
+            ProposedItem(
+                line=index + 1,
+                text=match.group(2).strip(),
+                continuation=tuple(continuation),
+            )
+        )
+        index = following
+    return items
+
+
+def _guideline_floor(
+    items: list[ProposedItem],
+) -> tuple[int, list[GuidelineFinding], list[GuidelineCandidate]]:
+    """Validate row 24's mechanical limbs and preserve its clinical ceiling."""
+    checked = 0
+    findings: list[GuidelineFinding] = []
+    candidates: list[GuidelineCandidate] = []
+
+    for item in items:
+        opening_tails = list(GUIDELINE_TAIL.finditer(item.text))
+        continuation_tails = [
+            (line, text)
+            for line, text in item.continuation
+            if GUIDELINE_TAIL_START.search(text)
+        ]
+        if continuation_tails:
+            findings.append(
+                GuidelineFinding(
+                    line=continuation_tails[0][0],
+                    reason="guideline verdict is on a continuation line",
+                    label=item.text,
+                )
+            )
+
+        if not opening_tails:
+            if continuation_tails:
+                continue
+            if NO_GUIDELINE_DEPENDENCY.search(item.text):
+                continue
+            if GUIDELINE_TRIGGER.search(item.text):
+                findings.append(
+                    GuidelineFinding(
+                        line=item.line,
+                        reason="population-or-threshold subject carries no guideline tail",
+                        label=item.text,
+                    )
+                )
+            else:
+                candidates.append(GuidelineCandidate(item.line, item.text))
+            continue
+
+        for match in opening_tails:
+            tail = match.group(1).strip()
+            subject = (item.text[: match.start()] + item.text[match.end() :]).strip()
+            lowered = tail.casefold()
+            if lowered.startswith("recalled, no shipped sheet"):
+                continue
+            if lowered.startswith("uspstf:"):
+                checked += 1
+                verdict = tail.split(":", 1)[1].strip()
+                if verdict.casefold().startswith("no row"):
+                    if _uspstf_subject_topics(subject):
+                        findings.append(
+                            GuidelineFinding(
+                                item.line,
+                                "uspstf: no row contradicts a shipped topic",
+                                item.text,
+                            )
+                        )
+                    else:
+                        candidates.append(GuidelineCandidate(item.line, item.text))
+                    continue
+                citation = USPSTF_CITATION.fullmatch(verdict)
+                if citation is None:
+                    findings.append(
+                        GuidelineFinding(item.line, "malformed USPSTF verdict", item.text)
+                    )
+                    continue
+                if not citation.group(3).strip():
+                    findings.append(
+                        GuidelineFinding(
+                            item.line, "USPSTF population is empty", item.text
+                        )
+                    )
+                    continue
+                grade = citation.group(1) or citation.group(2)
+                matched = _uspstf_citation_matches(subject, grade, citation.group(4))
+                if matched is None:
+                    candidates.append(GuidelineCandidate(item.line, item.text))
+                elif not matched:
+                    findings.append(
+                        GuidelineFinding(
+                            item.line,
+                            "USPSTF grade, population, and year do not match a shipped row",
+                            item.text,
+                        )
+                    )
+                continue
+
+            topic, verdict = tail.split(":", 1)
+            topic = topic.split("/", 1)[1].strip()
+            sheet = THRESHOLD_ROOT / f"{topic}.md"
+            if not sheet.is_file():
+                findings.append(
+                    GuidelineFinding(
+                        item.line, "threshold tail names no shipped topic", item.text
+                    )
+                )
+                continue
+            checked += 1
+            rows = _threshold_index(sheet)
+            verdict = verdict.strip()
+            if verdict.casefold().startswith("sheet does not settle it"):
+                subject_signals = _threshold_signal_values(subject.replace(",", ""))
+                subject_words = _topic_words(subject)
+                contradicts = any(
+                    subject_signals & _threshold_signal_values(row.value)
+                    and subject_words & _topic_words(row.context)
+                    for row in rows
+                )
+                if contradicts:
+                    findings.append(
+                        GuidelineFinding(
+                            item.line,
+                            "sheet does not settle it contradicts a value in the shipped sheet",
+                            item.text,
+                        )
+                    )
+                else:
+                    candidates.append(GuidelineCandidate(item.line, item.text))
+                continue
+            citation = THRESHOLD_CITATION.fullmatch(verdict)
+            if citation is None:
+                findings.append(
+                    GuidelineFinding(item.line, "malformed threshold verdict", item.text)
+                )
+                continue
+            source = citation.group(1).casefold()
+            strength = citation.group(2).casefold()
+            population = citation.group(3).strip()
+            value = citation.group(4).strip()
+            cited_value = _normalized_value(value)
+            cited_signals = _threshold_signals(value)
+            matching_row = any(
+                row.source == source
+                and row.strength == strength
+                and (
+                    cited_signals <= _threshold_signals(row.value)
+                    if cited_signals
+                    else cited_value in row.value
+                )
+                for row in rows
+            )
+            if (
+                not population
+                or not value
+                or not matching_row
+            ):
+                findings.append(
+                    GuidelineFinding(
+                        item.line,
+                        "threshold source, strength, population, and value do not match a shipped row",
+                        item.text,
+                    )
+                )
+    return checked, findings, candidates
 
 
 def read_note(text: str) -> Note:
@@ -556,7 +1034,11 @@ def read_note(text: str) -> Note:
     positionally the way ``specificity_scan.py`` pairs a flag to its code.
     """
     lines = [_readable(line) for line in text.splitlines()]
-    labeled_blocks, numbered_items = _labeled_differential_items(lines)
+    labeled_blocks, numbered_items, ranking_findings = _labeled_differential_items(lines)
+    proposed_items = _read_proposed_items(lines)
+    guideline_checked, guideline_findings, guideline_candidates = _guideline_floor(
+        proposed_items
+    )
     refused, spans = _refusals(lines)
     conclusion = _conclusion_lines(lines)
     unwelded = sum(
@@ -602,6 +1084,11 @@ def read_note(text: str) -> Note:
         unwelded_marks=unwelded,
         labeled_differential_blocks=labeled_blocks,
         numbered_items=tuple(numbered_items),
+        ranking_findings=tuple(ranking_findings),
+        proposed_items=tuple(proposed_items),
+        guideline_tails_checked=guideline_checked,
+        guideline_findings=tuple(guideline_findings),
+        guideline_candidates=tuple(guideline_candidates),
     )
 
 
@@ -642,6 +1129,15 @@ def survey(notes: list[Note]) -> Scan:
     found = [finding for note in notes for finding in note_findings(note)]
     entries = [entry for note in notes for entry in note.entries]
     numbered_items = [item for note in notes for item in note.numbered_items]
+    ranking_findings = [
+        finding for note in notes for finding in note.ranking_findings
+    ]
+    guideline_findings = [
+        finding for note in notes for finding in note.guideline_findings
+    ]
+    guideline_candidates = [
+        candidate for note in notes for candidate in note.guideline_candidates
+    ]
     return Scan(
         notes=len(notes),
         notes_with_differential=sum(
@@ -661,6 +1157,11 @@ def survey(notes: list[Note]) -> Scan:
         numbered_items=len(numbered_items),
         coded_numbered_items=sum(item.coded for item in numbered_items),
         missing_code_items=tuple(item for item in numbered_items if not item.coded),
+        ranking_findings=tuple(ranking_findings),
+        proposed_items=sum(len(note.proposed_items) for note in notes),
+        guideline_tails_checked=sum(note.guideline_tails_checked for note in notes),
+        guideline_findings=tuple(guideline_findings),
+        guideline_candidates=tuple(guideline_candidates),
         findings=tuple(found),
     )
 
@@ -678,6 +1179,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # limb's finding must not turn absence here into a plausible clean count.
     row_22 = str(len(scan.findings)) if scan.differential_entries else "NOT RUN"
     row_13 = str(len(scan.missing_code_items)) if scan.numbered_items else "NOT RUN"
+    row_23 = (
+        str(len(scan.ranking_findings))
+        if scan.labeled_differential_blocks
+        else "NOT RUN"
+    )
+    row_24 = str(len(scan.guideline_findings))
 
     # Plain ASCII throughout, on ``specificity_scan.py``'s reasoning: this prints
     # to a Windows console, where anything outside cp1252 comes back as a question
@@ -703,6 +1210,17 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  row 22 - refused code in a slot  {row_22}",
         f"  row 13 floor - numbered item without a code  {row_13}",
+        f"  row 23 floor - ranking shape violations  {row_23}",
+        "  declared floor: clinical likelihood order still needs a reader.",
+        "",
+        f"  FILLED proposed items read                 {scan.proposed_items}",
+        "  guideline tails checked against shipped sheets  "
+        f"{scan.guideline_tails_checked}",
+        f"  row 24 - guideline tail violations  {row_24}",
+        "  row 24 candidates - dependency needs a reader  "
+        f"{len(scan.guideline_candidates)}",
+        "  declared floor: whether a recommendation applies to the patient still"
+        " needs a reader.",
     ]
     ungraded = scan.notes - scan.notes_with_differential
     if ungraded > 0:
@@ -725,6 +1243,18 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             lines.append(f"    line {finding.line:<5} {finding.code:<9} {finding.label}")
         for item in scan.missing_code_items:
             lines.append(f"    line {item.line:<5} NO CODE   {item.label}")
+        for finding in scan.ranking_findings:
+            lines.append(
+                f"    line {finding.line:<5} ROW 23    {finding.reason} {finding.label}".rstrip()
+            )
+        for finding in scan.guideline_findings:
+            lines.append(
+                f"    line {finding.line:<5} ROW 24    {finding.reason} {finding.label}".rstrip()
+            )
+        for candidate in scan.guideline_candidates:
+            lines.append(
+                f"    line {candidate.line:<5} CANDIDATE {candidate.label}".rstrip()
+            )
     return "\n".join(lines)
 
 
@@ -763,7 +1293,12 @@ def main(argv: list[str]) -> int:
     # the older slot parser necessarily found nothing on that item. Findings run
     # before the not-scanned exits so the coverage qualifier cannot suppress the
     # defect it exists to describe.
-    has_findings = bool(scan.findings or scan.missing_code_items)
+    has_findings = bool(
+        scan.findings
+        or scan.missing_code_items
+        or scan.ranking_findings
+        or scan.guideline_findings
+    )
     print(format_report(scan, source=directory.name, show=show))
     if has_findings:
         messages = []
@@ -777,6 +1312,16 @@ def main(argv: list[str]) -> int:
                 f"{len(scan.missing_code_items)} numbered differential item(s)"
                 " carry no code in the required slot, failing clinical-note"
                 " drift row 13."
+            )
+        if scan.ranking_findings:
+            messages.append(
+                f"{len(scan.ranking_findings)} differential ranking shape violation(s)"
+                ", failing clinical-note drift row 23."
+            )
+        if scan.guideline_findings:
+            messages.append(
+                f"{len(scan.guideline_findings)} guideline-tail violation(s),"
+                " failing clinical-note drift row 24."
             )
         message = "\n" + " ".join(messages)
         message += " Re-run with --show to see which, and do not paste that output."

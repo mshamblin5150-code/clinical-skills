@@ -8,9 +8,10 @@ is blocked on **issue and pull-request text**, **pull-request diffs**, and
 [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records
 the last of those as scanned by nothing.
 
-**Four limbs, and the mapping to those three is not one-to-one:**
+**The inputs do not map one-to-one to #212's surfaces:**
 
 - ``--harvest`` reads GitHub's own JSON for issues, pull requests and comments.
+- ``--github-event`` reads the one record a GitHub tracker event changed.
   **This tool opens no socket**, which is `research_ledger.py`'s ruling adopted
   whole -- the fetch is a documented ``gh`` command whose output is a file, so
   the scanner stays offline, testable and stdlib-only.
@@ -81,13 +82,15 @@ pushed and then force-pushed away is reachable by SHA on GitHub and by nothing
 here. A harvest goes stale the moment anybody comments. GitHub keeps a previous
 revision of every edited issue and comment and serves it to anyone with read
 access, and **the API exposes no way to read or delete one**, so a redaction
-this tool prompts is not the same as the text being gone. And **a date rewritten
-into a format the corpus does not hold escapes the corpus layer entirely** -- a
-real day file's date, with slashes and a four-digit year, sits in two commit
-messages here where it reads as an ordinary shape hit beside a hundred census
-ratios. That was found by reading the shape-layer output, not by the corpus
-layer. **Naming the literal in this docstring would have been the same defect**,
-and the pre-commit hook refused the commit that did.
+this tool prompts is not the same as the text being gone. Date rewriting was a
+third limit when this scanner found one real corpus day only as an ordinary
+shape hit: the corpus held a dashed two-digit-year literal and two commit
+messages used slashes and a four-digit year. **#261 moved that responsibility
+to `phi_scan`**, which now normalizes parseable corpus dates across US numeric,
+written English and ISO forms. Renderings outside those declared families still
+escape unless the shape layer recognizes them. **Naming the literal in this
+docstring would have been the same defect**, and the pre-commit hook refused the
+commit that did.
 
 **Counts only by default**, on `phi_scan.py`'s terms and for its reason: a
 finding here is a patient identifier. **``--show`` output is PHI**: read it, do
@@ -217,6 +220,63 @@ def records_from_github(data: object, source: str) -> list[Record]:
     return records
 
 
+EVENT_RECORD_KEYS = {
+    "issues": "issue",
+    "issue_comment": "comment",
+    "pull_request_target": "pull_request",
+    "pull_request_review": "review",
+    "pull_request_review_comment": "comment",
+}
+
+
+def records_from_github_event(
+    data: object, event_name: str, source: str
+) -> list[Record]:
+    """The one record created or edited by a ruled GitHub tracker event.
+
+    Incremental is load-bearing. A full harvest on every comment would replay
+    every historical finding from #264, so an old warning would be the normal
+    result and a new one would hide inside it. GitHub has already selected the
+    changed object; this adapter only gives that object to the existing parser.
+    """
+    if not isinstance(data, dict):
+        raise HarvestError(f"{source}: not a JSON object")
+    key = EVENT_RECORD_KEYS.get(event_name)
+    if key is None:
+        raise HarvestError(f"{source}: unsupported GitHub event {event_name!r}")
+    item = data.get(key)
+    if not isinstance(item, dict):
+        raise HarvestError(f"{source}: event has no {key!r} record")
+
+    if data.get("action") == "edited":
+        changes = data.get("changes")
+        if not isinstance(changes, dict):
+            raise HarvestError(f"{source}: edited event has no changes object")
+        changed_item: dict = {
+            field: item[field]
+            for field in ("html_url", "number", "id")
+            if field in item
+        }
+        for field in ("title", "body"):
+            if field in changes and field in item:
+                changed_item[field] = item[field]
+        item = changed_item
+
+    records = records_from_github([item], source)
+    if records or data.get("action") != "edited":
+        return records
+
+    # Clearing a body publishes no text, but it is still a record the event
+    # path completely scanned. Keep that distinct from an empty full harvest,
+    # which remains NOT_SCANNED because it names no record at all.
+    label = _label(item, source)
+    return [
+        Record(field, f"{label} {field}", item.get(field) or "")
+        for field in ("title", "body")
+        if field in item
+    ]
+
+
 def _label(item: dict, source: str) -> str:
     """The most openable name the payload offers.
 
@@ -233,16 +293,26 @@ def _label(item: dict, source: str) -> str:
 def load_harvest(paths: Sequence[Path]) -> list[Record]:
     records: list[Record] = []
     for path in paths:
-        try:
-            raw = path.read_text(encoding="utf-8")
-        except OSError as error:
-            raise HarvestError(f"{path}: {error}") from error
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise HarvestError(f"{path}: {error}") from error
+        data = load_json(path)
         records.extend(records_from_github(data, path.name))
     return records
+
+
+def load_json(path: Path) -> object:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise HarvestError(f"{path}: {error}") from error
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise HarvestError(f"{path}: {error}") from error
+    return data
+
+
+def load_github_event(path: Path, event_name: str) -> list[Record]:
+    data = load_json(path)
+    return records_from_github_event(data, event_name, path.name)
 
 
 def pull_head_refs(repo: Path) -> list[str]:
@@ -428,6 +498,8 @@ def main(argv: list[str]) -> int:
         description="Scan tracker text, commit messages, blobs and paths for PHI.",
     )
     parser.add_argument("--harvest", nargs="+", type=Path, default=[])
+    parser.add_argument("--github-event", type=Path)
+    parser.add_argument("--event-name", choices=tuple(EVENT_RECORD_KEYS))
     parser.add_argument("--commits", action="store_true")
     parser.add_argument("--history", action="store_true")
     parser.add_argument("--paths", action="store_true")
@@ -441,9 +513,16 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--show", action="store_true")
     args = parser.parse_args(argv)
 
-    if not (args.harvest or args.commits or args.history or args.paths):
+    if args.github_event and not args.event_name:
+        parser.error("--github-event requires --event-name")
+    if args.event_name and not args.github_event:
+        parser.error("--event-name requires --github-event")
+
+    if not (args.harvest or args.github_event or args.commits or args.history
+            or args.paths):
         print("tracker-scan: DID NOT SCAN -- name a surface", file=sys.stderr)
-        print("  --harvest <file.json> ... | --commits | --history | --paths",
+        print("  --harvest <file.json> ... | --github-event <event.json> | "
+              "--commits | --history | --paths",
               file=sys.stderr)
         return NOT_SCANNED
 
@@ -456,6 +535,8 @@ def main(argv: list[str]) -> int:
     try:
         if args.harvest:
             records.extend(load_harvest(args.harvest))
+        if args.github_event:
+            records.extend(load_github_event(args.github_event, args.event_name))
 
         if args.commits or args.history:
             refs = pull_head_refs(repo)
@@ -518,6 +599,7 @@ def main(argv: list[str]) -> int:
             unscanned = True
 
     names, dates = phi_scan.corpus_identifiers()
+    banners.extend(phi_scan.shortfall_notice(phi_scan.corpus_coverage(), missing))
     findings = scan_records(records, phi_scan.build_index(names, dates))
     print(format_report(findings, records, context, banners, args.show))
 

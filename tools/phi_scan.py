@@ -6,8 +6,10 @@ clone regardless of who or what makes it.
 Two layers, and the difference between them is the whole design:
 
 - **Corpus layer.** Every patient name and every date literal appearing in the
-  gitignored corpus under ``scratch/``. This is the layer that catches real PHI,
-  and **nothing can exempt a file from it.**
+  gitignored corpus under ``scratch/``. Parseable dates are recognized in US
+  numeric, written English and ISO renderings; an unparseable date-shaped
+  literal retains exact matching. This is the layer that catches real PHI, and
+  **nothing can exempt a file from it.**
 - **Shape layer.** Things that look like PHI whatever the corpus says: a ``dob``
   token followed by a date, an SSN, a phone number, an MRN followed by digits, a
   US-style ``M-D-YY`` short date. A file may exempt itself from this layer only,
@@ -36,6 +38,11 @@ Known limits, stated so nobody mistakes this for a guarantee:
 - A patient name that appears nowhere in the corpus and is not date-shaped is
   caught by neither layer. All PHI here originates in the corpus, so this is a
   narrow hole, but it is a real one.
+- Corpus dates are normalized across the supported US numeric, written English
+  and ISO families, not interpreted as arbitrary natural language. A day
+  written without a year, with the day or year spelled out, or reordered into
+  an unsupported numeric convention is caught only if another layer recognizes
+  its shape.
 - **It has no concept of the account profile**, and that hole is wider than the
   one above. A site name, a preceptor, a payer mapping -- none of them is a
   patient name, a corpus date or a PHI shape, so nothing here matches one.
@@ -94,6 +101,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import date as CalendarDate
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
@@ -191,6 +199,36 @@ SHAPE_RULES = {
     # one-or-two-digit first field, and there is no word boundary mid-number.
     "us-short-date": r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
 }
+
+NUMERIC_CORPUS_DATE = re.compile(
+    r"\b(?P<month>\d{1,2})(?P<separator>[/-])(?P<day>\d{1,2})"
+    r"(?P=separator)(?P<year>\d{2}|\d{4})\b"
+)
+ISO_CORPUS_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+MONTH_NAMES = (
+    ("January", "Jan"), ("February", "Feb"), ("March", "Mar"),
+    ("April", "Apr"), ("May", "May"), ("June", "Jun"), ("July", "Jul"),
+    ("August", "Aug"), ("September", "Sep"), ("October", "Oct"),
+    ("November", "Nov"), ("December", "Dec"),
+)
+MONTH_NUMBERS = {
+    name.casefold(): number
+    for number, names in enumerate(MONTH_NAMES, start=1)
+    for name in names
+}
+MONTH_NAME_PATTERN = "|".join(
+    [full for full, _ in MONTH_NAMES]
+    + [re.escape(short) + r"\.?" for _, short in MONTH_NAMES]
+)
+WRITTEN_CORPUS_DATE = re.compile(
+    rf"\b(?:"
+    rf"(?P<month_first>{MONTH_NAME_PATTERN})\s+(?P<day_after>\d{{1,2}}),?\s+"
+    rf"(?P<year_after>\d{{2}}|\d{{4}})"
+    rf"|(?P<day_first>\d{{1,2}})\s+(?P<month_after>{MONTH_NAME_PATTERN})\s+"
+    rf"(?P<year_last>\d{{2}}|\d{{4}})"
+    rf")\b",
+    re.I,
+)
 
 # Clinical phrases the name harvester mistakes for names. These are vocabulary,
 # not identifiers, and they are already committed.
@@ -349,7 +387,11 @@ class CorpusIndex:
     unbucketed: tuple[IndexedName, ...]
     # Every name, for lines the buckets cannot speak for.
     everything: tuple[IndexedName, ...]
-    dates: tuple[str, ...]
+    # Valid corpus literals collapse to calendar days so their common
+    # renderings can be recognized. Invalid date-shaped literals retain exact
+    # protection rather than disappearing during normalization.
+    calendar_dates: frozenset[CalendarDate]
+    unparsed_dates: tuple[str, ...]
 
     def candidates(self, text: str) -> Sequence[IndexedName]:
         """The names that could appear in this line, in reporting order."""
@@ -375,14 +417,62 @@ def build_index(names: set[str], dates: set[str]) -> CorpusIndex:
         else:
             buckets.setdefault(token, []).append(entry)
 
+    parsed_dates = {value: _parse_numeric_dates(value) for value in dates}
+
     # Sorted throughout: findings get printed, and set iteration order is not
     # stable across processes.
     return CorpusIndex(
         buckets={token: tuple(sorted(v, key=_by_name)) for token, v in buckets.items()},
         unbucketed=tuple(sorted(unbucketed, key=_by_name)),
         everything=tuple(sorted(everything, key=_by_name)),
-        dates=tuple(sorted(dates)),
+        calendar_dates=frozenset(
+            value for values in parsed_dates.values() for value in values
+        ),
+        unparsed_dates=tuple(
+            sorted(literal for literal, values in parsed_dates.items() if not values)
+        ),
     )
+
+
+def _calendar_dates(year: str, month: str, day: str) -> frozenset[CalendarDate]:
+    """Every calendar day a numeric year can mean.
+
+    A two-digit year is irreducibly ambiguous in clinical material: ``68`` can
+    be a birth year in the 1900s or a future appointment in the 2000s. Keeping
+    both centuries closes the false-negative in either direction without
+    guessing from today's date.
+    """
+    years = (int(year),) if len(year) == 4 else (1900 + int(year), 2000 + int(year))
+    found = set()
+    for candidate_year in years:
+        try:
+            found.add(CalendarDate(candidate_year, int(month), int(day)))
+        except ValueError:
+            pass
+    return frozenset(found)
+
+
+def _parse_numeric_dates(value: str) -> frozenset[CalendarDate]:
+    """The calendar days a US numeric corpus literal can mean."""
+    match = NUMERIC_CORPUS_DATE.fullmatch(value)
+    if match is None:
+        return frozenset()
+    return _calendar_dates(match["year"], match["month"], match["day"])
+
+
+def _parse_written_dates(match: re.Match[str]) -> frozenset[CalendarDate]:
+    """The calendar days a standard English written date can mean."""
+    month = (match["month_first"] or match["month_after"]).rstrip(".")
+    day = match["day_after"] or match["day_first"]
+    year_text = match["year_after"] or match["year_last"]
+    return _calendar_dates(year_text, str(MONTH_NUMBERS[month.casefold()]), day)
+
+
+def _parse_iso_date(value: str) -> CalendarDate | None:
+    try:
+        return CalendarDate.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -518,7 +608,7 @@ def unreviewed_names(entries: Sequence[dict], reviewed: set[str]) -> set[str]:
 
 
 def corpus_identifiers() -> tuple[set[str], set[str]]:
-    """Patient names and date literals harvested from the gitignored corpus."""
+    """Patient names and raw date literals harvested from the gitignored corpus."""
     dates: set[str] = set()
     names = harvested_names(harvest_entries())
 
@@ -798,7 +888,16 @@ def _scan_line(
     for name, pattern in index.candidates(text):
         if pattern.search(text):
             findings.append(Finding(path, number, "corpus-name", name))
-    for date in index.dates:
+    for match in NUMERIC_CORPUS_DATE.finditer(text):
+        if _parse_numeric_dates(match.group(0)) & index.calendar_dates:
+            findings.append(Finding(path, number, "corpus-date", match.group(0)))
+    for match in WRITTEN_CORPUS_DATE.finditer(text):
+        if _parse_written_dates(match) & index.calendar_dates:
+            findings.append(Finding(path, number, "corpus-date", match.group(0)))
+    for match in ISO_CORPUS_DATE.finditer(text):
+        if _parse_iso_date(match.group(0)) in index.calendar_dates:
+            findings.append(Finding(path, number, "corpus-date", match.group(0)))
+    for date in index.unparsed_dates:
         if date in text:
             findings.append(Finding(path, number, "corpus-date", date))
     if shapes:
@@ -1013,7 +1112,11 @@ def layer_report(
         corpus = f"{verdict} -- no {lost} under scratch/; {harm}"
         dead.append("corpus")
     elif names or dates:
-        corpus = f"ACTIVE   -- {len(names)} name(s), {len(dates)} date literal(s) from scratch/"
+        corpus = (
+            f"ACTIVE   -- {len(names)} name(s), {len(dates)} date literal(s) from "
+            "scratch/; parseable dates also checked as US numeric, written English, "
+            "and ISO"
+        )
         # **The denominator, because the numerator reads as coverage and is not.**
         # #141: the index is harvested from the corpus and may not cover it, and
         # a name count says nothing about that. `corpus_coverage` carries why
