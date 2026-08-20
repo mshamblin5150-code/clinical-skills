@@ -138,9 +138,9 @@ The filled-vitals census reads a `clinical-note` run. This one reads an **`icd10
 python tools/specificity_scan.py <a run directory>
 ```
 
-**Two tests, neither of which needs a reader.** A `SPECIFICITY` flag must carry substance beyond its keyword — a bare `complete` and a bare `needs:` both fail — and a code whose **official descriptor** says `unspecified` or `not specified` may not read `complete` at all. The first is there because *the reason is the evidence the check happened*: nobody writes `Z98.51 has no further axis` without having looked at `Z98.51`'s axes, and anybody can write `complete`.
+**One enforced test and one advisory surface.** A `SPECIFICITY` flag must carry substance beyond its keyword — a bare `complete` and a bare `needs:` both fail. A code whose **official descriptor** says `unspecified` or `not specified` may read `complete` only with a substantive reason explaining why nothing the bedside can supply would move it; the scanner counts that shape for a reader and does not fail it automatically. The enforced test is there because *the reason is the evidence the check happened*: nobody writes `Z98.51 has no further axis` without having looked at `Z98.51`'s axes, and anybody can write `complete`.
 
-**The second test rests on C2 and is worth knowing about before trusting a clean scan.** It reads the descriptor sitting beside the flag, which is only meaningful because C2 requires that string be the **verbatim official** one. Against a paraphrase it is a question about the run's wording rather than about the code set, so a run that failed C2 and passed C5 has not been graded on anything.
+**The advisory count rests on C2 and is worth knowing about before trusting its figure.** It reads the descriptor sitting beside the flag, which is only meaningful because C2 requires that string be the **verbatim official** one. Against a paraphrase it is a question about the run's wording rather than about the code set. A run that failed C2 can still pass C5's reason test, but the advisory count has not measured the code set's language.
 
 **Counts only by default**, on `filled_vitals_census.py`'s terms and for its reason — a run directory under `scratch/` or `output/` is a patient record, and a code with its descriptor is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
