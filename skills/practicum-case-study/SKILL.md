@@ -618,6 +618,43 @@ dose. So *is this the dose the record sourced* is walked by nobody today —
 [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299). It is written here because
 a residue nobody names is a residue every reader assumes somebody else has.
 
+**And grade what the run says it read against what you were actually handed** -- #298's row,
+ruled by the clinician 2026-08-20:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --evidence <the evidence dump>
+```
+
+| The citation | Why |
+| --- | --- |
+| an UpToDate topic cited here that the evidence dump does not carry | UpToDate is subscription-gated, so a topic you were not handed is one nobody opened, and citing it is the Module 1 defect exactly |
+
+**The grounding is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)'s and it
+is what scopes the row.** A fetch of an UpToDate topic reaches a login wall rather than the page, so
+there is no reading of one outside the dump -- the dump is the whole of what the clinician handed
+over, and he hands topics over wholesale. **A journal article, a society guideline or a government
+page the dump lacks is left alone**, because that is this step's ordinary case: a claim record only
+exists because the evidence did *not* cover the claim, and a row firing on those would refuse the
+correct outcome.
+
+**A topic the dump merely *refers* to and does not carry is not a defect and is not graded.** The
+dump cross-references far more topics than it carries -- 320 against 18 in the one this was measured
+on -- and the great majority will never be cited. Firing on those would fire on almost every case
+study, which is the rate at which a warning stops being read.
+
+**There is no escape hatch, and that is the ruling rather than an oversight.** If an UpToDate topic
+is worth citing it goes in the dump, and the remedy for a finding is one paste. **Without
+`--evidence` the row does not run and the report prints `not graded` against it rather than `0`**,
+on the same reasoning as the prescription rows above. **An evidence file carrying no topic body at
+all is exit 2**, because a dump this cannot read would otherwise fire the row on every UpToDate
+citation in the ledger -- a mass false finding rather than a scan.
+
+**What it cannot reach is a claim that rested on a missing topic without citing it.** The join is on
+a citation, so a threshold, a screening interval or a discriminator taken from a topic nobody read
+and written without a reference is invisible here and to every other row --
+[#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298). **A clean scan is not a
+sourced document.**
+
 **Then grade it, and do not draft until it is clean:**
 
 ```bash

@@ -32,6 +32,7 @@ from datetime import date
 from pathlib import Path
 
 import docx_write
+import reference_scan
 import research_ledger as ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -1052,6 +1053,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # a sentence in the skill fails here rather than quietly becoming a rule only
     # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
     ROW_PHRASES = {
+        ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
+            "an UpToDate topic cited here that the evidence dump does not carry"
+        ),
         ledger.UNRESEARCHED_PRESCRIPTION: "a drug in an Rx table that no claim record names",
         ledger.DOSE_NOT_CLAIMED: "an order stating a dose whose claim record states no number",
         ledger.UNREADABLE_DRUG_ROW: "a prescription table with no readable drug row",
@@ -1136,8 +1140,41 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("no subagent tool", self.skill)
         self.assertIn("one at a time in the main\ncontext", self.skill)
 
+    def _flat(self) -> str:
+        """The skill with its hard wraps collapsed.
+
+        A phrase that fits on one line today is one line-length edit away from
+        being invisible to every assertion keyed on it, which is the failure
+        ``test_run_record_claim`` recorded against three of its own six items.
+        """
+        return " ".join(self.skill.split())
+
     def test_the_skill_says_a_clean_scan_is_not_a_checked_claim(self):
         self.assertIn("A clean scan is not a checked claim", self.skill)
+
+    def test_the_skill_says_a_clean_scan_is_not_a_sourced_document(self):
+        """#298's residue, and the sentence carries the whole of what the row does
+        not reach: the join is on a citation, so a claim resting on a topic nobody
+        read and written with no reference is invisible to every row here.
+
+        **Compared against a whitespace-normalized skill and not against the raw
+        file**, which is ``test_run_record_claim``'s finding adopted rather than
+        rediscovered: every sentence here is long enough to be hard-wrapped, and a
+        phrase broken across two lines is invisible to a substring search.
+        """
+        self.assertIn("A clean scan is not a sourced document", self._flat())
+
+    def test_the_skill_scopes_the_evidence_row_to_uptodate(self):
+        """The scope *is* the grounding -- #231's login wall -- so a reader who
+        loses it reads the row as firing on any source the dump lacks, which is
+        ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case."""
+        self.assertIn("UpToDate is subscription-gated", self._flat())
+        self.assertIn("is left alone", self._flat())
+
+    def test_the_skill_says_a_referred_to_topic_is_not_a_defect(self):
+        """#298's *What must not come out of this*, which is the half of the
+        ruling a later reader is likeliest to widen."""
+        self.assertIn("is not a defect and is not graded", self._flat())
 
     def test_the_skill_sends_the_ledger_to_a_gitignored_directory(self):
         self.assertIn("scratch/case-study-claims.md", self.skill)
@@ -1268,6 +1305,9 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         # held six for the length of one edit, which is #143 at the shortest
         # range this file has caught it at.
         "prescription_findings",
+        # #298's, and the second that is not handed a ``Record``: it grades the
+        # ledger's citations against the evidence dump.
+        "evidence_findings",
     )
 
     def test_every_row_is_built_in_one_of_the_graders(self):
@@ -1297,7 +1337,7 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
             and node.func.id == "Finding"
             and id(node) not in inside
         ]
-        self.assertEqual(stray, [], f"Finding built outside the five graders, lines {stray}")
+        self.assertEqual(stray, [], f"Finding built outside the graders, lines {stray}")
 
     def test_the_citation_helper_grades_a_record_on_its_own(self):
         """The seam is a real one: called with nothing but the record and the
@@ -1982,11 +2022,11 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         """The one-line ``[a for a in argv if not a.startswith("--")]`` filter this
         replaced would have read the draft's path as a second positional and, with
         the flag written first, the draft as the ledger."""
-        args, draft, show = ledger.read_arguments(["--draft", "d.md", "ledger.md", "--show"])
+        args, draft, _, show = ledger.read_arguments(["--draft", "d.md", "ledger.md", "--show"])
         self.assertEqual((args, draft, show), (["ledger.md"], "d.md", True))
 
     def test_the_equals_spelling_is_read_too(self):
-        args, draft, _ = ledger.read_arguments(["ledger.md", "--draft=d.md"])
+        args, draft, _, _ = ledger.read_arguments(["ledger.md", "--draft=d.md"])
         self.assertEqual((args, draft), (["ledger.md"], "d.md"))
 
     def test_a_following_flag_is_a_missing_value_and_not_a_path(self):
@@ -1994,7 +2034,7 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         axis of `/code-review` priced it: it reported *no draft file named
         --show*, which is a claim about a path nobody wrote, and it swallowed
         ``--show`` so the findings could not be read either."""
-        args, draft, show = ledger.read_arguments(["ledger.md", "--draft", "--show"])
+        args, draft, _, show = ledger.read_arguments(["ledger.md", "--draft", "--show"])
         self.assertEqual((args, draft, show), (["ledger.md"], "", True))
 
     def test_an_absent_flag_is_none_and_not_an_empty_string(self):
@@ -2245,6 +2285,416 @@ class TheRowSplitIsTheRenderersOwn(unittest.TestCase):
     def test_a_drug_row_carrying_an_escaped_pipe_is_still_one_drug(self):
         found = ledger.read_prescriptions(rx_table(r"ceftriaxone 1 g IV q24h \| pharmacy to verify"))
         self.assertEqual([rx.drug for rx in found], ["ceftriaxone"])
+
+
+# --------------------------------------------------------------------------
+# #298 -- the evidence dump cross-references a topic it does not carry
+# --------------------------------------------------------------------------
+
+# One topic body, in the shape the rendered dump carries: a title line, then the
+# masthead block that opens with ``Authors:``. **Written from the real dump's
+# structure rather than invented** -- it carries no headings of any kind, so the
+# masthead is the only thing that marks a body as present.
+def topic(title: str) -> str:
+    return (
+        f"{title}\n"
+        "Authors: A Author, MD, B Author, MD\n"
+        "Section Editors: C Editor, MD\n"
+        "Deputy Editor: D Editor, MD\n"
+        "Literature review current through: Jul 2026.\n"
+        "This topic last updated: Jun 12, 2026.\n"
+        "\n"
+        "INTRODUCTION\n"
+        "Body prose that happens to mention nothing in particular.\n"
+    )
+
+
+def uptodate_entry(title: str, year: str = "2026") -> str:
+    """The form [apa7.md](skills/practicum-case-study/reference/apa7.md) §2 publishes."""
+    return (
+        f"Author, A., & Author, B. ({year}). {title}. UpToDate. Retrieved"
+        f" August 20, 2026, from https://www.uptodate.com/contents/some-slug"
+    )
+
+
+def cited(title: str, claim: str = "A claim resting on a topic.") -> str:
+    return f"""\
+## CLAIM: {claim}
+STATUS: sourced
+SOURCE: tertiary reference
+REFERENCE: {uptodate_entry(title)}
+RESTATEMENT: The topic states the thing the claim says it states.
+RECENCY: current - the topic was last updated in 2026.
+RESOLVED: https://www.uptodate.com/contents/some-slug - read 2026-08-19
+PAGE-YEAR: 2026 - stated in the topic's own last-updated line.
+REFUTATION: stands - the title and authors match the topic page.
+"""
+
+
+class ACarriedTopicIsRecognizedByItsMasthead(unittest.TestCase):
+    """The dump carries no headings, so #298 decision 2's *appears as a heading*
+    is not implementable against the artifact it was written about. What marks a
+    body present is the ``Authors:`` masthead, and the title is the line above it.
+
+    Measured before it was believed: of the 18 bodies the real dump carries, 15
+    join a ``See "..."`` cross-reference exactly under this rule.
+    """
+
+    def test_a_body_is_carried(self):
+        self.assertEqual(
+            ledger.carried_topics(topic("Pelvic inflammatory disease: Treatment")),
+            {"Pelvic inflammatory disease: Treatment"},
+        )
+
+    def test_a_cross_reference_is_not_a_body(self):
+        """The whole point of the row. A dump refers to far more topics than it
+        carries -- 305 of 320 in the real one -- and a reference is not a body."""
+        text = 'See "Pelvic inflammatory disease: Treatment" for the regimen.\n'
+        self.assertEqual(ledger.carried_topics(text), set())
+
+    def test_blank_lines_above_the_masthead_are_skipped(self):
+        text = "Some topic title\n\n\nAuthors: A Author, MD\n"
+        self.assertEqual(ledger.carried_topics(text), {"Some topic title"})
+
+    def test_two_bodies_are_two_topics(self):
+        text = topic("First topic") + "\n" + topic("Second topic")
+        self.assertEqual(ledger.carried_topics(text), {"First topic", "Second topic"})
+
+    def test_a_masthead_with_nothing_above_it_names_no_topic(self):
+        """A dump opening on the masthead has no title line to read, and an empty
+        string in the carried set would match every entry whose title failed to
+        parse -- which is a silent pass on the row."""
+        self.assertEqual(ledger.carried_topics("Authors: A Author, MD\n"), set())
+
+
+class AnUpToDateEntryNamesItsTopic(unittest.TestCase):
+    """The title element of §2's published form, and nothing looser.
+
+    Scoped to UpToDate because that is the whole grounding: #231 ruled the
+    database subscription-gated, so a topic the dump does not carry is one nobody
+    could have opened. A journal article the dump lacks is
+    ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case.
+    """
+
+    def test_the_title_element_comes_back(self):
+        self.assertEqual(
+            ledger.uptodate_topic(uptodate_entry("Pelvic inflammatory disease: Treatment")),
+            "Pelvic inflammatory disease: Treatment",
+        )
+
+    def test_a_journal_entry_is_not_one(self):
+        entry = (
+            "Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies."
+            " Obstetrics and Gynecology, 114(6), 1326-1331."
+        )
+        self.assertEqual(ledger.uptodate_topic(entry), "")
+
+    def test_the_database_name_is_a_word_and_never_a_hostname(self):
+        """``reference_scan``'s recorded defect, adopted rather than rediscovered:
+        an entry that drops the database element must not have its title read out
+        of ``www.uptodate.com``."""
+        entry = (
+            "Author, A. (2026). Some topic. Retrieved August 20, 2026, from"
+            " https://www.uptodate.com/contents/some-slug"
+        )
+        self.assertEqual(ledger.uptodate_topic(entry), "")
+
+    def test_an_italicized_database_name_still_reads(self):
+        """§2 requires the database name italicized and records that the corpus
+        italicizes it nowhere. Both spellings are live, so both read."""
+        entry = (
+            "Author, A. (2026). Some topic. *UpToDate*. Retrieved August 20, 2026,"
+            " from https://www.uptodate.com/contents/x"
+        )
+        self.assertEqual(ledger.uptodate_topic(entry), "Some topic")
+
+    def test_a_wrapped_entry_reads(self):
+        """A ledger's ``REFERENCE`` field wraps onto a hanging indent, and
+        ``read_records`` joins it with a single space -- but a caller may hand this
+        the raw form."""
+        entry = (
+            "Author, A. (2026). Pelvic inflammatory disease:\n    Treatment."
+            " UpToDate. Retrieved August 20, 2026, from https://x.example/y"
+        )
+        self.assertEqual(
+            ledger.normalize(ledger.uptodate_topic(entry)),
+            ledger.normalize("Pelvic inflammatory disease: Treatment"),
+        )
+
+
+class ACitedTopicTheDumpDoesNotCarryIsRefused(unittest.TestCase):
+    """#298's ruled row, 2026-08-20.
+
+    **The 305 topics the dump merely refers to are not graded**, and that is the
+    ruling rather than an omission: they are the ordinary case, they decay smoothly
+    from 21 references down to 1 with no plateau anywhere, and any cut on that
+    curve is a value named at an edge -- ``SPACE_ADVANCE_FRACTION``'s recorded
+    failure and #97's objection. What is graded is the join.
+    """
+
+    def setUp(self):
+        self.carried = ledger.carried_topics(topic("A topic the dump carries"))
+
+    def test_a_carried_topic_passes(self):
+        records = ledger.read_records(ledger_text(cited("A topic the dump carries")))
+        self.assertEqual(ledger.evidence_findings(records, (), self.carried)[0], [])
+
+    def test_an_uncarried_topic_is_a_finding(self):
+        records = ledger.read_records(ledger_text(cited("A topic the dump never carried")))
+        found, read = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual([f.kind for f in found], [ledger.CITED_TOPIC_NOT_IN_EVIDENCE])
+        self.assertEqual(read, 1, "the citation it failed on is a citation it read")
+
+    def test_the_join_ignores_punctuation_and_case(self):
+        """``normalize`` and not similarity, on this module's own rule: an entry
+        writes the title in sentence case with a trailing period and the topic page
+        does not."""
+        records = ledger.read_records(cited("a TOPIC the dump carries") and
+                                      ledger_text(cited("a TOPIC, the dump carries.")))
+        self.assertEqual(ledger.evidence_findings(records, (), self.carried)[0], [])
+
+    def test_a_journal_citation_is_left_alone(self):
+        """The scope limb. A source the dump lacks is
+        ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case, and
+        the row must not fire on it -- that is the direction #215's defect runs in."""
+        record = """\
+## CLAIM: A claim resting on a journal article.
+STATUS: sourced
+SOURCE: peer-reviewed
+REFERENCE: Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies.
+    Obstetrics and Gynecology, 114(6), 1326-1331.
+RESTATEMENT: The table gives a third-trimester range.
+RECENCY: nothing newer - searched 2026-08-19.
+RESOLVED: https://doi.org/10.1097/x - read 2026-08-19
+PAGE-YEAR: 2009 - on the masthead.
+REFUTATION: stands - the volume and pages match.
+"""
+        records = ledger.read_records(ledger_text(record))
+        self.assertEqual(ledger.evidence_findings(records, (), self.carried)[0], [])
+
+    def test_an_unsourced_record_is_left_alone(self):
+        """An ``unsourced`` record may carry no ``REFERENCE`` at all -- that is
+        ``UNSOURCED_WITH_CITATION_FIELD``'s row -- so there is nothing to join."""
+        record = """\
+## CLAIM: A claim nothing sourced.
+STATUS: unsourced - searched UpToDate, PubMed and the guideline corpus, nothing.
+"""
+        records = ledger.read_records(ledger_text(record))
+        self.assertEqual(ledger.evidence_findings(records, (), self.carried)[0], [])
+
+    def test_a_draft_entry_is_read_too(self):
+        """The draft's reference list is where the citation lands, and an entry
+        with no ledger record behind it is exactly the #289 shape. The entries come
+        from ``reference_scan``'s parser rather than a second one, on
+        ``REFERENCE_HEADING``'s precedent and #108's."""
+        records = ledger.read_records(ledger_text(cited("A topic the dump carries")))
+        entries = (uptodate_entry("A topic nobody handed over"),)
+        found, read = ledger.evidence_findings(records, entries, self.carried)
+        self.assertEqual([f.kind for f in found], [ledger.CITED_TOPIC_NOT_IN_EVIDENCE])
+        self.assertEqual(read, 2, "the record and the entry are both citations")
+
+    def test_one_topic_cited_twice_is_one_finding(self):
+        """The row is about a topic, not about a citation of it. Two records
+        naming the same missing topic is one thing wrong."""
+        records = ledger.read_records(
+            ledger_text(cited("A missing topic", "First claim."),
+                        cited("A missing topic", "Second claim."))
+        )
+        found, read = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(read, 2, "one finding, and it is still two citations read")
+
+
+class TheEvidenceRowsAreWiredInLikeTheDraftRows(unittest.TestCase):
+    """#289's arrangement, adopted whole: a row that did not run prints *not
+    graded* rather than a zero, on #258's ruling."""
+
+    def test_the_row_is_in_the_vocabulary(self):
+        self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.KINDS)
+        self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.ROW_TICKET)
+        self.assertEqual(ledger.ROW_TICKET[ledger.CITED_TOPIC_NOT_IN_EVIDENCE], "#298")
+
+    def test_the_row_is_declared_as_needing_the_flag(self):
+        self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.EVIDENCE_ROWS)
+
+    def test_every_declared_row_is_a_row(self):
+        for kind in ledger.EVIDENCE_ROWS:
+            self.assertIn(kind, ledger.KINDS)
+
+    def test_the_report_says_not_graded_without_the_flag(self):
+        scan = ledger.survey(ledger.read_records(ledger_text(CLEAN)), AS_OF)
+        report = ledger.format_report(scan, source="a.md")
+        self.assertIn("evidence topics carried", report)
+        self.assertIn("not graded - no --evidence was given", report)
+        row = [ln for ln in report.splitlines() if ledger.CITED_TOPIC_NOT_IN_EVIDENCE in ln]
+        self.assertEqual(len(row), 1)
+        self.assertIn("not graded", row[0])
+
+    def test_the_report_states_the_population_when_it_ran(self):
+        """#258's ruling: the run that graded a citation says how many topic
+        bodies it had to join against, on the same page as its clean exit."""
+        scan = ledger.survey(
+            ledger.read_records(ledger_text(CLEAN)),
+            AS_OF,
+            carried=ledger.carried_topics(topic("A topic")),
+        )
+        report = ledger.format_report(scan, source="a.md")
+        self.assertIn("evidence topics carried          1", report)
+        row = [ln for ln in report.splitlines() if ledger.CITED_TOPIC_NOT_IN_EVIDENCE in ln]
+        self.assertNotIn("not graded", row[0])
+
+
+class TheRowSaysHowManyCitationsItRead(unittest.TestCase):
+    """#258's ruling one level down, and the gap was found by pointing the command
+    at the real ledger rather than by a fixture.
+
+    ``evidence topics carried`` states what the row joined **against**. It says
+    nothing about what it joined, so a ledger citing no UpToDate topic at all
+    reported ``cited-topic-not-in-evidence 0`` -- indistinguishable from a run
+    whose every citation checked out, which is the shape this module already
+    refuses twice over.
+    """
+
+    def scan(self, *records, carried=None):
+        return ledger.survey(
+            ledger.read_records(ledger_text(*records)), AS_OF, carried=carried
+        )
+
+    def test_a_ledger_citing_no_uptodate_topic_says_so(self):
+        report = ledger.format_report(
+            self.scan(CLEAN, carried=ledger.carried_topics(topic("A topic"))),
+            source="a.md",
+        )
+        self.assertIn("UpToDate citations read          0", report)
+
+    def test_a_cited_topic_is_counted_whether_or_not_it_is_carried(self):
+        """The denominator is what was read, not what failed -- otherwise it is
+        the finding count wearing a second name."""
+        carried = ledger.carried_topics(topic("A carried topic"))
+        scan = self.scan(cited("A carried topic"), cited("A missing topic", "Two."), carried=carried)
+        self.assertEqual(scan.uptodate_citations, 2)
+        self.assertEqual(scan.evidence_at_fault, 1)
+
+    def test_it_is_not_graded_without_the_flag(self):
+        report = ledger.format_report(self.scan(CLEAN), source="a.md")
+        self.assertIn("UpToDate citations read", report)
+        line = [ln for ln in report.splitlines() if "UpToDate citations read" in ln][0]
+        self.assertIn("not graded", line)
+
+    def test_a_journal_citation_is_not_counted(self):
+        """The count is the row's population and the row is scoped to UpToDate,
+        so counting every reference would overstate what was checked."""
+        scan = self.scan(CLEAN, carried=ledger.carried_topics(topic("A topic")))
+        self.assertEqual(scan.uptodate_citations, 0)
+
+
+class TheCommandReadsTheEvidenceFile(unittest.TestCase):
+    """End to end, through ``main``, because the flag parsing and the exit status
+    are what a run actually meets."""
+
+    def run_main(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = ledger.main(argv)
+        return status, out.getvalue(), err.getvalue()
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def write(self, name: str, text: str) -> str:
+        path = self.root / name
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def test_a_cited_topic_the_dump_carries_exits_clean(self):
+        led = self.write("led.md", ledger_text(cited("A carried topic")))
+        ev = self.write("evidence.txt", topic("A carried topic"))
+        status, out, _ = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 0, out)
+
+    def test_a_cited_topic_the_dump_lacks_refuses(self):
+        led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
+        ev = self.write("evidence.txt", topic("Some other topic"))
+        status, _, err = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 1)
+        self.assertIn("evidence", err.lower())
+
+    def test_an_evidence_file_carrying_no_topic_body_is_exit_2(self):
+        """``differential_scan``'s reasoning and the limb that matters most: a
+        dump this parser cannot read would otherwise fire the row on every
+        citation in the ledger, which is a mass false finding rather than a pass."""
+        led = self.write("led.md", ledger_text(cited("A carried topic")))
+        ev = self.write("evidence.txt", 'See "A carried topic" for the regimen.\n')
+        status, _, err = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 2)
+        self.assertIn("no topic body", err)
+
+    def test_a_missing_evidence_file_is_exit_2(self):
+        led = self.write("led.md", ledger_text(CLEAN))
+        status, _, err = self.run_main([led, "--evidence", str(self.root / "nope.txt")])
+        self.assertEqual(status, 2)
+        self.assertIn("nope.txt", err)
+
+    def test_the_flag_with_no_value_is_the_usage_line(self):
+        """``--draft``'s recorded defect, adopted: without this, ``--evidence
+        --show`` reads ``--show`` as the dump and drops the flag besides."""
+        led = self.write("led.md", ledger_text(CLEAN))
+        status, _, err = self.run_main([led, "--evidence", "--show"])
+        self.assertEqual(status, 2)
+        self.assertIn("usage:", err)
+
+    def test_the_usage_line_names_the_flag(self):
+        self.assertIn("--evidence", ledger.USAGE)
+
+    def test_a_finding_outranks_the_dateless_banner(self):
+        """``differential_scan``'s ordering, which this module already follows:
+        returning 2 would file the strongest thing known under the weakest
+        heading."""
+        led = self.write("led.md", ledger_text(cited("A missing topic"), stamp=""))
+        ev = self.write("evidence.txt", topic("Some other topic"))
+        status, _, _ = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 1)
+
+    def test_the_report_carries_no_topic_title_without_show(self):
+        """The ledger sits under ``scratch/`` and a claim is transcribed from
+        faculty material about a patient, so this module's ``--show`` is PHI and
+        the default report may not name what a record said."""
+        led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
+        ev = self.write("evidence.txt", topic("Some other topic"))
+        _, out, _ = self.run_main([led, "--evidence", ev])
+        self.assertNotIn("A topic nobody handed over", out)
+        _, shown, _ = self.run_main([led, "--evidence", ev, "--show"])
+        self.assertIn("A topic nobody handed over", shown)
+
+
+class TheDraftsReferenceListComesFromTheRendererSideParser(unittest.TestCase):
+    """#108's duplication refused at the outset: the draft's reference list is
+    parsed by ``reference_scan`` and not by a second reading in here.
+
+    A second parser could put an entry in a different place than the module that
+    grades that list does, which is exactly the ``REFERENCE_HEADING`` failure
+    ``reference_scan`` records against itself.
+    """
+
+    def test_the_entries_come_from_reference_scan(self):
+        self.assertIs(ledger.read_document, reference_scan.read_document)
+
+    def test_the_behavioral_half(self):
+        """A signature is not enough -- #218's finding, where an identity test
+        passed while the two still disagreed about where a list ends."""
+        draft = (
+            "# A draft\n\nBody prose citing (Author, 2026).\n\n"
+            "## References\n\n"
+            + uptodate_entry("A topic nobody handed over")
+            + "\n"
+        )
+        document = ledger.read_document(draft)
+        self.assertEqual(
+            [ledger.uptodate_topic(entry.text) for entry in document.entries],
+            ["A topic nobody handed over"],
+        )
 
 if __name__ == "__main__":
     unittest.main()
