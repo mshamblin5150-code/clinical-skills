@@ -611,12 +611,18 @@ weight, renal function, pregnancy and route, so a row refusing a correct dose fo
 is #215's defect a fourth time. The reachable property is whether the dose was **sourced**, never
 whether it is right -- a record carrying a *different* number passes these rows.
 
-**Nothing downstream reads the number either, and that is stated rather than left to be assumed.**
-Step 9's `the Rx blocks` row asks a reader whether every drug has a table, whether every `Sig` ends
-in an indication and whether the prose block is there; it does not open the ledger and compare the
-dose. So *is this the dose the record sourced* is walked by nobody today —
-[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299). It is written here because
-a residue nobody names is a residue every reader assumes somebody else has.
+**Nothing downstream reads the number either, and that stopped being true on
+[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299).** Step 9's `the Rx blocks`
+row asks a reader whether every drug has a table, whether every `Sig` ends in an indication and
+whether the prose block is there; it does not open the ledger and compare the dose, and it still
+does not. `the dose against the record that sourced it` is the row that does — **a reader and not a
+row here**, because a string test can only ask whether the table's number appears in the record, and
+`1 g` against *1000 mg* and `q24h` against *once daily* are the same unit problem
+`NUMERIC_CLAIM_UNQUANTIFIED` above refuses to touch. **Its false-alarm rate could not be grounded
+either**: when it was ruled, the only run in the tree predated the rows above it and every one of its
+prescriptions reached no claim record at all, so there was not one drug-row-and-record pair anywhere
+to measure a string test against. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
+precedent is that a cut point is grounded where the corpus offers one and refused where it does not.
 
 **Then grade it, and do not draft until it is clean:**
 
@@ -877,14 +883,19 @@ check that was never run is not.
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table, every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
+| the dose against the record that sourced it | every prescription table, and `scratch/case-study-claims.md` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
 is some rows rather than every row.** On a row marked *yes* a `clean` verdict has to say what the
 reader walked, and `tools/checks_ledger.py` fails a bare one. Those are the rows where a wrong
 `clean` is most expensive; everywhere else a bare `clean` still passes, which is the gap below. **Brief
-the two readers accordingly** — they report what they examined whichever verdict they return, and
-the clause is one sentence written by an agent that has just walked the thing.
+every reader on a marked row accordingly** — they report what they examined whichever verdict they
+return, and the clause is one sentence written by an agent that has just walked the thing. **How
+many rows are marked is the table's own column to say and is counted in no sentence about it**, on
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms: it read *two* in
+prose across this repo until #299 made it three, and the sweep that repaired those copies missed
+several, which both axes of `/code-review` then found.
 
 #### The house style is a command now, and it is the row this step gained on #277
 
@@ -983,7 +994,7 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
     emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
-`VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the two rows the table
+`VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the rows the table
 above marks, a `clean` says what it walked** — the same field and the same substance test, and it
 is the only thing in the file that stands against a reader who skimmed. A heading with no `VERDICT`
 under it is a check that did not run, and the draft is not submitted on it.
@@ -994,6 +1005,17 @@ VERDICT: clean
 FINDINGS: Walked all five MDM entries. Each names a discriminator from this case — the
     36-hour onset, the absent rebound, the prior appendectomy — and each carries a
     citation.
+```
+
+**A marked row whose reading spans two documents says which pair it put side by side**, because
+*walked the Rx blocks* is a clause a reader who opened one of them can write:
+
+```
+## CHECK: the dose against the record that sourced it
+VERDICT: defect
+FINDINGS: Four drug rows state a dose. Three match the record naming that drug. The
+    ceftriaxone row orders 250 mg IM once and its record's restatement sources 1 g IV
+    daily — a different dose, not a different unit for the same one.
 ```
 
 **What makes a record bad, in full, so this can be walked without running anything.** A check can
@@ -1016,12 +1038,12 @@ them apart, which is the gap
 [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) named and left open. **There
 is no better string test to reach it with**; what reaches it is requiring the `clean` to say what it
 walked, and that is a change to what this step asks a reader to write rather than a grader of what it
-already asked. Ruled on differential ordering and MDM completeness, and **ruled against the rest**—
-so on those the shape is still exactly what #240 declared, and the reading below is still the only
+already asked. **#255 ruled it on differential ordering and MDM completeness and against the rest**, and #299 has
+since marked a third — so everywhere still unmarked the shape is exactly what #240 declared, and the reading below is still the only
 thing that reaches it. `the reference list` is the clearest of the ones left out: it is graded by a
 command, so its `clean` is an exit status and there was never a reader to have walked anything.
 
-**Which two, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
+**Which two #255 marked, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
 these two at *70 of the rubric's 100 points*, and [reference/rubric.md](reference/rubric.md) does
 not: *Differential Diagnoses and Clinical Reasoning* scores **15** and *Medical Decision Making*
 **10**, so the two criteria these rows name carry **25** between them. **Which criteria compose the
@@ -1032,6 +1054,14 @@ table does settle is that *Comprehensive Treatment Plan* at **20** is the single
 on the sheet, and `the Rx blocks` is the row that reads it — one of the ones left out. **The ruling
 stands on the 25.**
 
+**#299 then marked a row that reads that same 20-point criterion, and it did not disturb the 25.**
+`the dose against the record that sourced it` is marked because a wrong `clean` there is a **dose**,
+which is an argument about what the row costs when it is wrong and not about what the criterion
+scores — and it was an argument #255 could not weigh, because that reading did not exist when it was
+ruled. `the Rx blocks` itself stays unmarked: its three checks are shapes in one document, and
+marking the correspondence reading without marking them is the whole reason it is a row of its own
+rather than a clause in that one.
+
 **A draft of this paragraph said *the whole clinical-judgment cluster of seven criteria* and that
 was the same defect one sentence later** — a figure nothing re-derives, introduced by the sentence
 correcting a figure nothing re-derives. [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)
@@ -1039,7 +1069,7 @@ arriving inside its own repair, which this repo has now recorded happening four 
 
 **What the new row buys is a shape, not a reading**, and that was priced rather than glossed. A lazy
 reader can satisfy it with one stock sentence — `specificity_scan.py`'s limit, inherited here — so it
-converts two records per run from unfalsifiable to *checkable by eye*, which is what the walk below
+converts the records on the marked rows from unfalsifiable to *checkable by eye*, which is what the walk below
 is for and previously had nothing to work with.
 
 **Then grade it, and do not submit until it is clean:**
