@@ -736,6 +736,28 @@ Write the Markdown to `output/case-studies/`, then render it:
 python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx
 ```
 
+**It refuses rather than overwriting a document it did not write** —
+[#279](https://github.com/mshamblin5150-code/clinical-skills/issues/279). `output/` is gitignored,
+so a destructive render has no recovery, and the `.docx` is the one file this repo produces that
+the clinician opens in Word. Two things stop it: Word's `~$` owner file beside the document, which
+means it is open right now, and an archive whose parts are not the ones this renderer writes, which
+means something else saved it. Either is **exit 2 with nothing written**, and the message names the
+flag that proceeds anyway:
+
+```bash
+python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx --force
+```
+
+**Ask him before passing it, and that is this step's rule rather than part of his ruling.** What
+he ruled on #279 is the mechanism — refuse, with a flag — not that an agent must confirm each
+override. The reason to ask anyway is narrower and is about who is running the command: a refusal
+on the second signal means hand-edits exist in that `.docx`, re-rendering destroys them, and
+`output/` is gitignored so there is nothing to restore from. An irreversible write over the
+clinician's own work is not a call a run makes for him. The flag is right where the Markdown is
+the newer draft, and he is the one who knows that. **The check is the command's and not this step's** — #279's
+decision 2 is that a written instruction to look first is exactly what the ticket exists to
+reject — so there is nothing here to run before the render.
+
 **A `warning:` line from that command means a table row put a cell separator into its own
 text.** That is the shape
 [#280](https://github.com/mshamblin5150-code/clinical-skills/issues/280) was filed over: a row faking a width the grid does not have renders into column 1, and a pipe

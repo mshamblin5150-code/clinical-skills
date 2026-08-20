@@ -1,6 +1,6 @@
 """Render a Markdown subset to a .docx, with the standard library and nothing else.
 
-    python tools/docx_write.py <in.md> <out.docx>
+    python tools/docx_write.py <in.md> <out.docx> [--force]
 
 **Why this is not PyMuPDF, asked and answered once.** PyMuPDF reads and writes PDFs.
 A finished case study is submitted to Canvas as a Word document, and no PDF library
@@ -44,6 +44,38 @@ centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
 indented. The rubric gives APA format 5 of 100 points, and this is most of what that
 line can be given mechanically -- see ``skills/practicum-case-study/reference/rubric.md``.
 
+**It refuses to overwrite a document it did not write, and that is #279.** ``output/``
+is gitignored, so a destructive write here has no recovery -- and the destination is the
+one file this repo produces that a human opens in an editor. Two failures, and neither is
+the other's:
+
+* **A render that raises** used to truncate the destination *before* building the content,
+  turning a good document into an archive with ``word/document.xml`` absent, which Word
+  declines to open. The archive is built into a sibling and ``os.replace``d into place
+  now -- ``guidelines_index.build``'s arrangement and its reason. **No hand edit is
+  involved in this one**, so none of the three signals #279's body lists reaches it, and
+  ``--force`` would not have helped: the author did intend to write.
+* **A hand edit** is refused, with ``--force`` to proceed -- ruled by the clinician on
+  2026-08-19 over warning, on this repo's posture that a silent destructive success is the
+  worst outcome. Two signals, in ``refusal`` below: Word's ``~$`` owner file beside the
+  document, which means it is open *right now*, and an archive whose part list is not
+  ``PART_NAMES``, which means something other than this renderer wrote it.
+
+**The ticket's own signal 2 -- the ``.docx`` being newer than the ``.md`` -- is not
+implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``, so
+*newer* is the ordinary post-render state: the test would fire on every legitimate
+re-render while never once distinguishing a Word save from a render. The part-set test is
+exact in the direction that matters instead, and costs one ``namelist()``.
+
+**What the guard does not reach is ``NOT_GUARDED`` below, not this paragraph** --
+``NOT_APPLIED``'s arrangement and its reason, which this module already carries one screen
+down. It was a paragraph here and a paragraph again in ``CLAUDE.md`` for the length of one
+review, and a prose edit to either would have failed nothing, so the reader misled would
+have been whichever one checked the file nearer to hand. That is
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a
+change whose own subject is a second copy of a rule. **``--force`` is a promise and not a
+backup**: there is still nothing to recover from.
+
 Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
 horizontal rules rather than a grid -- both #220, and both carved out where APA carves
 them out: a heading, a list item, a reference entry and a table cell take no first line,
@@ -63,6 +95,7 @@ Word refuses to open is indistinguishable from a good one until Word opens it.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import zipfile
@@ -122,6 +155,56 @@ NOT_APPLIED = (
         "and the second hangs on nothing. Joining them is an edit on the same terms "
         "as sorting, and it is caught as an author defect instead -- by "
         "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
+)
+
+
+# What the #279 destination guard does **not** reach. One object rather than prose here
+# and prose again in ``CLAUDE.md``, on ``NOT_APPLIED``'s precedent and for its reason: a
+# prose edit to either copy fails nothing. The first element is the key, the second is why
+# the row is here.
+NOT_GUARDED = (
+    (
+        "an editor that writes exactly these parts",
+        "That a Word save always changes the part list is a claim about **Word**, and "
+        "there is no Word in this repo to check it against -- ``test_docx.py``'s standing "
+        "limit arriving on a guard rather than on a document. Anything that rewrote "
+        "exactly this part set would read as ours. The certain direction is the other "
+        "one: what this renderer produces always matches, because both come from "
+        "``parts``.",
+    ),
+    (
+        "a part added here refuses every document already written",
+        "The cost of keying on the part set, and it is a standing cost rather than "
+        "history. The day an eighth part lands, **every ``.docx`` already in "
+        "``output/`` reads as foreign** and every re-render of one refuses until "
+        "``--force``. That is not hypothetical and it is live in the tree today: "
+        "``word/header1.xml`` arrived on #217, so the 2026-08-18 case study reads as "
+        "foreign for the version reason alone. The refusal message names this cause "
+        "beside the Word one for exactly that reason.",
+    ),
+    (
+        "an owner file belonging to a different document",
+        "``lock_files`` looks for the truncated ``~$`` name Word writes for a long "
+        "filename, which drops the first two characters -- so ``~$r5144-m1.docx`` is "
+        "also the owner file of any other ``??r5144-m1.docx`` in the same directory, and "
+        "a lock on one refuses a render of the other. It fails toward refusing rather "
+        "than toward destroying, and ``--force`` is the way past it, which is why it is "
+        "declared rather than narrowed.",
+    ),
+    (
+        "a document open in anything but Word",
+        "The owner file is Word's convention. An editor that takes no lock, or takes a "
+        "different one, is invisible to signal 1 -- though a hand-saved document is "
+        "still caught by the part set once it has been saved.",
+    ),
+    (
+        "the moment between the check and the write",
+        "``refusal`` is a moment rather than a lock: a Word session that opens the file "
+        "*after* it returns is not caught. On Windows ``os.replace`` then fails rather "
+        "than truncating, which is the safe direction and is measured rather than "
+        "assumed -- see ``TheDestinationHeldOpen`` in ``tools/test_docx.py``. On POSIX "
+        "it succeeds, and the holder keeps the old inode.",
     ),
 )
 
@@ -810,32 +893,208 @@ def document_xml(markdown: str, body: str = None) -> str:
     ).format(w=W, r=R, b=body, s=sect)
 
 
-def write_docx(markdown: str, destination) -> Path:
+class RefusedToOverwrite(Exception):
+    """The destination holds work this renderer did not write, or Word has it open."""
+
+
+def parts(markdown: str) -> dict:
+    """Every part of the archive, keyed by name, in the order it is written.
+
+    **One object, so the guard cannot hold a different answer than the writer.**
+    ``word/header1.xml`` arrived late -- on #217 -- and a part list typed by hand into
+    ``written_by_this_renderer`` would have called every document produced after that
+    foreign, or every one produced before it ours.
+
+    **The body is rendered once here rather than twice.** #293 made the numbering part
+    depend on the body -- a document with several numbered lists needs one definition
+    each -- so ``render_body`` has to run before ``numbering_xml``, and its result is
+    handed on to ``document_xml`` rather than parsed a second time. That is #293's own
+    finding, and this function is where the two branches met: the guard needs the part
+    *names* and the writer needs the part *contents*, and they must come from one walk.
+    """
+    body, decimal_lists = render_body(markdown)
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "_rels/.rels": ROOT_RELS,
+        "word/_rels/document.xml.rels": DOC_RELS,
+        "word/styles.xml": STYLES,
+        "word/numbering.xml": numbering_xml(decimal_lists),
+        "word/header1.xml": HEADER,
+        "word/document.xml": document_xml(markdown, body),
+    }
+
+
+# Derived rather than restated, on ``NOT_APPLIED``'s and ``REFERENCE_HEADING``'s terms,
+# so a further part cannot arrive with the guard below still passing. **How many there are
+# is this object's to say and is deliberately counted nowhere in prose**, on #143's terms --
+# a numeral here goes stale the day a part is added, which is the one day the guard's
+# behavior changes for every document already written.
+PART_NAMES = frozenset(parts(""))
+
+
+def lock_files(destination: Path) -> tuple:
+    """The two names Word gives its owner file, either of which means *open right now*.
+
+    Word prepends ``~$`` to a short name and **replaces the first two characters** of a
+    long one, and that is not a rule worth remembering wrong: #279's own directory
+    listing is the evidence -- ``nur5144-m1-2026-08-19.docx`` locked by
+    ``~$r5144-m1-2026-08-19.docx``. Both shapes are looked for rather than the length
+    threshold between them being guessed at.
+    """
+    candidates = [destination.with_name("~$" + destination.name)]
+    if len(destination.name) > 2:
+        candidates.append(destination.with_name("~$" + destination.name[2:]))
+    return tuple(candidates)
+
+
+def written_by_this_renderer(destination: Path) -> bool:
+    """Whether the file at ``destination`` carries exactly the parts ``parts`` writes.
+
+    **The certain direction is the positive one**: anything this renderer produced has
+    this part set, because both come from one object. The module docstring carries what
+    the other direction rests on and why it is not asserted. A file that will not open as
+    a zip, or will not open at all, reads as not ours, which is the safe direction.
+    """
+    try:
+        with zipfile.ZipFile(destination) as archive:
+            return frozenset(archive.namelist()) == PART_NAMES
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
+def refusal(destination: Path) -> str:
+    """Why writing to ``destination`` would destroy work, or ``""`` if it would not.
+
+    The owner file is checked first because it is the one case that is also true of a
+    document this renderer *did* write -- so the part-set test would pass it -- and
+    because it is the moment the write may fail on a sharing violation anyway.
+
+    Every message names ``--force``. A refusal that does not say how to proceed is a dead
+    end rather than a guard, and the run that meets one is a legitimate re-render often
+    enough that it has to be.
+
+    **The part-set message names two causes and the second one is not hypothetical.**
+    ``word/header1.xml`` arrived on #217, so **every document rendered before that reads
+    as foreign** -- the claim *not written by this renderer* is exactly true of it, and
+    ``a Word save, most likely``, which is what this said first, is the wrong guess. Found
+    by pointing the guard at the real ``output/case-studies/`` rather than by a fixture:
+    of the two documents there, the one #279 was filed over reads as **ours** -- so the
+    clinician had in fact not saved it, which is what he told the session that asked --
+    and the older one reads as foreign for the version reason alone. That is
+    ``block_scan.py``'s and ``threshold_sheet.py``'s lesson a further time.
+    """
+    for lock in lock_files(destination):
+        if lock.exists():
+            return (
+                "{d} is open in Word right now -- {l} is beside it. Close the document, "
+                "or pass --force to overwrite it anyway.".format(d=destination, l=lock.name)
+            )
+    if destination.exists() and not written_by_this_renderer(destination):
+        return (
+            "{d} was not written by this renderer -- either something else saved it, "
+            "most likely Word, or an older version of this renderer wrote it before the "
+            "part set changed. Rendering over it destroys whatever is in it, and output/ "
+            "is gitignored so there is no recovery. Pass --force if that is what you "
+            "want.".format(d=destination)
+        )
+    return ""
+
+
+def partial_name(destination: Path) -> Path:
+    """The sibling the archive is built into before it is moved into place.
+
+    ``guidelines_index.build``'s arrangement with the process id added. #279's own
+    parenthetical is why: #276 records a *fixed* temp name being unsafe under
+    concurrency, and while this is one writer to one destination, a name carrying nothing
+    is the shape that ticket is about.
+    """
+    return destination.with_name(
+        "{n}.{pid}.building".format(n=destination.name, pid=os.getpid())
+    )
+
+
+def write_docx(markdown: str, destination, force: bool = False) -> Path:
+    """Render ``markdown`` to ``destination``, refusing to destroy work it did not write.
+
+    The archive is built into a sibling and moved into place, so a render that dies part
+    way leaves the previous document intact rather than the truncated archive #279
+    recorded. ``force`` skips ``refusal`` and nothing else -- the sibling is not a mode.
+
+    **Building the payload before opening the sibling would be a second mechanism, and
+    it was written that way first.** It reads as a guard and is not one: with the write
+    going to a sibling the ordering is unobservable, so the mutation that moved it back
+    inside left the whole suite green. Worse, it made the ``except`` limb below
+    unreachable from the one test aimed at it -- a raise in ``document_xml`` happened
+    before the sibling existed, so nothing exercised the cleanup. One mechanism, and the
+    limb is now on the path the test drives.
+    """
     destination = Path(destination)
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", CONTENT_TYPES)
-        archive.writestr("_rels/.rels", ROOT_RELS)
-        archive.writestr("word/_rels/document.xml.rels", DOC_RELS)
-        archive.writestr("word/styles.xml", STYLES)
-        body, decimal_lists = render_body(markdown)
-        archive.writestr("word/numbering.xml", numbering_xml(decimal_lists))
-        archive.writestr("word/header1.xml", HEADER)
-        archive.writestr("word/document.xml", document_xml(markdown, body))
+    if not force:
+        reason = refusal(destination)
+        if reason:
+            raise RefusedToOverwrite(reason)
+    partial = partial_name(destination)
+    partial.unlink(missing_ok=True)
+    try:
+        with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in parts(markdown).items():
+                archive.writestr(name, content)
+        os.replace(partial, destination)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
     return destination
 
 
+USAGE = "usage: docx_write.py <in.md> <out.docx> [--force]"
+
+
 def main(argv: list) -> int:
+    force = "--force" in argv
+    # An unrecognized ``--`` argument is refused rather than sliding into a positional
+    # slot. ``--forse`` would otherwise be read as a third path, ignored in silence, and
+    # the guard it was meant to disable would refuse the write -- which reads as the
+    # guard being broken rather than as the flag being mistyped.
+    unknown = [a for a in argv if a.startswith("--") and a != "--force"]
+    if unknown:
+        print("unknown option: {o}".format(o=unknown[0]))
+        print(USAGE)
+        return 2
+    argv = [argument for argument in argv if argument != "--force"]
     if len(argv) < 2:
-        print("usage: docx_write.py <in.md> <out.docx>")
+        print(USAGE)
         return 2
     source = Path(argv[0])
     if not source.is_file():
         print("not a file: {p}".format(p=source))
         return 2
     markdown = source.read_text(encoding="utf-8")
-    written = write_docx(markdown, Path(argv[1]))
+    try:
+        written = write_docx(markdown, Path(argv[1]), force=force)
+    except RefusedToOverwrite as reason:
+        # 2 is every way of not having written, on ``docx_read.py``'s convention. There
+        # is no 1, because a writer has no "found nothing" to report -- but that is a
+        # claim about what this function *returns*, and an uncaught exception still
+        # leaves the process on 1 through the traceback. Both axes of ``/code-review``
+        # found the unqualified form of this sentence, which is why it is qualified.
+        print("refused: {r}".format(r=reason), file=sys.stderr)
+        return 2
+    except OSError as error:
+        # **The ticket's own headline scenario lands here**, and it exited 1 with a
+        # traceback until both review axes said so. Word holding the document open makes
+        # ``os.replace`` raise ``PermissionError`` on Windows -- which is the safe
+        # direction, since nothing was truncated -- but *did not write* is exactly what
+        # 2 means, and a traceback is not an operator-legible way to say it. The
+        # ``refusal`` check cannot close this: a Word session that opens the file after
+        # it returns is a race no check in this process wins.
+        print(
+            "could not write {p}: {e}. If it is open in Word, close it and run "
+            "again.".format(p=argv[1], e=error),
+            file=sys.stderr,
+        )
+        return 2
     print("wrote {p} ({n} bytes)".format(p=written, n=written.stat().st_size))
     # **Warn, never refuse** -- ruled by the clinician on 2026-08-19. #280's second
     # comment is why the command warns at all rather than the suite alone binding the
