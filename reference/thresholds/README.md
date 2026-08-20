@@ -42,9 +42,9 @@ sheet's answer:
 | | |
 | --- | --- |
 | rows | **25** |
-| snippet cells, and distinct snippets among them | 25, of which **22** are distinct |
-| words across the distinct snippets, excluding the one `RENDERED:` marker | **166** |
-| longest / median / shortest quoted fragment, in words | 18 / 6 / 3 |
+| snippet cells, and distinct snippets among them | 25, of which **24** are distinct |
+| words across the distinct snippets, excluding the two `RENDERED:` markers | **87** |
+| longest / median / shortest quoted fragment, in words | 8 / 3 / 1 |
 | words in the `## Populations` table, 17 rows of verbatim scope wording | **124** |
 | pages in the source guideline | **377** |
 
@@ -69,7 +69,7 @@ fabricated citation stops being detectable. The verbatim string is doing evident
 that no paraphrase does, which is the fair-use factor that actually bites here.
 
 **And the attribution is per row, not per file.** Every row carries the society, the
-document, its DOI, the page, the recommendation identifier and the class of
+document, its source URL, the page, the recommendation identifier and the class of
 recommendation. A reader who doubts a row jumps to the page in one move; that jump is the
 whole reason `page` is a column.
 
@@ -80,7 +80,7 @@ for the guideline, and it says so in its own opener. Nothing here blesses commit
 anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
 
 **No later sheet gets this for free.** Diabetes was re-asked against one 377-page ADA
-standard and answered with 166 quoted words across 22 distinct minimal snippets. A directory
+standard and answered with 87 quoted words across 24 distinct minimal snippets. A directory
 of twenty sheets quoting one society is still a different quantity question, and it is
 worth re-asking there rather than reading either ruling as settling the class.
 

@@ -956,6 +956,22 @@ class TheGraderMatchesTheFormatItDocuments(unittest.TestCase):
         self.assertIn("everywhere", readme)
 
 
+def quote_footprint(sheet_name: str, *, strip_rendered: bool = False):
+    """Return the parser-backed quote measures shared by each shipped sheet."""
+    path = gate.SHEET_ROOT / sheet_name
+    sheet_ = gate.parse(path.read_text(encoding="utf-8"), path)
+    snippets = [row.snippet for row in sheet_.rows]
+    distinct = set(snippets)
+    quoted = [
+        snippet.removeprefix(gate.RENDERED_MARKER).strip()
+        if strip_rendered
+        else snippet
+        for snippet in distinct
+    ]
+    words = sorted(len(snippet.split()) for snippet in quoted)
+    return sheet_, snippets, distinct, words
+
+
 class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
     """README.md's *quoting posture* section states how much is quoted, and #223's
     ruling rests on those numbers -- so they are re-derived from the sheet here
@@ -976,8 +992,7 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
     SHEET = "hypertension.md"
 
     def _sheet(self) -> gate.Sheet:
-        path = gate.SHEET_ROOT / self.SHEET
-        return gate.parse(path.read_text(encoding="utf-8"), path)
+        return quote_footprint(self.SHEET)[0]
 
     def _readme(self) -> str:
         return (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
@@ -985,7 +1000,7 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
     def _snippets(self) -> list[str]:
         """``parse`` has already stripped the surrounding quotes, so there is one
         definition of a snippet here rather than two that agree by luck."""
-        return [row.snippet for row in self._sheet().rows]
+        return quote_footprint(self.SHEET)[1]
 
     def test_the_row_and_snippet_counts(self):
         snippets = self._snippets()
@@ -1049,28 +1064,25 @@ class TheDiabetesQuotingPostureFiguresAreReDerived(unittest.TestCase):
     says the hypertension figures do not license the class of future sheets."""
 
     def test_the_diabetes_quote_footprint_is_measured_from_the_shipped_sheet(self):
-        path = gate.SHEET_ROOT / "diabetes.md"
-        sheet_ = gate.parse(path.read_text(encoding="utf-8"), path)
         # ``RENDERED:`` is this repo's evidentiary marker, not ADA expression. It
         # stays in the cell count and is removed only from the copied-word measure.
-        snippets = [row.snippet for row in sheet_.rows]
-        distinct = set(snippets)
-        quoted = [snippet.removeprefix(gate.RENDERED_MARKER).strip() for snippet in distinct]
-        words = sorted(len(snippet.split()) for snippet in quoted)
+        sheet_, snippets, distinct, words = quote_footprint(
+            "diabetes.md", strip_rendered=True
+        )
 
         self.assertEqual(len(snippets), 25)
-        self.assertEqual(len(distinct), 22)
-        self.assertEqual(sum(words), 166)
-        self.assertEqual((max(words), words[len(words) // 2], min(words)), (18, 6, 3))
+        self.assertEqual(len(distinct), 24)
+        self.assertEqual(sum(words), 87)
+        self.assertEqual((max(words), words[len(words) // 2], min(words)), (8, 3, 1))
         self.assertEqual(len(sheet_.populations), 17)
         self.assertEqual(sum(len(value.split()) for value in sheet_.populations.values()), 124)
 
         readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
         for claim in (
             "| rows | **25** |",
-            "**22** are distinct",
-            "**166**",
-            "18 / 6 / 3",
+            "**24** are distinct",
+            "**87**",
+            "8 / 3 / 1",
             "17 rows",
             "**124**",
             "**377**",
@@ -1088,6 +1100,56 @@ class TheDiabetesQuotingPostureFiguresAreReDerived(unittest.TestCase):
         self.assertEqual(len(matching), 1)
         cells = [cell.strip() for cell in matching[0].strip("|").split("|")]
         self.assertEqual(cells[6], "377")
+
+
+class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
+    """The agreed #186 integration seam, skipped only where its deliberately
+    uncommitted source, recommendation record, or blind read is unavailable."""
+
+    PDF_ROOT = Path("C:/codeing/guidelines-src")
+    TEXT_ROOT = Path("C:/codeing/guidelines-text")
+    RECS_ROOT = Path("C:/codeing/guidelines-index")
+    SECOND_READ = RECS_ROOT / "second-read-diabetes.json"
+
+    def test_all_six_gates_grade_the_committed_diabetes_sheet(self):
+        required = (
+            self.PDF_ROOT / "ADA" / "standards-of-care-2026.pdf",
+            self.TEXT_ROOT / "manifest.json",
+            self.RECS_ROOT / "recs-ada-2026.json",
+            self.SECOND_READ,
+        )
+        absent = [str(path) for path in required if not path.is_file()]
+        if absent:
+            self.skipTest("external gate input absent: " + ", ".join(absent))
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = gate.main(
+                [
+                    str(gate.SHEET_ROOT / "diabetes.md"),
+                    "--recs-root",
+                    str(self.RECS_ROOT),
+                    "--pdf-root",
+                    str(self.PDF_ROOT),
+                    "--text-root",
+                    str(self.TEXT_ROOT),
+                    "--second-read",
+                    str(self.SECOND_READ),
+                ]
+            )
+
+        report = output.getvalue()
+        self.assertEqual(code, 0, report)
+        for verdict in (
+            "SCHEMA          0",
+            "CITATION tier 1 0",
+            "CITATION tier 2 0",
+            "COVERAGE        0 refusing, 0 warning",
+            "RANGE           0",
+            "WATERMARK       0 warning",
+            "SECOND READ     0 refusing",
+        ):
+            self.assertIn(verdict, report)
 
 
 class CoverageIsPerSource(unittest.TestCase):

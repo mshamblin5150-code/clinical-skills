@@ -27,12 +27,28 @@ and re-derived by a test.
 marker-bound extraction includes 98 change-summary records from pages 12–18 rather
 than recommendation statements; their 88 distinct identifiers are named under
 [Coverage](#coverage). Of the 28 remaining records, 14 identifiers produce the 25
-decision-point rows below and 14 are scoped out by identifier.
+decision-point rows below and 14 are scoped out by identifier. The ten records whose
+identifier duplicates another record are audited separately under Coverage, so the
+accounting is record-level rather than silently collapsing to the grader's identifier
+set: 116 first occurrences + 10 duplicate occurrences = 126 records.
 
 **Not read:** narrative statements, evidence tables, appendices, and decision points
 outside those extracted markers. A number stated only in those places is not here,
 so **absent from this sheet does not mean absent from the guideline.** The source is
 `bound`, so even an omission from the marker set warns rather than refuses.
+
+**Second read:** the blind 2026-08-20 read covered every cited page and produced no
+refusal after its reader independently confirmed the `G3 or higher` staging cutoff.
+The automatic pairing list has two same-number collisions: on p255 it pairs the 30%
+albuminuria row first with a creatinine statement, and on p261 it pairs the 30–90
+eGFR row first with a FIGARO-DKD range. The independent record also carries the exact
+recommendation values — `reduce urinary albumin by ≥30%` and `UACR ≥100 mg/g with
+eGFR 30–90 mL/min/1.73 m2` — so those are the manually reconciled pairings. Three
+word-only values that the numeric matcher reports as unmatched are also exact
+recommendation fragments: p45 `annually`, p116 `at least annually`, and p228 `three
+classes of antihypertensive medications (including a diuretic)`. Those pair to the
+ongoing/chronic screening rows, diabetes-distress row, and MRA medication-count row,
+respectively. A clean gate is still a smoke test, never proof.
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-20
 
@@ -63,31 +79,31 @@ citations resolved against C:/codeing/guidelines-src on 2026-08-20
 
 | quantity | population | value | snippet | source | page | rec | class |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| post-pancreatitis-initial-screening-interval | post-acute-pancreatitis | 3-6 months | "within 3–6 months following an episode of acute pancreatitis" | ada-2026 | p45 | p45/recommendation/2.23 | E |
+| post-pancreatitis-initial-screening-interval | post-acute-pancreatitis | 3-6 months | "within 3–6 months" | ada-2026 | p45 | p45/recommendation/2.23 | E |
 | post-pancreatitis-ongoing-screening-interval | post-acute-pancreatitis | annually | "RENDERED: and annually thereafter" | ada-2026 | p45 | p45/recommendation/2.23 | E |
-| chronic-pancreatitis-screening-interval | chronic-pancreatitis | annually | "annually for people with chronic pancreatitis" | ada-2026 | p45 | p45/recommendation/2.23 | E |
-| teplizumab-discussion-age-threshold | stage2-t1d-age8plus | >=8 years | "selected individuals aged ≥8 years with stage 2 type 1 diabetes" | ada-2026 | p62 | p62/recommendation/3.17 | B |
-| diabetes-distress-screening-interval | diabetes-household | at least annually | "at least annually in people with diabetes, caregivers, and family members" | ada-2026 | p116 | p116/recommendation/5.45 | B |
-| obesity-bmi-threshold | adults-t1d-obesity | >=30.0 kg/m2 | "obesity (BMI ≥30.0 kg/m2" | ada-2026 | p183 | p183/recommendation/8.29 | B/C |
-| obesity-bmi-threshold | asian-adults-t1d-obesity | >=27.5 kg/m2 | "or ≥27.5 kg/m2 in Asian American" | ada-2026 | p183 | p183/recommendation/8.29 | B/C |
-| lifestyle-counseling-bp-threshold | people-diabetes | >120/80 mmHg | "For people with diabetes and blood pressure >120/80 mmHg" | ada-2026 | p227 | p227/recommendation/10.5 | A |
-| mra-consideration-medication-threshold | people-diabetes-htn | three antihypertensive classes including a diuretic | "not meeting blood pressure goals on three classes" | ada-2026 | p228 | p228/recommendation/10.13 | A |
+| chronic-pancreatitis-screening-interval | chronic-pancreatitis | annually | "annually" | ada-2026 | p45 | p45/recommendation/2.23 | E |
+| teplizumab-discussion-age-threshold | stage2-t1d-age8plus | >=8 years | "aged ≥8 years" | ada-2026 | p62 | p62/recommendation/3.17 | B |
+| diabetes-distress-screening-interval | diabetes-household | at least annually | "at least annually" | ada-2026 | p116 | p116/recommendation/5.45 | B |
+| obesity-bmi-threshold | adults-t1d-obesity | >=30.0 kg/m2 | "BMI ≥30.0 kg/m2" | ada-2026 | p183 | p183/recommendation/8.29 | B/C |
+| obesity-bmi-threshold | asian-adults-t1d-obesity | >=27.5 kg/m2 | "≥27.5 kg/m2" | ada-2026 | p183 | p183/recommendation/8.29 | B/C |
+| lifestyle-counseling-bp-threshold | people-diabetes | >120/80 mmHg | "blood pressure >120/80 mmHg" | ada-2026 | p227 | p227/recommendation/10.5 | A |
+| mra-consideration-medication-threshold | people-diabetes-htn | three antihypertensive classes including a diuretic | "RENDERED: three classes of antihypertensive medications (including a diuretic)" | ada-2026 | p228 | p228/recommendation/10.13 | A |
 | albuminuria-reduction-target | people-ckd-albuminuria300 | >=30% | "reduce urinary albumin by ≥30%" | ada-2026 | p255 | p255/recommendation/11.2 | B |
-| albuminuria-eligibility-threshold | people-ckd-albuminuria300 | >=300 mg/g | "≥300 mg/g to slow CKD progression" | ada-2026 | p255 | p255/recommendation/11.2 | B |
-| nondialysis-ckd-stage-threshold | people-ckd-g3plus | G3 or higher | "For people with CKD stage G3 or higher, protein intake should be 0.8 g/kg body weight per day" | ada-2026 | p256 | p256/recommendation/11.3 | A |
-| nondialysis-protein-intake | people-ckd-g3plus | 0.8 g/kg/day | "For people with CKD stage G3 or higher, protein intake should be 0.8 g/kg body weight per day" | ada-2026 | p256 | p256/recommendation/11.3 | A |
-| dialysis-protein-intake | people-dialysis | 1.0-1.2 g/kg/day | "protein intake of 1.0–1.2 g/kg/day" | ada-2026 | p256 | p256/recommendation/11.3 | B |
-| nsmra-egfr-threshold | people-ckd-albuminuria | >=25 mL/min/1.73 m2 | "if eGFR is ≥25 mL/min/1.73 m2" | ada-2026 | p261 | p261/recommendation/11.8 | A |
-| nsmra-potassium-follow-up | people-ckd-albuminuria | 1 month | "monitored 1 month after initiation" | ada-2026 | p261 | p261/recommendation/11.8 | A |
-| sglt2-nsmra-uacr-threshold | adults-t2d-uacr100-egfr30-90 | >=100 mg/g | "UACR ≥100 mg/g with eGFR 30–90 mL/min/1.73 m2" | ada-2026 | p261 | p261/recommendation/11.9 | B |
-| sglt2-nsmra-egfr-range | adults-t2d-uacr100-egfr30-90 | 30-90 mL/min/1.73 m2 | "UACR ≥100 mg/g with eGFR 30–90 mL/min/1.73 m2" | ada-2026 | p261 | p261/recommendation/11.9 | B |
-| sglt2-continuation-egfr-threshold | people-egfr-under20-nondialysis | <20 mL/min/1.73 m2 | "Individuals with eGFR <20 mL/min/1.73 m2 and not on dialysis" | ada-2026 | p262 | p262/recommendation/11.11 | B/C |
-| cognitive-screening-age-threshold | adults-diabetes-age65plus | >=65 years | "adults 65 years of age or older at the initial visit, annually, and as appropriate" | ada-2026 | p284 | p284/recommendation/13.3 | B |
-| cognitive-screening-interval | adults-diabetes-age65plus | annually | "adults 65 years of age or older at the initial visit, annually, and as appropriate" | ada-2026 | p284 | p284/recommendation/13.3 | B |
-| caregiver-dsmes-age-threshold | pediatric-diabetes | <18 years | "for individuals aged <18 years" | ada-2026 | p304 | p304/recommendation/14.1 | B |
-| pregnancy-aspirin-dose | pregnancy-t1d-t2d | 100-150 mg/day | "low-dose aspirin 100–150 mg/day" | ada-2026 | p336 | p336/recommendation/15.23 | E |
+| albuminuria-eligibility-threshold | people-ckd-albuminuria300 | >=300 mg/g | "≥300 mg/g" | ada-2026 | p255 | p255/recommendation/11.2 | B |
+| nondialysis-ckd-stage-threshold | people-ckd-g3plus | G3 or higher | "CKD stage G3 or higher" | ada-2026 | p256 | p256/recommendation/11.3 | A |
+| nondialysis-protein-intake | people-ckd-g3plus | 0.8 g/kg/day | "0.8 g/kg body weight per day" | ada-2026 | p256 | p256/recommendation/11.3 | A |
+| dialysis-protein-intake | people-dialysis | 1.0-1.2 g/kg/day | "1.0–1.2 g/kg/day" | ada-2026 | p256 | p256/recommendation/11.3 | B |
+| nsmra-egfr-threshold | people-ckd-albuminuria | >=25 mL/min/1.73 m2 | "eGFR is ≥25 mL/min/1.73 m2" | ada-2026 | p261 | p261/recommendation/11.8 | A |
+| nsmra-potassium-follow-up | people-ckd-albuminuria | 1 month | "1 month after initiation" | ada-2026 | p261 | p261/recommendation/11.8 | A |
+| sglt2-nsmra-uacr-threshold | adults-t2d-uacr100-egfr30-90 | >=100 mg/g | "UACR ≥100 mg/g" | ada-2026 | p261 | p261/recommendation/11.9 | B |
+| sglt2-nsmra-egfr-range | adults-t2d-uacr100-egfr30-90 | 30-90 mL/min/1.73 m2 | "eGFR 30–90 mL/min/1.73 m2" | ada-2026 | p261 | p261/recommendation/11.9 | B |
+| sglt2-continuation-egfr-threshold | people-egfr-under20-nondialysis | <20 mL/min/1.73 m2 | "eGFR <20 mL/min/1.73 m2" | ada-2026 | p262 | p262/recommendation/11.11 | B/C |
+| cognitive-screening-age-threshold | adults-diabetes-age65plus | >=65 years | "65 years of age or older" | ada-2026 | p284 | p284/recommendation/13.3 | B |
+| cognitive-screening-interval | adults-diabetes-age65plus | annually | "annually" | ada-2026 | p284 | p284/recommendation/13.3 | B |
+| caregiver-dsmes-age-threshold | pediatric-diabetes | <18 years | "aged <18 years" | ada-2026 | p304 | p304/recommendation/14.1 | B |
+| pregnancy-aspirin-dose | pregnancy-t1d-t2d | 100-150 mg/day | "100–150 mg/day" | ada-2026 | p336 | p336/recommendation/15.23 | E |
 | pregnancy-aspirin-start | pregnancy-t1d-t2d | 12-16 weeks gestation | "12–16 weeks of gestation" | ada-2026 | p336 | p336/recommendation/15.23 | E |
-| pregnancy-aspirin-alternative-dose | pregnancy-t1d-t2d | 162 mg/day | "A dosage of 162 mg/day may be acceptable" | ada-2026 | p336 | p336/recommendation/15.23 | E |
+| pregnancy-aspirin-alternative-dose | pregnancy-t1d-t2d | 162 mg/day | "162 mg/day" | ada-2026 | p336 | p336/recommendation/15.23 | E |
 
 ## Conflicts
 
@@ -98,9 +114,30 @@ No duplicate `(quantity, population)` pair carries different values in this shee
 
 Every distinct recommendation identifier in the bound extraction that is not cited
 by a row above, with why. The 126 extracted records carry 116 distinct identifiers;
-25 rows cite 14 of them and the 102 identifiers below account for the rest. Because
+25 rows cite 14 of them and the 102 unique identifiers in the main list below account
+for the rest. Because
 the source is `bound`, an identifier absent from both places warns rather than
 refuses.
+
+**Duplicate marker records.**
+
+The extractor emitted ten additional records under nine identifiers it had already
+used. Each occurrence is a separate change-summary marker and receives the same
+disposition as its first occurrence in the main list; naming the groups and their
+record counts is what keeps 126 records from reading as though 116 identifiers were
+the whole input.
+
+- `p13/recommendation/2.24` - 2 change-summary records; both scoped out
+- `p13/recommendation/4.13` - 2 change-summary records; both scoped out
+- `p14/recommendation/7.25` - 2 change-summary records; both scoped out
+- `p14/recommendation/7.3` - 3 change-summary records; all three scoped out
+- `p15/recommendation/9.9` - 2 change-summary records; both scoped out
+- `p16/recommendation/10.44` - 2 change-summary records; both scoped out
+- `p16/recommendation/11.11` - 2 change-summary records; both scoped out
+- `p16/recommendation/11.6` - 2 change-summary records; both scoped out
+- `p17/recommendation/13.11` - 2 change-summary records; both scoped out
+
+**Main identifier list.**
 
 - `p12/recommendation/1.1` - change-summary entry, not a recommendation statement
 - `p12/recommendation/1.5` - change-summary entry, not a recommendation statement
