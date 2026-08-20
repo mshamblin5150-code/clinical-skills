@@ -393,6 +393,11 @@ def tracked_markdown() -> list[str]:
     raised ``UnicodeDecodeError``, and this mode *"cannot see a file until the
     commit that makes it tracked"*. A commit is what turns this walk's blind
     spot into its coverage, which is one commit too late to refuse it.
+
+    **Since [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)
+    that statement is on the page as well as here**, in `scanned_population` and
+    beside every clean line this scanner prints. A docstring is the page for a
+    walk whose only reader opens the file; this one prints.
     """
     return [p for p in _git("ls-files", "*.md").splitlines() if p.strip()]
 
@@ -461,7 +466,56 @@ def scan_staged() -> Report:
     return tally.report()
 
 
-def render(report: Report, quiet: bool) -> list[str]:
+POPULATIONS = {
+    "--all": ("every tracked .md -- an untracked file is not scanned until the "
+              "commit that tracks it"),
+    "staged": ("the added lines in staged .md -- an unstaged or untracked file "
+               "is not scanned"),
+    "paths": "the .md under the paths given -- nothing else in the tree is scanned",
+}
+
+
+def scanned_population(mode: str) -> str:
+    """The set this run actually read, so a clean line cannot be read wider.
+
+    [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258).
+    ``spelling-scan: no listed British spelling found.`` was an unqualified
+    clean result over ``git ls-files``, and #254 had already ruled that every
+    such walk says what a clean result covers -- the statement went into
+    `tracked_markdown`'s docstring, which is not the page a reader of this
+    output is looking at.
+
+    **This is the walk with the recorded instance rather than the hypothetical
+    one.** ``CLAUDE.md`` carries it: ``licence`` landed in
+    ``skills/practicum-case-study/SKILL.md`` because the staged scan had crashed
+    and ``--all`` cannot see a file until the commit that makes it tracked. Both
+    nets were down and both printed nothing that said so.
+
+    **Advisory was argued in both directions and ruled toward saying so**
+    (#258 open question 3). A line read past costs nothing; an unqualified clean
+    line is what let the recorded instance through.
+
+    **Every mode, including the paths one.** Naming only ``--all`` would teach a
+    reader that the qualifier's absence elsewhere is a stronger claim, which is
+    the defect one level down. And an unrecognized mode is a ``KeyError`` rather
+    than a default, on `research_ledger.py`'s ruling for an unrecognized
+    ``STATUS``: the value picks which claim is printed, so a third one would
+    quietly print the exact unqualified line this ticket is about.
+
+    Not shared with ``phi_scan``'s copy of this line, on `research_ledger.py`'s
+    and `checks_ledger.py`'s terms: what transfers is the rule, and a shared
+    helper would forbid the divergence two scanners with different populations
+    are entitled to.
+
+    **``--record`` needs none of this and got none**, which is a limit worth
+    naming rather than an omission. Its first printed line already names the one
+    directory it reports on, and it renders no clean verdict for a reader to
+    read as a claim about the tree.
+    """
+    return f"spelling-scan: scanned {POPULATIONS[mode]}."
+
+
+def render(report: Report, quiet: bool, mode: str) -> list[str]:
     lines: list[str] = []
     if report.findings:
         lines.append(
@@ -486,6 +540,20 @@ def render(report: Report, quiet: bool) -> list[str]:
             "fixtures/filled-anchor/notes/ -- a preserved run record, issue #73. "
             "Not findings."
         )
+
+    # **Whether or not the run was clean, and last, so it qualifies everything
+    # above it.** A finding is a floor rather than the whole -- so the walked
+    # set is stated beside a report that found something exactly as it is beside
+    # one that did not, which is `differential_scan.py`'s ordering one scanner
+    # over. The one silence kept is `--quiet` **and** clean, and the reason is
+    # narrower than the hook: what the ruling qualifies is a **printed clean
+    # result**, and that pair prints none. There is nothing on the page for a
+    # reader to read as a claim about the tree, which is not true of any other
+    # combination here -- and it is the whole distinction, since `--quiet --all`
+    # has no caller in this repo and the argument cannot rest on who runs it.
+    # #258.
+    if report.findings or not quiet:
+        lines.append(scanned_population(mode))
     return lines
 
 
@@ -517,14 +585,17 @@ def main(argv: list[str] | None = None) -> int:
             print(line)
         return 0
 
+    # The mode travels with the report because the report cannot say what it
+    # walked -- `_Tally` sees findings and never the paths it was handed. Chosen
+    # here, where the branch already is, rather than threaded through `scan`.
     if args.paths:
-        report = scan(markdown_under(args.paths), read_file)
+        mode, report = "paths", scan(markdown_under(args.paths), read_file)
     elif args.all:
-        report = scan(tracked_markdown(), read_tracked)
+        mode, report = "--all", scan(tracked_markdown(), read_tracked)
     else:
-        report = scan_staged()
+        mode, report = "staged", scan_staged()
 
-    for line in render(report, args.quiet):
+    for line in render(report, args.quiet, mode):
         print(line)
     return 1 if report.findings else 0
 
