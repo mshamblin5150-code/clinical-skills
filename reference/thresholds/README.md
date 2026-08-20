@@ -25,7 +25,7 @@ the answer is that nothing here changes — but the judgment is written down rat
 implied, because #223's whole point is that it had never been made.
 
 **What is quoted, measured rather than characterized.** In
-[hypertension.md](hypertension.md), the one sheet that exists today:
+[hypertension.md](hypertension.md):
 
 | | |
 | --- | --- |
@@ -36,8 +36,20 @@ implied, because #223's whole point is that it had never been made.
 | words in the `## Populations` table, 19 rows of verbatim scope wording | **115** |
 | pages in the source guideline | **105** |
 
-**Every row above is re-derived by a test, and none of them is a figure only this
-paragraph holds** — which is
+In [diabetes.md](diabetes.md), ruled on #186 rather than inheriting the first
+sheet's answer:
+
+| | |
+| --- | --- |
+| rows | **25** |
+| snippet cells, and distinct snippets among them | 25, of which **24** are distinct |
+| words across the distinct snippets, excluding the two `RENDERED:` markers | **87** |
+| longest / median / shortest quoted fragment, in words | 8 / 3 / 1 |
+| words in the `## Populations` table, 17 rows of verbatim scope wording | **124** |
+| pages in the source guideline | **377** |
+
+**Every row in both tables above is re-derived by a test, and none of them is a figure
+only this paragraph holds** — which is
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). The first five
 come from the sheet, read through `threshold_sheet.parse` rather than a reader of the
 test's own; **the page count comes from [guidelines-catalog.md](../guidelines-catalog.md)**,
@@ -57,7 +69,7 @@ fabricated citation stops being detectable. The verbatim string is doing evident
 that no paraphrase does, which is the fair-use factor that actually bites here.
 
 **And the attribution is per row, not per file.** Every row carries the society, the
-document, its DOI, the page, the recommendation identifier and the class of
+document, its source URL, the page, the recommendation identifier and the class of
 recommendation. A reader who doubts a row jumps to the page in one move; that jump is the
 whole reason `page` is a column.
 
@@ -67,10 +79,10 @@ for the guideline, and it says so in its own opener. Nothing here blesses commit
 `guidelines_recs.py` refuses to write inside a checkout and `.gitignore` now catches
 anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
 
-**A second sheet does not get this for free.** The figures above are one topic against one
-105-page guideline. A directory of twenty sheets quoting one society is a different
-quantity question, and it is worth re-asking there rather than reading this section as
-settling the class.
+**No later sheet gets this for free.** Diabetes was re-asked against one 377-page ADA
+standard and answered with 87 quoted words across 24 distinct minimal snippets. A directory
+of twenty sheets quoting one society is still a different quantity question, and it is
+worth re-asking there rather than reading either ruling as settling the class.
 
 ## Grading a sheet
 
@@ -360,7 +372,7 @@ not left to be discovered:
   only ever be warned about*, and #173 made that false without touching the sentence**
   — the majority of the corpus is `exact` now. The standing figure is the table below
   and is deliberately not restated here.
-- **One topic has a sheet.** Everything else in the 179-document corpus is reachable
+- **Two topics have sheets.** Everything else in the 179-document corpus is reachable
   through `tools/guidelines_search.py` and has not been distilled. An empty directory
   entry is not a negative finding about a guideline.
 - **Most of the corpus can be gated now, and the number is measured.**

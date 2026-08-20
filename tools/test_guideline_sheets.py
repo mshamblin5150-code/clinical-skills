@@ -368,9 +368,10 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         cls.agents = AGENTS.read_text(encoding="utf-8")
         cls.sheet = (THRESHOLDS / "hypertension.md").read_text(encoding="utf-8")
 
-    def test_both_sheets_the_skill_names_are_on_disk(self):
+    def test_all_three_sheets_the_skill_names_are_on_disk(self):
         self.assertTrue(USPSTF.is_file())
         self.assertTrue(THRESHOLDS.is_dir())
+        self.assertTrue((THRESHOLDS / "diabetes.md").is_file())
         self.assertTrue((THRESHOLDS / "hypertension.md").is_file())
 
     def test_uspstf_is_still_complete_for_its_corpus(self):
@@ -386,12 +387,14 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         uspstf_docs = re.findall(r"^\| USPSTF \| ", self.catalog, re.M)
         self.assertEqual(len(uspstf_docs), 90)
 
-    def test_the_thresholds_directory_still_holds_one_topic(self):
-        # The skill says "one topic". A second sheet is good news and makes that
-        # sentence false, so it fails here rather than going stale in the file.
+    def test_the_thresholds_directory_holds_the_two_declared_topics(self):
+        # The consumer-facing skill and AGENTS.md both declare the shipped topic
+        # count. A new sheet is good news and makes that count false, so it fails
+        # here rather than going stale in either file.
         sheets = sorted(p.name for p in THRESHOLDS.glob("*.md") if p.name != "README.md")
-        self.assertEqual(sheets, ["hypertension.md"])
-        self.assertIn("**one topic**", self.text)
+        self.assertEqual(sheets, ["diabetes.md", "hypertension.md"])
+        self.assertIn("**two topics**", self.text)
+        self.assertIn("**two topics**", self.agents)
 
     def test_the_colorectal_example_is_a_real_uspstf_row(self):
         # One regex over the whole row, never a separate assertIn for the year --
