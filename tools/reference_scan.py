@@ -589,13 +589,50 @@ class Entry:
     paragraph: bool
 
     @property
+    def _year_match(self) -> re.Match[str] | None:
+        return ENTRY_YEAR.search(self.text)
+
+    @property
     def year(self) -> str:
-        match = ENTRY_YEAR.search(self.text)
+        match = self._year_match
         return match.group(1) if match else ""
 
     @property
     def key(self) -> str:
         return first_word(self.text)
+
+    @property
+    def authors(self) -> str:
+        """Everything before the year element, which is the author string section
+        3's ``a``/``b`` rule is scoped to. **This is the canonical statement of
+        why; the other sites point here rather than restating it.**
+
+        **``key`` is the *first* surname and stays that way** -- it is what an
+        in-text citation is matched on, where APA names one author and ``et al.``
+        -- and these are two different questions. Grouping the letters on ``key``
+        answered the citation-matching one: ``Hsu, K.`` and
+        ``Hsu, K., & Khosropour, C.`` in one year were read as an author who had
+        failed to letter two works, when APA requires neither to carry a letter
+        and ``(Hsu, 2026)`` and ``(Hsu & Khosropour, 2026)`` already differ.
+
+        **``""`` where the entry states no year**, rather than the whole entry.
+        The one caller skips a yearless entry before asking, so the branch is
+        unreachable today -- and falling back to the entry text would group works
+        on their *titles and URLs* the moment it stopped being, which fails
+        silently and in the direction that merges unlike works.
+
+        **What this cannot reach, named rather than left to be found.** The strings
+        are compared exactly after normalization, so one author written two ways --
+        ``Ross, J.`` against ``Ross, J. B.`` -- splits into two groups and the row
+        goes **silent** on a pair that genuinely does need letters. That is a false
+        negative where the old grouping's was a false positive, and it is the safer
+        of the two directions on this row: a missed letter is a defect a reader can
+        still see, and a spurious one is a defect the command *told* the run to
+        write. Reaching it means deciding when two author strings are one author,
+        which is a reading rather than a string test.
+        """
+        match = self._year_match
+        return normalize(self.text[: match.start()]) if match else ""
 
     @property
     def is_uptodate(self) -> bool:
@@ -888,9 +925,14 @@ def _order_findings(entries: tuple[Entry, ...]) -> list[Finding]:
 def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
     """The two ``a``/``b`` rows, section 3.
 
-    Grouped on the author key and the bare year, so the undisambiguated and the
-    disambiguated halves of one author-year fall in the same group and the two rows
-    below never both fire on it.
+    Grouped on the **full author string** and the bare year, so the undisambiguated
+    and the disambiguated halves of one author-year fall in the same group and the
+    two rows below never both fire on it.
+
+    **The author string and not ``Entry.key``, which is the first surname alone**
+    -- ``Entry.authors`` carries the reasoning. The detail still prints the first
+    surname, which is the shape the row has always printed and is what section 5's
+    rows print too.
     """
     found: list[Finding] = []
     groups: dict[tuple[str, str], list[Entry]] = {}
@@ -898,9 +940,9 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
         if not entry.year:
             continue
         bare = year_key(entry.year).rstrip("abcdefghijklmnopqrstuvwxyz")
-        groups.setdefault((entry.key, bare), []).append(entry)
+        groups.setdefault((entry.authors, bare), []).append(entry)
 
-    for (key, bare), members in groups.items():
+    for (_authors, bare), members in groups.items():
         if len(members) < 2:
             continue
         lettered = [e for e in members if year_key(e.year) != bare]
@@ -909,7 +951,7 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
                 Finding(
                     MISSING_AB,
                     f"{len(members)} entries, lines {members[0].line} onward",
-                    f"{key} {bare}",
+                    f"{members[0].key} {bare}",
                     members[0].line,
                 )
             )
