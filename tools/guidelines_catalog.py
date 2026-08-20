@@ -2,8 +2,8 @@
 index of the guideline corpus.
 
     python tools/guidelines_catalog.py                         # check catalog and audit
-    python tools/guidelines_catalog.py --draft <src-dir>       # emit a catalog scaffold
-    python tools/guidelines_catalog.py --audit-draft <src-dir> # emit a blind audit
+    python tools/guidelines_catalog.py --draft <text-dir>      # emit a catalog scaffold
+    python tools/guidelines_catalog.py --audit-draft <pdf-dir> # emit a blind audit
 
 The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
 repo** and stays there: 410 MB, most of it society-copyrighted, and no consumer
@@ -41,11 +41,9 @@ that exists here. Same reasoning that put ``meta.release`` in
 **Metadata only.** No extracted body text goes in the catalog, audit, or this
 file's output, and the checker never prints document text.
 
-Stdlib for everything except reading the PDFs themselves, which needs ``pypdf``
-or ``fitz``. That import is deliberately lazy and confined to ``read_corpus``:
-the parsers and the comparison are pure functions over data, so
-``test_guidelines_catalog.py`` covers them against committed fixtures without a
-PDF or a corpus anywhere in reach.
+The builder consumes #80's extracted text and manifest, so it is stdlib-only and
+never opens a PDF. The manifest supplies the producer-owned class, metadata title,
+source filename, and exact pre-strip page vote that the year rule needs.
 """
 
 from __future__ import annotations
@@ -58,24 +56,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
-from guidelines_extract import (
-    CLASS_DRAFT,
-    CLASS_ERRATA,
-    CLASS_GUIDELINE,
-    CLASS_RECOMMENDATION_STATEMENT,
-    CLASS_WEB_CAPTURE,
-    CLASS_SCOPE_OF_WORK,
-    CLASSES,
-    is_errata,
-    is_guideline_scope_of_work,
-    is_public_review_draft,
-    is_recommendation_statement,
-)
+from guidelines_extract import CLASSES, publication_year_page_counts
+from guidelines_index import read_extracted_corpus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 AUDIT = REPO_ROOT / "reference" / "guidelines-catalog-audit.md"
-DEFAULT_SRC = Path("C:/codeing/guidelines-src")
+DEFAULT_TEXT_SRC = Path("C:/codeing/guidelines-text")
+DEFAULT_PDF_SRC = Path("C:/codeing/guidelines-src")
 
 COLUMNS = (
     "society",
@@ -124,26 +112,6 @@ UNSETTLED = "?"
 UNSETTLED_HEADING = "## Unsettled cells"
 
 YEAR_RE = re.compile(r"(?:19|20)\d{2}")
-
-# A browser print-to-PDF stamps the page with the moment of capture and the URL
-# it came from. The three ACIP files are captures of CDC schedule pages rather
-# than guideline documents, and this is how they say so.
-CAPTURE_STAMP_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2},\s*\d{1,2}:\d{2}\s*[AP]M\b")
-CAPTURE_URL_RE = re.compile(r"https?://\S+")
-
-# Years on these lines date the download, not the document. Every AHA/ACC and
-# most IDSA files carry one on every page, so leaving them in makes 2026 the
-# apparent publication year of a 2018 guideline.
-ACCESS_LINE_RE = re.compile(
-    r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
-)
-
-# The recommendation-statement test is ``guidelines_extract.is_recommendation_statement``
-# now, with ``TASK_FORCE_MARK``, ``RECOMMENDATION_STATEMENT_MARK`` and ``squash``. All
-# four were written here and moved on #185, when the extractor gained the branch that
-# needs them: two copies of a rule that must agree is what #253 cost. The reasoning
-# they carry moved with them and is not restated here.
-
 
 @dataclass(frozen=True)
 class Row:
@@ -416,26 +384,9 @@ def parse_unsettled(lines: list[str], problems: list[str]) -> dict[str, set[str]
 # --------------------------------------------------------------------------
 
 
-def classify(pages: list[str]) -> str:
-    """Decide the document class from its text.
-
-    Ordered, and the order matters: a browser capture of a page that happens to
-    say "recommendation statement" is still a capture.
-    """
-    if any(CAPTURE_STAMP_RE.search(p) and CAPTURE_URL_RE.search(p) for p in pages[:3]):
-        return CLASS_WEB_CAPTURE
-    if is_public_review_draft(pages[0] if pages else ""):
-        return CLASS_DRAFT
-    if is_errata(pages[0] if pages else ""):
-        return CLASS_ERRATA
-    if is_guideline_scope_of_work(pages[0] if pages else ""):
-        return CLASS_SCOPE_OF_WORK
-    if is_recommendation_statement(pages[0] if pages else ""):
-        return CLASS_RECOMMENDATION_STATEMENT
-    return CLASS_GUIDELINE
-
-
-def year_guess(title: str, pages: list[str]) -> str:
+def year_guess(
+    title: str, pages: list[str], year_page_counts: dict[str, int] | None = None
+) -> str:
     """Guess the publication year, title first.
 
     Where a society dates its own title — ``2022 AHA/ACC/HFSA Guideline for...``,
@@ -448,7 +399,21 @@ def year_guess(title: str, pages: list[str]) -> str:
     in_title = YEAR_RE.findall(title)
     if in_title:
         return in_title[0]
+    if year_page_counts is not None:
+        return year_from_page_counts(year_page_counts, len(pages))
     return year_from_running_head(pages)
+
+
+def year_from_page_counts(
+    counts: dict[str, int], page_count: int, threshold: float = 0.5
+) -> str:
+    """Choose the running-head year from the producer's exact page vote."""
+    need = max(2, page_count * threshold)
+    winners = {int(year): count for year, count in counts.items() if count >= need}
+    if not winners:
+        return UNSETTLED
+    best = max(winners.values())
+    return str(max(year for year, count in winners.items() if count == best))
 
 
 def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
@@ -463,20 +428,7 @@ def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
     """
     if not pages:
         return UNSETTLED
-    hits: dict[int, int] = {}
-    for page in pages:
-        found: set[int] = set()
-        for line in page.split("\n"):
-            if ACCESS_LINE_RE.search(line):
-                continue
-            found.update(int(y) for y in YEAR_RE.findall(line))
-        for year in found:
-            hits[year] = hits.get(year, 0) + 1
-    need = max(2, len(pages) * threshold)
-    winners = {y: n for y, n in hits.items() if n >= need}
-    if not winners:
-        return UNSETTLED
-    best = max(winners.values())
+    counts = publication_year_page_counts([page.splitlines() for page in pages])
     # Ties go to the later year. The case for the earlier one — a guideline dated
     # 2018 that reached print in a 2019 issue carries both on every page — never
     # reaches here, because ``year_guess`` takes the title's year first and those
@@ -486,7 +438,7 @@ def year_from_running_head(pages: list[str], threshold: float = 0.5) -> str:
     # guideline, and the USPSTF carotid stenosis and genital herpes
     # reaffirmations) and wrong once, on a five-page ASCO/IDSA reprint carrying an
     # access year this rule does not recognize as one.
-    return str(max(y for y, n in winners.items() if n == best))
+    return year_from_page_counts(counts, len(pages), threshold)
 
 
 def title_guess(meta_title: str | None, pages: list[str], filename: str) -> str:
@@ -520,57 +472,33 @@ def looks_like_title(candidate: str, filename: str) -> bool:
 
 
 def read_corpus(src: Path) -> list[Document]:
-    """Open every PDF under ``src`` and return what can be read without judgment.
+    """Read every document from #80's extracted text and manifest.
 
-    The only place a PDF is touched. ``fitz`` is preferred for speed and falls
-    back to ``pypdf``; both are maintainer-only dependencies and neither is
-    reachable from anything a consumer of these skills runs.
+    The manifest is required because it carries the source filename, metadata
+    title, producer-owned class, and the pre-strip page vote used by the year rule.
+    A text tree without that contract is not a catalog corpus.
     """
-    extract = _pdf_reader()
     docs: list[Document] = []
-    for society_dir in sorted(p for p in src.iterdir() if p.is_dir()):
-        for pdf in sorted(society_dir.glob("*.pdf")):
-            meta_title, pages = extract(pdf)
-            title = title_guess(meta_title, pages, pdf.name)
-            docs.append(
-                Document(
-                    society=society_dir.name,
-                    filename=pdf.name,
-                    page_count=len(pages),
-                    cls=classify(pages),
-                    title_guess=title,
-                    year_guess=year_guess(title, pages),
-                )
+    for document in read_extracted_corpus(src):
+        pages = [page.text for page in document.pages]
+        if document.year_page_counts is None:
+            raise ValueError(
+                f"{document.doc_id}: manifest entry has no year_page_counts; "
+                "rebuild the extracted corpus"
             )
-    return docs
-
-
-def _pdf_reader():
-    try:
-        import fitz  # type: ignore
-
-        def extract(path: Path) -> tuple[str | None, list[str]]:
-            with fitz.open(path) as doc:
-                meta = (doc.metadata or {}).get("title")
-                return meta, [doc[i].get_text() for i in range(doc.page_count)]
-
-        return extract
-    except ImportError:
-        pass
-    try:
-        from pypdf import PdfReader  # type: ignore
-
-        def extract(path: Path) -> tuple[str | None, list[str]]:
-            reader = PdfReader(str(path))
-            meta = (reader.metadata or {}).get("/Title")
-            return (str(meta) if meta else None), [p.extract_text() or "" for p in reader.pages]
-
-        return extract
-    except ImportError:
-        raise SystemExit(
-            "reading the corpus needs pypdf or PyMuPDF (fitz). Both are "
-            "maintainer-only; --check without a corpus is not supported."
+        filename = Path(document.source).name
+        title = title_guess(document.title, pages, filename)
+        docs.append(
+            Document(
+                society=document.society or "",
+                filename=filename,
+                page_count=len(pages),
+                cls=document.document_class,
+                title_guess=title,
+                year_guess=year_guess(title, pages, document.year_page_counts),
+            )
         )
+    return docs
 
 
 # --------------------------------------------------------------------------
@@ -931,10 +859,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--draft",
-        metavar="SRC",
+        metavar="TEXT",
         nargs="?",
-        const=str(DEFAULT_SRC),
-        help="emit a scaffold table read from the corpus at SRC instead of checking",
+        const=str(DEFAULT_TEXT_SRC),
+        help="emit a scaffold table read from extracted corpus TEXT instead of checking",
     )
     parser.add_argument(
         "--audit-draft",
@@ -943,8 +871,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--src",
-        default=str(DEFAULT_SRC),
-        help=f"corpus directory to check against (default {DEFAULT_SRC})",
+        default=str(DEFAULT_TEXT_SRC),
+        help=f"extracted corpus directory to check against (default {DEFAULT_TEXT_SRC})",
+    )
+    parser.add_argument(
+        "--pdf-src",
+        default=str(DEFAULT_PDF_SRC),
+        help=f"source PDF directory for audit digest checks (default {DEFAULT_PDF_SRC})",
     )
     parser.add_argument(
         "--catalog",
@@ -969,7 +902,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.draft:
         src = Path(args.draft)
         if not src.is_dir():
-            print(f"no corpus at {src}", file=sys.stderr)
+            print(f"no extracted corpus at {src}", file=sys.stderr)
             return 2
         print(render_table(draft_rows(read_corpus(src))))
         return 0
@@ -991,25 +924,28 @@ def main(argv: list[str] | None = None) -> int:
     problems = problems + audit_problems
     audit_failures = check_audit(rows, audit_documents, readings, rulings)
 
-    src = Path(args.src)
-    if src.is_dir():
-        corpus_audits = scan_audit_documents(src)
+    text_src = Path(args.src)
+    if text_src.is_dir():
+        mechanical_failures = check(rows, unsettled_index, read_corpus(text_src))
+        scope = f"{len(rows)} row(s) against {text_src}"
+    else:
+        mechanical_failures = check_shape(rows, unsettled_index)
+        scope = f"{len(rows)} row(s), shape only (no extracted corpus at {text_src})"
+
+    pdf_src = Path(args.pdf_src)
+    if pdf_src.is_dir():
+        corpus_audits = scan_audit_documents(pdf_src)
         digests = {
             (document.society, document.filename): document.sha256
             for document in corpus_audits
         }
-        failures = (
-            problems
-            + check(rows, unsettled_index, read_corpus(src))
-            + audit_failures
-            + check_audit_digests(audit_documents, digests)
-        )
-        scope = f"{len(rows)} row(s) against {src}"
+        digest_failures = check_audit_digests(audit_documents, digests)
         digest_status = f"verified {len(audit_documents)} document digest(s)"
     else:
-        failures = problems + check_shape(rows, unsettled_index) + audit_failures
-        scope = f"{len(rows)} row(s), shape only (no corpus at {src})"
+        digest_failures = []
         digest_status = "SKIPPED document digest verification: corpus unavailable"
+
+    failures = problems + mechanical_failures + audit_failures + digest_failures
 
     print(f"guidelines catalog: {scope}")
     print(f"  {digest_status}")

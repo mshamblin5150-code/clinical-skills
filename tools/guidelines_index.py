@@ -123,6 +123,21 @@ class Document:
 
 
 @dataclass(frozen=True)
+class ExtractedDocument:
+    """One successful #80 extraction, joined to its manifest record."""
+
+    doc_id: str
+    society: str | None
+    title: str | None
+    source: str
+    document_class: str
+    pages: list[Page]
+    boilerplate: tuple[str, ...]
+    margin_stripped: tuple[str, ...]
+    year_page_counts: dict[str, int] | None
+
+
+@dataclass(frozen=True)
 class BuildReport:
     database: Path
     documents: int
@@ -256,6 +271,79 @@ def discover(text_dir: Path | str) -> Iterator[Document]:
             document_class=document_class,
             pages=pages,
         )
+
+
+def read_extracted_corpus(text_dir: Path | str) -> list[ExtractedDocument]:
+    """Read and validate #80's text/manifest handoff as one corpus.
+
+    Unlike :func:`discover`, this is for consumers whose results depend on the
+    manifest. Required keys are checked by presence, not truthiness: ``title``
+    may legitimately be null, but an absent title key means the producer and
+    consumer no longer agree on the contract.
+    """
+    text_dir = Path(text_dir)
+    manifest = read_manifest(text_dir)
+    if not manifest:
+        raise ValueError(f"{text_dir / MANIFEST_NAME} is required")
+
+    required = {
+        "society",
+        "title",
+        "source",
+        "output",
+        "document_class",
+        "pages",
+        "boilerplate",
+        "margin_stripped",
+    }
+    failed = sorted(doc_id for doc_id, entry in manifest.items() if entry.get("error"))
+    if failed:
+        raise ValueError(f"the extraction manifest records failed documents: {failed}")
+    for doc_id, entry in manifest.items():
+        missing_keys = sorted(required - entry.keys())
+        if missing_keys:
+            raise ValueError(f"{doc_id}: manifest entry is missing keys: {missing_keys}")
+        if not entry["source"]:
+            raise ValueError(f"{doc_id}: manifest entry has no source filename")
+        if not entry["output"]:
+            raise ValueError(f"{doc_id}: manifest entry has no output filename")
+
+    discovered = {document.doc_id: document for document in discover(text_dir)}
+    expected = set(manifest)
+    if set(discovered) != expected:
+        missing = sorted(expected - set(discovered))
+        extra = sorted(set(discovered) - expected)
+        raise ValueError(
+            f"extracted text and manifest disagree (missing text: {missing}; extra text: {extra})"
+        )
+
+    result: list[ExtractedDocument] = []
+    for doc_id in sorted(expected):
+        entry = manifest[doc_id]
+        document = discovered[doc_id]
+        if entry["pages"] != len(document.pages):
+            raise ValueError(
+                f"{doc_id}: manifest says {entry['pages']} pages, "
+                f"extracted text contains {len(document.pages)}"
+            )
+        result.append(
+            ExtractedDocument(
+                doc_id=doc_id,
+                society=entry["society"],
+                title=entry["title"],
+                source=str(entry["source"]),
+                document_class=str(entry["document_class"]),
+                pages=document.pages,
+                boilerplate=tuple(entry["boilerplate"]),
+                margin_stripped=tuple(entry["margin_stripped"]),
+                year_page_counts=(
+                    {str(year): int(count) for year, count in entry["year_page_counts"].items()}
+                    if "year_page_counts" in entry
+                    else None
+                ),
+            )
+        )
+    return result
 
 
 SCHEMA = """

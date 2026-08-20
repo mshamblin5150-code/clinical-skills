@@ -606,6 +606,28 @@ CLASSES = (
     CLASS_SCOPE_OF_WORK,
 )
 
+# The pre-strip page vote used by the catalog's publication-year guess. It lives
+# with the producer because the manifest has to retain the page frequency that
+# deduplicated ``boilerplate`` and ``margin_stripped`` literals cannot express.
+PUBLICATION_YEAR_RE = re.compile(r"(?:19|20)\d{2}")
+ACCESS_LINE_RE = re.compile(
+    r"downloaded from|by guest on|accessed on|retrieved on|last reviewed", re.I
+)
+
+
+def publication_year_page_counts(pages: list[list[str]]) -> dict[str, int]:
+    """How many pages carry each non-access year before anything is stripped."""
+    hits: dict[str, int] = {}
+    for page in pages:
+        found: set[str] = set()
+        for line in page:
+            if ACCESS_LINE_RE.search(line):
+                continue
+            found.update(PUBLICATION_YEAR_RE.findall(line))
+        for year in found:
+            hits[year] = hits.get(year, 0) + 1
+    return dict(sorted(hits.items()))
+
 # A recommendation statement is a document that titles itself one. The two marks have
 # to be *both* present: "Summary of Recommendation Statements" is a table-of-contents
 # line in four KDIGO guidelines and in the CDC opioid guideline, and matching the
@@ -616,8 +638,8 @@ CLASSES = (
 # ``USPreventiveServicesTaskForceRecommendationStatement``.
 #
 # These live here rather than in ``guidelines_catalog.py``, which is where they were
-# written, because the producer owns the vocabulary it emits and the auditor imports
-# it. Two copies of a rule that must agree is what #253 cost.
+# written, because the producer owns the vocabulary it emits and the auditor consumes
+# the manifest value. Two copies of a rule that must agree is what #253 cost.
 TASK_FORCE_MARK = "taskforce"
 RECOMMENDATION_STATEMENT_MARK = "recommendationstatement"
 PUBLIC_REVIEW_DRAFT_TITLE = re.compile(
@@ -911,11 +933,7 @@ def squash(text: str) -> str:
 
 
 def is_recommendation_statement(title_block: str) -> bool:
-    """Whether a title block says the document is a USPSTF recommendation statement.
-
-    Shared with ``guidelines_catalog.classify`` by import rather than by copy, so the
-    producer and the auditor cannot come to hold different answers.
-    """
+    """Whether a title block says the document is a USPSTF recommendation statement."""
     squashed = squash(title_block)
     return TASK_FORCE_MARK in squashed and RECOMMENDATION_STATEMENT_MARK in squashed
 
@@ -943,8 +961,7 @@ def classify(pages: list[list[str]]) -> str:
     """Which of ``CLASSES`` this document is.
 
     **Ordered, and the order matters**: a browser capture of a page that happens to say
-    "recommendation statement" is still a capture. ``guidelines_catalog.classify`` has
-    always read the two in that order and this adopts it.
+    "recommendation statement" is still a capture.
 
     The capture test is counted over the sampled pages directly rather than read off
     the boilerplate set. Those look interchangeable on the three real captures, where
@@ -957,7 +974,8 @@ def classify(pages: list[list[str]]) -> str:
     identifies itself. The three #107 forms use whole title lines, so a final guideline
     mentioning an earlier draft, errata, or its scope in prose keeps the fallback class.
     This runs here rather than in ``guidelines_catalog.py`` alone because #185 ruled the
-    producer's vocabulary is the catalog's. The extractor sees the pages **before**
+    producer's vocabulary is the catalog's. The catalog consumes this manifest value;
+    it does not reclassify extracted text. The extractor sees the pages **before**
     stripping, which is why the capture test must live here: its timestamp is
     boilerplate and is absent from the extracted text the index reads.
     """
@@ -1019,6 +1037,9 @@ class Record:
     # reshuffle of the old one.
     margin_patterns: list[str] = field(default_factory=list)
     margin_stripped: list[str] = field(default_factory=list)
+    # #108's exact pre-strip evidence. The two line lists above are deduplicated,
+    # so they cannot preserve the page vote the catalog's year rule makes.
+    year_page_counts: dict[str, int] = field(default_factory=dict)
     # #172's report, and deliberately a field rather than a printed line. A symbol
     # font this module's table does not name is decoded however the PDF says and
     # passes in silence -- which is the state the corpus was in for the whole of
@@ -1094,6 +1115,7 @@ def build_document(
         boilerplate=boilerplate,
         margin_patterns=fired,
         margin_stripped=margin_stripped,
+        year_page_counts=publication_year_page_counts(pages),
         symbol_glyphs=dict(symbol_glyphs or {}),
         error=None,
     )

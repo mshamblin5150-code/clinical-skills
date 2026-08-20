@@ -17,7 +17,7 @@ here and none is committed -- ``*.pdf`` is globally gitignored and stays that wa
 
 The excerpts are page text, not PDFs, which is the whole reason the module is cut
 where it is: everything that decides what the output says is a function over a
-list of page strings, and only ``extract_pages`` touches ``pypdf``. A test that
+list of page strings, and only ``extract_pages`` touches PyMuPDF. A test that
 had to open a PDF could not be committed at all.
 
 Two claims carry the most weight here:
@@ -1455,10 +1455,8 @@ class DocumentClass(unittest.TestCase):
         self.assertEqual(extract.classify(pages), extract.CLASS_GUIDELINE)
 
     def test_a_capture_that_says_recommendation_statement_is_still_a_capture(self):
-        # The order is the whole rule. `guidelines_catalog.classify` has always
-        # read the two this way round and this adopts it: the JAMA page saved
-        # from a browser is the live case in the other direction, and a capture
-        # of a USPSTF page is the one here.
+        # The order is the whole rule: a capture of a USPSTF page is still a
+        # capture, and the catalog consumes this pre-strip answer from the manifest.
         stamped = [
             ["8/12/26, 10:25 AM Screening | USPSTF"] + self.USPSTF_TITLE
         ] + [["8/12/26, 10:25 AM Screening | USPSTF", "body"] for _ in range(3)]

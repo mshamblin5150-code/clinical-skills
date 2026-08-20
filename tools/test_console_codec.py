@@ -138,7 +138,7 @@ def calls_helper(node: ast.AST) -> bool:
 
 class EveryToolTakesIt(unittest.TestCase):
     """Parity, mechanically. Parses the files rather than importing them, because
-    five of them open a PDF and none needs a PDF library to be *read*. (Those five
+    three of them open a PDF and none needs a PDF library to be *read*. (Those three
     all import it inside the function that opens the file, so importing them would in
     fact work -- parsing is the stronger guarantee, and it is the one that survives a
     sixth tool putting its import at module scope.)

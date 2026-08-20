@@ -4,8 +4,8 @@ These run against the committed fixtures in ``tools/testdata/`` and never agains
 ``C:/codeing/guidelines-src`` or ``reference/guidelines-catalog.md``. Same
 reasoning as ``test_icd10.py``: a test that read the real corpus would pass for
 two different reasons, one of them being that the extractor and the test are
-wrong in the same way. Nothing here opens a PDF, so ``pypdf``/``fitz`` are not
-needed to run the suite.
+wrong in the same way. Nothing here opens a PDF; the public reader fixture builds
+#80's text-and-manifest artifact directly.
 
 The page fixtures are ``%%PAGE%%``-delimited plain text standing in for what the
 extractor hands back per page. They carry no patient data of any kind — they are
@@ -23,6 +23,7 @@ this catalog has.
 
 from __future__ import annotations
 
+import json
 import contextlib
 import dataclasses
 import io
@@ -31,6 +32,7 @@ import unittest
 from pathlib import Path
 
 import guidelines_catalog as gc
+import guidelines_extract as extract
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
 
@@ -84,6 +86,80 @@ def doc(**overrides) -> gc.Document:
     )
     base.update(overrides)
     return gc.Document(**base)
+
+
+class ReadingTheExtractedCorpus(unittest.TestCase):
+    """The catalog consumes #80's public artifact, not the source PDFs."""
+
+    def test_manifest_metadata_and_stripped_year_survive_the_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            repeated = "Journal of Preventive Medicine 2021; 10: 1-4"
+            pages = [
+                f"{repeated}\nUS Preventive Services Task Force Recommendation Statement\n"
+                "The USPSTF recommends screening in adults.\nA recommendation."
+            ] + [f"{repeated}\nPrior recommendation published in 2014." for _ in range(3)]
+            record = extract.build_document(
+                Path("USPSTF/screening.pdf"),
+                pages,
+                text_dir,
+                "Screening for Example Disease",
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertNotIn(repeated, (text_dir / "USPSTF" / "screening.txt").read_text())
+            self.assertEqual(
+                gc.read_corpus(text_dir),
+                [
+                    gc.Document(
+                        society="USPSTF",
+                        filename="screening.pdf",
+                        page_count=4,
+                        cls=extract.CLASS_RECOMMENDATION_STATEMENT,
+                        title_guess="Screening for Example Disease",
+                        year_guess="2021",
+                    )
+                ],
+            )
+
+    def test_a_text_directory_without_the_manifest_is_not_a_catalog_corpus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            (text_dir / "USPSTF").mkdir()
+            (text_dir / "USPSTF" / "screening.txt").write_text("body\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "manifest.json"):
+                gc.read_corpus(text_dir)
+
+    def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(Path("KDIGO/guideline.pdf"), ["body"], text_dir)
+            manifest_path = extract.write_manifest(
+                text_dir, [record], Path("C:/outside/guidelines-src")
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["documents"][0]["title"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "title"):
+                gc.read_corpus(text_dir)
+
+    def test_year_voting_keeps_page_frequency_after_the_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            pages = [
+                "Journal 2019\nUpdate 2021 page 1\nbody",
+                "Journal 2019\nUpdate 2021 page 2\nbody",
+                "Journal 2019\nUpdate 2021 page 3\nbody",
+                "Journal 2019\nbody",
+            ]
+            record = extract.build_document(
+                Path("KDIGO/guideline.pdf"), pages, text_dir, "Clinical Practice Guideline"
+            )
+            extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"))
+
+            self.assertEqual(gc.read_corpus(text_dir)[0].year_guess, "2019")
 
 
 def reading(column: str, value: str) -> gc.AuditReading:
@@ -206,33 +282,6 @@ class ParsingTheCatalog(unittest.TestCase):
         text = CATALOG + "\n- `copd-screening.pdf` — `page_count` — nope\n"
         _, _, problems = gc.parse_catalog(text)
         self.assertTrue(any("page_count" in p for p in problems))
-
-
-class DocumentClass(unittest.TestCase):
-    def test_a_uspstf_title_page_is_a_recommendation_statement(self):
-        self.assertEqual(gc.classify(USPSTF_PAGES), "recommendation-statement")
-
-    def test_whitespace_is_squashed_before_the_markers_are_looked_for(self):
-        # Several USPSTF files extract as "USPreventiveServicesTaskForce
-        # RecommendationStatement" with the spaces gone.
-        run_together = ["USPreventiveServicesTaskForceRecommendationStatement"]
-        self.assertEqual(gc.classify(run_together), "recommendation-statement")
-
-    def test_a_summary_of_recommendation_statements_heading_is_not_one(self):
-        # Four KDIGO guidelines and the CDC opioid guideline carry this line in
-        # their table of contents. Matching the phrase alone classed all five
-        # wrongly.
-        self.assertEqual(gc.classify(JOURNAL_PAGES), "guideline")
-
-    def test_a_browser_print_is_a_web_capture(self):
-        self.assertEqual(gc.classify(CAPTURE_PAGES), "web-capture")
-
-    def test_a_capture_wins_over_the_words_on_the_captured_page(self):
-        both = [CAPTURE_PAGES[0] + "\nUS Preventive Services Task Force Recommendation Statement"]
-        self.assertEqual(gc.classify(both), "web-capture")
-
-    def test_anything_else_is_a_guideline(self):
-        self.assertEqual(gc.classify(["KDIGO 2024 Clinical Practice Guideline"]), "guideline")
 
 
 class AccessLinesAreNotPublicationDates(unittest.TestCase):
@@ -481,6 +530,8 @@ class CheckingTheAuditFromTheCli(unittest.TestCase):
                         "--audit",
                         str(audit_path),
                         "--src",
+                        str(root / "absent-corpus"),
+                        "--pdf-src",
                         str(root / "absent-corpus"),
                     ]
                 )
