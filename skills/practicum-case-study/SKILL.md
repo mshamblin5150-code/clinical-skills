@@ -588,8 +588,8 @@ can be several of them at once:
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
 
-**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, and they are
-the only ones here that read anything but the ledger:
+**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, which read
+the draft as well as the ledger the way #298's row below reads the evidence dump:
 
 ```bash
 python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
@@ -628,6 +628,7 @@ python tools/research_ledger.py scratch/case-study-claims.md --evidence <the evi
 | The citation | Why |
 | --- | --- |
 | an UpToDate topic cited here that the evidence dump does not carry | UpToDate is subscription-gated, so a topic you were not handed is one nobody opened, and citing it is the Module 1 defect exactly |
+| an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
 **The grounding is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)'s and it
 is what scopes the row.** A fetch of an UpToDate topic reaches a login wall rather than the page, so
@@ -643,7 +644,11 @@ one this was measured on -- and the great majority will never be cited. Firing o
 study, which is the rate at which a warning stops being read.
 
 **There is no escape hatch, and that is the ruling rather than an oversight.** If an UpToDate topic
-is worth citing it goes in the dump, and the remedy for a finding is one paste. **Without
+is worth citing it goes in the dump, and the remedy for a finding is one paste. **The second row is
+what keeps that true**: the first reads a topic only from the `UpToDate.` element APA gives it, so an
+entry that drops that element was invisible to the check *and* to the count of what the check read --
+four characters, and a citation walks around a row with no hatch. So an entry this cannot read is a
+finding, never a citation dropped from the set in silence. **Without
 `--evidence` the row does not run and the report prints `not graded` against it rather than `0`**,
 on the same reasoning as the prescription rows above. **An evidence file carrying no topic body at
 all is exit 2**, because a dump this cannot read would otherwise fire the row on every UpToDate

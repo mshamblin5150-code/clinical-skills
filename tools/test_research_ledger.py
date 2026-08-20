@@ -1056,6 +1056,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
             "an UpToDate topic cited here that the evidence dump does not carry"
         ),
+        ledger.UNREADABLE_UPTODATE_ENTRY: (
+            "an entry whose locator names an UpToDate topic and that states no"
+            " database element"
+        ),
         ledger.UNRESEARCHED_PRESCRIPTION: "a drug in an Rx table that no claim record names",
         ledger.DOSE_NOT_CLAIMED: "an order stating a dose whose claim record states no number",
         ledger.UNREADABLE_DRUG_ROW: "a prescription table with no readable drug row",
@@ -2336,8 +2340,10 @@ class ACarriedTopicIsRecognizedByItsMasthead(unittest.TestCase):
     is not implementable against the artifact it was written about. What marks a
     body present is the ``Authors:`` masthead, and the title is the line above it.
 
-    Measured before it was believed: of the 18 bodies the real dump carries, 15
-    join a ``See "..."`` cross-reference exactly under this rule.
+    Measured before it was believed: nearly every body the real dump carries
+    joins a ``See "..."`` cross-reference exactly under this rule. **The counts
+    are #298's to state and are deliberately nowhere in this tree** -- they are
+    measured against a file under ``scratch/`` that nothing committed re-derives.
     """
 
     def test_a_body_is_carried(self):
@@ -2348,7 +2354,8 @@ class ACarriedTopicIsRecognizedByItsMasthead(unittest.TestCase):
 
     def test_a_cross_reference_is_not_a_body(self):
         """The whole point of the row. A dump refers to far more topics than it
-        carries -- 305 of 320 in the real one -- and a reference is not a body."""
+        carries -- by better than an order of magnitude in the real one -- and a
+        reference is not a body."""
         text = 'See "Pelvic inflammatory disease: Treatment" for the regimen.\n'
         self.assertEqual(ledger.carried_topics(text), set())
 
@@ -2425,11 +2432,14 @@ class AnUpToDateEntryNamesItsTopic(unittest.TestCase):
 class ACitedTopicTheDumpDoesNotCarryIsRefused(unittest.TestCase):
     """#298's ruled row, 2026-08-20.
 
-    **The 305 topics the dump merely refers to are not graded**, and that is the
-    ruling rather than an omission: they are the ordinary case, they decay smoothly
-    from 21 references down to 1 with no plateau anywhere, and any cut on that
+    **The topics the dump merely refers to are not graded**, and that is the
+    ruling rather than an omission: they are the overwhelming majority, their
+    reference counts decay smoothly with no plateau anywhere, and any cut on that
     curve is a value named at an edge -- ``SPACE_ADVANCE_FRACTION``'s recorded
-    failure and #97's objection. What is graded is the join.
+    failure and #97's objection. What is graded is the join. **The figures are
+    #298's to state**, and this file held the last three after the commit that
+    took them out of the other three -- one copy updated and its neighbor left,
+    which is the shape ``CLAUDE.md``'s *Console codec* section records.
     """
 
     def setUp(self):
@@ -2503,6 +2513,93 @@ STATUS: unsourced - searched UpToDate, PubMed and the guideline corpus, nothing.
         found, read = ledger.evidence_findings(records, (), self.carried)
         self.assertEqual(len(found), 1)
         self.assertEqual(read, 2, "one finding, and it is still two citations read")
+
+
+class AnUpToDateEntryThisCannotReadIsAFinding(unittest.TestCase):
+    """``UNREADABLE_DRUG_ROW``'s argument, one row over: a citation this parser
+    cannot read is a finding and never a citation subtracted from the set in
+    silence.
+
+    **For a gate with no escape hatch, this *was* the hatch.** ``uptodate_topic``
+    recognizes a topic only from the database element APA section 2 publishes, so
+    an entry that drops ``UpToDate.`` was invisible to the row **and** to the
+    population row added to stop a clean zero reading as a checked zero -- and
+    ``reference_scan`` reports nothing on it either, so four characters removed
+    from an entry took the topic out of the join with nothing red anywhere.
+
+    Found by a tracker-sweep subagent, re-derived in both directions before it was
+    believed.
+    """
+
+    def setUp(self):
+        self.carried = ledger.carried_topics(topic("A carried topic"))
+
+    def entry(self, locator="https://www.uptodate.com/contents/some-slug"):
+        """§2's form with the database element dropped -- the recorded shape."""
+        return f"Author, A. (2026). Some topic. Retrieved August 20, 2026, from {locator}"
+
+    def test_an_uptodate_locator_with_no_database_element_is_a_finding(self):
+        records = ledger.read_records(ledger_text(f"""\
+## CLAIM: A claim resting on an entry this cannot read.
+STATUS: sourced
+SOURCE: tertiary reference
+REFERENCE: {self.entry()}
+"""))
+        found, _ = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual([f.kind for f in found], [ledger.UNREADABLE_UPTODATE_ENTRY])
+
+    def test_it_is_counted_as_a_citation_read(self):
+        """The half that matters as much as the finding: it must not vanish from
+        the denominator, or the coverage row reports it as checked."""
+        records = ledger.read_records(ledger_text(f"""\
+## CLAIM: A claim resting on an entry this cannot read.
+STATUS: sourced
+REFERENCE: {self.entry()}
+"""))
+        _, read = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual(read, 1)
+
+    def test_a_journal_entry_is_not_one(self):
+        """The row is keyed on the **locator's host**, so a source that is not
+        UpToDate is left alone exactly as the sibling row leaves it alone."""
+        records = ledger.read_records(ledger_text(f"""\
+## CLAIM: A claim resting on a journal article.
+STATUS: sourced
+REFERENCE: {self.entry("https://doi.org/10.1097/AOG.0b013e3181c2bde8")}
+"""))
+        found, read = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual(found, [])
+        self.assertEqual(read, 0)
+
+    def test_a_readable_entry_does_not_fire_it(self):
+        """Both rows read the same entry, so the readable one must reach exactly
+        one of them -- otherwise a compliant citation is failed twice."""
+        records = ledger.read_records(ledger_text(cited("A missing topic")))
+        found, _ = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual([f.kind for f in found], [ledger.CITED_TOPIC_NOT_IN_EVIDENCE])
+
+    def test_a_carried_topic_reaches_neither(self):
+        records = ledger.read_records(ledger_text(cited("A carried topic")))
+        found, read = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual(found, [])
+        self.assertEqual(read, 1)
+
+    def test_the_row_is_declared_as_needing_the_flag(self):
+        self.assertIn(ledger.UNREADABLE_UPTODATE_ENTRY, ledger.EVIDENCE_ROWS)
+        self.assertEqual(ledger.ROW_TICKET[ledger.UNREADABLE_UPTODATE_ENTRY], "#298")
+
+    def test_the_host_is_matched_as_a_host_and_not_as_a_word(self):
+        """The mirror of the sibling row's guard. Prose naming the database in a
+        title must not be read as a locator."""
+        records = ledger.read_records(ledger_text("""\
+## CLAIM: A claim about a paper discussing UpToDate as a database.
+STATUS: sourced
+REFERENCE: Author, A. (2026). How clinicians use UpToDate in practice. Journal of
+    Medical Informatics, 14(2), 100-110.
+"""))
+        found, read = ledger.evidence_findings(records, (), self.carried)
+        self.assertEqual(found, [])
+        self.assertEqual(read, 0)
 
 
 class TheEvidenceRowsAreWiredInLikeTheDraftRows(unittest.TestCase):

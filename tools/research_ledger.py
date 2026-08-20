@@ -136,7 +136,8 @@ wrap the way an APA entry wraps.
   ``UNSOURCED_WITH_CITATION_FIELD`` widened from one field to four: a locator on a record
   that says it found nothing is the same contradiction, and it was passing.
 
-**#289, and it is the only thing here that reads anything but the ledger.**
+**#289, and it was the only thing here that read anything but the ledger until
+#298 put ``--evidence`` beside it.**
 
 - **Every drug the run chose a number for has a claim record.** The rows above
   grade the records that exist, and this module has **no expected count of its
@@ -260,6 +261,24 @@ this closes it wherever the topic is **cited**.
   is worth citing it goes in the dump, and the remedy for a finding is one paste.
 - **The draft's reference list is parsed by ``reference_scan`` and not by a second
   reading in here**, on ``REFERENCE_HEADING``'s precedent and #108's.
+- **An entry this cannot read is a finding, and for a row with no escape hatch
+  that limb *is* the hatch.** ``uptodate_topic`` recognizes a topic only from the
+  database element, so an entry dropping ``UpToDate.`` was invisible to the row
+  **and** to the population row -- and ``reference_scan`` reports nothing on it
+  either, so four characters removed from an entry took the topic out of the join
+  with nothing red anywhere. ``UNREADABLE_UPTODATE_ENTRY`` keys on the
+  **locator's host** and is ``UNREADABLE_DRUG_ROW``'s argument one row over: a
+  citation this cannot read is never one subtracted from the set in silence.
+  Found by a tracker-sweep subagent and re-derived in both directions.
+
+**What that leaves is an entry naming neither the database element nor an
+UpToDate locator**, which is invisible to both rows and to the population count,
+so the report cannot tell *cited none* from *cited one unreadably*. It is not
+narrowable: with neither element there is nothing distinguishing such an entry
+from a journal article, and guessing would fail a correct one -- #215's defect,
+which the scope limb above exists to avoid. Documented rather than tightened, on
+``UNRESOLVABLE_LOCATOR``'s terms, and it only ever weakens the weaker half: the
+rows say *this citation did not reach the dump*, never *this citation is good*.
 
 **What ``--evidence`` cannot reach is a claim that rested on a missing topic
 without citing it.** The join is on a citation, so a threshold, a screening
@@ -572,6 +591,12 @@ REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
 # directly below.
 CITED_TOPIC_NOT_IN_EVIDENCE = "cited-topic-not-in-evidence"
 
+# The sibling that keeps the row above from being escapable. An entry whose
+# locator is an UpToDate topic but whose title element this cannot read is a
+# finding, never a citation subtracted from the set in silence --
+# ``UNREADABLE_DRUG_ROW``'s argument one row over.
+UNREADABLE_UPTODATE_ENTRY = "unreadable-uptodate-entry"
+
 UNRESEARCHED_PRESCRIPTION = "unresearched-prescription"
 DOSE_NOT_CLAIMED = "dose-not-claimed"
 UNREADABLE_DRUG_ROW = "unreadable-drug-row"
@@ -580,6 +605,7 @@ UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 # ticket map cannot drift into listing different sets.
 KINDS = (
     CITED_TOPIC_NOT_IN_EVIDENCE,
+    UNREADABLE_UPTODATE_ENTRY,
     UNRESEARCHED_PRESCRIPTION,
     DOSE_NOT_CLAIMED,
     UNREADABLE_DRUG_ROW,
@@ -614,6 +640,7 @@ _KIND_ORDER = {kind: index for index, kind in enumerate(KINDS)}
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROW_TICKET = {
     CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
+    UNREADABLE_UPTODATE_ENTRY: "#298",
     UNRESEARCHED_PRESCRIPTION: "#289",
     DOSE_NOT_CLAIMED: "#289",
     UNREADABLE_DRUG_ROW: "#289",
@@ -667,7 +694,7 @@ DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
 # #298's row, on ``DRAFT_ROWS``' arrangement and for its reason: a zero beside
 # a row that never ran reads exactly like a row that passed, which is #258's
 # ruling. **One tuple, and how many is its own to say.**
-EVIDENCE_ROWS = (CITED_TOPIC_NOT_IN_EVIDENCE,)
+EVIDENCE_ROWS = (CITED_TOPIC_NOT_IN_EVIDENCE, UNREADABLE_UPTODATE_ENTRY)
 
 # A prescription table is the one table in a case study carrying both of
 # these, and the drug row is the row above ``Disp:``. **A welded pair and a
@@ -938,6 +965,14 @@ UPTODATE_TITLE = re.compile(
     r"\s*\.\s*[*_]{0,2}UpToDate[*_]{0,2}\s*\.(?=\s|$)",
     re.S | re.I,
 )
+
+# **A locator pointing at an UpToDate topic**, which is what tells this an entry
+# was meant to be one when ``UPTODATE_TITLE`` could not read it. Matched as a
+# **host** and never as a word -- the mirror of ``UPTODATE_TITLE``'s guard, and
+# for the mirror reason: there the name in a URL must not be read as the database
+# element, and here the name in a *title* must not be read as a locator. So it
+# requires the scheme-or-``www`` run and the path that a real topic URL carries.
+UPTODATE_LOCATOR = re.compile(r"(?i)\b(?:https?://|www\.)[\w.-]*\buptodate\.com/")
 
 # What a finding names where the citation came from the draft rather than from a
 # record. ``UNREADABLE_DRUG_ROW``'s ``a prescription table`` precedent: the
@@ -1384,8 +1419,9 @@ def prescription_findings(
 ) -> list[Finding]:
     """#289's rows: the draft's prescriptions against the ledger.
 
-    The only grader here that reads anything but the ledger, and the only one
-    with an **expected set** -- which is the gap the ticket is about.
+    One of the two graders here that read anything but the ledger -- #298's
+    ``evidence_findings`` is the other -- and **the only one with an expected
+    set** -- which is the gap the ticket is about.
     ``research_ledger`` has no expected count of its own and says so, so a dose
     nobody entered as a claim is invisible to every other row in this module.
     ``checks_ledger.py``'s arrangement, with the set derived from the document
@@ -1466,6 +1502,22 @@ def evidence_findings(
         title = uptodate_topic(entry)
         key = normalize(title)
         if not key:
+            # An entry this cannot read but whose locator says it was meant to be
+            # an UpToDate topic. It is counted and reported rather than dropped:
+            # dropping it took the topic out of the join **and** out of the
+            # population row, so four characters removed from an entry walked
+            # around a row that has no escape hatch, with nothing red anywhere --
+            # ``reference_scan`` does not reach it either.
+            if UPTODATE_LOCATOR.search(entry):
+                read += 1
+                found.append(
+                    Finding(
+                        UNREADABLE_UPTODATE_ENTRY,
+                        claim,
+                        "the locator names an UpToDate topic and the entry states"
+                        " no database element, so no title could be read",
+                    )
+                )
             continue
         # Counted before the join and before the de-duplication, because this is
         # the row's **population**: what it read, not what it failed. Derived from
@@ -1476,7 +1528,7 @@ def evidence_findings(
             continue
         seen.add(key)
         found.append(Finding(CITED_TOPIC_NOT_IN_EVIDENCE, claim, title))
-    return found, read
+    return sorted(found, key=lambda f: _KIND_ORDER[f.kind]), read
 
 
 def survey(
