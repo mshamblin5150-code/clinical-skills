@@ -68,7 +68,7 @@ Follow up: <interval, and what would bring them back sooner>
 **`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `NKDA if none` is what the template above says, and it means it: `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — two are settled by a count over the corpus and every other box by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issue #29.
 
 **`NKDA if none` is a claim about drug allergies only, and the box holds more than drug allergies.** The placeholder above now says so; it read `<allergen - reaction; NKDA if none>` while [HP.md](HP.md) read `and drug allergies separately`, and the two branches were obeyed apart for months. Every allergen the shorthand names reaches this box, named by its kind, **and the box states a drug status whether or not a drug was named** — so a bare `NKDA` with the seasonal allergy routed to `PMH/PSH` fails, and so does a box naming the seasonal allergy and saying nothing about drugs. Where an allergen goes and what a food intolerance takes are [SKILL.md](SKILL.md)'s under the same heading. Issue #96.
-**The `- reaction` half of that line is written even where the shorthand supplies only the allergen**, which is every allergen in the committed set. It is inferred and declared like any other filled value, and **the box itself carries no marker** — `Penicillin - rash`, never `reaction not documented` and never a tier word. The rule, the drug-and-food disclosure floor and what it costs are [SKILL.md](SKILL.md)'s under *The reaction beside a given allergen*; the one clause worth carrying in a reader's head here is that **an inferred reaction never licenses a drug the allergen would otherwise bar.** Issue #94.
+**The `- reaction` half of that line is written even where the shorthand supplies only the allergen.** It is inferred and declared like any other filled value, and **the box itself carries no marker** — `Penicillin - rash`, never `reaction not documented` and never a tier word. The rule, the drug-and-food disclosure floor and what it costs are [SKILL.md](SKILL.md)'s under *The reaction beside a given allergen*; the one clause worth carrying in a reader's head here is that **an inferred reaction never licenses a drug the allergen would otherwise bar.** Issue #94.
 
 **Screening keys to a *given* tobacco history and never to a filled one.** The pack-year note below computes from a history the shorthand supplied. A **positive** tobacco status is never filled into the `SH:` clause in the first place, so there is no case where this note's screening line rests on a smoking history the skill invented.
 
@@ -99,16 +99,16 @@ Follow up: <interval, and what would bring them back sooner>
 **And once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry* and is not restated here; what this template adds is where it lands, which is inside the one-line form above — the label before the hyphen, the surviving code after it, and the refusal inside the rationale the colon opens, written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
-2. Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
+2. Pain in left elbow - M25.522: 5/10 pain after a fall, elbow radiographs ordered today to rule out a radial head fracture, no result. NOT CODED: S52.125A Nondisplaced fracture of head of left radius, initial encounter for closed fracture, nothing established it. Less likely.
 ```
 
 **The `Favored.` entry and the `Final diagnosis` line keep the hedge instead**, so on this template the two forms sit four lines apart and are meant to:
 
 ```
-1. Community-acquired pneumonia, mycoplasma suspected - J18.9: three weeks of cough, decreased air movement, documented sick contact; film ordered today with no result. NOT CODED: J15.7 Pneumonia due to Mycoplasma pneumoniae, nothing tested for the organism. Favored.
-2. Acute bronchitis - J20.9: cough is productive, but the decreased air movement argues for consolidation. Less likely.
+1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9: five days of fever and focal crackles; film ordered today with no result. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, nothing tested for the organism. Favored.
+2. Acute bronchitis - J20.9: cough is productive, but the focal crackles argue for consolidation. Less likely.
 
-Final diagnosis: Community-acquired pneumonia, mycoplasma suspected - J18.9
+Final diagnosis: Community-acquired pneumonia, pneumococcal organism suspected - J18.9
 ```
 
 Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the limb that is mechanical. Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).

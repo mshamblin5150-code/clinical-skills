@@ -16,7 +16,7 @@ That number carries a caveat worth more than the number. **The run and the gradi
 
 **Eight of the twenty-four rows came back *neither*, not *better*** — D3, D5, R6 and R8 among them. Before the reference was read the set implied every row was a catch.
 
-**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 34 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120). **It read 31 of 31 until [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) added R15 on 2026-08-16**, which this run predates and is not graded against. Every scored digit is unmoved — `REPORTED` is still `13/14` — and only the denominator moved. **Then [#79](https://github.com/mshamblin5150-code/clinical-skills/issues/79) appended A1 on 2026-08-18 and the set now holds 34**, which this run also predates as a *row* and does not as a *verdict*: A1 carries run 2's own reading of R14 across, so the row is scored and the run's fraction is untouched. See *A1 is #29's ruling cohort, promoted* above.
+**Run 2, 2026-08-16, against base commit `184462d`: `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7` — 31 of 34 rows.** [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120). **It read 31 of 31 until [#96](https://github.com/mshamblin5150-code/clinical-skills/issues/96) added R15 on 2026-08-16**, which this run predates and is not graded against. Every scored digit is unmoved — `REPORTED` is still `13/14` — and only the denominator moved. **Then [#79](https://github.com/mshamblin5150-code/clinical-skills/issues/79) appended A1 on 2026-08-18 and the set held 34**, which this run also predates as a *row* and does not as a *verdict*: A1 carries run 2's own reading of R14 across, so the row is scored and the run's fraction is untouched. **Issue #159 appended F8 after this run, so the set now holds 35; it adds no retrospective verdict and the historical 31 of 34 stays historical.** See *A1 is #29's ruling cohort, promoted* above.
 
 **Output is in the main checkout's `scratch/day-a-run-2/`, not a worktree's**, which is what [#122](https://github.com/mshamblin5150-code/clinical-skills/issues/122) cost two earlier runs and what this ticket's fifth comment asked for before the run was graded. It was generated in a worktree and copied across, verified identical. `notes/` holds the eleven scored notes; `notes-branch-unstated/` holds four discarded drafts, kept because they are the evidence for the branch paragraph below.
 
@@ -26,7 +26,7 @@ That number carries a caveat worth more than the number. **The run and the gradi
 
 **Separated, which is the whole reason it exists.** Eleven generating passes with `assertions.md`, `fixtures/README.md` and `shorthand/README.md` withheld and the shorthand pasted inline; eight grading passes split by class, none of which saw a generation; and an orchestrating pass that authored no note and re-derived every row from the output text. `fixtures/` was closed to every generating pass for any purpose.
 
-**The two rows that did not come back clean are R10 and F5, and neither is the skill regressing.** R10 is half-met on the case it names, and **F5 fails because the row and the skill now contradict each other** — see *What run 2 found* below. **No DRIFT row regressed**, which was the most consequential thing this run could have found: D7 through D10 are one repeating defect and all four pass.
+**The two rows that did not come back clean are R10 and F5, and neither is the skill regressing.** R10 is half-met on the case it names, and **F5 fails because the old run copied its inference warning into Medatrax** — see *What run 2 found* below. **No DRIFT row regressed**, which was the most consequential thing this run could have found: D7 through D10 are one repeating defect and all four pass.
 
 **The run had to state the branch, and that is worth knowing before the next one.** This set is `clinical-note` on the comprehensive SOAP branch, and the first eleven passes were given the shorthand without being told which branch to take. **Four of them chose the FNP H&P**, reasoning from the program's first-six-encounters rule with no course context to check it against. Those four were discarded and regenerated on SOAP; the run scored here is eleven SOAP notes. Nothing was wrong with the four — the skill routed sensibly on what it had — but **a mixed-branch run cannot be scored against D6, which names the SOAP branch's `Final diagnosis` field.** *Running a set* step 1 already says *on the stated branch*; this is what happens when the runner does not pass it on.
 
@@ -205,11 +205,14 @@ Deterministic checks on the shape of the output rather than its clinical content
 | F2 | `Start/End estimated` never appears under GAPS |
 | F3 | `Race/Ethnicity` appears under `FILLED·asserted`, never under GAPS |
 | F4 | Every `FLAG` names both the finding and what was not done with it — never a bare category like "vitals not addressed" |
-| F5 | Case 10's shorthand states no age, so the run reports age under GAPS and leaves `Patient Time` unfilled — it never guesses a band |
+| F5 | Case 10's missing age is filled and recorded only in `FILLED·asserted`; `Age + unit` and `Patient Time` are completed, while neither the note body nor the Medatrax block labels the age or band as filled, inferred, guessed, or needing confirmation |
 | F6 | Case 10's sex is read as male from the narrative pronouns and is not reported missing |
 | F7 | Fed the portal demographics alongside the shorthand — 25, male — case 10's Patient Time band is `Adult (18 – 60)` |
+| F8 | Every `FLAG` is true of the **finished note**: the action it says is absent remains absent from the **Assessment or Plan**. A failure of the **source encounter** that the note corrects is not a FLAG. This scores scope separately from F4's two-part form |
 
-F5 replaced a row that asserted the band outright. That row was written before the shorthand had been read, on the assumption the age was in it. It is not, so asserting the band would have graded the skill on filling a value it has no source for.
+F5 once replaced a row that asserted the band outright. That replacement was written before the skill made missing age a deliberate fill, and it required the opposite behavior: age under GAPS and no band. **The clinician settled the conflict on 2026-08-20:** fill the age and use it normally, keep its provenance in the private tier record, and put no guess or confirmation label into the note body or Medatrax. Issue [#158](https://github.com/mshamblin5150-code/clinical-skills/issues/158).
+
+**F8 was added after run 2 and does not regrade that historical run.** Its evidence is the run-2 observation below: entries can satisfy F4 while denying actions present in their own note. The next run grades F8 over every FLAG entry, beside F4 rather than inside it. Issue [#159](https://github.com/mshamblin5150-code/clinical-skills/issues/159).
 
 ## What run 2 found
 
@@ -245,7 +248,7 @@ Every verdict below was re-derived from the output text by a pass that authored 
 | F2 | PASS | — | 11 of 11 |
 | F3 | PASS | — | 11 of 11, both limbs |
 | F4 | PASS | — | **44 of 45 FLAG entries** name both halves. The one is a judgment call, recorded below |
-| F5 | **FAIL** | — | Age is **filled at 55 and the band filled with it**, not reported under GAPS. **The row and the skill contradict each other**, recorded below |
+| F5 | **FAIL** | — | Age is filled at 55 and the band filled with it, but the Medatrax field carries `*** INFERRED, CONFIRM BEFORE ENTRY ***`. The live F5 now forbids that submitted provenance label; the historical run still fails |
 | F6 | PASS | — | `Gender: Male`, read from the narrative pronouns, absent from GAPS |
 | F7 | PASS | — | `Patient Time: Adult (18 – 60) Hours`, exact match including the en dash |
 
@@ -290,17 +293,17 @@ Found by the tracker sweep after this run, and filed as part of [#147](https://g
 
 One thing recorded rather than judged: the same file's `DERIVED` line writes the band with an ASCII hyphen, `Adult (18 - 60)`, while the Medatrax field uses the en dash. The field is what F7 names, and it matches.
 
-### F5 fails, and the row is what moved
+### F5 fails, and the submitted marker is what remains wrong
 
-The note **filled** an age of 55 and set `Patient Time: Adult (18 - 60) Hours` from it, marking the guess in three places — the tier line, the Medatrax field's `*** INFERRED, CONFIRM BEFORE ENTRY ***`, and a sentence naming the band it would move to if the confirmation went the other way. Age appears nowhere under GAPS.
+The note **filled** an age of 55 and set `Patient Time: Adult (18 - 60) Hours` from it, marking the fill in three places — the tier line, the Medatrax field's `*** INFERRED, CONFIRM BEFORE ENTRY ***`, and a sentence naming the band it would move to if the confirmation went the other way. Age appears nowhere under GAPS.
 
-F5 asks for the opposite: *reports age under GAPS and leaves `Patient Time` unfilled — it never guesses a band.*
+That run remains a failure under the ruled F5, but for one narrower reason: **the tier line is the private record and stays; the final note body and Medatrax block never label the age or band as a guess.** The field marker and the confirmation sentence crossed that boundary.
 
-**`SKILL.md` now instructs exactly what the note did.** *What never goes under GAPS* names **Age** outright — *inferred by design where the shorthand and the entry both lack it, and flagged at the top of `FILLED·asserted`* — and step 5 says the same. **The two cannot both be satisfied by one file**, and the note is compliant with the skill and non-compliant with the row.
+**`SKILL.md` and F5 now instruct the same thing.** *What never goes under GAPS* names **Age** outright, step 5 fills both Medatrax values without a provenance label, and the tier block keeps the fill's private record. One output can satisfy all three.
 
-**The row is not edited here.** Editing an assertion to make a run pass is out of scope for [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120) and is the move this whole directory exists to prevent. What is recorded is that **F5 was written against a skill that has since changed under it**, which is a decision for the clinician and not for the pass that tripped it.
+**The row was not edited during [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120).** That pass had no authority to move a measured bar, so it recorded the contradiction and left it for the clinician. The clinician supplied the ruling on 2026-08-20 and [#158](https://github.com/mshamblin5150-code/clinical-skills/issues/158) is the deliberate edit. The old run is not relabeled a pass: its Medatrax marker still fails the new row.
 
-**The substance is worse than the bookkeeping, and no row scores it.** The inferred 55 is **thirty years off** the 25 the portal records, and it is load-bearing: it drives a nine-item screening list keyed to that number, including prostate-specific antigen at 55 to 69 and zoster from 50, none of which a 25-year-old is owed. The value is marked as a guess everywhere it appears, so nothing is asserted as measured — but a marked guess that generates a screening list is a different thing from a marked guess that sits in a field, and F5 in its current form catches neither.
+**The substance is worse than the bookkeeping, and drift row 24 now reaches its screening consequence.** The inferred 55 is **thirty years off** the 25 the portal records, and it is load-bearing: it drives a nine-item screening list keyed to that number, including prostate-specific antigen at 55 to 69 and zoster from 50, none of which a 25-year-old is owed. Row 24 now makes every age-keyed screening item's private `FILLED·proposed` line name `age filled` and carry the population it used. **That safeguard exposes the dependency; it does not verify the age.** F5 owns the remaining boundary: keep the fill's provenance in the private record and do not copy it into the final note body or Medatrax.
 
 ### R10 is half-met, and the half it misses is the one nobody remarks on
 
@@ -396,7 +399,7 @@ The pattern is different: **most FLAG entries in this run assert an omission the
 
 ## Still unresolved
 
-- **Run 2 has happened, and F5 is what it left open.** 2026-08-16, separated, `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7`. Run 1 is still a baseline rather than a bar cleared, but there is now something to measure drift from. **The open question is not a score.** F5 and `SKILL.md` contradict each other on where an inferred age goes, and the row was deliberately not edited to resolve it — see *F5 fails, and the row is what moved*. **R10's BMI limb is the other**, and it is a genuine half-miss rather than a rule conflict. This bullet read *"Run 2 has not happened"* from 2026-08-11 until run 2 landed.
+- **Run 2 happened, and its F5 remains a failure under the ruled row.** 2026-08-16, separated, `DRIFT 10/10` · `REPORTED 13/14` · `block 6/7`. The contradiction was settled by the clinician on 2026-08-20: fill the age, use it for the note and Medatrax, and keep provenance only in the private tier record. The old run still fails because it copied `*** INFERRED, CONFIRM BEFORE ENTRY ***` into Medatrax; see *F5 fails, and the submitted marker is what remains wrong*. **R10's BMI limb is the other miss**, and it is a genuine half-miss rather than a rule conflict. This bullet read *"Run 2 has not happened"* from 2026-08-11 until run 2 landed.
 - **Case 10's opener.** The shorthand states no age and no sex. This is a defect in the source, kept in the input file deliberately rather than patched, and it is what F5–F7 test. The portal supplies 25, male.
 - **Whether R11–R14 should be binary. Half-settled 2026-08-18, on [#79](https://github.com/mshamblin5150-code/clinical-skills/issues/79).** They are drift-class and evidenced, but they were found after the bar was agreed. Promote them deliberately or not at all.
 

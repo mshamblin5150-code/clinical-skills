@@ -341,7 +341,7 @@ BARIATRIC = re.compile(
 # left out and be checked on it -- OSA associates with obesity and entails none
 # of it. ``osa`` and ``cpap`` need their boundaries for the reason above;
 # ``apnea`` gets one for consistency rather than against a known decoy. The
-# British ``apnoea`` is deliberately not carried: this is an American corpus,
+# The British variant is deliberately not carried: this is an American corpus,
 # the spelling appears in it zero times, and an alternative matched by nothing
 # is one nothing can catch going wrong.
 SLEEP_APNEA = re.compile(r"(?i)\bosa\b|\bcpap\b|\bapnea")
@@ -823,11 +823,24 @@ TOBACCO_NOT_PPD = (
 # ``HEIGHT`` for "ht5'7"" and ``PPD_AS_SKIN_TEST`` for "12mm" -- and all four are
 # repaired by adding an alternative rather than by loosening the boundary.
 #
-# **Widening by the quantity shape is what keeps the repair away from the other
-# sense.** A digit welded to ``ppd`` is *less* ambiguous with a purified protein
-# derivative than a bare ``ppd`` is, because nobody writes a count in front of a
-# tuberculin test. So this narrows the ambiguity the module documents rather than
-# widening it.
+# **Ruled by the clinician on 2026-08-20, and the ruling is a stronger thing
+# than the inference it replaces.** This first rested on *nobody writes a count
+# in front of a tuberculin test* -- true, and an argument from shape, which is
+# the same class of reasoning issue #78 was closed on. What he said instead is
+# what the string **is**: a welded ``1ppd`` is the spaced form *mistyped*, not a
+# token with a sense of its own. *"Though I welded it on the note it should read
+# as a positive tobacco history for 1 pack per day, because that is what that
+# welded though it shouldn't be welded thing means."*
+#
+# **So the welded form does not need a discriminator; it inherits one.** It
+# carries the spaced form's meaning entire, and a purified protein derivative is
+# not one of the things it could have meant -- which is why this narrows the
+# ambiguity the module documents rather than widening it, and why the repair is
+# an alternative rather than a judgment call about a second sense.
+#
+# **What it does not license is loosening the boundary.** The reading is *this
+# is a pack count with the space left out*, so the quantity is what carries it,
+# and a bare token welded to a letter is still outside both patterns.
 #
 # Widened deliberately and re-run against the corpus, on ``HEDGE``'s standing
 # rule. **The figures are in this module's docstring and deliberately not

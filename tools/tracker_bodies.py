@@ -1,4 +1,4 @@
-"""Grade a tracker harvest for bodies that were lost at filing time.
+"""Grade a tracker harvest for bodies malformed at filing time.
 
 [#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130). Records
 in this repo carry a body that is the literal two characters ``@-`` -- what
@@ -22,8 +22,10 @@ This module is #214's *what a written instruction cannot do is fail* arriving at
 the tracker: the rule is written out there **and** a command grades it.
 
 **Decision 3 is ruled: an empty body is a failure here.** Clinician, 2026-08-19.
-So the three rows are one question asked three ways -- did text land -- and none
-of them is a judgment about what the text says.
+Those three rows ask one question three ways -- did text land. #155 adds the
+fourth row: did text land with UTF-8 decoded through cp1252, or with a literal
+``\\uXXXX`` escape left undecoded. The row counts affected records, not damaged
+sequences, so a report can be compared across both mechanisms.
 
 Harvest first, then scan::
 
@@ -67,24 +69,16 @@ since there is no text to find -- and that is precisely the record this module
 exists to report. A test asserts the sibling still drops it, so the duplication
 stays justified rather than merely inherited.
 
-**No ``--show``, because there is nothing to show.** Two of the three rows fire
-on a body drawn from a fixed set, and the third fires on a single token. The
-report names the record's URL and the row's own name and never the body, so
-**its output is safe to paste** -- `reference_scan.py`'s *bounded by what the
-code can draw from*, at the narrowest width it has been used at, and pinned by
-driving a marker through every aperture rather than argued.
+**No ``--show``.** The report names the record's URL and the row's own name and
+never the body, so **its output is safe to paste**. The encoding row inspects
+prose but reports none of it; a shape inside inline or fenced code is a mention
+and does not fire.
 
 **What it cannot reach**, named rather than left to be discovered:
 
-- **A body that landed and is wrong.** Truncated at a shell metacharacter, half
-  a heredoc, the right words about the wrong ticket -- every one of those is a
-  body with text in it, and no row here reads text.
-- **A body stored double-encoded**, which is
-  [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s
-  cohort: four bodies whose em dashes are the literal six characters of an
-  escape. #130's own comment records the two as one class -- *the CLI accepted
-  something malformed and said nothing* -- and that ticket is `grilling` with
-  its row unruled, so it is a seam here and not a row.
+- **A body that landed and is wrong in any other way.** Truncated at a shell
+  metacharacter, half a heredoc, the right words about the wrong ticket -- every
+  one of those has text and matches no mechanically bounded row here.
 - **A harvest goes stale the moment anybody files**, which is `tracker_scan.py`'s
   limit inherited whole.
 - **A record edited to remove its body after filing** reads identically to one
@@ -110,7 +104,7 @@ steps**, which is #214's own thesis pointed back at this module.
 says so beside the command, and a test asserts that sentence is still there.
 
 Exit status distinguishes not having scanned from having found nothing -- 0
-clean, 1 for a lost body, **2 for every way of not having scanned**: no
+clean, 1 for a failed body, **2 for every way of not having scanned**: no
 argument, **an argument this module does not have**, a harvest file absent or
 unreadable, a payload that is neither a JSON list nor a JSON object, and **no
 record in any file read**. That last limb is the one that matters and it is
@@ -145,6 +139,7 @@ COMMENT = "comment"
 LOST_AT_DASH = "lost-at-dash"
 EMPTY_BODY = "empty-body"
 LITERAL_AT_PATH = "literal-at-path"
+DOUBLE_ENCODED = "double-encoded"
 
 # Every row, in report order. One tuple, so the report, the counter and the
 # ticket map cannot drift into listing different sets.
@@ -152,6 +147,7 @@ KINDS = (
     LOST_AT_DASH,
     EMPTY_BODY,
     LITERAL_AT_PATH,
+    DOUBLE_ENCODED,
 )
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and
@@ -162,6 +158,7 @@ ROW_TICKET = {
     LOST_AT_DASH: "#130",
     EMPTY_BODY: "#130",
     LITERAL_AT_PATH: "#130",
+    DOUBLE_ENCODED: "#155",
 }
 
 # Wide enough for the longest kind and the longest surface, so both stay
@@ -185,6 +182,36 @@ AT_DASH = "@-"
 # that a body which is only a bare at-mention fires; that body is worth a look
 # here anyway.
 LONE_AT_TOKEN = re.compile(r"\A@\S+\Z")
+LITERAL_UNICODE_ESCAPE = re.compile(r"\\u[0-9a-fA-F]{4}")
+FENCED_CODE = re.compile(
+    r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$"
+)
+CODE_SPAN = re.compile(r"`+[^`\n]*`+")
+
+
+def _has_cp1252_mojibake(text: str) -> bool:
+    """Whether a UTF-8 sequence in ``text`` was decoded through cp1252."""
+    for start in range(len(text)):
+        for width in (2, 3, 4):
+            candidate = text[start:start + width]
+            if len(candidate) != width:
+                continue
+            try:
+                encoded = candidate.encode("cp1252")
+            except UnicodeEncodeError:
+                continue
+            lead = encoded[0]
+            expected = (2 if 0xC2 <= lead <= 0xDF else
+                        3 if 0xE0 <= lead <= 0xEF else
+                        4 if 0xF0 <= lead <= 0xF4 else 0)
+            if expected != width:
+                continue
+            try:
+                encoded.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            return True
+    return False
 
 
 class Record(NamedTuple):
@@ -197,7 +224,7 @@ class Record(NamedTuple):
 
 
 class Finding(NamedTuple):
-    """One lost body. Carries no text from the record -- see the docstring."""
+    """One failed body. Carries no text from the record -- see the docstring."""
 
     kind: str
     label: str
@@ -329,7 +356,7 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
 
 
 def grade(records: Sequence[Record]) -> list[Finding]:
-    """One finding per lost body, at most one per record.
+    """One finding per failed body, at most one per record.
 
     The order is ``KINDS``'s and the first match wins, which is what keeps
     ``@-`` off the literal-path row: it is a lone ``@`` token too, and grading it
@@ -346,12 +373,16 @@ def grade(records: Sequence[Record]) -> list[Finding]:
     found = []
     for record in records:
         text = (record.body or "").strip()
+        prose = CODE_SPAN.sub(" ", FENCED_CODE.sub(" ", text))
         if text == AT_DASH:
             found.append(Finding(LOST_AT_DASH, record.label, record.surface))
         elif not text:
             found.append(Finding(EMPTY_BODY, record.label, record.surface))
         elif LONE_AT_TOKEN.match(text):
             found.append(Finding(LITERAL_AT_PATH, record.label, record.surface))
+        elif (_has_cp1252_mojibake(prose)
+              or LITERAL_UNICODE_ESCAPE.search(prose)):
+            found.append(Finding(DOUBLE_ENCODED, record.label, record.surface))
     return found
 
 
@@ -391,7 +422,7 @@ def format_report(scan: Scan, source: str) -> str:
     for kind, count in scan.counts:
         lines.append(f"  {ROW_TICKET[kind]} - {kind:<{KIND_COLUMN}} {count}")
     lines.append("")
-    lines.append(f"  bodies lost                    {len(scan.findings)}")
+    lines.append(f"  bodies failed                  {len(scan.findings)}")
     if scan.findings:
         lines.append("")
         lines.append("  each one, by the row it failed and the record to open:")
@@ -451,16 +482,15 @@ def main(argv: list[str], stdin=None) -> int:
             return NOT_SCANNED
     if not records:
         # The limb that matters. An empty payload would otherwise report zero
-        # lost bodies and read exactly like a tracker that has none.
+        # failed bodies and read exactly like a tracker that has none.
         print(f"no record in {source}", file=sys.stderr)
         return NOT_SCANNED
     scan = survey(records)
     print(format_report(scan, source=source))
     if scan.findings:
         print(
-            f"{len(scan.findings)} body/bodies never landed."
-            " Rewrite each with 'gh issue edit <n> --body-file -'"
-            " and read it back.",
+            f"{len(scan.findings)} body/bodies failed tracker checks."
+            " Repair each through its matching GitHub edit path and read it back.",
             file=sys.stderr,
         )
         return FOUND

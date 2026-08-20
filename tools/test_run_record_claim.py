@@ -295,6 +295,17 @@ class TheExceptionIsStatedWhereTheRecordIs(unittest.TestCase):
         ]
         self.assertEqual(len(redacted), 9)
 
+    def test_seven_of_the_nine_name_both_re_derives_from_the_tree(self) -> None:
+        """``SITE-B`` means both only while every such note also names ``SITE-A``."""
+        cases = sorted(NOTES.glob("case-*.md"))
+        self.assertEqual(len(cases), 12)
+        texts = {case: case.read_text(encoding="utf-8") for case in cases}
+        site_a = {case for case, text in texts.items() if "[SITE-A]" in text}
+        site_b = {case for case, text in texts.items() if "[SITE-B]" in text}
+
+        self.assertEqual(len(site_b), 7)
+        self.assertLessEqual(site_b, site_a)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,7 @@
 """Grade the research ledger a ``practicum-case-study`` run writes before it drafts.
 
-    python tools/research_ledger.py <a ledger file> [--draft <a draft .md>] [--show]
+    python tools/research_ledger.py <a ledger file> [--draft <a draft .md>]
+        [--evidence <the evidence dump>] [--show]
 
 [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) is this.
 The skill used to write an unsourced claim into the body and list it in the
@@ -135,7 +136,8 @@ wrap the way an APA entry wraps.
   ``UNSOURCED_WITH_CITATION_FIELD`` widened from one field to four: a locator on a record
   that says it found nothing is the same contradiction, and it was passing.
 
-**#289, and it is the only thing here that reads anything but the ledger.**
+**#289, and it was the only thing here that read anything but the ledger until
+#298 put ``--evidence`` beside it.**
 
 - **Every drug the run chose a number for has a claim record.** The rows above
   grade the records that exist, and this module has **no expected count of its
@@ -245,6 +247,68 @@ where it does not. **The prohibition is unchanged either way**: the question is
 whether the document's number and the record's number are the *same* number,
 never whether either is right. **A clean scan is not a checked prescription.**
 
+**``--evidence`` grades what the run says it read against what it was handed**
+-- [#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298),
+ruled by the clinician 2026-08-20. A run recorded in its own ``REFUTATION`` field
+that the treatment topic was missing from the companion evidence and cited it
+anyway; ``--draft`` closes that only where the missing topic is a **drug**, and
+this closes it wherever the topic is **cited**.
+
+- **The grounding is #231's and it is what scopes the row to UpToDate.** That
+  ticket ruled the database subscription-gated -- a fetch reaches a login wall
+  rather than the topic page -- so an UpToDate topic the dump does not carry is
+  one **nobody could have opened**. The clinician hands topics over wholesale, so
+  the dump is the whole of what was read. A journal article, a society guideline
+  or a government page the dump lacks is ``skills/practicum-case-study/SKILL.md``
+  step 3's ordinary case: a claim record exists *because* the evidence did not
+  cover the claim, and a row firing on those would be #215's defect again.
+- **The topics the dump merely refers to are not graded, and that is the ruling
+  rather than an omission.** A rendered dump cross-references far more topics than
+  it carries -- by more than an order of magnitude in the one this was measured on
+  -- which is the ordinary case #298's own *What must not come out of this*
+  forbids firing on. Ranking them does not rescue it either: the reference counts
+  decay smoothly with **no plateau anywhere**, so any cut is a value named at an
+  edge, which is ``guidelines_extract.SPACE_ADVANCE_FRACTION``'s recorded failure
+  and #97's objection. **No threshold is built and none is available.** What is
+  graded is the join. **Every figure behind that is counted against a file under
+  ``scratch/``, so nothing committed re-derives one and the next article the
+  clinician pastes moves them all; they are stated on #298 and nowhere in this
+  tree**, on #143's terms.
+- **A body is recognized by its ``Authors:`` masthead and never by a heading.**
+  #298 decision 2 proposed reading a title as a heading and that is not
+  implementable against the artifact it describes -- the rendered dump carries no
+  headings of any kind. **Measured before it was believed**: nearly every body the
+  real dump carries joins a ``See "..."`` cross-reference exactly under this rule,
+  and the count is #298's to state.
+- **No escape hatch, and it was asked rather than assumed.** If an UpToDate topic
+  is worth citing it goes in the dump, and the remedy for a finding is one paste.
+- **The draft's reference list is parsed by ``reference_scan`` and not by a second
+  reading in here**, on ``REFERENCE_HEADING``'s precedent and #108's.
+- **An entry this cannot read is a finding, and for a row with no escape hatch
+  that limb *is* the hatch.** ``uptodate_topic`` recognizes a topic only from the
+  database element, so an entry dropping ``UpToDate.`` was invisible to the row
+  **and** to the population row -- and ``reference_scan`` reports nothing on it
+  either, so four characters removed from an entry took the topic out of the join
+  with nothing red anywhere. ``UNREADABLE_UPTODATE_ENTRY`` keys on the
+  **locator's host** and is ``UNREADABLE_DRUG_ROW``'s argument one row over: a
+  citation this cannot read is never one subtracted from the set in silence.
+  Found by a tracker-sweep subagent and re-derived in both directions.
+
+**What that leaves is an entry naming neither the database element nor an
+UpToDate locator**, which is invisible to both rows and to the population count,
+so the report cannot tell *cited none* from *cited one unreadably*. It is not
+narrowable: with neither element there is nothing distinguishing such an entry
+from a journal article, and guessing would fail a correct one -- #215's defect,
+which the scope limb above exists to avoid. Documented rather than tightened, on
+``UNRESOLVABLE_LOCATOR``'s terms, and it only ever weakens the weaker half: the
+rows say *this citation did not reach the dump*, never *this citation is good*.
+
+**What ``--evidence`` cannot reach is a claim that rested on a missing topic
+without citing it.** The join is on a citation, so a threshold, a screening
+interval or a discriminator taken from a topic nobody read and written with no
+reference is invisible to this row and to every other one -- which is the residue
+#298 names and does not close. **A clean scan is not a sourced document.**
+
 **#215's first limb reaches no row here, and that is deliberate.** *Within two years
 is the target* is a target: a ``current`` disposition on a three-year-old reference
 is not a defect, and grading it would refuse what the ruling merely prefers.
@@ -351,8 +415,9 @@ transcribed from faculty material about a patient. **``--show`` output is PHI** 
 **Exit status distinguishes not having scanned from having found nothing** -- 0
 clean, 1 for a violation, **2 for every way of not having scanned**: no argument,
 no file, no ``## CLAIM:`` record in it, **no ``DATE:`` header**, a ``--draft``
-naming a file that is not there, and a draft carrying **no readable prescription
-table**.
+naming a file that is not there, a draft carrying **no readable prescription
+table**, an ``--evidence`` naming a file that is not there, and an evidence file
+carrying **no topic body at all**.
 
 **Two of those limbs are the ones that matter, and they are the two where a row
 would otherwise print a zero it never earned.** The window is measured against
@@ -363,6 +428,23 @@ rows need that date**, #215's window and #231's read date, both comparing to
 ``read_prescriptions`` does not read would report #289's rows as zeros and look
 like a document whose every dose reaches a record, which is
 ``differential_scan.py``'s reasoning arriving at a second file.
+
+**The evidence limb inverts that and is the sharpest of the three.** A dump
+``carried_topics`` cannot read carries **no** topic to join against, so every
+UpToDate citation in the ledger would fire at once -- a mass false finding rather
+than a silent pass, and the one not-scanned limb here whose failure is loud rather
+than quiet. So the row is left **ungraded** and prints *not graded*, and the exit
+2 is deferred to the tail like its two siblings.
+
+**Returning it early is the defect this module was built having already read
+about**, and it shipped anyway: it suppressed every other row's findings and
+printed no report at all, which is ``tracker_scan.py``'s recorded corpus-limb
+inversion -- *returning 2 before scanning, so a real hit was reported as did not
+scan* -- arriving in the one function whose own docstring, in the paragraph below,
+states the ordering it broke. Caught by the spec axis of ``/code-review``, and
+pinned by a test that drives ``main`` rather than the report, because every test
+that had been written for this limb asserted the status and none asserted that
+the other rows survived it.
 
 **Where a violation and any not-scanned limb both hold, 1 wins**, on
 ``differential_scan.py``'s and ``filled_vitals_census.py``'s ordering and for their
@@ -382,6 +464,14 @@ from pathlib import Path
 
 from console_codec import use_utf8
 from docx_write import markdown_tables, split_row
+
+# **The draft's reference list is parsed once, by the module that grades it.**
+# ``reference_scan`` importing ``docx_write.REFERENCE_HEADING`` is the
+# precedent and this is the same argument at the width of the whole list: a
+# second reading in here could put an entry where the grader does not, which
+# is #108's duplication and the failure ``reference_scan`` records against
+# itself. A test asserts the two are one object *and* drives both.
+from reference_scan import read_document
 
 # A record opens on a heading. The heading level is free, so the ledger can sit
 # under a document heading without the parser caring.
@@ -519,6 +609,17 @@ REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
 # [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
 # ruling: a zero beside a row that never ran is the silent pass this whole
 # directory refuses.
+# #298's one row, ruled by the clinician 2026-08-20. It reads the evidence
+# dump, so it runs only where ``--evidence`` named one, on the arrangement
+# directly below.
+CITED_TOPIC_NOT_IN_EVIDENCE = "cited-topic-not-in-evidence"
+
+# The sibling that keeps the row above from being escapable. An entry whose
+# locator is an UpToDate topic but whose title element this cannot read is a
+# finding, never a citation subtracted from the set in silence --
+# ``UNREADABLE_DRUG_ROW``'s argument one row over.
+UNREADABLE_UPTODATE_ENTRY = "unreadable-uptodate-entry"
+
 UNRESEARCHED_PRESCRIPTION = "unresearched-prescription"
 DOSE_NOT_CLAIMED = "dose-not-claimed"
 UNREADABLE_DRUG_ROW = "unreadable-drug-row"
@@ -526,6 +627,8 @@ UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 # Every row, in report order. Kept as one tuple so the report, the counter and the
 # ticket map cannot drift into listing different sets.
 KINDS = (
+    CITED_TOPIC_NOT_IN_EVIDENCE,
+    UNREADABLE_UPTODATE_ENTRY,
     UNRESEARCHED_PRESCRIPTION,
     DOSE_NOT_CLAIMED,
     UNREADABLE_DRUG_ROW,
@@ -559,6 +662,8 @@ _KIND_ORDER = {kind: index for index, kind in enumerate(KINDS)}
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROW_TICKET = {
+    CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
+    UNREADABLE_UPTODATE_ENTRY: "#298",
     UNRESEARCHED_PRESCRIPTION: "#289",
     DOSE_NOT_CLAIMED: "#289",
     UNREADABLE_DRUG_ROW: "#289",
@@ -608,6 +713,11 @@ CITATION_FIELDS = ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION")
 # [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143),
 # which this module published in five places before a review re-derived it.
 DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
+
+# #298's row, on ``DRAFT_ROWS``' arrangement and for its reason: a zero beside
+# a row that never ran reads exactly like a row that passed, which is #258's
+# ruling. **One tuple, and how many is its own to say.**
+EVIDENCE_ROWS = (CITED_TOPIC_NOT_IN_EVIDENCE, UNREADABLE_UPTODATE_ENTRY)
 
 # A prescription table is the one table in a case study carrying both of
 # these, and the drug row is the row above ``Disp:``. **A welded pair and a
@@ -840,7 +950,95 @@ class Scan:
     # ``half_anchored_tables``.
     half_anchored: int
     prescriptions_at_fault: int
+    # ``None`` where no ``--evidence`` was given, for the reason
+    # ``prescriptions`` is not an ``int``: a zero beside a row that never ran
+    # is indistinguishable from a row that passed, which is #258's ruling.
+    evidence_topics: int | None
+    # What the row **read**, where ``evidence_topics`` is what it read
+    # *against*. #258 one level down: a ledger citing no UpToDate topic at all
+    # reported a clean row, which is indistinguishable from one whose every
+    # citation checked out. Found by pointing the command at the real ledger.
+    uptodate_citations: int | None
+    evidence_at_fault: int
     findings: tuple[Finding, ...]
+
+
+# A topic body is present when its masthead is. **#298 decision 2 proposed
+# reading a title as a *heading* and that is not implementable against the
+# artifact it describes** -- the rendered dump carries no headings of any kind,
+# only prose, bullets and short all-caps section labels. The masthead is what
+# marks a body, and the title is the line above it. Measured before it was
+# believed: nearly every body the real dump carries joins a ``See "..."``
+# cross-reference exactly under this rule. **The count is #298's to state and is
+# deliberately nowhere in this tree** -- it is measured against a file under
+# ``scratch/``, so nothing here re-derives it and the next paste moves it.
+TOPIC_MASTHEAD = re.compile(r"(?i)^[ \t]*authors?[ \t]*:")
+
+# The title element of [apa7.md](skills/practicum-case-study/reference/apa7.md)
+# section 2's published form, taken between the year element and the database
+# element. **The database name is matched as a word and never as a hostname**,
+# which is ``reference_scan``'s recorded defect adopted rather than
+# rediscovered: without the lookahead an entry that drops the database element
+# has its title read out of ``www.uptodate.com`` and a garbage string is then
+# compared against the dump. Both spellings of the name are live -- section 2
+# requires it italicized and records that the corpus italicizes it nowhere.
+UPTODATE_TITLE = re.compile(
+    r"\(\s*(?:n\.d\.|\d{4}[a-z]?)\s*\)\s*\.\s*"
+    r"(?P<title>.+?)"
+    r"\s*\.\s*[*_]{0,2}UpToDate[*_]{0,2}\s*\.(?=\s|$)",
+    re.S | re.I,
+)
+
+# **A locator pointing at an UpToDate topic**, which is what tells this an entry
+# was meant to be one when ``UPTODATE_TITLE`` could not read it. Matched as a
+# **host** and never as a word -- the mirror of ``UPTODATE_TITLE``'s guard, and
+# for the mirror reason: there the name in a URL must not be read as the database
+# element, and here the name in a *title* must not be read as a locator. So it
+# requires the scheme-or-``www`` run and the path that a real topic URL carries.
+UPTODATE_LOCATOR = re.compile(r"(?i)\b(?:https?://|www\.)[\w.-]*\buptodate\.com/")
+
+# What a finding names where the citation came from the draft rather than from a
+# record. ``UNREADABLE_DRUG_ROW``'s ``a prescription table`` precedent: the
+# ``claim`` slot is a record heading everywhere else, and a draft entry has none.
+DRAFT_LIST = "the draft's reference list"
+
+
+def carried_topics(text: str) -> set[str]:
+    """Every topic whose **body** the dump carries.
+
+    A cross-reference is not a body and that distinction is the whole row: the
+    real dump refers to more than an order of magnitude more topics than it
+    carries, so reading a reference as a body would report a clean join over a
+    dump carrying almost nothing. The two figures are #298's to state.
+    """
+    lines = text.splitlines()
+    carried: set[str] = set()
+    for index, line in enumerate(lines):
+        if not TOPIC_MASTHEAD.match(line):
+            continue
+        above = index - 1
+        while above >= 0 and not lines[above].strip():
+            above -= 1
+        # A masthead with nothing above it names no topic, and the empty string
+        # must not go in: it would match every entry whose title failed to parse,
+        # which is a silent pass on the one row here that can refuse.
+        if above >= 0:
+            carried.add(lines[above].strip())
+    return carried
+
+
+def uptodate_topic(entry: str) -> str:
+    """The topic an UpToDate reference entry names, or ``""`` if it is not one.
+
+    **Scoped to UpToDate, and that scope is the grounding rather than a
+    narrowing.** #231 ruled the database subscription-gated -- a fetch reaches a
+    login wall -- so a topic the dump does not carry is one nobody could have
+    opened. A journal article the dump lacks is
+    ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case, and a row
+    firing on one would be #215's defect again.
+    """
+    match = UPTODATE_TITLE.search(entry)
+    return " ".join(match.group("title").split()) if match else ""
 
 
 def read_records(text: str) -> list[Record]:
@@ -1244,8 +1442,9 @@ def prescription_findings(
 ) -> list[Finding]:
     """#289's rows: the draft's prescriptions against the ledger.
 
-    The only grader here that reads anything but the ledger, and the only one
-    with an **expected set** -- which is the gap the ticket is about.
+    One of the two graders here that read anything but the ledger -- #298's
+    ``evidence_findings`` is the other -- and **the only one with an expected
+    set** -- which is the gap the ticket is about.
     ``research_ledger`` has no expected count of its own and says so, so a dose
     nobody entered as a claim is invisible to every other row in this module.
     ``checks_ledger.py``'s arrangement, with the set derived from the document
@@ -1290,11 +1489,78 @@ def prescription_findings(
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
 
 
+def evidence_findings(
+    records: list[Record],
+    entries: tuple[str, ...],
+    carried: set[str],
+) -> tuple[list[Finding], int]:
+    """#298's row: an UpToDate topic the run cites that the dump does not carry.
+
+    **The topics the dump merely refers to and does not carry are not graded**,
+    and that is the ruling rather than an omission. The overwhelming majority of
+    the real dump's cross-references are exactly that, which is the ordinary case
+    the ticket's own *What must not come out of this* forbids firing on, and their
+    reference counts decay smoothly with no plateau -- so any cut is a value named
+    at an edge, which is ``SPACE_ADVANCE_FRACTION``'s recorded failure and #97's
+    objection. **The figures are #298's to state**, being counted against a file
+    under ``scratch/`` that nothing committed re-derives. What is graded is the
+    **join**: the dump is the whole of what the clinician handed over, so an
+    UpToDate topic cited and absent from it is one nobody read.
+
+    **No escape hatch, ruled 2026-08-20.** If an UpToDate topic is worth citing
+    it goes in the dump, and the remedy is one paste.
+
+    Reads the ledger's ``REFERENCE`` fields and the draft's entries where
+    ``--draft`` named one. **One finding per topic and not per citation** -- the
+    row is about a topic nobody read, so two records naming the same missing one
+    is one thing wrong.
+    """
+    keys = {normalize(title) for title in carried}
+    found: list[Finding] = []
+    seen: set[str] = set()
+    read = 0
+    cited = [(record.claim, record.value("REFERENCE")) for record in records]
+    cited += [(DRAFT_LIST, entry) for entry in entries]
+    for claim, entry in cited:
+        title = uptodate_topic(entry)
+        key = normalize(title)
+        if not key:
+            # An entry this cannot read but whose locator says it was meant to be
+            # an UpToDate topic. It is counted and reported rather than dropped:
+            # dropping it took the topic out of the join **and** out of the
+            # population row, so four characters removed from an entry walked
+            # around a row that has no escape hatch, with nothing red anywhere --
+            # ``reference_scan`` does not reach it either.
+            if UPTODATE_LOCATOR.search(entry):
+                read += 1
+                found.append(
+                    Finding(
+                        UNREADABLE_UPTODATE_ENTRY,
+                        claim,
+                        "the locator names an UpToDate topic and the entry states"
+                        " no database element, so no title could be read",
+                    )
+                )
+            continue
+        # Counted before the join and before the de-duplication, because this is
+        # the row's **population**: what it read, not what it failed. Derived from
+        # the one walk rather than counted a second time, so the figure and the
+        # findings cannot come to disagree about what was scanned.
+        read += 1
+        if key in keys or key in seen:
+            continue
+        seen.add(key)
+        found.append(Finding(CITED_TOPIC_NOT_IN_EVIDENCE, claim, title))
+    return sorted(found, key=lambda f: _KIND_ORDER[f.kind]), read
+
+
 def survey(
     records: list[Record],
     as_of: date | None,
     prescriptions: list[Prescription] | None = None,
     half_anchored: int = 0,
+    carried: set[str] | None = None,
+    entries: tuple[str, ...] = (),
 ) -> Scan:
     """Count across one ledger.
 
@@ -1307,7 +1573,19 @@ def survey(
     # they are their own group rather than one more row of a record, and
     # ``--show`` and the count column have to agree about the order.
     on_the_draft = prescription_findings(prescriptions or [], records)
-    found = on_the_draft + [f for _, per_record in graded for f in per_record]
+    # The evidence row leads, on the prescription rows' reasoning: it is its
+    # own group rather than one more row of a record, and ``--show`` and the
+    # count column have to agree about the order.
+    on_the_evidence, uptodate_read = (
+        ([], None)
+        if carried is None
+        else evidence_findings(records, entries, carried)
+    )
+    found = (
+        on_the_evidence
+        + on_the_draft
+        + [f for _, per_record in graded for f in per_record]
+    )
     sourced = [r for r in records if r.status == SOURCED]
     return Scan(
         as_of=as_of,
@@ -1334,6 +1612,9 @@ def survey(
         continued_home=sum(1 for rx in prescriptions or [] if rx.exempt),
         half_anchored=half_anchored,
         prescriptions_at_fault=len(on_the_draft),
+        evidence_topics=None if carried is None else len(carried),
+        uptodate_citations=uptodate_read,
+        evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
     )
 
@@ -1383,6 +1664,23 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines.append(
             f"    tables read with one anchor    {scan.half_anchored}  (not graded)"
         )
+    # The population this row joined against, on #258's ruling and for its
+    # reason: a reader who has learned to read the qualifier takes its absence as
+    # the stronger claim, so the run that graded no citation says so on the same
+    # page as its clean exit.
+    if scan.evidence_topics is None:
+        lines.append(
+            f"  {'evidence topics carried':<32} not graded - no --evidence was given"
+        )
+        lines.append(
+            f"  {'UpToDate citations read':<32} not graded - no --evidence was given"
+        )
+    else:
+        lines.append(f"  {'evidence topics carried':<32} {scan.evidence_topics}")
+        # What the row read, beside what it read against. Both, because either
+        # alone reads as the stronger claim: a count of topics carried says
+        # nothing about whether a single citation was joined to them.
+        lines.append(f"  {'UpToDate citations read':<32} {scan.uptodate_citations}")
     lines.append("")
     for kind, count in scan.counts:
         # Wide enough for the longest kind, so the count column stays a column.
@@ -1391,17 +1689,21 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # be pasted into a ticket.
         # A #289 row that did not run prints as such rather than as a zero,
         # for the reason ``Scan.prescriptions`` is not an ``int``.
-        shown = (
-            "not graded"
-            if scan.prescriptions is None and kind in DRAFT_ROWS
-            else count
-        )
+        shown = count
+        if scan.prescriptions is None and kind in DRAFT_ROWS:
+            shown = "not graded"
+        if scan.evidence_topics is None and kind in EVIDENCE_ROWS:
+            shown = "not graded"
         lines.append(f"  {ROW_TICKET[kind]} - {kind:<31} {shown}")
     lines.append("")
     lines.append(f"  records at fault                 {scan.failing_records}")
     if scan.prescriptions is not None:
         lines.append(
             f"  prescriptions at fault           {scan.prescriptions_at_fault}"
+        )
+    if scan.evidence_topics is not None:
+        lines.append(
+            f"  cited topics not handed over     {scan.evidence_at_fault}"
         )
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
@@ -1412,11 +1714,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 
 # One string, so the usage line and the flags cannot drift apart.
-USAGE = "usage: research_ledger.py <a ledger file> [--draft <a draft .md>] [--show]"
+USAGE = (
+    "usage: research_ledger.py <a ledger file> [--draft <a draft .md>]"
+    " [--evidence <the evidence dump>] [--show]"
+)
 
 
-def read_arguments(argv: list[str]) -> tuple[list[str], str | None, bool]:
-    """The positional arguments, the ``--draft`` path and ``--show``.
+def read_arguments(argv: list[str]) -> tuple[list[str], str | None, str | None, bool]:
+    """The positional arguments, the ``--draft`` and ``--evidence`` paths and ``--show``.
 
     Hand-parsed rather than through ``argparse`` on the directory's precedent,
     and split out of ``main`` because ``--draft`` takes a value: the one-line
@@ -1427,6 +1732,7 @@ def read_arguments(argv: list[str]) -> tuple[list[str], str | None, bool]:
     """
     positional: list[str] = []
     draft: str | None = None
+    evidence: str | None = None
     show = False
     index = 0
     while index < len(argv):
@@ -1447,16 +1753,27 @@ def read_arguments(argv: list[str]) -> tuple[list[str], str | None, bool]:
                 index += 1
         elif argument.startswith("--draft="):
             draft = argument.split("=", 1)[1]
+        elif argument == "--evidence":
+            # ``--draft``'s recorded defect, and the same repair: a following flag
+            # is a missing value and not a path.
+            following = argv[index + 1] if index + 1 < len(argv) else ""
+            if following.startswith("--"):
+                evidence = ""
+            else:
+                evidence = following
+                index += 1
+        elif argument.startswith("--evidence="):
+            evidence = argument.split("=", 1)[1]
         elif not argument.startswith("--"):
             positional.append(argument)
         index += 1
-    return positional, draft, show
+    return positional, draft, evidence, show
 
 
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    args, draft, show = read_arguments(argv)
-    if not args or draft == "":
+    args, draft, evidence, show = read_arguments(argv)
+    if not args or draft == "" or evidence == "":
         print(USAGE, file=sys.stderr)
         return 2
     path = Path(args[0])
@@ -1471,6 +1788,7 @@ def main(argv: list[str]) -> int:
         return 2
     prescriptions: list[Prescription] | None = None
     half_anchored = 0
+    draft_text = ""
     if draft is not None:
         draft_path = Path(draft)
         if not draft_path.is_file():
@@ -1479,10 +1797,53 @@ def main(argv: list[str]) -> int:
         draft_text = draft_path.read_text(encoding="utf-8", errors="replace")
         prescriptions = read_prescriptions(draft_text)
         half_anchored = half_anchored_tables(draft_text)
+    carried: set[str] | None = None
+    entries: tuple[str, ...] = ()
+    evidence_unreadable = False
+    if evidence is not None:
+        evidence_path = Path(evidence)
+        if not evidence_path.is_file():
+            print(f"no evidence file named {evidence_path.name}", file=sys.stderr)
+            return 2
+        found = carried_topics(
+            evidence_path.read_text(encoding="utf-8", errors="replace")
+        )
+        # **A dump this parser cannot read leaves the row ungraded and does not
+        # end the run.** It carries no topic to join against, so grading the row
+        # would fire it on *every* UpToDate citation at once -- which is why
+        # ``carried`` stays ``None`` here and the row prints *not graded*. But the
+        # status is deferred to the tail rather than returned now, because
+        # returning 2 here suppressed every #214, #215, #231 and #289 finding in
+        # the ledger and printed no report at all. That is the defect ``CLAUDE.md``
+        # records against ``tracker_scan.py`` -- *"returning 2 before scanning at
+        # all, so a real hit was suppressed and reported as did not scan"* --
+        # reproduced in the one function whose own docstring cites the ordering it
+        # broke. Found by the spec axis of ``/code-review``.
+        evidence_unreadable = not found
+        if found:
+            carried = found
+        if carried is not None and draft is not None:
+            # ``draft_text`` and not a second read of the same path: a file read
+            # twice in one function is two chances to disagree about what the
+            # draft says, and the second read here also re-derived ``Path(draft)``
+            # where ``draft_path`` was already in hand.
+            entries = tuple(
+                entry.text for entry in read_document(draft_text).entries
+            )
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
-    scan = survey(records, as_of, prescriptions, half_anchored)
+    scan = survey(records, as_of, prescriptions, half_anchored, carried, entries)
     print(format_report(scan, source=path.name, show=show))
+    if evidence_unreadable:
+        # Beside the other banners rather than in place of the report, so an
+        # exit 1 below reads as a floor: this says one row did not run, never
+        # that nothing was graded.
+        print(
+            f"no topic body found in {Path(evidence).name} - a body is read by its"
+            " Authors: masthead, so #298's row was applied to nothing. Every other"
+            " row still ran.",
+            file=sys.stderr,
+        )
     if as_of is None:
         # Printed whichever status follows, so an exit 1 below reads as a floor
         # rather than as the whole of what is wrong.
@@ -1505,7 +1866,7 @@ def main(argv: list[str]) -> int:
             " Disp: and Sig: rows, so none of #289's rows was applied to it.",
             file=sys.stderr,
         )
-    if scan.failing_records or scan.prescriptions_at_fault:
+    if scan.failing_records or scan.prescriptions_at_fault or scan.evidence_at_fault:
         # 1 outranks both not-scanned limbs, on ``differential_scan.py``'s
         # ordering: returning 2 would file the strongest thing known about this
         # ledger under the weakest heading.
@@ -1522,8 +1883,18 @@ def main(argv: list[str]) -> int:
                 " that output.",
                 file=sys.stderr,
             )
+        if scan.evidence_at_fault:
+            print(
+                f"{scan.evidence_at_fault} UpToDate topic(s) cited here are not in the"
+                " evidence dump, so nobody read them. Paste the topic in and re-run,"
+                " or drop the citation. Re-run with --show to see which, and do not"
+                " paste that output.",
+                file=sys.stderr,
+            )
         return 1
     if as_of is None:
+        return 2
+    if evidence_unreadable:
         return 2
     return 2 if prescriptions is not None and not prescriptions else 0
 

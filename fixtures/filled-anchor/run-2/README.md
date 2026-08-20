@@ -16,7 +16,7 @@ Run 1 lived in `scratch/filled-anchor-run-1/` with the four graders that scored 
 
 **It is not a reference and it is not correct output.** It is what the skill did on one day at one commit. Where a worksheet is wrong, that is a fact about the run, and the rows in [assertions.md](../assertions.md) are what decide which parts were graded at all.
 
-**Most of it is ungraded.** ANCHOR, C5 and R2 were scored. C1 through C4 were not re-run for their own sake — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124) says why — so 214 for-entry codes carry descriptors that **no row in this repo has checked against the release**. Every generating pass reports having looked each one up; that is a self-report, and [ADR 0001](../../../docs/adr/0001-fixture-asserts-on-named-findings.md) is the standing objection to treating one as evidence.
+**Most of it is ungraded.** ANCHOR, C5, F1 and R2 were scored. F1 was targeted-scored from this committed run on 2026-08-20; step 4's refusal rule already governed the output when it was produced. C1 through C4 were not re-run for their own sake — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124) says why — so 214 for-entry codes carry descriptors that **no row in this repo has checked against the release**. Every generating pass reports having looked each one up; that is a self-report, and [ADR 0001](../../../docs/adr/0001-fixture-asserts-on-named-findings.md) is the standing objection to treating one as evidence.
 
 ## The commit this belongs to
 
@@ -51,10 +51,13 @@ Twelve independent generating passes, one per case, each given `skills/icd10-cpt
 | codes carrying `SOURCE: filled` | 29 | `anchor_scan` |
 | codes listed under `CODED, ANCHOR WAS FILLED` | 29 | `anchor_scan` |
 | `SPECIFICITY` flags | 200 | `specificity_scan` |
+| worksheets carrying `NOT CODED, NOTHING ESTABLISHED IT` | 12 | `refusal_scan` |
+| refusal records inside that block | 52 | `refusal_scan` |
 
 ```bash
 python tools/anchor_scan.py fixtures/filled-anchor/run-2
 python tools/specificity_scan.py fixtures/filled-anchor/run-2
+python tools/refusal_scan.py fixtures/filled-anchor/run-2
 ```
 
 ```bash
@@ -64,15 +67,15 @@ grep -hcE 'NOT FOR ENTRY[ \t]*$' fixtures/filled-anchor/run-2/case-*.md
 
 **The two halves reconcile exactly and that is the check**, not decoration: 297 entry lines less the 87 ending in `NOT FOR ENTRY` is 210, which is what `anchor_scan` counts independently by parsing rather than by subtracting. **The count is also what tells the two code shapes apart** — five parts or six for entry, three for a differential — so a run whose totals stopped reconciling would have broken C4 as well.
 
-**The four `anchor_scan` figures are pinned by `tools/test_anchor_scan.py`**, so editing a worksheet fails a test rather than quietly voiding this table. That is `test_spelling_scan.py`'s arrangement over [notes/](../notes/), arriving at the run beside it.
+**The four `anchor_scan` figures are pinned by `tools/test_anchor_scan.py`, and the two refusal figures by `tools/test_refusal_scan.py`**, so editing a worksheet fails a test rather than quietly voiding this table. The latter also pins the per-case vector — 6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7 — because an aggregate 52 can stay unchanged while one case gains a record and another silently drops one. That is `test_spelling_scan.py`'s arrangement over [notes/](../notes/), arriving at the run beside it.
 
 **Two of these figures read 214 and 83 when this file was first written, and how they were wrong is worth more than the correction.** Four differential entries carry a descriptor too long for one line — `K27.9 Peptic ulcer, site unspecified, unspecified as acute or chronic, without hemorrhage or perforation` is 96 characters — so `NOT FOR ENTRY` lands on the **continuation line**. `anchor_scan` tested the code's own physical line, read all four as proposed for entry, and published a figure four short. **The full suite was green over the wrong number**, because the test pinned the parser's answer and the parser was what was wrong.
 
 **That is [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70)'s open question answered from the wrong direction.** It asks whether mandating a per-entry marker collapses the ambiguity into a formatting rule. `icd10-cpt` does mandate one, for the reason #70 gives — *a block heading does not survive being copied one line at a time* — and 297 entries across twelve independent passes show it works: `specificity_scan` reports **zero** flags on a `NOT FOR ENTRY` line, so nothing crossed the boundary. **What the mandate did not do is remove the ambiguity. It moved it from *what is an entry* down to *what is a line*,** where it is smaller, rarer, and still there. Found by a reader sweeping the tracker, not by any of the 820 tests.
 
-Both print counts only and both are safe to paste. **Their `--show` output is PHI on the same terms as every other scanner here** — read it, do not paste it — and that holds even though these twelve are committed, because the habit is what protects the run directories that are not.
+All three print counts only and are safe to paste. **Their `--show` output is PHI on the same terms as every other scanner here** — read it, do not paste it — and that holds even though these twelve are committed, because the habit is what protects the run directories that are not.
 
-**Both exit 0 on this directory.** `anchor_scan` reporting 29 against 29 is the mechanical half of A1, A2 and A5; `specificity_scan` reporting zero faults over 200 flags is **C5**, whole. Neither is a walked row: what `anchor_scan` cannot see is whether the *right* codes were marked, which needs the note beside the worksheet, and that reading is in [assertions.md](../assertions.md).
+**All three exit 0 on this directory.** `anchor_scan` reporting 29 against 29 is the mechanical half of A1, A2 and A5; `specificity_scan` reporting zero faults over 200 flags is **C5**, whole; `refusal_scan` reporting 52 structurally complete records across twelve blocks is F1's mechanical half. A clean refusal scan is not F1 by itself: the row also compares the printed per-case vector, which is what makes a silent drop visible. It verifies that descriptor text is present, not that the text is official; that remains ungraded with C2. And `anchor_scan` still cannot see whether the *right* codes were marked, which needs the note beside the worksheet; that reading is in [assertions.md](../assertions.md).
 
 **Case 4 is worth opening first if you are here to check the tooling.** Its step-4 filled block is empty — correctly, since both its inputs are given — and it says so in a sentence that names `E66.3` and `Z68.25` **inside the block**. That is the prose hazard [assertions.md](../assertions.md) predicted under *Still unresolved*, arriving unprompted on the first run after it was written down. A substring grader reports two codes routed there; `anchor_scan` reads the block's own `<code> - <value>` line format and reports none, which is the reason it was built that way.
 

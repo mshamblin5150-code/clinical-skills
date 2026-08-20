@@ -209,6 +209,29 @@ def case(directory: Path, number: int) -> str:
 OBESITY_BMI_SHORTHAND = REPO_ROOT / "fixtures" / "obesity-bmi" / "shorthand"
 
 
+def table_cell(path: Path, row_label: str, heading: str) -> str:
+    """Return one named cell from a Markdown table row."""
+    column = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if heading in cells:
+            column = cells.index(heading)
+            continue
+        if cells and cells[0] == row_label:
+            if column is None:
+                raise AssertionError(
+                    f"{path.name} row {row_label} sits under no {heading!r} header"
+                )
+            if len(cells) <= column:
+                raise AssertionError(
+                    f"{path.name} row {row_label} has no {heading!r} column"
+                )
+            return cells[column]
+    raise AssertionError(f"{path.name} carries no table row labeled {row_label}")
+
+
 def all_fixture_shorthand():
     """Every committed shorthand input, read off the tree rather than listed.
 
@@ -1252,7 +1275,7 @@ class HedgedDiagnosis(unittest.TestCase):
         No committed fixture carries it and the corpus cannot be audited from
         every clone, so an alternative matched by nothing is one nothing can
         catch going wrong -- the reasoning ``SLEEP_APNEA`` already carries for
-        ``apnoea``. This is the line to change if the form turns up.
+        the British apnea variant. This is the line to change if the form turns up.
         """
         self.assertFalse(cc.has_hedge("?fx right wrist"))
 
@@ -2353,27 +2376,7 @@ class Row15AndB9StateOneRule(unittest.TestCase):
         several, and one shared index across all of them is the same guess in a
         cheaper disguise.
         """
-        column = None
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.startswith("|"):
-                continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if self.RULE_HEADING in cells:
-                column = cells.index(self.RULE_HEADING)
-                continue
-            if cells and cells[0] == row_label:
-                self.assertIsNotNone(
-                    column,
-                    f"{path.name} row {row_label} sits under no "
-                    f"{self.RULE_HEADING!r} header",
-                )
-                self.assertGreater(
-                    len(cells),
-                    column,
-                    f"{path.name} row {row_label} has no rule column",
-                )
-                return cells[column]
-        self.fail(f"{path.name} carries no table row labeled {row_label}")
+        return table_cell(path, row_label, self.RULE_HEADING)
 
     def rows(self):
         return (
@@ -2598,6 +2601,83 @@ class ObesityBmiIsTheDocumentedObesitySet(unittest.TestCase):
             int(p.stem.split("-")[1]) for p in sorted(self.OBESITY_BMI.glob("case-*.md"))
         ]
         self.assertEqual(numbers, sorted(self.ANCHORS + self.CONTROLS))
+
+
+class FilledZeroRulingIsFixtured(unittest.TestCase):
+    """Issue #138's two limbs, scored against the committed blind-run output."""
+
+    ASSERTIONS = REPO_ROOT / "fixtures" / "obesity-bmi" / "assertions.md"
+    BLIND_RUN = REPO_ROOT / "fixtures" / "blind-run"
+    CATALOG = REPO_ROOT / "fixtures" / "README.md"
+    CONFIRMED_CASES = (3,)
+
+    def shorthand(self, number: int) -> str:
+        return case(OBESITY_BMI_SHORTHAND, number)
+
+    def severity_fill(self, number: int) -> str:
+        output = (
+            self.BLIND_RUN / f"obesity-bmi-case-{number:02d}.md"
+        ).read_text(encoding="utf-8")
+        start = output.index("FILLED·asserted   SEVERITY 0/10")
+        end = output.find("\nFILLED·asserted", start + 1)
+        return output[start:] if end == -1 else output[start:end]
+
+    def test_the_inputs_leave_the_severity_to_fill(self):
+        for number in self.CONFIRMED_CASES:
+            with self.subTest(case=number):
+                shorthand = self.shorthand(number)
+                self.assertFalse(cc.has_pain_score(shorthand))
+                self.assertNotRegex(shorthand, NO_PAIN)
+
+    def test_o6_states_both_halves_of_the_value_ruling(self):
+        self.assertEqual(table_cell(self.ASSERTIONS, "O6", "Cases"), "3")
+        passes = table_cell(self.ASSERTIONS, "O6", "Passes when")
+        fails = table_cell(self.ASSERTIONS, "O6", "Fails when")
+        for clause in (
+            "The filled `0/10` itself is not a failure",
+            "creates no Plan obligation and discharges none",
+            "`PASS`, 2026-08-20, on `733a396`",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, passes)
+        self.assertIn("clinician confirmed", passes)
+        self.assertIn("The zero itself is rejected", fails)
+
+    def test_o7_states_the_search_and_closes_the_no_anchor_exit(self):
+        self.assertEqual(table_cell(self.ASSERTIONS, "O7", "Cases"), "3")
+        passes = table_cell(self.ASSERTIONS, "O7", "Passes when")
+        fails = table_cell(self.ASSERTIONS, "O7", "Fails when")
+        for clause in (
+            "names the search",
+            "what was read in the complaint and the exam",
+            "neither held a pain source",
+            "`PASS`, 2026-08-20, on `733a396`",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, passes)
+        self.assertIn("drift row 19's no-anchor exit", fails)
+
+    def test_each_scored_output_fills_zero_after_a_negative_search(self):
+        for number in self.CONFIRMED_CASES:
+            with self.subTest(case=number):
+                disclosure = self.severity_fill(number)
+                self.assertRegex(
+                    disclosure,
+                    r"Read the\s+complaint and the\s+exam(?:ination)?",
+                )
+                self.assertIn("pain source", disclosure)
+                self.assertRegex(disclosure, r"Nothing in the encounter\s+documents pain")
+                self.assertNotRegex(disclosure, r"(?i)no anchor")
+
+    def test_the_catalog_does_not_restate_targeted_scores_as_a_run(self):
+        entry = next(
+            line
+            for line in self.CATALOG.read_text(encoding="utf-8").splitlines()
+            if "[obesity-bmi]" in line
+        )
+        self.assertIn("never run", entry)
+        self.assertIn("O6 and O7", entry)
+        self.assertIn("targeted", entry)
 
 
 class SocialSlotsSplitTwoWays(unittest.TestCase):
@@ -3271,16 +3351,18 @@ class PpdIsPacksPerDayByShape(unittest.TestCase):
         Neither assertion moved, because the *right* reason was always the other
         one. This population is the encounters where the token is **ambiguous**
         -- a bare ``ppd`` that might be a purified protein derivative. A digit
-        welded to it is not ambiguous, since nobody writes a count in front of a
-        tuberculin test, so a welded form was never a candidate for the wrong
-        sense and does not belong in the denominator #78 was ruled on.
+        welded to it is not ambiguous, so a welded form was never a candidate for
+        the wrong sense and does not belong in the denominator #78 was ruled on.
 
-        **This is a reading and it is the conservative one**, stated here rather
-        than left implicit. Widening ``writes_bare_ppd`` with the slot is the
-        other option, and it would move figures the clinician ruled on
-        2026-08-16 -- ``with_bare_ppd`` and both shape counters. Leaving it
-        narrow moves none of them. If the wider population is wanted, that is a
-        change to #78 and not to #146, and it needs the person who closed it.
+        **That was the conservative reading when it was written and it is the
+        ruled one now.** The clinician settled #146 on 2026-08-20: a welded
+        ``1ppd`` is the spaced form mistyped and means one pack per day. A string
+        whose meaning is *settled* cannot be a candidate for the wrong sense, so
+        the narrow population is no longer a choice this test is making on
+        anyone's behalf -- it is what the ruling implies. Widening
+        ``writes_bare_ppd`` would put a decided token into a denominator that
+        exists to count undecided ones, and would move ``with_bare_ppd`` and both
+        shape counters for nothing.
         """
         self.assertFalse(cc.writes_bare_ppd("1ppd x 24 yrs"))
         self.assertTrue(cc.writes_bare_ppd("1 ppd x 24 yrs"))

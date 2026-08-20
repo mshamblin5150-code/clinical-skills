@@ -262,9 +262,16 @@ correct claim for being old.
 with old, and the two are not the same thing:
 
 - **A society guideline is dated by the guideline, not by what it cites.** A current IDSA or KDIGO
-  document resting on a 2011 trial is a current source. `reference/guidelines-catalog.md` spans 2009
-  to 2026 and every document in it is in force — a rule that refused a 2013 KDIGO threshold on its
-  date would refuse *the* threshold, not an outdated one.
+  document resting on a 2011 trial is a current source — a rule that refused a 2013 KDIGO threshold
+  on its date would refuse *the* threshold, not an outdated one.
+- **Catalog membership is not standing**, and this rule shipped citing it as though it were.
+  `reference/guidelines-catalog.md`'s own legend names rows it declines to call in-force
+  guidelines — go and read them there rather than from here, because which rows those are is a
+  curation and this file cannot follow one. The catalog settles what a document *is* and never
+  whether it stands, so `guideline in force` is a reading of the document in front of the run and
+  never a fact read off a row. `clinical-note` already refuses to read a document's *content* off
+  a row; standing is the same refusal one axis over. Nothing grades that reading, which is what
+  makes it worth saying.
 - **Where nothing newer exists, the older source is the evidence.** The run must have looked, must
   say in the `PROPOSED` block that it looked, and the sentence carrying the citation says the
   evidence is the most recent available on that point. The citation's age stays visible.
@@ -588,8 +595,8 @@ can be several of them at once:
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
 
-**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, and they are
-the only ones here that read anything but the ledger:
+**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, which read
+the draft as well as the ledger the way #298's row below reads the evidence dump:
 
 ```bash
 python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
@@ -623,6 +630,48 @@ either**: when it was ruled, the only run in the tree predated the rows above it
 prescriptions reached no claim record at all, so there was not one drug-row-and-record pair anywhere
 to measure a string test against. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
 precedent is that a cut point is grounded where the corpus offers one and refused where it does not.
+
+**And grade what the run says it read against what you were actually handed** -- #298's row,
+ruled by the clinician 2026-08-20:
+
+```bash
+python tools/research_ledger.py scratch/case-study-claims.md --evidence <the evidence dump>
+```
+
+| The citation | Why |
+| --- | --- |
+| an UpToDate topic cited here that the evidence dump does not carry | UpToDate is subscription-gated, so a topic you were not handed is one nobody opened, and citing it is the Module 1 defect exactly |
+| an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
+
+**The grounding is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)'s and it
+is what scopes the row.** A fetch of an UpToDate topic reaches a login wall rather than the page, so
+there is no reading of one outside the dump -- the dump is the whole of what the clinician handed
+over, and he hands topics over wholesale. **A journal article, a society guideline or a government
+page the dump lacks is left alone**, because that is this step's ordinary case: a claim record only
+exists because the evidence did *not* cover the claim, and a row firing on those would refuse the
+correct outcome.
+
+**A topic the dump merely *refers* to and does not carry is not a defect and is not graded.** The
+dump cross-references far more topics than it carries -- by better than an order of magnitude in the
+one this was measured on -- and the great majority will never be cited. Firing on those would fire on almost every case
+study, which is the rate at which a warning stops being read.
+
+**There is no escape hatch, and that is the ruling rather than an oversight.** If an UpToDate topic
+is worth citing it goes in the dump, and the remedy for a finding is one paste. **The second row is
+what keeps that true**: the first reads a topic only from the `UpToDate.` element APA gives it, so an
+entry that drops that element was invisible to the check *and* to the count of what the check read --
+four characters, and a citation walks around a row with no hatch. So an entry this cannot read is a
+finding, never a citation dropped from the set in silence. **Without
+`--evidence` the row does not run and the report prints `not graded` against it rather than `0`**,
+on the same reasoning as the prescription rows above. **An evidence file carrying no topic body at
+all is exit 2**, because a dump this cannot read would otherwise fire the row on every UpToDate
+citation in the ledger -- a mass false finding rather than a scan.
+
+**What it cannot reach is a claim that rested on a missing topic without citing it.** The join is on
+a citation, so a threshold, a screening interval or a discriminator taken from a topic nobody read
+and written without a reference is invisible here and to every other row --
+[#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298). **A clean scan is not a
+sourced document.**
 
 **Then grade it, and do not draft until it is clean:**
 
