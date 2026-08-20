@@ -603,6 +603,79 @@ class TheSkeletonIsTheSkillsOwn(unittest.TestCase):
         self.assertIn("SKELETON DISAGREEMENT", scan.format_report(result, "draft.md"))
 
 
+class SplittingADrugRowOnAndIsRefusedHere(unittest.TestCase):
+    """Why ``no-stop-criterion`` reads one table cell as one order, re-derived in
+    the suite a ``case_study_scan`` author runs.
+
+    [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300) was
+    ruled a **reading** on 2026-08-20 -- the welded row goes to
+    ``skills/practicum-case-study/SKILL.md`` step 9's ``the Rx blocks`` reader and
+    no parser here moved. **The sibling measurement lives in
+    ``test_research_ledger`` and a green run there is not one here**, which is the
+    gap this class closes: the refusal was written as a comment at the grading
+    site, and a comment fails nothing --
+    [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220).
+
+    **The counterexample that comment cited did not demonstrate the refusal, and
+    that was found by running the string rather than by reading it.**
+    ``metronidazole 500 mg PO TID and hold if the creatinine rises`` states a
+    frequency and no endpoint this row recognizes, so it fires **whole** -- split
+    or unsplit the verdict is identical, and the example proved nothing about
+    splitting. ``block_scan.py``'s and ``threshold_sheet.py``'s lesson a further
+    time. The order below is the property the refusal actually rests on: clean
+    whole, and a false alarm once split.
+    """
+
+    ORDER = "metronidazole 500 mg PO TID and continue until the abscess resolves"
+    THE_ONE_THAT_PROVED_NOTHING = "metronidazole 500 mg PO TID and hold if the creatinine rises"
+
+    @staticmethod
+    def fires(order: str) -> bool:
+        """``no-stop-criterion``'s own test, read off the module rather than
+        restated -- a copy of the rule here could pass while the row failed."""
+        return bool(scan.RECURRING.search(order)) and not scan.ENDPOINT.search(order)
+
+    def test_the_order_is_clean_whole(self):
+        self.assertFalse(self.fires(self.ORDER))
+
+    def test_splitting_it_on_and_fires_the_row_on_a_correct_order(self):
+        """One correct order becomes two fragments and the first states no
+        endpoint, which is a false alarm on a correct order --
+        [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s
+        outcome, and the ground the split is refused on."""
+        self.assertTrue(self.fires(self.ORDER.split(" and ")[0]))
+
+    def test_the_retired_counterexample_fires_either_way(self):
+        """Stated as a passing assertion so it cannot be mistaken for an
+        oversight: the string the comment used to cite is a finding whole, so it
+        could never have shown what splitting costs."""
+        self.assertTrue(self.fires(self.THE_ONE_THAT_PROVED_NOTHING))
+        self.assertTrue(self.fires(self.THE_ONE_THAT_PROVED_NOTHING.split(" and ")[0]))
+
+    def module_prose(self) -> str:
+        """The module with its comment markers stripped, so a wrapped comment is
+        searchable -- ``test_run_record_claim``'s finding, which a raw substring
+        search over ``#``-prefixed continuation lines walks straight past."""
+        lines = [
+            re.sub(r"^\s*#\s?", "", line)
+            for line in Path(scan.__file__).read_text(encoding="utf-8").splitlines()
+        ]
+        return " ".join(" ".join(lines).split()).lower()
+
+    def test_the_grading_site_names_the_order_this_class_measures(self):
+        """So the comment and the measurement cannot drift apart, which is the
+        whole reason this class exists rather than a sentence."""
+        self.assertIn(self.ORDER.lower(), self.module_prose())
+
+    def test_the_declaration_is_still_the_one_the_skill_names(self):
+        """The row stays declared -- #300 changed what a reader is asked, and
+        changed nothing about what this command reaches."""
+        self.assertIn(
+            "a second drug welded into one drug row, discharged by the first drug's endpoint",
+            scan.NOT_REACHED,
+        )
+
+
 class TheSkillSaysWhatThisCannotDo(unittest.TestCase):
     """``NOT_REACHED`` and the step that names the same items are one list.
 
