@@ -21,7 +21,7 @@ from __future__ import annotations
 import io
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import block_scan
@@ -406,6 +406,14 @@ class TheExitStatusSaysWhichKindOfNothing(unittest.TestCase):
     def test_an_empty_directory_exits_two(self) -> None:
         with write_run({}) as run:
             self.assertEqual(block_scan.main([run]), 2)
+
+    def test_a_mistyped_flag_is_refused(self) -> None:
+        with write_run({"case-01.md": CLEAN}) as run:
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                status = block_scan.main([run, "--shwo"])
+        self.assertEqual(status, 2)
+        self.assertIn("unrecognized option --shwo", stderr.getvalue())
 
     def test_notes_carrying_no_block_at_all_exits_two(self) -> None:
         """Not having scanned, distinguished from having found nothing.
