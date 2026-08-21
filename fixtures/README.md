@@ -135,6 +135,16 @@ The section above says which counted rows are **promotable**: the ones counted f
 
 Re-run after every `SKILL.md` edit. That is the entire point: a measurable delta instead of a judgment call.
 
+### Isolate output, then check the completed run
+
+**A fixture fan-out follows [standing rule 6](../AGENTS.md): one private output directory per generating pass.** A worktree is not the boundary — sibling subagents share it — so the orchestrator creates a new run-unique directory for each pass before spawning anything. A pass receives only its own path, writes only there, and cannot read a sibling's path. The same rule applies to an output root outside every checkout: it is unique to this run rather than a fixed shared path. Parallel passes never append to one ledger or write into one directory; when their records belong in one file, they return the records and the orchestrator writes that file alone.
+
+**The generating pass does not run a scanner over its own output.** It returns the artifact before seeing any per-file or set-level result. After every generating pass has finished, the orchestrator gathers the artifacts into the completed run and gives that state to a fresh, non-authoring checking pass. That pass runs both the per-file checks and the whole-set checks: a set of one cannot expose a cross-note row, while a scan taken before the last writer finishes measures a directory that never becomes the delivered run.
+
+**A finding is recorded before correction.** The orchestrator may then return the named finding to the original author for a correction, but the first result remains in the run record and a fresh non-authoring pass checks the corrected artifact again. The author never edits toward a scanner it ran itself, and a self-report never replaces the independent read.
+
+**Every private path is single-use and is removed when the run ends.** After the final artifacts are safely written and checked, delete the generating directories. An aborted run cleans them before exit too. If cleanup fails, report the exact remaining path so patient material and stale output do not become an invisible input to a later run. Never reuse a prior run's path. Issue [#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206).
+
 ### Keep required instructions blind
 
 **Every file a generating pass must read is part of its prompt, whether or not the runner opened anything under `fixtures/`.** Required instructions may link to this general policy, but they never name a concrete fixture set, input, case, run, assertion row, score or set-derived count. They never quote or paraphrase a fixture input, output or verdict. Put that evidence in the set's withheld `assertions.md` or README, or in the issue that records the ruling.

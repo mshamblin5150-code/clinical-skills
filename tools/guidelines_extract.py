@@ -530,13 +530,14 @@ LOCAL_SPACING_BASELINE_FONTS = frozenset({"Nunito-Regular"})
 # difference noise cannot manufacture, which is the only direction it was trusted
 # in. Filed rather than folded in: settling it needs a *per document* decoding.
 #
-# **Two more mis-encodings are deliberately not here, on the narrower ground.**
-# `AdvPSSym` renders the copyright sign as U+00AA; `SymbolMT` renders an up arrow
-# as `n` and a down arrow as `p` in one KDIGO figure; `Universal-GreekwithMathP`
-# renders an equals sign in a deleted C0 slot. None is a character a threshold is
-# written with, which is the boundary of what this table may claim, and mapping a
-# *letter* would mean a font name that is ever wrong corrupts prose rather than
-# one symbol. All of them stay visible in `symbol_glyph_census`.
+# **#283's named font-glyph cases are deliberately not here.** `AdvPSSym`
+# renders a copyright sign; `SymbolMT` renders an up arrow as `n` and a down
+# arrow as `p` in a KDIGO figure; `Universal-GreekwithMathP` renders an equals
+# sign in a deleted C0 slot. Ruled 2026-08-20: these remain report-only. None is
+# a character a threshold is written with, which is the boundary of what this
+# table may claim, and mapping a *letter* would mean a font name that is ever
+# wrong corrupts prose rather than one symbol. All of them stay visible in
+# `symbol_glyph_census`; no row here rewrites one.
 SYMBOL_FONT_OPERATORS = {
     "AdvPS_SSYB": {
         "\u00a3": "\u2264",  # rendered: a less-or-equal sign

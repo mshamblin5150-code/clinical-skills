@@ -70,7 +70,7 @@ row needed it.
     exits 0 on #181's ruling; an explicit path that does not resolve, an unreadable
     record, or any refusal from a record that is present remains non-zero.
 
-``WATERMARK`` warns, and skips loudly where the extracted corpus is absent
+``WATERMARK`` refuses, and skips loudly where the extracted corpus is absent
     #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
     that row is suspect and must be read off the rendered page. Cannot verify a
     reading; flags every place the text stream was interleaved."* The strings are
@@ -85,9 +85,12 @@ row needed it.
     rendered page is the remedy #83 names, and refusing a row that applied it would
     leave the gate unsatisfiable.
 
-    **Warns rather than refuses, and that is a ruling deferred.** #83 decision 1 set
-    the posture per gate and never ruled this one, whose own line says *flags*.
-    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296).
+    **Refuses until a working agent checks the rendered page.** The clinician ruled
+    on [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) that
+    routine visual confirmation belongs to the agent rather than becoming a
+    clinician bottleneck. The agent renders the cited page, confirms the row, and
+    records that check with ``RENDERED:``; an incorrect or ambiguous row stays
+    refusing until it is corrected.
 
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
@@ -874,7 +877,7 @@ def gate_watermark(
 ) -> tuple[list[str], str | None, int, list[str]]:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
-    Returns ``(warnings, skip reason, rows declared RENDERED, source keys not probed)``.
+    Returns ``(findings, skip reason, rows declared RENDERED, source keys not probed)``.
 
     #83 states it: *"If a string stripped by #80 appears inside an extracted table
     row, that row is suspect and must be read off the rendered page. Cannot verify a
@@ -883,16 +886,12 @@ def gate_watermark(
     and until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)
     nothing told a writer that a given row needed it.
 
-    **It warns and does not refuse, and that is a ruling deferred rather than a
-    judgment about severity.** #83 decision 1 set the posture *per gate* -- schema
-    and citation refuse, recommendation counting warns -- and it never ruled gate 4,
-    whose own line says **flags**. The pre-commit hook runs ``--all --quiet`` when a
-    sheet is staged, so anything routed into the refusal list turns a commit away.
-    **The first version of this gate refused**, which was a posture set by inference
-    from a line that says *flags* -- caught by the spec axis of ``/code-review``.
-    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) carries
-    the question to the clinician, and every mechanism a refusal would need is
-    already here: the finding, its remedy, and the count.
+    **It refuses until a working agent confirms the rendered page.** The clinician
+    ruled the posture on
+    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296): a
+    vision-capable agent, rather than the clinician, renders the cited page and
+    confirms that the label and value belong together. ``RENDERED:`` records that
+    visual check. An incorrect or ambiguous row remains refusing until corrected.
 
     **How much a refusal would change is smaller than this said**, and the overstated
     version was a stated ground for deferring, which is what makes it worth recording
@@ -1747,7 +1746,7 @@ def grade(
     if watermark_skip:
         report(f"  WATERMARK       NOT RUN -- {watermark_skip}")
     else:
-        report(f"  WATERMARK       {len(watermark)} warning")
+        report(f"  WATERMARK       {len(watermark)} refusing")
         if watermark_rendered:
             report(
                 f"                  {watermark_rendered} row(s) declared {RENDERED_MARKER}, "
@@ -1826,10 +1825,10 @@ def grade(
         print("  extracted corpus with tools/guidelines_extract.py, or pass --text-root.")
         print("  " + "=" * 66)
 
-    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + five_refusals
+    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + watermark + five_refusals
     for message in refusals:
         print(f"  FAIL  {message}", file=sys.stderr)
-    for message in coverage_warnings + watermark + five_warnings:
+    for message in coverage_warnings + five_warnings:
         print(f"  WARN  {message}", file=sys.stderr)
     for message in undiffed + uncovered:
         print(f"  NOT DIFFED  {message}", file=sys.stderr)

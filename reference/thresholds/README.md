@@ -129,7 +129,7 @@ need something this repo does not carry:
 
 ```bash
 # WATERMARK, #83 gate 4. Reads the strings #80 stripped as page-repeated text out of
-# `manifest.json` and WARNS about a row that carries one -- the text stream was
+# `manifest.json` and REFUSES a row that carries one -- the text stream was
 # interleaved there, so the row's label and its number may never have been adjacent.
 # `--text-root` is derived from `--pdf-root` when it is not given; absent, the gate
 # skips behind a banner and never passes.
@@ -424,18 +424,16 @@ not left to be discovered:
   holding hundreds. That is a true statement about markers and a poor description of
   the document; it is a bound, a bound may only warn, and no threshold on the number
   would be anything but invented.
-- **Gate 4 warns and does not refuse, and that is a ruling deferred rather than a
-  judgment about severity.** #83 decision 1 set each gate's posture and never ruled
-  this one, whose own line says *flags*. The hook runs `--all --quiet` whenever a
-  sheet is staged, so a refusal here turns a commit away — but it is a **third reason
-  an existing refuser exits non-zero**, not a third refuser: `tools/hooks/pre-commit`
-  already calls `threshold_sheet.py` *"the second thing in this repo that can refuse a
-  commit"*, and a gate-4 refusal adds no tool and no invocation. **The first build of
-  this gate refused**, setting a posture by inference from a line that says *flags*;
-  and the first correction of it said *third thing* in four files, which overstated
-  the cost of the very thing being deferred.
-  [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296)
-  carries the question; every mechanism a refusal needs is already here.
+- **Gate 4 refuses until a working agent checks the rendered page.** The clinician
+  ruled the posture on
+  [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296): routine
+  visual confirmation belongs to a vision-capable agent rather than becoming a
+  clinician bottleneck. The agent renders the cited page and confirms that the row's
+  label and value belong together. If they do, the agent records the check with
+  `RENDERED:`; if they do not, or the page is ambiguous, the row remains refusing
+  until corrected. The marker also exempts the row from citation tier 2, so it is an
+  audit claim that the rendered page was actually inspected, not a way to silence the
+  gate without doing the read.
 - **Gate 4, watermark interleave, is built on
   [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174), and what it
   cannot reach is the half the exposure figure is about.** It flags a row that

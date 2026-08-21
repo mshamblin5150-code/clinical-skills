@@ -1209,7 +1209,7 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
             "CITATION tier 2 0",
             "COVERAGE        0 refusing, 0 warning",
             "RANGE           0",
-            "WATERMARK       0 warning",
+            "WATERMARK       0 refusing",
             "SECOND READ     0 refusing",
         ):
             self.assertIn(verdict, report)
@@ -2480,12 +2480,10 @@ class TheBriefAndTheDiffReadOneSetOfCitations(unittest.TestCase):
         )
 
 
-class GateFourWarnsAndDoesNotRefuse(unittest.TestCase):
-    """#83 decision 1 set each gate's posture and never ruled this one, whose own line
-    says *flags*. The hook runs `--all --quiet` whenever a sheet is staged, so a
-    refusal here would turn a commit away — a posture set by inference. #296 carries
-    the question; this pins the answer that is in force until it is ruled, in both
-    directions, so moving it has to be a diff.
+class GateFourRefusesUntilTheRenderedPageIsChecked(unittest.TestCase):
+    """#296 rules that a suspect row turns the commit away until a working agent
+    checks the rendered page. ``RENDERED:`` records that visual confirmation, so the
+    clinician is not the routine verification bottleneck.
     """
 
     def setUp(self):
@@ -2518,18 +2516,29 @@ class GateFourWarnsAndDoesNotRefuse(unittest.TestCase):
         """Otherwise the posture assertion below passes for the wrong reason."""
         _, printed, errors = self._run()
         self.assertIn("Jones et al", errors)
-        self.assertIn("WATERMARK       1 warning", printed)
+        self.assertIn("WATERMARK       1 refusing", printed)
 
-    def test_it_is_reported_as_a_warning_and_never_as_a_refusal(self):
-        _, _, errors = self._run()
+    def test_it_refuses_until_an_agent_records_visual_confirmation(self):
+        status, _, errors = self._run()
         interleave = [line for line in errors.splitlines() if "Jones et al" in line]
+        self.assertEqual(status, 1)
         self.assertEqual(len(interleave), 1)
-        self.assertTrue(interleave[0].strip().startswith("WARN"), interleave[0])
+        self.assertTrue(interleave[0].strip().startswith("FAIL"), interleave[0])
 
-    def test_a_finding_here_alone_does_not_make_the_run_refuse(self):
-        """The sheet is otherwise clean, so any non-zero would be this gate's."""
-        status, _, _ = self._run()
-        self.assertEqual(status, 0)
+        original = self.sheet_path.read_text(encoding="utf-8")
+        self.sheet_path.write_text(
+            original.replace(
+                "an SBP goal of Jones et al <130 mm Hg",
+                f"{gate.RENDERED_MARKER} an SBP goal of Jones et al <130 mm Hg",
+            ),
+            encoding="utf-8",
+        )
+        confirmed_status, confirmed_report, confirmed_errors = self._run()
+        self.assertEqual(confirmed_status, 0)
+        self.assertNotIn("Jones et al", confirmed_errors)
+        self.assertIn(
+            f"1 row(s) declared {gate.RENDERED_MARKER}", confirmed_report
+        )
 
     def test_every_probe_that_hits_is_reported_and_not_only_the_first(self):
         """#83 asks for *every place* the text stream was interleaved, and a running
