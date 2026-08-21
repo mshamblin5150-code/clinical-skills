@@ -569,7 +569,10 @@ class TheCommittedRulingPopulationIsLive(unittest.TestCase):
     Synthetic CLI cases prove the behavior. This ratchet proves the bounded
     committed population still names findings that exist in actual history;
     otherwise a typo in the artifact could ship while every synthetic case
-    stayed green.
+    stayed green. A runner without the gitignored corpus cannot re-prove corpus
+    membership without publishing it. Such a row must instead have exactly one
+    public shape finding at the same immutable commit, line, and digest; a
+    machine with the corpus still requires the exact corpus rule too.
     """
 
     def test_every_committed_ruling_matches_one_real_finding(self):
@@ -585,23 +588,48 @@ class TheCommittedRulingPopulationIsLive(unittest.TestCase):
             records, phi_scan.build_index(names, dates)
         )
         observed = Counter()
+        public_anchors = Counter()
         for finding in findings:
             prefix, separator, commit = finding.path.partition(" ")
             if prefix != "commit" or not separator or len(commit) != 40:
                 continue
+            digest = hashlib.sha256(finding.match.encode("utf-8")).hexdigest()
             observed[tracker_scan.RulingKey(
                 commit,
                 finding.line,
                 finding.rule,
-                hashlib.sha256(finding.match.encode("utf-8")).hexdigest(),
+                digest,
             )] += 1
+            if not finding.rule.startswith("corpus-"):
+                public_anchors[(commit, finding.line, digest)] += 1
+
+        missing = phi_scan.missing_corpus_sources()
+        if missing:
+            exact_rulings = {
+                key for key in rulings if not key.rule.startswith("corpus-")
+            }
+            corpus_rulings = rulings - exact_rulings
+            self.assertEqual(
+                corpus_rulings,
+                {
+                    key for key in corpus_rulings
+                    if public_anchors[
+                        (key.commit, key.line, key.match_sha256)
+                    ] == 1
+                },
+            )
+        else:
+            exact_rulings = rulings
 
         self.assertEqual(
-            rulings,
-            {key for key, count in observed.items() if count == 1 and key in rulings},
+            exact_rulings,
+            {
+                key for key, count in observed.items()
+                if count == 1 and key in exact_rulings
+            },
         )
 
-        first = next(iter(rulings))
+        first = next(iter(exact_rulings))
         dead_digest = ("0" if first.match_sha256[0] != "0" else "1") * 64
         mutant = first._replace(match_sha256=dead_digest)
         self.assertNotIn(mutant, observed)
