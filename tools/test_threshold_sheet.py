@@ -1946,6 +1946,34 @@ class WatermarkGate(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertIsNotNone(skip)
 
+    def test_a_manifest_from_the_unchanged_extractor_is_graded(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        extractor_commit = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(Path(__file__).resolve().parent.parent),
+                "log",
+                "-1",
+                "--format=%H",
+                "--",
+                "tools/guidelines_extract.py",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = extractor_commit
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        _, skip, _, _ = gate.gate_watermark(sheet(row()), self.root)
+
+        self.assertIsNone(skip)
+
     def test_a_manifest_present_but_unusable_is_a_skip_carrying_its_reason(self):
         (self.root / "manifest.json").write_text("not json at all", encoding="utf-8")
         _, skip, _, _ = gate.gate_watermark(sheet(row()), self.root)
