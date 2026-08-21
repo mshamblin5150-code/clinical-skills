@@ -12,8 +12,10 @@ the file a reader opens is worse than none, because it reads as agreement.
 
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import anchor_scan as scan
@@ -323,10 +325,13 @@ class TheExitStatusSaysWhetherAnythingWasScanned(unittest.TestCase):
 
     def test_a_run_that_marked_nothing_is_two_rather_than_clean(self):
         # The shape run 1 had. Nothing to grade is not the same as nothing wrong.
-        self.assertEqual(
-            self.run_over({"case-01.md": worksheet(entry("I10", "Essential (primary) hypertension"))}),
-            2,
-        )
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = self.run_over(
+                {"case-01.md": worksheet(entry("I10", "Essential (primary) hypertension"))}
+            )
+        self.assertEqual(status, 2)
+        self.assertIn("anchor scan over run", output.getvalue())
 
     def test_the_old_heading_alone_is_two(self):
         self.assertEqual(
