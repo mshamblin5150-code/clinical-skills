@@ -104,6 +104,15 @@ class OnlyACompletedMainMergeCanProduceReceipts(unittest.TestCase):
                 merged_pr("Part of #290\n", mergeCommit={"oid": "0123456"})
             )
 
+    def test_the_pr_url_must_name_the_same_pull_request(self):
+        with self.assertRaisesRegex(ValueError, "pull request URL"):
+            receipt.plan_receipts(
+                merged_pr(
+                    "Part of #290\n",
+                    url="https://github.com/example/clinical-skills/pull/999",
+                )
+            )
+
 
 class CommandLineOutputIsMachineReadable(unittest.TestCase):
     def test_json_lines_mode_reads_standard_input(self):

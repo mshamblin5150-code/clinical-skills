@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 
 import tracker_branch_scope as scope
+import tracker_merge_receipt as receipt
 
 
 MARKER = (
@@ -78,18 +79,74 @@ class InFlightTrackerRecordsCarryTheirOwnBranchScope(unittest.TestCase):
         self.assertIn("self-declares completion", result.report)
 
     def test_an_immutable_main_receipt_satisfies_a_completion_comment(self):
-        body = (
-            "Merged into `main` by [PR #376](https://github.com/example/repo/pull/376) "
-            "at `abcdef0123456789abcdef0123456789abcdef01` on 2026-08-20. "
-            "Merge claim: `Closes #283`."
-        )
+        document = {
+            "number": 376,
+            "url": "https://github.com/example/repo/pull/376",
+            "body": "Closes #290",
+            "baseRefName": "main",
+            "mergedAt": "2026-08-20T12:00:00Z",
+            "mergeCommit": {"oid": "abcdef0123456789abcdef0123456789abcdef01"},
+            "commits": [],
+        }
+        body = receipt.plan_receipts(document)[0].body
 
         result = scope.grade(
-            comment_event(body, labels=("bug", "grilling")),
+            comment_event(body, labels=("bug", "in flight")),
             "issue_comment",
         )
 
         self.assertEqual(result.status, 0)
+
+    def test_a_canonical_receipt_for_another_ticket_is_not_accepted(self):
+        document = {
+            "number": 376,
+            "url": "https://github.com/example/repo/pull/376",
+            "body": "Closes #283",
+            "baseRefName": "main",
+            "mergedAt": "2026-08-20T12:00:00Z",
+            "mergeCommit": {"oid": "abcdef0123456789abcdef0123456789abcdef01"},
+            "commits": [],
+        }
+        body = receipt.plan_receipts(document)[0].body
+
+        result = scope.grade(
+            comment_event(body, labels=("bug", "in flight")),
+            "issue_comment",
+        )
+
+        self.assertEqual(result.status, 1)
+
+    def test_a_truncated_receipt_prefix_is_not_accepted(self):
+        body = (
+            "Merged into `main` by [PR #376](https://github.com/example/repo/pull/376) "
+            "at `abcdef0123456789abcdef0123456789abcdef01` on 2026-08-20."
+        )
+
+        result = scope.grade(
+            comment_event(body, labels=("bug", "in flight")),
+            "issue_comment",
+        )
+
+        self.assertEqual(result.status, 1)
+
+    def test_a_receipt_with_a_mismatched_pr_url_is_not_accepted(self):
+        document = {
+            "number": 376,
+            "url": "https://github.com/example/repo/pull/376",
+            "body": "Closes #283",
+            "baseRefName": "main",
+            "mergedAt": "2026-08-20T12:00:00Z",
+            "mergeCommit": {"oid": "abcdef0123456789abcdef0123456789abcdef01"},
+            "commits": [],
+        }
+        body = receipt.plan_receipts(document)[0].body.replace("pull/376", "pull/999")
+
+        result = scope.grade(
+            comment_event(body, labels=("bug", "in flight")),
+            "issue_comment",
+        )
+
+        self.assertEqual(result.status, 1)
 
     def test_a_pull_request_comment_is_not_an_issue_branch_claim(self):
         event = comment_event("PR discussion.")

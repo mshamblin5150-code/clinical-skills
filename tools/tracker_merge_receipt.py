@@ -42,6 +42,15 @@ REFERENCE = re.compile(
 )
 FULL_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
 ISO_DAY = re.compile(r"^(?P<day>[0-9]{4}-[0-9]{2}-[0-9]{2})T")
+RECEIPT = re.compile(
+    r"\AMerged into `main` by \[PR #(?P<number>[1-9][0-9]*)\]"
+    r"\((?P<url>https://github\.com/[^/\s)]+/[^/\s)]+/pull/(?P=number))\) "
+    r"at `(?P<sha>[0-9a-fA-F]{40})` on "
+    r"(?P<day>[0-9]{4}-[0-9]{2}-[0-9]{2})\. "
+    r"Merge claim: `(?P<claim>[^`]+)`\. This immutable merge receipt "
+    r"establishes that pull request's state; it does not make later names "
+    r"or claims current\.\Z"
+)
 
 
 class Receipt(NamedTuple):
@@ -95,6 +104,43 @@ def _bindings(document: dict[str, Any]) -> list[Binding]:
     return sorted(found)
 
 
+def render_receipt(number: int, url: str, sha: str, day: str, binding: Binding) -> str:
+    return (
+        f"Merged into `main` by [PR #{number}]({url}) at `{sha}` on {day}. "
+        f"Merge claim: `{binding.claim}`. This immutable merge receipt "
+        "establishes that pull request's state; it does not make later names "
+        "or claims current."
+    )
+
+
+def parse_merge_receipt(body: str) -> Binding | None:
+    """Return the binding from an exact canonical receipt, or ``None``."""
+    match = RECEIPT.fullmatch(body)
+    if match is None:
+        return None
+    claim_match = REFERENCE.fullmatch(match.group("claim"))
+    if claim_match is None:
+        return None
+    if claim_match.group("closes"):
+        ticket = int(claim_match.group("closes"))
+        claim = f"Closes #{ticket}"
+    elif claim_match.group("part"):
+        ticket = int(claim_match.group("part"))
+        claim = f"Part of #{ticket}"
+    else:
+        ticket = int(claim_match.group("implements"))
+        claim = f"Implements #{ticket}'s lead {int(claim_match.group('lead'))}"
+    binding = Binding(ticket, claim)
+    canonical = render_receipt(
+        int(match.group("number")),
+        match.group("url"),
+        match.group("sha"),
+        match.group("day"),
+        binding,
+    )
+    return binding if body == canonical else None
+
+
 def plan_receipts(document: Any) -> list[Receipt]:
     if not isinstance(document, dict):
         raise ValueError("GitHub JSON must be an object")
@@ -116,18 +162,19 @@ def plan_receipts(document: Any) -> list[Receipt]:
     url = document.get("url")
     if not isinstance(number, int) or number < 1:
         raise ValueError("pull request number must be a positive integer")
-    if not isinstance(url, str) or not url.startswith("https://github.com/"):
+    if (
+        not isinstance(url, str)
+        or re.fullmatch(
+            rf"https://github\.com/[^/\s)]+/[^/\s)]+/pull/{number}", url
+        )
+        is None
+    ):
         raise ValueError("pull request URL must be a GitHub HTTPS URL")
 
     day = day_match.group("day")
     rows = []
     for binding in _bindings(document):
-        body = (
-            f"Merged into `main` by [PR #{number}]({url}) at `{sha}` on {day}. "
-            f"Merge claim: `{binding.claim}`. This immutable merge receipt "
-            "establishes that pull request's state; it does not make later names "
-            "or claims current."
-        )
+        body = render_receipt(number, url, sha, day, binding)
         rows.append(Receipt(binding.ticket, body))
     return rows
 

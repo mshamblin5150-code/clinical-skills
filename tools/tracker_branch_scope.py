@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from console_codec import use_utf8
+from tracker_merge_receipt import parse_merge_receipt
 
 
 BRANCH_SCOPE = re.compile(
@@ -26,11 +27,6 @@ BRANCH_SCOPE = re.compile(
     r"`[A-Za-z0-9._/-]+`[ \t]+at[ \t]+`[0-9a-fA-F]{40}`[ \t]+"
     r"is[ \t]+not[ \t]+on[ \t]+`main`[ \t]+as[ \t]+of[ \t]+"
     r"`[0-9]{4}-[0-9]{2}-[0-9]{2}`\.[ \t]*\r?\n"
-)
-MERGED_MAIN = re.compile(
-    r"\AMerged into `main` by \[PR #[0-9]+\]"
-    r"\(https://github\.com/[^\s)]+\) at `[0-9a-fA-F]{40}` on "
-    r"[0-9]{4}-[0-9]{2}-[0-9]{2}\."
 )
 DECLARES_COMPLETION = re.compile(
     r"\A(?:\*\*)?(?:Ruled and built|Implemented locally|Built on|Landed on)\b",
@@ -75,7 +71,11 @@ def grade(document: Any, event_name: str) -> Result:
     )
     if not in_flight and not self_declares_completion:
         return Result(0, "tracker-branch-scope: record has no branch-state trigger")
-    if BRANCH_SCOPE.match(body) or MERGED_MAIN.match(body):
+    receipt = parse_merge_receipt(body)
+    receipt_matches_issue = (
+        receipt is not None and receipt.ticket == issue.get("number")
+    )
+    if BRANCH_SCOPE.match(body) or receipt_matches_issue:
         return Result(0, f"tracker-branch-scope: {url}: explicit branch state present")
 
     if self_declares_completion:
