@@ -168,19 +168,6 @@ WHY_OUTSIDE = (
 )
 
 
-def normalize_doc_id(value: str) -> str:
-    """How a document is named. Public because it is a rule two modules share.
-
-    `threshold_sheet.gate_watermark` joins a threshold sheet's `document` cell to
-    these keys, and a second spelling of this rule over there would read as agreement
-    while covering less -- `reference_scan.py` importing `docx_write.REFERENCE_HEADING`,
-    for that module's reason. **Renamed rather than aliased**: an alias leaves the
-    owner with two public names for one rule, which is the thing this comment argues
-    against, one level up.
-    """
-    return guidelines_manifest.normalize_doc_id(value)
-
-
 def _read_manifest(
     text_dir: Path | str,
     *,

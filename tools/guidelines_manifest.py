@@ -60,7 +60,7 @@ class Record(Document):
 # Dataclass inheritance groups the consumer fields before the audit fields. That is
 # a useful in-memory shape but not the artifact format: this order preserves the
 # bytes emitted before #407, because those bytes key the extraction build cache.
-SERIALISED_ORDER = (
+SERIALIZED_ORDER = (
     "doc_id",
     "society",
     "title",
@@ -81,7 +81,7 @@ SERIALISED_ORDER = (
     "error",
 )
 
-_ARTIFACT_ORDER = SERIALISED_ORDER
+_ARTIFACT_ORDER = SERIALIZED_ORDER
 
 # ``doc_id`` is the dictionary key after reading; every other Document field is
 # required in each entry. Deriving this set prevents the checked contract from
@@ -93,15 +93,15 @@ def serialize_record(record: Record) -> dict[str, Any]:
     """Return one record in the artifact's byte-significant key order."""
     record_fields = {item.name for item in fields(Record)}
     if (
-        SERIALISED_ORDER != _ARTIFACT_ORDER
-        or len(SERIALISED_ORDER) != len(record_fields)
-        or set(SERIALISED_ORDER) != record_fields
+        SERIALIZED_ORDER != _ARTIFACT_ORDER
+        or len(SERIALIZED_ORDER) != len(record_fields)
+        or set(SERIALIZED_ORDER) != record_fields
     ):
         raise ValueError(
-            "SERIALISED_ORDER changed; reordering manifest keys causes extraction "
+            "SERIALIZED_ORDER changed; reordering manifest keys causes extraction "
             "cache invalidation"
         )
-    return {name: getattr(record, name) for name in SERIALISED_ORDER}
+    return {name: getattr(record, name) for name in SERIALIZED_ORDER}
 
 
 @dataclass(frozen=True)
@@ -141,6 +141,50 @@ def _problem(
 
 
 def _record(entry: dict[str, Any], doc_id: str) -> Record:
+    scalar_types: dict[str, type | tuple[type, ...]] = {
+        "society": (str, type(None)),
+        "title": (str, type(None)),
+        "source": str,
+        "output": (str, type(None)),
+        "document_class": str,
+        "codec": str,
+        "error": (str, type(None)),
+    }
+    integer_fields = {
+        "pages",
+        "empty_pages",
+        "chars",
+        "chars_stripped",
+        "sampled_pages",
+    }
+    list_fields = {"boilerplate", "margin_patterns", "margin_stripped"}
+    count_fields = {"year_page_counts", "symbol_glyphs"}
+    for name, expected in scalar_types.items():
+        if name in entry and not isinstance(entry[name], expected):
+            raise TypeError(f"{name} must be a string or null")
+    for name in integer_fields:
+        if name in entry and (
+            not isinstance(entry[name], int) or isinstance(entry[name], bool)
+        ):
+            raise TypeError(f"{name} must be an integer")
+    for name in list_fields:
+        value = entry.get(name)
+        if value is not None and (
+            not isinstance(value, list)
+            or any(not isinstance(item, str) for item in value)
+        ):
+            raise TypeError(f"{name} must be a list of strings")
+    for name in count_fields:
+        value = entry.get(name)
+        if value is not None and (
+            not isinstance(value, dict)
+            or any(not isinstance(key, str) for key in value)
+            or any(
+                not isinstance(count, int) or isinstance(count, bool)
+                for count in value.values()
+            )
+        ):
+            raise TypeError(f"{name} must map strings to integers")
     values = {
         item.name: entry[item.name]
         for item in fields(Record)
@@ -194,11 +238,15 @@ def _read_locked(
     problems: list[Problem] = []
     saw_key = False
     for entry in entries:
-        if not isinstance(entry, dict) or not entry.get("doc_id"):
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("doc_id"), str)
+            or not entry["doc_id"].strip()
+        ):
             problems.append(Problem(f"an entry in {path} carries no 'doc_id'"))
             continue
         saw_key = True
-        doc_id = normalize_doc_id(str(entry["doc_id"]))
+        doc_id = normalize_doc_id(entry["doc_id"])
         raw_entries[doc_id] = entry
         if doc_id in documents:
             problems.append(Problem("manifest carries a duplicate document", doc_id))
@@ -225,11 +273,27 @@ def _read_locked(
         if not record.output:
             problems.append(Problem(f"{doc_id}: manifest entry has no output filename", doc_id))
             continue
-        body_path = root / record.output
+        expected_output = f"{doc_id}.txt"
+        normalized_output = record.output.replace("\\", "/")
+        if normalized_output != expected_output:
+            problems.append(
+                Problem(
+                    f"{doc_id}: output must be {expected_output}, got {record.output}",
+                    doc_id,
+                )
+            )
+            continue
+        body_path = root / Path(*normalized_output.split("/"))
         if not body_path.is_file():
             problems.append(Problem(f"{doc_id}: extracted text is missing: {record.output}", doc_id))
             continue
-        body = body_path.read_text(encoding="utf-8", errors="replace")
+        try:
+            body = body_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as failure:
+            problems.append(
+                Problem(f"{doc_id}: extracted text could not be read: {failure}", doc_id)
+            )
+            continue
         pages = tuple(body.split("\f"))
         if record.pages != len(pages):
             problems.append(
@@ -252,9 +316,13 @@ def _read_locked(
         for record in documents.values()
         if record.output
     }
-    actual_outputs = {
-        path.relative_to(root).as_posix() for path in root.rglob("*.txt")
-    }
+    try:
+        actual_outputs = {
+            path.relative_to(root).as_posix() for path in root.rglob("*.txt")
+        }
+    except OSError as failure:
+        problems.append(Problem(f"extracted text files could not be listed: {failure}"))
+        actual_outputs = set()
     for extra in sorted(actual_outputs - expected_outputs):
         problems.append(Problem(f"extracted text has no usable manifest entry: {extra}"))
     return Manifest(root, raw_entries, documents, page_sets, tuple(problems), provenance)

@@ -22,11 +22,11 @@ class ManifestSerializationTests(unittest.TestCase):
 
     def test_the_declared_order_covers_every_record_field_exactly(self):
         self.assertEqual(
-            set(manifest.SERIALISED_ORDER),
+            set(manifest.SERIALIZED_ORDER),
             {field.name for field in dataclasses.fields(manifest.Record)},
         )
         self.assertEqual(
-            len(manifest.SERIALISED_ORDER),
+            len(manifest.SERIALIZED_ORDER),
             len(dataclasses.fields(manifest.Record)),
         )
 
@@ -68,8 +68,8 @@ class ManifestSerializationTests(unittest.TestCase):
         )
 
     def test_reordering_the_declared_order_refuses_cache_invalidation(self):
-        reordered = tuple(reversed(manifest.SERIALISED_ORDER))
-        with mock.patch.object(manifest, "SERIALISED_ORDER", reordered):
+        reordered = tuple(reversed(manifest.SERIALIZED_ORDER))
+        with mock.patch.object(manifest, "SERIALIZED_ORDER", reordered):
             with self.assertRaisesRegex(ValueError, "cache invalidation"):
                 manifest.serialize_record(manifest.Record(doc_id="USPSTF/screening"))
 
@@ -200,6 +200,36 @@ class ManifestReadingTests(unittest.TestCase):
 
         self.assertEqual(result.documents, {})
         self.assertIn("2", result.problems[0].message)
+
+    def test_read_rejects_an_output_that_does_not_match_its_document_id(self):
+        self.text("Society/wrong")
+        self.write([self.entry(output="Society/wrong.txt")])
+
+        result = manifest.read(self.root)
+
+        self.assertEqual(result.documents, {})
+        self.assertTrue(
+            any("must be Society/one.txt" in problem.message for problem in result.problems)
+        )
+
+    def test_read_rejects_an_output_outside_the_corpus(self):
+        self.write([self.entry(output="../outside.txt")])
+
+        result = manifest.read(self.root)
+
+        self.assertEqual(result.documents, {})
+        self.assertTrue(
+            any("must be Society/one.txt" in problem.message for problem in result.problems)
+        )
+
+    def test_read_turns_a_malformed_field_type_into_a_problem(self):
+        self.write([self.entry(output=["Society/one.txt"])])
+
+        result = manifest.read(self.root)
+
+        self.assertEqual(result.documents, {})
+        self.assertEqual(len(result.problems), 1)
+        self.assertIn("output must be", result.problems[0].message)
 
     def test_read_resolves_before_it_takes_the_shared_lock(self):
         self.text()

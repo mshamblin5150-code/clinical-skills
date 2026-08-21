@@ -9,7 +9,7 @@ import artifact_lock
 
 
 class ReadingManifestConformance:
-    """Three observable obligations every manifest-consuming command inherits.
+    """Observable obligations every manifest-consuming command inherits.
 
     Subclasses provide ``build_conformance_corpus``, ``conformance_read``, and
     ``conformance_command``. Reads return ``(accepted, message)`` and commands
