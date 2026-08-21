@@ -16,6 +16,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Generic, Mapping, TypeVar
 
+from console_codec import use_utf8
+
 
 TSource = TypeVar("TSource")
 TScan = TypeVar("TScan")
@@ -25,7 +27,7 @@ WALK_CEILING = (
     "grader shapes assembled differently are invisible"
 )
 
-MEMBERS: set[str] = set()
+MEMBERS: set[str] = {"refusal_scan"}
 
 NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
     {
@@ -37,7 +39,6 @@ NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
         "differential_scan": "not yet migrated",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
         "reference_scan": "not yet migrated",
-        "refusal_scan": "not yet migrated",
         "research_ledger": "not yet migrated",
         "specificity_scan": "not yet migrated",
         "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
@@ -115,6 +116,10 @@ class SourceError(Exception):
     """A tier-1 failure: no run artifact was available to grade."""
 
 
+class ParseError(SourceError):
+    """An invocation the declared command-line interface refuses."""
+
+
 @dataclass(frozen=True)
 class Grader(Generic[TSource, TScan]):
     """The per-module parts called by the shared runner."""
@@ -126,6 +131,7 @@ class Grader(Generic[TSource, TScan]):
     options: tuple[Option, ...] = ()
     parse_error: Callable[[str], str] = lambda message: message
     validate: Callable[[Parsed], str | None] | None = None
+    source_error_to_stdout: bool = False
 
 
 def _parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
@@ -140,9 +146,9 @@ def _parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
         if argument.startswith("-"):
             option = declared.get(name)
             if option is None:
-                raise SourceError(command.parse_error(f"unrecognized option {name}"))
+                raise ParseError(command.parse_error(f"unrecognized option {name}"))
             if not option.repeatable and (name in flags or name in values):
-                raise SourceError(command.parse_error(f"{name} was given twice"))
+                raise ParseError(command.parse_error(f"{name} was given twice"))
             if option.takes_value:
                 if separator:
                     value = attached
@@ -150,24 +156,24 @@ def _parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
                     index += 1
                     if index >= len(argv) or argv[index].startswith("-"):
                         complaint = option.missing_value or f"{name} needs a value"
-                        raise SourceError(command.parse_error(complaint))
+                        raise ParseError(command.parse_error(complaint))
                     value = argv[index]
                 if not value:
                     complaint = option.missing_value or f"{name} needs a value"
-                    raise SourceError(command.parse_error(complaint))
+                    raise ParseError(command.parse_error(complaint))
                 values[name] = value
             else:
                 if separator:
-                    raise SourceError(command.parse_error(f"{name} does not take a value"))
+                    raise ParseError(command.parse_error(f"{name} does not take a value"))
                 flags.add(name)
         else:
             positionals.append(argument)
         index += 1
 
     if not positionals:
-        raise SourceError(command.usage)
+        raise ParseError(command.usage)
     if len(positionals) != 1:
-        raise SourceError(command.parse_error("one source at a time"))
+        raise ParseError(command.parse_error("one source at a time"))
     parsed = Parsed(
         source=positionals[0],
         flags=frozenset(flags),
@@ -176,18 +182,23 @@ def _parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
     if command.validate is not None:
         complaint = command.validate(parsed)
         if complaint:
-            raise SourceError(command.parse_error(complaint))
+            raise ParseError(command.parse_error(complaint))
     return parsed
 
 
 def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
     """Run one grader with source failures before output and status at the tail."""
 
+    use_utf8()
     try:
         parsed = _parse(command, argv)
+    except ParseError as failure:
+        print(str(failure), file=sys.stderr)
+        return 2
+    try:
         source = command.load(parsed)
     except SourceError as failure:
-        print(str(failure), file=sys.stderr)
+        print(str(failure), file=sys.stdout if command.source_error_to_stdout else sys.stderr)
         return 2
 
     result = command.grade(source, parsed)

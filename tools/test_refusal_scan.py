@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import refusal_scan as scan
@@ -167,6 +167,17 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
                 self.assertEqual(scan.main([str(path)]), 2)
             self.assertNotIn(str(path), output.getvalue())
             self.assertIn("absent", output.getvalue())
+
+    def test_a_mistyped_flag_is_refused_before_the_directory_is_read(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw) / "run"
+            directory.mkdir()
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                status = scan.main([str(directory), "--shwo"])
+
+        self.assertEqual(2, status)
+        self.assertIn("unrecognized option --shwo", stderr.getvalue())
 
     def test_default_output_names_no_code(self):
         status, report = self.run_over({"case-01.md": worksheet(refusal())})
