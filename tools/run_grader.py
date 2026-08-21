@@ -36,13 +36,13 @@ MEMBERS: set[str] = {
     "reference_scan",
     "refusal_scan",
     "research_ledger",
+    "specificity_scan",
 }
 
 NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
     {
         "corpus_census": "a census over the corpus, not a grader over a run",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
-        "specificity_scan": "not yet migrated",
         "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
     }
 )
@@ -205,8 +205,8 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
 
     result = command.grade(source, parsed)
     if isinstance(result, EarlyExit):
-        for line in result.stdout:
-            print(line)
+        for chunk in result.stdout:
+            print(chunk, end="" if chunk.endswith("\n") else "\n")
         for line in result.stderr:
             print(line, file=sys.stderr)
         return result.status

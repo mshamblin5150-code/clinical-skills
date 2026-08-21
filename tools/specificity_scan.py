@@ -82,7 +82,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
 # ``ICD-10  M19.90  Unspecified osteoarthritis, unspecified site``. The trailing
@@ -119,6 +119,11 @@ SUBSTANCE = re.compile(r"[0-9A-Za-z]")
 
 BARE = "bare-flag"
 UNSPECIFIED_COMPLETE = "unspecified-complete"
+ROWS = {
+    BARE: "fixtures/filled-anchor C5 - specificity flag carries substance",
+    UNSPECIFIED_COMPLETE: "fixtures/filled-anchor C5 - unspecified descriptor advisory",
+}
+KINDS = tuple(ROWS)
 
 SECOND_READ_IS_A_SMOKE_TEST = (
     "a separated second read is a smoke test and never proof: two readers can "
@@ -161,10 +166,9 @@ class WorksheetEntry:
 
 
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One flag raised as a C5 failure or an advisory."""
 
-    kind: str
     code: str
     descriptor: str
     value: str
@@ -634,116 +638,129 @@ def format_second_read_report(gate: SecondReadGate, show: bool) -> str:
     return "\n".join(lines)
 
 
-def _command_line(argv: list[str]) -> tuple[list[str], bool, bool, Path | None, str | None]:
-    """Parse the small CLI without letting ``argparse`` raise inside ``main`` tests."""
-    positional: list[str] = []
-    show = False
-    make_brief = False
-    second_read: Path | None = None
-    index = 0
-    while index < len(argv):
-        argument = argv[index]
-        if argument == "--show":
-            show = True
-        elif argument == "--brief":
-            make_brief = True
-        elif argument == "--second-read":
-            if second_read is not None:
-                return [], show, make_brief, None, "--second-read was given twice"
-            index += 1
-            if index >= len(argv):
-                return [], show, make_brief, None, "--second-read needs a JSON path"
-            second_read = Path(argv[index])
-        elif argument.startswith("--"):
-            return [], show, make_brief, second_read, f"unknown option {argument}"
+@dataclass(frozen=True)
+class Source:
+    directory: Path
+    per_worksheet: tuple[tuple[Flag, ...], ...]
+    per_worksheet_entries: tuple[tuple[WorksheetEntry, ...], ...]
+
+
+def _load(parsed: run_grader.Parsed) -> Source:
+    directory = Path(parsed.source)
+    if not directory.is_dir():
+        raise run_grader.SourceError(f"no directory named {directory.name}")
+    worksheets = read_worksheets(directory)
+    if not worksheets:
+        raise run_grader.SourceError(f"no worksheets found in {directory.name}")
+    return Source(
+        directory,
+        tuple(tuple(read_flags(text)) for text in worksheets),
+        tuple(tuple(read_entries(text)) for text in worksheets),
+    )
+
+
+def _validate(parsed: run_grader.Parsed) -> str | None:
+    if parsed.enabled("--brief") and (parsed.show or parsed.value("--second-read") is not None):
+        return "--brief cannot be combined with --show or --second-read"
+    return None
+
+
+def _grade(
+    source: Source, parsed: run_grader.Parsed
+) -> run_grader.Grade[Scan] | run_grader.EarlyExit:
+    per_worksheet = [list(flags) for flags in source.per_worksheet]
+    per_worksheet_entries = [list(entries) for entries in source.per_worksheet_entries]
+    if parsed.enabled("--brief"):
+        return run_grader.EarlyExit(
+            status=0,
+            stdout=(brief(per_worksheet_entries, source=source.directory.name),),
+            stderr=(
+                "brief output contains diagnosis codes and is PHI - redirect it into scratch/; "
+                "do not paste it",
+            ),
+        )
+
+    scan = survey(per_worksheet)
+    diagnostics: list[str] = []
+    reports: list[str] = []
+    second_gate: SecondReadGate | None = None
+    second_read = parsed.value("--second-read")
+    coverage_failed = False
+    if second_read is not None:
+        second_read_path = Path(second_read)
+        read = load_second_read(second_read_path)
+        if not read.ok:
+            diagnostics.append(f"\nseparated read not graded: {read.why_not}")
+            coverage_failed = True
         else:
-            positional.append(argument)
-        index += 1
-    if make_brief and (show or second_read is not None):
-        return [], show, make_brief, second_read, "--brief cannot be combined with --show or --second-read"
-    return positional, show, make_brief, second_read, None
+            try:
+                connection = open_database()
+            except FileNotFoundError:
+                diagnostics.append(
+                    "\nseparated read not graded: the committed ICD-10-CM database is missing"
+                )
+                coverage_failed = True
+            else:
+                try:
+                    second_gate = gate_second_read(
+                        per_worksheet,
+                        read,
+                        connection,
+                        entries=per_worksheet_entries,
+                    )
+                finally:
+                    connection.close()
+                reports.append("\n" + format_second_read_report(second_gate, show=parsed.show))
+
+    findings_failed = bool(scan.failing_flags)
+    if scan.failing_flags:
+        findings_count = len(scan.findings)
+        detail = "" if findings_count == scan.failing_flags else f" ({findings_count} findings)"
+        diagnostics.append(
+            f"\n{scan.failing_flags} flag(s) fail fixtures/filled-anchor C5{detail}."
+            " Re-run with --show to see which, and do not paste that output."
+        )
+    if second_gate and second_gate.refusals:
+        findings_failed = True
+        diagnostics.append(
+            f"\n{len(second_gate.refusals)} source fact(s) fail the separated read. "
+            "Re-run with --show to see which, and do not paste that output."
+        )
+    if second_gate and second_gate.uncovered:
+        coverage_failed = True
+    return run_grader.Grade(
+        scan=scan,
+        source=source.directory.name,
+        findings_failed=findings_failed,
+        coverage_failed=coverage_failed,
+        diagnostics=tuple(diagnostics),
+        reports=tuple(reports),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage=(
+        "usage: specificity_scan.py <a run directory> "
+        "[--show | --brief | --second-read <record.json>]"
+    ),
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option("--brief"),
+        run_grader.Option(
+            "--second-read",
+            takes_value=True,
+            missing_value="--second-read needs a JSON path",
+        ),
+    ),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+    validate=_validate,
+)
 
 
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    args, show, make_brief, second_read_path, problem = _command_line(argv)
-    if problem:
-        print(problem, file=sys.stderr)
-        return 2
-    if not args:
-        print(
-            "usage: specificity_scan.py <a run directory> "
-            "[--show | --brief | --second-read <record.json>]",
-            file=sys.stderr,
-        )
-        return 2
-    directory = Path(args[0])
-    # The directory name, never the path: a run directory sits under ``scratch/``
-    # or ``output/``, and its path names the shift and often the site.
-    if not directory.is_dir():
-        print(f"no directory named {directory.name}", file=sys.stderr)
-        return 2
-    worksheets = read_worksheets(directory)
-    if not worksheets:
-        print(f"no worksheets found in {directory.name}", file=sys.stderr)
-        return 2
-    per_worksheet = [read_flags(text) for text in worksheets]
-    per_worksheet_entries = [read_entries(text) for text in worksheets]
-    if make_brief:
-        print(brief(per_worksheet_entries, source=directory.name), end="")
-        print(
-            "brief output contains diagnosis codes and is PHI - redirect it into scratch/; "
-            "do not paste it",
-            file=sys.stderr,
-        )
-        return 0
-    scan = survey(per_worksheet)
-    print(format_report(scan, source=directory.name, show=show))
-    second_gate: SecondReadGate | None = None
-    if second_read_path is not None:
-        read = load_second_read(second_read_path)
-        if not read.ok:
-            print(f"\nseparated read not graded: {read.why_not}", file=sys.stderr)
-            return 1 if scan.failing_flags else 2
-        try:
-            connection = open_database()
-        except FileNotFoundError:
-            print(
-                "\nseparated read not graded: the committed ICD-10-CM database is missing",
-                file=sys.stderr,
-            )
-            return 1 if scan.failing_flags else 2
-        try:
-            second_gate = gate_second_read(
-                per_worksheet,
-                read,
-                connection,
-                entries=per_worksheet_entries,
-            )
-        finally:
-            connection.close()
-        print("\n" + format_second_read_report(second_gate, show=show))
-    if scan.failing_flags:
-        findings_count = len(scan.findings)
-        detail = "" if findings_count == scan.failing_flags else f" ({findings_count} findings)"
-        print(
-            f"\n{scan.failing_flags} flag(s) fail fixtures/filled-anchor C5{detail}."
-            " Re-run with --show to see which, and do not paste that output.",
-            file=sys.stderr,
-        )
-        return 1
-    if second_gate and second_gate.refusals:
-        print(
-            f"\n{len(second_gate.refusals)} source fact(s) fail the separated read. "
-            "Re-run with --show to see which, and do not paste that output.",
-            file=sys.stderr,
-        )
-        return 1
-    if second_gate and second_gate.uncovered:
-        return 2
-    return 0
-
-
+    return run_grader.run(GRADER, argv)
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))
