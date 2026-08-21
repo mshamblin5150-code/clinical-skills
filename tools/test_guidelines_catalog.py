@@ -157,7 +157,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
 
     def test_the_draft_command_does_not_read_an_extraction_in_progress(self):
         with tempfile.TemporaryDirectory() as tmp:
-            text_dir = Path(tmp)
+            text_dir = Path(tmp) / "first-guidelines-text"
             out, err = io.StringIO(), io.StringIO()
             with artifact_lock.hold(
                 text_dir, "guideline extraction"
@@ -167,6 +167,30 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             self.assertEqual(status, 2)
             self.assertIn("another task is rebuilding", err.getvalue())
             self.assertIn(str(text_dir), err.getvalue())
+
+    def test_two_read_commands_can_share_one_completed_extraction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            record = extract.build_document(
+                Path("USPSTF/screening.pdf"),
+                ["US Preventive Services Task Force Recommendation Statement"],
+                text_dir,
+                "Screening for Example Disease",
+            )
+            extract.write_manifest(
+                text_dir,
+                [record],
+                Path("C:/outside/guidelines-src"),
+                producer=clean_producer(),
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with artifact_lock.hold(
+                text_dir, "first catalog read", mode="read"
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = gc.main(["--draft", str(text_dir)])
+
+            self.assertEqual(status, 0, err.getvalue())
+            self.assertIn("screening.pdf", out.getvalue())
 
     def test_manifest_metadata_and_stripped_year_survive_the_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:

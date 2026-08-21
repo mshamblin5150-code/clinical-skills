@@ -119,7 +119,6 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             text_dir = root / "text"
-            text_dir.mkdir()
             out, err = io.StringIO(), io.StringIO()
             with artifact_lock.hold(
                 text_dir, "guideline extraction"

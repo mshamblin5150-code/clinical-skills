@@ -982,7 +982,7 @@ def gate_watermark(
     allow_untrusted_provenance: bool = False,
 ) -> tuple[list[str], str | None, int, list[str]]:
     """Run WATERMARK against one completed extraction, never an in-flight one."""
-    if text_root is None or not Path(text_root).is_dir():
+    if text_root is None:
         return _gate_watermark(
             sheet,
             text_root,
@@ -990,7 +990,9 @@ def gate_watermark(
         )
     text_root = Path(text_root).resolve()
     try:
-        with artifact_lock.hold(text_root, "reading extracted guideline corpus"):
+        with artifact_lock.hold(
+            text_root, "reading extracted guideline corpus", mode="read"
+        ):
             return _gate_watermark(
                 sheet,
                 text_root,

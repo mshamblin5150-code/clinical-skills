@@ -998,6 +998,16 @@ class BuildCommandLineTests(TempCorpus):
         self.assertIn("retry", err.lower())
         self.assertFalse(self.db.exists())
 
+    def test_an_index_build_does_not_publish_over_an_active_reader(self):
+        with artifact_lock.hold(self.db, "guideline search", mode="read"):
+            status, _, err = self.run_build([str(self.text_dir), str(self.db)])
+
+        self.assertEqual(status, 2)
+        self.assertIn("rebuilding or reading", err)
+        self.assertIn(str(self.db), err)
+        self.assertIn("retry", err.lower())
+        self.assertFalse(self.db.exists())
+
     def test_a_task_that_dies_does_not_leave_the_index_permanently_locked(self):
         holder = subprocess.Popen(
             [

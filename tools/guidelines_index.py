@@ -395,7 +395,11 @@ def read_extracted_corpus(
 ) -> list[ExtractedDocument]:
     """Read one completed extraction, refusing while its writer owns it."""
     text_dir = Path(text_dir).resolve()
-    with artifact_lock.hold(text_dir, "reading extracted guideline corpus"):
+    with artifact_lock.hold(
+        text_dir, "reading extracted guideline corpus", mode="read"
+    ):
+        if not text_dir.is_dir():
+            raise ValueError(f"no extracted-text directory at {text_dir}")
         return _read_extracted_corpus(
             text_dir,
             allow_untrusted_provenance=allow_untrusted_provenance,
@@ -446,7 +450,9 @@ def build(
     with ExitStack() as locks:
         locks.enter_context(
             artifact_lock.hold(
-                text_dir, "reading extracted guideline text for an index build"
+                text_dir,
+                "reading extracted guideline text for an index build",
+                mode="read",
             )
         )
         if not text_dir.is_dir():

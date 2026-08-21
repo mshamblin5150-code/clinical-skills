@@ -1838,16 +1838,17 @@ class WatermarkGate(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
 
     def test_it_does_not_read_an_extraction_in_progress(self):
-        with artifact_lock.hold(self.root, "guideline extraction"):
+        text_root = self.root / "first-guidelines-text"
+        with artifact_lock.hold(text_root, "guideline extraction"):
             failures, skip, rendered, unprobed = gate.gate_watermark(
-                sheet(row()), self.root
+                sheet(row()), text_root
             )
 
         self.assertEqual(failures, [])
         self.assertEqual(rendered, 0)
         self.assertEqual(unprobed, [])
         self.assertIn("another task is rebuilding", skip)
-        self.assertIn(str(self.root), skip)
+        self.assertIn(str(text_root), skip)
 
     def test_a_snippet_carrying_a_stripped_running_head_is_refused(self):
         text_corpus(
