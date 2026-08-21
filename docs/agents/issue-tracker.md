@@ -209,6 +209,24 @@ Label at creation time. Coming back to label later is the step that gets skipped
 
 **The reason is the one #59 was filed about, arriving one level up.** That ticket exists because a decision got resolved inside an implementation and shipped, discoverable only by reading a merged diff. A finding that stays in the diff is the same defect in a cheaper form: the next session re-derives it, or does not, and nothing says which.
 
+### Establish the current base twice
+
+**Before reading any ticket**, fetch and grade the base with the repository gate:
+
+```bash
+python tools/tracker_freshness.py
+```
+
+The command exits 2 if the fetch fails or if `HEAD` does not contain the fetched `origin/main`. It does not merge or rebase. Bring the branch forward, resolve any conflicts, rerun the work's checks, and repeat the gate until it reports `FRESH`.
+
+**Immediately before posting** a sweep finding, run it again:
+
+```bash
+python tools/tracker_freshness.py
+```
+
+An exhaustive sweep takes long enough for `main` to move underneath it. If the second gate stops, publish nothing from the pending sweep until the branch contains the new base and the affected evidence has been checked again. Per-file comparisons do not replace this: a claim that the tree lacks a repair cites no file to compare. This is [#320](https://github.com/mshamblin5150-code/clinical-skills/issues/320)'s ruling.
+
 ### Every open ticket, not the ones that look relevant
 
 **The sweep is exhaustive. Read every open ticket, one at a time, and record a verdict for each.** Not the ones whose titles look related — *all* of them. Ruled 2026-08-15.
