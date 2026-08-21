@@ -684,7 +684,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         cls.skill = SKILL.read_text(encoding="utf-8")
 
     def table_rows(self) -> list[list[str]]:
-        """The step-9 check table, split once for every column accessor."""
+        """The ``practicum-case-study`` step-9 check table, split once for every
+        column accessor."""
         body = self.skill.split("### 9. Check", 1)[1]
         lines = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
         return [[cell.strip() for cell in line.split("|")[1:-1]] for line in lines[2:]]
