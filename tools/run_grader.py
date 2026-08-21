@@ -35,13 +35,13 @@ MEMBERS: set[str] = {
     "differential_scan",
     "reference_scan",
     "refusal_scan",
+    "research_ledger",
 }
 
 NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
     {
         "corpus_census": "a census over the corpus, not a grader over a run",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
-        "research_ledger": "not yet migrated",
         "specificity_scan": "not yet migrated",
         "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
     }
@@ -136,7 +136,7 @@ class Grader(Generic[TSource, TScan]):
     source_error_to_stdout: bool = False
 
 
-def _parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
+def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
     declared = {option.name: option for option in command.options}
     positionals: list[str] = []
     flags: set[str] = set()
@@ -193,7 +193,7 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
 
     use_utf8()
     try:
-        parsed = _parse(command, argv)
+        parsed = parse(command, argv)
     except ParseError as failure:
         print(str(failure), file=sys.stderr)
         return 2
