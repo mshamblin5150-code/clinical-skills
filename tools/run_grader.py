@@ -32,6 +32,7 @@ MEMBERS: set[str] = {
     "block_scan",
     "case_study_scan",
     "checks_ledger",
+    "differential_scan",
     "reference_scan",
     "refusal_scan",
 }
@@ -39,7 +40,6 @@ MEMBERS: set[str] = {
 NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
     {
         "corpus_census": "a census over the corpus, not a grader over a run",
-        "differential_scan": "not yet migrated",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
         "research_ledger": "not yet migrated",
         "specificity_scan": "not yet migrated",

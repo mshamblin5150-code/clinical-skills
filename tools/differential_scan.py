@@ -217,7 +217,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
 # extension -- which is what keeps ``97.3`` and ``4/10`` out.
@@ -505,8 +505,13 @@ class Note:
     guideline_candidates: tuple[GuidelineCandidate, ...] = ()
 
 
+REFUSED_CODE = "refused-code-in-differential-slot"
+ROWS = {REFUSED_CODE: "clinical-note drift row 22 - refused code in slot"}
+KINDS = tuple(ROWS)
+
+
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One entry whose slot holds a code the same note refused."""
 
     code: str
@@ -1095,7 +1100,7 @@ def read_note(text: str) -> Note:
 def note_findings(note: Note) -> list[Finding]:
     """Row 22's slot limb, applied to one note."""
     return [
-        Finding(code=entry.code, label=entry.label, line=entry.line)
+        Finding(kind=REFUSED_CODE, code=entry.code, label=entry.label, line=entry.line)
         for entry in note.entries
         if entry.code in note.refused
     ]
@@ -1271,35 +1276,31 @@ def read_notes(directory: Path) -> list[str]:
     ]
 
 
-def main(argv: list[str]) -> int:
-    """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
-    show = "--show" in argv
-    if not args:
-        print("usage: differential_scan.py <a run directory> [--show]", file=sys.stderr)
-        return 2
-    directory = Path(args[0])
-    # The directory name, never the path: a run directory sits under ``scratch/``
-    # or ``output/``, and its path names the shift and often the site.
+@dataclass(frozen=True)
+class Source:
+    directory: Path
+    texts: tuple[str, ...]
+
+
+def _load(parsed: run_grader.Parsed) -> Source:
+    directory = Path(parsed.source)
     if not directory.is_dir():
-        print(f"no directory named {directory.name}", file=sys.stderr)
-        return 2
-    texts = read_notes(directory)
+        raise run_grader.SourceError(f"no directory named {directory.name}")
+    texts = tuple(read_notes(directory))
     if not texts:
-        print(f"no notes found in {directory.name}", file=sys.stderr)
-        return 2
-    scan = survey([read_note(text) for text in texts])
-    # A numbered item without a code is a confirmed row-13 failure even though
-    # the older slot parser necessarily found nothing on that item. Findings run
-    # before the not-scanned exits so the coverage qualifier cannot suppress the
-    # defect it exists to describe.
+        raise run_grader.SourceError(f"no notes found in {directory.name}")
+    return Source(directory, texts)
+
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scan = survey([read_note(text) for text in source.texts])
     has_findings = bool(
         scan.findings
         or scan.missing_code_items
         or scan.ranking_findings
         or scan.guideline_findings
     )
-    print(format_report(scan, source=directory.name, show=show))
+    diagnostics: list[str] = []
     if has_findings:
         messages = []
         if scan.findings:
@@ -1310,13 +1311,12 @@ def main(argv: list[str]) -> int:
         if scan.missing_code_items:
             messages.append(
                 f"{len(scan.missing_code_items)} numbered differential item(s)"
-                " carry no code in the required slot, failing clinical-note"
-                " drift row 13."
+                " carry no code in the required slot, failing clinical-note drift row 13."
             )
         if scan.ranking_findings:
             messages.append(
-                f"{len(scan.ranking_findings)} differential ranking shape violation(s)"
-                ", failing clinical-note drift row 23."
+                f"{len(scan.ranking_findings)} differential ranking shape violation(s),"
+                " failing clinical-note drift row 23."
             )
         if scan.guideline_findings:
             messages.append(
@@ -1330,55 +1330,58 @@ def main(argv: list[str]) -> int:
                 f" {scan.unwelded_marks} further mark(s) are unwelded and were not"
                 " read, so this is a floor rather than the whole count."
             )
-        print(message, file=sys.stderr)
-        return 1
+        diagnostics.append(message)
+    coverage_failed = False
     if not scan.differential_entries:
         row_13 = (
-            " row 13 floor was not run: no numbered item was found inside a"
-            " labeled Differential block."
+            " row 13 floor was not run: no numbered item was found inside a labeled Differential block."
             if not scan.numbered_items
             else ""
         )
-        print(
-            f"no differential entry found in {scan.notes} note(s) in {directory.name}."
+        diagnostics.append(
+            f"no differential entry found in {scan.notes} note(s) in {source.directory.name}."
             " The row 22 slot limb was not run."
             + row_13
-            + " This is not a clean run.",
-            file=sys.stderr,
+            + " This is not a clean run."
         )
-        return 2
-    # **A confirmed violation outranks an incomplete scan, and the ordering is a
-    # decision rather than an accident.** Both conditions can hold at once, and a
-    # status can carry one. A run holding a real row-22 failure *and* a bare mark
-    # is definitely not clean, so reporting it as *not scanned* would file the
-    # strongest thing known about it under the weakest heading. Nothing is hidden
-    # either way -- ``unwelded NOT CODED marks`` is printed above both messages,
-    # so an exit 1 still shows how much went unread.
-    if scan.unwelded_marks:
-        # **Any** bare mark, not only a run with no welded refusal at all. The
-        # weaker test was written first and a real run refuted it, clearing the
-        # guard on a handful of welded refusals while the rest went unread. A run
-        # is either written in the form row 22 reads or it is not scanned, and
-        # there is no useful middle. Counts in fixtures/day-a/assertions.md.
-        print(
-            f"\n{scan.unwelded_marks} NOT CODED mark(s) in {directory.name} are not"
+        coverage_failed = True
+    if scan.unwelded_marks and not has_findings:
+        diagnostics.append(
+            f"\n{scan.unwelded_marks} NOT CODED mark(s) in {source.directory.name} are not"
             " welded to a code, so no rule could pair them with one."
             " Refusals here are written in the form row 22 retired."
-            " The slot limb was not evaluated -- this is not a clean run.",
-            file=sys.stderr,
+            " The slot limb was not evaluated -- this is not a clean run."
         )
-        return 2
-    if not scan.numbered_items:
-        print(
-            f"\nrow 13 floor was not run in {directory.name}: no numbered item"
+        coverage_failed = True
+    if not scan.numbered_items and scan.differential_entries:
+        diagnostics.append(
+            f"\nrow 13 floor was not run in {source.directory.name}: no numbered item"
             " was found inside a labeled Differential block. This is not a clean"
-            " QA result; the wide Assessment count still needs a reader.",
-            file=sys.stderr,
+            " QA result; the wide Assessment count still needs a reader."
         )
-        return 2
-    return 0
+        coverage_failed = True
+    return run_grader.Grade(
+        scan=scan,
+        source=source.directory.name,
+        findings_failed=has_findings,
+        coverage_failed=coverage_failed,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: differential_scan.py <a run directory> [--show]",
+    options=(run_grader.Option("--show"),),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+)
+
+
+def main(argv: list[str]) -> int:
+    """``argv`` is the argument list without the program name."""
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))
