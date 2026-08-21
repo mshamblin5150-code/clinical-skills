@@ -546,7 +546,7 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
             self.uspstf,
             r"\| Interventions for High Body Mass Index in Children and Adolescents \|"
             r" children and adolescents 6 years or older with a high BMI"
-            r" \(95th percentile for age and sex\)[^|]*\| B \|[^|]*\| 2024 \|",
+            r" \(≥95th percentile for age and sex\)[^|]*\| B \|[^|]*\| 2024 \|",
         )
         self.assertIn("[uspstf: grade B, children and adolescents 6 years or older", self.text)
 
