@@ -459,10 +459,10 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
     sitting in both tables at once, or wrongly promoted into the applied one, was
     invisible to it.
 
-    **What it does not reach** is whether a row's verdict is *true*. A row moved to the
-    *applied* table while the renderer still does not apply it passes every assertion
-    here, and stays a behavior test's job -- ``TheBodyFirstLineIndent`` and
-    ``TheTableRules`` are the two this ticket added.
+    **What this bind does not reach** is whether a row's verdict is *true*. #323 adds
+    ``EveryNotAppliedRowIsReDerivedFromTheRenderedArchive`` for that second property:
+    every current row is executed and a new row without a measurement fails its
+    exhaustive key comparison.
     """
 
     SHEET = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
@@ -511,6 +511,56 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
         for key, reason in docx_write.NOT_APPLIED:
             self.assertTrue(key.strip(), key)
             self.assertGreater(len(reason.split()), 8, key)
+
+
+class EveryNotAppliedRowIsReDerivedFromTheRenderedArchive(unittest.TestCase):
+    """#323: prove each row's verdict instead of only binding its name to §6."""
+
+    def test_every_declared_limit_has_one_behavior_measurement(self):
+        handlers = {
+            "title page": self.title_page,
+            "run-in": self.run_in_heading,
+            "alphabetized": self.alphabetized_references,
+            "one paragraph": self.one_reference_paragraph,
+        }
+        self.assertEqual(set(handlers), set(dict(docx_write.NOT_APPLIED)))
+        for key, handler in handlers.items():
+            with self.subTest(key=key):
+                handler()
+
+    def title_page(self):
+        markdown = "# Clinical Case\n\nBody paragraph.\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.docx"
+            docx_write.write_docx(markdown, path)
+            lines = [line for line in docx_read.read_docx(path) if line.strip()]
+        self.assertEqual(lines, ["Clinical Case", "Body paragraph."])
+
+    def run_in_heading(self):
+        markdown = "#### Follow-up\n\nThe plan continues.\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.docx"
+            docx_write.write_docx(markdown, path)
+            lines = [line for line in docx_read.read_docx(path) if line.strip()]
+        self.assertEqual(lines, ["Follow-up", "The plan continues."])
+        self.assertIn('<w:pStyle w:val="Heading4"/>', docx_write.body_xml(markdown))
+
+    def alphabetized_references(self):
+        markdown = "# References\n\nZulu, Z. (2025). Last.\n\nAlpha, A. (2025). First.\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.docx"
+            docx_write.write_docx(markdown, path)
+            lines = [line for line in docx_read.read_docx(path) if line.strip()]
+        self.assertLess(
+            lines.index("Zulu, Z. (2025). Last."),
+            lines.index("Alpha, A. (2025). First."),
+        )
+
+    def one_reference_paragraph(self):
+        xml = rendered_parts(
+            "# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n"
+        )["word/document.xml"]
+        self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
 
 
 class TheRendererClaimsInStepSeven(unittest.TestCase):

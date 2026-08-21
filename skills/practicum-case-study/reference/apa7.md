@@ -238,9 +238,9 @@ sat in `tools/docx_write.py`'s docstring, and a **prose** edit to either failed 
 regression fails a behavior test, so the direction that was uncovered was the one where the two
 files quietly disagree and the reader who is misled is the one who checked the file nearer to hand.
 It is `docx_write.NOT_APPLIED` now, one object, on `REFERENCE_HEADING`'s precedent, and
-`tools/test_docx.py` asserts this table names the same items in both directions. **What that
-cannot reach is whether a row's verdict is true** — a row moved into the *applied* table above
-while the renderer still does not apply it is invisible to it, and stays a behavior test's job.
+`tools/test_docx.py` asserts this table names the same items in both directions. **That bind
+still cannot establish whether a row's verdict is true**, so #323 executes every current row
+against the rendered archive and makes a new row fail until it gains its own measurement.
 
 **None of these is worth more than a point, and they are still real.**
 **A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
@@ -275,10 +275,10 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one
 artifact over: the same list sat in this sheet and in the module's docstring, and a **prose** edit
 to either failed nothing, so the reader who was misled was the one who checked the file nearer to
-hand. `tools/test_reference_scan.py` asserts the two name the same items in both directions. **What
-that cannot reach is whether a row's verdict is true** — an item deleted from the table while the
-command still cannot reach it fails, but one moved out while the command gained no row is invisible
-to it, and stays a behavior test's job.
+hand. `tools/test_reference_scan.py` asserts the two name the same items in both directions. **That
+bind still cannot establish whether a row's verdict is true**, so #323 drives a synthetic draft
+through the scanner for every current row and makes a new row fail until it gains its own
+measurement.
 
 **#241's first row was ruled a reading rather than left open, and the option it declined is worth
 recording.** The proposal was to join each entry to its `tools/research_ledger.py` record and read

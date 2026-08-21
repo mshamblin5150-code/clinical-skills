@@ -676,6 +676,47 @@ class SplittingADrugRowOnAndIsRefusedHere(unittest.TestCase):
         )
 
 
+class EveryDeclaredLimitHasAnEvidenceOwner(unittest.TestCase):
+    """#323's per-row split: execute what is mechanical and assign the rest.
+
+    A name bind proves only that two declarations agree. This class instead makes
+    every declared limit choose exactly one evidence owner. The mechanically
+    reachable row is driven through ``survey`` below; the reader-owned rows remain
+    in ``practicum-case-study`` step 9, whose mandatory ledger chain is covered by
+    ``TheSkillSaysWhatThisCannotDo`` and the checks-ledger suite.
+    """
+
+    WELDED = (
+        "a second drug welded into one drug row, discharged by the first drug's endpoint"
+    )
+
+    def test_every_limit_has_exactly_one_known_owner(self):
+        self.assertEqual(
+            [key for key, _ in scan.DECLARED_LIMITS],
+            list(scan.NOT_REACHED),
+        )
+        for key, owner in scan.DECLARED_LIMITS:
+            with self.subTest(key=key):
+                self.assertIn(owner, {"behavior", "reader"})
+        self.assertEqual(
+            [key for key, owner in scan.DECLARED_LIMITS if owner == "behavior"],
+            [self.WELDED],
+        )
+
+    def test_the_welded_second_drug_really_is_discharged_by_the_first_endpoint(self):
+        order = "Doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID"
+        table = RX_TABLE.replace("| Ceftriaxone 500 mg IM once |", "| " + order + " |")
+        self.assertNotIn(scan.NO_STOP_CRITERION, kinds(CLEAN.replace(RX_TABLE, table)))
+
+        # The control proves the row is absent because the first drug's endpoint is
+        # read across the welded cell, not because the scanner cannot see a recurring
+        # second order at all.
+        second_only = RX_TABLE.replace(
+            "| Ceftriaxone 500 mg IM once |", "| metronidazole 500 mg PO TID |"
+        )
+        self.assertIn(scan.NO_STOP_CRITERION, kinds(CLEAN.replace(RX_TABLE, second_only)))
+
+
 class TheSkillSaysWhatThisCannotDo(unittest.TestCase):
     """``NOT_REACHED`` and the step that names the same items are one list.
 
