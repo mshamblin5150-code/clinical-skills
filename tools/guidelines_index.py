@@ -51,9 +51,12 @@ blank page keeps its number: dropping it would slide every later page's citation
 one, and a citation off by a page is worse than no citation.
 
 ``manifest.json`` supplies ``title``, ``society`` and ``document_class`` per document
-and names the clean commit that produced the extracted text. An index build requires
-it: without the manifest, the shared text directory has no owner. A dirty, foreign,
-unstamped or unreadable manifest **raises** rather than degrading to derived values.
+and names the clean commit that produced the extracted text. The stamp stays trusted
+at descendant commits, including either parent of a merge, only while the extractor
+in the consuming tree is byte-for-byte unchanged from that producing commit. An index
+build requires the manifest: without it, the shared text directory has no owner. A
+dirty, foreign, stale, unstamped or unreadable manifest **raises** rather than
+degrading to derived values.
 ``--allow-untrusted-provenance`` is the explicit development escape hatch; the index
 records why its source was untrusted so a later search cannot launder the override.
 A manifest entry with no extracted text is likewise **reported**, never swallowed,
@@ -216,21 +219,16 @@ def _read_manifest(
     except (json.JSONDecodeError, UnicodeDecodeError) as bad:
         raise ValueError(f"{path} is present but could not be read as JSON: {bad}") from bad
 
+    stamped_producer = data.get("producer") if isinstance(data, dict) else None
+    provenance = artifact_provenance.check_producer(
+        stamped_producer,
+        path,
+        allow_untrusted=allow_untrusted_provenance,
+        expected_commit=expected_commit,
+        unchanged_paths=("tools/guidelines_extract.py",),
+    )
     if isinstance(data, dict):
-        provenance = artifact_provenance.check_producer(
-            data.get("producer"),
-            path,
-            allow_untrusted=allow_untrusted_provenance,
-            expected_commit=expected_commit,
-        )
         data = data.get("documents")
-    else:
-        provenance = artifact_provenance.check_producer(
-            None,
-            path,
-            allow_untrusted=allow_untrusted_provenance,
-            expected_commit=expected_commit,
-        )
     if not isinstance(data, list):
         raise ValueError(
             f"{path} is not a list of entries or a {{\"documents\": [...]}} object. "
