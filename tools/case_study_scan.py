@@ -272,23 +272,27 @@ ROW_RULE = {
 # against ``apa7.md`` section 7, which is [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s
 # repair and is here for its reason: this list sat in two places on that module
 # and a prose edit to either failed nothing.
-# The second field owns the evidence for each limit. ``behavior`` means this module's
-# suite drives the public scanner seam and demonstrates the blind spot. ``reader``
-# means the answer requires clinical, applicability, authorship, or rendered-page
-# judgment; step 9 assigns those rows to a non-authoring reader and the checks ledger
-# requires a verdict. Keeping the owner on the row avoids a second list that can drift.
+# The second field records the evidence disposition for each limit. ``behavior`` means
+# this module's suite drives the public scanner seam and demonstrates the blind spot.
+# ``declared-reading`` means the answer requires clinical, applicability, authorship,
+# or rendered-page judgment and cannot be re-derived here. It does not claim a reader
+# owns the row; that separate gap remains #306. Keeping the disposition on the row
+# avoids a second list that can drift.
 DECLARED_LIMITS = (
-    ("the voice, and it never will be", "reader"),
-    ("a wrapper section that does not apply to this patient", "reader"),
-    ("whether a stop criterion's endpoint is the right endpoint", "reader"),
-    ("whether a drug ordered PRN needs an endpoint of its own", "reader"),
+    ("the voice, and it never will be", "declared-reading"),
+    ("a wrapper section that does not apply to this patient", "declared-reading"),
+    ("whether a stop criterion's endpoint is the right endpoint", "declared-reading"),
+    ("whether a drug ordered PRN needs an endpoint of its own", "declared-reading"),
     (
         "a second drug welded into one drug row, discharged by the first drug's endpoint",
         "behavior",
     ),
-    ("whether a dose is correct, or was sourced at all", "reader"),
-    ("a scaffolding phrase nobody has written yet", "reader"),
-    ("anything the Markdown cannot show, which the rendered document can", "reader"),
+    ("whether a dose is correct, or was sourced at all", "declared-reading"),
+    ("a scaffolding phrase nobody has written yet", "declared-reading"),
+    (
+        "anything the Markdown cannot show, which the rendered document can",
+        "declared-reading",
+    ),
 )
 NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)
 
