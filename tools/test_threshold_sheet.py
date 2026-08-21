@@ -1,6 +1,8 @@
 """Tests for tools/threshold_sheet.py.
 
-**Synthetic sheets built in this file, and the committed one is never graded here.**
+**Synthetic sheets built in this file drive the gate tests.** The one explicit
+exception grades the committed set only to pin the command's loud/quiet line-count
+contract; it does not use that run as evidence that the sheets or gates are correct.
 That is `test_icd10.py`'s reasoning: a test reading the sheet its own gates passed
 would pass for two reasons, one of them being that the sheet and the grader are wrong
 together. `reference/thresholds/hypertension.md` is graded by running the command,
@@ -35,6 +37,30 @@ import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
 from guidelines_manifest_test_support import ReadingManifestConformance  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
+
+
+def grade(
+    sheet_path: Path,
+    recs_arguments: list[str] | None,
+    pdf_root: Path | None,
+    quiet: bool = False,
+    recs_root: Path | None = None,
+    text_root: Path | None = None,
+    second_read_path: Path | None = None,
+    allow_untrusted_provenance: bool = False,
+) -> int:
+    """Exercise the separated survey and command emitter with the old test inputs."""
+    scan = gate.survey(
+        sheet_path,
+        recs_arguments,
+        pdf_root,
+        recs_root,
+        text_root,
+        second_read_path,
+        allow_untrusted_provenance,
+    )
+    return gate._emit_scan(scan, quiet=quiet)
+
 
 def header(mode: str = "exact") -> str:
     """The sheet preamble, with the source's declared mode parameterized.
@@ -441,6 +467,34 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
                 self.assertIsInstance(result.findings, list)
 
 
+class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
+    def test_format_report_only_reads_the_scan_it_is_given(self):
+        parsed = sheet(row())
+        scan = gate.Scan(
+            sheet=parsed,
+            results=(gate.GateResult("SCHEMA", report=("  SCHEMA          0",)),),
+            status=0,
+        )
+
+        with mock.patch.object(gate, "gate_schema", side_effect=AssertionError("gate ran")):
+            report = gate.format_report(scan)
+
+        self.assertIn("== test-sheet.md", report)
+        self.assertIn("SCHEMA          0", report)
+
+    def test_loud_cli_emission_uses_the_pure_formatter(self):
+        scan = gate.Scan(
+            sheet=sheet(row()),
+            results=(gate.GateResult("SCHEMA", report=("  SCHEMA          0",)),),
+        )
+        with mock.patch.object(
+            gate, "format_report", wraps=gate.format_report
+        ) as formatter, contextlib.redirect_stdout(io.StringIO()):
+            gate._emit_scan(scan, quiet=False)
+
+        formatter.assert_called_once_with(scan)
+
+
 class CoverageGate(unittest.TestCase):
     RECS = {
         "doc_id": "Society/doc",
@@ -692,7 +746,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
             path.write_text(sheet_text, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                status = gate.grade(path, [], Path("C:/nowhere-at-all"), quiet=quiet)
+                status = grade(path, [], Path("C:/nowhere-at-all"), quiet=quiet)
             return status, out.getvalue(), err.getvalue()
 
     BROKEN = (
@@ -735,8 +789,26 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
                 gate.main(["--all", *arguments])
             return out.getvalue()
 
-        loud = stdout_for()
-        quiet = stdout_for("--quiet")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = (root / "one.md", root / "two.md")
+            for path in paths:
+                path.write_text("fixture selected through --all", encoding="utf-8")
+
+            reports = (tuple(f"  one report line {index}" for index in range(7)),
+                       tuple(f"  two report line {index}" for index in range(8)))
+            scans = {
+                path: gate.Scan(
+                    gate.Sheet(path),
+                    (gate.GateResult("fixture", report=report),),
+                )
+                for path, report in zip(paths, reports, strict=True)
+            }
+            with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
+                gate, "survey", side_effect=lambda path, *_: scans[path]
+            ):
+                loud = stdout_for()
+                quiet = stdout_for("--quiet")
 
         self.assertEqual(len(loud.splitlines()) - len(quiet.splitlines()), 29)
 
@@ -768,7 +840,7 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             path = Path(directory) / "sheet.md"
             path.write_text(self.CLEAN, encoding="utf-8")
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                return gate.grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=True)
+                return grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=True)
 
     def test_a_recs_path_that_does_not_exist_is_2_and_not_0(self):
         self.assertEqual(self.grade_with(["C:/nowhere-at-all/recs.json"]), 2)
@@ -788,7 +860,7 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             path.write_text(self.CLEAN, encoding="utf-8")
             err = io.StringIO()
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-                gate.grade(path, ["C:/nowhere/recs.json"], Path("C:/nowhere"), quiet=True)
+                grade(path, ["C:/nowhere/recs.json"], Path("C:/nowhere"), quiet=True)
             self.assertIn("no such file", err.getvalue())
 
     def test_a_record_never_built_under_the_lookup_root_warns_and_exits_0(self):
@@ -804,7 +876,7 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             empty_root.mkdir()
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                status = gate.grade(
+                status = grade(
                     path,
                     [],
                     Path("C:/nowhere-at-all"),
@@ -824,7 +896,7 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
             path = root / "sheet.md"
             path.write_text(self.CLEAN, encoding="utf-8")
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                status = gate.grade(
+                status = grade(
                     path,
                     [],
                     Path("C:/nowhere-at-all"),
@@ -861,7 +933,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                gate.grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=False)
+                grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=False)
             return out.getvalue()
 
     def coverage_line(self, report: str) -> str:
@@ -908,7 +980,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                gate.grade(path, [str(recs)], Path("C:/nowhere-at-all"), quiet=False)
+                grade(path, [str(recs)], Path("C:/nowhere-at-all"), quiet=False)
             line = self.coverage_line(out.getvalue())
             self.assertIn("refusing", line)
             self.assertNotIn("NOT RUN", line)
@@ -1626,7 +1698,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
             path.write_text(self.TWO, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                status = gate.grade(
+                status = grade(
                     path, arguments, Path("C:/nowhere-at-all"), quiet=False, recs_root=recs_root
                 )
             return status, out.getvalue(), err.getvalue()
@@ -1700,7 +1772,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                status = gate.grade(path, [], Path("C:/nowhere-at-all"), quiet=False)
+                status = grade(path, [], Path("C:/nowhere-at-all"), quiet=False)
         line = [row_ for row_ in out.getvalue().splitlines() if "COVERAGE" in row_]
         self.assertEqual(status, 1)
         self.assertEqual(len(line), 1)
@@ -1765,10 +1837,10 @@ class TheRecordsStayOutsideTheRepo(unittest.TestCase):
             empty_root = Path(directory) / "root"
             empty_root.mkdir()
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                no_lookup_status = gate.grade(
+                no_lookup_status = grade(
                     path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=None
                 )
-                empty_root_status = gate.grade(
+                empty_root_status = grade(
                     path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=empty_root
                 )
             self.assertEqual(no_lookup_status, 2)
@@ -1952,7 +2024,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         recs_path = root / "recs.json"
         recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return gate.grade(
+            return grade(
                 sheet_path,
                 [str(recs_path)],
                 Path("C:/nowhere-at-all"),
@@ -2155,7 +2227,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         stderr = io.StringIO()
 
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
-            status = gate.grade(
+            status = grade(
                 sheet_path,
                 [str(recs_path)],
                 Path("C:/nowhere-at-all"),
@@ -2171,14 +2243,12 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
 
         self.assertIs(gate.read_extraction, guidelines_manifest.read)
 
-    def test_every_tolerant_read_prints_its_problem_count(self):
+    def test_every_tolerant_read_reports_its_problem_count(self):
         text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
-        stderr = io.StringIO()
 
-        with contextlib.redirect_stderr(stderr):
-            gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(sheet(row()), self.root)
 
-        self.assertIn("0 manifest problem(s)", stderr.getvalue())
+        self.assertIn("0 manifest problem(s)", "\n".join(result.diagnostics))
 
     def test_one_bad_sibling_does_not_discard_a_valid_documents_probes(self):
         text_corpus(
@@ -2191,17 +2261,19 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         value = json.loads(path.read_text(encoding="utf-8"))
         value["documents"].append({"doc_id": "Society/broken"})
         path.write_text(json.dumps(value), encoding="utf-8")
-        stderr = io.StringIO()
-
-        with contextlib.redirect_stderr(stderr):
-            result = gate.gate_watermark(
-                sheet(row(snippet="Jones et al goal <130 mm Hg")), self.root
-            )
-            failures, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        result = gate.gate_watermark(
+            sheet(row(snippet="Jones et al goal <130 mm Hg")), self.root
+        )
+        failures, skip, _, _ = (
+            result.findings,
+            result.skip_reason,
+            result.rendered,
+            result.unprobed_sources,
+        )
 
         self.assertIsNone(skip)
         self.assertEqual(len(failures), 1)
-        self.assertIn("1 manifest problem(s)", stderr.getvalue())
+        self.assertIn("1 manifest problem(s)", "\n".join(result.diagnostics))
 
     def test_the_value_cell_is_probed_as_well_as_the_snippet(self):
         """#83 says *inside an extracted table row*, and both cells are transcribed
@@ -2479,7 +2551,7 @@ class GateFiveIsDocumentedAsASmokeTest(unittest.TestCase):
     def _report(self, **kwargs) -> str:
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
-            gate.grade(**kwargs)
+            grade(**kwargs)
         return stream.getvalue()
 
     def setUp(self):
@@ -2517,14 +2589,14 @@ class GateFiveIsDocumentedAsASmokeTest(unittest.TestCase):
     def test_an_unloadable_second_read_is_a_way_of_not_having_graded(self):
         path = self.root / "read.json"
         path.write_text("[]", encoding="utf-8")
-        status = gate.grade(
+        status = grade(
             sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
             text_root=None, second_read_path=path, quiet=True,
         )
         self.assertEqual(status, 2)
 
     def test_a_second_read_path_that_does_not_resolve_is_a_typo_and_not_a_decision(self):
-        status = gate.grade(
+        status = grade(
             sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
             text_root=None, second_read_path=self.root / "nowhere.json", quiet=True,
         )
@@ -2552,7 +2624,7 @@ class TheWatermarkBannerIsHardToReadPast(unittest.TestCase):
     def test_an_absent_corpus_prints_a_banner_that_survives_quiet(self):
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
-            gate.grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
                        text_root=self.root / "nowhere", second_read_path=None, quiet=True)
         printed = stream.getvalue()
         self.assertIn("WATERMARK", printed)
@@ -2562,7 +2634,7 @@ class TheWatermarkBannerIsHardToReadPast(unittest.TestCase):
         text_corpus(self.root / "text", "Society/other", "a goal", boilerplate=["Jones et al"])
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
-            gate.grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
                        text_root=self.root / "text", second_read_path=None)
         self.assertIn("src", stream.getvalue())
 
@@ -2668,7 +2740,7 @@ class TheNotProbedNoticeSurvivesQuiet(unittest.TestCase):
     def _quiet(self) -> tuple[str, str]:
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            gate.grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
                        text_root=self.root / "text", second_read_path=None, quiet=True)
         return out.getvalue(), err.getvalue()
 
@@ -2732,7 +2804,7 @@ class GateFourRefusesUntilTheRenderedPageIsChecked(unittest.TestCase):
     def _run(self):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            status = gate.grade(
+            status = grade(
                 sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
                 text_root=self.root / "text", second_read_path=None,
                 recs_root=self.root / "recs",
@@ -2836,11 +2908,38 @@ class TheSmokeTestCaveatSurvivesQuiet(unittest.TestCase):
     def test_quiet_suppresses_the_report_and_not_the_caveat(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            gate.grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
                        text_root=None, second_read_path=self.read_path, quiet=True)
         printed = out.getvalue()
         self.assertNotIn("SECOND READ     ", printed, "the report itself is suppressed")
         self.assertIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
+
+    def test_loud_keeps_the_caveat_beside_the_second_read_summary(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                  text_root=None, second_read_path=self.read_path)
+        printed = out.getvalue()
+        summary = printed.index("SECOND READ     0 refusing")
+        caveat = printed.index(gate.SECOND_READ_IS_A_SMOKE_TEST)
+        pairing = printed.index("bp-goal / adults")
+        resolved = printed.index("last resolved")
+        tier2_banner = printed.index("CITATION TIER 2 DID NOT RUN")
+        self.assertLess(summary, caveat)
+        self.assertLess(caveat, pairing)
+        self.assertLess(pairing, resolved)
+        self.assertLess(resolved, tier2_banner)
+
+    def test_quiet_keeps_the_caveat_before_the_gate_banners(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                  text_root=None, second_read_path=self.read_path, quiet=True)
+        printed = out.getvalue()
+        self.assertLess(
+            printed.index(gate.SECOND_READ_IS_A_SMOKE_TEST),
+            printed.index("CITATION TIER 2 DID NOT RUN"),
+        )
 
 
 class OneStatementCanAnswerTwoRows(unittest.TestCase):
@@ -2923,7 +3022,7 @@ class AReadThatCoversNothingIsNotAGradedSheet(unittest.TestCase):
         self.read_path.write_text(json.dumps(second_read(*values)), encoding="utf-8")
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            status = gate.grade(
+            status = grade(
                 sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
                 text_root=None, second_read_path=self.read_path,
                 recs_root=self.root / "recs",

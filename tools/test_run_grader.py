@@ -150,6 +150,12 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
         self.assertTrue(all(run_grader.NOT_MEMBERS.values()))
         self.assertTrue(all(run_grader.OUTSIDE_WALK.values()))
 
+    def test_threshold_sheet_names_both_runner_mismatches(self):
+        reason = run_grader.NOT_MEMBERS["threshold_sheet"]
+
+        self.assertIn("quiet", reason)
+        self.assertIn("multiple sheets", reason)
+
 
 class TheSharedFindingWalkStatesAndTestsItsCeiling(unittest.TestCase):
     def module_for(self, source: str):

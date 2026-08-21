@@ -43,6 +43,11 @@ NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
     {
         "corpus_census": "a census over the corpus, not a grader over a run",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
+        "threshold_sheet": (
+            "the shared runner has no quiet path and grades one source to one status, "
+            "while threshold_sheet must suppress reports under --quiet and --all must "
+            "return the worst status across multiple sheets"
+        ),
         "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
     }
 )

@@ -444,6 +444,8 @@ class GateResult:
     tier2_skip_diagnostics: tuple[str, ...] = ()
     not_graded: bool = False
     fatal: bool = False
+    report_after_stdout: tuple[str, ...] = ()
+    stdout_before_footer: bool = False
 
 @dataclass(frozen=True)
 class Row:
@@ -478,6 +480,62 @@ class Sheet:
     resolved_date: str | None = None
     ok: bool = True
     why_not: str | None = None
+
+
+@dataclass
+class Scan:
+    """A completed sheet survey whose output has not been emitted."""
+
+    sheet: Sheet
+    results: tuple[GateResult, ...] = ()
+    status: int = 0
+    diagnostics: tuple[str, ...] = ()
+    reportable: bool = True
+
+
+def format_report(scan: Scan) -> str:
+    """Render only the suppressible report carried by a completed survey."""
+    if not scan.reportable:
+        return ""
+
+    lines = _report_opening(scan.sheet)
+    if not scan.sheet.ok:
+        return "\n".join(lines) + "\n"
+
+    for result in scan.results:
+        lines.extend(result.report)
+        if result.stdout_before_footer:
+            lines.extend(result.stdout)
+        lines.extend(result.report_after_stdout)
+    lines.extend(_report_footer(scan.sheet))
+    return "\n".join(lines) + "\n"
+
+
+def _report_opening(sheet: Sheet) -> list[str]:
+    """The report prefix shared by pure formatting and streamed CLI emission."""
+    lines = [f"== {sheet.path.name}"]
+    if sheet.ok:
+        lines.extend(
+            (
+                f"  rows            {len(sheet.rows)}",
+                f"  sources         {len(sheet.sources)}",
+                f"  populations     {len(sheet.populations)}",
+                f"  scoped out      {len(sheet.scoped_out)}",
+                "",
+            )
+        )
+    return lines
+
+
+def _report_footer(sheet: Sheet) -> tuple[str, ...]:
+    """The resolution line that closes every parsed-sheet report."""
+    if sheet.resolved_date:
+        return (
+            f"  last resolved   {sheet.resolved_date} against {sheet.resolved_corpus}",
+        )
+    return (
+        "  last resolved   NOT RECORDED -- the sheet does not say when tier 2 last ran",
+    )
 
 
 def _document_of(sheet: "Sheet", row: "Row") -> str:
@@ -767,6 +825,23 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
     )
 
 
+def _citation_tier2_not_run(reason: str) -> GateResult:
+    """One unmistakable result for either reason tier 2 could not start."""
+    return GateResult(
+        "CITATION tier 2",
+        skip_reason=reason,
+        report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
+        stdout=(
+            "",
+            "  " + "=" * 66,
+            "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
+            "  the source PDFs on this machine. Tier 1 proved each value is in its",
+            "  own snippet; nothing here proved the snippet is on the page it cites.",
+            "  " + "=" * 66,
+        ),
+    )
+
+
 def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     """Every snippet must appear on the page it cites.
 
@@ -780,37 +855,11 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     whole design of decision 2 is that this **must not be readable as passing**.
     """
     if pdf_root is None or not pdf_root.is_dir():
-        reason = f"source PDFs not found at {pdf_root}"
-        return GateResult(
-            "CITATION tier 2",
-            skip_reason=reason,
-            report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
-            stdout=(
-                "",
-                "  " + "=" * 66,
-                "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
-                "  the source PDFs on this machine. Tier 1 proved each value is in its",
-                "  own snippet; nothing here proved the snippet is on the page it cites.",
-                "  " + "=" * 66,
-            ),
-        )
+        return _citation_tier2_not_run(f"source PDFs not found at {pdf_root}")
     try:
         import pymupdf
     except ImportError:
-        reason = "pymupdf is not installed"
-        return GateResult(
-            "CITATION tier 2",
-            skip_reason=reason,
-            report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
-            stdout=(
-                "",
-                "  " + "=" * 66,
-                "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
-                "  the source PDFs on this machine. Tier 1 proved each value is in its",
-                "  own snippet; nothing here proved the snippet is on the page it cites.",
-                "  " + "=" * 66,
-            ),
-        )
+        return _citation_tier2_not_run("pymupdf is not installed")
 
     failures: list[str] = []
     rendered = 0
@@ -933,6 +982,32 @@ def usable_probes(entry: guidelines_manifest.Record, body: str) -> dict[str, str
     return probes
 
 
+def _watermark_not_run(
+    reason: str,
+    *,
+    diagnostics: tuple[str, ...],
+    tier2_skip_diagnostics: tuple[str, ...] = (),
+    fatal: bool = False,
+) -> GateResult:
+    """Build the shared absent-corpus result while retaining its distinct metadata."""
+    return GateResult(
+        "WATERMARK",
+        skip_reason=reason,
+        report=(f"  WATERMARK       NOT RUN -- {reason}",),
+        stdout=(
+            "",
+            "  " + "=" * 66,
+            "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
+            "  as page-repeated text was interleaved into a row. Rebuild the",
+            "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
+            "  " + "=" * 66,
+        ),
+        diagnostics=diagnostics,
+        tier2_skip_diagnostics=tier2_skip_diagnostics,
+        fatal=fatal,
+    )
+
+
 def gate_watermark(
     sheet: Sheet,
     text_root: Path | None,
@@ -1000,29 +1075,18 @@ def gate_watermark(
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
     """
     if text_root is None:
-        print("  WATERMARK       1 manifest problem(s)", file=sys.stderr)
         reason = f"extracted corpus not found at {text_root}"
-        return GateResult(
-            "WATERMARK",
-            skip_reason=reason,
-            report=(f"  WATERMARK       NOT RUN -- {reason}",),
-            stdout=(
-                "",
-                "  " + "=" * 66,
-                "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
-                "  as page-repeated text was interleaved into a row. Rebuild the",
-                "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
-                "  " + "=" * 66,
-            ),
+        return _watermark_not_run(
+            reason,
+            diagnostics=("  WATERMARK       1 manifest problem(s)",),
         )
     text_root = Path(text_root)
     handoff = read_extraction(
         text_root,
         allow_untrusted_provenance=allow_untrusted_provenance,
     )
-    print(
-        f"  WATERMARK       {len(handoff.problems)} manifest problem(s)",
-        file=sys.stderr,
+    manifest_diagnostic = (
+        f"  WATERMARK       {len(handoff.problems)} manifest problem(s)"
     )
     manifest = handoff.documents
     if not manifest:
@@ -1031,18 +1095,9 @@ def gate_watermark(
             or f"no {guidelines_manifest.MANIFEST_NAME} under {text_root}"
         )
         fatal = text_root.is_dir()
-        return GateResult(
-            "WATERMARK",
-            skip_reason=reason,
-            report=(f"  WATERMARK       NOT RUN -- {reason}",),
-            stdout=(
-                "",
-                "  " + "=" * 66,
-                "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
-                "  as page-repeated text was interleaved into a row. Rebuild the",
-                "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
-                "  " + "=" * 66,
-            ),
+        return _watermark_not_run(
+            reason,
+            diagnostics=(manifest_diagnostic,),
             tier2_skip_diagnostics=(f"  WATERMARK       NOT RUN -- {reason}",),
             fatal=fatal,
         )
@@ -1098,7 +1153,7 @@ def gate_watermark(
             f"                  NOT PROBED for {len(unprobed)} of {len(sheet.sources)} "
             f"source(s): {', '.join(unprobed)} -- so the count above is a floor"
         )
-    diagnostics = tuple(
+    diagnostics = (manifest_diagnostic,) + tuple(
         f"  WATERMARK       NOT PROBED for source '{key}' -- no manifest entry, no "
         "extracted text, or no string stripped from it that could serve as a probe"
         for key in unprobed
@@ -1439,7 +1494,6 @@ def gate_second_read(
         ]
         if uncovered:
             report_lines.append("                  so the counts above are a floor, not the whole")
-        report_lines.extend(f"                  {pairing}" for pairing in pairings)
         report = tuple(report_lines)
         stdout = (f"                  {SECOND_READ_IS_A_SMOKE_TEST}",)
 
@@ -1453,6 +1507,10 @@ def gate_second_read(
         report=report,
         stdout=stdout,
         not_graded=not graded,
+        report_after_stdout=tuple(
+            f"                  {pairing}" for pairing in pairings
+        ),
+        stdout_before_footer=graded,
     )
 
 def bind_recs(
@@ -1812,38 +1870,35 @@ def gate_range(sheet: Sheet) -> GateResult:
     )
 
 
-def grade(
+def survey(
     sheet_path: Path,
     recs_arguments: list[str] | None,
     pdf_root: Path | None,
-    quiet: bool = False,
     recs_root: Path | None = None,
     text_root: Path | None = None,
     second_read_path: Path | None = None,
     allow_untrusted_provenance: bool = False,
-) -> int:
-    """Grade one sheet. ``quiet`` suppresses the report, never a finding.
-
-    That asymmetry is the whole contract of the flag: the pre-commit hook runs with
-    it so a clean sheet costs the committer nothing, and a failing one still prints
-    every FAIL line and the tier-2 banner. A quiet mode that could hide a refusal
-    would be a way to make this gate silent, which is the thing #83's closing section
-    is about.
-    """
-    def report(*args: object) -> None:
-        if not quiet:
-            print(*args)
+) -> Scan:
+    """Read and grade one sheet without emitting either report or findings."""
 
     if not sheet_path.is_file():
-        print(f"not a file: {sheet_path}", file=sys.stderr)
-        return 2
+        return Scan(
+            Sheet(path=sheet_path, ok=False, why_not="not a file"),
+            status=2,
+            diagnostics=(f"not a file: {sheet_path}",),
+            reportable=False,
+        )
 
     sheet = parse(sheet_path.read_text(encoding="utf-8"), sheet_path)
-    report(f"== {sheet_path.name}")
     if not sheet.ok:
-        print(f"  NOT GRADED  {sheet.why_not}", file=sys.stderr)
-        print("  Nothing was checked. This is not a clean sheet.", file=sys.stderr)
-        return 2
+        return Scan(
+            sheet,
+            status=2,
+            diagnostics=(
+                f"  NOT GRADED  {sheet.why_not}",
+                "  Nothing was checked. This is not a clean sheet.",
+            ),
+        )
 
     # **Why the missing-file case is separated from the not-asked-for case.** They
     # produce the same absent record and they are not the same event: one is a run
@@ -1894,28 +1949,7 @@ def grade(
         or second_read_result.not_graded
     )
 
-    report(f"  rows            {len(sheet.rows)}")
-    report(f"  sources         {len(sheet.sources)}")
-    report(f"  populations     {len(sheet.populations)}")
-    report(f"  scoped out      {len(sheet.scoped_out)}")
-    # `report`, not `print`: this blank line is part of the report and `--quiet`
-    # promises to suppress the report and never a finding. As a bare `print` it was
-    # the one piece of the report that survived --quiet, so the pre-commit hook
-    # emitted a stray blank line on a clean sheet.
-    report()
     results = (schema, tier1, tier2, coverage, ranges, watermark, second_read_result)
-    for result in results:
-        for line in result.report:
-            report(line)
-
-    if sheet.resolved_date:
-        report(f"  last resolved   {sheet.resolved_date} against {sheet.resolved_corpus}")
-    else:
-        report("  last resolved   NOT RECORDED -- the sheet does not say when tier 2 last ran")
-
-    for result in results:
-        for line in result.stdout:
-            print(line)
 
     refusals = (
         schema.findings
@@ -1926,36 +1960,60 @@ def grade(
         + watermark.findings
         + second_read_result.findings
     )
-    for message in refusals:
-        print(f"  FAIL  {message}", file=sys.stderr)
-    for message in coverage.warnings + second_read_result.warnings:
-        print(f"  WARN  {message}", file=sys.stderr)
-    for message in second_read_result.undiffed + second_read_result.uncovered:
-        print(f"  NOT DIFFED  {message}", file=sys.stderr)
-
-    for result in (watermark, second_read_result, coverage):
-        for line in result.diagnostics:
-            print(line, file=sys.stderr)
+    diagnostics = list(watermark.diagnostics[:1])
+    diagnostics.extend(f"  FAIL  {message}" for message in refusals)
+    diagnostics.extend(
+        f"  WARN  {message}"
+        for message in coverage.warnings + second_read_result.warnings
+    )
+    diagnostics.extend(
+        f"  NOT DIFFED  {message}"
+        for message in second_read_result.undiffed + second_read_result.uncovered
+    )
+    diagnostics.extend(watermark.diagnostics[1:])
+    diagnostics.extend(second_read_result.diagnostics)
+    diagnostics.extend(coverage.diagnostics)
     if tier2.skip_reason:
-        for line in watermark.tier2_skip_diagnostics:
-            print(line, file=sys.stderr)
+        diagnostics.extend(watermark.tier2_skip_diagnostics)
 
     if any(result.fatal for result in results):
-        return 2
-    if refusals:
+        status = 2
+    elif refusals:
         # 1 wins over 2 where both hold, and the message names the ungraded part so
         # the finding reads as a floor rather than the whole. Returning 2 would file
         # the strongest thing known about the sheet under the weakest heading --
         # `differential_scan.py`'s ordering, for its reason.
         if not_graded:
-            print(
+            diagnostics.append(
                 "  note: COVERAGE did not run on every source, so the count above is a floor.",
-                file=sys.stderr,
             )
-        return 1
-    if not_graded:
-        return 2
-    return 0
+        status = 1
+    elif not_graded:
+        status = 2
+    else:
+        status = 0
+    return Scan(sheet, results, status, tuple(diagnostics))
+
+
+def _emit_scan(scan: Scan, *, quiet: bool) -> int:
+    """Emit one completed survey under the command's quiet contract."""
+    early_stdout = tuple(
+        result for result in scan.results if result.stdout_before_footer
+    )
+    if not quiet:
+        print(format_report(scan), end="")
+    elif quiet:
+        for result in early_stdout:
+            for line in result.stdout:
+                print(line)
+    for result in scan.results:
+        if result.stdout_before_footer:
+            continue
+        for line in result.stdout:
+            print(line)
+    for line in scan.diagnostics:
+        print(line, file=sys.stderr)
+    return scan.status
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2102,15 +2160,17 @@ def main(argv: list[str]) -> int:
         for path in sheets:
             worst = max(
                 worst,
-                grade(
-                    path,
-                    [],
-                    args.pdf_root,
-                    args.quiet,
-                    args.recs_root,
-                    text_root,
-                    None,
-                    args.allow_untrusted_provenance,
+                _emit_scan(
+                    survey(
+                        path,
+                        [],
+                        args.pdf_root,
+                        args.recs_root,
+                        text_root,
+                        None,
+                        args.allow_untrusted_provenance,
+                    ),
+                    quiet=args.quiet,
                 ),
             )
         return worst
@@ -2121,9 +2181,17 @@ def main(argv: list[str]) -> int:
     # record and a named sheet did not, so the same sheet graded differently depending
     # on which way it was reached. One rule, and the root stays outside the repo --
     # see `bind_recs` for why there is no fallback beside the sheet.
-    return grade(
-        args.sheet, args.recs, args.pdf_root, args.quiet, args.recs_root,
-        text_root, args.second_read, args.allow_untrusted_provenance,
+    return _emit_scan(
+        survey(
+            args.sheet,
+            args.recs,
+            args.pdf_root,
+            args.recs_root,
+            text_root,
+            args.second_read,
+            args.allow_untrusted_provenance,
+        ),
+        quiet=args.quiet,
     )
 
 
