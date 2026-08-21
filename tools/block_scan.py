@@ -91,7 +91,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 
 ASSERTED = "FILLED·asserted"
 PROPOSED = "FILLED·proposed"
@@ -170,6 +170,12 @@ WHY = {
     F2: "start/end times open GAPS",
     F3: "Race/Ethnicity misplaced",
 }
+ROWS = {
+    F1: "fixtures/day-a F1 - payment method opens GAPS",
+    F2: "fixtures/day-a F2 - start/end times open GAPS",
+    F3: "fixtures/day-a F3 - Race/Ethnicity misplaced",
+}
+KINDS = tuple(ROWS)
 
 # The second limb has no entry to point at, and this string is not note text.
 ABSENT = "(no Race/Ethnicity under FILLED-asserted)"
@@ -194,12 +200,17 @@ class Entry:
 
 
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One block-structure row failing on one entry of one note."""
 
-    row: str
+    kind: str
     label: str
     line: str
+
+    @property
+    def row(self) -> str:
+        """The report's historical spelling for ``kind``."""
+        return self.kind
 
 
 @dataclass(frozen=True)
@@ -388,51 +399,66 @@ def read_notes(directory: Path) -> list[str]:
     ]
 
 
-def main(argv: list[str]) -> int:
-    """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
-    show = "--show" in argv
-    if not args:
-        print("usage: block_scan.py <a run directory> [--show]", file=sys.stderr)
-        return 2
-    directory = Path(args[0])
-    # The directory name, never the path: a run directory sits under ``scratch/``
-    # or ``output/``, and its path names the shift and often the site.
+@dataclass(frozen=True)
+class Source:
+    directory: Path
+    notes: tuple[str, ...]
+
+
+def _load(parsed: run_grader.Parsed) -> Source:
+    directory = Path(parsed.source)
     if not directory.is_dir():
-        print(f"no directory named {directory.name}", file=sys.stderr)
-        return 2
-    notes = read_notes(directory)
+        raise run_grader.SourceError(f"no directory named {directory.name}")
+    notes = tuple(read_notes(directory))
     if not notes:
-        print(f"no notes found in {directory.name}", file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(f"no notes found in {directory.name}")
+    return Source(directory, notes)
+
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scan = survey(
-        [read_block(text) for text in notes],
+        [read_block(text) for text in source.notes],
         label_candidates=tuple(
             candidate
-            for text in notes
+            for text in source.notes
             for candidate in label_candidates(text)
         ),
     )
-    print(format_report(scan, source=directory.name, show=show))
+    diagnostics: list[str] = []
     if not scan.notes_with_block:
-        print(
+        diagnostics.append(
             f"\nNothing was scanned: none of the {scan.notes_read} note(s) in"
-            f" {directory.name} carries a tier block this can read."
-            " F1-F3 have no value against this run.",
-            file=sys.stderr,
+            f" {source.directory.name} carries a tier block this can read."
+            " F1-F3 have no value against this run."
         )
-        return 2
     if scan.findings:
-        print(
+        diagnostics.append(
             f"\n{scan.failing_notes} note(s) fail fixtures/day-a F1-F3"
             f" ({len(scan.findings)} finding(s))."
-            " Re-run with --show to see which, and do not paste that output.",
-            file=sys.stderr,
+            " Re-run with --show to see which, and do not paste that output."
         )
-        return 1
-    return 0
+    return run_grader.Grade(
+        scan=scan,
+        source=source.directory.name,
+        findings_failed=bool(scan.findings),
+        coverage_failed=not scan.notes_with_block,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: block_scan.py <a run directory> [--show]",
+    options=(run_grader.Option("--show"),),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+)
+
+
+def main(argv: list[str]) -> int:
+    """``argv`` is the argument list without the program name."""
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

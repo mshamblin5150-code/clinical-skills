@@ -232,7 +232,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
 from docx_write import blocks as renderer_blocks
 
@@ -370,26 +370,6 @@ INTEXT_YEAR_MISMATCH = "intext-year-mismatch"
 UNCITED_ENTRY = "uncited-entry"
 UNLISTED_CITATION = "unlisted-citation"
 
-# Every row, in report order. One tuple, so the report, the counter and the skill
-# agreement test cannot drift into listing different sets.
-KINDS = (
-    HEADING_NOT_APA,
-    ENTRY_NOT_A_PARAGRAPH,
-    ENTRY_HAS_NO_YEAR,
-    CANVAS_ARTIFACT,
-    LIST_NOT_SORTED,
-    MISSING_AB,
-    AB_OUT_OF_TITLE_ORDER,
-    UPTODATE_NO_RETRIEVAL_DATE,
-    RETRIEVAL_DATE_ON_ARCHIVED,
-    RETRIEVAL_DATE_BEFORE_EXAM,
-    MALFORMED_DATE,
-    UPTODATE_ITALICS,
-    INTEXT_YEAR_MISMATCH,
-    UNCITED_ENTRY,
-    UNLISTED_CITATION,
-)
-
 # The rows that read the draft's **body** rather than its reference list, declared
 # so that a fifth one cannot arrive quietly. #218's decision 1 was ruled on a
 # property of this module -- no finding detail can be a sentence of clinical prose
@@ -427,7 +407,7 @@ BODY_ROWS = (
 # sheet, which #218's own first comment records as an inaccuracy in the ticket
 # body: *a checker built from the ticket as written would look in the wrong file
 # and find nothing.* A column headed with one file name would have reproduced that.
-ROW_SECTION = {
+ROWS = {
     HEADING_NOT_APA: "apa7 1",
     ENTRY_NOT_A_PARAGRAPH: "apa7 1",
     ENTRY_HAS_NO_YEAR: "apa7 1",
@@ -444,6 +424,7 @@ ROW_SECTION = {
     UNCITED_ENTRY: "apa7 5",
     UNLISTED_CITATION: "apa7 5",
 }
+KINDS = tuple(ROWS)
 
 
 # What a reader does because this command cannot, and
@@ -698,7 +679,7 @@ class Document:
 
 
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One row failed once. **Both ``where`` and ``detail`` are safe to print**,
     which is #218's decision 1 ruled on 2026-08-19 and is what ``--show`` rests on.
 
@@ -715,7 +696,6 @@ class Finding:
     its text and would otherwise be counted as a third entry.
     """
 
-    kind: str
     where: str
     detail: str
     line: int | None = None
@@ -1063,7 +1043,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
     ]
     for kind, count in scan.counts:
-        lines.append(f"  {ROW_SECTION[kind]:<9} {kind:<28} {count}")
+        lines.append(f"  {ROWS[kind]:<9} {kind:<28} {count}")
     lines.append("")
     lines.append(f"  entries at fault                 {scan.entries_at_fault}")
     if show:
@@ -1074,95 +1054,79 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def parse_args(argv: list[str]) -> tuple[list[str], bool, str | None, str | None]:
-    """``(paths, show, as-of, complaint)``.
-
-    ``--as-of`` takes a value, so this cannot be the sibling scanners' one-liner --
-    and having written a parser at all, **an unrecognized flag is refused rather
-    than dropped**. The siblings can afford to ignore one because they have a single
-    flag to mistype; here a typed ``--shwo`` that fell through silently would print
-    a counts-only report, which is precisely what a clean run looks like. That is
-    this repo's recurring shape: a check that did not happen, answering like one
-    that found nothing. ``--as-of --show`` is refused for the same reason rather
-    than swallowing the second flag as a date.
-    """
-    positional: list[str] = []
-    show = False
-    as_of: str | None = None
-    index = 0
-    while index < len(argv):
-        argument = argv[index]
-        if argument == "--show":
-            show = True
-        elif argument == "--as-of":
-            index += 1
-            if index >= len(argv) or argv[index].startswith("--"):
-                return positional, show, as_of, "--as-of takes a YYYY-MM-DD exam date after it"
-            as_of = argv[index]
-        elif argument.startswith("--as-of="):
-            as_of = argument.split("=", 1)[1]
-        elif argument.startswith("--"):
-            return positional, show, as_of, f"unrecognized option {argument}"
-        else:
-            positional.append(argument)
-        index += 1
-    return positional, show, as_of, None
+@dataclass(frozen=True)
+class Source:
+    path: Path
+    document: Document
+    as_of: date | None
 
 
-def main(argv: list[str]) -> int:
-    """``argv`` is the argument list without the program name."""
-    args, show, as_of_text, complaint = parse_args(argv)
-    if complaint:
-        print(complaint, file=sys.stderr)
-        return 2
+def _load(parsed: run_grader.Parsed) -> Source:
+    as_of_text = parsed.value("--as-of")
     as_of: date | None = None
     if as_of_text is not None:
         try:
             as_of = date.fromisoformat(as_of_text)
         except ValueError:
-            print(f"--as-of takes a YYYY-MM-DD exam date, not {as_of_text!r}", file=sys.stderr)
-            return 2
-    if not args:
-        print(
-            "usage: reference_scan.py <a draft .md> --as-of <YYYY-MM-DD> [--show]",
-            file=sys.stderr,
-        )
-        return 2
-    path = Path(args[0])
+            raise run_grader.SourceError(
+                f"--as-of takes a YYYY-MM-DD exam date, not {as_of_text!r}"
+            ) from None
+    path = Path(parsed.source)
     # The name, never the path: a draft sits under ``output/`` and its path names
     # the case and often the patient.
     if not path.is_file():
-        print(f"no draft named {path.name}", file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(f"no draft named {path.name}")
     document = read_document(path.read_text(encoding="utf-8", errors="replace"))
     if document.heading is None:
-        print(f"no reference list found in {path.name}", file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(f"no reference list found in {path.name}")
     if not document.entries:
-        print(f"no entries under the reference heading in {path.name}", file=sys.stderr)
-        return 2
-    scan = survey(document, as_of)
-    print(format_report(scan, source=path.name, show=show))
-    if as_of is None:
-        # Printed whichever status follows, so an exit 1 below reads as a floor
-        # rather than as the whole of what is wrong.
-        print(
-            f"{path.name} was scanned with no --as-of <YYYY-MM-DD> exam date, so no"
-            " retrieval date in it was measured against the day the paper is written.",
-            file=sys.stderr,
+        raise run_grader.SourceError(f"no entries under the reference heading in {path.name}")
+    return Source(path, document, as_of)
+
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scan = survey(source.document, source.as_of)
+    diagnostics: list[str] = []
+    if source.as_of is None:
+        diagnostics.append(
+            f"{source.path.name} was scanned with no --as-of <YYYY-MM-DD> exam date, so no"
+            " retrieval date in it was measured against the day the paper is written."
         )
     if scan.findings:
-        # 1 outranks the missing exam date, on ``differential_scan.py``'s ordering.
-        print(
+        diagnostics.append(
             f"{len(scan.findings)} reference defect(s) against"
             " skills/practicum-case-study/reference/apa7.md."
-            " Re-run with --show to see which.",
-            file=sys.stderr,
+            " Re-run with --show to see which."
         )
-        return 1
-    return 2 if as_of is None else 0
+    return run_grader.Grade(
+        scan=scan,
+        source=source.path.name,
+        findings_failed=bool(scan.findings),
+        coverage_failed=source.as_of is None,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: reference_scan.py <a draft .md> --as-of <YYYY-MM-DD> [--show]",
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option(
+            "--as-of",
+            takes_value=True,
+            missing_value="--as-of takes a YYYY-MM-DD exam date after it",
+        ),
+    ),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+)
+
+
+def main(argv: list[str]) -> int:
+    """``argv`` is the argument list without the program name."""
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

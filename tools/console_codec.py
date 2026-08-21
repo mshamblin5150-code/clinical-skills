@@ -6,6 +6,9 @@
         use_utf8()
         raise SystemExit(main(sys.argv[1:]))
 
+The shared grader family instead delegates ``main()`` to ``run_grader.run()``,
+which owns the same call before it parses, loads or prints anything.
+
 **The defect this exists for is an exit status, not a mangled character.** On Windows
 the default stdout codec is cp1252, and the text these tools print is full of
 characters it has no code point for -- ``>=`` written as its own sign, an en dash, a
@@ -20,14 +23,11 @@ whose codec genuinely will not move still has to print a legible line with a ``?
 it rather than raise, because the thing being protected is the exit status and not
 the glyph.
 
-**Called from ``__main__``, never at import.** Reconfiguring ``sys.stdout`` is a
-decision about a process, and a module that made it on import would make it for every
-test that imports it and for any tool that imports another -- and several here do
-(``guidelines_search`` imports ``guidelines_index``, ``icd10_lookup`` imports
-``icd10_build``, ``harvest_review`` imports ``phi_scan``). ``tools/test_console_codec.py``
-parses every command line in ``tools/`` and asserts the call is there, so this is a
-mechanism rather than a habit -- which is the part #150 left open, and the part a
-sixteenth tool would otherwise be missing.
+**Called from the command path, never at import.** Reconfiguring ``sys.stdout`` is
+a decision about a process. Direct tools call it under ``__main__``; grader members
+reach it through ``run_grader.run()``. Importing either module changes no stream.
+``tools/test_console_codec.py`` parses both arrangements and asserts the call is
+owned on each path, so this is a mechanism rather than a habit.
 
 **What that placement does not cover, stated rather than discovered later.** A tool
 printing *before* ``main`` would print through the old codec; nothing here does, and

@@ -37,7 +37,7 @@ wrap the way a finding wraps.
 **What it checks.** Every row is written into
 ``skills/practicum-case-study/SKILL.md`` step 9, so this grades what that step
 states rather than holding a rule of its own. All but one belong to #240 and
-``ROW_TICKET`` says which is which -- **how many there are is ``KINDS``'s to say
+``ROWS`` says which is which -- **how many there are is ``KINDS``'s to say
 and is deliberately not counted here**, on
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
 The exception is #255's, and it is the one place that sentence had to be earned
@@ -173,16 +173,20 @@ this cannot read would otherwise report zero findings and stand where a checked
 draft should be. There is no dateless limb here, because nothing in this file is
 measured against a date -- which is the one row of ``research_ledger.py``'s
 arrangement that does not transfer.
+
+Since #405, the no-record limb prints the counts-only report before its
+diagnostic and exit 2. Earlier versions returned first; the moved stdout makes
+the coverage failure inspectable under the shared report-before-tier-2 rule.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 
 # A record opens on a heading. The heading level is free, so the file can sit
 # under a document heading without the parser caring -- ``research_ledger.py``'s
@@ -282,17 +286,6 @@ UNKNOWN_VERDICT = "unknown-verdict"
 DEFECT_WITHOUT_FINDINGS = "defect-without-findings"
 CLEAN_WITHOUT_FINDINGS = "clean-without-findings"
 
-# Every row, in report order. One tuple, so the report, the counter and the ticket
-# map cannot drift into listing different sets.
-KINDS = (
-    MISSING_CHECK,
-    DUPLICATE_CHECK,
-    MISSING_VERDICT,
-    UNKNOWN_VERDICT,
-    DEFECT_WITHOUT_FINDINGS,
-    CLEAN_WITHOUT_FINDINGS,
-)
-
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
 # makes the sentence above it true: a comprehension would assign #240 to a row the
@@ -300,7 +293,7 @@ KINDS = (
 # arrive without a ticket would be a claim about code that does not check it.
 # ``KINDS`` is ordered and this is keyed, so ``format_report`` raises rather than
 # mislabelling.
-ROW_TICKET = {
+ROWS = {
     MISSING_CHECK: "#240",
     DUPLICATE_CHECK: "#240",
     MISSING_VERDICT: "#240",
@@ -308,6 +301,7 @@ ROW_TICKET = {
     DEFECT_WITHOUT_FINDINGS: "#240",
     CLEAN_WITHOUT_FINDINGS: "#255",
 }
+KINDS = tuple(ROWS)
 
 # Wide enough for the longest kind, so the count column stays a column and lines
 # up with the counts above it. ``research_ledger.py`` learned this the hard way:
@@ -345,7 +339,7 @@ def graded_keys(names: tuple[str, ...]) -> frozenset[str]:
     for a string no heading in the file can ever match reports nothing forever and
     reads exactly like a rule that is running -- which is the failure this whole
     directory exists to refuse, arriving in the grader's own vocabulary.
-    ``ROW_TICKET``'s reasoning, at the one other place in this module where a name
+    ``ROWS``'s reasoning, at the one other place in this module where a name
     is typed twice.
 
     **A function rather than a bare module-level check** so the raise can be
@@ -422,7 +416,7 @@ class Record:
 
 
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One check failing one row.
 
     ``check`` is the heading. It is the run's own text where the record exists,
@@ -430,7 +424,6 @@ class Finding:
     the only case ``format_report`` will name without ``--show``.
     """
 
-    kind: str
     check: str
     detail: str
 
@@ -622,7 +615,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
     ]
     for kind, count in scan.counts:
-        lines.append(f"  {ROW_TICKET[kind]} - {kind:<{KIND_COLUMN}} {count}")
+        lines.append(f"  {ROWS[kind]} - {kind:<{KIND_COLUMN}} {count}")
     lines.append("")
     lines.append(f"  checks at fault                  {scan.failing_checks}")
     if scan.missing:
@@ -646,44 +639,64 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def main(argv: list[str]) -> int:
-    """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
-    show = "--show" in argv
-    if not args:
-        print("usage: checks_ledger.py <a checks file> [--show]", file=sys.stderr)
-        return 2
-    path = Path(args[0])
-    # The name, never the path: a checks file sits under ``scratch/``.
+@dataclass(frozen=True)
+class Source:
+    path: Path
+    records: tuple[Record, ...]
+
+
+def _load(parsed: run_grader.Parsed) -> Source:
+    path = Path(parsed.source)
     if not path.is_file():
-        print(f"no checks file named {path.name}", file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(f"no checks file named {path.name}")
     text = path.read_text(encoding="utf-8", errors="replace")
-    records = read_records(text)
-    if not records:
-        # The limb that matters. A file written in a shape this cannot read would
-        # otherwise report zero findings and stand where a checked draft should be.
-        print(f"no check records found in {path.name}", file=sys.stderr)
-        return 2
-    scan = survey(records)
-    print(format_report(scan, source=path.name, show=show))
+    return Source(path, tuple(read_records(text)))
+
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scan = survey(list(source.records))
+    if not source.records:
+        # No record was parsed, so no row was applied. Keep the report's shape
+        # without turning an unscanned source into six findings by construction.
+        scan = replace(
+            scan,
+            counts=tuple((kind, 0) for kind in KINDS),
+            failing_checks=0,
+            missing=(),
+            findings=(),
+        )
+    diagnostics: list[str] = []
+    if not source.records:
+        diagnostics.append(f"no check records found in {source.path.name}")
     if scan.failing_checks:
-        # **The tickets are derived from the rows that fired, never named here.**
-        # This read ``the #240 record contract`` until #255 added a row belonging to
-        # another ticket, at which point a file failing only the new row was told it
-        # had breached one that had nothing to say about it. A citation typed into a
-        # message is a figure with a different shape, and it goes stale the same way.
-        tickets = sorted({ROW_TICKET[kind] for kind, count in scan.counts if count})
-        print(
+        tickets = sorted({ROWS[kind] for kind, count in scan.counts if count})
+        diagnostics.append(
             f"{scan.failing_checks} check(s) fail the record contract"
             f" ({', '.join(tickets)})."
-            " Re-run with --show to see which, and do not paste that output.",
-            file=sys.stderr,
+            " Re-run with --show to see which, and do not paste that output."
         )
-        return 1
-    return 0
+    return run_grader.Grade(
+        scan=scan,
+        source=source.path.name,
+        findings_failed=bool(scan.failing_checks),
+        coverage_failed=not source.records,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: checks_ledger.py <a checks file> [--show]",
+    options=(run_grader.Option("--show"),),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+)
+
+
+def main(argv: list[str]) -> int:
+    """``argv`` is the argument list without the program name."""
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

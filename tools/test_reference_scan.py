@@ -35,6 +35,9 @@ import checks_ledger
 import docx_write
 import research_ledger
 import reference_scan as scan
+from grader_conformance import for_module
+
+GraderConformance = for_module(scan)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"

@@ -20,7 +20,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 
 
 CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5})"
@@ -47,6 +47,15 @@ MISSING_BLOCK = "missing refusal block"
 PROPOSED_AND_REFUSED = "proposed and refused"
 MALFORMED_MARK = "malformed NOT CODED mark"
 
+ROWS = {
+    MISSING_NEEDS: "icd10-cpt step 4 - needs",
+    MISSING_SUBSTITUTE: "icd10-cpt step 4 - proposed instead",
+    MISSING_BLOCK: "icd10-cpt step 4 - refusal block",
+    PROPOSED_AND_REFUSED: "icd10-cpt step 4 - proposal/refusal separation",
+    MALFORMED_MARK: "icd10-cpt step 4 - NOT CODED record",
+}
+KINDS = tuple(ROWS)
+
 
 @dataclass(frozen=True)
 class Refusal:
@@ -57,8 +66,7 @@ class Refusal:
 
 
 @dataclass(frozen=True)
-class Finding:
-    kind: str
+class Finding(run_grader.Finding):
     code: str = "unknown"
 
 
@@ -206,35 +214,46 @@ def read_worksheets(directory: Path) -> list[str]:
     ]
 
 
-def main(argv: list[str]) -> int:
-    show = False
-    args = list(argv)
-    if "--show" in args:
-        show = True
-        args.remove("--show")
-    if len(args) != 1:
-        print("usage: python tools/refusal_scan.py <worksheet-directory> [--show]")
-        return 2
+@dataclass(frozen=True)
+class Source:
+    directory: Path
+    texts: tuple[str, ...]
 
-    directory = Path(args[0])
+
+def _load(parsed: run_grader.Parsed) -> Source:
+    directory = Path(parsed.source)
     if not directory.is_dir():
-        print(f"no directory named {directory.name}")
-        return 2
-
-    texts = read_worksheets(directory)
+        raise run_grader.SourceError(f"no directory named {directory.name}")
+    texts = tuple(read_worksheets(directory))
     if not texts:
-        print(f"no worksheets found in {directory.name}")
-        return 2
+        raise run_grader.SourceError(f"no worksheets found in {directory.name}")
+    return Source(directory, texts)
 
-    result = survey([read_worksheet(text) for text in texts])
-    print(format_report(result, source=directory.name, show=show))
-    if result.findings:
-        return 1
-    if result.subjects == 0:
-        return 2
-    return 0
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    result = survey([read_worksheet(text) for text in source.texts])
+    return run_grader.Grade(
+        scan=result,
+        source=source.directory.name,
+        findings_failed=bool(result.findings),
+        coverage_failed=result.subjects == 0,
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: python tools/refusal_scan.py <worksheet-directory> [--show]",
+    options=(run_grader.Option("--show"),),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+    source_error_to_stdout=True,
+    allow_extra_positionals=False,
+)
+
+
+def main(argv: list[str]) -> int:
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

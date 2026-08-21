@@ -35,6 +35,10 @@ import checks_ledger
 import docx_write
 import reference_scan
 import research_ledger as ledger
+from grader_conformance import constructed_kinds, for_module
+
+GraderConformance = for_module(ledger)
+import run_grader
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
@@ -951,7 +955,7 @@ class TheReportCarriesNoClaimTextWithoutShow(unittest.TestCase):
         report = ledger.format_report(self.scan, source="case-study-claims.md")
         for kind in ledger.KINDS:
             with self.subTest(row=kind):
-                self.assertIn(f"{ledger.ROW_TICKET[kind]} - {kind}", report)
+                self.assertIn(f"{ledger.ROWS[kind]} - {kind}", report)
 
 
 class TheCommandExitsOnWhatItFound(unittest.TestCase):
@@ -1239,36 +1243,12 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
     reaching for the value nearest to hand.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        source = Path(ledger.__file__).read_text(encoding="utf-8")
-        cls.tree = ast.parse(source)
-
     def _kinds_constructed_in(self, function: str) -> set[str]:
-        """Every ``Finding(KIND, ...)`` built inside one function, by name.
-
-        Reads the first positional argument only, which is where ``Finding``'s
-        ``kind`` sits. A row built any other way is invisible here -- nothing in
-        this module does, and ``test_the_kinds_are_all_accounted_for`` is what
-        would notice if one started.
-        """
-        found: set[str] = set()
-        for node in ast.walk(self.tree):
-            if not isinstance(node, ast.FunctionDef) or node.name != function:
-                continue
-            for call in ast.walk(node):
-                if not isinstance(call, ast.Call):
-                    continue
-                if not isinstance(call.func, ast.Name) or call.func.id != "Finding":
-                    continue
-                self.assertTrue(call.args, f"a Finding with no kind in {function}")
-                kind = call.args[0]
-                self.assertIsInstance(kind, ast.Name, f"a computed kind in {function}")
-                found.add(getattr(ledger, kind.id))
-        return found
+        """Rows built inside one helper, using the shared Finding walk."""
+        return constructed_kinds(ledger, function)
 
     def _rows_for(self, ticket: str) -> set[str]:
-        return {kind for kind, owner in ledger.ROW_TICKET.items() if owner == ticket}
+        return {kind for kind, owner in ledger.ROWS.items() if owner == ticket}
 
     def test_the_citation_helper_holds_every_231_row_and_nothing_else(self):
         self.assertEqual(self._kinds_constructed_in("_citation_findings"), self._rows_for("#231"))
@@ -1288,7 +1268,7 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
 
     def test_the_rows_the_report_calls_not_graded_are_exactly_the_draft_rows(self):
         """``DRAFT_ROWS`` is what ``format_report`` prints *not graded* off, and
-        ``ROW_TICKET`` is what a reader is sent to #289 by. Two lists of one set,
+        ``ROWS`` is what a reader is sent to #289 by. Two lists of one set,
         which is the drift #220 was filed over -- so one asserts the other."""
         self.assertEqual(set(ledger.DRAFT_ROWS), self._rows_for("#289"))
 
@@ -1315,35 +1295,6 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         # ledger's citations against the evidence dump.
         "evidence_findings",
     )
-
-    def test_every_row_is_built_in_one_of_the_graders(self):
-        """Without this the partitions above are claims about the functions they
-        happened to name, and a further grader could hold rows none of them see."""
-        built: set[str] = set()
-        for name in self.OWNERS:
-            built |= self._kinds_constructed_in(name)
-        self.assertEqual(built, set(ledger.KINDS))
-
-    def test_no_finding_is_built_anywhere_else(self):
-        """The other direction, and the one the first version of this class was
-        missing. A ``Finding`` constructed in ``survey`` or in ``format_report``
-        would leave every assertion above green while grading from outside the
-        seam entirely."""
-        inside = {
-            id(call)
-            for node in ast.walk(self.tree)
-            if isinstance(node, ast.FunctionDef) and node.name in self.OWNERS
-            for call in ast.walk(node)
-        }
-        stray = [
-            node.lineno
-            for node in ast.walk(self.tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "Finding"
-            and id(node) not in inside
-        ]
-        self.assertEqual(stray, [], f"Finding built outside the graders, lines {stray}")
 
     def test_the_citation_helper_grades_a_record_on_its_own(self):
         """The seam is a real one: called with nothing but the record and the
@@ -2028,26 +1979,29 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         """The one-line ``[a for a in argv if not a.startswith("--")]`` filter this
         replaced would have read the draft's path as a second positional and, with
         the flag written first, the draft as the ledger."""
-        args, draft, _, show = ledger.read_arguments(["--draft", "d.md", "ledger.md", "--show"])
-        self.assertEqual((args, draft, show), (["ledger.md"], "d.md", True))
+        parsed = run_grader.parse(
+            ledger.GRADER, ["--draft", "d.md", "ledger.md", "--show"]
+        )
+        self.assertEqual((parsed.source, parsed.value("--draft"), parsed.show), ("ledger.md", "d.md", True))
 
     def test_the_equals_spelling_is_read_too(self):
-        args, draft, _, _ = ledger.read_arguments(["ledger.md", "--draft=d.md"])
-        self.assertEqual((args, draft), (["ledger.md"], "d.md"))
+        parsed = run_grader.parse(ledger.GRADER, ["ledger.md", "--draft=d.md"])
+        self.assertEqual((parsed.source, parsed.value("--draft")), ("ledger.md", "d.md"))
 
     def test_a_following_flag_is_a_missing_value_and_not_a_path(self):
         """``--draft --show`` gave two wrong answers at once before the standards
         axis of `/code-review` priced it: it reported *no draft file named
         --show*, which is a claim about a path nobody wrote, and it swallowed
         ``--show`` so the findings could not be read either."""
-        args, draft, _, show = ledger.read_arguments(["ledger.md", "--draft", "--show"])
-        self.assertEqual((args, draft, show), (["ledger.md"], "", True))
+        with self.assertRaises(run_grader.ParseError):
+            run_grader.parse(ledger.GRADER, ["ledger.md", "--draft", "--show"])
 
     def test_an_absent_flag_is_none_and_not_an_empty_string(self):
         """Two different mistakes, and only one of them is a run that graded no
         prescriptions on purpose."""
-        self.assertIsNone(ledger.read_arguments(["ledger.md"])[1])
-        self.assertEqual(ledger.read_arguments(["ledger.md", "--draft"])[1], "")
+        self.assertIsNone(run_grader.parse(ledger.GRADER, ["ledger.md"]).value("--draft"))
+        with self.assertRaises(run_grader.ParseError):
+            run_grader.parse(ledger.GRADER, ["ledger.md", "--draft"])
 
 
 class TheDocumentedTableIsStillReadable(unittest.TestCase):
@@ -2828,7 +2782,7 @@ REFERENCE: {self.entry("https://doi.org/10.1097/AOG.0b013e3181c2bde8")}
 
     def test_the_row_is_declared_as_needing_the_flag(self):
         self.assertIn(ledger.UNREADABLE_UPTODATE_ENTRY, ledger.EVIDENCE_ROWS)
-        self.assertEqual(ledger.ROW_TICKET[ledger.UNREADABLE_UPTODATE_ENTRY], "#298")
+        self.assertEqual(ledger.ROWS[ledger.UNREADABLE_UPTODATE_ENTRY], "#298")
 
     def test_the_host_is_matched_as_a_host_and_not_as_a_word(self):
         """The mirror of the sibling row's guard. Prose naming the database in a
@@ -2850,8 +2804,8 @@ class TheEvidenceRowsAreWiredInLikeTheDraftRows(unittest.TestCase):
 
     def test_the_row_is_in_the_vocabulary(self):
         self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.KINDS)
-        self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.ROW_TICKET)
-        self.assertEqual(ledger.ROW_TICKET[ledger.CITED_TOPIC_NOT_IN_EVIDENCE], "#298")
+        self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.ROWS)
+        self.assertEqual(ledger.ROWS[ledger.CITED_TOPIC_NOT_IN_EVIDENCE], "#298")
 
     def test_the_row_is_declared_as_needing_the_flag(self):
         self.assertIn(ledger.CITED_TOPIC_NOT_IN_EVIDENCE, ledger.EVIDENCE_ROWS)
