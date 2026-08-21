@@ -1038,6 +1038,7 @@ class BuildCommandLineTests(TempCorpus):
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
 
         def close_holder():
