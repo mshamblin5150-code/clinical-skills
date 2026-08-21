@@ -52,6 +52,11 @@ when the marks and the listings agree, 1 on a violation, and **2 for every way o
 not having scanned** -- no argument, no directory, no worksheets in it, and **no
 marked code, listed code or pediatric band in any worksheet read.**
 
+Since #405, a run with no gradeable subject prints its counts-only report before
+the not-scanned diagnostic and exit 2. Earlier versions returned first and printed
+no report; the moved stdout makes the coverage failure inspectable and puts this
+grader on the shared finding-over-coverage ordering.
+
 Extractor limits worth knowing before quoting a number:
 
 - **A listing is a line whose code is pinned by a dash**, ``<code> - <value>``,
@@ -81,7 +86,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 
 # ``ICD-10  Z68.36  Body mass index [BMI] 36.0-36.9, adult``. Shared with
 # ``specificity_scan.py`` by shape rather than by import: the two read the same
@@ -143,12 +148,18 @@ UNLISTED_MARK = "marked-not-listed"
 UNMARKED_LISTING = "listed-not-marked"
 PEDIATRIC_NOT_COMPUTED = "pediatric-not-computed"
 
+ROWS = {
+    UNLISTED_MARK: "fixtures/filled-anchor A1/A2/A5 - marked, not listed",
+    UNMARKED_LISTING: "fixtures/filled-anchor A1/A2/A5 - listed, not marked",
+    PEDIATRIC_NOT_COMPUTED: "fixtures/filled-anchor A1 - CDC computation",
+}
+KINDS = tuple(ROWS)
+
 
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One code failing one of the two tests."""
 
-    kind: str
     code: str
     detail: str
 
@@ -347,43 +358,58 @@ def read_worksheets(directory: Path) -> list[str]:
     ]
 
 
+@dataclass(frozen=True)
+class Source:
+    directory: Path
+    texts: tuple[str, ...]
+
+
+def _load(parsed: run_grader.Parsed) -> Source:
+    directory = Path(parsed.source)
+    if not directory.is_dir():
+        raise run_grader.SourceError(f"no directory named {directory.name}")
+    texts = tuple(read_worksheets(directory))
+    if not texts:
+        raise run_grader.SourceError(f"no worksheets found in {directory.name}")
+    return Source(directory, texts)
+
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scan = survey([read_worksheet(text) for text in source.texts])
+    diagnostics: list[str] = []
+    if not scan.subjects:
+        diagnostics.append(
+            f"no marked code, listed code or pediatric band in"
+            f" {scan.worksheets} worksheet(s) in {source.directory.name}."
+            " Nothing was scanned -- this is not a clean run."
+        )
+    if scan.findings:
+        diagnostics.append(
+            f"\n{len(scan.findings)} code(s) fail fixtures/filled-anchor ANCHOR."
+            " Re-run with --show to see which, and do not paste that output."
+        )
+    return run_grader.Grade(
+        scan=scan,
+        source=source.directory.name,
+        findings_failed=bool(scan.findings),
+        coverage_failed=not scan.subjects,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: anchor_scan.py <a run directory> [--show]",
+    options=(run_grader.Option("--show"),),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+)
+
+
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
-    show = "--show" in argv
-    if not args:
-        print("usage: anchor_scan.py <a run directory> [--show]", file=sys.stderr)
-        return 2
-    directory = Path(args[0])
-    # The directory name, never the path: a run directory sits under ``scratch/``
-    # or ``output/``, and its path names the shift and often the site.
-    if not directory.is_dir():
-        print(f"no directory named {directory.name}", file=sys.stderr)
-        return 2
-    texts = read_worksheets(directory)
-    if not texts:
-        print(f"no worksheets found in {directory.name}", file=sys.stderr)
-        return 2
-    scan = survey([read_worksheet(text) for text in texts])
-    if not scan.subjects:
-        print(
-            f"no marked code, listed code or pediatric band in"
-            f" {scan.worksheets} worksheet(s) in {directory.name}."
-            " Nothing was scanned -- this is not a clean run.",
-            file=sys.stderr,
-        )
-        return 2
-    print(format_report(scan, source=directory.name, show=show))
-    if scan.findings:
-        print(
-            f"\n{len(scan.findings)} code(s) fail fixtures/filled-anchor ANCHOR."
-            " Re-run with --show to see which, and do not paste that output.",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

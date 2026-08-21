@@ -493,7 +493,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from console_codec import use_utf8
+import run_grader
 from docx_write import markdown_tables, split_row
 
 # **The draft's reference list is parsed once, by the module that grades it.**
@@ -655,44 +655,8 @@ UNRESEARCHED_PRESCRIPTION = "unresearched-prescription"
 DOSE_NOT_CLAIMED = "dose-not-claimed"
 UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 
-# Every row, in report order. Kept as one tuple so the report, the counter and the
-# ticket map cannot drift into listing different sets.
-KINDS = (
-    CITED_TOPIC_NOT_IN_EVIDENCE,
-    UNREADABLE_UPTODATE_ENTRY,
-    UNRESEARCHED_PRESCRIPTION,
-    DOSE_NOT_CLAIMED,
-    UNREADABLE_DRUG_ROW,
-    MISSING_FIELD,
-    UNKNOWN_STATUS,
-    BARE_STATUS,
-    UNSOURCED_WITH_CITATION_FIELD,
-    UNKNOWN_SOURCE_CLASS,
-    RESTATEMENT_ECHOES_CLAIM,
-    NUMERIC_CLAIM_UNQUANTIFIED,
-    UNKNOWN_RECENCY,
-    UNDATED_REFERENCE,
-    STALE_UNEXCUSED,
-    BARE_EXCUSE,
-    UNRESOLVABLE_LOCATOR,
-    UNDATED_READ,
-    READ_AFTER_DATE,
-    PAGE_YEAR_UNSTATED,
-    BARE_PAGE_YEAR,
-    PAGE_YEAR_DISAGREES,
-    UNKNOWN_REFUTATION,
-    BARE_REFUTATION,
-    REFUTATION_ECHOES_RESTATEMENT,
-    REFUTED_CITATION,
-)
-
-# Report order as a lookup, built from ``KINDS`` rather than typed beside it. Every
-# helper appends in whatever order its own rules read best, and ``record_findings``
-# sorts once -- so which helper a row lives in is not something the report can see.
-_KIND_ORDER = {kind: index for index, kind in enumerate(KINDS)}
-
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
-ROW_TICKET = {
+ROWS = {
     CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
     UNREADABLE_UPTODATE_ENTRY: "#298",
     UNRESEARCHED_PRESCRIPTION: "#289",
@@ -720,6 +684,12 @@ ROW_TICKET = {
     REFUTED_CITATION: "#231",
     REFUTATION_ECHOES_RESTATEMENT: "#231",
 }
+KINDS = tuple(ROWS)
+
+# Report order as a lookup, built from ``KINDS`` rather than typed beside it. Every
+# helper appends in whatever order its own rules read best, and ``record_findings``
+# sorts once -- so which helper a row lives in is not something the report can see.
+_KIND_ORDER = {kind: index for index, kind in enumerate(KINDS)}
 
 REQUIRED_WHEN_SOURCED = (
     "SOURCE",
@@ -943,10 +913,9 @@ class Prescription:
 
 
 @dataclass(frozen=True)
-class Finding:
+class Finding(run_grader.Finding):
     """One record failing one row."""
 
-    kind: str
     claim: str
     detail: str
 
@@ -1728,7 +1697,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             shown = "not graded"
         if scan.evidence_topics is None and kind in EVIDENCE_ROWS:
             shown = "not graded"
-        lines.append(f"  {ROW_TICKET[kind]} - {kind:<31} {shown}")
+        lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")
     lines.append(f"  records at fault                 {scan.failing_records}")
     if scan.prescriptions is not None:
@@ -1754,185 +1723,149 @@ USAGE = (
 )
 
 
-def read_arguments(argv: list[str]) -> tuple[list[str], str | None, str | None, bool]:
-    """The positional arguments, the ``--draft`` and ``--evidence`` paths and ``--show``.
-
-    Hand-parsed rather than through ``argparse`` on the directory's precedent,
-    and split out of ``main`` because ``--draft`` takes a value: the one-line
-    filter this replaced would have read the draft's path as a second ledger.
-    ``None`` means the flag was absent, and ``""`` means it was given nothing --
-    two different mistakes, and only the first is a run that graded no
-    prescriptions on purpose.
-    """
-    positional: list[str] = []
-    draft: str | None = None
-    evidence: str | None = None
-    show = False
-    index = 0
-    while index < len(argv):
-        argument = argv[index]
-        if argument == "--show":
-            show = True
-        elif argument == "--draft":
-            # A following flag is a missing value and not a path, and the flag is
-            # left where it is so it still parses. Without this ``--draft --show``
-            # reads ``--show`` as the draft, reports *no draft file named --show*,
-            # and drops ``--show`` besides -- two wrong answers where a usage line
-            # is the true one.
-            following = argv[index + 1] if index + 1 < len(argv) else ""
-            if following.startswith("--"):
-                draft = ""
-            else:
-                draft = following
-                index += 1
-        elif argument.startswith("--draft="):
-            draft = argument.split("=", 1)[1]
-        elif argument == "--evidence":
-            # ``--draft``'s recorded defect, and the same repair: a following flag
-            # is a missing value and not a path.
-            following = argv[index + 1] if index + 1 < len(argv) else ""
-            if following.startswith("--"):
-                evidence = ""
-            else:
-                evidence = following
-                index += 1
-        elif argument.startswith("--evidence="):
-            evidence = argument.split("=", 1)[1]
-        elif not argument.startswith("--"):
-            positional.append(argument)
-        index += 1
-    return positional, draft, evidence, show
+@dataclass(frozen=True)
+class Source:
+    path: Path
+    records: tuple[Record, ...]
+    as_of: date | None
+    prescriptions: tuple[Prescription, ...] | None
+    half_anchored: int
+    carried: set[str] | None
+    entries: tuple[str, ...]
+    evidence_unreadable: bool
+    draft_name: str | None
+    evidence_name: str | None
 
 
-def main(argv: list[str]) -> int:
-    """``argv`` is the argument list without the program name."""
-    args, draft, evidence, show = read_arguments(argv)
-    if not args or draft == "" or evidence == "":
-        print(USAGE, file=sys.stderr)
-        return 2
-    path = Path(args[0])
-    # The name, never the path: a ledger sits under ``scratch/``.
+def _load(parsed: run_grader.Parsed) -> Source:
+    path = Path(parsed.source)
     if not path.is_file():
-        print(f"no ledger file named {path.name}", file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(f"no ledger file named {path.name}")
     text = path.read_text(encoding="utf-8", errors="replace")
-    records = read_records(text)
+    records = tuple(read_records(text))
     if not records:
-        print(f"no claim records found in {path.name}", file=sys.stderr)
-        return 2
-    prescriptions: list[Prescription] | None = None
+        raise run_grader.SourceError(f"no claim records found in {path.name}")
+
+    draft = parsed.value("--draft")
+    prescriptions: tuple[Prescription, ...] | None = None
     half_anchored = 0
     draft_text = ""
+    draft_name: str | None = None
     if draft is not None:
         draft_path = Path(draft)
+        draft_name = draft_path.name
         if not draft_path.is_file():
-            print(f"no draft file named {draft_path.name}", file=sys.stderr)
-            return 2
+            raise run_grader.SourceError(f"no draft file named {draft_path.name}")
         draft_text = draft_path.read_text(encoding="utf-8", errors="replace")
-        prescriptions = read_prescriptions(draft_text)
+        prescriptions = tuple(read_prescriptions(draft_text))
         half_anchored = half_anchored_tables(draft_text)
+
+    evidence = parsed.value("--evidence")
     carried: set[str] | None = None
     entries: tuple[str, ...] = ()
     evidence_unreadable = False
+    evidence_name: str | None = None
     if evidence is not None:
         evidence_path = Path(evidence)
+        evidence_name = evidence_path.name
         if not evidence_path.is_file():
-            print(f"no evidence file named {evidence_path.name}", file=sys.stderr)
-            return 2
-        found = carried_topics(
-            evidence_path.read_text(encoding="utf-8", errors="replace")
-        )
-        # **A dump this parser cannot read leaves the row ungraded and does not
-        # end the run.** It carries no topic to join against, so grading the row
-        # would fire it on *every* UpToDate citation at once -- which is why
-        # ``carried`` stays ``None`` here and the row prints *not graded*. But the
-        # status is deferred to the tail rather than returned now, because
-        # returning 2 here suppressed every #214, #215, #231 and #289 finding in
-        # the ledger and printed no report at all. That is the defect ``CLAUDE.md``
-        # records against ``tracker_scan.py`` -- *"returning 2 before scanning at
-        # all, so a real hit was suppressed and reported as did not scan"* --
-        # reproduced in the one function whose own docstring cites the ordering it
-        # broke. Found by the spec axis of ``/code-review``.
+            raise run_grader.SourceError(f"no evidence file named {evidence_path.name}")
+        found = carried_topics(evidence_path.read_text(encoding="utf-8", errors="replace"))
         evidence_unreadable = not found
         if found:
             carried = found
         if carried is not None and draft is not None:
-            # ``draft_text`` and not a second read of the same path: a file read
-            # twice in one function is two chances to disagree about what the
-            # draft says, and the second read here also re-derived ``Path(draft)``
-            # where ``draft_path`` was already in hand.
-            entries = tuple(
-                entry.text for entry in read_document(draft_text).entries
-            )
+            entries = tuple(entry.text for entry in read_document(draft_text).entries)
+
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
-    scan = survey(records, as_of, prescriptions, half_anchored, carried, entries)
-    print(format_report(scan, source=path.name, show=show))
-    if evidence_unreadable:
-        # Beside the other banners rather than in place of the report, so an
-        # exit 1 below reads as a floor: this says one row did not run, never
-        # that nothing was graded.
-        print(
-            f"no topic body found in {Path(evidence).name} - a body is read by its"
-            " Authors: masthead, so #298's row was applied to nothing. Every other"
-            " row still ran.",
-            file=sys.stderr,
-        )
-    if as_of is None:
-        # Printed whichever status follows, so an exit 1 below reads as a floor
-        # rather than as the whole of what is wrong.
-        # **Both rows measured against the date, not just the window.** #231 added
-        # the read date, and a banner naming one of two understates the floor it
-        # exists to establish.
-        print(
-            f"{path.name} carries no DATE: <YYYY-MM-DD> header, so neither the"
-            " five-year window nor the read-date check was applied to any record"
-            " in it.",
-            file=sys.stderr,
-        )
-    if prescriptions is not None and not prescriptions:
-        # #289's did-not-scan limb, and it is ``differential_scan.py``'s
-        # reasoning: a draft whose prescriptions are written in a shape this
-        # parser does not read would otherwise report its rows as zeros and look like
-        # document whose every dose reaches a record.
-        print(
-            f"no prescription table found in {Path(draft).name} - a table is read by its"
-            " Disp: and Sig: rows, so none of #289's rows was applied to it.",
-            file=sys.stderr,
-        )
-    if scan.failing_records or scan.prescriptions_at_fault or scan.evidence_at_fault:
-        # 1 outranks both not-scanned limbs, on ``differential_scan.py``'s
-        # ordering: returning 2 would file the strongest thing known about this
-        # ledger under the weakest heading.
-        if scan.failing_records:
-            print(
-                f"{scan.failing_records} record(s) fail the #214 fan-out contract."
-                " Re-run with --show to see which, and do not paste that output.",
-                file=sys.stderr,
-            )
-        if scan.prescriptions_at_fault:
-            print(
-                f"{scan.prescriptions_at_fault} prescription(s) in {Path(draft).name} reach"
-                " no claim record. Re-run with --show to see which, and do not paste"
-                " that output.",
-                file=sys.stderr,
-            )
-        if scan.evidence_at_fault:
-            print(
-                f"{scan.evidence_at_fault} UpToDate topic(s) cited here are not in the"
-                " evidence dump, so nobody read them. Paste the topic in and re-run,"
-                " or drop the citation. Re-run with --show to see which, and do not"
-                " paste that output.",
-                file=sys.stderr,
-            )
-        return 1
-    if as_of is None:
-        return 2
-    if evidence_unreadable:
-        return 2
-    return 2 if prescriptions is not None and not prescriptions else 0
+    return Source(
+        path,
+        records,
+        as_of,
+        prescriptions,
+        half_anchored,
+        carried,
+        entries,
+        evidence_unreadable,
+        draft_name,
+        evidence_name,
+    )
 
 
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scan = survey(
+        list(source.records),
+        source.as_of,
+        list(source.prescriptions) if source.prescriptions is not None else None,
+        source.half_anchored,
+        source.carried,
+        source.entries,
+    )
+    diagnostics: list[str] = []
+    if source.evidence_unreadable:
+        diagnostics.append(
+            f"no topic body found in {source.evidence_name} - a body is read by its"
+            " Authors: masthead, so #298's row was applied to nothing. Every other row still ran."
+        )
+    if source.as_of is None:
+        diagnostics.append(
+            f"{source.path.name} carries no DATE: <YYYY-MM-DD> header, so neither the"
+            " five-year window nor the read-date check was applied to any record in it."
+        )
+    if source.prescriptions is not None and not source.prescriptions:
+        diagnostics.append(
+            f"no prescription table found in {source.draft_name} - a table is read by its"
+            " Disp: and Sig: rows, so none of #289's rows was applied to it."
+        )
+    if scan.failing_records:
+        diagnostics.append(
+            f"{scan.failing_records} record(s) fail the #214 fan-out contract."
+            " Re-run with --show to see which, and do not paste that output."
+        )
+    if scan.prescriptions_at_fault:
+        diagnostics.append(
+            f"{scan.prescriptions_at_fault} prescription(s) in {source.draft_name} reach"
+            " no claim record. Re-run with --show to see which, and do not paste that output."
+        )
+    if scan.evidence_at_fault:
+        diagnostics.append(
+            f"{scan.evidence_at_fault} UpToDate topic(s) cited here are not in the"
+            " evidence dump, so nobody read them. Paste the topic in and re-run,"
+            " or drop the citation. Re-run with --show to see which, and do not paste that output."
+        )
+    findings_failed = bool(
+        scan.failing_records or scan.prescriptions_at_fault or scan.evidence_at_fault
+    )
+    coverage_failed = bool(
+        source.as_of is None
+        or source.evidence_unreadable
+        or (source.prescriptions is not None and not source.prescriptions)
+    )
+    return run_grader.Grade(
+        scan=scan,
+        source=source.path.name,
+        findings_failed=findings_failed,
+        coverage_failed=coverage_failed,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage=USAGE,
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option("--draft", takes_value=True, missing_value=USAGE),
+        run_grader.Option("--evidence", takes_value=True, missing_value=USAGE),
+    ),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+)
+
+
+def main(argv: list[str]) -> int:
+    """``argv`` is the argument list without the program name."""
+    return run_grader.run(GRADER, argv)
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

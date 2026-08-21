@@ -136,6 +136,31 @@ def calls_helper(node: ast.AST) -> bool:
     )
 
 
+def delegates_to_run_grader(module: ast.Module) -> bool:
+    imports_runner = any(
+        isinstance(node, ast.Import)
+        and any(alias.name == "run_grader" for alias in node.names)
+        for node in module.body
+    )
+    main = next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "main"
+        ),
+        None,
+    )
+    calls_runner = main is not None and any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "run_grader"
+        and node.func.attr == "run"
+        for node in ast.walk(main)
+    )
+    return imports_runner and calls_runner
+
+
 class EveryToolTakesIt(unittest.TestCase):
     """Parity, mechanically. Parses the files rather than importing them, because
     three of them open a PDF and none needs a PDF library to be *read*. (Those three
@@ -186,6 +211,8 @@ class EveryToolTakesIt(unittest.TestCase):
     def test_every_command_line_tool_calls_use_utf8_from_its_main_block(self):
         for path, module in self.command_line_tools():
             with self.subTest(tool=path.name):
+                if delegates_to_run_grader(module):
+                    continue
                 self.assertTrue(
                     imports_helper(module), f"{path.name} does not import the helper"
                 )
@@ -194,6 +221,16 @@ class EveryToolTakesIt(unittest.TestCase):
                     f"{path.name} imports the helper but does not call it under "
                     f"{MAIN_GUARD}",
                 )
+
+    def test_the_shared_runner_takes_the_console_policy_for_its_members(self):
+        module = ast.parse((TOOLS / "run_grader.py").read_text(encoding="utf-8"))
+        run = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef) and node.name == "run"
+        )
+        self.assertTrue(imports_helper(module))
+        self.assertTrue(calls_helper(run))
 
 
 class TheOtherEndOfTheSameBoundary(unittest.TestCase):
