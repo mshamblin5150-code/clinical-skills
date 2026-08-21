@@ -58,7 +58,7 @@ from pathlib import Path
 import artifact_lock
 from console_codec import use_utf8
 from guidelines_extract import CLASSES, publication_year_page_counts
-from guidelines_index import read_extracted_corpus
+from guidelines_manifest import read_or_raise
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
@@ -482,11 +482,12 @@ def read_corpus(
     A text tree without that contract is not a catalog corpus.
     """
     docs: list[Document] = []
-    for document in read_extracted_corpus(
+    handoff = read_or_raise(
         src, allow_untrusted_provenance=allow_untrusted_provenance
-    ):
-        pages = [page.text for page in document.pages]
-        if document.year_page_counts is None:
+    )
+    for doc_id, document in sorted(handoff.documents.items()):
+        pages = list(handoff.pages[doc_id])
+        if "year_page_counts" not in handoff.entries[doc_id]:
             raise ValueError(
                 f"{document.doc_id}: manifest entry has no year_page_counts; "
                 "rebuild the extracted corpus"

@@ -97,6 +97,11 @@ def doc(**overrides) -> gc.Document:
 
 
 class ReadingTheExtractedCorpus(unittest.TestCase):
+    def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
+        import guidelines_manifest
+
+        self.assertIs(gc.read_or_raise, guidelines_manifest.read_or_raise)
+
     """The catalog consumes #80's public artifact, not the source PDFs."""
 
     def test_a_foreign_manifest_needs_the_explicit_override(self):
