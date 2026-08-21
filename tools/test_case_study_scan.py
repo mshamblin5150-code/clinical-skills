@@ -39,6 +39,7 @@ from pathlib import Path
 
 import case_study_scan as scan
 import docx_write
+import research_ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
@@ -673,6 +674,69 @@ class SplittingADrugRowOnAndIsRefusedHere(unittest.TestCase):
         self.assertIn(
             "a second drug welded into one drug row, discharged by the first drug's endpoint",
             scan.NOT_REACHED,
+        )
+
+
+class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
+    """#323's per-row split: execute what is mechanical and declare the rest.
+
+    A name bind proves only that two declarations agree. This class instead makes
+    every declared limit choose exactly one evidence disposition. The mechanically
+    reachable row is driven through ``survey`` below. The other rows remain declared
+    readings; this class does not claim they have the mandatory reader whose absence
+    is #306's separate question.
+    """
+
+    WELDED = (
+        "a second drug welded into one drug row, discharged by the first drug's endpoint"
+    )
+    SOURCED_DOSE = "whether a dose was sourced at all"
+
+    def test_every_limit_has_exactly_one_known_disposition(self):
+        self.assertEqual(
+            [key for key, _ in scan.DECLARED_LIMITS],
+            list(scan.NOT_REACHED),
+        )
+        for key, disposition in scan.DECLARED_LIMITS:
+            with self.subTest(key=key):
+                self.assertIsInstance(disposition, scan.EvidenceDisposition)
+        self.assertEqual(
+            [
+                key
+                for key, disposition in scan.DECLARED_LIMITS
+                if disposition is scan.EvidenceDisposition.BEHAVIOR
+            ],
+            [self.WELDED, self.SOURCED_DOSE],
+        )
+
+    def test_the_welded_second_drug_really_is_discharged_by_the_first_endpoint(self):
+        order = "Doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID"
+        table = RX_TABLE.replace("| Ceftriaxone 500 mg IM once |", "| " + order + " |")
+        self.assertNotIn(scan.NO_STOP_CRITERION, kinds(CLEAN.replace(RX_TABLE, table)))
+
+        # The control proves the row is absent because the first drug's endpoint is
+        # read across the welded cell, not because the scanner cannot see a recurring
+        # second order at all.
+        second_only = RX_TABLE.replace(
+            "| Ceftriaxone 500 mg IM once |", "| metronidazole 500 mg PO TID |"
+        )
+        self.assertIn(scan.NO_STOP_CRITERION, kinds(CLEAN.replace(RX_TABLE, second_only)))
+
+    def test_the_sibling_ledger_really_grades_whether_a_dose_was_sourced(self):
+        prescription = research_ledger.Prescription(
+            "metronidazole", "metronidazole 500 mg PO TID", ""
+        )
+        unsupported = research_ledger.prescription_findings([prescription], [])
+        self.assertEqual(
+            [finding.kind for finding in unsupported],
+            [research_ledger.UNRESEARCHED_PRESCRIPTION],
+        )
+
+        sourced = research_ledger.Record(
+            "Metronidazole 500 mg by mouth three times daily is the sourced dose."
+        )
+        self.assertEqual(
+            research_ledger.prescription_findings([prescription], [sourced]), []
         )
 
 

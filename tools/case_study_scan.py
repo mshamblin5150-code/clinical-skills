@@ -86,6 +86,7 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 import docx_write
@@ -272,16 +273,47 @@ ROW_RULE = {
 # against ``apa7.md`` section 7, which is [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s
 # repair and is here for its reason: this list sat in two places on that module
 # and a prose edit to either failed nothing.
-NOT_REACHED = (
-    "the voice, and it never will be",
-    "a wrapper section that does not apply to this patient",
-    "whether a stop criterion's endpoint is the right endpoint",
-    "whether a drug ordered PRN needs an endpoint of its own",
-    "a second drug welded into one drug row, discharged by the first drug's endpoint",
-    "whether a dose is correct, or was sourced at all",
-    "a scaffolding phrase nobody has written yet",
-    "anything the Markdown cannot show, which the rendered document can",
+# The second field records the evidence disposition for each limit. ``behavior`` means
+# this module's suite drives the public scanner seam and demonstrates the blind spot.
+# ``declared-reading`` means the answer requires clinical, applicability, authorship,
+# or rendered-page judgment and cannot be re-derived here. It does not claim a reader
+# owns the row; that separate gap remains #306. Keeping the disposition on the row
+# avoids a second list that can drift.
+class EvidenceDisposition(Enum):
+    BEHAVIOR = "behavior"
+    DECLARED_READING = "declared-reading"
+
+
+DECLARED_LIMITS = (
+    ("the voice, and it never will be", EvidenceDisposition.DECLARED_READING),
+    (
+        "a wrapper section that does not apply to this patient",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a stop criterion's endpoint is the right endpoint",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a drug ordered PRN needs an endpoint of its own",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "a second drug welded into one drug row, discharged by the first drug's endpoint",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    ("whether a dose is correct", EvidenceDisposition.DECLARED_READING),
+    ("whether a dose was sourced at all", EvidenceDisposition.BEHAVIOR),
+    (
+        "a scaffolding phrase nobody has written yet",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "anything the Markdown cannot show, which the rendered document can",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
+NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)
 
 
 def block_text(block) -> str:

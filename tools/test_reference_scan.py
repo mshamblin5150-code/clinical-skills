@@ -1090,10 +1090,10 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
     named in ``reference_scan``'s header, and it arrived here in the change that quotes
     it.
 
-    **What it does not reach is whether a row's verdict is true.** An item moved out of
-    ``NOT_REACHED`` while the command still cannot reach it passes every assertion here,
-    and stays a behavior test's job -- ``ARetrievalDateBelongsWhereAPAPutsOne`` is where
-    the section 4 rows are actually exercised.
+    **What this bind does not reach is whether a row's verdict is true.** #323 adds
+    ``EveryDeclaredLimitIsReDerivedAtTheScannerSeam`` for that second property: every
+    current row has a synthetic draft proving the command's blind spot, and a new row
+    without a measurement fails its exhaustive key comparison.
     """
 
     def section_seven(self):
@@ -1145,6 +1145,68 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
         """
         self.assertIn("unwarranted retrieval date", dict(scan.NOT_REACHED))
 
+
+
+class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
+    """#323's executable half, rather than another bind of ``NOT_REACHED``.
+
+    Each handler drives a synthetic draft through the public findings seam and
+    demonstrates the exact blind spot its row claims. The key set is checked in
+    both directions, so a later row cannot inherit apparent coverage from this class.
+    """
+
+    def test_every_declared_limit_has_one_behavior_measurement(self):
+        handlers = {
+            "unwarranted retrieval date": self.unwarranted_retrieval_date,
+            "UpToDate last update year": self.uptodate_last_update_year,
+            "the source exists and says so": self.source_exists_and_says_so,
+        }
+        self.assertEqual(set(handlers), set(dict(scan.NOT_REACHED)))
+        for key, handler in handlers.items():
+            with self.subTest(key=key):
+                handler()
+
+    def unwarranted_retrieval_date(self):
+        stable_without_a_doi = ACOG.replace(
+            "https://doi.org/10.1000/acog.91",
+            "Retrieved August 19, 2026, from https://example.org/guideline.pdf",
+        )
+        self.assertNotIn(
+            scan.RETRIEVAL_DATE_ON_ARCHIVED,
+            kinds(draft(stable_without_a_doi, UPTODATE)),
+        )
+
+        # The positive control reaches the only unambiguous signal the scanner owns.
+        stable_with_a_doi = ACOG.replace(
+            "https://doi.org", "Retrieved August 19, 2026, from https://doi.org"
+        )
+        self.assertIn(
+            scan.RETRIEVAL_DATE_ON_ARCHIVED,
+            kinds(draft(stable_with_a_doi, UPTODATE)),
+        )
+
+    def uptodate_last_update_year(self):
+        entry = UPTODATE.replace("(2025)", "(2019)")
+        body = BODY.replace("Gupta & Hooton, 2025", "Gupta & Hooton, 2019")
+        self.assertEqual(kinds(draft(ACOG, entry, body=body)), [])
+
+        # A mismatched citation proves the year is parsed; what stays unreachable is
+        # whether 2019 is the topic's real last-update year.
+        self.assertIn(scan.INTEXT_YEAR_MISMATCH, kinds(draft(ACOG, entry)))
+
+    def source_exists_and_says_so(self):
+        invented = ACOG.replace(
+            "https://doi.org/10.1000/acog.91", "https://not-a-real-source.invalid/acog"
+        )
+        unsupported = BODY.replace(
+            "NAAT confirms the organism",
+            "The invented source proves an unsupported clinical claim",
+        )
+        self.assertEqual(kinds(draft(invented, UPTODATE, body=unsupported)), [])
+
+        # Removing the entry still fires the structural direction, so the silence
+        # above measures existence and content rather than a dead citation parser.
+        self.assertIn(scan.UNLISTED_CITATION, kinds(draft(UPTODATE, body=unsupported)))
 
 
 class TheDeclinedOptionIsPinnedToTheClassesItWasRuledOver(unittest.TestCase):
