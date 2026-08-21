@@ -302,10 +302,8 @@ DECLARED_LIMITS = (
         "a second drug welded into one drug row, discharged by the first drug's endpoint",
         EvidenceDisposition.BEHAVIOR,
     ),
-    (
-        "whether a dose is correct, or was sourced at all",
-        EvidenceDisposition.DECLARED_READING,
-    ),
+    ("whether a dose is correct", EvidenceDisposition.DECLARED_READING),
+    ("whether a dose was sourced at all", EvidenceDisposition.BEHAVIOR),
     (
         "a scaffolding phrase nobody has written yet",
         EvidenceDisposition.DECLARED_READING,

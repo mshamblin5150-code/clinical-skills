@@ -39,6 +39,7 @@ from pathlib import Path
 
 import case_study_scan as scan
 import docx_write
+import research_ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
@@ -689,6 +690,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
     WELDED = (
         "a second drug welded into one drug row, discharged by the first drug's endpoint"
     )
+    SOURCED_DOSE = "whether a dose was sourced at all"
 
     def test_every_limit_has_exactly_one_known_disposition(self):
         self.assertEqual(
@@ -704,7 +706,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
                 for key, disposition in scan.DECLARED_LIMITS
                 if disposition is scan.EvidenceDisposition.BEHAVIOR
             ],
-            [self.WELDED],
+            [self.WELDED, self.SOURCED_DOSE],
         )
 
     def test_the_welded_second_drug_really_is_discharged_by_the_first_endpoint(self):
@@ -719,6 +721,23 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
             "| Ceftriaxone 500 mg IM once |", "| metronidazole 500 mg PO TID |"
         )
         self.assertIn(scan.NO_STOP_CRITERION, kinds(CLEAN.replace(RX_TABLE, second_only)))
+
+    def test_the_sibling_ledger_really_grades_whether_a_dose_was_sourced(self):
+        prescription = research_ledger.Prescription(
+            "metronidazole", "metronidazole 500 mg PO TID", ""
+        )
+        unsupported = research_ledger.prescription_findings([prescription], [])
+        self.assertEqual(
+            [finding.kind for finding in unsupported],
+            [research_ledger.UNRESEARCHED_PRESCRIPTION],
+        )
+
+        sourced = research_ledger.Record(
+            "Metronidazole 500 mg by mouth three times daily is the sourced dose."
+        )
+        self.assertEqual(
+            research_ledger.prescription_findings([prescription], [sourced]), []
+        )
 
 
 class TheSkillSaysWhatThisCannotDo(unittest.TestCase):
