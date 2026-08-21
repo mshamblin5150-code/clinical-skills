@@ -294,9 +294,10 @@ Eight columns: `quantity | population | value | snippet | source | page | rec | 
   text a sheet is transcribed from carries the operator the document prints. **The gate
   stays**, because a sheet may be transcribed from a PDF opened by any reader on any
   machine, and it now takes its list from `guidelines_extract.SYMBOL_FONT_OPERATORS`
-  rather than holding a copy. **How many slots there are is that table's to say, and
-  two of them no gate can reach at all** — `threshold_sheet.UNREACHABLE_IN_A_TABLE_CELL`
-  names them and says why.
+  rather than holding a copy. Destructive C0 slots would be erased by Python before the value
+  gate could see them, so `threshold_sheet.parse` refuses those from the raw sheet,
+  preserves the sheet line, and directs an agent to verify the intended operator from
+  the rendered PDF page before writing its ASCII form. It never guesses the operator.
 - `snippet` is a short **verbatim** run from the source containing the value's number.
   It is not decoration; it is what makes the citation checkable on a machine that does
   not have the PDFs.
