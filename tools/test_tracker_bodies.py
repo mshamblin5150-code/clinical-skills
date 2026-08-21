@@ -21,6 +21,8 @@ from __future__ import annotations
 import ast
 import io
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -489,6 +491,48 @@ class TheCommandLine(unittest.TestCase):
         payload = io.StringIO(json.dumps({"number": 6, "body": "A real body."}))
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertEqual(tb.main(["-"], stdin=payload), tb.CLEAN)
+
+    def test_clean_utf8_bytes_have_the_same_verdict_through_file_and_pipe(self):
+        """#389's real boundary: a pipe, not a codec-free ``StringIO``."""
+        payload = json.dumps(
+            {"number": 389, "body": "Section § — ‘clean’."},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "clean.json"
+            path.write_bytes(payload)
+            through_file = subprocess.run(
+                [sys.executable, str(MODULE), str(path)],
+                capture_output=True,
+            )
+            through_pipe = subprocess.run(
+                [sys.executable, str(MODULE), "-"],
+                input=payload,
+                capture_output=True,
+            )
+        self.assertEqual(through_file.returncode, tb.CLEAN)
+        self.assertEqual(through_pipe.returncode, through_file.returncode)
+
+    def test_double_encoded_utf8_bytes_fail_through_file_and_pipe(self):
+        mojibake_em_dash = "\u00e2\u20ac\u201d"
+        payload = json.dumps(
+            {"number": 389, "body": f"before {mojibake_em_dash} after"},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "double-encoded.json"
+            path.write_bytes(payload)
+            through_file = subprocess.run(
+                [sys.executable, str(MODULE), str(path)],
+                capture_output=True,
+            )
+            through_pipe = subprocess.run(
+                [sys.executable, str(MODULE), "-"],
+                input=payload,
+                capture_output=True,
+            )
+        self.assertEqual(through_file.returncode, tb.FOUND)
+        self.assertEqual(through_pipe.returncode, through_file.returncode)
 
     def test_standard_input_that_is_not_json_did_not_scan(self):
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
