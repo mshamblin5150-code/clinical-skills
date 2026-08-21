@@ -12,7 +12,7 @@ Usage:
     python tools/spelling_scan.py               # staged source and filenames
     python tools/spelling_scan.py --all         # tracked source and filenames
     python tools/spelling_scan.py --commit-message .git/COMMIT_EDITMSG
-    python tools/spelling_scan.py --record      # the run record, form by form
+    python tools/spelling_scan.py --record      # preserved runs, form by form
     python tools/spelling_scan.py <a run dir>   # grade a run's finished notes
     python tools/spelling_scan.py --quiet       # print nothing when clean
 
@@ -35,17 +35,16 @@ explaining it. Nothing here can exempt itself: the unit is the span, not the
 file, and a British spelling written into prose is a finding in the file that
 documents the rule as readily as anywhere else.
 
-**One exemption, and it is a directory rather than a declaration.**
-``fixtures/filled-anchor/notes/case-*.md`` is day-b run 1 byte for byte apart
-from two redacted site names, and the British spellings that run emitted are
-the evidence for issue #73. **How many is ``--record``'s to say and is not
-written here** -- adding a form to the table moves that count without moving
-the record, which happened twice on 2026-08-18. Editing them would falsify the
-record, so they are **counted and reported, never
-refused** -- and the count is what ``test_spelling_scan`` pins, so a quiet tidy
-fails a test instead of voiding an argument. The record's own ``README.md`` is
-not in the exemption: it is prose about the record and takes the mention rule
-like any other prose.
+**Preserved output has a third disposition, and paths rather than artifacts
+declare it.** The generated case files in the four byte-for-byte run records
+under ``fixtures/`` are **counted and reported, never refused**. Editing a
+listed form there would falsify historical evidence; silently skipping the
+files would hide what a growing table later discovers. ``--record`` therefore
+renders every run separately, including runs with zero listed forms. The
+explicit patterns live in ``RUN_RECORDS`` and cover no ``README.md``: maintained
+prose about a record takes the mention rule like any other prose. A copied or
+new run outside those exact paths is ordinary output and is graded normally.
+Issues #73 and #321.
 
 **Findings name the table's entry, never the bytes matched.** A note is a patient
 record, so a scanner that echoed the line it matched would have output nobody
@@ -89,6 +88,7 @@ import re
 import subprocess
 import sys
 import tokenize
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Callable, Iterable, NamedTuple
 
@@ -96,8 +96,44 @@ from console_codec import use_utf8
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# The run record. Its README is not included -- see the module docstring.
-EVIDENCE_PREFIXES = ("fixtures/filled-anchor/notes/case-",)
+class RunRecord(NamedTuple):
+    """One immutable generated-output cohort, never its maintained README."""
+
+    key: str
+    directory: str
+    pattern: str
+    description: str
+
+
+# Explicit rather than declared inside an artifact: evidence cannot exempt
+# itself. The patterns name generated case files only, so each neighboring
+# README remains ordinary maintained prose. Issue #321.
+RUN_RECORDS = (
+    RunRecord(
+        "filled-anchor-notes",
+        "fixtures/filled-anchor/notes/",
+        "fixtures/filled-anchor/notes/case-*.md",
+        "day-b run 1, byte for byte apart from two redacted site names. Issue #73.",
+    ),
+    RunRecord(
+        "filled-anchor-run-2",
+        "fixtures/filled-anchor/run-2/",
+        "fixtures/filled-anchor/run-2/case-*.md",
+        "preserved icd10-cpt run output. Issue #321.",
+    ),
+    RunRecord(
+        "slot-form-run",
+        "fixtures/slot-form-run/",
+        "fixtures/slot-form-run/*-case-*.md",
+        "preserved clinical-note run output. Issue #321.",
+    ),
+    RunRecord(
+        "blind-run",
+        "fixtures/blind-run/",
+        "fixtures/blind-run/*-case-*.md",
+        "preserved clinical-note run output. Issue #321.",
+    ),
+)
 
 # *Conventions > Spelling* in skills/clinical-note/SKILL.md, transcribed. Parity
 # is asserted rather than trusted; see `parse_skill_table`.
@@ -204,7 +240,23 @@ class Finding(NamedTuple):
 
 
 class Evidence(NamedTuple):
-    """What the run record contains. Counted, never refused."""
+    """What preserved runs contain. Counted, grouped, and never refused."""
+
+    forms: dict[str, int]
+    files: tuple[str, ...]
+    records: tuple[tuple[str, "RunEvidence"], ...] = ()
+
+    @property
+    def occurrences(self) -> int:
+        return sum(self.forms.values())
+
+    @property
+    def by_record(self) -> dict[str, "RunEvidence"]:
+        return dict(self.records)
+
+
+class RunEvidence(NamedTuple):
+    """The counted forms and affected files in one preserved run."""
 
     forms: dict[str, int]
     files: tuple[str, ...]
@@ -241,17 +293,39 @@ class _Tally:
         self.findings: list[Finding] = []
         self.counts: dict[str, int] = {}
         self.record: list[str] = []
+        self.record_counts: dict[str, dict[str, int]] = {}
+        self.record_files: dict[str, list[str]] = {}
 
     def add(self, finding: Finding) -> None:
-        if finding.line == 0 or not is_evidence(finding.path):
+        run_record = run_record_for(finding.path)
+        if finding.line == 0 or run_record is None:
             self.findings.append(finding)
             return
         self.counts[finding.form] = self.counts.get(finding.form, 0) + 1
         if finding.path not in self.record:
             self.record.append(finding.path)
+        counts = self.record_counts.setdefault(run_record.key, {})
+        counts[finding.form] = counts.get(finding.form, 0) + 1
+        files = self.record_files.setdefault(run_record.key, [])
+        if finding.path not in files:
+            files.append(finding.path)
 
     def report(self) -> Report:
-        return Report(self.findings, Evidence(self.counts, tuple(self.record)))
+        records = tuple(
+            (
+                record.key,
+                RunEvidence(
+                    self.record_counts[record.key],
+                    tuple(self.record_files[record.key]),
+                ),
+            )
+            for record in RUN_RECORDS
+            if record.key in self.record_counts
+        )
+        return Report(
+            self.findings,
+            Evidence(self.counts, tuple(self.record), records),
+        )
 
 
 # spelling-scan: mentions 2
@@ -351,8 +425,39 @@ def scan_python_text(text: str, path: str) -> list[Finding]:
     return [finding for finding in findings if finding.line not in exempt_lines]
 
 
+def repository_path(path: str) -> str | None:
+    """Return a repository-relative POSIX path for relative or in-tree input."""
+
+    candidate = Path(path)
+    if candidate.is_absolute():
+        try:
+            candidate = candidate.resolve().relative_to(REPO_ROOT.resolve())
+        except ValueError:
+            return None
+    return candidate.as_posix()
+
+
+def run_record_for(path: str) -> RunRecord | None:
+    """The preserved run owning *path*, if it is one of its generated cases."""
+
+    relative = repository_path(path)
+    if relative is None:
+        return None
+    parent = Path(relative).parent.as_posix() + "/"
+    return next(
+        (
+            record
+            for record in RUN_RECORDS
+            if parent == record.directory and fnmatchcase(relative, record.pattern)
+        ),
+        None,
+    )
+
+
 def is_evidence(path: str) -> bool:
-    return path.startswith(EVIDENCE_PREFIXES)
+    """Compatibility predicate for callers that only need the disposition."""
+
+    return run_record_for(path) is not None
 
 
 def is_scannable_source(path: str) -> bool:
@@ -388,9 +493,21 @@ class RecordRow(NamedTuple):
     american_count: int
 
 
+class RecordView(NamedTuple):
+    """One preserved run and the rows derived from all of its generated files."""
+
+    record: RunRecord
+    rows: tuple[RecordRow, ...]
+    note_count: int
+
+
 # spelling-scan: mentions 1
-def record_rows(paths: Iterable[str], read: Callable[[str], str | None]) -> list[RecordRow]:
-    """The run record, form by form, with the American form's count beside it.
+def record_rows(
+    record: RunRecord,
+    paths: Iterable[str],
+    read: Callable[[str], str | None],
+) -> list[RecordRow]:
+    """One run record, form by form, with its American counts beside it.
 
     The counterpart column is the point of this view rather than decoration.
     Eight British forms alone read as a run written in a British register; the
@@ -402,7 +519,7 @@ def record_rows(paths: Iterable[str], read: Callable[[str], str | None]) -> list
     counterpart: dict[str, int] = {}
 
     for path in paths:
-        if not is_evidence(path):
+        if run_record_for(path) != record:
             continue
         text = read(path)
         if text is None:
@@ -426,11 +543,30 @@ def record_rows(paths: Iterable[str], read: Callable[[str], str | None]) -> list
     ]
 
 
+def record_views(
+    paths: Iterable[str],
+    read: Callable[[str], str | None],
+) -> list[RecordView]:
+    """Every configured record in declaration order, including clean records."""
+
+    path_list = list(paths)
+    return [
+        RecordView(
+            record,
+            tuple(record_rows(record, path_list, read)),
+            sum(run_record_for(path) == record for path in path_list),
+        )
+        for record in RUN_RECORDS
+    ]
+
+
 # spelling-scan: mentions 2
-def render_record(rows: list[RecordRow]) -> list[str]:
+def render_record(view: RecordView) -> list[str]:
+    """Render one record section without the shared vocabulary qualifier."""
+
+    rows = view.rows
     lines = [
-        "spelling-scan: fixtures/filled-anchor/notes/ -- day-b run 1, byte for "
-        "byte apart from two redacted site names. Issue #73.",
+        f"spelling-scan: {view.record.directory} -- {view.record.description}",
         "",
     ]
     # Derived rather than typed. The width was a literal 13 and had always been
@@ -447,20 +583,32 @@ def render_record(rows: list[RecordRow]) -> list[str]:
             f"  {row.form:<{width}} {row.british:>2}   {where}"
             f"   ({row.american}: {row.american_count})"
         )
-    lines.append("")
+    if rows:
+        lines.append("")
     lines.append(
         f"  {len(rows)} forms, {sum(r.british for r in rows)} occurrences, "
-        f"{len({c for r in rows for c, _ in r.cases})} of the twelve notes."
+        f"{len({c for r in rows for c, _ in r.cases})} of {view.note_count} files."
     )
     lines.append("")
     lines.append(
         "These stay. Correcting them would falsify the record of what the run "
         "produced -- see the set's README."
     )
+    return lines
+
+
+def render_records(views: Iterable[RecordView]) -> list[str]:
+    """Render every record separately and qualify their shared vocabulary once."""
+
+    lines: list[str] = []
+    for view in views:
+        if lines:
+            lines.append("")
+        lines.extend(render_record(view))
+    lines.append("")
     lines.append(
-        "This tally is bounded by that set: adding a form moves it without the "
-        "record moving, which has happened. Issue #278; the instance is in "
-        "skills/clinical-note/SKILL.md under Conventions."
+        "Each tally is bounded by that set: adding a form can move it without "
+        "the record moving. Issues #278 and #321."
     )
     lines.append(vocabulary_covered())
     return lines
@@ -531,9 +679,9 @@ def read_tracked(path: str) -> str | None:
 def markdown_under(targets: Iterable[Path]) -> list[str]:
     """Every ``.md`` under the given files and directories, as absolute strings.
 
-    Absolute, so nothing here can collide with ``EVIDENCE_PREFIXES`` -- a run
-    being graded is not the run record, whatever it is called or wherever it
-    sits.
+    ``run_record_for`` normalizes an in-repository absolute path, so directly
+    scanning the exact historical artifact keeps its report-only disposition.
+    A new or copied run anywhere else remains ordinary graded output. #321.
     """
     found: list[str] = []
     for target in targets:
@@ -664,9 +812,9 @@ def scanned_population(mode: str) -> str:
     are entitled to.
 
     **``--record`` needs none of this and got none**, which is a limit worth
-    naming rather than an omission. Its first printed line already names the one
-    directory it reports on, and it renders no clean verdict for a reader to
-    read as a claim about the tree.
+    naming rather than an omission. Each section names the exact directory it
+    reports on, and it renders no repository-wide clean verdict for a reader to
+    mistake for a claim about the tree.
     """
     return f"spelling-scan: scanned {POPULATIONS[mode]}."
 
@@ -731,13 +879,12 @@ def vocabulary_covered() -> str:
     ``CLAUDE.md``, on #143's terms.
 
     **``--record`` gets this same line, and calls it rather than holding a
-    copy.** #258 ruled that view needs no *population* line, its first printed
-    line naming the one directory it reports on. Its tally is still bounded by
-    this set: adding a form has moved it while the twelve notes did not move at
-    all. **The instance is stated once, in the skill's Conventions section**,
-    which tells a reader to re-derive it with ``--record`` rather than quote it
-    -- so printing it here would be the command quoting the sentence that says
-    not to.
+    copy.** #258 ruled that view needs no repository *population* line because
+    each section names its own directory. Every tally is still bounded by the
+    configured vocabulary: adding a form can move it while a preserved file
+    does not move at all. **The recorded instance is stated once, in the
+    skill's Conventions section**, which tells a reader to re-derive it with
+    ``--record`` rather than quote it.
     """
     return (
         f"spelling-scan: checked {len(_PATTERNS)} listed forms and their "
@@ -764,16 +911,25 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
             "skills/clinical-note/SKILL.md under Conventions."
         )
     elif not quiet:
-        lines.append("spelling-scan: no listed British spelling found.")
+        if report.evidence.forms:
+            lines.append(
+                "spelling-scan: no listed British spelling found outside "
+                "preserved run output."
+            )
+        else:
+            lines.append("spelling-scan: no listed British spelling found.")
 
     evidence = report.evidence
     if evidence.forms and not quiet:
-        lines.append(
-            f"spelling-scan: {len(evidence.forms)} forms, {evidence.occurrences} "
-            f"occurrences across {len(evidence.files)} notes in "
-            "fixtures/filled-anchor/notes/ -- a preserved run record, issue #73. "
-            "Not findings."
-        )
+        records = {record.key: record for record in RUN_RECORDS}
+        for key, run_evidence in evidence.records:
+            record = records[key]
+            lines.append(
+                f"spelling-scan: {len(run_evidence.forms)} forms, "
+                f"{run_evidence.occurrences} occurrences across "
+                f"{len(run_evidence.files)} files in {record.directory} -- "
+                "preserved run output. Not findings."
+            )
 
     # **Whether or not the run was clean, and last, so it qualifies everything
     # above it.** A finding is a floor rather than the whole -- so the walked
@@ -824,7 +980,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("paths cannot be combined with --all, --record, or --commit-message")
 
     if args.record:
-        for line in render_record(record_rows(tracked_markdown(), read_tracked)):
+        views = record_views(tracked_markdown(), read_tracked)
+        for line in render_records(views):
             print(line)
         return 0
 

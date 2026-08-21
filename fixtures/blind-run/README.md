@@ -74,4 +74,4 @@ Written to `scratch/` **before the run was scanned**, so it could not be adjuste
 
 ## Standing rule 4
 
-This set is **not** exempt from the spelling scan, on [slot-form-run](../slot-form-run/README.md)'s reasoning and subject to the same unresolved tension — [#321](https://github.com/mshamblin5150-code/clinical-skills/issues/321). It holds no listed form today.
+The generated case files in this set take [#321](https://github.com/mshamblin5150-code/clinical-skills/issues/321)'s preserved-record disposition: `spelling_scan.py` counts and reports every listed form it finds, but does not fail the historical output or permit an edit to it. `python tools/spelling_scan.py --record` prints this run even when its count is zero, so report-only does not become silent. This README remains ordinary maintained prose and is checked normally.
