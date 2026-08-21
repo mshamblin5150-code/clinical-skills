@@ -29,7 +29,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import guidelines_extract
+import guidelines_extraction_artifact
 import guidelines_index
+import guidelines_index_artifact
 from console_codec import use_utf8
 from repo_root import ensure_outside_checkout, main_repo_root
 
@@ -125,8 +127,8 @@ def extraction_identity(source: Path) -> dict[str, object]:
         "schema": ARTIFACT_SCHEMA_VERSION,
         "source_files": source_files,
         "producer_files": _code_inputs(
-            "guidelines_build.py",
             "guidelines_extract.py",
+            "guidelines_extraction_artifact.py",
             "artifact_provenance.py",
         ),
         "runtime": {
@@ -142,9 +144,10 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
         "kind": "index",
         "schema": ARTIFACT_SCHEMA_VERSION,
         "extraction_key": extraction.key,
+        "extraction_inventory": _extraction_inventory(extraction),
         "producer_files": _code_inputs(
-            "guidelines_build.py",
             "guidelines_index.py",
+            "guidelines_index_artifact.py",
             "artifact_provenance.py",
         ),
         "runtime": {
@@ -153,6 +156,26 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
         },
         "options": {"schema_version": guidelines_index.SCHEMA_VERSION},
     }
+
+
+def _extraction_inventory(extraction: SelectedArtifact) -> str:
+    """Identify extracted content without allowing lineage metadata to key it."""
+    rows: list[dict[str, object]] = []
+    for row in extraction.files:
+        normalized = dict(row)
+        if row["path"] == guidelines_extract.MANIFEST_NAME:
+            manifest = json.loads(
+                (extraction.path / guidelines_extract.MANIFEST_NAME).read_text(
+                    encoding="utf-8"
+                )
+            )
+            if not isinstance(manifest, dict):
+                raise ValueError("extraction manifest is not a JSON object")
+            manifest.pop("producer", None)
+            normalized["sha256"] = identity_key(manifest)
+            normalized.pop("bytes", None)
+        rows.append(normalized)
+    return identity_key(rows)
 
 
 def _empty_catalog() -> dict[str, object]:
@@ -360,44 +383,6 @@ def _trusted_producer(
     return {**producer, "inputs": list(inputs)}
 
 
-def _stamp_extraction(
-    root: Path, producer: dict[str, object]
-) -> None:
-    path = root / guidelines_extract.MANIFEST_NAME
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(manifest, dict):
-        raise ValueError("extraction manifest is not a JSON object")
-    manifest["producer"] = producer
-    path.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-
-
-def _stamp_index(
-    database: Path,
-    producer: dict[str, object],
-    source: dict[str, object],
-) -> None:
-    with closing(sqlite3.connect(database)) as connection:
-        row = connection.execute(
-            "SELECT value FROM meta WHERE key = 'provenance'"
-        ).fetchone()
-        if row is None:
-            raise ValueError("index database has no provenance record")
-        provenance = json.loads(row[0])
-        if not isinstance(provenance, dict):
-            raise ValueError("index provenance is not a JSON object")
-        provenance["producer"] = producer
-        provenance["source"] = source
-        connection.execute(
-            "UPDATE meta SET value = ? WHERE key = 'provenance'",
-            (json.dumps(provenance, sort_keys=True),),
-        )
-        connection.commit()
-
-
 def _run_producer(command: list[str], label: str) -> None:
     finished = subprocess.run(
         command,
@@ -576,7 +561,7 @@ def _build_extraction(
         _run_producer(command, "guideline extraction")
         if _files(source, "*.pdf") != identity["source_files"]:
             raise ValueError("source files changed during extraction; retry the build")
-        _stamp_extraction(temporary, trusted)
+        guidelines_extraction_artifact.stamp(temporary, trusted)
         _validate_extraction(temporary)
 
     return _select_or_build(
@@ -626,7 +611,7 @@ def _build_index(
             )
             if _files(extraction.path) != extraction.files:
                 raise ValueError("cached extraction changed during index production")
-        _stamp_index(database, trusted, source_producer)
+        guidelines_index_artifact.stamp(database, trusted, source_producer)
         _validate_index(database)
 
     return _select_or_build(

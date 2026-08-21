@@ -179,6 +179,66 @@ class SeparatingDifferentInputs(BuildCommandCase):
             ],
         )
 
+    def test_index_only_producer_changes_do_not_rekey_extraction(self):
+        extraction_files = {
+            row["path"] for row in guidelines_build.extraction_identity(self.source)[
+                "producer_files"
+            ]
+        }
+        index_files = {
+            row["path"]
+            for row in guidelines_build.index_identity(
+                guidelines_build.SelectedArtifact(
+                    "extraction", "key", self.source, True, ()
+                )
+            )["producer_files"]
+        }
+
+        self.assertIn("tools/guidelines_extraction_artifact.py", extraction_files)
+        self.assertNotIn("tools/guidelines_index_artifact.py", extraction_files)
+        self.assertIn("tools/guidelines_index_artifact.py", index_files)
+        self.assertNotIn("tools/guidelines_extraction_artifact.py", index_files)
+
+    def test_index_identity_includes_extracted_content_not_commit_lineage(self):
+        self.assertEqual(self.run_command(), 0)
+        catalog = json.loads(
+            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
+        )
+        extraction_row = next(iter(catalog["artifacts"]["extraction"].values()))
+        extraction_path = Path(extraction_row["path"])
+        record = json.loads(
+            (extraction_path / "artifact.json").read_text(encoding="utf-8")
+        )
+        selected = guidelines_build.SelectedArtifact(
+            "extraction",
+            record["key"],
+            extraction_path,
+            True,
+            tuple(record["files"]),
+        )
+        before = guidelines_build.index_identity(selected)
+        manifest_path = extraction_path / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["producer"]["commit"] = "b" * 40
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        lineage_only = guidelines_build.index_identity(selected)
+        (extraction_path / "one.txt").write_text("changed content", encoding="utf-8")
+        content_changed = guidelines_build.SelectedArtifact(
+            selected.kind,
+            selected.key,
+            selected.path,
+            selected.reused,
+            guidelines_build._files(selected.path),
+        )
+
+        self.assertEqual(
+            before["extraction_inventory"], lineage_only["extraction_inventory"]
+        )
+        self.assertNotEqual(
+            before["extraction_inventory"],
+            guidelines_build.index_identity(content_changed)["extraction_inventory"],
+        )
+
 
 class PreservingContentAddressedTrust(BuildCommandCase):
     def test_cached_artifacts_remain_trusted_on_an_unrelated_commit(self):
