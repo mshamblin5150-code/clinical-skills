@@ -559,7 +559,10 @@ class RecoveringInterruptedAliasPublication(BuildCommandCase):
 
         def stop_alias_write(source: Path, destination: Path) -> None:
             nonlocal interrupted
-            if Path(destination) == self.text_alias and not interrupted:
+            if (
+                Path(destination).name == self.text_alias.name
+                and not interrupted
+            ):
                 interrupted = True
                 raise OSError("simulated alias interruption")
             real_replace(source, destination)
