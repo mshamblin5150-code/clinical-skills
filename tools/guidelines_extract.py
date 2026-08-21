@@ -306,6 +306,7 @@ still report nothing stripped.
 from __future__ import annotations
 
 import argparse
+import artifact_lock
 import artifact_provenance
 import json
 import os
@@ -1640,7 +1641,7 @@ WHY_OUTSIDE = (
 )
 
 
-def main(argv: list[str]) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("source", type=Path, help="directory holding the guideline PDFs")
     parser.add_argument(
@@ -1658,23 +1659,11 @@ def main(argv: list[str]) -> int:
         default=0,
         help="worker processes (default: one per CPU; 1 runs in this process)",
     )
-    args = parser.parse_args(argv)
+    return parser
 
-    if not args.source.is_dir():
-        raise SystemExit(f"not a directory: {args.source}")
 
-    source_root = args.source.resolve()
-    # Before the dependency check, not after it. Where the output lands is a
-    # question about the arguments alone, and answering it first means a
-    # machine with no PDF library still refuses a path inside a checkout --
-    # which is what lets the cross-check in `test_write_guards.py` drive this
-    # command line at all, since the suite installs nothing.
-    try:
-        out_root = ensure_outside_checkout(
-            args.out or default_output(source_root), detail=WHY_OUTSIDE
-        )
-    except InsideCheckout as refused:
-        raise SystemExit(str(refused)) from refused
+def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
+    """Extract one corpus while ``main`` owns its shared output lock."""
     require_pymupdf()
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
@@ -1691,31 +1680,14 @@ def main(argv: list[str]) -> int:
         for record in results:
             records.append(record)
             if not args.quiet:
-                # `use_utf8` in `__main__` is what keeps a society directory or a
-                # file name outside cp1252 from taking the run down at the print,
-                # having already done the work. This used to encode by hand through
-                # `sys.stdout.buffer`, which did the same job for this one line and
-                # left every other print in the file exposed -- including
-                # `record.error` on the failure path, where the reporting is what
-                # dies. Issue #150.
-                #
-                # The trade is real and worth naming: that hand-rolled line protected
-                # itself wherever it ran, and this one is protected by the entry
-                # point, so an in-process caller of `main` no longer gets it. There
-                # is no such caller, `sys.stdout.buffer` does not exist on the
-                # `StringIO` a test would redirect into, and one mechanism for the
-                # whole file beats one line that was safe alone. `flush` stays: that
-                # is progress output over 179 documents, and nothing to do with
-                # encoding -- and it matters more now, because with a pool the lines
-                # arrive in bursts as the in-order `map` releases completed work.
+                # `use_utf8` in `__main__` keeps every print safe on a cp1252
+                # console. `flush` stays because this is progress over a long run,
+                # especially when the process pool releases results in bursts.
                 print(f"  {record.source}", flush=True)
 
-    # `map` yields in submission order, so the manifest stays in source order and a
-    # rebuild diffs clean against the last one rather than reordering on every run.
-    #
-    # Serial when workers == 1, and that is a real branch rather than a pool of one:
-    # a single-worker pool is all of the overhead and none of the benefit, and it is
-    # the mode a traceback out of `extract_pages` is readable in.
+    # `map` yields in submission order, so the manifest stays in source order and
+    # rebuilds diff cleanly. A single worker stays in-process so its traceback is
+    # readable and it pays no process-pool overhead.
     if workers == 1:
         collect(_extract_one(job) for job in jobs)
     else:
@@ -1725,17 +1697,8 @@ def main(argv: list[str]) -> int:
     manifest = write_manifest(out_root, records, source_root)
 
     failures = [record for record in records if record.error]
-    # Every class, not only the captures. Since #185 this is the vocabulary
-    # `reference/guidelines-catalog.md` publishes and `guidelines_search.py --class`
-    # filters on, so the breakdown is the one command that re-derives the figures
-    # CLAUDE.md states -- and a class that fell to zero is visible rather than
-    # implied by the one that did not.
-    #
-    # `CLASS_UNKNOWN` is counted here and is deliberately outside `CLASSES`, because a
-    # breakdown that did not sum to the document count would be a line inviting the
-    # reader to work out the difference -- and the missing term would be exactly the
-    # documents that failed to read. It prints only when it is non-zero, so an ordinary
-    # run is not given a column for a class it does not have.
+    # Every published class is printed. Unknown is outside `CLASSES` and appears
+    # only for unread documents, keeping the breakdown equal to the run total.
     counted = {cls: sum(1 for r in records if r.document_class == cls) for cls in CLASSES}
     unread = sum(1 for r in records if r.document_class == CLASS_UNKNOWN)
     if unread:
@@ -1759,9 +1722,8 @@ def main(argv: list[str]) -> int:
         f"boilerplate {sum(1 for r in records if r.boilerplate):,} of {len(records):,} "
         "documents carry a page-repeated line"
     )
-    # Reported separately rather than folded into the line above. The two rules
-    # overlap on most documents, so one combined count would say nothing about
-    # what #100's rule adds -- and what it adds is the whole reason it exists.
+    # Kept separate because the literal and masked-margin rules overlap; one
+    # combined count would hide what the second rule contributed.
     print(
         f"margins     {sum(1 for r in records if r.margin_patterns):,} of {len(records):,} "
         f"documents carry a page-repeated line once its digits are masked, within "
@@ -1773,9 +1735,7 @@ def main(argv: list[str]) -> int:
     )
     unstripped = [r for r in records if r.output and not r.boilerplate and not r.margin_patterns]
     print(f"            {len(unstripped):,} document(s) had nothing stripped by either rule")
-    # #172. Printed on every run rather than only when it is non-zero, because a
-    # line that appears when something is wrong is a line nobody has a baseline
-    # for -- and the number a reader needs is "the same as last time".
+    # Always print the symbol census so a nonzero run has a visible baseline.
     unmapped = sum(sum(r.symbol_glyphs.values()) for r in records)
     carriers = sum(1 for r in records if r.symbol_glyphs)
     print(
@@ -1799,6 +1759,31 @@ def main(argv: list[str]) -> int:
             print(f"  {record.source}: {record.error}")
         return 1
     return 0
+
+
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
+    if not args.source.is_dir():
+        raise SystemExit(f"not a directory: {args.source}")
+
+    source_root = args.source.resolve()
+    # Before the dependency check, not after it. Where the output lands is a
+    # question about the arguments alone, and answering it first means a
+    # machine with no PDF library still refuses a path inside a checkout --
+    # which is what lets the cross-check in `test_write_guards.py` drive this
+    # command line at all, since the suite installs nothing.
+    try:
+        out_root = ensure_outside_checkout(
+            args.out or default_output(source_root), detail=WHY_OUTSIDE
+        )
+    except InsideCheckout as refused:
+        raise SystemExit(str(refused)) from refused
+    try:
+        with artifact_lock.hold(out_root, "extracting guideline text"):
+            return _run(args, source_root, out_root)
+    except artifact_lock.ArtifactBusy as busy:
+        print(str(busy), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

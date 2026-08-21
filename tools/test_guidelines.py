@@ -31,10 +31,12 @@ from unittest import mock
 
 import guidelines_index as gi
 import guidelines_search as gs
+import artifact_lock
 import artifact_provenance
 from repo_root import InsideCheckout
 
 TOOLS = Path(__file__).resolve().parent
+
 
 # Invented prose, shaped like a threshold table so the line-attribution tests
 # have something with a number in it to find.
@@ -971,6 +973,78 @@ class BuildCommandLineTests(TempCorpus):
         self.assertEqual(status, 0)
         self.assertIn("1 document", out)
         self.assertIn("2 page", out)
+
+    def test_a_second_build_is_told_which_shared_artifact_is_busy(self):
+        with artifact_lock.hold(self.db, "first guideline index build"):
+            status, _, err = self.run_build([str(self.text_dir), str(self.db)])
+
+        self.assertEqual(status, 2)
+        self.assertIn("another task is rebuilding", err)
+        self.assertIn(str(self.db), err)
+        self.assertIn("first guideline index build", err)
+        self.assertIn("process", err)
+        self.assertIn("retry", err.lower())
+        self.assertFalse(self.db.exists())
+
+    def test_a_task_that_dies_does_not_leave_the_index_permanently_locked(self):
+        holder = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; from pathlib import Path; import artifact_lock; "
+                    "lease = artifact_lock.hold(Path(sys.argv[1]), 'interrupted build'); "
+                    "lease.__enter__(); print('locked', flush=True); sys.stdin.read(1)"
+                ),
+                str(self.db),
+            ],
+            cwd=TOOLS,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+
+        def close_holder():
+            if holder.poll() is None:
+                holder.kill()
+                holder.wait(timeout=5)
+            for stream in (holder.stdin, holder.stdout, holder.stderr):
+                if stream is not None:
+                    stream.close()
+
+        self.addCleanup(close_holder)
+        self.assertEqual(holder.stdout.readline().strip(), "locked")
+        holder.kill()
+        holder.wait(timeout=5)
+
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
+        status, _, err = self.run_build([str(self.text_dir), str(self.db)])
+
+        self.assertEqual(status, 0, err)
+        self.assertTrue(self.db.is_file())
+
+    def test_an_index_build_does_not_read_an_extraction_still_in_progress(self):
+        with artifact_lock.hold(self.text_dir, "guideline extraction"):
+            status, _, err = self.run_build([str(self.text_dir), str(self.db)])
+
+        self.assertEqual(status, 2)
+        self.assertIn("another task is rebuilding", err)
+        self.assertIn(str(self.text_dir), err)
+        self.assertIn("retry", err.lower())
+        self.assertFalse(self.db.exists())
+
+    def test_the_first_extraction_is_reported_as_busy_before_its_directory_exists(self):
+        text_dir = self.root / "first-guidelines-text"
+        with artifact_lock.hold(text_dir, "first guideline extraction"):
+            status, _, err = self.run_build([str(text_dir), str(self.db)])
+
+        self.assertEqual(status, 2)
+        self.assertIn("another task is rebuilding", err)
+        self.assertIn(str(text_dir), err)
+        self.assertNotIn("no extracted-text directory", err)
 
     def test_a_missing_text_directory_exits_nonzero(self):
         status, _, err = self.run_build([str(self.root / "nowhere"), str(self.db)])

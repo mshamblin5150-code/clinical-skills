@@ -63,11 +63,13 @@ because #80's contract is a recorded failure rather than a silent skip.
 from __future__ import annotations
 
 import argparse
+import artifact_lock
 import artifact_provenance
 import json
 import os
 import sqlite3
 import sys
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -429,93 +431,100 @@ def build(
     fine and answers short.
     """
     text_dir = Path(text_dir).resolve()
-    if not text_dir.is_dir():
-        raise FileNotFoundError(f"no extracted-text directory at {text_dir}")
-    target = ensure_outside_checkout(database or default_database(), detail=WHY_OUTSIDE)
-    producer = artifact_provenance.current_producer()
-    producer_provenance = artifact_provenance.check_producer(
-        producer,
-        target,
-        allow_untrusted=allow_untrusted_provenance,
-        expected_commit=str(producer["commit"]),
-    )
-    manifest, source_provenance = _read_manifest(
-        text_dir,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-        expected_commit=str(producer["commit"]),
-    )
-    if source_provenance is None:
-        source_provenance = artifact_provenance.check_producer(
-            None,
-            text_dir / MANIFEST_NAME,
+    with ExitStack() as locks:
+        locks.enter_context(
+            artifact_lock.hold(
+                text_dir, "reading extracted guideline text for an index build"
+            )
+        )
+        if not text_dir.is_dir():
+            raise FileNotFoundError(f"no extracted-text directory at {text_dir}")
+        target = ensure_outside_checkout(database or default_database(), detail=WHY_OUTSIDE)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        locks.enter_context(artifact_lock.hold(target, "building guideline index"))
+        producer = artifact_provenance.current_producer()
+        producer_provenance = artifact_provenance.check_producer(
+            producer,
+            target,
             allow_untrusted=allow_untrusted_provenance,
             expected_commit=str(producer["commit"]),
         )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    partial = target.with_name(target.name + ".building")
-    partial.unlink(missing_ok=True)
-
-    documents = pages = characters = 0
-    seen: set[str] = set()
-    connection = sqlite3.connect(partial)
-    try:
-        connection.executescript(SCHEMA)
-        for document in _discover(text_dir, manifest):
-            seen.add(document.doc_id)
-            cursor = connection.execute(
-                "INSERT INTO document (doc_id, society, title, document_class, pages) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    document.doc_id,
-                    document.society,
-                    document.title,
-                    document.document_class,
-                    len(document.pages),
-                ),
-            )
-            doc_pk = cursor.lastrowid
-            connection.executemany(
-                "INSERT INTO page (doc_pk, number, text) VALUES (?, ?, ?)",
-                [(doc_pk, page.number, page.text) for page in document.pages],
-            )
-            documents += 1
-            pages += len(document.pages)
-            characters += sum(len(page.text) for page in document.pages)
-
-        if documents == 0:
-            raise ValueError(
-                f"no .txt files under {text_dir}. An index over nothing answers every "
-                "query with zero hits, which is the one thing this must not do."
-            )
-
-        connection.execute("INSERT INTO page_fts(page_fts) VALUES ('rebuild')")
-        untrusted_reasons = list(
-            source_provenance.reasons + producer_provenance.reasons
+        manifest, source_provenance = _read_manifest(
+            text_dir,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+            expected_commit=str(producer["commit"]),
         )
-        provenance = {
-            "producer": producer_provenance.producer,
-            "source": source_provenance.producer,
-            "untrusted_reasons": untrusted_reasons,
-        }
-        connection.executemany(
-            "INSERT INTO meta (key, value) VALUES (?, ?)",
-            [
-                ("schema_version", str(SCHEMA_VERSION)),
-                ("text_dir", str(text_dir)),
-                ("documents", str(documents)),
-                ("pages", str(pages)),
-                ("characters", str(characters)),
-                ("built_at", datetime.now(timezone.utc).isoformat(timespec="seconds")),
-                ("provenance", json.dumps(provenance, sort_keys=True)),
-            ],
-        )
-        connection.commit()
-    except BaseException:
-        connection.close()
+        if source_provenance is None:
+            source_provenance = artifact_provenance.check_producer(
+                None,
+                text_dir / MANIFEST_NAME,
+                allow_untrusted=allow_untrusted_provenance,
+                expected_commit=str(producer["commit"]),
+            )
+        partial = target.with_name(f"{target.name}.{os.getpid()}.building")
         partial.unlink(missing_ok=True)
-        raise
-    connection.close()
-    os.replace(partial, target)
+
+        documents = pages = characters = 0
+        seen: set[str] = set()
+        connection = sqlite3.connect(partial)
+        try:
+            connection.executescript(SCHEMA)
+            for document in _discover(text_dir, manifest):
+                seen.add(document.doc_id)
+                cursor = connection.execute(
+                    "INSERT INTO document (doc_id, society, title, document_class, pages) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        document.doc_id,
+                        document.society,
+                        document.title,
+                        document.document_class,
+                        len(document.pages),
+                    ),
+                )
+                doc_pk = cursor.lastrowid
+                connection.executemany(
+                    "INSERT INTO page (doc_pk, number, text) VALUES (?, ?, ?)",
+                    [(doc_pk, page.number, page.text) for page in document.pages],
+                )
+                documents += 1
+                pages += len(document.pages)
+                characters += sum(len(page.text) for page in document.pages)
+
+            if documents == 0:
+                raise ValueError(
+                    f"no .txt files under {text_dir}. An index over nothing answers every "
+                    "query with zero hits, which is the one thing this must not do."
+                )
+
+            connection.execute("INSERT INTO page_fts(page_fts) VALUES ('rebuild')")
+            untrusted_reasons = list(
+                source_provenance.reasons + producer_provenance.reasons
+            )
+            provenance = {
+                "producer": producer_provenance.producer,
+                "source": source_provenance.producer,
+                "untrusted_reasons": untrusted_reasons,
+            }
+            connection.executemany(
+                "INSERT INTO meta (key, value) VALUES (?, ?)",
+                [
+                    ("schema_version", str(SCHEMA_VERSION)),
+                    ("text_dir", str(text_dir)),
+                    ("documents", str(documents)),
+                    ("pages", str(pages)),
+                    ("characters", str(characters)),
+                    ("built_at", datetime.now(timezone.utc).isoformat(timespec="seconds")),
+                    ("provenance", json.dumps(provenance, sort_keys=True)),
+                ],
+            )
+            connection.commit()
+        except BaseException:
+            connection.close()
+            partial.unlink(missing_ok=True)
+            raise
+        connection.close()
+        os.replace(partial, target)
 
     manifest_only = sorted(set(manifest) - seen)
     return BuildReport(
@@ -548,7 +557,7 @@ def main(argv: list[str]) -> int:
             args.database,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
-    except (FileNotFoundError, ValueError) as failure:
+    except (artifact_lock.ArtifactBusy, FileNotFoundError, ValueError) as failure:
         print(str(failure), file=sys.stderr)
         return 2
 

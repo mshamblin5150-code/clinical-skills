@@ -33,12 +33,15 @@ Two claims carry the most weight here:
 from __future__ import annotations
 
 import json
+import io
 import tempfile
 import unicodedata
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import artifact_lock
 import guidelines_extract as extract
 import guidelines_index as index
 
@@ -1537,6 +1540,28 @@ class OutputStaysOutOfTheRepo(unittest.TestCase):
         """
         self.assertIn("worktree", extract.WHY_OUTSIDE)
         self.assertIn("outside", extract.WHY_OUTSIDE)
+
+
+class ExtractionCommandLock(unittest.TestCase):
+    def test_a_second_extraction_is_told_which_shared_artifact_is_busy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            source = root / "guidelines-src"
+            source.mkdir()
+            (source / "one.pdf").write_bytes(b"not read while the lock is held")
+            output = root / "guidelines-text"
+            out, err = io.StringIO(), io.StringIO()
+
+            with artifact_lock.hold(
+                output, "first guideline extraction"
+            ), redirect_stdout(out), redirect_stderr(err):
+                status = extract.main([str(source), "--out", str(output), "--jobs", "1"])
+
+            self.assertEqual(status, 2)
+            self.assertIn("another task is rebuilding", err.getvalue())
+            self.assertIn(str(output), err.getvalue())
+            self.assertIn("retry", err.getvalue().lower())
+            self.assertFalse(output.exists())
 
 
 class WritingADocument(unittest.TestCase):
