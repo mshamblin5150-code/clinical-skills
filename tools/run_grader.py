@@ -32,6 +32,7 @@ MEMBERS: set[str] = {
     "block_scan",
     "case_study_scan",
     "checks_ledger",
+    "reference_scan",
     "refusal_scan",
 }
 
@@ -40,7 +41,6 @@ NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
         "corpus_census": "a census over the corpus, not a grader over a run",
         "differential_scan": "not yet migrated",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
-        "reference_scan": "not yet migrated",
         "research_ledger": "not yet migrated",
         "specificity_scan": "not yet migrated",
         "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
