@@ -110,12 +110,19 @@ class TrackerFreshnessCommand(unittest.TestCase):
 
 class DocumentationRequiresBothCheckpoints(unittest.TestCase):
     def test_agent_and_tracker_instructions_require_start_and_publication_checks(self) -> None:
+        command = "python tools/tracker_freshness.py"
         for relative in ("CLAUDE.md", "docs/agents/issue-tracker.md"):
             text = (REPO_ROOT / relative).read_text(encoding="utf-8")
             with self.subTest(relative=relative):
-                self.assertIn("Before reading any ticket", text)
-                self.assertIn("Immediately before posting", text)
-                self.assertGreaterEqual(text.count("python tools/tracker_freshness.py"), 2)
+                start = text.index("Before reading any ticket")
+                first_command = text.index(command)
+                publication = text.index("Immediately before posting")
+                second_command = text.index(command, first_command + 1)
+
+                self.assertEqual(text.count(command), 2)
+                self.assertLess(start, first_command)
+                self.assertLess(first_command, publication)
+                self.assertLess(publication, second_command)
 
 
 if __name__ == "__main__":
