@@ -23,11 +23,13 @@ would still be refused here. Which is the same asymmetry
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
 import tempfile
 import unittest
+from collections import Counter
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -467,6 +469,170 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
             "hit.json", [{"number": 9, "title": "t", "body": f"{NAME} seen"}]
         )
         self.assertNotIn(NAME, self.run_main("--harvest", path)[1])
+
+
+class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
+    """#264's committed verdict is narrower than a commit or a rule.
+
+    The commit id makes the record immutable; line and rule distinguish two
+    findings in one message; the digest distinguishes two matches on one line
+    without copying a possibly identifying literal into the tracked ledger.
+    """
+
+    def write_rulings(self, match_digest, reason="accepted-history-ruling"):
+        oid = self.checkout._run("rev-parse", "HEAD").stdout.strip()
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text(json.dumps({
+            "version": 1,
+            "commit_findings": [{
+                "commit": oid,
+                "line": 1,
+                "rule": "corpus-name",
+                "match_sha256": match_digest,
+                "verdict": "accepted-history",
+                "reason": reason,
+            }],
+        }), encoding="utf-8")
+
+    def test_an_exact_ruling_leaves_the_commit_surface_clean(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        self.write_rulings(hashlib.sha256(NAME.encode()).hexdigest())
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("ruled findings", out)
+        self.assertIn("1", out)
+        self.assertIn("no finding", out)
+
+    def test_a_ruling_for_another_match_does_not_hide_the_finding(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        other_digest = hashlib.sha256(b"a different match").hexdigest()
+        self.write_rulings(other_digest)
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("corpus-name", out)
+
+    def test_a_new_noise_reason_needs_no_scanner_change(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        self.write_rulings(
+            hashlib.sha256(NAME.encode()).hexdigest(),
+            reason="a newly observed nonidentifier shape",
+        )
+
+        status, _ = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+
+    def test_a_second_finding_in_the_same_commit_stays_live(self):
+        self.checkout.commit(
+            "b.md", "y", f"{NAME} was on the list\nseen dob 3-04-88"
+        )
+        self.write_rulings(hashlib.sha256(NAME.encode()).hexdigest())
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("dob-with-date", out)
+        self.assertIn("ruled findings", out)
+
+    def test_a_malformed_ledger_cannot_be_mistaken_for_an_empty_one(self):
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text('{"version": 1, "commit_findings": "not a list"}',
+                          encoding="utf-8")
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("DID NOT APPLY commit rulings", out)
+
+    def test_an_unruled_finding_stays_stronger_than_a_malformed_ledger(self):
+        self.checkout.commit("b.md", "y", f"{NAME} was on the list")
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text("not json", encoding="utf-8")
+
+        status, out = self.run_main("--commits", "--no-pull-refs")
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("corpus-name", out)
+        self.assertIn("DID NOT APPLY commit rulings", out)
+
+
+class TheCommittedRulingPopulationIsLive(unittest.TestCase):
+    """The real ledger, its extraction, and a dead-key mutant are independent.
+
+    Synthetic CLI cases prove the behavior. This ratchet proves the bounded
+    committed population still names findings that exist in actual history;
+    otherwise a typo in the artifact could ship while every synthetic case
+    stayed green. A runner without the gitignored corpus cannot re-prove corpus
+    membership without publishing it. Such a row must instead have exactly one
+    public shape finding at the same immutable commit, line, and digest; a
+    machine with the corpus still requires the exact corpus rule too.
+    """
+
+    def test_every_committed_ruling_matches_one_real_finding(self):
+        path = phi_scan.REPO_ROOT / tracker_scan.RULINGS_PATH
+        rows = json.loads(path.read_text(encoding="utf-8"))["commit_findings"]
+        rulings = tracker_scan.load_commit_rulings(phi_scan.REPO_ROOT)
+        self.assertTrue(rows)
+        self.assertEqual(len(rows), len(rulings))
+
+        records = tracker_scan.commit_records(phi_scan.REPO_ROOT)
+        names, dates = phi_scan.corpus_identifiers()
+        findings = tracker_scan.scan_records(
+            records, phi_scan.build_index(names, dates)
+        )
+        observed = Counter()
+        public_anchors = Counter()
+        for finding in findings:
+            prefix, separator, commit = finding.path.partition(" ")
+            if prefix != "commit" or not separator or len(commit) != 40:
+                continue
+            digest = hashlib.sha256(finding.match.encode("utf-8")).hexdigest()
+            observed[tracker_scan.RulingKey(
+                commit,
+                finding.line,
+                finding.rule,
+                digest,
+            )] += 1
+            if not finding.rule.startswith("corpus-"):
+                public_anchors[(commit, finding.line, digest)] += 1
+
+        missing = phi_scan.missing_corpus_sources()
+        if missing:
+            exact_rulings = {
+                key for key in rulings if not key.rule.startswith("corpus-")
+            }
+            corpus_rulings = rulings - exact_rulings
+            self.assertEqual(
+                corpus_rulings,
+                {
+                    key for key in corpus_rulings
+                    if public_anchors[
+                        (key.commit, key.line, key.match_sha256)
+                    ] == 1
+                },
+            )
+        else:
+            exact_rulings = rulings
+
+        self.assertEqual(
+            exact_rulings,
+            {
+                key for key, count in observed.items()
+                if count == 1 and key in exact_rulings
+            },
+        )
+
+        first = next(iter(exact_rulings))
+        dead_digest = ("0" if first.match_sha256[0] != "0" else "1") * 64
+        mutant = first._replace(match_sha256=dead_digest)
+        self.assertNotIn(mutant, observed)
 
 
 class TheGitSurfaceRefusesUntilPullHeadsArePersistentAndPresent(MainInATempRepo):
