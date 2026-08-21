@@ -866,7 +866,7 @@ def usable_probes(entry: guidelines_manifest.Record, body: str) -> dict[str, str
     return probes
 
 
-def _gate_watermark(
+def gate_watermark(
     sheet: Sheet,
     text_root: Path | None,
     *,
@@ -992,25 +992,6 @@ def _gate_watermark(
                     f"this row off the rendered page and declare {RENDERED_MARKER}."
                 )
     return findings, None, rendered, unprobed
-
-
-def gate_watermark(
-    sheet: Sheet,
-    text_root: Path | None,
-    *,
-    allow_untrusted_provenance: bool = False,
-) -> tuple[list[str], str | None, int, list[str]]:
-    """Run WATERMARK through the locked tolerant manifest reader.
-
-    The lock, path resolution, key validation, page cross-check, busy handling, and
-    provenance check moved into ``guidelines_manifest.read`` on #407. Keeping them
-    here was the weaker duplicate that let this gate disagree with strict consumers.
-    """
-    return _gate_watermark(
-        sheet,
-        text_root,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-    )
 
 
 # The line gate 5 prints on every run it makes, clean or not. #83 states the caveat
