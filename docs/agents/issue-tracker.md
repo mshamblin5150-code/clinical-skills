@@ -84,6 +84,17 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 **A clean scan is not a body worth reading.** The first three rows ask whether text landed; the fourth row reads only the two bounded encoding shapes above. A body truncated at a shell metacharacter, or the right words about the wrong ticket, has text, matches neither encoding shape, and passes.
 
+### Commit finding rulings
+
+**Commit findings already ruled by a person live in
+`reference/tracker-scan-rulings.json`.** `tracker_scan.py --commits` reports how
+many exact findings that ledger removed. Each row holds the full commit id,
+line, rule and a SHA-256 match digest, never the match itself; changing any limb
+leaves the finding live. Add a row only after reading `--show` locally and
+deciding its `verdict` and `reason`. A malformed ledger is not an empty ledger:
+the run says the rulings were not applied and cannot exit clean on the commit
+surface.
+
 ## Pull requests as a triage surface
 
 ### Check closing keywords before merge
