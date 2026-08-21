@@ -27,11 +27,16 @@ WALK_CEILING = (
     "grader shapes assembled differently are invisible"
 )
 
-MEMBERS: set[str] = {"anchor_scan", "block_scan", "case_study_scan", "refusal_scan"}
+MEMBERS: set[str] = {
+    "anchor_scan",
+    "block_scan",
+    "case_study_scan",
+    "checks_ledger",
+    "refusal_scan",
+}
 
 NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
     {
-        "checks_ledger": "not yet migrated",
         "corpus_census": "a census over the corpus, not a grader over a run",
         "differential_scan": "not yet migrated",
         "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",

@@ -561,7 +561,7 @@ class TheReportCarriesNoFindingTextWithoutShow(unittest.TestCase):
         for kind in checks.KINDS:
             with self.subTest(row=kind):
                 self.assertIn(kind, report)
-                self.assertIn(f"{checks.ROW_TICKET[kind]} - {kind}", report)
+                self.assertIn(f"{checks.ROWS[kind]} - {kind}", report)
 
     def test_the_report_names_the_file_and_never_a_path(self):
         report = checks.format_report(self.scan, source="case-study-checks.md")
@@ -620,8 +620,8 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         with directory:
             status, _out, err = run([str(path)])
         self.assertEqual(status, 1)
-        self.assertIn(checks.ROW_TICKET[checks.CLEAN_WITHOUT_FINDINGS], err)
-        self.assertNotIn(checks.ROW_TICKET[checks.MISSING_CHECK], err)
+        self.assertIn(checks.ROWS[checks.CLEAN_WITHOUT_FINDINGS], err)
+        self.assertNotIn(checks.ROWS[checks.MISSING_CHECK], err)
 
     def test_the_exit_one_message_names_a_240_ticket_when_a_240_row_fired(self):
         """The other direction, so the test above cannot pass by the banner having
@@ -630,8 +630,8 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         with directory:
             status, _out, err = run([str(path)])
         self.assertEqual(status, 1)
-        self.assertIn(checks.ROW_TICKET[checks.MISSING_VERDICT], err)
-        self.assertNotIn(checks.ROW_TICKET[checks.CLEAN_WITHOUT_FINDINGS], err)
+        self.assertIn(checks.ROWS[checks.MISSING_VERDICT], err)
+        self.assertNotIn(checks.ROWS[checks.CLEAN_WITHOUT_FINDINGS], err)
 
     def test_no_arguments_exits_two(self):
         status, _out, err = run([])
