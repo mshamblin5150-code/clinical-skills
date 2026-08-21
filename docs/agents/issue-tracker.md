@@ -84,7 +84,66 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 **A clean scan is not a body worth reading.** The first three rows ask whether text landed; the fourth row reads only the two bounded encoding shapes above. A body truncated at a shell metacharacter, or the right words about the wrong ticket, has text, matches neither encoding shape, and passes.
 
+### Commit finding rulings
+
+**Commit findings already ruled by a person live in
+`reference/tracker-scan-rulings.json`.** `tracker_scan.py --commits` reports how
+many exact findings that ledger removed. Each row holds the full commit id,
+line, rule and a SHA-256 match digest, never the match itself; changing any limb
+leaves the finding live. Add a row only after reading `--show` locally and
+deciding its `verdict` and `reason`. A malformed ledger is not an empty ledger:
+the run says the rulings were not applied and cannot exit clean on the commit
+surface.
+
 ## Pull requests as a triage surface
+
+### Branch truth gets a dated scope, then a merge receipt
+
+Before branch work produces tracker prose, label its issue `in flight`. Any
+issue body or comment published or edited while that label is present starts
+with a scope block above the claim, in this exact, unambiguous form:
+
+> **Branch state:** `branch-name` at `full commit SHA` is not on `main` as of `YYYY-MM-DD`.
+
+Naming a branch, saying it was *merged with main*, or adding `in flight` is not
+the same statement. The first can outlive a deleted ref, the second does not say
+which direction the merge ran, and the label scopes a ticket rather than an
+individual claim. Keep the label as a useful queue signal; do not use it as the
+claim's provenance.
+
+This is mechanically checked at the publication event. `tracker.yml` runs the
+`tools/tracker_branch_scope.py` when an issue is opened,
+edited, or labeled and whenever an issue comment is created or edited. Adding
+`in flight` therefore grades the issue body already present; later records are
+graded as they are published. Pull request discussion is excluded because its
+state is the PR's own visible state. The check is prospective: it does not
+reinterpret historical comments when a label is added, and says so rather than
+claiming a semantic backfill.
+
+The label is not the only trigger. A newly published comment whose opening
+sentence says `Ruled and built`, `Implemented locally`, `Built on`, or `Landed
+on` has declared a state transition itself. It must start with the same Branch
+state block, or with the workflow's exact `Merged into main` receipt. This is a
+bounded fallback for a missed `in flight` label, not a claim that the checker can
+infer assertions from arbitrary prose. It catches the fresh premature closure
+recorded on #283 while leaving historical discussion outside its vocabulary.
+
+Every pull request body names each ticket whose state it changes on a line by
+itself: `Closes #N` for the whole ticket, `Part of #N`, or `Implements #N's lead
+1` for a partial. When that pull request merges into `main`, `tracker.yml` runs
+`tools/tracker_merge_receipt.py` over the PR body and commit messages and posts
+one merge receipt for each explicitly named whole ticket or partial lead. The
+receipt preserves that bounded relation, plus the PR, full merge SHA and date,
+so two branches settling two leads on one ticket do not collapse into one state.
+It does not pretend a symbol kept its name or that every other claim on the
+ticket is current.
+
+**Do not rewrite or delete the dated branch-state record after merge.** A
+comment is evidence of what was true when written. The later merge receipt is
+the state transition, and its immutable commit anchor remains useful after a
+branch is deleted. Historical tracker records predating this mechanism remain
+historical; there is no semantic backfill that can distinguish an assertion
+from a proposal reliably. Issue #290.
 
 ### Check closing keywords before merge
 

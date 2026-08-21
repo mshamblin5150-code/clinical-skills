@@ -70,7 +70,7 @@ row needed it.
     exits 0 on #181's ruling; an explicit path that does not resolve, an unreadable
     record, or any refusal from a record that is present remains non-zero.
 
-``WATERMARK`` warns, and skips loudly where the extracted corpus is absent
+``WATERMARK`` refuses, and skips loudly where the extracted corpus is absent
     #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
     that row is suspect and must be read off the rendered page. Cannot verify a
     reading; flags every place the text stream was interleaved."* The strings are
@@ -85,9 +85,12 @@ row needed it.
     rendered page is the remedy #83 names, and refusing a row that applied it would
     leave the gate unsatisfiable.
 
-    **Warns rather than refuses, and that is a ruling deferred.** #83 decision 1 set
-    the posture per gate and never ruled this one, whose own line says *flags*.
-    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296).
+    **Refuses until a working agent checks the rendered page.** The clinician ruled
+    on [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) that
+    routine visual confirmation belongs to the agent rather than becoming a
+    clinician bottleneck. The agent renders the cited page, confirms the row, and
+    records that check with ``RENDERED:``; an incorrect or ambiguous row stays
+    refusing until it is corrected.
 
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
@@ -114,8 +117,8 @@ row needed it.
     character that is not a comparison operator** -- a Symbol-font ``\u00a3`` or
     ``\u2021`` where the source meant ``<=`` or ``>=``. The mis-encoded slots are
     imported from ``guidelines_extract.SYMBOL_FONT_OPERATORS`` rather than listed
-    here, and **two of them no gate in this file can reach**: see
-    ``UNREACHABLE_IN_A_TABLE_CELL``. How many there are is that table's to say.
+    here. Destructive C0 slots are refused from the raw sheet before ``splitlines`` or cell
+    trimming can erase them; the rest are refused from the parsed value.
 
 What no gate here reaches, stated the same day the gates were built
 --------------------------------------------------------------------
@@ -307,9 +310,8 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 # the same PDFs -- a sheet is transcribed by a person who may not be using this
 # module's extraction at all.
 
-# Two of the extractor's slots that no gate in this file can reach, named here so
-# the coverage claim above is not read as wider than it is. Both are Python's
-# doing rather than this module's, and `TwoSlotsNoGateHereCanReach` in
+# The extractor's destructive C0 slots must be refused before parsing. Their behavior is Python's
+# doing rather than this module's, and `RawInputOperatorGate` in
 # `tools/test_threshold_sheet.py` demonstrates each rather than asserting it:
 #
 #   U+001F  `str.strip()` counts U+001C to U+001F as whitespace, so `_cells`
@@ -319,13 +321,13 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 #           is a table row, and the sheet parses clean with the row simply gone.
 #           That is worse than a wrong value: nothing is left to be wrong.
 #
-# Not repaired here, because both repairs are wider than the ticket that found
-# them: `strip(" \t")` changes what every cell in every sheet may carry, and
-# nothing about `splitlines` is local to this file. The exposure is what #172
-# narrowed -- the only path that put such a character in front of a transcriber
-# was the extracted corpus, and `guidelines_extract` writes `<=` and `>=` there
-# now. What is left is a paste from a raw reader.
-UNREACHABLE_IN_A_TABLE_CELL = ("\u001e", "\u001f")
+# #285 repairs neither Python operation. It refuses only these known operator slots
+# in the raw input, preserving the sheet line and its source/page cells for an agent
+# to verify against a rendered PDF page. It never guesses which operator was meant.
+FORBIDDEN_IN_RAW_TEXT = {
+    "\u001e": "line splitting would erase it with its row",
+    "\u001f": "cell trimming would erase it",
+}
 # A blocklist and deliberately not an allowlist. An allowlist of operators was
 # written here first and never referenced by any gate, while the docstring claimed
 # it was enforced -- which is `test_spelling_scan.py`'s failure mode exactly: a rule
@@ -535,6 +537,22 @@ def parse(text: str, path: Path) -> Sheet:
     a row fires on what opens a section, never on a mention inside one.
     """
     sheet = Sheet(path=path)
+    raw_findings = [
+        (offset, character, why)
+        for character, why in FORBIDDEN_IN_RAW_TEXT.items()
+        if (offset := text.find(character)) != -1
+    ]
+    if raw_findings:
+        offset, character, why = min(raw_findings)
+        line = text.count("\n", 0, offset) + 1
+        sheet.ok = False
+        sheet.why_not = (
+            f"{path.name}:{line} contains U+{ord(character):04X}, a mis-encoded "
+            f"comparison operator that {why}; render the cited PDF page (for example "
+            "with PyMuPDF), visually verify the operator, and replace it with ASCII "
+            "<= or >="
+        )
+        return sheet
     if SCHEMA_MARKER not in text:
         sheet.ok = False
         sheet.why_not = f"no {SCHEMA_MARKER} marker"
@@ -860,7 +878,7 @@ def _gate_watermark(
 ) -> tuple[list[str], str | None, int, list[str]]:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
-    Returns ``(warnings, skip reason, rows declared RENDERED, source keys not probed)``.
+    Returns ``(findings, skip reason, rows declared RENDERED, source keys not probed)``.
 
     #83 states it: *"If a string stripped by #80 appears inside an extracted table
     row, that row is suspect and must be read off the rendered page. Cannot verify a
@@ -869,16 +887,12 @@ def _gate_watermark(
     and until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174)
     nothing told a writer that a given row needed it.
 
-    **It warns and does not refuse, and that is a ruling deferred rather than a
-    judgment about severity.** #83 decision 1 set the posture *per gate* -- schema
-    and citation refuse, recommendation counting warns -- and it never ruled gate 4,
-    whose own line says **flags**. The pre-commit hook runs ``--all --quiet`` when a
-    sheet is staged, so anything routed into the refusal list turns a commit away.
-    **The first version of this gate refused**, which was a posture set by inference
-    from a line that says *flags* -- caught by the spec axis of ``/code-review``.
-    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296) carries
-    the question to the clinician, and every mechanism a refusal would need is
-    already here: the finding, its remedy, and the count.
+    **It refuses until a working agent confirms the rendered page.** The clinician
+    ruled the posture on
+    [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296): a
+    vision-capable agent, rather than the clinician, renders the cited page and
+    confirms that the label and value belong together. ``RENDERED:`` records that
+    visual check. An incorrect or ambiguous row remains refusing until corrected.
 
     **How much a refusal would change is smaller than this said**, and the overstated
     version was a stated ground for deferring, which is what makes it worth recording
@@ -1760,7 +1774,7 @@ def grade(
     if watermark_skip:
         report(f"  WATERMARK       NOT RUN -- {watermark_skip}")
     else:
-        report(f"  WATERMARK       {len(watermark)} warning")
+        report(f"  WATERMARK       {len(watermark)} refusing")
         if watermark_rendered:
             report(
                 f"                  {watermark_rendered} row(s) declared {RENDERED_MARKER}, "
@@ -1839,10 +1853,10 @@ def grade(
         print("  extracted corpus with tools/guidelines_extract.py, or pass --text-root.")
         print("  " + "=" * 66)
 
-    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + five_refusals
+    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + watermark + five_refusals
     for message in refusals:
         print(f"  FAIL  {message}", file=sys.stderr)
-    for message in coverage_warnings + watermark + five_warnings:
+    for message in coverage_warnings + five_warnings:
         print(f"  WARN  {message}", file=sys.stderr)
     for message in undiffed + uncovered:
         print(f"  NOT DIFFED  {message}", file=sys.stderr)

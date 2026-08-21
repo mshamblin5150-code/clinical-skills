@@ -44,6 +44,7 @@ from pathlib import Path
 
 import guidelines_extract
 import guidelines_index
+import docx_write
 from repo_root import main_repo_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -229,6 +230,29 @@ class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
         self.assertTrue(
             _check_ignore("reference/recs-some-guideline.json"),
             "the pattern must reach a subdirectory, which is where a mis-typed --json lands",
+        )
+
+
+class TheTransientBuildArtifactsAreIgnored(unittest.TestCase):
+    """[#302]: a crashed atomic build must not leave a committable sibling.
+
+    ``docx_write`` exposes ``partial_name``, so that producer's full transient
+    name is derived here. ``guidelines_index`` constructs its sibling inside
+    ``build`` and exposes no naming helper; its ``.building`` name has to be
+    restated. The shared suffix is the public convention this ignore net covers.
+    """
+
+    def test_a_docx_partial_derived_from_the_producer(self) -> None:
+        partial = docx_write.partial_name(Path("reference/paper.docx"))
+        self.assertTrue(
+            _check_ignore(partial.as_posix()),
+            f"{partial} is docx_write's partial archive and .gitignore does not cover it",
+        )
+
+    def test_the_guideline_index_partial_the_producer_does_not_expose(self) -> None:
+        self.assertTrue(
+            _check_ignore("tools/guidelines.sqlite.building"),
+            "guidelines_index's partial database is not covered by .gitignore",
         )
 
 
