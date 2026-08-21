@@ -209,30 +209,36 @@ class Population:
     conversations: int
     messages: int
     user_messages: int
-    by_role: dict
+    by_role: dict[str, int]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Scan:
+    """One pass over the export: the population, and every class filed against it."""
+
     population: Population
-    by_kind: dict
-    dated: list
+    by_kind: dict[str, int]
+    dated: list[datetime]
     undated: int
     prose_chars: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class Selection:
+    """His prose messages matching a pattern, counted both ways."""
+
     messages: int
     conversations: int
-    records: list = field(default_factory=list)
+    records: list[Message] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Pairs:
-    records: list
+    """Matched messages joined to their reply, with the hop spread beside them."""
+
+    records: list[tuple[Message, Reply]]
     missing_reply: int
-    hops: dict
+    hops: dict[int, int]
     conversations: int = 0
 
 
@@ -304,7 +310,7 @@ def classify_user_message(content) -> Classified:
     return Classified("unclassified")
 
 
-def user_messages(conversation) -> list:
+def user_messages(conversation) -> list[Message]:
     """Every user message in one conversation, each carrying its class."""
     conversation_id = conversation.get("conversation_id") or conversation.get("id") or ""
     found = []
@@ -486,7 +492,7 @@ def _span(dated):
     return f"{min(dated).date()} -> {max(dated).date()}"
 
 
-def format_report(scan: Scan, selection=None, joined=None, show=False) -> list:
+def format_report(scan: Scan, selection=None, joined=None, show=False) -> list[str]:
     """Counts only. Corpus text appears under ``show`` and nowhere else."""
     population = scan.population
     lines = [
@@ -542,7 +548,7 @@ def format_report(scan: Scan, selection=None, joined=None, show=False) -> list:
     return lines
 
 
-def main(argv: list) -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Read a ChatGPT conversation export into the pieces a voice model is "
