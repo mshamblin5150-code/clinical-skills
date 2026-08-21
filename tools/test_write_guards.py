@@ -44,6 +44,7 @@ import guidelines_index
 import artifact_provenance
 import guidelines_recs
 import name_index
+import voice_corpus
 import repo_root
 import threshold_sheet
 from repo_root import InsideCheckout
@@ -190,12 +191,16 @@ class Checkout:
     def refused_by_name_index(self, target: Path) -> bool:
         return name_index.refuse_target(target / "name-index.json") is not None
 
+    def refused_by_voice_corpus(self, target: Path) -> bool:
+        return voice_corpus.refuse_target(target / "mined.md") is not None
+
     def verdicts(self, target: Path) -> dict[str, bool]:
         return {
             "guidelines_extract": self.refused_by_extract(target),
             "guidelines_index": self.refused_by_index(target),
             "guidelines_recs": self.refused_by_recs(target),
             "name_index": self.refused_by_name_index(target),
+            "voice_corpus": self.refused_by_voice_corpus(target),
         }
 
 
@@ -257,14 +262,27 @@ class TheIntentionalDivergences(unittest.TestCase):
     def setUp(self):
         self.tree = Checkout(self)
 
-    def test_one_site_permits_the_repos_own_scratch(self):
+    def test_two_sites_permit_the_repos_own_scratch(self):
         """The parameter a shared rule needed and a single rule could not have.
-        The index is a list of patient names: under ``scratch/`` it is gitignored
-        and ``phi_scan``'s path layer refuses a commit from it even under
-        ``git add -f``, which is a stronger net than being outside the tree."""
+
+        The index is a list of patient names and a mined voice record is the
+        clinician's own writing out of a corpus that carries patient material:
+        under ``scratch/`` both are gitignored and ``phi_scan``'s path layer
+        refuses a commit from them even under ``git add -f``, which is a stronger
+        net than being outside the tree.
+
+        **This read *one* site until #388 added the second**, and the sentence was
+        the stale half rather than the code -- a fifth write site joined the tree
+        while this class still described four, which is the
+        [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)
+        shape the parity tests exist to refuse.
+        """
         scratch = self.tree.clone / "scratch"
         self.assertIsNone(
             name_index.refuse_target(scratch / "name-index.json", scratch=scratch)
+        )
+        self.assertIsNone(
+            voice_corpus.refuse_target(scratch / "mined.md", scratch=scratch)
         )
 
     def test_the_other_sites_have_no_such_permission(self):
@@ -473,6 +491,7 @@ class EveryWriteSiteImportsTheRule(unittest.TestCase):
         "guidelines_index.py": "ensure_outside_checkout",
         "guidelines_recs.py": "ensure_outside_checkout",
         "name_index.py": "enclosing_checkout",
+        "voice_corpus.py": "enclosing_checkout",
     }
 
     def test_every_writer_imports_the_rule_from_repo_root(self):
@@ -506,6 +525,7 @@ class EveryWriteSiteImportsTheRule(unittest.TestCase):
             guidelines_recs.ensure_outside_checkout, repo_root.ensure_outside_checkout
         )
         self.assertIs(name_index.enclosing_checkout, repo_root.enclosing_checkout)
+        self.assertIs(voice_corpus.enclosing_checkout, repo_root.enclosing_checkout)
 
 
 class TheReaderTakesNoGuardAndSaysSo(unittest.TestCase):
