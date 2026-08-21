@@ -194,6 +194,15 @@ It does not have to: the corpus's two genuine currency figures are set in an
 ordinary text face and are untouched *by construction*. The clinician ruled the
 substitution on 2026-08-19 on that basis.
 
+**One font needs the rendered glyph as well as its name.** #282 found that
+``MathematicalPi-One`` assigns the same character slots to opposite comparison
+operators in different USPSTF documents. A ticket comment proposed the embedded
+glyph ID as a stable identity; the 2026-08-20 full-corpus check falsified it -- the
+same ID renders opposite operators in different subsets. ``rawdict`` and
+``get_texttrace`` therefore cannot decode this font. The extractor clips each known
+slot from the rendered page and reads the direction of its upper stroke, with a
+center margin that refuses an ambiguous shape and leaves it in the census.
+
 **And the ticket was understated threefold by looking at the wrong character.** It
 recorded the greater-or-equal side as clean on ``0 occurrences of the 0xB3 slot``,
 which is true and is not what it reads as. 183 of the 256 operators are ``>=``, and
@@ -505,12 +514,10 @@ LOCAL_SPACING_BASELINE_FONTS = frozenset({"Nunito-Regular"})
 # font name is not a verdict on a document, only on a slot -- and a row may only
 # claim a slot that is wrong everywhere.
 #
-# **`MathematicalPi-One` is the font that is not here, and it is why the rule
+# **`MathematicalPi-One` is the font that cannot go here, and it is why the rule
 # above is load-bearing rather than decorative.** It sets comparison operators in
-# two C0 slots `_DISCARDED_RANGES` deletes -- the same class as `SymbolMT`'s, and
-# in USPSTF, which is 90 of the 179 documents. 93 operators. Every instinct says
-# add two rows. **Rendered, the two slots are exactly inverted between two
-# documents of the same society:**
+# two C0 slots `_DISCARDED_RANGES` deletes, but the slots are exactly inverted
+# between two documents of the same society:
 #
 #     abdom-aortic-aneurysm-screening-final-rs     U+0002 = >=   U+0003 = <=
 #     osteoporosis-screening-final-recommendation  U+0002 = <=   U+0003 = >=
@@ -520,15 +527,11 @@ LOCAL_SPACING_BASELINE_FONTS = frozenset({"Nunito-Regular"})
 # the defect this table was built for and is the one outcome no gate downstream
 # can catch, because the result is a well-formed operator in a plausible place.
 #
-# **It was nearly missed, and how is the transferable part.** Four sampled
-# documents agreed at 400 dpi and the fifth did not; the disagreement was only
-# legible at 700 dpi. Confirmed independently by rasterizing every occurrence and
-# hashing the glyph box: no shape appears under both of `AdvPS_SSYB`'s two codes,
-# and **four shapes appear under both of `MathematicalPi-One`'s**. That instrument
-# cannot prove two glyphs are the *same* -- it hashes a rasterization, so point
-# size and subpixel offset move it -- but one shape sitting under two codes is a
-# difference noise cannot manufacture, which is the only direction it was trusted
-# in. Filed rather than folded in: settling it needs a *per document* decoding.
+# **Neither the character code nor the glyph ID is the identity.** A 2026-08-20
+# full-corpus check found both reused for opposite operators in different subsets.
+# The page rendering is the only truthful layer. `rendered_operator_map` clips each
+# U+0002, U+0003 and legal-looking U+003A colon and classifies the direction of the
+# upper stroke. A shape too near the center is refused and remains in the census.
 #
 # **#283's named font-glyph cases are deliberately not here.** `AdvPSSym`
 # renders a copyright sign; `SymbolMT` renders an up arrow as `n` and a down
@@ -549,6 +552,93 @@ SYMBOL_FONT_OPERATORS = {
         "\uf0b3": "\u2265",  # the Symbol font's own 0xB3, surfacing unmapped
     },
 }
+
+OPERATOR_INK_CUTOFF = 245
+OPERATOR_ORIENTATION_MARGIN = 0.03
+OPERATOR_RENDER_SCALE = 12.0
+MATHEMATICAL_PI_OPERATOR_SLOTS = {"\u0002", "\u0003", ":"}
+RenderedOperatorKey = tuple[str, tuple]
+
+
+def rendered_operator_key(name: str, char: dict) -> RenderedOperatorKey | None:
+    """The identity shared by a raw glyph and its rendered-page classification."""
+    origin = tuple(char.get("origin", ()))
+    if len(origin) != 2:
+        return None
+    return name, origin
+
+
+def comparison_operator_from_grayscale(
+    samples: bytes,
+    width: int,
+    height: int,
+    direction: tuple[float, float] = (1.0, 0.0),
+) -> str | None:
+    """Classify a rendered <= or >= by the direction of its upper stroke.
+
+    The equality bar is symmetric. In the upper third of the remaining ink, a
+    greater-than stroke occupies the left side and a less-than stroke the right.
+    A centroid inside the center margin is refused rather than guessed.
+    """
+    if width < 2 or height < 3 or len(samples) != width * height:
+        return None
+    dx, dy = direction
+    ink = [
+        (dx * x + dy * y, -dy * x + dx * y, 255 - samples[y * width + x])
+        for y in range(height)
+        for x in range(width)
+        if samples[y * width + x] < OPERATOR_INK_CUTOFF
+    ]
+    if not ink:
+        return None
+    x0 = min(x for x, _y, _weight in ink)
+    x1 = max(x for x, _y, _weight in ink)
+    y0 = min(y for _x, y, _weight in ink)
+    y1 = max(y for _x, y, _weight in ink)
+    ink_width = x1 - x0 + 1
+    upper_edge = y0 + (y1 - y0 + 1) / 3
+    upper = [(x, weight) for x, y, weight in ink if y < upper_edge]
+    mass = sum(weight for _x, weight in upper)
+    if not mass:
+        return None
+    centroid = (
+        sum((x + 0.5) * weight for x, weight in upper) / mass - x0
+    ) / ink_width
+    if centroid <= 0.5 - OPERATOR_ORIENTATION_MARGIN:
+        return "\u2265"
+    if centroid >= 0.5 + OPERATOR_ORIENTATION_MARGIN:
+        return "\u2264"
+    return None
+
+
+def rendered_operator_map(raw: dict, render_glyph) -> dict[RenderedOperatorKey, str]:
+    """Resolved MathematicalPi-One operators keyed by font and glyph origin."""
+    resolved: dict[RenderedOperatorKey, str] = {}
+    for block in raw.get("blocks", ()):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", ()):
+            for span in line.get("spans", ()):
+                name = font_key(span.get("font", ""))
+                if name != "MathematicalPi-One":
+                    continue
+                for char in span.get("chars", ()):
+                    if char["c"] not in MATHEMATICAL_PI_OPERATOR_SLOTS:
+                        continue
+                    try:
+                        samples, width, height = render_glyph(char["bbox"])
+                        operator = comparison_operator_from_grayscale(
+                            samples,
+                            width,
+                            height,
+                            direction=tuple(line.get("dir", (1.0, 0.0))),
+                        )
+                    except Exception:  # noqa: BLE001 - an unresolved slot stays censused
+                        continue
+                    key = rendered_operator_key(name, char)
+                    if operator is not None and key is not None:
+                        resolved[key] = operator
+    return resolved
 
 # A PDF font subset tag: exactly six uppercase letters and a plus, as in
 # `GMBEDM+AdvPS_SSYB`. PyMuPDF strips it before `rawdict`, so the corpus never
@@ -1238,7 +1328,9 @@ def is_symbol_font(name: str) -> bool:
     return any(marker in lowered for marker in SYMBOL_FONT_MARKERS)
 
 
-def symbol_glyph_census(raw: dict) -> dict[str, int]:
+def symbol_glyph_census(
+    raw: dict, rendered_operators: dict[RenderedOperatorKey, str] | None = None
+) -> dict[str, int]:
     """Glyphs from a symbol font that ``SYMBOL_FONT_OPERATORS`` does not map.
 
     **A report and never a rule** -- this is what stops #172 recurring in silence.
@@ -1255,10 +1347,12 @@ def symbol_glyph_census(raw: dict) -> dict[str, int]:
     greater-or-equal sign.
 
     A space is dropped because every symbol font in the corpus sets them and means
-    nothing by it. And a glyph that is already one of ``SYMBOL_FONT_OPERATORS``'s
-    *replacements* is dropped, which is a line about this module's own vocabulary
-    rather than a judgment about what looks harmless: a symbol font emitting a
-    correct ``<=`` is the non-defect this whole table exists to produce. Measured
+    nothing by it. A glyph resolved by the character table or the rendered map is
+    dropped too, as is a glyph already equal to one of
+    ``SYMBOL_FONT_OPERATORS``'s *replacements*. That is a line about this module's
+    own vocabulary rather than a judgment about what looks harmless: a symbol font
+    emitting a correct ``<=`` is the non-defect this whole table exists to produce.
+    Measured
     2026-08-19 it is not a nicety -- ``SymbolMT`` alone renders 2,078 correct
     operators across the corpus, which is two thirds of everything the census would
     otherwise print, and a report whose loudest line is the thing working is a
@@ -1269,6 +1363,7 @@ def symbol_glyph_census(raw: dict) -> dict[str, int]:
     a text layer can see a glyph that decoded to a plausible character, which is the
     same reason the five rows above had to be settled by rendering a page.
     """
+    rendered_operators = rendered_operators or {}
     replacements = {
         replacement
         for mapping in SYMBOL_FONT_OPERATORS.values()
@@ -1286,7 +1381,16 @@ def symbol_glyph_census(raw: dict) -> dict[str, int]:
                 mapped = SYMBOL_FONT_OPERATORS.get(name, {})
                 for char in span.get("chars", ()):
                     glyph = char["c"]
-                    if glyph in mapped or glyph in replacements or glyph == " ":
+                    rendered_key = rendered_operator_key(name, char)
+                    if (
+                        glyph in mapped
+                        or (
+                            rendered_key is not None
+                            and rendered_key in rendered_operators
+                        )
+                        or glyph in replacements
+                        or glyph == " "
+                    ):
                         continue
                     key = f"{name} U+{ord(glyph):04X}"
                     census[key] = census.get(key, 0) + 1
@@ -1410,13 +1514,16 @@ def glyph_baselines(line: dict) -> list[list[float]]:
         result.append(baselines)
     return result
 
-def rebuild_text(raw: dict) -> str:
-    """One page of PyMuPDF ``rawdict`` as text, with word spacing recovered.
+def rebuild_text(
+    raw: dict, rendered_operators: dict[RenderedOperatorKey, str] | None = None
+) -> str:
+    """One page of PyMuPDF data as text, with word spacing and operators recovered.
 
-    **Takes the dictionary rather than the page**, so every rule in here is
-    exercisable from a literal in a test file and the suite still never opens a
-    PDF. That is the same line ``test_guidelines_extract.py`` already draws around
-    the ``.txt`` excerpts in ``tools/testdata/``.
+    **Takes ``rawdict`` and already-classified rendered operators rather than the
+    page**, so every rule in here is exercisable from a literal in a test file and
+    the suite still never opens a PDF. That is the same line
+    ``test_guidelines_extract.py`` already draws around the ``.txt`` excerpts in
+    ``tools/testdata/``.
 
     The rule is one comparison: a horizontal gap wider than ``SPACE_GAP_FRACTION``
     of the span's font size is a word boundary. Everything around it is guarding
@@ -1428,6 +1535,7 @@ def rebuild_text(raw: dict) -> str:
     back in PyMuPDF's reading order and are joined with newlines, because
     ``page_lines`` splits on them and the boilerplate rule counts whole lines.
     """
+    rendered_operators = rendered_operators or {}
     lines: list[str] = []
     for block in raw.get("blocks", ()):
         if block.get("type") != 0:
@@ -1445,13 +1553,21 @@ def rebuild_text(raw: dict) -> str:
                 threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
                 # #172. Looked up once per span rather than once per character,
                 # and empty for every font in the corpus but two.
-                operators = SYMBOL_FONT_OPERATORS.get(font_key(span.get("font", "")), {})
+                name = font_key(span.get("font", ""))
+                operators = SYMBOL_FONT_OPERATORS.get(name, {})
                 for char_index, char in enumerate(span.get("chars", ())):
                     baseline = baselines[index][char_index]
                     # Substituted before the gap rule reads it, which is safe
                     # because every row is 1:1 and no row produces a space -- so
                     # `glyph != " "` below decides the same thing either way.
-                    glyph = operators.get(char["c"], char["c"])
+                    rendered_key = rendered_operator_key(name, char)
+                    glyph = (
+                        rendered_operators.get(rendered_key)
+                        if rendered_key is not None
+                        else None
+                    )
+                    if glyph is None:
+                        glyph = operators.get(char["c"], char["c"])
                     left, _, right, _ = char["bbox"]
                     # Two independent bars, and a gap has to clear both. The first
                     # asks whether the gap stands out against the line's own
@@ -1490,8 +1606,8 @@ def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
     """Every page of a PDF as raw text, its embedded title, and #172's census.
 
     The census comes back from here and not from anywhere downstream because this
-    is the last place a font name exists -- ``rebuild_text`` returns a string, and
-    every function after it takes page text.
+    is the last place a font name and rendered glyph exist -- ``rebuild_text``
+    returns a string, and every function after it takes page text.
 
     A page that raises comes back as an empty string rather than taking the
     document down with it -- the manifest counts it, and one unreadable page in a
@@ -1511,8 +1627,19 @@ def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
     for page in document:
         try:
             raw = page.get_text("rawdict")
-            pages.append(rebuild_text(raw))
-            for key, count in symbol_glyph_census(raw).items():
+
+            def render_glyph(bbox):
+                pixmap = page.get_pixmap(
+                    matrix=pymupdf.Matrix(OPERATOR_RENDER_SCALE, OPERATOR_RENDER_SCALE),
+                    clip=pymupdf.Rect(bbox),
+                    colorspace=pymupdf.csGRAY,
+                    alpha=False,
+                )
+                return bytes(pixmap.samples), pixmap.width, pixmap.height
+
+            rendered_operators = rendered_operator_map(raw, render_glyph)
+            pages.append(rebuild_text(raw, rendered_operators))
+            for key, count in symbol_glyph_census(raw, rendered_operators).items():
                 symbol_glyphs[key] = symbol_glyphs.get(key, 0) + count
         except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
             pages.append("")

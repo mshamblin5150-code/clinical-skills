@@ -407,6 +407,17 @@ decision rather than an oversight.
 
 ## Steps
 
+**Every command below that reads a ledger, check record or draft produced during a parallel run is
+a checker handoff, not an author self-check.** The writing context finishes the artifact and returns
+it to the orchestrator. The orchestrator gathers it into a completed-state path no writer can
+modify, then gives that path and the stated command to a fresh non-authoring context. The checker
+reports the result and does not edit. On a failure, the orchestrator records that first result before
+returning the named finding to the writer; after the repair, it gathers a new completed state and
+another fresh non-authoring context runs the command again. This is
+[standing rule 6](../../AGENTS.md) applied to this skill. Where the harness has no subagent tool, the
+serial fallbacks stated below remain the available floor; no parallel artifact is shared in that
+case.
+
 ### 1. Read the faculty material
 
 ```bash
@@ -595,8 +606,8 @@ can be several of them at once:
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
 
-**Once the prescriptions exist, grade the ledger against them as well** -- #289's rows, which read
-the draft as well as the ledger the way #298's row below reads the evidence dump:
+**Once the prescriptions exist, hand the ledger and draft to a fresh checker as well** -- #289's
+rows read the draft as well as the ledger the way #298's row below reads the evidence dump:
 
 ```bash
 python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
@@ -631,8 +642,8 @@ prescriptions reached no claim record at all, so there was not one drug-row-and-
 to measure a string test against. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
 precedent is that a cut point is grounded where the corpus offers one and refused where it does not.
 
-**And grade what the run says it read against what you were actually handed** -- #298's row,
-ruled by the clinician 2026-08-20:
+**And give a fresh checker the ledger and what you were actually handed** -- #298's row, ruled by
+the clinician 2026-08-20, grades what the run says it read:
 
 ```bash
 python tools/research_ledger.py scratch/case-study-claims.md --evidence <the evidence dump>
@@ -673,7 +684,7 @@ and written without a reference is invisible here and to every other row --
 [#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298). **A clean scan is not a
 sourced document.**
 
-**Then grade it, and do not draft until it is clean:**
+**Then hand the ledger to a fresh checker, and do not draft until that checker reports it clean:**
 
 ```bash
 python tools/research_ledger.py scratch/case-study-claims.md
@@ -758,7 +769,7 @@ point in the document.
 **Omitting them has never cost a point, which is not the same as being safe** — it is the mode
 finding again, one section down. See *Three modes, and none of them subtracts a section* above.
 
-**Then grade the ledger against what you have just written**, which is the half of step 3 that could
+**Then hand the ledger and draft to a fresh checker**, which grades the half of step 3 that could
 not run before the tables existed:
 
 ```bash
@@ -807,7 +818,8 @@ sorted.
 topic appears in one clinician's corpus under three different years. The companion document states
 each topic's own revision date — use it.
 
-**Then scan the list, because the pass that wrote an entry cannot see what is wrong with it:**
+**Then hand the list to a fresh checker, because the pass that wrote an entry cannot see what is
+wrong with it:**
 
 ```bash
 python tools/reference_scan.py output/case-studies/<stem>.md --as-of <the exam date>
@@ -960,7 +972,8 @@ time... this prevents me from using this skill for future work."*
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) ruled insufficient: **a
 prose edit to a rule fails nothing.**
 
-**Run it on the Markdown — before step 8 renders it, and again after every repair:**
+**A fresh checker runs it on the Markdown before step 8 renders it, and another fresh checker runs
+it after every repair:**
 
 ```bash
 python tools/case_study_scan.py output/case-studies/<stem>.md
@@ -1121,7 +1134,8 @@ reader can satisfy it with one stock sentence — `specificity_scan.py`'s limit,
 converts the records on the marked rows from unfalsifiable to *checkable by eye*, which is what the walk below
 is for and previously had nothing to work with.
 
-**Then grade it, and do not submit until it is clean:**
+**Then hand the checks file to a fresh checker, and do not submit until that checker reports it
+clean:**
 
 ```bash
 python tools/checks_ledger.py scratch/case-study-checks.md
