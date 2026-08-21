@@ -423,6 +423,28 @@ _INEQUALITY_WORDS = (
 )
 
 
+@dataclass
+class GateResult:
+    """One gate's named outcome; every finding remains plain text."""
+
+    gate: str
+    findings: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    pairings: list[str] = field(default_factory=list)
+    undiffed: list[str] = field(default_factory=list)
+    uncovered: list[str] = field(default_factory=list)
+    skip_reason: str | None = None
+    rendered: int = 0
+    ungraded: int = 0
+    ungraded_sources: list[str] = field(default_factory=list)
+    unprobed_sources: list[str] = field(default_factory=list)
+    report: tuple[str, ...] = ()
+    stdout: tuple[str, ...] = ()
+    diagnostics: tuple[str, ...] = ()
+    tier2_skip_diagnostics: tuple[str, ...] = ()
+    not_graded: bool = False
+    fatal: bool = False
+
 @dataclass(frozen=True)
 class Row:
     quantity: str
@@ -636,7 +658,7 @@ def parse(text: str, path: Path) -> Sheet:
     return sheet
 
 
-def gate_schema(sheet: Sheet) -> list[str]:
+def gate_schema(sheet: Sheet) -> GateResult:
     """Structure, provenance, scope, declared vocabulary, and the conflict rule."""
     failures: list[str] = []
 
@@ -711,10 +733,14 @@ def gate_schema(sheet: Sheet) -> list[str]:
                 f"{sheet.path.name}  'CONFLICT: {quantity}' for population '{population}' "
                 f"does not name every distinct value; missing {', '.join(missing)}"
             )
-    return failures
+    return GateResult(
+        "SCHEMA",
+        failures,
+        report=(f"  SCHEMA          {len(failures)}",),
+    )
 
 
-def gate_citation_tier1(sheet: Sheet) -> list[str]:
+def gate_citation_tier1(sheet: Sheet) -> GateResult:
     """Every number in a row's value must appear in that row's snippet.
 
     Runs on every machine, which is the point. Tier 2 needs 410 MB of PDFs that live
@@ -734,14 +760,18 @@ def gate_citation_tier1(sheet: Sheet) -> list[str]:
                 f"{sheet.path.name}:{row.line}  value '{row.value}' has "
                 f"{', '.join(missing)} which the snippet does not contain"
             )
-    return failures
+    return GateResult(
+        "CITATION tier 1",
+        failures,
+        report=(f"  CITATION tier 1 {len(failures)}",),
+    )
 
 
-def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> tuple[list[str], str | None, int]:
+def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     """Every snippet must appear on the page it cites.
 
-    Returns ``(failures, skip reason, rows declared RENDERED)``. The third value is
-    separate from the skip reason on purpose: "tier 2 did not run at all" and "tier 2
+    The result names failures, the skip reason, and rows declared RENDERED separately.
+    That separation is deliberate: "tier 2 did not run at all" and "tier 2
     ran and 3 rows opted out of it" are different events, and a sentinel smuggled
     through the skip channel would have made a sheet that declared every row rendered
     indistinguishable from one graded cleanly.
@@ -750,11 +780,37 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> tuple[list[str],
     whole design of decision 2 is that this **must not be readable as passing**.
     """
     if pdf_root is None or not pdf_root.is_dir():
-        return [], f"source PDFs not found at {pdf_root}", 0
+        reason = f"source PDFs not found at {pdf_root}"
+        return GateResult(
+            "CITATION tier 2",
+            skip_reason=reason,
+            report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
+            stdout=(
+                "",
+                "  " + "=" * 66,
+                "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
+                "  the source PDFs on this machine. Tier 1 proved each value is in its",
+                "  own snippet; nothing here proved the snippet is on the page it cites.",
+                "  " + "=" * 66,
+            ),
+        )
     try:
         import pymupdf
     except ImportError:
-        return [], "pymupdf is not installed", 0
+        reason = "pymupdf is not installed"
+        return GateResult(
+            "CITATION tier 2",
+            skip_reason=reason,
+            report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
+            stdout=(
+                "",
+                "  " + "=" * 66,
+                "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
+                "  the source PDFs on this machine. Tier 1 proved each value is in its",
+                "  own snippet; nothing here proved the snippet is on the page it cites.",
+                "  " + "=" * 66,
+            ),
+        )
 
     failures: list[str] = []
     rendered = 0
@@ -790,7 +846,18 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> tuple[list[str],
             failures.append(
                 f"{sheet.path.name}:{row.line}  snippet not on {relative} p.{row.page}"
             )
-    return failures, None, rendered
+    report = [f"  CITATION tier 2 {len(failures)}"]
+    if rendered:
+        report.append(
+            f"                  {rendered} row(s) declared {RENDERED_MARKER} "
+            "and were read off the rendered page, so tier 2 skipped them"
+        )
+    return GateResult(
+        "CITATION tier 2",
+        failures,
+        rendered=rendered,
+        report=tuple(report),
+    )
 
 
 def _normalize(text: str) -> str:
@@ -871,10 +938,11 @@ def gate_watermark(
     text_root: Path | None,
     *,
     allow_untrusted_provenance: bool = False,
-) -> tuple[list[str], str | None, int, list[str]]:
+) -> GateResult:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
-    Returns ``(findings, skip reason, rows declared RENDERED, source keys not probed)``.
+    The result names findings, the skip reason, rows declared RENDERED, and source
+    keys not probed.
 
     #83 states it: *"If a string stripped by #80 appears inside an extracted table
     row, that row is suspect and must be read off the rendered page. Cannot verify a
@@ -933,7 +1001,20 @@ def gate_watermark(
     """
     if text_root is None:
         print("  WATERMARK       1 manifest problem(s)", file=sys.stderr)
-        return [], f"extracted corpus not found at {text_root}", 0, []
+        reason = f"extracted corpus not found at {text_root}"
+        return GateResult(
+            "WATERMARK",
+            skip_reason=reason,
+            report=(f"  WATERMARK       NOT RUN -- {reason}",),
+            stdout=(
+                "",
+                "  " + "=" * 66,
+                "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
+                "  as page-repeated text was interleaved into a row. Rebuild the",
+                "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
+                "  " + "=" * 66,
+            ),
+        )
     text_root = Path(text_root)
     handoff = read_extraction(
         text_root,
@@ -949,7 +1030,22 @@ def gate_watermark(
             "; ".join(problem.message for problem in handoff.problems)
             or f"no {guidelines_manifest.MANIFEST_NAME} under {text_root}"
         )
-        return [], reason, 0, []
+        fatal = text_root.is_dir()
+        return GateResult(
+            "WATERMARK",
+            skip_reason=reason,
+            report=(f"  WATERMARK       NOT RUN -- {reason}",),
+            stdout=(
+                "",
+                "  " + "=" * 66,
+                "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
+                "  as page-repeated text was interleaved into a row. Rebuild the",
+                "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
+                "  " + "=" * 66,
+            ),
+            tier2_skip_diagnostics=(f"  WATERMARK       NOT RUN -- {reason}",),
+            fatal=fatal,
+        )
 
     probes_for: dict[str, dict[str, str]] = {}
     unprobed: list[str] = []
@@ -991,7 +1087,30 @@ def gate_watermark(
                     f"page-repeated text. The text stream was interleaved here, so read "
                     f"this row off the rendered page and declare {RENDERED_MARKER}."
                 )
-    return findings, None, rendered, unprobed
+    report = [f"  WATERMARK       {len(findings)} refusing"]
+    if rendered:
+        report.append(
+            f"                  {rendered} row(s) declared {RENDERED_MARKER}, "
+            "so the interleave test skipped them"
+        )
+    if unprobed:
+        report.append(
+            f"                  NOT PROBED for {len(unprobed)} of {len(sheet.sources)} "
+            f"source(s): {', '.join(unprobed)} -- so the count above is a floor"
+        )
+    diagnostics = tuple(
+        f"  WATERMARK       NOT PROBED for source '{key}' -- no manifest entry, no "
+        "extracted text, or no string stripped from it that could serve as a probe"
+        for key in unprobed
+    )
+    return GateResult(
+        "WATERMARK",
+        findings,
+        rendered=rendered,
+        unprobed_sources=unprobed,
+        report=tuple(report),
+        diagnostics=diagnostics,
+    )
 
 
 # The line gate 5 prints on every run it makes, clean or not. #83 states the caveat
@@ -1169,9 +1288,9 @@ def brief(sheet: Sheet) -> str:
 
 
 def gate_second_read(
-    sheet: Sheet, read: SecondRead
-) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
-    """Gate 5. Returns ``(refusals, warnings, pairings, undiffed, uncovered)``.
+    sheet: Sheet, read: SecondRead | None
+) -> GateResult:
+    """Gate 5, with each outcome carried in a named ``GateResult`` field.
 
     #83: *"A subagent extracts the same table with no access to the sheet; the diff
     is the gate. The only mechanism that catches misreading rather than
@@ -1217,6 +1336,22 @@ def gate_second_read(
     against the committed sheet rather than by a fixture, which is where both of
     ``gate_range``'s false alarms came from too.
     """
+    if read is None:
+        return GateResult(
+            "SECOND READ",
+            report=(
+                "  SECOND READ     NOT RUN -- no --second-read given; --brief prints the work order",
+            ),
+        )
+    if not read.ok:
+        reason = str(read.why_not)
+        return GateResult(
+            "SECOND READ",
+            report=(f"  SECOND READ     NOT RUN -- {reason}",),
+            diagnostics=(f"  SECOND READ     NOT RUN -- {read.path}: {reason}",),
+            not_graded=True,
+        )
+
     refusals: list[str] = []
     warnings: list[str] = []
     pairings: list[str] = []
@@ -1287,7 +1422,38 @@ def gate_second_read(
                     f"({entry['about']}) and no row carries it -- the independent read "
                     "cannot see '## Coverage', so this over-reports"
                 )
-    return refusals, warnings, pairings, undiffed, uncovered
+    graded = bool(pairings or refusals)
+    if not graded:
+        report = (
+            f"  SECOND READ     NOT RUN -- the read covers none of this sheet's "
+            f"citations, so no row was diffed ({len(read.values)} value(s) read "
+            f"on {read.read_on})",
+        )
+        stdout: tuple[str, ...] = ()
+    else:
+        report_lines = [
+            f"  SECOND READ     {len(refusals)} refusing, {len(warnings)} warning "
+            f"over {len(read.values)} value(s) read on {read.read_on}",
+            f"                  {len(undiffed)} row(s) carried no number to diff, "
+            f"{len(uncovered)} row(s) cite a page the read did not cover",
+        ]
+        if uncovered:
+            report_lines.append("                  so the counts above are a floor, not the whole")
+        report_lines.extend(f"                  {pairing}" for pairing in pairings)
+        report = tuple(report_lines)
+        stdout = (f"                  {SECOND_READ_IS_A_SMOKE_TEST}",)
+
+    return GateResult(
+        "SECOND READ",
+        refusals,
+        warnings,
+        pairings,
+        undiffed,
+        uncovered,
+        report=report,
+        stdout=stdout,
+        not_graded=not graded,
+    )
 
 def bind_recs(
     sheet: Sheet, arguments: list[str], recs_root: Path | None
@@ -1422,9 +1588,13 @@ def _record_built_from_another_document(recs: dict, source: dict[str, str]) -> s
 
 
 def gate_coverage(
-    sheet: Sheet, records: dict[str, dict | None]
-) -> tuple[list[str], list[str], list[str]]:
-    """Gate 2. Returns (refusals, warnings, the source keys that were not graded).
+    sheet: Sheet,
+    records: dict[str, dict | None],
+    why_not: dict[str, str] | None = None,
+    recs_errors: list[str] | tuple[str, ...] = (),
+    missing_records: set[str] | frozenset[str] = frozenset(),
+) -> GateResult:
+    """Gate 2, naming refusals, warnings, and ungraded source keys in its result.
 
     Refuses on an ``exact`` source and warns on a ``bound`` one, and **the mode is
     read off the recommendation record rather than decided here** -- what makes a
@@ -1549,11 +1719,57 @@ def gate_coverage(
                 "recommendation record carries it"
             )
 
-    return refusals, warnings, ungraded
+    why_not = why_not or {}
+    total_sources = len(sheet.sources)
+    if not total_sources:
+        report = "  COVERAGE        NOT RUN -- the sheet declares no source to check against"
+    elif ungraded and len(ungraded) == total_sources:
+        report = (
+            f"  COVERAGE        NOT RUN -- omission was not checked for any of "
+            f"{total_sources} source(s): {', '.join(ungraded)}"
+        )
+    elif ungraded:
+        report = (
+            f"  COVERAGE        NOT RUN for {len(ungraded)} of {total_sources} "
+            f"sources ({', '.join(ungraded)}) -- {len(refusals)} refusing, "
+            f"{len(warnings)} warning over the rest, so that is a floor"
+        )
+    else:
+        report = f"  COVERAGE        {len(refusals)} refusing, {len(warnings)} warning"
+
+    diagnostics = [f"  COVERAGE        NOT RUN -- {message}" for message in recs_errors]
+    diagnostics.extend(
+        f"  COVERAGE        NOT RUN for source '{key}' -- {why_not.get(key, 'no record')}"
+        for key in ungraded
+    )
+    if missing_records:
+        diagnostics.append(
+            "  The missing recommendation record(s) above are a warning, not a clean "
+            "COVERAGE pass."
+        )
+    blocking_ungraded = [key for key in ungraded if key not in missing_records]
+    if blocking_ungraded or recs_errors:
+        diagnostics.extend(
+            (
+                "  Omission was not checked for the source(s) above. A source with no",
+                "  recommendation record is not a source that passed, and a --recs path",
+                "  that does not resolve is a typo rather than a decision.",
+            )
+        )
+
+    return GateResult(
+        "COVERAGE",
+        refusals,
+        warnings,
+        ungraded_sources=ungraded,
+        report=(report,),
+        diagnostics=tuple(diagnostics),
+        not_graded=bool(blocking_ungraded or recs_errors or not sheet.sources),
+    )
 
 
-def gate_range(sheet: Sheet) -> tuple[list[str], int]:
-    """Unit-keyed sanity bounds. Returns (failures, count of numbers not graded).
+def gate_range(sheet: Sheet) -> GateResult:
+    """Unit-keyed sanity bounds, naming failures and the ungraded-number count.
 
     The ungraded count is returned and printed rather than swallowed. A gate that
     silently grades 4 of a sheet's 200 numbers and reports a clean run is the shape
@@ -1585,7 +1801,15 @@ def gate_range(sheet: Sheet) -> tuple[list[str], int]:
         for number in _NUMBER.finditer(row.value):
             if not any(start <= number.start() < end for start, end in graded_spans):
                 ungraded += 1
-    return failures, ungraded
+    return GateResult(
+        "RANGE",
+        failures,
+        ungraded=ungraded,
+        report=(
+            f"  RANGE           {len(failures)}  "
+            f"({ungraded} numbers carried no unit this grades)",
+        ),
+    )
 
 
 def grade(
@@ -1637,10 +1861,10 @@ def grade(
 
     schema = gate_schema(sheet)
     tier1 = gate_citation_tier1(sheet)
-    tier2, tier2_skip, rendered_rows = gate_citation_tier2(sheet, pdf_root)
-    coverage_refusals, coverage_warnings, ungraded_sources = gate_coverage(sheet, records)
-    ranges, ungraded_rows = gate_range(sheet)
-    watermark, watermark_skip, watermark_rendered, unprobed = gate_watermark(
+    tier2 = gate_citation_tier2(sheet, pdf_root)
+    coverage = gate_coverage(sheet, records, why_not, recs_errors, missing_records)
+    ranges = gate_range(sheet)
+    watermark = gate_watermark(
         sheet,
         text_root,
         allow_untrusted_provenance=allow_untrusted_provenance,
@@ -1650,12 +1874,7 @@ def grade(
     # be the same code path over the same page, which is the check `test_icd10.py`
     # calls worthless and this module's own docstring refuses by name.
     second_read = load_second_read(second_read_path) if second_read_path else None
-    if second_read is not None and second_read.ok:
-        five_refusals, five_warnings, pairings, undiffed, uncovered = gate_second_read(
-            sheet, second_read
-        )
-    else:
-        five_refusals, five_warnings, pairings, undiffed, uncovered = [], [], [], [], []
+    second_read_result = gate_second_read(sheet, second_read)
     # An argument naming a source the sheet does not declare, or naming one twice, is
     # a typo and never a decision -- and it is a way of not having graded even when
     # every declared source resolved from `--recs-root`, because the run asked for
@@ -1670,28 +1889,9 @@ def grade(
     # a clean diff prints -- and exited 0. Every fixture handed the gate a read that
     # covered at least one citation, so nothing in the suite could see it; the tracker
     # sweep did. Partial coverage stays a floor and is reported as one.
-    second_read_graded = bool(
-        second_read is not None and second_read.ok and (pairings or five_refusals)
-    )
-
-    # A `--second-read` that was asked for and did not resolve is a way of not
-    # having graded, on `bind_recs`' ruling: the run asked for something and got
-    # nothing, and a typo is not a decision. So is one that resolved and diffed no
-    # row at all -- the run asked for a diff either way.
-    blocking_ungraded_sources = [
-        key for key in ungraded_sources if key not in missing_records
-    ]
     not_graded = (
-        bool(blocking_ungraded_sources)
-        or bool(recs_errors)
-        or not sheet.sources
-        or (second_read is not None and not second_read.ok)
-        or (second_read is not None and not second_read_graded)
-    )
-    watermark_provenance_failed = bool(
-        watermark_skip
-        and text_root is not None
-        and Path(text_root).is_dir()
+        coverage.not_graded
+        or second_read_result.not_graded
     )
 
     report(f"  rows            {len(sheet.rows)}")
@@ -1703,176 +1903,44 @@ def grade(
     # the one piece of the report that survived --quiet, so the pre-commit hook
     # emitted a stray blank line on a clean sheet.
     report()
-    report(f"  SCHEMA          {len(schema)}")
-    report(f"  CITATION tier 1 {len(tier1)}")
-    if tier2_skip:
-        report(f"  CITATION tier 2 SKIPPED -- {tier2_skip}")
-    else:
-        report(f"  CITATION tier 2 {len(tier2)}")
-        if rendered_rows:
-            # Printed rather than only counted: the trace the escape hatch exists to
-            # leave is worth nothing if the run that honors it stays silent about it.
-            report(
-                f"                  {rendered_rows} row(s) declared {RENDERED_MARKER} "
-                "and were read off the rendered page, so tier 2 skipped them"
-            )
-    # **The report body has to carry this, not only stderr and the exit status.** A
-    # gate that did not run printed `0 refusing, 0 warning` here, which is byte for
-    # byte what a clean coverage pass prints. The notice went to stderr, so redirecting
-    # stdout -- the only reason to print a report at all -- kept the reassuring line
-    # and dropped the one that withdrew it. `CITATION tier 2` above already says
-    # SKIPPED in the body for the same situation; this is that, for its reason.
-    #
-    # **And it names how many sources, which is #177.** The count used to be derived
-    # from `recs is None` and so could only ever be 0 or 1: a sheet citing four
-    # societies with one record printed the same line as a sheet with one source and
-    # one record. A partly checked sheet gets the unchecked half FIRST in the line,
-    # because a count printed ahead of the caveat is read as the verdict.
-    total_sources = len(sheet.sources)
-    if not total_sources:
-        # A sheet whose Sources table did not parse. SCHEMA refuses every row for an
-        # undeclared source key, so the status is already 1 -- but the body line would
-        # read `0 refusing, 0 warning`, which is byte for byte what a clean coverage
-        # pass prints over a gate that had nothing to iterate.
-        report("  COVERAGE        NOT RUN -- the sheet declares no source to check against")
-    elif ungraded_sources and len(ungraded_sources) == total_sources:
-        report(
-            f"  COVERAGE        NOT RUN -- omission was not checked for any of "
-            f"{total_sources} source(s): {', '.join(ungraded_sources)}"
-        )
-    elif ungraded_sources:
-        report(
-            f"  COVERAGE        NOT RUN for {len(ungraded_sources)} of {total_sources} "
-            f"sources ({', '.join(ungraded_sources)}) -- {len(coverage_refusals)} refusing, "
-            f"{len(coverage_warnings)} warning over the rest, so that is a floor"
-        )
-    else:
-        report(f"  COVERAGE        {len(coverage_refusals)} refusing, {len(coverage_warnings)} warning")
-    report(f"  RANGE           {len(ranges)}  ({ungraded_rows} numbers carried no unit this grades)")
-    if watermark_skip:
-        report(f"  WATERMARK       NOT RUN -- {watermark_skip}")
-    else:
-        report(f"  WATERMARK       {len(watermark)} refusing")
-        if watermark_rendered:
-            report(
-                f"                  {watermark_rendered} row(s) declared {RENDERED_MARKER}, "
-                "so the interleave test skipped them"
-            )
-        if unprobed:
-            # Named in the body and not only on stderr, on `COVERAGE`'s ruling: a
-            # gate that could not probe a source printed `0` here, which is byte for
-            # byte what a clean gate prints.
-            report(
-                f"                  NOT PROBED for {len(unprobed)} of {len(sheet.sources)} "
-                f"source(s): {', '.join(unprobed)} -- so the count above is a floor"
-            )
-    if second_read is None:
-        report("  SECOND READ     NOT RUN -- no --second-read given; --brief prints the work order")
-    elif not second_read.ok:
-        report(f"  SECOND READ     NOT RUN -- {second_read.why_not}")
-    elif not second_read_graded:
-        report(
-            f"  SECOND READ     NOT RUN -- the read covers none of this sheet's "
-            f"citations, so no row was diffed ({len(second_read.values)} value(s) read "
-            f"on {second_read.read_on})"
-        )
-    else:
-        report(
-            f"  SECOND READ     {len(five_refusals)} refusing, {len(five_warnings)} warning "
-            f"over {len(second_read.values)} value(s) read on {second_read.read_on}"
-        )
-        report(
-            f"                  {len(undiffed)} row(s) carried no number to diff, "
-            f"{len(uncovered)} row(s) cite a page the read did not cover"
-        )
-        if uncovered:
-            # The count above is a floor and the line says so where the verdict is,
-            # which is `gate_range`'s ungraded count and `COVERAGE`'s NOT RUN line
-            # for their reason: a partial read that printed only its refusals would
-            # read as a whole-sheet verdict.
-            report("                  so the counts above are a floor, not the whole")
-        # **Through `print`, so `--quiet` cannot take it.** #174 calls this caveat a
-        # build instruction -- *"the tool's own output must say it is a smoke test"* --
-        # and `--quiet --second-read` printed WARN and NOT DIFFED lines with the
-        # caveat suppressed, which is the one configuration where a reader sees gate
-        # 5's findings and not what they are worth. `CITATION` tier 2's banner takes
-        # the same door for the same reason.
-        print(f"                  {SECOND_READ_IS_A_SMOKE_TEST}")
-        for pairing in pairings:
-            # The misreading limb, and the only thing here a reader has to do by
-            # hand: the row's own heading beside what an independent reader said the
-            # number was about. Printed rather than counted, because a count of
-            # pairs nobody read is what would make this gate read as proof.
-            report(f"                  {pairing}")
+    results = (schema, tier1, tier2, coverage, ranges, watermark, second_read_result)
+    for result in results:
+        for line in result.report:
+            report(line)
 
     if sheet.resolved_date:
         report(f"  last resolved   {sheet.resolved_date} against {sheet.resolved_corpus}")
     else:
         report("  last resolved   NOT RECORDED -- the sheet does not say when tier 2 last ran")
 
-    if tier2_skip:
-        print()
-        print("  " + "=" * 66)
-        if watermark_provenance_failed:
-            print(f"  WATERMARK       NOT RUN -- {watermark_skip}", file=sys.stderr)
-        print("  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against")
-        print("  the source PDFs on this machine. Tier 1 proved each value is in its")
-        print("  own snippet; nothing here proved the snippet is on the page it cites.")
-        print("  " + "=" * 66)
+    for result in results:
+        for line in result.stdout:
+            print(line)
 
-    if watermark_skip:
-        # Tier 2's banner and for its reason, printed through `print` rather than
-        # `report` so `--quiet` cannot suppress it: `--quiet` suppresses the report
-        # and never a finding, and a gate that did not run is a finding about the run.
-        print()
-        print("  " + "=" * 66)
-        print("  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped")
-        print("  as page-repeated text was interleaved into a row. Rebuild the")
-        print("  extracted corpus with tools/guidelines_extract.py, or pass --text-root.")
-        print("  " + "=" * 66)
-
-    refusals = schema + tier1 + tier2 + coverage_refusals + ranges + watermark + five_refusals
+    refusals = (
+        schema.findings
+        + tier1.findings
+        + tier2.findings
+        + coverage.findings
+        + ranges.findings
+        + watermark.findings
+        + second_read_result.findings
+    )
     for message in refusals:
         print(f"  FAIL  {message}", file=sys.stderr)
-    for message in coverage_warnings + five_warnings:
+    for message in coverage.warnings + second_read_result.warnings:
         print(f"  WARN  {message}", file=sys.stderr)
-    for message in undiffed + uncovered:
+    for message in second_read_result.undiffed + second_read_result.uncovered:
         print(f"  NOT DIFFED  {message}", file=sys.stderr)
 
-    # **On stderr as well as in the body, and `--quiet` is exactly why.** The hook
-    # runs `--all --quiet`, which suppresses the report -- so a sheet whose source
-    # this gate could not probe exited 0 with no trace at all, which is the whole
-    # shape the notice exists to refuse. `COVERAGE` prints its NOT RUN in both places
-    # for this reason and this was the one limb that did not.
-    for key in unprobed:
-        print(
-            f"  WATERMARK       NOT PROBED for source '{key}' -- no manifest entry, no "
-            "extracted text, or no string stripped from it that could serve as a probe",
-            file=sys.stderr,
-        )
+    for result in (watermark, second_read_result, coverage):
+        for line in result.diagnostics:
+            print(line, file=sys.stderr)
+    if tier2.skip_reason:
+        for line in watermark.tier2_skip_diagnostics:
+            print(line, file=sys.stderr)
 
-    if second_read is not None and not second_read.ok:
-        print(
-            f"  SECOND READ     NOT RUN -- {second_read.path}: {second_read.why_not}",
-            file=sys.stderr,
-        )
-
-    for message in recs_errors:
-        print(f"  COVERAGE        NOT RUN -- {message}", file=sys.stderr)
-    for key in ungraded_sources:
-        print(f"  COVERAGE        NOT RUN for source '{key}' -- {why_not[key]}", file=sys.stderr)
-    if missing_records:
-        print(
-            "  The missing recommendation record(s) above are a warning, not a clean "
-            "COVERAGE pass.",
-            file=sys.stderr,
-        )
-    if blocking_ungraded_sources or recs_errors:
-        print("  Omission was not checked for the source(s) above. A source with no", file=sys.stderr)
-        print("  recommendation record is not a source that passed, and a --recs path", file=sys.stderr)
-        print("  that does not resolve is a typo rather than a decision.", file=sys.stderr)
-
-    if watermark_provenance_failed:
+    if any(result.fatal for result in results):
         return 2
     if refusals:
         # 1 wins over 2 where both hold, and the message names the ungraded part so
