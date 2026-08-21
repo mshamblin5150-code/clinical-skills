@@ -247,6 +247,7 @@ GRADER = run_grader.Grader(
     grade=_grade,
     format_report=format_report,
     source_error_to_stdout=True,
+    allow_extra_positionals=False,
 )
 
 

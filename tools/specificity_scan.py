@@ -750,6 +750,7 @@ GRADER = run_grader.Grader(
             "--second-read",
             takes_value=True,
             missing_value="--second-read needs a JSON path",
+            repeatable=False,
         ),
     ),
     load=_load,

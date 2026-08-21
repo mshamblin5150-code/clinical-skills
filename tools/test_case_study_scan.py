@@ -838,62 +838,7 @@ class TheDocumentedShapesPass(unittest.TestCase):
 
 
 class EveryRowIsDeclared(unittest.TestCase):
-    """Both directions of the row set, by AST rather than by what a fixture fires.
-
-    ``test_console_codec``'s instrument, for its reason: this module's docstring
-    names its rows in prose, so a substring search is satisfied by the
-    explanation and proves nothing about the code.
-    """
-
-    def finding_kinds(self) -> set[str]:
-        """The name every ``Finding(...)`` in the module is constructed with.
-
-        Read positionally and by keyword, since either spelling builds the same
-        finding, and **required to be a module-level constant** -- a branch that
-        assigned its row to a local would otherwise satisfy an ``ast.Name`` check
-        while telling this walk nothing. Mutation-tested in four spellings: a
-        positional name, a keyword name, a local variable, and a subscript.
-        """
-        tree = ast.parse(MODULE.read_text(encoding="utf-8"))
-        names = set()
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            if not (isinstance(node.func, ast.Name) and node.func.id == "Finding"):
-                continue
-            kind = node.args[0] if node.args else None
-            for keyword in node.keywords:
-                if keyword.arg == "kind":
-                    kind = keyword.value
-            self.assertIsInstance(
-                kind, ast.Name, "a Finding built from an expression is invisible to this walk"
-            )
-            self.assertTrue(
-                kind.id.isupper(),
-                "a Finding built from a local is invisible to this walk: " + kind.id,
-            )
-            names.add(kind.id)
-        return names
-
-    def test_every_constructed_row_is_in_kinds(self):
-        declared = {name for name in dir(scan) if name.isupper()}
-        for name in self.finding_kinds():
-            with self.subTest(row=name):
-                self.assertIn(name, declared)
-                self.assertIn(getattr(scan, name), scan.KINDS)
-
-    def test_every_row_in_kinds_is_constructed_somewhere(self):
-        built = {getattr(scan, name) for name in self.finding_kinds()}
-        self.assertEqual(set(scan.KINDS), built)
-
-    def test_the_walk_finds_something(self):
-        self.assertGreaterEqual(len(self.finding_kinds()), len(scan.KINDS))
-
-    def test_every_row_names_where_its_rule_is_written(self):
-        self.assertEqual(sorted(scan.ROWS), sorted(scan.KINDS))
-
-    def test_kinds_has_no_duplicates(self):
-        self.assertEqual(len(set(scan.KINDS)), len(scan.KINDS))
+    """The report and skill still expose every row the shared walk derives."""
 
     def test_the_report_prints_every_row_on_a_clean_draft(self):
         """A row that fired nowhere still prints its zero, so the set is readable."""

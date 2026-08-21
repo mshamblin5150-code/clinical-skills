@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import dataclasses
+import io
 import inspect
 import unittest
 from pathlib import Path
@@ -40,8 +42,7 @@ def _empty_value(field: dataclasses.Field[Any]) -> Any:
     return 0
 
 
-def _report_scan(module: Any) -> Any:
-    kind = next(iter(module.ROWS))
+def _report_scan(module: Any, kind: str) -> Any:
     values = {field.name: _empty_value(field) for field in dataclasses.fields(module.Scan)}
     values["findings"] = (_FindingProbe(kind),)
     if "counts" in values:
@@ -49,11 +50,40 @@ def _report_scan(module: Any) -> Any:
     return module.Scan(**values)
 
 
-def _constructed_kinds(module: Any) -> set[str]:
-    source = Path(inspect.getsourcefile(module) or "").read_text(encoding="utf-8")
+def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
+    source_path = getattr(module, "__file__", None) or inspect.getsourcefile(module)
+    source = Path(source_path or "").read_text(encoding="utf-8")
     tree = ast.parse(source)
+    scope: ast.AST = tree
+    if function is not None:
+        scope = next(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == function
+        )
+    domains: dict[str, set[str]] = {}
+    for loop in (node for node in ast.walk(scope) if isinstance(node, (ast.For, ast.comprehension))):
+        target = loop.target
+        if isinstance(target, (ast.Tuple, ast.List)) and target.elts:
+            target = target.elts[0]
+        population_name: str | None = None
+        if isinstance(loop.iter, ast.Name):
+            population_name = loop.iter.id
+        elif (
+            isinstance(loop.iter, ast.Call)
+            and isinstance(loop.iter.func, ast.Attribute)
+            and loop.iter.func.attr in {"items", "keys"}
+            and isinstance(loop.iter.func.value, ast.Name)
+        ):
+            population_name = loop.iter.func.value.id
+        if not isinstance(target, ast.Name) or population_name is None:
+            continue
+        population = getattr(module, population_name, None)
+        if isinstance(population, dict):
+            domains[target.id] = set(population)
     kinds: set[str] = set()
-    for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+    for call in (node for node in ast.walk(scope) if isinstance(node, ast.Call)):
         if not isinstance(call.func, ast.Name) or call.func.id != "Finding":
             continue
         expression = next(
@@ -66,10 +96,8 @@ def _constructed_kinds(module: Any) -> set[str]:
             value = getattr(module, expression.id, None)
             if isinstance(value, str):
                 kinds.add(value)
-            elif expression.id in {"kind", "row"}:
-                # A loop over the declared vocabulary constructs every row. The
-                # shared equality below still refuses an undeclared literal.
-                kinds.update(module.ROWS)
+            else:
+                kinds.update(domains.get(expression.id, set()))
     return kinds
 
 
@@ -91,14 +119,37 @@ def for_module(module: Any) -> type[unittest.TestCase]:
 
         def test_rows_are_the_one_vocabulary_and_every_row_is_constructible(self):
             self.assertEqual(tuple(module.ROWS), module.KINDS)
-            self.assertEqual(set(module.ROWS), _constructed_kinds(module))
+            self.assertEqual(set(module.ROWS), constructed_kinds(module))
 
         def test_the_modules_own_report_redacts_until_show(self):
-            scan = _report_scan(module)
-            default = module.format_report(scan, "source", show=False)
-            shown = module.format_report(scan, "source", show=True)
-            self.assertNotIn(MARKER, default)
-            self.assertIn(MARKER, shown)
+            for kind in module.ROWS:
+                with self.subTest(kind=kind):
+                    scan = _report_scan(module, kind)
+                    default = module.format_report(scan, "source", show=False)
+                    shown = module.format_report(scan, "source", show=True)
+                    self.assertNotIn(MARKER, default)
+                    self.assertIn(MARKER, shown)
+
+        def test_findings_outrank_coverage_after_the_modules_report(self):
+            scan = _report_scan(module, next(iter(module.ROWS)))
+            command = dataclasses.replace(
+                module.GRADER,
+                options=(),
+                load=lambda _parsed: scan,
+                grade=lambda loaded, _parsed: run_grader.Grade(
+                    scan=loaded,
+                    source="source",
+                    findings_failed=True,
+                    coverage_failed=True,
+                    diagnostics=("tier-two-diagnostic",),
+                ),
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = run_grader.run(command, ["source"])
+            self.assertEqual(1, status)
+            self.assertTrue(stdout.getvalue().startswith(module.format_report(scan, "source")))
+            self.assertIn("tier-two-diagnostic", stderr.getvalue())
 
     GraderConformance.__name__ = f"{module.__name__}GraderConformance"
     GraderConformance.__qualname__ = GraderConformance.__name__

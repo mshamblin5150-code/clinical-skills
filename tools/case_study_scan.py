@@ -803,6 +803,7 @@ GRADER = run_grader.Grader(
     grade=_grade,
     format_report=format_report,
     parse_error=lambda message: "case_study_scan.py: {e}".format(e=message),
+    allow_extra_positionals=False,
 )
 
 

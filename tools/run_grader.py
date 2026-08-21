@@ -71,7 +71,7 @@ class Option:
     name: str
     takes_value: bool = False
     missing_value: str | None = None
-    repeatable: bool = False
+    repeatable: bool = True
 
 
 @dataclass(frozen=True)
@@ -134,6 +134,7 @@ class Grader(Generic[TSource, TScan]):
     parse_error: Callable[[str], str] = lambda message: message
     validate: Callable[[Parsed], str | None] | None = None
     source_error_to_stdout: bool = False
+    allow_extra_positionals: bool = True
 
 
 def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
@@ -174,7 +175,7 @@ def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
 
     if not positionals:
         raise ParseError(command.usage)
-    if len(positionals) != 1:
+    if len(positionals) != 1 and not command.allow_extra_positionals:
         raise ParseError(command.parse_error("one source at a time"))
     parsed = Parsed(
         source=positionals[0],

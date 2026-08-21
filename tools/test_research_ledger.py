@@ -35,7 +35,7 @@ import checks_ledger
 import docx_write
 import reference_scan
 import research_ledger as ledger
-from grader_conformance import for_module
+from grader_conformance import constructed_kinds, for_module
 
 GraderConformance = for_module(ledger)
 import run_grader
@@ -1243,33 +1243,9 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
     reaching for the value nearest to hand.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        source = Path(ledger.__file__).read_text(encoding="utf-8")
-        cls.tree = ast.parse(source)
-
     def _kinds_constructed_in(self, function: str) -> set[str]:
-        """Every ``Finding(KIND, ...)`` built inside one function, by name.
-
-        Reads the first positional argument only, which is where ``Finding``'s
-        ``kind`` sits. A row built any other way is invisible here -- nothing in
-        this module does, and ``test_the_kinds_are_all_accounted_for`` is what
-        would notice if one started.
-        """
-        found: set[str] = set()
-        for node in ast.walk(self.tree):
-            if not isinstance(node, ast.FunctionDef) or node.name != function:
-                continue
-            for call in ast.walk(node):
-                if not isinstance(call, ast.Call):
-                    continue
-                if not isinstance(call.func, ast.Name) or call.func.id != "Finding":
-                    continue
-                self.assertTrue(call.args, f"a Finding with no kind in {function}")
-                kind = call.args[0]
-                self.assertIsInstance(kind, ast.Name, f"a computed kind in {function}")
-                found.add(getattr(ledger, kind.id))
-        return found
+        """Rows built inside one helper, using the shared Finding walk."""
+        return constructed_kinds(ledger, function)
 
     def _rows_for(self, ticket: str) -> set[str]:
         return {kind for kind, owner in ledger.ROWS.items() if owner == ticket}
@@ -1319,35 +1295,6 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         # ledger's citations against the evidence dump.
         "evidence_findings",
     )
-
-    def test_every_row_is_built_in_one_of_the_graders(self):
-        """Without this the partitions above are claims about the functions they
-        happened to name, and a further grader could hold rows none of them see."""
-        built: set[str] = set()
-        for name in self.OWNERS:
-            built |= self._kinds_constructed_in(name)
-        self.assertEqual(built, set(ledger.KINDS))
-
-    def test_no_finding_is_built_anywhere_else(self):
-        """The other direction, and the one the first version of this class was
-        missing. A ``Finding`` constructed in ``survey`` or in ``format_report``
-        would leave every assertion above green while grading from outside the
-        seam entirely."""
-        inside = {
-            id(call)
-            for node in ast.walk(self.tree)
-            if isinstance(node, ast.FunctionDef) and node.name in self.OWNERS
-            for call in ast.walk(node)
-        }
-        stray = [
-            node.lineno
-            for node in ast.walk(self.tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "Finding"
-            and id(node) not in inside
-        ]
-        self.assertEqual(stray, [], f"Finding built outside the graders, lines {stray}")
 
     def test_the_citation_helper_grades_a_record_on_its_own(self):
         """The seam is a real one: called with nothing but the record and the

@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import contextlib
 import io
+import tempfile
 import unittest
 from dataclasses import dataclass
+from pathlib import Path
+from types import SimpleNamespace
 
 import run_grader
+from grader_conformance import constructed_kinds
 
 
 @dataclass(frozen=True)
@@ -145,6 +149,47 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
     def test_every_exclusion_carries_a_reason(self):
         self.assertTrue(all(run_grader.NOT_MEMBERS.values()))
         self.assertTrue(all(run_grader.OUTSIDE_WALK.values()))
+
+
+class TheSharedFindingWalkStatesAndTestsItsCeiling(unittest.TestCase):
+    def module_for(self, source: str):
+        directory = tempfile.TemporaryDirectory()
+        path = Path(directory.name) / "grader.py"
+        path.write_text(source, encoding="utf-8")
+        module = SimpleNamespace(__file__=str(path), ROWS={"row-a": "rule", "row-b": "rule"})
+        return directory, module
+
+    def test_a_computed_kind_with_no_declared_population_proves_nothing(self):
+        directory, module = self.module_for(
+            "def findings(kind):\n    return Finding(kind, 'detail')\n"
+        )
+        try:
+            self.assertEqual(set(), constructed_kinds(module))
+        finally:
+            directory.cleanup()
+
+    def test_a_partial_literal_population_stays_partial(self):
+        directory, module = self.module_for(
+            "ROW_A = 'row-a'\ndef findings():\n    return Finding(ROW_A, 'detail')\n"
+        )
+        module.ROW_A = "row-a"
+        try:
+            self.assertEqual({"row-a"}, constructed_kinds(module))
+            self.assertNotEqual(set(module.ROWS), constructed_kinds(module))
+        finally:
+            directory.cleanup()
+
+    def test_a_loop_over_a_declared_mapping_proves_its_keys(self):
+        directory, module = self.module_for(
+            "ROW_PATTERNS = {'row-a': 1, 'row-b': 2}\n"
+            "def findings():\n"
+            "    return [Finding(row, 'detail') for row, pattern in ROW_PATTERNS.items()]\n"
+        )
+        module.ROW_PATTERNS = {"row-a": 1, "row-b": 2}
+        try:
+            self.assertEqual(set(module.ROWS), constructed_kinds(module))
+        finally:
+            directory.cleanup()
 
 
 if __name__ == "__main__":
