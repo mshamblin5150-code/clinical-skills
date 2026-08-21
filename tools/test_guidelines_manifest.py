@@ -223,7 +223,7 @@ class ManifestReadingTests(unittest.TestCase):
         )
 
     def test_read_rejects_matching_document_and_output_traversal(self):
-        outside = self.root.parent / "outside.txt"
+        outside = self.root.parent / f"{self.root.name}-outside.txt"
         outside.write_text("outside", encoding="utf-8")
         self.addCleanup(outside.unlink, missing_ok=True)
         self.write([self.entry(doc_id="../outside", output="../outside.txt")])
