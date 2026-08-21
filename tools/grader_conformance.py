@@ -42,7 +42,9 @@ def _empty_value(field: dataclasses.Field[Any]) -> Any:
     return 0
 
 
-def _report_scan(module: Any, kind: str) -> Any:
+def _salted_report_input(module: Any, kind: str) -> Any:
+    """Build the ``Scan`` input accepted by one member's own report."""
+
     values = {field.name: _empty_value(field) for field in dataclasses.fields(module.Scan)}
     values["findings"] = (_FindingProbe(kind),)
     if "counts" in values:
@@ -51,6 +53,14 @@ def _report_scan(module: Any, kind: str) -> Any:
 
 
 def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
+    """Return kinds proved by literals or lexically enclosing mapping loops.
+
+    This walk deliberately stops short of general data-flow analysis: a name is
+    credited only inside the body of the exact ``for`` or comprehension that
+    binds it from a module-level dictionary. Assignments, helper returns, and
+    same-spelled names in another lexical scope prove nothing.
+    """
+
     source_path = getattr(module, "__file__", None) or inspect.getsourcefile(module)
     source = Path(source_path or "").read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -62,42 +72,97 @@ def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and node.name == function
         )
-    domains: dict[str, set[str]] = {}
-    for loop in (node for node in ast.walk(scope) if isinstance(node, (ast.For, ast.comprehension))):
-        target = loop.target
+    kinds: set[str] = set()
+
+    def loop_domain(node: ast.For | ast.comprehension) -> tuple[str, set[str]] | None:
+        target = node.target
         if isinstance(target, (ast.Tuple, ast.List)) and target.elts:
             target = target.elts[0]
         population_name: str | None = None
-        if isinstance(loop.iter, ast.Name):
-            population_name = loop.iter.id
+        if isinstance(node.iter, ast.Name):
+            population_name = node.iter.id
         elif (
-            isinstance(loop.iter, ast.Call)
-            and isinstance(loop.iter.func, ast.Attribute)
-            and loop.iter.func.attr in {"items", "keys"}
-            and isinstance(loop.iter.func.value, ast.Name)
+            isinstance(node.iter, ast.Call)
+            and isinstance(node.iter.func, ast.Attribute)
+            and node.iter.func.attr in {"items", "keys"}
+            and isinstance(node.iter.func.value, ast.Name)
         ):
-            population_name = loop.iter.func.value.id
-        if not isinstance(target, ast.Name) or population_name is None:
-            continue
-        population = getattr(module, population_name, None)
-        if isinstance(population, dict):
-            domains[target.id] = set(population)
-    kinds: set[str] = set()
-    for call in (node for node in ast.walk(scope) if isinstance(node, ast.Call)):
-        if not isinstance(call.func, ast.Name) or call.func.id != "Finding":
-            continue
-        expression = next(
-            (keyword.value for keyword in call.keywords if keyword.arg == "kind"),
-            call.args[0] if call.args else None,
-        )
-        if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
-            kinds.add(expression.value)
-        elif isinstance(expression, ast.Name):
-            value = getattr(module, expression.id, None)
-            if isinstance(value, str):
-                kinds.add(value)
+            population_name = node.iter.func.value.id
+        population = getattr(module, population_name or "", None)
+        if isinstance(target, ast.Name) and isinstance(population, dict):
+            return target.id, set(population)
+        return None
+
+    class FindingVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.domains: list[dict[str, set[str]]] = [{}]
+
+        def bound(self, name: str) -> set[str]:
+            for domain in reversed(self.domains):
+                if name in domain:
+                    return domain[name]
+            return set()
+
+        def visit_Call(self, node: ast.Call) -> None:
+            if isinstance(node.func, ast.Name) and node.func.id == "Finding":
+                expression = next(
+                    (keyword.value for keyword in node.keywords if keyword.arg == "kind"),
+                    node.args[0] if node.args else None,
+                )
+                if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
+                    kinds.add(expression.value)
+                elif isinstance(expression, ast.Name):
+                    value = getattr(module, expression.id, None)
+                    if isinstance(value, str):
+                        kinds.add(value)
+                    else:
+                        kinds.update(self.bound(expression.id))
+            self.generic_visit(node)
+
+        def visit_For(self, node: ast.For) -> None:
+            self.visit(node.iter)
+            binding = loop_domain(node)
+            self.domains.append({binding[0]: binding[1]} if binding else {})
+            for child in node.body:
+                self.visit(child)
+            self.domains.pop()
+            for child in node.orelse:
+                self.visit(child)
+
+        def visit_ListComp(self, node: ast.ListComp) -> None:
+            self._visit_comprehension(node.elt, node.generators)
+
+        def visit_SetComp(self, node: ast.SetComp) -> None:
+            self._visit_comprehension(node.elt, node.generators)
+
+        def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+            self._visit_comprehension(node.elt, node.generators)
+
+        def visit_DictComp(self, node: ast.DictComp) -> None:
+            self._visit_comprehension((node.key, node.value), node.generators)
+
+        def _visit_comprehension(
+            self,
+            result: ast.AST | tuple[ast.AST, ast.AST],
+            generators: list[ast.comprehension],
+        ) -> None:
+            pushed = 0
+            for generator in generators:
+                self.visit(generator.iter)
+                binding = loop_domain(generator)
+                self.domains.append({binding[0]: binding[1]} if binding else {})
+                pushed += 1
+                for condition in generator.ifs:
+                    self.visit(condition)
+            if isinstance(result, tuple):
+                for child in result:
+                    self.visit(child)
             else:
-                kinds.update(domains.get(expression.id, set()))
+                self.visit(result)
+            for _ in range(pushed):
+                self.domains.pop()
+
+    FindingVisitor().visit(scope)
     return kinds
 
 
@@ -124,14 +189,14 @@ def for_module(module: Any) -> type[unittest.TestCase]:
         def test_the_modules_own_report_redacts_until_show(self):
             for kind in module.ROWS:
                 with self.subTest(kind=kind):
-                    scan = _report_scan(module, kind)
+                    scan = _salted_report_input(module, kind)
                     default = module.format_report(scan, "source", show=False)
                     shown = module.format_report(scan, "source", show=True)
                     self.assertNotIn(MARKER, default)
                     self.assertIn(MARKER, shown)
 
         def test_findings_outrank_coverage_after_the_modules_report(self):
-            scan = _report_scan(module, next(iter(module.ROWS)))
+            scan = _salted_report_input(module, next(iter(module.ROWS)))
             command = dataclasses.replace(
                 module.GRADER,
                 options=(),

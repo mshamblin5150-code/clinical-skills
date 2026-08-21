@@ -191,6 +191,21 @@ class TheSharedFindingWalkStatesAndTestsItsCeiling(unittest.TestCase):
         finally:
             directory.cleanup()
 
+    def test_a_same_spelled_name_outside_the_loop_proves_nothing(self):
+        directory, module = self.module_for(
+            "ROW_PATTERNS = {'row-a': 1, 'row-b': 2}\n"
+            "def unrelated():\n"
+            "    for kind in ROW_PATTERNS:\n"
+            "        pass\n"
+            "def findings(kind):\n"
+            "    return Finding(kind, 'detail')\n"
+        )
+        module.ROW_PATTERNS = {"row-a": 1, "row-b": 2}
+        try:
+            self.assertEqual(set(), constructed_kinds(module))
+        finally:
+            directory.cleanup()
+
 
 if __name__ == "__main__":
     unittest.main()
