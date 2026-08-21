@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
-from guidelines_index import read_extracted_corpus
+from guidelines_manifest import read_or_raise
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
@@ -904,14 +904,15 @@ def build(
 ) -> list[DocumentResult]:
     """Build rows from the USPSTF documents in #80's extracted corpus."""
     results = []
-    for document in read_extracted_corpus(
+    handoff = read_or_raise(
         source_dir, allow_untrusted_provenance=allow_untrusted_provenance
-    ):
+    )
+    for doc_id, document in sorted(handoff.documents.items()):
         if document.society != "USPSTF":
             continue
         results.append(
             parse_document(
-                [page.text for page in document.pages],
+                list(handoff.pages[doc_id]),
                 document.source,
                 document.title or "",
             )

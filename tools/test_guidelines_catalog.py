@@ -34,6 +34,7 @@ from pathlib import Path
 import artifact_lock
 import artifact_provenance
 import guidelines_catalog as gc
+from guidelines_manifest_test_support import ReadingManifestConformance
 import guidelines_extract as extract
 
 
@@ -96,77 +97,38 @@ def doc(**overrides) -> gc.Document:
     return gc.Document(**base)
 
 
-class ReadingTheExtractedCorpus(unittest.TestCase):
+class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
+    def build_conformance_corpus(self, root, producer):
+        record = extract.build_document(
+            Path("USPSTF/screening.pdf"),
+            ["US Preventive Services Task Force Recommendation Statement"],
+            root,
+            "Screening for Example Disease",
+        )
+        extract.write_manifest(
+            root, [record], Path("C:/outside/guidelines-src"), producer=producer
+        )
+
+    def conformance_read(self, root, *, allow):
+        try:
+            gc.read_corpus(root, allow_untrusted_provenance=allow)
+        except ValueError as failure:
+            return False, str(failure)
+        return True, ""
+
+    def conformance_command(self, root, *, allow):
+        args = ["--draft", str(root)]
+        if allow:
+            args.insert(0, "--allow-untrusted-provenance")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return gc.main(args)
+
+    def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
+        import guidelines_manifest
+
+        self.assertIs(gc.read_or_raise, guidelines_manifest.read_or_raise)
+
     """The catalog consumes #80's public artifact, not the source PDFs."""
-
-    def test_a_foreign_manifest_needs_the_explicit_override(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            text_dir = Path(tmp)
-            record = extract.build_document(
-                Path("USPSTF/screening.pdf"),
-                ["US Preventive Services Task Force Recommendation Statement"],
-                text_dir,
-                "Screening for Example Disease",
-            )
-            manifest_path = extract.write_manifest(
-                text_dir,
-                [record],
-                Path("C:/outside/guidelines-src"),
-                producer={"commit": "f" * 40, "dirty": False},
-            )
-
-            with self.assertRaisesRegex(ValueError, "different commit"):
-                gc.read_corpus(text_dir)
-            with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
-                docs = gc.read_corpus(
-                    text_dir, allow_untrusted_provenance=True
-                )
-
-            self.assertEqual(len(docs), 1)
-
-    def test_the_draft_command_override_is_explicit_and_warns(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            text_dir = Path(tmp)
-            record = extract.build_document(
-                Path("USPSTF/screening.pdf"),
-                ["US Preventive Services Task Force Recommendation Statement"],
-                text_dir,
-                "Screening for Example Disease",
-            )
-            extract.write_manifest(
-                text_dir,
-                [record],
-                Path("C:/outside/guidelines-src"),
-                producer={"commit": "f" * 40, "dirty": False},
-            )
-            out, err = io.StringIO(), io.StringIO()
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                refused = gc.main(["--draft", str(text_dir)])
-                allowed = gc.main(
-                    [
-                        "--allow-untrusted-provenance",
-                        "--draft",
-                        str(text_dir),
-                    ]
-                )
-
-            self.assertEqual(refused, 2)
-            self.assertEqual(allowed, 0)
-            self.assertIn("untrusted", err.getvalue())
-            self.assertIn("screening.pdf", out.getvalue())
-
-    def test_the_draft_command_does_not_read_an_extraction_in_progress(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            text_dir = Path(tmp) / "first-guidelines-text"
-            out, err = io.StringIO(), io.StringIO()
-            with artifact_lock.hold(
-                text_dir, "guideline extraction"
-            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                status = gc.main(["--draft", str(text_dir)])
-
-            self.assertEqual(status, 2)
-            self.assertIn("another task is rebuilding", err.getvalue())
-            self.assertIn(str(text_dir.resolve()), err.getvalue())
 
     def test_two_read_commands_can_share_one_completed_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:

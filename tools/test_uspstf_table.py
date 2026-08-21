@@ -32,10 +32,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import artifact_lock
 import artifact_provenance
 import guidelines_extract as extract
 import uspstf_table as ut
+from guidelines_manifest_test_support import ReadingManifestConformance
 
 
 def clean_producer():
@@ -52,82 +52,38 @@ def fixture(name):
         return [handle.read()]
 
 
-class ReadingTheExtractedCorpus(unittest.TestCase):
+class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
     """The table builder consumes #80's artifact and its metadata-title contract."""
 
-    def test_a_foreign_manifest_needs_the_explicit_override(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            text_dir = Path(tmp)
-            record = extract.build_document(
-                Path("USPSTF/rhrs.pdf"),
-                fixture("ahrq-sentence-grade"),
-                text_dir,
-                "Screening for Rh (D) Incompatibility - Recommendation Statement",
-            )
-            extract.write_manifest(
-                text_dir,
-                [record],
-                Path("C:/outside/guidelines-src"),
-                producer={"commit": "f" * 40, "dirty": False},
-            )
+    def build_conformance_corpus(self, root, producer):
+        record = extract.build_document(
+            Path("USPSTF/rhrs.pdf"),
+            fixture("ahrq-sentence-grade"),
+            root,
+            "Screening for Rh (D) Incompatibility - Recommendation Statement",
+        )
+        extract.write_manifest(
+            root, [record], Path("C:/outside/guidelines-src"), producer=producer
+        )
 
-            with self.assertRaisesRegex(ValueError, "different commit"):
-                ut.build(text_dir)
-            with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
-                results = ut.build(
-                    text_dir, allow_untrusted_provenance=True
-                )
+    def conformance_read(self, root, *, allow):
+        try:
+            ut.build(root, allow_untrusted_provenance=allow)
+        except ValueError as failure:
+            return False, str(failure)
+        return True, ""
 
-            self.assertEqual(len(results), 1)
+    def conformance_command(self, root, *, allow):
+        args = [str(root), "--out", str(root / "uspstf.md")]
+        if allow:
+            args.append("--allow-untrusted-provenance")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return ut.main(args)
 
-    def test_the_command_override_is_explicit_and_warns(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            text_dir = root / "text"
-            text_dir.mkdir()
-            record = extract.build_document(
-                Path("USPSTF/rhrs.pdf"),
-                fixture("ahrq-sentence-grade"),
-                text_dir,
-                "Screening for Rh (D) Incompatibility - Recommendation Statement",
-            )
-            extract.write_manifest(
-                text_dir,
-                [record],
-                Path("C:/outside/guidelines-src"),
-                producer={"commit": "f" * 40, "dirty": False},
-            )
-            out_path = root / "uspstf.md"
-            out, err = io.StringIO(), io.StringIO()
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                refused = ut.main([str(text_dir), "--out", str(out_path)])
-                allowed = ut.main(
-                    [
-                        str(text_dir),
-                        "--allow-untrusted-provenance",
-                        "--out",
-                        str(out_path),
-                    ]
-                )
+    def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
+        import guidelines_manifest
 
-            self.assertEqual(refused, 2)
-            self.assertEqual(allowed, 0)
-            self.assertIn("untrusted", err.getvalue())
-            self.assertTrue(out_path.is_file())
-
-    def test_the_command_does_not_read_an_extraction_in_progress(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            text_dir = root / "text"
-            out, err = io.StringIO(), io.StringIO()
-            with artifact_lock.hold(
-                text_dir, "guideline extraction"
-            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                status = ut.main([str(text_dir), "--out", str(root / "uspstf.md")])
-
-            self.assertEqual(status, 2)
-            self.assertIn("another task is rebuilding", err.getvalue())
-            self.assertIn(str(text_dir.resolve()), err.getvalue())
+        self.assertIs(ut.read_or_raise, guidelines_manifest.read_or_raise)
 
     def test_build_reads_uspstf_text_and_title_from_the_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
