@@ -18,8 +18,10 @@ the argument is a recorded defect rather than tidiness.** #388's first mining pa
 took a user node's **immediate child** and gave up unless it was an assistant
 message with text. A ChatGPT export interleaves system, tool and reasoning nodes,
 so the reply is frequently a grandchild or deeper: that walk reported **85** paired
-versions where the corpus holds **163**, which is #388's own figure and the only
-one restated here.
+versions where the corpus holds **163**. Those two are **#388's record of the
+defect on the day it was found** -- attributed, historical, and not a claim about
+the corpus today. What this module produces in their place is the hop
+distribution, printed on every run.
 
 **The failure direction is what earns the test.** There was no error, no unparsed
 remainder, and every record it did find was correct -- a complete-looking floor
@@ -175,6 +177,9 @@ NOT_REACHED = (
     "one document re-encountered through a second channel is a second "
     "conversation to every count here, and #388 records that as the false "
     "attestation likeliest to be believed",
+    "a message carrying typed words beside a dictation would be classed as prose "
+    "and its dictated half dropped from the text; the export holds none today, so "
+    "this is declared rather than guessed at",
 )
 
 
@@ -239,7 +244,7 @@ class Pairs:
     records: list[tuple[Message, Reply]]
     missing_reply: int
     hops: dict[int, int]
-    conversations: int = 0
+    conversations: int
 
 
 def load_export(path: Path):
@@ -340,6 +345,17 @@ def reply_to(mapping, node_id) -> Reply | None:
     ``current_node`` records and this walk does not read. A first draft of this
     docstring claimed otherwise.
 
+    **It stops at a user node, and that is #388's own defect arriving with the
+    sign flipped.** Where a turn's assistant message is empty, the next node down
+    is the *next question*, and descending through it joined a request to the
+    answer to a different message -- a pair whose generic half is not the same
+    claim, which is exactly what ``voice.md`` §5 requires of one. Nothing counted
+    it and the hop number was indistinguishable from ordinary interleaving, so it
+    was **over-reach reading as coverage** where the one-hop walk was partial
+    coverage reading as complete. Measured against the export before it was
+    changed: **162 of 17,438** joined replies were the wrong turn's, none of them
+    one hop away. The spec axis of ``/code-review`` found it.
+
     ``seen`` is not a formality -- an export's ``children`` can point back up, and
     a walk with no visited set hangs rather than reporting anything.
     """
@@ -362,6 +378,10 @@ def reply_to(mapping, node_id) -> Reply | None:
             message = node.get("message")
             if isinstance(message, dict):
                 author = message.get("author") or {}
+                if author.get("role") == "user":
+                    # A later turn's reply is not this turn's reply. Not descending
+                    # is what makes a missing reply *missing* rather than wrong.
+                    continue
                 if author.get("role") == "assistant":
                     content = message.get("content") or {}
                     if content.get("content_type") in ("text", "multimodal_text"):
@@ -538,10 +558,27 @@ def format_report(scan: Scan, selection=None, joined=None, show=False) -> list[s
             "  whether a reply is a rewrite of the same content is a reading, and the "
             "join is a floor"
         )
+        # **His characters against the reply's, which is a count and so belongs
+        # here rather than behind ``--show``** -- #388's first comment asks for the
+        # direction of the smoothing pass to be *measurable* per pair rather than
+        # only readable, and putting it behind the PHI flag would have left it
+        # readable only.
+        his = sum(len(message.text) for message, _ in joined.records)
+        generic = sum(len(answer.text) for _, answer in joined.records)
+        longer = sum(1 for message, answer in joined.records if len(answer.text) > len(message.text))
+        lines.append(f"  his {his} character(s) against the replies' {generic}")
+        lines.append(
+            f"  the reply is longer in {longer} of {len(joined.records)} pair(s) -- a direction "
+            "and not a rewrite, since a reply that answers rather than smooths is longer too"
+        )
         if show:
             for message, answer in joined.records:
-                lines.append(f"    [{message.conversation_id}] HIS: {message.text}")
-                lines.append(f"    [{message.conversation_id}] REPLY: {answer.text}")
+                lines.append(
+                    f"    [{message.conversation_id}] HIS ({len(message.text)}): {message.text}"
+                )
+                lines.append(
+                    f"    [{message.conversation_id}] REPLY ({len(answer.text)}): {answer.text}"
+                )
     lines.append("")
     lines.append("== what a clean run does not establish")
     lines.extend(f"  - {limb}" for limb in NOT_REACHED)
@@ -617,10 +654,21 @@ def main(argv: list[str]) -> int:
             # `show=True`. The first version wrote the text to disk whether or not
             # `--show` was asked for, which put corpus text in a file on the
             # strength of a flag nobody passed.
-            target.write_text(
-                "\n".join(format_report(scan, selection, joined, show=parsed.show)),
-                encoding="utf-8",
-            )
+            try:
+                target.write_text(
+                    "\n".join(format_report(scan, selection, joined, show=parsed.show)),
+                    encoding="utf-8",
+                )
+            except OSError as why:
+                # **A write that fails takes the same path as a write that is
+                # refused**, on this module's own rule that a write problem is not
+                # a read problem -- the two behaving differently would need a
+                # reason and there is none. The first version let this escape
+                # `main`, so an absent parent directory or a locked file was a
+                # traceback and **exit 1**, which is this module's code for a
+                # finding about the corpus. `docx_write` carries the recorded
+                # precedent for an uncaught `OSError` at a write boundary.
+                refused = f"could not write {target}: {why}"
 
     print("\n".join(format_report(scan, selection, joined, show=parsed.show)))
     sys.stdout.flush()

@@ -476,6 +476,194 @@ class TheTextJoinIsOneHelper(unittest.TestCase):
         self.assertEqual(callers, {"classify_user_message", "reply_to"})
 
 
+class TheReplyWalkStopsAtTheNextQuestion(unittest.TestCase):
+    """A later turn's reply is not this turn's reply.
+
+    #388's defect was a one-hop walk reporting a floor that looked like a total.
+    **This is the same defect with the sign flipped**: descending through a user
+    node joins a request to the answer to a *different* message, which fails
+    ``voice.md`` §5's *same author, same claim, same audience* while counting as a
+    pair. Measured against the export before the rule changed: 162 of 17,438
+    joined replies were the wrong turn's.
+
+    The discriminating case needs an assistant node with **no text** between the
+    two questions, because that is what makes the walk keep going. With a
+    text-carrying reply in that slot the walk stops there anyway and the rule is
+    never exercised -- a test that passes for a reason other than the one beside
+    it is what a green run hides.
+    """
+
+    def interleaved(self):
+        return {
+            "u1": {"id": "u1", "children": ["a0"], "message": {
+                "author": {"role": "user"},
+                "content": {"content_type": "text", "parts": ["FIRST"]}}},
+            "a0": {"id": "a0", "children": ["u2"], "message": {
+                "author": {"role": "assistant"},
+                "content": {"content_type": "text", "parts": [""]}}},
+            "u2": {"id": "u2", "children": ["a2"], "message": {
+                "author": {"role": "user"},
+                "content": {"content_type": "text", "parts": ["SECOND"]}}},
+            "a2": {"id": "a2", "children": [], "message": {
+                "author": {"role": "assistant"},
+                "content": {"content_type": "text", "parts": ["answer to SECOND"]}}},
+        }
+
+    def test_the_next_questions_answer_is_not_borrowed(self):
+        self.assertIsNone(voice_corpus.reply_to(self.interleaved(), "u1"))
+
+    def test_the_next_question_still_gets_its_own(self):
+        """The rule narrows the first turn and must leave the second alone."""
+        answer = voice_corpus.reply_to(self.interleaved(), "u2")
+        self.assertEqual(answer.text, "answer to SECOND")
+        self.assertEqual(answer.hops, 1)
+
+    def test_a_tool_node_is_still_walked_through(self):
+        """Only a *user* node stops the descent; interleaving is the whole reason
+        the walk is breadth-first rather than one hop."""
+        mapping = {
+            "u1": {"id": "u1", "children": ["t"], "message": {
+                "author": {"role": "user"},
+                "content": {"content_type": "text", "parts": ["q"]}}},
+            "t": {"id": "t", "children": ["a"], "message": {
+                "author": {"role": "tool"},
+                "content": {"content_type": "text", "parts": ["tool output"]}}},
+            "a": {"id": "a", "children": [], "message": {
+                "author": {"role": "assistant"},
+                "content": {"content_type": "text", "parts": ["reply"]}}},
+        }
+        self.assertEqual(voice_corpus.reply_to(mapping, "u1").hops, 2)
+
+    def test_the_pair_report_counts_it_as_missing_rather_than_joining_it(self):
+        conv = {"conversation_id": "c1", "create_time": 1_700_000_000,
+                "mapping": self.interleaved()}
+        found = voice_corpus.pairs([conv], "FIRST")
+        self.assertEqual(found.records, [])
+        self.assertEqual(found.missing_reply, 1)
+
+
+class AFailedWriteIsNotAFailedRead(unittest.TestCase):
+    """``--out`` raising is not a finding about the corpus.
+
+    The first version let ``OSError`` escape ``main``: an absent parent directory
+    was a traceback and **exit 1**, which is this module's code for a finding --
+    and the report never printed at all, contradicting the docstring's *a refused
+    write is not a refused read*. ``docx_write`` carries the recorded precedent
+    for an uncaught ``OSError`` at a write boundary. **Both axes of
+    ``/code-review`` found this independently.**
+    """
+
+    def test_an_unwritable_target_leaves_the_report_standing(self):
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(message("user", "a"), message("assistant", "b"))])
+            target = Path(tmp) / "no-such-directory" / "mined.md"
+            status, out, err = run([str(path), "--out", str(target)])
+        self.assertEqual(status, CLEAN)
+        self.assertIn("could not write", err)
+        self.assertIn("user message(s)", out)
+        self.assertIn("what a clean run does not establish", out)
+
+
+class ThePairReportMeasuresTheDirection(unittest.TestCase):
+    """#388 comment 1: *each record now carries `his chars` and `generic chars`,
+    so the direction of the smoothing pass is measurable per pair rather than only
+    readable.* A character count is a count, so it belongs in the default report;
+    behind ``--show`` it would be readable only, which is what that sentence is
+    against."""
+
+    def scan(self):
+        conv = linear(message("user", "improve this"), message("assistant", "a much longer reply"))
+        return voice_corpus.partition([conv]), conv
+
+    def test_the_counts_are_in_the_default_report(self):
+        scan, conv = self.scan()
+        joined = voice_corpus.pairs([conv], "improve")
+        printed = chr(10).join(voice_corpus.format_report(scan, None, joined))
+        self.assertIn("character(s) against the replies'", printed)
+        self.assertIn("the reply is longer in 1 of 1 pair(s)", printed)
+
+    def test_the_default_report_still_carries_no_corpus_text(self):
+        scan, conv = self.scan()
+        joined = voice_corpus.pairs([conv], "improve")
+        printed = chr(10).join(voice_corpus.format_report(scan, None, joined))
+        self.assertNotIn("a much longer reply", printed)
+
+
+class EveryClassNamedIsAClassPrinted(unittest.TestCase):
+    """A class the report cannot print is a silent subtraction from the denominator.
+
+    ``format_report`` iterates ``KINDS``, and ``Scan.by_kind`` is a ``Counter``.
+    So a branch of ``classify_user_message`` returning a name ``KINDS`` does not
+    hold is **counted, never printed, and never reaches the exit status** -- while
+    ``test_the_classes_sum_to_the_population`` stays green, because the sum is
+    over the counter rather than over what was shown. That is *partial coverage
+    reading as complete*, which is the defect this module exists against, and it
+    would have arrived inside it.
+
+    By AST rather than by substring, on ``test_console_codec.py``'s instrument and
+    for its reason: this module's docstring names several of these strings in
+    prose, so a text search is satisfied by the paragraph explaining a class
+    rather than by the branch producing one.
+
+    **The ceiling is declared and it is the reason the walk refuses rather than
+    skips.** A first argument that is neither a literal nor a choice between two
+    literals -- a local variable, a lookup, a name -- is opaque here, and
+    ``tracker_bodies.grade`` carries the recorded instance of an assignment making
+    a completeness walk pass over a set containing nothing at all. So an
+    unreadable argument fails the test instead of being ignored.
+    """
+
+    def named_classes(self):
+        source = (REPO_ROOT / "tools" / "voice_corpus.py").read_text(encoding="utf-8")
+        found = set()
+        for node in ast.walk(ast.parse(source)):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+                continue
+            if node.func.id != "Classified" or not node.args:
+                continue
+            first = node.args[0]
+            options = [first.body, first.orelse] if isinstance(first, ast.IfExp) else [first]
+            for option in options:
+                self.assertIsInstance(
+                    option,
+                    ast.Constant,
+                    "a Classified(...) class name this walk cannot read is not a class "
+                    "it can vouch for -- name the string at the call site",
+                )
+                found.add(option.value)
+        return found
+
+    def test_the_walk_is_live(self):
+        """Asserting a clean tree proves only that the walk found nothing."""
+        named = self.named_classes()
+        self.assertGreaterEqual(len(named), 4)
+        self.assertIn("typed", named)
+        self.assertIn("unclassified", named)
+
+    def test_every_class_the_code_names_is_one_the_report_prints(self):
+        self.assertEqual(self.named_classes() - set(voice_corpus.KINDS), set())
+
+    def test_every_class_the_report_prints_is_one_the_code_names(self):
+        """The other direction, so a retired branch cannot leave a row that is
+        always zero and reads as a measured absence."""
+        self.assertEqual(set(voice_corpus.KINDS) - self.named_classes(), set())
+
+    def test_the_prose_classes_are_classes(self):
+        self.assertEqual(set(voice_corpus.PROSE_KINDS) - set(voice_corpus.KINDS), set())
+
+    def test_a_class_outside_kinds_would_be_counted_and_never_shown(self):
+        """The defect the walk exists for, driven rather than described."""
+        scan = voice_corpus.Scan(
+            population=voice_corpus.Population(1, 1, 1, {"user": 1}),
+            by_kind={"typed": 0, "smoke-signal": 1},
+            dated=[],
+            undated=0,
+            prose_chars=0,
+        )
+        printed = "\n".join(voice_corpus.format_report(scan))
+        self.assertNotIn("smoke-signal", printed)
+
+
 class CountsOnlyByDefault(unittest.TestCase):
     """``--show`` output is PHI; the default report is safe to paste.
 
