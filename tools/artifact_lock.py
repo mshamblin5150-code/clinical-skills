@@ -83,8 +83,20 @@ def _busy(artifact: Path, owner: str, *, reader: bool) -> ArtifactBusy:
     )
 
 
+def _record(stream: BinaryIO, action: str) -> None:
+    record = {
+        "action": action,
+        "pid": os.getpid(),
+        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    stream.seek(1)
+    stream.truncate()
+    stream.write(json.dumps(record, sort_keys=True).encode("utf-8"))
+    stream.flush()
+
+
 @contextmanager
-def _gate(path: Path) -> Iterator[None]:
+def _gate(path: Path, artifact: Path) -> Iterator[None]:
     """Serialize the short ownership handoff, never the artifact operation."""
     gate_path = path.with_suffix(".gate")
     with gate_path.open("a+b") as stream:
@@ -97,7 +109,7 @@ def _gate(path: Path) -> Iterator[None]:
             except (BlockingIOError, PermissionError):
                 if time.monotonic() >= deadline:
                     raise ArtifactBusy(
-                        "another task is choosing an owner for this shared artifact; "
+                        f"another task is choosing an owner for {artifact}; "
                         "retry immediately"
                     ) from None
                 time.sleep(0.001)
@@ -108,12 +120,12 @@ def _gate(path: Path) -> Iterator[None]:
 
 
 @contextmanager
-def _hold_read(artifact: Path, path: Path) -> Iterator[Path]:
+def _hold_read(artifact: Path, path: Path, action: str) -> Iterator[Path]:
     reader_path = path.with_name(
         f"{path.stem}.reader.{os.getpid()}.{uuid.uuid4().hex}"
     )
     reader = None
-    with _gate(path):
+    with _gate(path, artifact):
         with path.open("a+b") as writer:
             _prepare(writer)
             try:
@@ -127,6 +139,7 @@ def _hold_read(artifact: Path, path: Path) -> Iterator[Path]:
         try:
             _prepare(reader)
             _try_lock(reader)
+            _record(reader, action)
         except Exception:
             reader.close()
             reader_path.unlink(missing_ok=True)
@@ -135,7 +148,7 @@ def _hold_read(artifact: Path, path: Path) -> Iterator[Path]:
     try:
         yield path
     finally:
-        with _gate(path):
+        with _gate(path, artifact):
             if reader is not None:
                 _unlock(reader)
                 reader.close()
@@ -147,7 +160,7 @@ def _hold_write(artifact: Path, path: Path, action: str) -> Iterator[Path]:
     writer = path.open("a+b")
     _prepare(writer)
     try:
-        with _gate(path):
+        with _gate(path, artifact):
             try:
                 _try_lock(writer)
             except (BlockingIOError, PermissionError) as failure:
@@ -159,21 +172,14 @@ def _hold_write(artifact: Path, path: Path, action: str) -> Iterator[Path]:
                     try:
                         _try_lock(reader)
                     except (BlockingIOError, PermissionError) as failure:
+                        owner = _owner(reader)
                         _unlock(writer)
-                        raise _busy(artifact, "", reader=False) from failure
+                        raise _busy(artifact, owner, reader=False) from failure
                     else:
                         _unlock(reader)
                 reader_path.unlink(missing_ok=True)
 
-            record = {
-                "action": action,
-                "pid": os.getpid(),
-                "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            }
-            writer.seek(1)
-            writer.truncate()
-            writer.write(json.dumps(record, sort_keys=True).encode("utf-8"))
-            writer.flush()
+            _record(writer, action)
 
         try:
             yield path
@@ -196,7 +202,7 @@ def hold(
     artifact = Path(artifact).resolve()
     path = lock_path(artifact)
     path.parent.mkdir(parents=True, exist_ok=True)
-    holder = _hold_read(artifact, path) if mode == "read" else _hold_write(
+    holder = _hold_read(artifact, path, action) if mode == "read" else _hold_write(
         artifact, path, action
     )
     with holder:

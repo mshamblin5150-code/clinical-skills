@@ -1005,8 +1005,20 @@ class BuildCommandLineTests(TempCorpus):
         self.assertEqual(status, 2)
         self.assertIn("rebuilding or reading", err)
         self.assertIn(str(self.db), err)
+        self.assertIn("guideline search", err)
+        self.assertIn("process", err)
         self.assertIn("retry", err.lower())
         self.assertFalse(self.db.exists())
+
+    def test_a_busy_ownership_handoff_names_the_artifact(self):
+        path = artifact_lock.lock_path(self.db)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with artifact_lock._gate(path, self.db):
+            status, _, err = self.run_build([str(self.text_dir), str(self.db)])
+
+        self.assertEqual(status, 2)
+        self.assertIn(str(self.db), err)
+        self.assertIn("retry", err.lower())
 
     def test_a_task_that_dies_does_not_leave_the_index_permanently_locked(self):
         holder = subprocess.Popen(
