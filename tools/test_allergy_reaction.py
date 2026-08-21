@@ -501,7 +501,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
     #: The figures whose **verb the corpus also uses**, so a sentence carrying
     #: one is graded only where it names which population it counts.
     #:
-    #: Measured over both files rather than assumed, and the measurement is
+    #: Measured over the owner files rather than assumed, and the measurement is
     #: **re-derived by a test rather than stated here** --
     #: ``test_dropping_the_filter_admits_exactly_one_further_sentence``, which
     #: reads the files. Every other pattern names its own subject -- ``NKDA``,
@@ -510,15 +510,19 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
     #: filed over.
     SHARED_WITH_THE_CORPUS = frozenset({"allergy_clause"})
 
-    #: The documents this gate reads. **A list rather than a glob**, and the
-    #: coverage statement in ``figures_published_in`` is what makes that a
-    #: declared limit rather than a silent one. Whether it should be a glob is
-    #: [#275](https://github.com/mshamblin5150-code/clinical-skills/issues/275)'s
-    #: second question, the same fork
-    #: [#202](https://github.com/mshamblin5150-code/clinical-skills/issues/202)
-    #: is holding for the ``Sets`` column, and it is left open rather than
-    #: answered in passing.
-    GRADED_FILES = (SKILL, REPO_ROOT / "fixtures" / "day-b" / "assertions.md")
+    #: The documents that publish the allergy figures this gate owns. **An
+    #: explicit owner list rather than a glob**: #318 ruled that unrelated
+    #: figures belong to artifact-local equality checks, while every entry here
+    #: must produce a graded figure. #202's glob is appropriate for the
+    #: homogeneous ``Sets`` registry; it does not transfer to heterogeneous
+    #: prose and Python docstrings without reading historical records as live
+    #: claims.
+    GRADED_FILES = (REPO_ROOT / "fixtures" / "day-b" / "assertions.md",)
+
+    @staticmethod
+    def plain_text(path: Path) -> str:
+        """Markdown text with emphasis and code-span markers removed."""
+        return read(path).replace("*", "").replace("`", "")
 
     @classmethod
     def expected_figures(cls) -> dict[str, int]:
@@ -556,10 +560,10 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
 
         **What this covers, stated rather than implied.** It grades a figure
         written in one of the ``PUBLISHED`` phrasings, spelled in digits or in
-        one of ``WORD_NUMERALS``' words, in one of the **two files**
-        ``GRADED_FILES`` names. A figure written any other way, spelled in a word
+        one of ``WORD_NUMERALS``' words, in a file ``GRADED_FILES`` names. A
+        figure written any other way, spelled in a word
         that table does not hold, or published in any other file, is
-        **ungraded** -- so a clean run means those phrasings in those two files
+        **ungraded** -- so a clean run means those phrasings in those files
         and nothing else, and it has never meant *no stale figure*. That is
         [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)'s
         ruled arrangement arriving on a prose gate.
@@ -569,7 +573,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         and deliberately not counted here.** Keying on the quantity instead of
         the sentence inverts the wrong way: ``12`` is also day-b's encounter
         count and ``8`` is also the OLDCARTS element count, so it fires across
-        these two files on sites about other populations --
+        the owned files on sites about other populations --
         ``TheQuantityWouldNotHaveDisambiguated`` re-derives both collisions
         rather than asserting them. **A count of how many belongs to no
         sentence here**: three separate re-derivations of it during review gave
@@ -609,7 +613,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         """
         expected = self.expected_figures()
         for path in self.GRADED_FILES:
-            plain = read(path).replace("*", "").replace("`", "")
+            plain = self.plain_text(path)
             for key, value, sentence in self.figures_published_in(plain):
                 with self.subTest(path=path.name, figure=key):
                     self.assertEqual(
@@ -663,7 +667,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         a fresh match with this guard green, which is the defect the sibling was
         rewritten to close surviving next door to the rewrite.
         """
-        plain = read(self.GRADED_FILES[1]).replace("*", "").replace("`", "")
+        plain = self.plain_text(self.GRADED_FILES[0])
         return [
             sentence
             for sentence in re.split(r"(?<=[.])\s", plain)
@@ -702,7 +706,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         """
         sentences = []
         for path in self.GRADED_FILES:
-            plain = read(path).replace("*", "").replace("`", "")
+            plain = self.plain_text(path)
             sentences += [
                 sentence
                 for sentence in re.split(r"(?<=[.])\s", plain)
@@ -743,7 +747,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         """
         admitted = []
         for path in self.GRADED_FILES:
-            plain = read(path).replace("*", "").replace("`", "")
+            plain = self.plain_text(path)
             filtered = self.figures_published_in(plain)
             unfiltered = self.figures_published_in(plain, apply_corpus_filter=False)
             admitted += [hit for hit in unfiltered if hit not in filtered]
@@ -788,7 +792,7 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         stale figure about the committed inputs.
         """
         plain = "\n".join(
-            read(path).replace("*", "").replace("`", "") for path in self.GRADED_FILES
+            self.plain_text(path) for path in self.GRADED_FILES
         )
         for denominator, foreign in ((12, "twelve"), (8, "eight")):
             with self.subTest(denominator=denominator):
@@ -803,10 +807,10 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
     def test_a_figure_opening_a_sentence_is_still_read(self) -> None:
         """A word numeral is a figure wherever it sits, capital or not.
 
-        **Pointed at a shape the two files do not contain today**, on
+        **Pointed at a shape the owner files do not contain today**, on
         ``test_skill_agreement.py``'s reasoning: asserting the tree is clean
         proves only that the walk found nothing, and every graded figure in
-        both files happens to sit mid-sentence. So reverting the case rule
+        the owner files happens to sit mid-sentence. So reverting the case rule
         failed nothing, and the hole would have reappeared in silence the first
         time somebody opened a sentence with one.
 
@@ -876,17 +880,35 @@ class TheFixturesStillPoseTheQuestion(unittest.TestCase):
         **Per pattern, not per key.** Keyed on the label, a second phrasing for
         a figure already published another way could stop matching entirely and
         the check would stay green on its sibling -- found by the standards axis
-        of ``/code-review``. Scoped to **both** graded files rather than to
-        ``SKILL.md`` alone: the split is published in ``day-b/assertions.md``
-        under R6 and R7 and deliberately not restated in the skill.
+        of ``/code-review``. The split is published in
+        ``day-b/assertions.md`` under R6 and R7 and deliberately not restated
+        elsewhere.
         """
         plain = "\n".join(
-            read(path).replace("*", "").replace("`", "") for path in self.GRADED_FILES
+            self.plain_text(path) for path in self.GRADED_FILES
         )
         for key, patterns in self.PUBLISHED.items():
             for pattern in patterns:
                 with self.subTest(figure=key, pattern=pattern):
                     self.assertRegex(plain, pattern, f"{key} pattern unpublished")
+
+    def test_each_graded_file_owns_a_figure_this_gate_checks(self) -> None:
+        """An explicit owner list may not retain an inert document.
+
+        The gate is allergy-specific, not a repository-wide prose census. A
+        document belongs here only while it publishes one of this gate's
+        allergy figures; every other current figure is bound at its own
+        artifact. This is #318's artifact-local ruling made executable, so an
+        explicit list cannot quietly become a hand-kept inventory of files the
+        gate does not actually grade.
+        """
+        for path in self.GRADED_FILES:
+            plain = self.plain_text(path)
+            with self.subTest(path=path):
+                self.assertTrue(
+                    self.figures_published_in(plain),
+                    f"{path} publishes no allergy figure this gate grades",
+                )
 
     def test_no_committed_input_pairs_an_allergen_with_a_reaction(self) -> None:
         """The claim the whole ticket rests on, checked over every input.
