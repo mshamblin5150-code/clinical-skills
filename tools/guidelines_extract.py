@@ -315,6 +315,7 @@ still report nothing stripped.
 from __future__ import annotations
 
 import argparse
+import artifact_lock
 import artifact_provenance
 import json
 import os
@@ -1768,7 +1769,7 @@ WHY_OUTSIDE = (
 )
 
 
-def main(argv: list[str]) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("source", type=Path, help="directory holding the guideline PDFs")
     parser.add_argument(
@@ -1786,23 +1787,11 @@ def main(argv: list[str]) -> int:
         default=0,
         help="worker processes (default: one per CPU; 1 runs in this process)",
     )
-    args = parser.parse_args(argv)
+    return parser
 
-    if not args.source.is_dir():
-        raise SystemExit(f"not a directory: {args.source}")
 
-    source_root = args.source.resolve()
-    # Before the dependency check, not after it. Where the output lands is a
-    # question about the arguments alone, and answering it first means a
-    # machine with no PDF library still refuses a path inside a checkout --
-    # which is what lets the cross-check in `test_write_guards.py` drive this
-    # command line at all, since the suite installs nothing.
-    try:
-        out_root = ensure_outside_checkout(
-            args.out or default_output(source_root), detail=WHY_OUTSIDE
-        )
-    except InsideCheckout as refused:
-        raise SystemExit(str(refused)) from refused
+def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
+    """Extract one corpus while ``main`` owns its shared output lock."""
     require_pymupdf()
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
@@ -1927,6 +1916,31 @@ def main(argv: list[str]) -> int:
             print(f"  {record.source}: {record.error}")
         return 1
     return 0
+
+
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
+    if not args.source.is_dir():
+        raise SystemExit(f"not a directory: {args.source}")
+
+    source_root = args.source.resolve()
+    # Before the dependency check, not after it. Where the output lands is a
+    # question about the arguments alone, and answering it first means a
+    # machine with no PDF library still refuses a path inside a checkout --
+    # which is what lets the cross-check in `test_write_guards.py` drive this
+    # command line at all, since the suite installs nothing.
+    try:
+        out_root = ensure_outside_checkout(
+            args.out or default_output(source_root), detail=WHY_OUTSIDE
+        )
+    except InsideCheckout as refused:
+        raise SystemExit(str(refused)) from refused
+    try:
+        with artifact_lock.hold(out_root, "extracting guideline text"):
+            return _run(args, source_root, out_root)
+    except artifact_lock.ArtifactBusy as busy:
+        print(str(busy), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

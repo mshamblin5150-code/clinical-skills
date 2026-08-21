@@ -945,6 +945,8 @@ check that was never run is not.
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
 | the dose against the record that sourced it | every prescription table, and `scratch/case-study-claims.md` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
+| the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; and against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
+| the rendered document | the Markdown draft and the rendered `.docx`, page by page | a vision-capable reader: open or render every page, compare it page by page with the Markdown, and report clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
 | the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
@@ -1028,6 +1030,23 @@ states an endpoint and not whether the endpoint is defensible; the second is a r
 the amended ruling above, *A wrapper instruction that does not fit this patient is reasoned about*.
 Both stay a reader's, and the last of them is why `the house style` row's `clean` is not one a
 command can substitute for the walk.
+
+**`NOT_REACHED` declares the command's limits; ownership is assigned item by item. Ruled on
+[#306](https://github.com/mshamblin5150-code/clinical-skills/issues/306).** The clinical-decisions
+row owns endpoint defensibility, the PRN endpoint question and wrapper applicability. The rendered-
+document row owns what only the `.docx` pages can show. The welded-drug reading belongs to `the Rx
+blocks`; dose sourcing belongs to `the dose against the record that sourced it`; voice belongs to
+the voice-model walk below; and dose correctness remains deliberately prohibited. A limit stays in
+`case_study_scan.NOT_REACHED` even after a reader owns it, because the tuple says what **that
+command** cannot decide, not what the workflow ignores.
+
+**The two new checks are separate and both substantiate a `clean`.** Clinical judgment and visual
+layout read different evidence and need different capabilities, so one reader never discharges
+both. The clinical reader states which continuing and PRN orders and which wrapper instructions it
+walked. The vision-capable reader states that every rendered page was compared with the Markdown
+and names the layout surfaces it inspected. If the harness cannot render or view the `.docx`, that
+reader returns no verdict; the prewritten heading remains incomplete and the document is not
+submitted. A text-only reread of the Markdown cannot substitute for the visual check.
 
 **One reader per row, all of them at once, and none of them is the context that wrote the draft.**
 Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
@@ -1194,6 +1213,10 @@ Then walk this list, by eye — none of it is mechanical:
   went stale the moment #255 added one, which is the shape that table exists to keep out of prose.
   Whether the verdict is *right* is the one thing it cannot see, and that is what the readings
   above are.
+- Did the clinical-decisions reader compare the faculty material with the whole draft and account
+  for every continuing or PRN endpoint and every wrapper-only section?
+- Did a vision-capable reader compare every page of the rendered `.docx` with the Markdown draft,
+  with a substantiated verdict recorded under `the rendered document`?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
@@ -1210,4 +1233,7 @@ Then walk this list, by eye — none of it is mechanical:
 - Is the `PROPOSED` block complete, and is it out of the `.docx`?
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
-the page numbers land and the reference list hangs on its own page. It cannot read a differential.
+the page numbers land and the reference list hangs on its own page. It cannot read a differential,
+and it cannot see clipping, overlap, a bad break or a layout that is correct in XML and wrong on the
+page. The `the rendered document` reader is what turns the rendered file into a visually checked
+one; its substantiated verdict is required before submission.

@@ -11,11 +11,11 @@ name: tracker PHI shape layer
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened, edited, labeled]
   issue_comment:
     types: [created, edited]
   pull_request_target:
-    types: [opened, edited]
+    types: [opened, edited, closed]
   pull_request_review:
     types: [submitted, edited]
   pull_request_review_comment:
@@ -30,6 +30,7 @@ jobs:
     # A review submission may be only an approval state, with no public text.
     # There is then no record for this text scanner to read and no scan to fail.
     if: >-
+      github.event.action != 'closed' &&
       (github.event_name != 'pull_request_review' ||
        (github.event.review.body != null && github.event.review.body != '')) &&
       (github.event.action != 'edited' ||
@@ -55,3 +56,52 @@ jobs:
           @('### Tracker PHI scan coverage', '', '```', $report, '```') |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           exit $status
+
+      - name: Branch scope for in-flight issue text
+        if: >-
+          always() &&
+          (github.event_name == 'issues' || github.event_name == 'issue_comment')
+        run: >-
+          python tools/tracker_branch_scope.py
+          --github-event $env:GITHUB_EVENT_PATH
+          --event-name $env:GITHUB_EVENT_NAME
+
+  merge-receipts:
+    name: immutable ticket merge receipts
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      # The privileged event never executes pull-request code. The parser and
+      # workflow both come from the trusted default branch after the merge.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Publish one immutable receipt per explicitly referenced ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $plan = Join-Path $env:RUNNER_TEMP 'tracker-merge-receipts.jsonl'
+          gh pr view $env:PR_NUMBER --json number,url,title,body,baseRefName,mergedAt,mergeCommit,commits |
+            python tools/tracker_merge_receipt.py - |
+            Out-File -FilePath $plan -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content -LiteralPath $plan | ForEach-Object {
+            $receipt = $_ | ConvertFrom-Json
+            gh issue comment $receipt.ticket --body $receipt.body
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

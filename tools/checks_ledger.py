@@ -204,7 +204,7 @@ EXPECTED_CHECKS = (
     # ``the reference list``'s terms and for its reason: the rules are
     # mechanical, so the row is a command. Added on
     # [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277),
-    # and it is first because it is the only row that reads the whole draft.
+    # and it is first because it is the command row for the whole draft.
     "the house style",
     "the reference list",
     "the reference list, the part no command reaches",
@@ -218,6 +218,13 @@ EXPECTED_CHECKS = (
     # complete. Added on
     # [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299).
     "the dose against the record that sourced it",
+    # These are separate because the first is clinical judgment over the source
+    # material and draft while the second needs rendered pages and vision. A
+    # reader holding both jobs could return a partial walk as one complete one.
+    # Added on
+    # [#306](https://github.com/mshamblin5150-code/clinical-skills/issues/306).
+    "the clinical decisions no command reaches",
+    "the rendered document",
     "the faculty's own to-do list",
 )
 
@@ -244,6 +251,8 @@ SUBSTANTIATED_CLEAN = (
     "differential ordering",
     "MDM completeness",
     "the dose against the record that sourced it",
+    "the clinical decisions no command reaches",
+    "the rendered document",
 )
 
 CLEAN = "clean"

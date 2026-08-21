@@ -683,22 +683,25 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def setUpClass(cls):
         cls.skill = SKILL.read_text(encoding="utf-8")
 
+    def table_rows(self) -> list[list[str]]:
+        """The ``practicum-case-study`` step-9 check table, split once for every
+        column accessor."""
+        body = self.skill.split("### 9. Check", 1)[1]
+        lines = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
+        return [[cell.strip() for cell in line.split("|")[1:-1]] for line in lines[2:]]
+
     def table_checks(self) -> list[str]:
         """The first column of the check table in
         ``skills/practicum-case-study/SKILL.md`` step 9, which is the expected set."""
-        body = self.skill.split("### 9. Check", 1)[1]
-        rows = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
-        return [line.split("|")[1].strip() for line in rows[2:]]
+        return [row[0] for row in self.table_rows()]
 
     def table_substantiated(self) -> dict:
         """The check table's last column: does a ``clean`` on this row have to
         say what it examined? #255's column, and it is read the way the first
         one is."""
-        body = self.skill.split("### 9. Check", 1)[1]
-        rows = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
         return {
-            line.split("|")[1].strip(): line.split("|")[4].strip().lower().startswith("yes")
-            for line in rows[2:]
+            row[0]: row[3].lower().startswith("yes")
+            for row in self.table_rows()
         }
 
     def test_the_expected_set_is_the_tables_own_column(self):
@@ -718,9 +721,11 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     def table_reads(self) -> dict:
         """The check table's second column: what each row is pointed at."""
-        body = self.skill.split("### 9. Check", 1)[1]
-        rows = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
-        return {line.split("|")[1].strip(): line.split("|")[2].strip() for line in rows[2:]}
+        return {row[0]: row[1] for row in self.table_rows()}
+
+    def table_how(self) -> dict:
+        """The check table's third column: the complete brief each reader gets."""
+        return {row[0]: row[2] for row in self.table_rows()}
 
     def test_the_dose_row_is_pointed_at_the_ledger_as_well_as_the_draft(self):
         """#299's decision 2, pinned where it can fail.
@@ -749,6 +754,37 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("the dose against the record that sourced it", checks.EXPECTED_CHECKS)
         self.assertNotIn("the Rx blocks", checks.SUBSTANTIATED_CLEAN)
         self.assertIn("the dose against the record that sourced it", checks.SUBSTANTIATED_CLEAN)
+
+    def test_the_clinical_and_rendered_residue_have_separate_readers(self):
+        """#306 decision 2: clinical judgment and rendered layout are separate
+        jobs because they read different evidence and need different capabilities."""
+        clinical = "the clinical decisions no command reaches"
+        rendered = "the rendered document"
+        self.assertIn(clinical, checks.EXPECTED_CHECKS)
+        self.assertIn(rendered, checks.EXPECTED_CHECKS)
+        self.assertNotEqual(self.table_reads()[clinical], self.table_reads()[rendered])
+
+    def test_both_new_readers_have_to_substantiate_a_clean(self):
+        """#306 decision 3: neither expensive walk is discharged by a bare clean."""
+        self.assertIn("the clinical decisions no command reaches", checks.SUBSTANTIATED_CLEAN)
+        self.assertIn("the rendered document", checks.SUBSTANTIATED_CLEAN)
+
+    def test_the_clinical_reader_owns_the_named_clinical_residue(self):
+        """Bind the row to the command limits it was added to own, not merely to
+        a durable heading that could survive after its brief was narrowed away."""
+        brief = self.table_how()["the clinical decisions no command reaches"]
+        self.assertIn("whether a stop criterion's endpoint is the right endpoint", brief)
+        self.assertIn("whether a drug ordered PRN needs an endpoint of its own", brief)
+        self.assertIn("a wrapper section that does not apply to this patient", brief)
+        self.assertIn("Never whether a dose is correct", brief)
+
+    def test_the_rendered_reader_is_vision_capable_and_compares_both_artifacts(self):
+        """A text-only reread of the Markdown is the blind spot, not its remedy."""
+        name = "the rendered document"
+        self.assertIn("Markdown draft", self.table_reads()[name])
+        self.assertIn("rendered `.docx`", self.table_reads()[name])
+        self.assertIn("vision-capable reader", self.table_how()[name])
+        self.assertIn("page by page", self.table_how()[name])
 
     def test_the_skill_names_the_command(self):
         self.assertIn("python tools/checks_ledger.py scratch/case-study-checks.md", self.skill)
