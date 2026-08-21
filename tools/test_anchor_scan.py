@@ -19,6 +19,9 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import anchor_scan as scan
+from grader_conformance import for_module
+
+GraderConformance = for_module(scan)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"

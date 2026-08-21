@@ -9,6 +9,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import refusal_scan as scan
+from grader_conformance import for_module
+
+GraderConformance = for_module(scan)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

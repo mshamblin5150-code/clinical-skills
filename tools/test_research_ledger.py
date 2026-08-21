@@ -35,6 +35,9 @@ import checks_ledger
 import docx_write
 import reference_scan
 import research_ledger as ledger
+from grader_conformance import for_module
+
+GraderConformance = for_module(ledger)
 import run_grader
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

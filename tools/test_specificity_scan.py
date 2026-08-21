@@ -25,6 +25,9 @@ import unittest
 from pathlib import Path
 
 import specificity_scan as scan
+from grader_conformance import for_module
+
+GraderConformance = for_module(scan)
 from icd10_lookup import describe, normalize, notes_for, open_database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

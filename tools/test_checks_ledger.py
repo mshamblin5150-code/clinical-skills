@@ -32,6 +32,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import checks_ledger as checks
+from grader_conformance import for_module
+
+GraderConformance = for_module(checks)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"

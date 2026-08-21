@@ -38,6 +38,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import case_study_scan as scan
+from grader_conformance import for_module
+
+GraderConformance = for_module(scan)
 import docx_write
 import research_ledger
 
