@@ -32,9 +32,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import artifact_lock
+import artifact_provenance
 import guidelines_extract as extract
 import uspstf_table as ut
-import artifact_provenance
 
 
 def clean_producer():
@@ -113,6 +114,20 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             self.assertEqual(allowed, 0)
             self.assertIn("untrusted", err.getvalue())
             self.assertTrue(out_path.is_file())
+
+    def test_the_command_does_not_read_an_extraction_in_progress(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            text_dir = root / "text"
+            out, err = io.StringIO(), io.StringIO()
+            with artifact_lock.hold(
+                text_dir, "guideline extraction"
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = ut.main([str(text_dir), "--out", str(root / "uspstf.md")])
+
+            self.assertEqual(status, 2)
+            self.assertIn("another task is rebuilding", err.getvalue())
+            self.assertIn(str(text_dir.resolve()), err.getvalue())
 
     def test_build_reads_uspstf_text_and_title_from_the_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -55,6 +55,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import artifact_lock
 from console_codec import use_utf8
 from guidelines_extract import CLASSES, publication_year_page_counts
 from guidelines_index import read_extracted_corpus
@@ -910,9 +911,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.draft:
         src = Path(args.draft)
-        if not src.is_dir():
-            print(f"no extracted corpus at {src}", file=sys.stderr)
-            return 2
         try:
             docs = read_corpus(
                 src,
@@ -942,20 +940,20 @@ def main(argv: list[str] | None = None) -> int:
     audit_failures = check_audit(rows, audit_documents, readings, rulings)
 
     text_src = Path(args.src)
-    if text_src.is_dir():
-        try:
-            docs = read_corpus(
-                text_src,
-                allow_untrusted_provenance=args.allow_untrusted_provenance,
-            )
-        except ValueError as unusable:
+    try:
+        docs = read_corpus(
+            text_src,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+        )
+    except ValueError as unusable:
+        if isinstance(unusable, artifact_lock.ArtifactBusy) or text_src.exists():
             print(str(unusable), file=sys.stderr)
             return 2
-        mechanical_failures = check(rows, unsettled_index, docs)
-        scope = f"{len(rows)} row(s) against {text_src}"
-    else:
         mechanical_failures = check_shape(rows, unsettled_index)
         scope = f"{len(rows)} row(s), shape only (no extracted corpus at {text_src})"
+    else:
+        mechanical_failures = check(rows, unsettled_index, docs)
+        scope = f"{len(rows)} row(s) against {text_src}"
 
     pdf_src = Path(args.pdf_src)
     if pdf_src.is_dir():
