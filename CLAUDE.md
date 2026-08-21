@@ -963,6 +963,16 @@ Covered by `tools/test_cdc_percentile.py`, which tests the calculator against CD
 The 179 society guideline PDFs are the source for everything in the #80 series, and nothing downstream reads a PDF — they read the `.txt` this produces.
 
 ```bash
+python tools/guidelines_build.py "C:/codeing/guidelines-src"
+```
+
+**The content-addressed command is the ordinary production entry point.** It hashes the source PDFs, the producing code, relevant runtime versions, schemas, configuration and byte-changing options before it launches either producer. A verified hit returns an immutable completed extraction or index without parsing the PDFs again. Extraction and indexing have separate identities, so an index change does not force another PDF pass. The catalog is one atomically replaced JSON file under `CLINICAL_GUIDELINES_BUILDS`, or `<parent of the main checkout>/guidelines-builds` by default; completed builds have no automatic retention cleanup. A dirty checkout may consume a verified hit and may build private development output through the lower-level tools, but it cannot publish a catalog miss.
+
+The selected builds are copied atomically to the established extracted-text and index paths for existing consumers. Those compatibility paths are never cache truth: each cache hit verifies the immutable artifact's SHA-256 inventory first. A missing or damaged catalog target is removed from selection and rebuilt, a damaged directory is preserved under the catalog root's `quarantine/`, and a completed artifact left behind by an interrupted registration is verified and registered on the next run. Publication and catalog mutation retain #276's nonblocking ownership and retry behavior.
+
+The lower-level extractor remains available for development and a deliberately uncached rebuild:
+
+```bash
 python tools/guidelines_extract.py "C:/codeing/guidelines-src"
 ```
 
@@ -1167,7 +1177,7 @@ python tools/guidelines_search.py "urine culture" "urine cultures"
 
 Both are **stdlib only, and neither opens a PDF** — FTS5 is compiled into the `sqlite3` that ships with Python, so querying costs no dependency. This pair reads #80's extracted text rather than re-extracting, and **so do the catalog, the USPSTF table, and `threshold_sheet.py`'s WATERMARK gate**. The last reads `manifest.json` for the strings #80 stripped and each document's `.txt` to decide which of them can serve as a probe; the first two joined that side of the boundary on [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108).
 
-The index build now requires that manifest and refuses it unless its producer was clean and its extractor still matches the checkout running the command. An exact producer commit passes; an artifact from an ancestor of `HEAD` or either side of a merge also passes only when `tools/guidelines_extract.py` is unchanged in the consuming tree. The search keeps the exact-commit rule for the SQLite `meta` record before answering. The catalog, USPSTF generator, and WATERMARK gate validate through the shared manifest reader, so no direct consumer bypasses the ownership check. Each command accepts the same explicit `--allow-untrusted-provenance` escape hatch; normal runs and the pre-commit hook do not pass it.
+The index build now requires that manifest and refuses it unless its producer was clean and its extractor still matches the checkout running the command. An exact producer commit passes; an artifact from an ancestor of `HEAD` or either side of a merge also passes only when `tools/guidelines_extract.py` is unchanged in the consuming tree. A content-addressed build from an unrelated commit passes only when its explicit producer-file fingerprints match the current extractor or index; the commit remains lineage metadata rather than forcing a rebuild for an unrelated repository change. The catalog, USPSTF generator, WATERMARK gate and search validate those same provenance records, so no direct consumer bypasses the ownership check. Each lower-level command accepts the same explicit `--allow-untrusted-provenance` escape hatch; normal runs and the pre-commit hook do not pass it.
 
 **Keyword search rather than embeddings, and that was decided rather than defaulted into.** A full-text hit is a literal string on a literal page, checkable in one jump. An embedding hit is a similarity score, and in a repo where `ANCHOR` means *quote the text or it is not a code*, similarity is the wrong currency. Nine societies with overlapping scope spanning 2009 to 2026 means a fuzzy match can return the right concept from the wrong society, wrong year or wrong population **with a citation attached**, and more documents makes that likelier rather than less.
 
