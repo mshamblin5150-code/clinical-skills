@@ -1846,7 +1846,7 @@ class WatermarkGate(unittest.TestCase):
         self.assertEqual(rendered, 0)
         self.assertEqual(unprobed, [])
         self.assertIn("another task is rebuilding", skip)
-        self.assertIn(str(text_root), skip)
+        self.assertIn(str(text_root.resolve()), skip)
 
     def test_a_snippet_carrying_a_stripped_running_head_is_refused(self):
         text_corpus(

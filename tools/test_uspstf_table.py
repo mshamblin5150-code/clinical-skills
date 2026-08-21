@@ -127,7 +127,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
 
             self.assertEqual(status, 2)
             self.assertIn("another task is rebuilding", err.getvalue())
-            self.assertIn(str(text_dir), err.getvalue())
+            self.assertIn(str(text_dir.resolve()), err.getvalue())
 
     def test_build_reads_uspstf_text_and_title_from_the_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -166,7 +166,7 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
 
             self.assertEqual(status, 2)
             self.assertIn("another task is rebuilding", err.getvalue())
-            self.assertIn(str(text_dir), err.getvalue())
+            self.assertIn(str(text_dir.resolve()), err.getvalue())
 
     def test_two_read_commands_can_share_one_completed_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:
