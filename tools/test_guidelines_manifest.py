@@ -222,6 +222,19 @@ class ManifestReadingTests(unittest.TestCase):
             any("must be Society/one.txt" in problem.message for problem in result.problems)
         )
 
+    def test_read_rejects_matching_document_and_output_traversal(self):
+        outside = self.root.parent / "outside.txt"
+        outside.write_text("outside", encoding="utf-8")
+        self.addCleanup(outside.unlink, missing_ok=True)
+        self.write([self.entry(doc_id="../outside", output="../outside.txt")])
+
+        result = manifest.read(self.root)
+
+        self.assertEqual(result.documents, {})
+        self.assertTrue(
+            any("safe relative path" in problem.message for problem in result.problems)
+        )
+
     def test_read_turns_a_malformed_field_type_into_a_problem(self):
         self.write([self.entry(output=["Society/one.txt"])])
 

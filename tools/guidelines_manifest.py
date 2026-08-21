@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field, fields
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import artifact_lock
@@ -246,8 +246,19 @@ def _read_locked(
             problems.append(Problem(f"an entry in {path} carries no 'doc_id'"))
             continue
         saw_key = True
-        doc_id = normalize_doc_id(entry["doc_id"])
+        raw_doc_id = entry["doc_id"].replace("\\", "/")
+        doc_id = normalize_doc_id(raw_doc_id)
         raw_entries[doc_id] = entry
+        if (
+            raw_doc_id.startswith("/")
+            or PureWindowsPath(raw_doc_id).is_absolute()
+            or bool(PureWindowsPath(raw_doc_id).drive)
+            or any(part in {".", ".."} for part in raw_doc_id.split("/"))
+        ):
+            problems.append(
+                Problem(f"{doc_id}: document ID must be a safe relative path", doc_id)
+            )
+            continue
         if doc_id in documents:
             problems.append(Problem("manifest carries a duplicate document", doc_id))
             continue
@@ -283,7 +294,14 @@ def _read_locked(
                 )
             )
             continue
-        body_path = root / Path(*normalized_output.split("/"))
+        body_path = (root / Path(*normalized_output.split("/"))).resolve()
+        try:
+            body_path.relative_to(root)
+        except ValueError:
+            problems.append(
+                Problem(f"{doc_id}: output must remain inside the extracted corpus", doc_id)
+            )
+            continue
         if not body_path.is_file():
             problems.append(Problem(f"{doc_id}: extracted text is missing: {record.output}", doc_id))
             continue
