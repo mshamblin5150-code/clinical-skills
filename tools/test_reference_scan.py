@@ -129,10 +129,12 @@ class TheParserReadsTheListTheRendererWouldRender(unittest.TestCase):
         paragraphs in its subset, so they and the entry below them remain inside
         the reference list rather than closing it.
         """
-        for depth in range(1, 7):
+        styled_entries_by_depth = (1, 1, 1, 1, 3, 3)
+        for depth, expected in enumerate(styled_entries_by_depth, start=1):
             text = draft(ACOG) + "\n" + "#" * depth + " Note\n\n" + UPTODATE + "\n"
             with self.subTest(depth=depth):
                 styled = docx_write.body_xml(text).count('w:val="Reference"')
+                self.assertEqual(styled, expected)
                 self.assertEqual(styled, len(scan.read_document(text).entries))
 
 
