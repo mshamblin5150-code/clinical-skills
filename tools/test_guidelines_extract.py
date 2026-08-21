@@ -465,6 +465,29 @@ class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
                 with self.subTest(font=font, glyph=glyph):
                     self.assertFalse(glyph.isalnum(), f"{font} maps {glyph!r}")
 
+    def test_ticket_283s_named_font_glyphs_stay_report_only(self):
+        """#283 ruled that non-threshold symbols stay in the census and out of
+        the replacement table. Copyright signs, arrows stored in letter slots,
+        and an equals sign stored in a C0 slot forced the ruling. The census runs
+        before normalization discards the C0 slot, so report-only does not become
+        invisible."""
+        cases = (
+            ("AdvPSSym", "\u00aa"),
+            ("AdvPSSym", "\u0001"),
+            ("SymbolMT", "n"),
+            ("SymbolMT", "p"),
+            ("Universal-GreekwithMathP", "\u0002"),
+        )
+        for font, glyph in cases:
+            with self.subTest(font=font, glyph=f"U+{ord(glyph):04X}"):
+                self.assertNotIn(glyph, extract.SYMBOL_FONT_OPERATORS.get(font, {}))
+                self.assertEqual(
+                    extract.symbol_glyph_census(
+                        rawline(glyph, 9.0, [0.0], font=font)
+                    ),
+                    {f"{font} U+{ord(glyph):04X}": 1},
+                )
+
     def test_nothing_a_correct_font_emits_is_mapped(self):
         """``SymbolMT`` gets ``<=`` and ``>=`` right 2,078 times in this same
         corpus under this same font name, in other documents. So the table may only
