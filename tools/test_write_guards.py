@@ -20,10 +20,11 @@ optional (*"if that is judged worth doing"*), keyed on what the ticket is
 actually about: not that every writer takes a guard, but that nobody
 re-implements the rule.
 
-**And the divergences that survive are declared here rather than discovered.**
+**And the divergences that survive are intentional rather than discovered.**
 Three of them: one module blesses a directory inside a checkout, one returns a
 reason string instead of raising, and the command lines do not agree on the exit
-status a refusal produces. Each is argued where it lives; this file is where a
+status a refusal produces. #303 ruled that each command keeps the status its own
+boundary gives the refusal. Each is argued where it lives; this file is where a
 reader finds out they exist.
 """
 
@@ -243,12 +244,14 @@ class EveryWriteSiteReachesTheSameVerdict(unittest.TestCase):
         self.assert_all(self.tree.root / "elsewhere", False)
 
 
-class TheDeclaredDivergences(unittest.TestCase):
-    """What the consolidation did not make uniform, said out loud.
+class TheIntentionalDivergences(unittest.TestCase):
+    """What the consolidation deliberately did not make uniform, said out loud.
 
-    Declared here so a reader of *one rule for every writer* is corrected by a
-    test rather than by a surprise, and so widening any of the three has to
-    answer for it in a diff.
+    #303 kept each command's existing status because the status belongs to the
+    command's run contract, not to the shared library refusal. Declared here so
+    a reader of *one rule for every writer* is corrected by a test rather than
+    by a surprise, and so widening any of the three has to answer for it in a
+    diff.
     """
 
     def setUp(self):
@@ -283,16 +286,17 @@ class TheDeclaredDivergences(unittest.TestCase):
         self.assertIsInstance(reason, str)
         self.assertIn("checkout", reason)
 
-    def test_the_command_lines_do_not_agree_on_the_exit_status(self):
-        """**The one thing the ticket asked for that consolidating could not
-        give.** ``guidelines_extract`` and ``guidelines_recs`` convert the
+    def test_each_command_keeps_its_own_exit_status(self):
+        """**A shared refusal does not imply a shared command status.**
+        ``guidelines_extract`` and ``guidelines_recs`` convert the
         refusal to ``SystemExit``, which is 1; ``guidelines_index`` lets it reach
         ``main``'s existing ``ValueError`` handler, which returns 2 on this
-        repo's *did not scan* convention. Both readings are defensible -- a
-        refusal is an argument fault, and it is also a build that did not happen
-        -- and each was the site's behavior before the consolidation, so
-        converging them would have been a second ruling smuggled in under this
-        one. Pinned rather than fixed, so the next author finds it stated.
+        command's *did not scan* convention. #303 ruled the divergence
+        intentional: exit status is part of each command's run contract, and
+        other consumers already show that one shared refusal naturally reaches
+        different command boundaries differently. ``name_index`` remains the
+        explicit exception to any convergence because its status 1 reports the
+        shortfall the completed scan found, not the refused write by itself.
         """
         inside = self.tree.clone / "reference"
 
