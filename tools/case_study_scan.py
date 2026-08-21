@@ -90,7 +90,7 @@ from enum import Enum
 from pathlib import Path
 
 import docx_write
-from console_codec import use_utf8
+import run_grader
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -238,24 +238,12 @@ SIGNATURE_DATE_SPLIT = "signature-date-split"
 RX_TABLE_SHAPE = "rx-table-shape"
 NO_STOP_CRITERION = "no-stop-criterion"
 
-KINDS = (
-    BULLET_MARKER,
-    INTAKE_TABLE,
-    ROS_NO_CLOSER,
-    EXAM_CLAIMS_UNEXAMINED,
-    SCAFFOLDING_PHRASE,
-    DIAGNOSIS_ALL_BOLD,
-    SIGNATURE_DATE_SPLIT,
-    RX_TABLE_SHAPE,
-    NO_STOP_CRITERION,
-)
-
 # Where each row's rule is written, so a reader knows which file to open. Keyed
 # rather than built from ``KINDS``, on ``checks_ledger.ROW_TICKET``'s reasoning: a
 # comprehension would assign a section to the next row automatically, so the map
 # could never fail and the claim that a row cannot arrive without a written rule
 # would be a claim about code that does not check it.
-ROW_RULE = {
+ROWS = {
     BULLET_MARKER: "style.md 1a, SKILL.md - never bullets, anywhere",
     INTAKE_TABLE: "style.md 1a - defined fields, never a table",
     ROS_NO_CLOSER: "style.md 1a - the ROS closes with the disclaimer",
@@ -266,6 +254,7 @@ ROW_RULE = {
     RX_TABLE_SHAPE: "style.md 8 - six rows, three columns wide",
     NO_STOP_CRITERION: "style.md 8 - a drug that continues carries its stop criterion",
 }
+KINDS = tuple(ROWS)
 
 # **What no row here reaches, named rather than left to be discovered.**
 # ``skills/practicum-case-study/SKILL.md`` step 9 names the same items and a test
@@ -342,16 +331,13 @@ def section_owner(sections: list) -> dict:
     return owner
 
 
-class Finding:
+@dataclass(frozen=True)
+class Finding(run_grader.Finding):
     """One defect. ``what`` is body prose on most rows, which is why ``--show`` is PHI."""
 
-    __slots__ = ("kind", "where", "line", "what")
-
-    def __init__(self, kind: str, where: str, line: int, what: str = ""):
-        self.kind = kind
-        self.where = where
-        self.line = line
-        self.what = what
+    where: str
+    line: int
+    what: str = ""
 
 
 class Section:
@@ -755,7 +741,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
                     "    line {l} in {w}: {t}".format(l=finding.line, w=finding.where, t=finding.what)
                 )
         elif hits:
-            lines.append("      {r}".format(r=ROW_RULE[kind]))
+            lines.append("      {r}".format(r=ROWS[kind]))
     if scan.skeleton_unread:
         lines.append("")
         lines.append("SKILL.md was not read, so the skeleton this grades against is unchecked")
@@ -774,35 +760,21 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def parse_args(argv: list[str]) -> tuple[str | None, bool, str | None]:
-    source = None
-    show = False
-    for argument in argv:
-        if argument == "--show":
-            show = True
-        elif argument.startswith("-"):
-            return None, False, "unknown option {a!r}".format(a=argument)
-        elif source is None:
-            source = argument
-        else:
-            return None, False, "one draft at a time"
-    return source, show, None
+@dataclass(frozen=True)
+class Source:
+    name: str
+    markdown: str
+    skill_text: str | None
 
 
-def main(argv: list[str]) -> int:
-    source, show, error = parse_args(argv)
-    if error:
-        print("case_study_scan.py: {e}".format(e=error), file=sys.stderr)
-        return 2
-    if source is None:
-        print("usage: python tools/case_study_scan.py <a draft .md> [--show]", file=sys.stderr)
-        return 2
-    path = Path(source)
+def _load(parsed: run_grader.Parsed) -> Source:
+    path = Path(parsed.source)
     try:
         markdown = path.read_text(encoding="utf-8", errors="replace")
     except OSError as failure:
-        print("case_study_scan.py: cannot read {s}: {f}".format(s=source, f=failure), file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(
+            "case_study_scan.py: cannot read {s}: {f}".format(s=parsed.source, f=failure)
+        ) from failure
 
     try:
         skill_text = SKILL.read_text(encoding="utf-8", errors="replace")
@@ -811,15 +783,32 @@ def main(argv: list[str]) -> int:
         # reporting a check that did not run as one that passed.
         skill_text = None
 
-    scan = survey(markdown, skill_text)
-    print(format_report(scan, source, show=show))
-    if scan.findings:
-        return 1
-    if scan.no_section or scan.skeleton_disagreement or scan.skeleton_unread:
-        return 2
-    return 0
+    return Source(parsed.source, markdown, skill_text)
+
+
+def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scan = survey(source.markdown, source.skill_text)
+    return run_grader.Grade(
+        scan=scan,
+        source=source.name,
+        findings_failed=bool(scan.findings),
+        coverage_failed=scan.no_section or bool(scan.skeleton_disagreement) or scan.skeleton_unread,
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: python tools/case_study_scan.py <a draft .md> [--show]",
+    options=(run_grader.Option("--show"),),
+    load=_load,
+    grade=_grade,
+    format_report=format_report,
+    parse_error=lambda message: "case_study_scan.py: {e}".format(e=message),
+)
+
+
+def main(argv: list[str]) -> int:
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

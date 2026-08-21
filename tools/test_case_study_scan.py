@@ -887,7 +887,7 @@ class EveryRowIsDeclared(unittest.TestCase):
         self.assertGreaterEqual(len(self.finding_kinds()), len(scan.KINDS))
 
     def test_every_row_names_where_its_rule_is_written(self):
-        self.assertEqual(sorted(scan.ROW_RULE), sorted(scan.KINDS))
+        self.assertEqual(sorted(scan.ROWS), sorted(scan.KINDS))
 
     def test_kinds_has_no_duplicates(self):
         self.assertEqual(len(set(scan.KINDS)), len(scan.KINDS))
