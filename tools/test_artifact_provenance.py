@@ -80,6 +80,29 @@ class MergeParentTrustTests(unittest.TestCase):
                 unchanged_paths=("tools/guidelines_extract.py",),
             )
 
+    def test_an_artifact_from_head_is_refused_when_the_merge_changes_its_extractor(self):
+        (self.repo / "tools" / "guidelines_extract.py").write_text(
+            "EXTRACTOR = 'changed on main'\n", encoding="utf-8"
+        )
+        self._git("add", "tools/guidelines_extract.py")
+        self._git("commit", "-m", "change extractor on main")
+        self._git("switch", "feature")
+        (self.repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        self._git("add", "feature.txt")
+        self._git("commit", "-m", "feature work")
+        current_parent = self._git("rev-parse", "HEAD")
+        self._git("merge", "--no-commit", "--no-ff", "main")
+
+        with self.assertRaisesRegex(
+            artifact_provenance.UntrustedProvenance, "producer code has changed"
+        ):
+            artifact_provenance.check_producer(
+                {"commit": current_parent, "dirty": False},
+                self.repo / "manifest.json",
+                repo_root=self.repo,
+                unchanged_paths=("tools/guidelines_extract.py",),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

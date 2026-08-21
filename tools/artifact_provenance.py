@@ -54,7 +54,7 @@ def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
     return {"commit": commit, "dirty": dirty}
 
 
-def _trusted_ancestor(commit: str, repo_root: Path) -> bool:
+def _is_checkout_ancestor(commit: str, repo_root: Path) -> bool:
     """Whether ``commit`` belongs to either side of the checkout's live history."""
     candidates = ["HEAD", "MERGE_HEAD"]
     return any(
@@ -104,11 +104,18 @@ def check_producer(
             isinstance(commit, str)
             and bool(commit)
             and bool(unchanged_paths)
-            and _trusted_ancestor(commit, repo_root)
+            and _is_checkout_ancestor(commit, repo_root)
             and _paths_unchanged(commit, unchanged_paths, repo_root)
         )
         if isinstance(commit, str) and commit and commit != expected and not unchanged_ancestor:
             reasons.append(f"was produced by a different commit ({commit}; current is {expected})")
+        if (
+            isinstance(commit, str)
+            and commit == expected
+            and unchanged_paths
+            and not _paths_unchanged(commit, unchanged_paths, repo_root)
+        ):
+            reasons.append("producer code has changed since the artifact was built")
         if dirty is True:
             reasons.append("was produced by a dirty checkout")
         if isinstance(commit, str) and commit and isinstance(dirty, bool):
