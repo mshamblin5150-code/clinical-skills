@@ -8,6 +8,8 @@ import io
 import json
 import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -281,6 +283,23 @@ class TrustingDirtyConsumersButNotPublishers(BuildCommandCase):
         self.assertEqual(len(catalog["artifacts"]["extraction"]), 1)
         self.assertEqual(len(catalog["artifacts"]["index"]), 1)
 
+    def test_a_dirty_checkout_does_not_register_a_clean_orphan(self):
+        self.assertEqual(self.run_command(), 0)
+        catalog_path = self.catalog_root / "catalog.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        catalog["artifacts"]["extraction"] = {}
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+        dirty = {"commit": "a" * 40, "dirty": True}
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(self.run_command(producer=dirty), 2)
+
+        repaired = json.loads(catalog_path.read_text(encoding="utf-8"))
+        self.assertEqual(repaired["artifacts"]["extraction"], {})
+        self.assertEqual(
+            self.launches, ["guidelines_extract.py", "guidelines_index.py"]
+        )
+
     def test_a_dirty_orphan_is_not_adopted_as_a_trusted_build(self):
         self.assertEqual(self.run_command(), 0)
         catalog_path = self.catalog_root / "catalog.json"
@@ -335,7 +354,8 @@ class RecoveringAMissingArtifact(BuildCommandCase):
 
 class RejectingADamagedArtifact(BuildCommandCase):
     def test_a_hash_mismatch_is_quarantined_and_rebuilt(self):
-        self.assertEqual(self.run_command(), 0)
+        next_commit = {"commit": "b" * 40, "dirty": False}
+        self.assertEqual(self.run_command(producer=next_commit), 0)
         catalog = json.loads(
             (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
         )
@@ -375,6 +395,86 @@ class RefusingConcurrentOwnership(BuildCommandCase):
 
         self.assertEqual(self.launches, [])
         self.assertIn("retry after that task finishes", stderr.getvalue())
+
+
+class CleaningIncompleteBuilds(BuildCommandCase):
+    def test_a_verified_hit_removes_an_incomplete_sibling(self):
+        self.assertEqual(self.run_command(), 0)
+        catalog = json.loads(
+            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
+        )
+        key = next(iter(catalog["artifacts"]["extraction"]))
+        partial = (
+            self.catalog_root
+            / "artifacts"
+            / "extraction"
+            / f".{key}.interrupted.building"
+        )
+        partial.mkdir()
+
+        self.assertEqual(self.run_command(), 0)
+
+        self.assertFalse(partial.exists())
+
+
+class DetectingSourceChangesDuringProduction(BuildCommandCase):
+    def test_a_source_change_during_extraction_is_not_registered(self):
+        original = self.produce
+
+        def changing_source(command: list[str], **options: object) -> mock.Mock:
+            result = original(command, **options)
+            if Path(command[1]).name == "guidelines_extract.py":
+                self.pdf.write_bytes(b"changed while extraction was running")
+            return result
+
+        stderr = io.StringIO()
+        with (
+            mock.patch(
+                "guidelines_build.subprocess.run", side_effect=changing_source
+            ),
+            mock.patch(
+                "guidelines_build.artifact_provenance.current_producer",
+                return_value=self.producer,
+            ),
+            contextlib.redirect_stdout(self.stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(guidelines_build.main(self.arguments), 2)
+
+        self.assertIn("source files changed during extraction", stderr.getvalue())
+        self.assertFalse((self.catalog_root / "catalog.json").exists())
+
+
+class RunningCompetingCommands(BuildCommandCase):
+    def test_competing_hits_leave_one_valid_catalog(self):
+        self.assertEqual(self.run_command(), 0)
+        command = [
+            sys.executable,
+            str(Path(guidelines_build.__file__)),
+            *self.arguments,
+        ]
+        processes = [
+            subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            for _ in range(2)
+        ]
+        completed = [process.communicate(timeout=20) for process in processes]
+        statuses = [process.returncode for process in processes]
+
+        self.assertTrue(any(status == 0 for status in statuses), completed)
+        self.assertTrue(all(status in {0, 2} for status in statuses), completed)
+        catalog = json.loads(
+            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(catalog["artifacts"]["extraction"]), 1)
+        self.assertEqual(len(catalog["artifacts"]["index"]), 1)
+        self.assertEqual(list(self.catalog_root.glob("*.building")), [])
 
     def test_a_competing_artifact_writer_prevents_duplicate_work(self):
         identity = guidelines_build.extraction_identity(self.source)

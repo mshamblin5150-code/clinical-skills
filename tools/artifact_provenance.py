@@ -1,9 +1,10 @@
 """Identity and trust checks for shared, out-of-repo build artifacts.
 
-A clean artifact is reusable at a descendant commit when its caller names the files
-that produced it and those files are unchanged. During a merge, either parent is a
-valid ancestor; the comparison is still against the merged working tree, so a
-changed producer cannot pass through the second parent.
+A clean artifact is reusable when its caller names the files that produced it and
+those files are unchanged. Legacy stamps establish that through an ancestor commit;
+content-addressed stamps carry the exact producer-file hashes, so unrelated commits
+with identical producer inputs can reuse the same verified artifact. During a merge,
+either parent is a valid ancestor and comparison remains against the merged tree.
 """
 
 from __future__ import annotations

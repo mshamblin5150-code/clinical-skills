@@ -3,9 +3,9 @@
     python tools/guidelines_build.py <source-folder>
 
 Completed builds live outside every checkout under immutable identities. The
-catalog is only a directory: every hit is verified against the artifact's own
-SHA-256 inventory before it is returned. The familiar extracted-text and index
-paths are compatibility mirrors, never cache inputs.
+catalog is an index, not a trust boundary: every hit is verified against the
+artifact's own SHA-256 inventory before it is returned. The familiar
+extracted-text and index paths are compatibility mirrors, never cache inputs.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,6 +52,16 @@ class SelectedArtifact:
     path: Path
     reused: bool
     files: tuple[dict[str, str | int], ...]
+
+
+@dataclass(frozen=True)
+class ArtifactCandidate:
+    catalog_root: Path
+    catalog_path: Path
+    kind: str
+    key: str
+    identity: dict[str, object]
+    path: Path
 
 
 def default_catalog_root() -> Path:
@@ -114,7 +125,9 @@ def extraction_identity(source: Path) -> dict[str, object]:
         "schema": ARTIFACT_SCHEMA_VERSION,
         "source_files": source_files,
         "producer_files": _code_inputs(
-            "guidelines_extract.py", "artifact_provenance.py"
+            "guidelines_build.py",
+            "guidelines_extract.py",
+            "artifact_provenance.py",
         ),
         "runtime": {
             "python": platform.python_version(),
@@ -129,9 +142,10 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
         "kind": "index",
         "schema": ARTIFACT_SCHEMA_VERSION,
         "extraction_key": extraction.key,
-        "extraction_files": extraction.files,
         "producer_files": _code_inputs(
-            "guidelines_index.py", "artifact_provenance.py"
+            "guidelines_build.py",
+            "guidelines_index.py",
+            "artifact_provenance.py",
         ),
         "runtime": {
             "python": platform.python_version(),
@@ -291,6 +305,10 @@ def _verify_artifact(
         or producer.get("dirty") is not False
     ):
         raise ValueError(f"{kind} build {key} has no trusted clean producer")
+    if identity_key(producer.get("inputs")) != identity_key(
+        identity.get("producer_files")
+    ):
+        raise ValueError(f"{kind} build {key} has the wrong producer identity")
     recorded = record.get("files")
     actual = _files(root)
     if list(actual) != recorded:
@@ -405,34 +423,60 @@ def _quarantine(root: Path, catalog_root: Path) -> None:
     os.replace(root, destination)
 
 
+class InvalidCachedArtifact(ValueError):
+    """A catalog candidate needs exclusive repair ownership."""
+
+
 def _existing(
-    catalog_path: Path,
-    catalog_root: Path,
-    kind: str,
-    key: str,
-    identity: dict[str, object],
-    root: Path,
+    candidate: ArtifactCandidate,
+    *,
+    repair: bool,
+    register: bool,
 ) -> SelectedArtifact | None:
-    entry = _catalog_entry(catalog_path, kind, key)
-    if entry is not None and Path(str(entry.get("path", ""))).resolve() != root.resolve():
-        _remove_catalog_entry(catalog_path, kind, key)
+    entry = _catalog_entry(candidate.catalog_path, candidate.kind, candidate.key)
+    if (
+        entry is not None
+        and Path(str(entry.get("path", ""))).resolve() != candidate.path.resolve()
+    ):
+        if not repair:
+            raise InvalidCachedArtifact(
+                f"{candidate.kind} build {candidate.key} has a stale catalog path"
+            )
+        _remove_catalog_entry(
+            candidate.catalog_path, candidate.kind, candidate.key
+        )
         entry = None
-    if entry is not None or root.exists():
+    if entry is not None or candidate.path.exists():
         try:
-            files = _verify_artifact(root, kind, key, identity)
-        except ValueError:
-            _remove_catalog_entry(catalog_path, kind, key)
-            _quarantine(root, catalog_root)
+            files = _verify_artifact(
+                candidate.path,
+                candidate.kind,
+                candidate.key,
+                candidate.identity,
+            )
+        except ValueError as failure:
+            if not repair:
+                raise InvalidCachedArtifact(str(failure)) from failure
+            _remove_catalog_entry(
+                candidate.catalog_path, candidate.kind, candidate.key
+            )
+            _quarantine(candidate.path, candidate.catalog_root)
             return None
         if entry is None:
-            record = json.loads((root / ARTIFACT_RECORD).read_text(encoding="utf-8"))
-            _set_catalog_entry(
-                catalog_path,
-                kind,
-                key,
-                _catalog_record(root, record["producer"]),
+            if not register:
+                return None
+            record = json.loads(
+                (candidate.path / ARTIFACT_RECORD).read_text(encoding="utf-8")
             )
-        return SelectedArtifact(kind, key, root, True, files)
+            _set_catalog_entry(
+                candidate.catalog_path,
+                candidate.kind,
+                candidate.key,
+                _catalog_record(candidate.path, record["producer"]),
+            )
+        return SelectedArtifact(
+            candidate.kind, candidate.key, candidate.path, True, files
+        )
     return None
 
 
@@ -444,17 +488,38 @@ def _clean_partials(parent: Path, key: str) -> None:
             shutil.rmtree(path)
 
 
-def _build_extraction(
-    source: Path,
+def _clean_abandoned_partials(final: Path) -> None:
+    if not final.parent.exists() or not any(
+        final.parent.glob(f".{final.name}.*.building")
+    ):
+        return
+    with artifact_lock.hold(final, f"cleaning incomplete {final.parent.name} build"):
+        _clean_partials(final.parent, final.name)
+
+
+def _select_or_build(
+    kind: str,
     catalog_root: Path,
     catalog_path: Path,
     identity: dict[str, object],
     producer: dict[str, str | bool],
-    jobs: int,
+    build_temporary: Callable[[Path, dict[str, object]], None],
 ) -> SelectedArtifact:
     key = identity_key(identity)
-    final = catalog_root / "artifacts" / "extraction" / key
-    existing = _existing(catalog_path, catalog_root, "extraction", key, identity, final)
+    final = catalog_root / "artifacts" / kind / key
+    candidate = ArtifactCandidate(
+        catalog_root, catalog_path, kind, key, identity, final
+    )
+    _clean_abandoned_partials(final)
+    try:
+        with artifact_lock.hold(final, f"verifying cached {kind} build", mode="read"):
+            existing = _existing(
+                candidate,
+                repair=False,
+                register=producer["dirty"] is False,
+            )
+    except InvalidCachedArtifact:
+        existing = None
     if existing is not None:
         return existing
     if producer["dirty"]:
@@ -463,32 +528,18 @@ def _build_extraction(
         )
     final.parent.mkdir(parents=True, exist_ok=True)
     trusted_producer = _trusted_producer(producer, identity)
-    with artifact_lock.hold(final, f"building guideline extraction {key}"):
-        existing = _existing(
-            catalog_path, catalog_root, "extraction", key, identity, final
-        )
+    with artifact_lock.hold(final, f"building guideline {kind} {key}"):
+        existing = _existing(candidate, repair=True, register=True)
         if existing is not None:
             return existing
         _clean_partials(final.parent, key)
         temporary = final.parent / f".{key}.{uuid.uuid4().hex}.building"
         temporary.mkdir()
         try:
-            command = [
-                sys.executable,
-                str(Path(__file__).with_name("guidelines_extract.py")),
-                str(source),
-                "--out",
-                str(temporary),
-                "--quiet",
-            ]
-            if jobs:
-                command.extend(["--jobs", str(jobs)])
-            _run_producer(command, "guideline extraction")
-            _stamp_extraction(temporary, trusted_producer)
-            _validate_extraction(temporary)
+            build_temporary(temporary, trusted_producer)
             files = _write_artifact_record(
                 temporary,
-                kind="extraction",
+                kind=kind,
                 key=key,
                 identity=identity,
                 producer=trusted_producer,
@@ -498,9 +549,44 @@ def _build_extraction(
             shutil.rmtree(temporary, ignore_errors=True)
             raise
         _set_catalog_entry(
-            catalog_path, "extraction", key, _catalog_record(final, trusted_producer)
+            catalog_path, kind, key, _catalog_record(final, trusted_producer)
         )
-    return SelectedArtifact("extraction", key, final, False, files)
+    return SelectedArtifact(kind, key, final, False, files)
+
+
+def _build_extraction(
+    source: Path,
+    catalog_root: Path,
+    catalog_path: Path,
+    identity: dict[str, object],
+    producer: dict[str, str | bool],
+    jobs: int,
+) -> SelectedArtifact:
+    def build_temporary(temporary: Path, trusted: dict[str, object]) -> None:
+        command = [
+            sys.executable,
+            str(Path(__file__).with_name("guidelines_extract.py")),
+            str(source),
+            "--out",
+            str(temporary),
+            "--quiet",
+        ]
+        if jobs:
+            command.extend(["--jobs", str(jobs)])
+        _run_producer(command, "guideline extraction")
+        if _files(source, "*.pdf") != identity["source_files"]:
+            raise ValueError("source files changed during extraction; retry the build")
+        _stamp_extraction(temporary, trusted)
+        _validate_extraction(temporary)
+
+    return _select_or_build(
+        "extraction",
+        catalog_root,
+        catalog_path,
+        identity,
+        producer,
+        build_temporary,
+    )
 
 
 def _build_index(
@@ -510,32 +596,25 @@ def _build_index(
     identity: dict[str, object],
     producer: dict[str, str | bool],
 ) -> SelectedArtifact:
-    key = identity_key(identity)
-    final = catalog_root / "artifacts" / "index" / key
-    existing = _existing(catalog_path, catalog_root, "index", key, identity, final)
-    if existing is not None:
-        return existing
-    if producer["dirty"]:
-        raise ValueError(
-            "a dirty checkout may reuse a trusted build but may not publish a new one"
-        )
-    final.parent.mkdir(parents=True, exist_ok=True)
-    trusted_producer = _trusted_producer(producer, identity)
-    extraction_record = json.loads(
-        (extraction.path / ARTIFACT_RECORD).read_text(encoding="utf-8")
-    )
-    source_producer = extraction_record.get("producer")
-    if not isinstance(source_producer, dict):
-        raise ValueError("cached extraction has no producer record")
-    with artifact_lock.hold(final, f"building guideline index {key}"):
-        existing = _existing(catalog_path, catalog_root, "index", key, identity, final)
-        if existing is not None:
-            return existing
-        _clean_partials(final.parent, key)
-        temporary = final.parent / f".{key}.{uuid.uuid4().hex}.building"
-        temporary.mkdir()
+    def build_temporary(temporary: Path, trusted: dict[str, object]) -> None:
         database = temporary / "guidelines.sqlite"
-        try:
+        with artifact_lock.hold(
+            extraction.path,
+            "reading cached extraction for guideline index",
+            mode="read",
+        ):
+            if _files(extraction.path) != extraction.files:
+                raise ValueError("cached extraction changed before index production")
+            manifest = json.loads(
+                (extraction.path / guidelines_extract.MANIFEST_NAME).read_text(
+                    encoding="utf-8"
+                )
+            )
+            source_producer = (
+                manifest.get("producer") if isinstance(manifest, dict) else None
+            )
+            if not isinstance(source_producer, dict):
+                raise ValueError("cached extraction has no producer record")
             _run_producer(
                 [
                     sys.executable,
@@ -545,23 +624,19 @@ def _build_index(
                 ],
                 "guideline index",
             )
-            _stamp_index(database, trusted_producer, source_producer)
-            _validate_index(database)
-            files = _write_artifact_record(
-                temporary,
-                kind="index",
-                key=key,
-                identity=identity,
-                producer=trusted_producer,
-            )
-            os.replace(temporary, final)
-        except BaseException:
-            shutil.rmtree(temporary, ignore_errors=True)
-            raise
-        _set_catalog_entry(
-            catalog_path, "index", key, _catalog_record(final, trusted_producer)
-        )
-    return SelectedArtifact("index", key, final, False, files)
+            if _files(extraction.path) != extraction.files:
+                raise ValueError("cached extraction changed during index production")
+        _stamp_index(database, trusted, source_producer)
+        _validate_index(database)
+
+    return _select_or_build(
+        "index",
+        catalog_root,
+        catalog_path,
+        identity,
+        producer,
+        build_temporary,
+    )
 
 
 def _publish_directory(source: Path, alias: Path) -> None:
@@ -634,13 +709,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str]) -> int:
     args = build_parser().parse_args(argv)
     source = args.source.expanduser().resolve()
-    catalog_root = ensure_outside_checkout(
-        args.catalog_root or default_catalog_root(), detail=WHY_OUTSIDE
-    )
-    catalog_path = catalog_root / CATALOG_NAME
-    text_alias = (args.text_alias or guidelines_extract.default_output(source)).resolve()
-    index_alias = (args.index_alias or guidelines_index.default_database()).resolve()
     try:
+        catalog_root = ensure_outside_checkout(
+            args.catalog_root or default_catalog_root(), detail=WHY_OUTSIDE
+        )
+        catalog_path = catalog_root / CATALOG_NAME
+        text_alias = (args.text_alias or guidelines_extract.default_output(source)).resolve()
+        index_alias = (args.index_alias or guidelines_index.default_database()).resolve()
         producer = artifact_provenance.current_producer()
         extraction_spec = extraction_identity(source)
         extraction = _build_extraction(
