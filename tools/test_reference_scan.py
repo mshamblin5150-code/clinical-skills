@@ -122,10 +122,20 @@ class TheParserReadsTheListTheRendererWouldRender(unittest.TestCase):
         text = draft(ACOG) + "\n### Note\n\n" + UPTODATE + "\n"
         self.assertEqual(len(scan.read_document(text).entries), 1)
 
-    def test_the_renderer_agrees_about_where_the_list_ends(self):
-        text = draft(ACOG) + "\n### Note\n\n" + UPTODATE + "\n"
-        styled = docx_write.body_xml(text).count('w:val="Reference"')
-        self.assertEqual(styled, len(scan.read_document(text).entries))
+    def test_every_heading_depth_ends_the_list_exactly_when_the_renderer_says_so(self):
+        """The agreement is a property across Markdown's six heading depths.
+
+        The renderer supports levels one through four. Levels five and six are
+        paragraphs in its subset, so they and the entry below them remain inside
+        the reference list rather than closing it.
+        """
+        styled_entries_by_depth = (1, 1, 1, 1, 3, 3)
+        for depth, expected in enumerate(styled_entries_by_depth, start=1):
+            text = draft(ACOG) + "\n" + "#" * depth + " Note\n\n" + UPTODATE + "\n"
+            with self.subTest(depth=depth):
+                styled = docx_write.body_xml(text).count('w:val="Reference"')
+                self.assertEqual(styled, expected)
+                self.assertEqual(styled, len(scan.read_document(text).entries))
 
 
 class TheHeadingIsTheOneAPARequires(unittest.TestCase):
@@ -161,6 +171,10 @@ class AnEntryIsOneParagraphTheRendererWillIndent(unittest.TestCase):
     def test_a_numbered_entry_is_a_finding(self):
         text = draft("1. " + ACOG, UPTODATE)
         self.assertIn(scan.ENTRY_NOT_A_PARAGRAPH, kinds(text))
+
+    def test_a_table_entry_is_a_finding(self):
+        table = "| Reference |\n| --- |\n| " + ACOG + " |"
+        self.assertIn(scan.ENTRY_NOT_A_PARAGRAPH, kinds(draft(table, UPTODATE)))
 
     def test_a_marked_entry_is_still_graded_on_everything_else(self):
         """The marker is stripped and the entry read, so a bulleted list does not
