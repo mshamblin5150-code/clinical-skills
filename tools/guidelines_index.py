@@ -131,21 +131,6 @@ class Document:
 
 
 @dataclass(frozen=True)
-class ExtractedDocument:
-    """One successful #80 extraction, joined to its manifest record."""
-
-    doc_id: str
-    society: str | None
-    title: str | None
-    source: str
-    document_class: str
-    pages: list[Page]
-    boilerplate: tuple[str, ...]
-    margin_stripped: tuple[str, ...]
-    year_page_counts: dict[str, int] | None
-
-
-@dataclass(frozen=True)
 class BuildReport:
     database: Path
     documents: int
@@ -279,44 +264,6 @@ def _discover(text_dir: Path, manifest: dict[str, dict]) -> Iterator[Document]:
             document_class=document_class,
             pages=pages,
         )
-
-
-def _read_extracted_corpus(
-    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
-) -> list[ExtractedDocument]:
-    """Adapt the owned manifest handoff to the indexer's numbered page type."""
-    handoff = guidelines_manifest.read_or_raise(
-        text_dir, allow_untrusted_provenance=allow_untrusted_provenance
-    )
-    return [
-        ExtractedDocument(
-            doc_id=doc_id,
-            society=record.society,
-            title=record.title,
-            source=str(record.source),
-            document_class=str(record.document_class),
-            pages=[
-                Page(number, text)
-                for number, text in enumerate(handoff.pages[doc_id], start=1)
-            ],
-            boilerplate=tuple(record.boilerplate),
-            margin_stripped=tuple(record.margin_stripped),
-            year_page_counts={
-                str(year): int(count) for year, count in record.year_page_counts.items()
-            },
-        )
-        for doc_id, record in sorted(handoff.documents.items())
-    ]
-
-
-def read_extracted_corpus(
-    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
-) -> list[ExtractedDocument]:
-    """Read one completed extraction through its owning module."""
-    return _read_extracted_corpus(
-        text_dir,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-    )
 
 
 SCHEMA = """

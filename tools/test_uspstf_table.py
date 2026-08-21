@@ -36,6 +36,7 @@ import artifact_lock
 import artifact_provenance
 import guidelines_extract as extract
 import uspstf_table as ut
+from guidelines_manifest_test_support import ReadingManifestConformance
 
 
 def clean_producer():
@@ -52,8 +53,33 @@ def fixture(name):
         return [handle.read()]
 
 
-class ReadingTheExtractedCorpus(unittest.TestCase):
+class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
     """The table builder consumes #80's artifact and its metadata-title contract."""
+
+    def build_conformance_corpus(self, root, producer):
+        record = extract.build_document(
+            Path("USPSTF/rhrs.pdf"),
+            fixture("ahrq-sentence-grade"),
+            root,
+            "Screening for Rh (D) Incompatibility - Recommendation Statement",
+        )
+        extract.write_manifest(
+            root, [record], Path("C:/outside/guidelines-src"), producer=producer
+        )
+
+    def conformance_read(self, root, *, allow):
+        try:
+            ut.build(root, allow_untrusted_provenance=allow)
+        except ValueError as failure:
+            return False, str(failure)
+        return True, ""
+
+    def conformance_command(self, root, *, allow):
+        args = [str(root), "--out", str(root / "uspstf.md")]
+        if allow:
+            args.append("--allow-untrusted-provenance")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return ut.main(args)
 
     def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
         import guidelines_manifest

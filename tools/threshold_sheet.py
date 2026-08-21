@@ -203,9 +203,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import artifact_lock
 import guidelines_extract
-import guidelines_index
+import guidelines_manifest
 from console_codec import use_utf8
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -807,16 +806,13 @@ def _normalize(text: str) -> str:
 
 
 
-# #80 owns `manifest.json`'s shape and #84 owns the reader for it. Imported rather
-# than re-implemented, on `reference_scan.py` importing `docx_write.REFERENCE_HEADING`
-# and for that module's reason: a gate holding its own copy of a rule can pass input
-# the owner would refuse, and that is the one failure this join exists to catch.
-# `read_manifest` returns `{}` only for an absent file and RAISES for every way of
-# being present and unusable, which is what lets the skip channel below say which.
-read_manifest = guidelines_index.read_manifest
+# The owner returns valid documents and problems together. WATERMARK is the tolerant
+# consumer: one bad sibling no longer discards every probe, while the count printed
+# below makes the weaker posture visible on every run.
+read_extraction = guidelines_manifest.read
 
 
-def usable_probes(entry: dict, body: str) -> dict[str, str]:
+def usable_probes(entry: guidelines_manifest.Record, body: str) -> dict[str, str]:
     """The strings #80 stripped from this document that can serve as probes.
 
     Returns ``{normalized probe: the string as the manifest records it}``.
@@ -863,7 +859,7 @@ def usable_probes(entry: dict, body: str) -> dict[str, str]:
     normalized_body = _normalize(body)
     probes: dict[str, str] = {}
     for field_name in ("boilerplate", "margin_stripped"):
-        for stripped in entry.get(field_name) or ():
+        for stripped in getattr(entry, field_name) or ():
             probe = _normalize(str(stripped))
             if probe and probe not in normalized_body:
                 probes[probe] = str(stripped)
@@ -935,32 +931,41 @@ def _gate_watermark(
     beside it -- it is measured against a corpus outside this repo, so a second copy
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
     """
-    if text_root is None or not Path(text_root).is_dir():
+    if text_root is None:
+        print("  WATERMARK       1 manifest problem(s)", file=sys.stderr)
         return [], f"extracted corpus not found at {text_root}", 0, []
     text_root = Path(text_root)
-    try:
-        manifest = read_manifest(
-            text_root,
-            allow_untrusted_provenance=allow_untrusted_provenance,
-        )
-    except ValueError as error:
-        return [], str(error), 0, []
+    handoff = read_extraction(
+        text_root,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+    )
+    print(
+        f"  WATERMARK       {len(handoff.problems)} manifest problem(s)",
+        file=sys.stderr,
+    )
+    manifest = handoff.documents
     if not manifest:
-        return [], f"no manifest.json under {text_root}", 0, []
+        reason = (
+            "; ".join(problem.message for problem in handoff.problems)
+            or f"no {guidelines_manifest.MANIFEST_NAME} under {text_root}"
+        )
+        return [], reason, 0, []
 
     probes_for: dict[str, dict[str, str]] = {}
     unprobed: list[str] = []
     for key in sorted(sheet.sources):
-        document = guidelines_index.normalize_doc_id(sheet.sources[key].get("document", ""))
+        document = guidelines_manifest.normalize_doc_id(
+            sheet.sources[key].get("document", "")
+        )
         entry = manifest.get(document)
         if entry is None:
             unprobed.append(key)
             continue
-        body_path = text_root / (entry.get("output") or f"{document}.txt")
-        if not body_path.is_file():
+        pages = handoff.pages.get(document)
+        if pages is None:
             unprobed.append(key)
             continue
-        probes = usable_probes(entry, body_path.read_text(encoding="utf-8", errors="replace"))
+        probes = usable_probes(entry, "\f".join(pages))
         if not probes:
             unprobed.append(key)
             continue
@@ -995,25 +1000,17 @@ def gate_watermark(
     *,
     allow_untrusted_provenance: bool = False,
 ) -> tuple[list[str], str | None, int, list[str]]:
-    """Run WATERMARK against one completed extraction, never an in-flight one."""
-    if text_root is None:
-        return _gate_watermark(
-            sheet,
-            text_root,
-            allow_untrusted_provenance=allow_untrusted_provenance,
-        )
-    text_root = Path(text_root).resolve()
-    try:
-        with artifact_lock.hold(
-            text_root, "reading extracted guideline corpus", mode="read"
-        ):
-            return _gate_watermark(
-                sheet,
-                text_root,
-                allow_untrusted_provenance=allow_untrusted_provenance,
-            )
-    except artifact_lock.ArtifactBusy as busy:
-        return [], str(busy), 0, []
+    """Run WATERMARK through the locked tolerant manifest reader.
+
+    The lock, path resolution, key validation, page cross-check, busy handling, and
+    provenance check moved into ``guidelines_manifest.read`` on #407. Keeping them
+    here was the weaker duplicate that let this gate disagree with strict consumers.
+    """
+    return _gate_watermark(
+        sheet,
+        text_root,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+    )
 
 
 # The line gate 5 prints on every run it makes, clean or not. #83 states the caveat
@@ -1130,7 +1127,7 @@ def _citation(document: str, page: object) -> tuple[str, str]:
     """
     digits = _PAGE_DIGITS.search(str(page))
     return (
-        guidelines_index.normalize_doc_id(str(document)),
+        guidelines_manifest.normalize_doc_id(str(document)),
         digits.group(0) if digits else str(page).strip(),
     )
 

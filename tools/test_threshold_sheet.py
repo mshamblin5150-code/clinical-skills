@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact_lock  # noqa: E402
 import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
+from guidelines_manifest_test_support import ReadingManifestConformance  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
 
 def header(mode: str = "exact") -> str:
@@ -1745,7 +1746,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "artifact_lock.py",
                 "artifact_provenance.py",
                 "guidelines_extract.py",
-                "guidelines_index.py",
+                "guidelines_manifest.py",
                 "console_codec.py",
                 "repo_root.py",
             ):
@@ -1809,7 +1810,12 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
                 "documents": [
                     {
                         "doc_id": doc_id,
+                        "society": doc_id.partition("/")[0] or None,
+                        "title": None,
+                        "source": f"{doc_id}.pdf",
                         "output": output,
+                        "document_class": "guideline",
+                        "pages": body.count("\f") + 1,
                         "boilerplate": list(boilerplate),
                         "margin_stripped": list(margin),
                     }
@@ -1821,7 +1827,7 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
     return root
 
 
-class WatermarkGate(unittest.TestCase):
+class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
     """Gate 4, #83's watermark interleave: *"If a string stripped by #80 appears
     inside an extracted table row, that row is suspect and must be read off the
     rendered page."*
@@ -1834,6 +1840,35 @@ class WatermarkGate(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
+
+    def build_conformance_corpus(self, root, producer):
+        text_corpus(root, "Society/doc", "an SBP goal of <130 mm Hg")
+        path = root / "manifest.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["producer"] = producer
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+    def conformance_read(self, root, *, allow):
+        with contextlib.redirect_stderr(io.StringIO()):
+            _, skip, _, _ = gate.gate_watermark(
+                sheet(row()), root, allow_untrusted_provenance=allow
+            )
+        return skip is None, skip or ""
+
+    def conformance_command(self, root, *, allow):
+        sheet_path = root / "sheet.md"
+        sheet_path.write_text(header() + "\n## Thresholds\n\n" + row(), encoding="utf-8")
+        recs_path = root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return gate.grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=root,
+                allow_untrusted_provenance=allow,
+            )
 
     def test_it_does_not_read_an_extraction_in_progress(self):
         text_root = self.root / "first-guidelines-text"
@@ -2027,13 +2062,41 @@ class WatermarkGate(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("different commit", stderr.getvalue())
 
-    def test_the_manifest_reader_is_the_indexers_and_not_a_copy(self):
-        """`reference_scan.py` importing `docx_write.REFERENCE_HEADING`, for that
-        module's reason: #80 owns this file's shape, and a gate holding its own copy
-        of that reader reads as agreement while covering less."""
-        import guidelines_index
+    def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
+        import guidelines_manifest
 
-        self.assertIs(gate.read_manifest, guidelines_index.read_manifest)
+        self.assertIs(gate.read_extraction, guidelines_manifest.read)
+
+    def test_every_tolerant_read_prints_its_problem_count(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            gate.gate_watermark(sheet(row()), self.root)
+
+        self.assertIn("0 manifest problem(s)", stderr.getvalue())
+
+    def test_one_bad_sibling_does_not_discard_a_valid_documents_probes(self):
+        text_corpus(
+            self.root,
+            "Society/doc",
+            "an SBP goal of <130 mm Hg",
+            boilerplate=["Jones et al"],
+        )
+        path = self.root / "manifest.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["documents"].append({"doc_id": "Society/broken"})
+        path.write_text(json.dumps(value), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            failures, skip, _, _ = gate.gate_watermark(
+                sheet(row(snippet="Jones et al goal <130 mm Hg")), self.root
+            )
+
+        self.assertIsNone(skip)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("1 manifest problem(s)", stderr.getvalue())
 
     def test_the_value_cell_is_probed_as_well_as_the_snippet(self):
         """#83 says *inside an extracted table row*, and both cells are transcribed
@@ -2061,10 +2124,9 @@ class TheWatermarkGateAgainstTheCommittedSheet(unittest.TestCase):
         )
         if not (self.text_root / "manifest.json").is_file():
             self.skipTest(f"no extracted corpus at {self.text_root}")
-        try:
-            gate.read_manifest(self.text_root)
-        except ValueError as unusable:
-            self.skipTest(str(unusable))
+        result = gate.read_extraction(self.text_root)
+        if result.problems:
+            self.skipTest("; ".join(problem.message for problem in result.problems))
 
     def test_the_committed_sheet_has_no_interleaved_row(self):
         path = gate.SHEET_ROOT / "hypertension.md"

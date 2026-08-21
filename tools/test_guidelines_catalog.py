@@ -34,6 +34,7 @@ from pathlib import Path
 import artifact_lock
 import artifact_provenance
 import guidelines_catalog as gc
+from guidelines_manifest_test_support import ReadingManifestConformance
 import guidelines_extract as extract
 
 
@@ -96,7 +97,32 @@ def doc(**overrides) -> gc.Document:
     return gc.Document(**base)
 
 
-class ReadingTheExtractedCorpus(unittest.TestCase):
+class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
+    def build_conformance_corpus(self, root, producer):
+        record = extract.build_document(
+            Path("USPSTF/screening.pdf"),
+            ["US Preventive Services Task Force Recommendation Statement"],
+            root,
+            "Screening for Example Disease",
+        )
+        extract.write_manifest(
+            root, [record], Path("C:/outside/guidelines-src"), producer=producer
+        )
+
+    def conformance_read(self, root, *, allow):
+        try:
+            gc.read_corpus(root, allow_untrusted_provenance=allow)
+        except ValueError as failure:
+            return False, str(failure)
+        return True, ""
+
+    def conformance_command(self, root, *, allow):
+        args = ["--draft", str(root)]
+        if allow:
+            args.insert(0, "--allow-untrusted-provenance")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return gc.main(args)
+
     def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
         import guidelines_manifest
 

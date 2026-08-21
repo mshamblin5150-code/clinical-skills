@@ -24,9 +24,7 @@ DISCOVERY_CEILING = (
 
 # The refusing walk remains runnable during staged migration. Each exception must
 # say why it exists and is removed in the commit that migrates that consumer.
-NOT_MIGRATED = {
-    "threshold_sheet.py": "migrates last because its command runs in pre-commit",
-}
+NOT_MIGRATED: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
