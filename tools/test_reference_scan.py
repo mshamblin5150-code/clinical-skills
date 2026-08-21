@@ -122,10 +122,18 @@ class TheParserReadsTheListTheRendererWouldRender(unittest.TestCase):
         text = draft(ACOG) + "\n### Note\n\n" + UPTODATE + "\n"
         self.assertEqual(len(scan.read_document(text).entries), 1)
 
-    def test_the_renderer_agrees_about_where_the_list_ends(self):
-        text = draft(ACOG) + "\n### Note\n\n" + UPTODATE + "\n"
-        styled = docx_write.body_xml(text).count('w:val="Reference"')
-        self.assertEqual(styled, len(scan.read_document(text).entries))
+    def test_every_heading_depth_ends_the_list_exactly_when_the_renderer_says_so(self):
+        """The agreement is a property across Markdown's six heading depths.
+
+        The renderer supports levels one through four. Levels five and six are
+        paragraphs in its subset, so they and the entry below them remain inside
+        the reference list rather than closing it.
+        """
+        for depth in range(1, 7):
+            text = draft(ACOG) + "\n" + "#" * depth + " Note\n\n" + UPTODATE + "\n"
+            with self.subTest(depth=depth):
+                styled = docx_write.body_xml(text).count('w:val="Reference"')
+                self.assertEqual(styled, len(scan.read_document(text).entries))
 
 
 class TheHeadingIsTheOneAPARequires(unittest.TestCase):

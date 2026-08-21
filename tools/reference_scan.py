@@ -234,6 +234,7 @@ from pathlib import Path
 
 from console_codec import use_utf8
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
+from docx_write import blocks as renderer_blocks
 
 # The two labels APA permits, section 1. Both are matched as a whole heading here;
 # the renderer is looser on the plural and this file does not copy that looseness,
@@ -253,11 +254,6 @@ WRONG_HEADINGS = (
     "sources",
     "citations",
 )
-
-MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
-# A bullet or a numbered item. The renderer gives either the list style rather than
-# the reference style, which is the whole reason this is a row.
-LIST_MARKER = re.compile(r"^([-*+]|\d+[.)])\s+(.*)$")
 
 # A year element as APA sets one: the four digits, an optional disambiguating
 # letter, and anything else inside the parentheses (``2025, June 3``).
@@ -796,13 +792,13 @@ def read_citations(body: str) -> tuple[Citation, ...]:
 
 
 def read_document(text: str) -> Document:
-    """Split a draft at its reference heading and read the list one line at a time.
+    """Split a draft at its rendered reference heading and read its entries.
 
-    One line is one entry because ``docx_write.body_xml`` makes one paragraph per
-    non-blank line. The list runs to the end of the file or to **the next heading of
-    any level**, because that is what the renderer does: ``body_xml`` recomputes
-    ``in_references`` on every heading it meets, so a ``### Note`` inside the list
-    turns the hanging indent off for everything below it.
+    ``docx_write.blocks`` is the renderer's one reading of the Markdown subset.
+    Consuming it here makes the heading levels, list markers, tables, separators,
+    and source line numbers the same facts the rendered document consumes. The
+    reference list runs to the end of the file or to the next **rendered** heading;
+    levels five and six are paragraphs because they are outside that subset.
 
     **This read a deeper heading as a note inside the list until the sweep on #137
     caught it**, and the divergence was the exact silent-layout failure the heading
@@ -811,33 +807,43 @@ def read_document(text: str) -> Document:
     with the renderer at the time, which is what made it worth finding.
     """
     lines = text.replace("\r\n", "\n").split("\n")
+    parsed = tuple(renderer_blocks(text))
     start: int | None = None
     heading: str | None = None
-    for index, line in enumerate(lines):
-        match = MARKDOWN_HEADING.match(line)
-        if match and _is_reference_heading(match.group(2)):
-            start, heading = index, match.group(2).strip().strip("*_").strip()
+    for index, block in enumerate(parsed):
+        if block.kind == "heading" and _is_reference_heading(block.text):
+            start, heading = index, block.text.strip().strip("*_").strip()
             break
 
     if start is None:
         return Document(heading=None, body=text, entries=(), citations=read_citations(text))
 
-    body = "\n".join(lines[:start])
+    body = "\n".join(lines[: parsed[start].line - 1])
     entries: list[Entry] = []
-    for offset, line in enumerate(lines[start + 1 :], start=start + 2):
-        stripped = line.strip()
-        if not stripped or stripped in ("---", "***", "___"):
+    for block in parsed[start + 1 :]:
+        if block.kind in ("blank", "separator"):
             continue
-        if MARKDOWN_HEADING.match(line):
-            # Any heading, at any level. ``body_xml`` recomputes ``in_references``
-            # on every one, so the renderer's list ends here whatever the depth.
+        if block.kind == "heading":
             break
-        marker = LIST_MARKER.match(stripped)
+        if block.kind == "table":
+            # Preserve the scanner's established one-source-line-per-entry view
+            # for a malformed reference table. ``blocks`` has already decided
+            # that these lines are one table; this only retains the findings and
+            # line numbers existing callers received before that consolidation.
+            for row_index, row in enumerate(block.source.splitlines()):
+                entries.append(
+                    Entry(
+                        line=block.line + row_index,
+                        text=row,
+                        paragraph=True,
+                    )
+                )
+            continue
         entries.append(
             Entry(
-                line=offset,
-                text=marker.group(2).strip() if marker else stripped,
-                paragraph=marker is None,
+                line=block.line,
+                text=block.text,
+                paragraph=block.kind == "paragraph",
             )
         )
     return Document(heading=heading, body=body, entries=tuple(entries), citations=read_citations(body))
