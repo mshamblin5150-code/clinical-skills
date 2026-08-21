@@ -75,13 +75,11 @@ python tools/phi_scan.py --all
 
 **Do not correct the note.** Byte-for-byte apart from a recorded redaction is the property that makes a run worth keeping, and a row rewritten to agree with a later measurement is a record edited to match its own checker.
 
-## This set is a run record and is not exempt from standing rule 4
+## This set is a run record under standing rule 4
 
-`tools/spelling_scan.py` exempts `fixtures/filled-anchor/notes/case-*.md` by path, because that set's British spellings **are the evidence for [#73](https://github.com/mshamblin5150-code/clinical-skills/issues/73)**. This set holds none today and is **deliberately not added to that exemption**: a carve-out granted for a spelling nobody has written is a silence bought against a hypothetical, and it would hide a real finding the day one appears.
+The generated case files take [#321](https://github.com/mshamblin5150-code/clinical-skills/issues/321)'s preserved-record disposition: `tools/spelling_scan.py` counts and reports every listed British form it finds, but does not fail the historical output. That resolves the collision without either forbidden move: nobody corrects a byte-for-byte record, and the checker never silently skips it. `python tools/spelling_scan.py --record` renders this run separately even when its count is zero.
 
-**So the two rules that govern this directory can collide, and nothing decides which wins.** The scanner's table grows from evidence — `counselling` joined it on 2026-08-20, after this run was produced — so a form landing on it that these notes already contain would make standing rule 4 demand an edit while the paragraph above forbids one. **Neither outcome is available**: correcting falsifies the record, and exempting makes the set unscannable forever.
-
-Recorded rather than pre-empted on [#321](https://github.com/mshamblin5150-code/clinical-skills/issues/321), and the ruling is the clinician's. Until then a reader who hits it should treat it as a finding about the *table's* reach rather than about these notes, which is what `filled-anchor`'s own README argues at length: the figure moved twice without a byte of the record changing, because it was a property of the instrument.
+The disposition is declared by an explicit generated-file pattern in the checker, not by text in an artifact. This README is outside that pattern and is checked like any other maintained prose. A copy or new run outside the exact preserved path is ordinary output and fails on a listed form.
 
 **A clean scan is not a walked row.** `differential_scan.py` settles whether a refused code sits in a slot, whether the ranked block has the required mechanical shape, and whether the row-24 tail passes the sheet-backed floor. Whether a label is what its descriptor says, whether the likelihood ordering is clinically right, and whether a cited recommendation applies to the patient remain readings.
 

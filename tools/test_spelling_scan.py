@@ -201,7 +201,32 @@ class Ticket103Ruling(unittest.TestCase):
 
 
 class Evidence(unittest.TestCase):
-    """The run record is evidence. It is counted and never refused."""
+    """Preserved run output is evidence. It is counted and never refused."""
+
+    def test_every_preserved_run_names_only_its_generated_case_files(self):
+        cases = {
+            "filled-anchor-notes": "fixtures/filled-anchor/notes/case-01.md",
+            "filled-anchor-run-2": "fixtures/filled-anchor/run-2/case-01.md",
+            "slot-form-run": "fixtures/slot-form-run/day-a-case-06.md",
+            "blind-run": "fixtures/blind-run/duration-span-case-01.md",
+        }
+        self.assertEqual(set(cases), {record.key for record in scan.RUN_RECORDS})
+        for key, path in cases.items():
+            with self.subTest(key=key):
+                self.assertEqual(scan.run_record_for(path).key, key)
+                readme = str(Path(path).parent / "README.md").replace("\\", "/")
+                self.assertIsNone(scan.run_record_for(readme))
+
+    def test_an_absolute_path_to_the_same_record_is_still_evidence(self):
+        path = REPO_ROOT / "fixtures" / "slot-form-run" / "day-a-case-06.md"
+        self.assertEqual(scan.run_record_for(str(path)).key, "slot-form-run")
+
+    def test_a_copy_outside_the_named_paths_is_not_evidence(self):
+        self.assertIsNone(scan.run_record_for("scratch/slot-form-run/day-a-case-06.md"))
+
+    def test_a_nested_file_is_not_swept_into_a_direct_case_pattern(self):
+        path = "fixtures/slot-form-run/archive/day-a-case-06.md"
+        self.assertIsNone(scan.run_record_for(path))
 
     # spelling-scan: mentions 1
     def test_a_note_in_the_record_yields_no_findings(self):
@@ -222,6 +247,33 @@ class Evidence(unittest.TestCase):
         self.assertEqual(report.evidence.occurrences, 3)
         self.assertEqual(report.evidence.forms, {"grey": 2, "dyspnoea": 1})
         self.assertEqual(report.evidence.files, ("fixtures/filled-anchor/notes/case-07.md",))
+
+    # spelling-scan: mentions 4
+    def test_evidence_is_kept_separate_by_run(self):
+        paths = [
+            "fixtures/slot-form-run/day-a-case-06.md",
+            "fixtures/blind-run/duration-span-case-01.md",
+        ]
+        report = scan.scan(paths, reader(**{
+            "fixtures__slot-form-run__day-a-case-06.md": "grey TMs",
+            "fixtures__blind-run__duration-span-case-01.md": "no dyspnoea",
+        }))
+        self.assertEqual(report.findings, [])
+        self.assertEqual(report.evidence.by_record["slot-form-run"].forms, {"grey": 1})
+        self.assertEqual(
+            report.evidence.by_record["blind-run"].forms,
+            {"dyspnoea": 1},
+        )
+
+    # spelling-scan: mentions 1
+    def test_reported_evidence_does_not_print_a_contradictory_clean_claim(self):
+        report = scan.scan(
+            ["fixtures/slot-form-run/day-a-case-06.md"],
+            reader(**{"fixtures__slot-form-run__day-a-case-06.md": "grey TMs"}),
+        )
+        rendered = "\n".join(scan.render(report, quiet=False, mode="--all"))
+        self.assertIn("outside preserved run output", rendered)
+        self.assertIn("preserved run output. Not findings.", rendered)
 
     # spelling-scan: mentions 2
     def test_the_records_own_readme_is_not_evidence(self):
@@ -398,11 +450,25 @@ class TheRunRecord(unittest.TestCase):
 
 
 class TheRecordView(unittest.TestCase):
-    """``--record``, which is what the set's README cites rather than restates."""
+    """``--record`` shows every named run, including clean ones."""
 
     @classmethod
     def setUpClass(cls):
-        cls.rows = scan.record_rows(scan.tracked_markdown(), scan.read_tracked)
+        cls.views = scan.record_views(scan.tracked_markdown(), scan.read_tracked)
+        cls.rows = cls.views[0].rows
+
+    def test_every_preserved_run_has_its_own_view(self):
+        self.assertEqual(
+            [view.record.key for view in self.views],
+            [record.key for record in scan.RUN_RECORDS],
+        )
+
+    def test_clean_records_are_rendered_instead_of_silently_skipped(self):
+        rendered = "\n".join(scan.render_records(self.views))
+        for record in scan.RUN_RECORDS:
+            with self.subTest(record=record.key):
+                self.assertIn(record.directory, rendered)
+        self.assertIn("0 forms, 0 occurrences", rendered)
 
     def test_one_row_per_form(self):
         self.assertEqual(len(self.rows), RECORD_FORMS)
@@ -462,7 +528,8 @@ class TheRecordView(unittest.TestCase):
         counterpart = re.compile(r"\b" + re.escape(american) + scan._SUFFIX + r"\b", re.I)
         found = []
         for path in scan.tracked_markdown():
-            if not scan.is_evidence(path):
+            record = scan.run_record_for(path)
+            if record is None or record.key != "filled-anchor-notes":
                 continue
             text = scan.read_tracked(path) or ""
             if british.search(text) and counterpart.search(text):
@@ -514,7 +581,7 @@ class TheRecordView(unittest.TestCase):
         and so was never rendered. #278's ``immobilisation`` is the first
         14-character form the record holds, and it is what made the defect
         visible rather than what introduced it."""
-        rendered = scan.render_record(self.rows)
+        rendered = scan.render_record(self.views[0])
         counts = [
             line[2 + max(len(row.form) for row in self.rows):]
             for line, row in zip(rendered[2:2 + len(self.rows)], self.rows)
@@ -524,7 +591,7 @@ class TheRecordView(unittest.TestCase):
                 self.assertTrue(line.startswith(" "), "the form column overflowed")
 
     def test_the_view_names_cases_and_counts_only(self):
-        rendered = "\n".join(scan.render_record(self.rows))
+        rendered = "\n".join(scan.render_record(self.views[0]))
         for row in self.rows:
             self.assertIn(row.form, rendered)
         for case, _ in (pair for row in self.rows for pair in row.cases):
@@ -734,8 +801,8 @@ class TheCheckedVocabulary(unittest.TestCase):
         which tells a reader to re-derive with ``--record`` rather than quote
         it; printing it here would be the command quoting that sentence.
         """
-        rows = scan.record_rows(scan.tracked_markdown(), scan.read_tracked)
-        self.assertIn(scan.vocabulary_covered(), scan.render_record(rows))
+        views = scan.record_views(scan.tracked_markdown(), scan.read_tracked)
+        self.assertIn(scan.vocabulary_covered(), scan.render_records(views))
 
     def test_both_renderers_call_it_rather_than_holding_the_sentence(self):
         """By AST, and the substring test above is why it has to be.
@@ -763,7 +830,7 @@ class TheCheckedVocabulary(unittest.TestCase):
                 for inner in ast.walk(node)
             )
         }
-        self.assertEqual({"render", "render_record"}, callers)
+        self.assertEqual({"render", "render_records"}, callers)
 
     def test_the_parts_reconcile_to_the_total(self):
         """A reader who counts the skill's table gets fewer rows than this set
