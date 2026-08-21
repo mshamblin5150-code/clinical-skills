@@ -30,8 +30,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import guidelines_extract as extract  # noqa: E402
+import artifact_lock  # noqa: E402
 import artifact_provenance  # noqa: E402
+import guidelines_extract as extract  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
 
 def header(mode: str = "exact") -> str:
@@ -1198,6 +1199,11 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
                     str(self.TEXT_ROOT),
                     "--second-read",
                     str(self.SECOND_READ),
+                    # This seam grades the committed sheet against deliberately
+                    # uncommitted inputs. Their producing commit is not the subject
+                    # of this test, and every feature branch would otherwise turn
+                    # the ownership refusal into a failure before any gate ran.
+                    "--allow-untrusted-provenance",
                 ]
             )
 
@@ -1736,6 +1742,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             sheets.mkdir(parents=True)
             for name in (
                 "threshold_sheet.py",
+                "artifact_lock.py",
                 "artifact_provenance.py",
                 "guidelines_extract.py",
                 "guidelines_index.py",
@@ -1827,6 +1834,19 @@ class WatermarkGate(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
+
+    def test_it_does_not_read_an_extraction_in_progress(self):
+        text_root = self.root / "first-guidelines-text"
+        with artifact_lock.hold(text_root, "guideline extraction"):
+            failures, skip, rendered, unprobed = gate.gate_watermark(
+                sheet(row()), text_root
+            )
+
+        self.assertEqual(failures, [])
+        self.assertEqual(rendered, 0)
+        self.assertEqual(unprobed, [])
+        self.assertIn("another task is rebuilding", skip)
+        self.assertIn(str(text_root.resolve()), skip)
 
     def test_a_snippet_carrying_a_stripped_running_head_is_refused(self):
         text_corpus(

@@ -33,7 +33,11 @@ Two claims carry the most weight here:
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import tempfile
+import time
 import unicodedata
 import unittest
 from pathlib import Path
@@ -1735,6 +1739,105 @@ class OutputStaysOutOfTheRepo(unittest.TestCase):
         """
         self.assertIn("worktree", extract.WHY_OUTSIDE)
         self.assertIn("outside", extract.WHY_OUTSIDE)
+
+
+class ExtractionCommandLock(unittest.TestCase):
+    def test_a_second_extraction_is_told_which_shared_artifact_is_busy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            fake_modules = root / "fake-modules"
+            fake_modules.mkdir()
+            started = root / "started"
+            release = root / "release"
+            (fake_modules / "pymupdf.py").write_text(
+                """\
+import os
+import time
+from pathlib import Path
+
+__version__ = "test"
+
+class Page:
+    def get_text(self, kind):
+        Path(os.environ["EXTRACTION_STARTED"]).write_text("ready", encoding="utf-8")
+        release = Path(os.environ["EXTRACTION_RELEASE"])
+        while not release.exists():
+            time.sleep(0.01)
+        return {"blocks": []}
+
+class Document:
+    metadata = {}
+    def __iter__(self):
+        return iter([Page()])
+    def close(self):
+        pass
+
+def open(path):
+    return Document()
+""",
+                encoding="utf-8",
+            )
+            source = root / "guidelines-src"
+            source.mkdir()
+            (source / "one.pdf").write_bytes(b"synthetic PDF placeholder")
+            output = root / "guidelines-text"
+            command = [
+                sys.executable,
+                str(Path(extract.__file__)),
+                str(source),
+                "--out",
+                str(output),
+                "--jobs",
+                "1",
+                "--quiet",
+            ]
+            environment = {
+                **os.environ,
+                "EXTRACTION_STARTED": str(started),
+                "EXTRACTION_RELEASE": str(release),
+                "PYTHONPATH": str(fake_modules),
+            }
+            first = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=environment,
+            )
+            try:
+                deadline = time.monotonic() + 5
+                while not started.exists() and first.poll() is None:
+                    if time.monotonic() >= deadline:
+                        self.fail("the first extraction did not reach its PDF read")
+                    time.sleep(0.01)
+
+                second = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=environment,
+                    timeout=5,
+                )
+                self.assertEqual(second.returncode, 2, second.stderr)
+                self.assertIn("another task is rebuilding", second.stderr)
+                self.assertIn(str(output), second.stderr)
+                self.assertIn("extracting guideline text", second.stderr)
+                self.assertIn("process", second.stderr)
+                self.assertIn("retry", second.stderr.lower())
+                self.assertIsNone(first.poll(), "the blocked build disturbed its owner")
+
+                release.write_text("continue", encoding="utf-8")
+                first_out, first_err = first.communicate(timeout=5)
+                self.assertEqual(first.returncode, 0, first_out + first_err)
+                self.assertTrue((output / "manifest.json").is_file())
+            finally:
+                if first.poll() is None:
+                    first.kill()
+                    first.communicate(timeout=5)
 
 
 class WritingADocument(unittest.TestCase):
