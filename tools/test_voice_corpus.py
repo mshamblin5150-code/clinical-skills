@@ -2,10 +2,14 @@
 
 Every export here is built in this file and a temp directory, on
 ``test_name_index``'s arrangement and for its reason: **the real export is one
-318 MB file on one machine, it is gitignored where it is mined to, and three
-years of a working nurse's chat history carries patient material.** Nothing here
-reads it, and no count taken against it is asserted anywhere -- those live in the
-module's own docstring beside the command that reprints them.
+large file on one machine, it is gitignored where it is mined to, and three years
+of a working nurse's chat history carries patient material.** Nothing here reads
+it, and no count taken against it is asserted anywhere -- those live in the
+module's own docstring beside the command that reprints them. *(Its size in
+megabytes was stated here and in ``CLAUDE.md`` until the standards axis priced it:
+that file's own byte count reads two ways depending on the convention, which
+``CLAUDE.md`` records as the trap that has already produced two published figures
+for one artifact.)*
 
 phi-scan: synthetic
 
@@ -17,7 +21,13 @@ is what the parser reads.
 it is pointed at a recorded defect rather than a hypothetical one:
 [#388](https://github.com/mshamblin5150-code/clinical-skills/issues/388)'s first
 pass took a user node's immediate child and gave up unless it was an assistant
-message with text, which reported 85 paired versions where the corpus holds 163.
+message with text, and undercounted the paired versions accordingly. **The figures
+are ``voice_corpus``'s docstring's to state and are deliberately not repeated
+here** -- an earlier draft of this docstring carried them three lines above the
+sentence promising it did not, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) at the
+shortest range this file has recorded.
+
 **A one-hop walk fails that class**, checked by mutation before it was believed.
 The failure direction is the one worth naming: no error, no unparsed remainder,
 and every record it did find was correct -- *partial coverage reading as
@@ -31,6 +41,7 @@ matcher cannot recognize is the one it also cannot count as unread.
 
 from __future__ import annotations
 
+import ast
 import io
 import json
 import unittest
@@ -166,7 +177,12 @@ class TheReplyWalkDescendsPastInterleavedNodes(unittest.TestCase):
         self.assertIsNone(self.walk(message("user", "raw sentence")))
 
     def test_the_nearest_assistant_wins_across_branches(self):
-        """A regenerated turn forks the tree; the shallowest reply is the answer."""
+        """Where the tree forks, the shallowest assistant text is the answer.
+
+        **This is not a claim about regenerated turns**, which sit at *equal*
+        depth and are settled by nothing here -- the module's docstring says so.
+        What it pins is that a deeper branch does not beat a nearer reply.
+        """
         conv = conversation([
             node("root", None, ["u"]),
             node("u", "root", ["deep", "shallow"], message("user", "raw sentence")),
@@ -400,6 +416,24 @@ class ThePairFloorReportsWhatItCouldNotReach(unittest.TestCase):
         self.assertEqual(found.hops[2], 1)
         self.assertEqual(found.hops.get(1, 0), 0)
 
+    def test_a_paste_repeated_in_one_conversation_is_one_conversation(self):
+        """Trap 2 reaches the pair report and not only ``select``."""
+        found = voice_corpus.pairs([linear(
+            message("user", "improve this: raw"), message("assistant", "smoothed"),
+            message("user", "improve this: raw again"), message("assistant", "smoothed again"),
+        )], "improve this")
+        self.assertEqual(len(found.records), 2)
+        self.assertEqual(found.conversations, 1)
+
+    def test_the_pair_report_states_both_figures(self):
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(
+                message("user", "improve this: raw"), message("assistant", "smoothed"),
+                message("user", "improve this: more"), message("assistant", "smoothed too"),
+            )])
+            _, out, _ = run([str(path), "--pairs", "--match", "improve this"])
+        self.assertIn("2 pair(s) in 1 conversation(s)", out)
+
     def test_the_report_says_a_pair_is_not_a_rewrite(self):
         with TemporaryDirectory() as tmp:
             path = export_at(tmp, [linear(
@@ -407,6 +441,39 @@ class ThePairFloorReportsWhatItCouldNotReach(unittest.TestCase):
             )])
             _, out, _ = run([str(path), "--pairs", "--match", "improve this"])
         self.assertIn("whether a reply is a rewrite of the same content is a reading", out)
+
+
+class TheTextJoinIsOneHelper(unittest.TestCase):
+    """Both sides of a pair have to agree about what counts as text.
+
+    ``case_study_scan``'s precedent for holding no second parser: the classifier
+    and the reply walk read a ``parts`` list the same way because they call the
+    same function, not because two comprehensions were written alike.
+    """
+
+    def test_a_non_list_is_empty(self):
+        self.assertEqual(voice_corpus.joined_text(None), "")
+
+    def test_non_string_parts_are_skipped(self):
+        self.assertEqual(
+            voice_corpus.joined_text([{"content_type": "image_asset_pointer"}, " a "]), "a"
+        )
+
+    def test_both_sites_call_it(self):
+        source = (REPO_ROOT / "tools" / "voice_corpus.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        callers = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and any(
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Name)
+                and inner.func.id == "joined_text"
+                for inner in ast.walk(node)
+            )
+        }
+        self.assertEqual(callers, {"classify_user_message", "reply_to"})
 
 
 class CountsOnlyByDefault(unittest.TestCase):
@@ -516,8 +583,31 @@ class ExitStatusDistinguishesNotReading(unittest.TestCase):
             path = export_at(tmp, [linear(message("user", "a"), message("assistant", "b"))])
             self.assertEqual(run([str(path)])[0], CLEAN)
 
-    def test_a_finding_outranks_an_undated_conversation(self):
-        """``differential_scan``'s ordering: 1 wins, and the banner rides along."""
+    def test_each_finding_limb_fires_on_its_own(self):
+        """**Driven one limb at a time, because together they prove nothing.**
+
+        The first version of this class asserted that a finding *outranks* an
+        undated conversation, on ``differential_scan``'s 1-wins-over-2 ordering.
+        That reading was vacuous -- undated is itself a finding here, so there was
+        never a 2 for it to outrank -- and a single fixture carrying both passed
+        whichever limb happened to be live. Both axes of ``/code-review`` found it.
+        """
+        with TemporaryDirectory() as tmp:
+            undated = linear(message("user", "a"))
+            del undated["create_time"]
+            status, out, _ = run([str(export_at(tmp, [undated]))])
+            self.assertEqual(status, FOUND)
+            self.assertIn("undated", out)
+
+        with TemporaryDirectory() as tmp:
+            unknown = linear(
+                message("user", "a"), message("user", "x", content_type="future_shape")
+            )
+            status, out, _ = run([str(export_at(tmp, [unknown]))])
+            self.assertEqual(status, FOUND)
+            self.assertIn("unclassified", out)
+
+    def test_both_limbs_together_are_still_one_finding(self):
         conv = linear(message("user", "a"), message("user", "x", content_type="future_shape"))
         del conv["create_time"]
         with TemporaryDirectory() as tmp:
@@ -525,6 +615,32 @@ class ExitStatusDistinguishesNotReading(unittest.TestCase):
         self.assertEqual(status, FOUND)
         self.assertIn("undated", out)
         self.assertIn("unclassified", out)
+
+    def test_a_match_that_will_not_compile_is_not_a_finding(self):
+        """``guidelines_search``'s contract: 1 means a genuine zero about the
+        corpus, and a pattern that never compiled consulted no corpus at all."""
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(message("user", "a"), message("assistant", "b"))])
+            status, _, err = run([str(path), "--match", "(("])
+        self.assertEqual(status, NOT_READ)
+        self.assertIn("not a regex", err)
+
+    def test_pairs_with_no_match_is_not_a_silent_clean_run(self):
+        """**This module's own subject, rebuilt inside it.** The first version
+        printed the coverage report, no pair section, no warning and exit 0."""
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(message("user", "a"), message("assistant", "b"))])
+            status, out, err = run([str(path), "--pairs"])
+        self.assertEqual(status, NOT_READ)
+        self.assertIn("--match", err)
+        self.assertNotIn("pair(s)", out)
+
+    def test_show_with_no_match_is_not_a_silent_clean_run(self):
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(message("user", "a"), message("assistant", "b"))])
+            status, _, err = run([str(path), "--show"])
+        self.assertEqual(status, NOT_READ)
+        self.assertIn("--match", err)
 
 
 class TheLoaderRefusesRatherThanReadingEmpty(unittest.TestCase):
@@ -570,6 +686,29 @@ class TheWriteTargetIsRefusedOutsideScratch(unittest.TestCase):
             self.assertIsNone(
                 voice_corpus.refuse_target(scratch / "mined.md", scratch=scratch)
             )
+
+    def test_the_written_file_is_the_report_the_console_got(self):
+        """**Not an unconditional ``show=True``.** The first version wrote corpus
+        text to disk on the strength of a flag nobody passed, which is a PHI
+        posture taken by accident while #388's decision 2 is still open.
+        """
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(
+                message("user", f"improve this: {MARKER}"), message("assistant", "smoothed"),
+            )])
+            written = Path(tmp) / "mined.md"
+            status, _, _ = run([str(path), "--match", MARKER, "--out", str(written)])
+            self.assertEqual(status, CLEAN)
+            self.assertNotIn(MARKER, written.read_text(encoding="utf-8"))
+
+    def test_show_is_what_puts_text_in_the_written_file(self):
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(
+                message("user", f"improve this: {MARKER}"), message("assistant", "smoothed"),
+            )])
+            written = Path(tmp) / "mined.md"
+            run([str(path), "--match", MARKER, "--show", "--out", str(written)])
+            self.assertIn(MARKER, written.read_text(encoding="utf-8"))
 
     def test_a_refused_write_is_not_a_refused_read(self):
         """The run read the whole export and knows what it found."""
