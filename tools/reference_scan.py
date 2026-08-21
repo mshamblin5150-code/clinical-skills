@@ -826,16 +826,15 @@ def read_document(text: str) -> Document:
         if block.kind == "heading":
             break
         if block.kind == "table":
-            # Preserve the scanner's established one-source-line-per-entry view
-            # for a malformed reference table. ``blocks`` has already decided
-            # that these lines are one table; this only retains the findings and
-            # line numbers existing callers received before that consolidation.
-            for row_index, row in enumerate(block.source.splitlines()):
+            # A table row is not a reference paragraph. Read the rows already
+            # parsed by the renderer so the scanner grades the same structure
+            # without interpreting the source block a second time.
+            for row_index, row in enumerate(block.rows):
                 entries.append(
                     Entry(
-                        line=block.line + row_index,
-                        text=row,
-                        paragraph=True,
+                        line=block.line + (0 if row_index == 0 else row_index + 1),
+                        text=" | ".join(row),
+                        paragraph=False,
                     )
                 )
             continue

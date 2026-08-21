@@ -170,6 +170,10 @@ class AnEntryIsOneParagraphTheRendererWillIndent(unittest.TestCase):
         text = draft("1. " + ACOG, UPTODATE)
         self.assertIn(scan.ENTRY_NOT_A_PARAGRAPH, kinds(text))
 
+    def test_a_table_entry_is_a_finding(self):
+        table = "| Reference |\n| --- |\n| " + ACOG + " |"
+        self.assertIn(scan.ENTRY_NOT_A_PARAGRAPH, kinds(draft(table, UPTODATE)))
+
     def test_a_marked_entry_is_still_graded_on_everything_else(self):
         """The marker is stripped and the entry read, so a bulleted list does not
         report one finding and hide fourteen."""
