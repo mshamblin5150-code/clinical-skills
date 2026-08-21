@@ -55,6 +55,11 @@ def fixture(name):
 class ReadingTheExtractedCorpus(unittest.TestCase):
     """The table builder consumes #80's artifact and its metadata-title contract."""
 
+    def test_the_manifest_reader_is_the_owner_and_not_a_copy(self):
+        import guidelines_manifest
+
+        self.assertIs(ut.read_or_raise, guidelines_manifest.read_or_raise)
+
     def test_a_foreign_manifest_needs_the_explicit_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             text_dir = Path(tmp)
