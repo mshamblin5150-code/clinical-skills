@@ -318,6 +318,18 @@ class RepoContainmentTests(TempCorpus):
         report = gi.build(self.text_dir, self.root / "guidelines-index" / "g.sqlite")
         self.assertTrue(report.database.exists())
 
+    def test_reading_text_inside_a_checkout_writes_no_lock_beside_it(self):
+        repo = self.checkout()
+        text_dir = repo / "guidelines-text"
+        text_dir.mkdir()
+        write_single(text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(text_dir, [{"doc_id": "IDSA/2010-uti"}])
+
+        report = gi.build(text_dir, self.root / "guidelines-index" / "g.sqlite")
+
+        self.assertTrue(report.database.exists())
+        self.assertFalse(Path(str(text_dir) + ".lock").exists())
+
     def test_the_main_checkout_is_found_from_inside_a_worktree(self):
         """A worktree's .git is a file pointing at the main checkout. Resolving it
         wrong puts the default index under .claude/worktrees/, which is in the repo."""

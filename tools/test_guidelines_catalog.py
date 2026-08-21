@@ -31,9 +31,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import artifact_lock
+import artifact_provenance
 import guidelines_catalog as gc
 import guidelines_extract as extract
-import artifact_provenance
 
 
 def clean_producer():
@@ -153,6 +154,19 @@ class ReadingTheExtractedCorpus(unittest.TestCase):
             self.assertEqual(allowed, 0)
             self.assertIn("untrusted", err.getvalue())
             self.assertIn("screening.pdf", out.getvalue())
+
+    def test_the_draft_command_does_not_read_an_extraction_in_progress(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text_dir = Path(tmp)
+            out, err = io.StringIO(), io.StringIO()
+            with artifact_lock.hold(
+                text_dir, "guideline extraction"
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = gc.main(["--draft", str(text_dir)])
+
+            self.assertEqual(status, 2)
+            self.assertIn("another task is rebuilding", err.getvalue())
+            self.assertIn(str(text_dir), err.getvalue())
 
     def test_manifest_metadata_and_stripped_year_survive_the_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:

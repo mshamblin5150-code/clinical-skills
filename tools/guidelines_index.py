@@ -313,7 +313,7 @@ def _discover(text_dir: Path, manifest: dict[str, dict]) -> Iterator[Document]:
         )
 
 
-def read_extracted_corpus(
+def _read_extracted_corpus(
     text_dir: Path | str, *, allow_untrusted_provenance: bool = False
 ) -> list[ExtractedDocument]:
     """Read and validate #80's text/manifest handoff as one corpus.
@@ -388,6 +388,18 @@ def read_extracted_corpus(
             )
         )
     return result
+
+
+def read_extracted_corpus(
+    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
+) -> list[ExtractedDocument]:
+    """Read one completed extraction, refusing while its writer owns it."""
+    text_dir = Path(text_dir).resolve()
+    with artifact_lock.hold(text_dir, "reading extracted guideline corpus"):
+        return _read_extracted_corpus(
+            text_dir,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+        )
 
 
 SCHEMA = """

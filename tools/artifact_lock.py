@@ -2,21 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO, Iterator
 
 
-class ArtifactBusy(RuntimeError):
+class ArtifactBusy(ValueError):
     """Another task currently owns a shared artifact."""
 
 
 def lock_path(artifact: Path | str) -> Path:
-    """Return the persistent sibling whose first byte carries the OS lock."""
-    return Path(str(Path(artifact).resolve()) + ".lock")
+    """Map an artifact path to a stable lock outside every checkout."""
+    identity = os.path.normcase(str(Path(artifact).resolve())).encode("utf-8")
+    digest = hashlib.sha256(identity).hexdigest()
+    return Path(tempfile.gettempdir()) / "clinical-skills-artifact-locks" / f"{digest}.lock"
 
 
 def _try_lock(stream: BinaryIO) -> None:
