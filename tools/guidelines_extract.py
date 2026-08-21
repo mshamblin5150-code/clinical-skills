@@ -325,10 +325,10 @@ import sys
 import unicodedata
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from console_codec import use_utf8
+from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
 from repo_root import InsideCheckout, ensure_outside_checkout
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -340,7 +340,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_CODEC = "utf-8"
 
 PAGE_SEPARATOR = "\f"
-MANIFEST_NAME = "manifest.json"
 
 # A line has to clear both bars. The percentage is #80's rule verbatim, and both
 # bars are shared with the margin rule below rather than restated by it.
@@ -1102,56 +1101,6 @@ def classify(pages: list[list[str]]) -> str:
     return CLASS_GUIDELINE
 
 
-@dataclass(frozen=True)
-class Record:
-    """One document's manifest entry. ``output`` is None exactly when it failed.
-
-    Everything but ``doc_id`` defaults to the nothing-was-read state, so a failure
-    is ``Record(doc_id=..., error=...)`` and a field added later does not have to
-    be spelled out twice in two constructors that must not disagree.
-
-    ``doc_id``, ``society``, ``title`` and ``document_class`` are the four fields
-    #84's indexer reads (`tools/guidelines_index.py`), and ``doc_id`` is the key it
-    matches a document by. The rest is this tool's own audit trail. A failed
-    document still gets an entry with a ``doc_id``: the indexer reports a manifest
-    entry it found no text for on stderr, which is exactly this tool's recorded
-    extraction failure surfacing rather than a silent skip on either side.
-    """
-
-    doc_id: str
-    society: str | None = None
-    title: str | None = None
-    source: str = ""
-    output: str | None = None
-    document_class: str = CLASS_UNKNOWN
-    pages: int = 0
-    empty_pages: int = 0
-    chars: int = 0
-    chars_stripped: int = 0
-    sampled_pages: int = 0
-    codec: str = OUTPUT_CODEC
-    boilerplate: list[str] = field(default_factory=list)
-    # #100's rule, recorded as two fields rather than folded into ``boilerplate``.
-    # The pattern says which rule fired; the literals say what actually left the
-    # page. Neither alone can be read back: a pattern names a family, and a list
-    # of 140 folios does not say why they went. ``boilerplate`` keeps its meaning
-    # so a manifest diff across the change shows the new rule rather than a
-    # reshuffle of the old one.
-    margin_patterns: list[str] = field(default_factory=list)
-    margin_stripped: list[str] = field(default_factory=list)
-    # #108's exact pre-strip evidence. The two line lists above are deduplicated,
-    # so they cannot preserve the page vote the catalog's year rule makes.
-    year_page_counts: dict[str, int] = field(default_factory=dict)
-    # #172's report, and deliberately a field rather than a printed line. A symbol
-    # font this module's table does not name is decoded however the PDF says and
-    # passes in silence -- which is the state the corpus was in for the whole of
-    # #83 -- so a refresh has to leave a diff somebody looks at. Keyed
-    # `<font> U+XXXX`, and empty means the walk found nothing rather than that
-    # nothing was looked at: `error` is what says the document was never read.
-    symbol_glyphs: dict[str, int] = field(default_factory=dict)
-    error: str | None = None
-
-
 def document_id(relative: Path) -> str:
     """The key #84 matches a document by: the relative path, no suffix, posix.
 
@@ -1738,7 +1687,7 @@ def write_manifest(
             "pages": sum(record.pages for record in records),
             "chars": sum(record.chars for record in records),
         },
-        "documents": [asdict(record) for record in records],
+        "documents": [serialize_record(record) for record in records],
     }
     path = out_root / MANIFEST_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
