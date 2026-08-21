@@ -697,9 +697,13 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
         )
         for key, disposition in scan.DECLARED_LIMITS:
             with self.subTest(key=key):
-                self.assertIn(disposition, {"behavior", "declared-reading"})
+                self.assertIsInstance(disposition, scan.EvidenceDisposition)
         self.assertEqual(
-            [key for key, disposition in scan.DECLARED_LIMITS if disposition == "behavior"],
+            [
+                key
+                for key, disposition in scan.DECLARED_LIMITS
+                if disposition is scan.EvidenceDisposition.BEHAVIOR
+            ],
             [self.WELDED],
         )
 

@@ -86,6 +86,7 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 import docx_write
@@ -278,20 +279,40 @@ ROW_RULE = {
 # or rendered-page judgment and cannot be re-derived here. It does not claim a reader
 # owns the row; that separate gap remains #306. Keeping the disposition on the row
 # avoids a second list that can drift.
+class EvidenceDisposition(Enum):
+    BEHAVIOR = "behavior"
+    DECLARED_READING = "declared-reading"
+
+
 DECLARED_LIMITS = (
-    ("the voice, and it never will be", "declared-reading"),
-    ("a wrapper section that does not apply to this patient", "declared-reading"),
-    ("whether a stop criterion's endpoint is the right endpoint", "declared-reading"),
-    ("whether a drug ordered PRN needs an endpoint of its own", "declared-reading"),
+    ("the voice, and it never will be", EvidenceDisposition.DECLARED_READING),
+    (
+        "a wrapper section that does not apply to this patient",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a stop criterion's endpoint is the right endpoint",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a drug ordered PRN needs an endpoint of its own",
+        EvidenceDisposition.DECLARED_READING,
+    ),
     (
         "a second drug welded into one drug row, discharged by the first drug's endpoint",
-        "behavior",
+        EvidenceDisposition.BEHAVIOR,
     ),
-    ("whether a dose is correct, or was sourced at all", "declared-reading"),
-    ("a scaffolding phrase nobody has written yet", "declared-reading"),
+    (
+        "whether a dose is correct, or was sourced at all",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "a scaffolding phrase nobody has written yet",
+        EvidenceDisposition.DECLARED_READING,
+    ),
     (
         "anything the Markdown cannot show, which the rendered document can",
-        "declared-reading",
+        EvidenceDisposition.DECLARED_READING,
     ),
 )
 NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)
