@@ -670,23 +670,12 @@ def markdown_tables(text: str) -> list:
     **One reader of a documentation table, not two** -- ``table_first_cells``'s note
     above, and the same reason. ``tools/test_docx.py`` extracts ``style.md`` section 8's
     ``Rx:`` table with this and renders it, and walks every table in the skill's
-    reference sheets with it for #280's general row; a second copy of the loop is the
-    duplication that function was consolidated to refuse.
+    reference sheets with it for #280's general row. ``blocks`` owns the parse and
+    retains the normalized source block because callers here need source text rather
+    than its parsed rows; another loop would be the duplication this function was
+    consolidated to refuse.
     """
-    lines = text.replace("\r\n", "\n").split("\n")
-    blocks, index = [], 0
-    while index < len(lines):
-        line = lines[index].strip()
-        if line.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
-            block = [line, lines[index + 1].strip()]
-            index += 2
-            while index < len(lines) and lines[index].strip().startswith("|"):
-                block.append(lines[index].strip())
-                index += 1
-            blocks.append("\n".join(block) + "\n")
-            continue
-        index += 1
-    return blocks
+    return [block.source for block in blocks(text) if block.kind == "table"]
 
 
 _RUN_TEXT = re.compile(r'<w:t xml:space="preserve">(.*?)</w:t>', re.DOTALL)
@@ -797,17 +786,20 @@ class Block:
     ``kind`` is one of ``blank``, ``separator``, ``heading``, ``table``,
     ``bullet``, ``numbered`` and ``paragraph`` -- the seven branches
     ``render_body`` had, named. ``line`` is 1-indexed and nothing in this module
-    reads it; it is there because a scanner reports a finding at a line.
+    reads it; it is there because a scanner reports a finding at a line. ``source``
+    is populated for a table because ``markdown_tables`` returns that block for a
+    caller to render independently; retaining it here avoids a second parse.
     """
 
-    __slots__ = ("kind", "text", "line", "level", "rows")
+    __slots__ = ("kind", "text", "line", "level", "rows", "source")
 
-    def __init__(self, kind, text="", line=0, level=0, rows=()):
+    def __init__(self, kind, text="", line=0, level=0, rows=(), source=""):
         self.kind = kind
         self.text = text
         self.line = line
         self.level = level
         self.rows = rows
+        self.source = source
 
     def __repr__(self):  # pragma: no cover - diagnostics only
         return "Block({k!r}, {t!r}, line={n})".format(k=self.kind, t=self.text, n=self.line)
@@ -861,11 +853,19 @@ def blocks(markdown: str):
 
         if stripped.startswith("|") and index + 1 < len(lines) and is_rule(lines[index + 1]):
             rows = [tuple(split_row(stripped))]
+            source = [stripped, lines[index + 1].strip()]
             index += 2
             while index < len(lines) and lines[index].strip().startswith("|"):
-                rows.append(tuple(split_row(lines[index].strip())))
+                row = lines[index].strip()
+                rows.append(tuple(split_row(row)))
+                source.append(row)
                 index += 1
-            yield Block("table", line=number, rows=tuple(rows))
+            yield Block(
+                "table",
+                line=number,
+                rows=tuple(rows),
+                source="\n".join(source) + "\n",
+            )
             continue
 
         bullet = BULLET.match(line)

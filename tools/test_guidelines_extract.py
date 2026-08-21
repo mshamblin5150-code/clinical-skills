@@ -33,7 +33,11 @@ Two claims carry the most weight here:
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import tempfile
+import time
 import unicodedata
 import unittest
 from pathlib import Path
@@ -139,7 +143,13 @@ def rawline(text: str, size: float, gaps: list[float], font: str | None = None) 
     advance = size * 0.5
     chars, cursor = [], 0.0
     for index, glyph in enumerate(text):
-        chars.append({"c": glyph, "bbox": (cursor, 0.0, cursor + advance, size)})
+        chars.append(
+            {
+                "c": glyph,
+                "origin": (cursor, size),
+                "bbox": (cursor, 0.0, cursor + advance, size),
+            }
+        )
         cursor += advance + (gaps[index] if index < len(gaps) else 0.0)
     span = {"size": size, "chars": chars}
     if font is not None:
@@ -504,10 +514,10 @@ class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
             with self.subTest(font=font):
                 self.assertEqual(extract.font_key(font), font)
 
-    def test_the_font_that_proves_a_font_name_is_not_always_a_verdict_stays_out(self):
+    def test_the_font_whose_slots_swap_stays_out_of_the_character_table(self):
         """``MathematicalPi-One`` is the reason this table has a rule and not just
-        rows, and it is the closest this repo has come to shipping an inverted
-        threshold.
+        rows. Its character slots and embedded glyph IDs both swap meanings
+        between documents; only the rendered shape tells the truth.
 
         It sets comparison operators in two C0 slots that ``_DISCARDED_RANGES``
         deletes -- the same class as ``SymbolMT``'s, in USPSTF, which is 90 of the
@@ -517,26 +527,17 @@ class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
             abdom-aortic-aneurysm-screening-final-rs   U+0002 = >=   U+0003 = <=
             osteoporosis-screening-final-recommendation U+0002 = <=   U+0003 = >=
 
-        Measured at 700 dpi, 2026-08-19, after four samples at 400 dpi had agreed
-        with each other and the fifth did not. Confirmed a second way, by hashing
-        the rasterized glyph box of every occurrence: no shape appears under both
-        of ``AdvPS_SSYB``'s codes, and **four shapes appear under both of
-        ``MathematicalPi-One``'s**. That instrument cannot prove two glyphs are the
-        same -- it hashes a rendering, so point size moves it -- but one shape
-        under two codes is a difference noise cannot manufacture, and that is the
-        only direction it was read in. A font-name-keyed row would
-        therefore have turned ``>=90% of screen-detected AAAs`` into ``<=90%`` --
-        **inverting a clinical threshold rather than losing one**, which is worse
-        than the defect #172 was filed about and is the one outcome no downstream
-        gate could catch, because the result is a well-formed operator.
+        A font-name-and-character row would therefore have turned ``>=90% of
+        screen-detected AAAs`` into ``<=90%`` -- inverting a clinical threshold
+        rather than losing one. The 2026-08-20 full-corpus check also falsified the
+        ticket comment's proposed global glyph-ID mapping.
 
         So the rule the table states is load-bearing rather than decorative: *a row
         may only claim a slot that is wrong everywhere*. A subsetted font reassigns
         its codes per document, and a font **name** is a verdict about a slot only
-        where the outline behind it does not move. Settling that needs the embedded
-        glyph outline or a rendered page, and neither is in this repo -- so this is
-        a test that names the font and refuses it, and the census is what keeps it
-        visible. Filed rather than folded in.
+        where the outline behind it does not move. ``rendered_operator_map`` reads
+        that outline from the page instead. With no rendering supplied, the census
+        still reports the unresolved raw slots rather than hiding them.
         """
         self.assertNotIn("MathematicalPi-One", extract.SYMBOL_FONT_OPERATORS)
         self.assertTrue(
@@ -550,6 +551,184 @@ class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
             {"MathematicalPi-One U+0002": 1, "MathematicalPi-One U+0003": 1,
              "MathematicalPi-One U+0039": 1, "MathematicalPi-One U+0030": 1},
         )
+
+
+class MathematicalPiOperatorsFollowTheRenderedGlyph(unittest.TestCase):
+    GREATER_OR_EQUAL = (
+        "##.....",
+        "..##...",
+        "....##.",
+        "..##...",
+        "##.....",
+        "#######",
+    )
+    LESS_OR_EQUAL = tuple(row[::-1] for row in GREATER_OR_EQUAL)
+
+    @staticmethod
+    def grayscale(rows: tuple[str, ...]) -> tuple[bytes, int, int]:
+        return (
+            bytes(0 if pixel == "#" else 255 for row in rows for pixel in row),
+            len(rows[0]),
+            len(rows),
+        )
+
+    def test_the_upper_stroke_direction_identifies_each_operator(self):
+        self.assertEqual(
+            extract.comparison_operator_from_grayscale(
+                *self.grayscale(self.GREATER_OR_EQUAL)
+            ),
+            "\u2265",
+        )
+        self.assertEqual(
+            extract.comparison_operator_from_grayscale(
+                *self.grayscale(self.LESS_OR_EQUAL)
+            ),
+            "\u2264",
+        )
+
+    def test_a_centered_shape_is_refused_instead_of_guessed(self):
+        centered = (
+            "...#...",
+            "..###..",
+            "...#...",
+            "..###..",
+            "...#...",
+            "#######",
+        )
+
+        self.assertIsNone(
+            extract.comparison_operator_from_grayscale(*self.grayscale(centered))
+        )
+
+    def test_the_rendering_meets_the_ticket_700_dpi_floor(self):
+        self.assertGreaterEqual(extract.OPERATOR_RENDER_SCALE * 72, 700)
+
+    def test_the_line_direction_normalizes_a_rotated_operator(self):
+        rotated_counterclockwise = tuple(
+            "".join(
+                self.GREATER_OR_EQUAL[x][len(self.GREATER_OR_EQUAL[0]) - 1 - y]
+                for x in range(len(self.GREATER_OR_EQUAL))
+            )
+            for y in range(len(self.GREATER_OR_EQUAL[0]))
+        )
+        samples, width, height = self.grayscale(rotated_counterclockwise)
+
+        self.assertEqual(
+            extract.comparison_operator_from_grayscale(
+                samples,
+                width,
+                height,
+                direction=(0.0, -1.0),
+            ),
+            "\u2265",
+        )
+
+    def test_each_known_slot_is_classified_at_its_own_origin(self):
+        raw = rawline(
+            "\u0002:\u0003x",
+            9.0,
+            [0.0] * 4,
+            font="MathematicalPi-One",
+        )
+        def render(bbox: tuple[float, float, float, float]) -> tuple[bytes, int, int]:
+            return self.grayscale(
+                self.LESS_OR_EQUAL if bbox[0] == 4.5 else self.GREATER_OR_EQUAL
+            )
+
+        operators = extract.rendered_operator_map(raw, render)
+
+        self.assertEqual(
+            operators,
+            {
+                ("MathematicalPi-One", (0.0, 9.0)): "\u2265",
+                ("MathematicalPi-One", (4.5, 9.0)): "\u2264",
+                ("MathematicalPi-One", (9.0, 9.0)): "\u2265",
+            },
+        )
+
+    def test_a_render_failure_leaves_the_slot_for_the_census(self):
+        raw = rawline("\u0002", 9.0, [0.0], font="MathematicalPi-One")
+
+        def cannot_render(_bbox):
+            raise RuntimeError("synthetic render failure")
+
+        self.assertEqual(extract.rendered_operator_map(raw, cannot_render), {})
+        self.assertEqual(
+            extract.symbol_glyph_census(raw),
+            {"MathematicalPi-One U+0002": 1},
+        )
+
+    def test_the_rendered_glyph_wins_when_the_same_codes_swap_meanings(self):
+        raw = rawline(
+            "\u0002\u0003\u0002\u0003",
+            9.0,
+            [0.0] * 4,
+            font="MathematicalPi-One",
+        )
+
+        origins = [
+            char["origin"]
+            for char in raw["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        ]
+        rendered = {
+            ("MathematicalPi-One", origin): operator
+            for origin, operator in zip(origins, "\u2265\u2264\u2264\u2265", strict=True)
+        }
+
+        rebuilt = extract.rebuild_text(raw, rendered)
+
+        self.assertEqual(rebuilt, "\u2265\u2264\u2264\u2265")
+
+    def test_resolved_control_and_colon_slots_leave_the_unmapped_census(self):
+        raw = rawline(
+            "\u0002\u0003:",
+            9.0,
+            [0.0] * 3,
+            font="MathematicalPi-One",
+        )
+        chars = raw["blocks"][0]["lines"][0]["spans"][0]["chars"]
+        rendered = {
+            ("MathematicalPi-One", char["origin"]): operator
+            for char, operator in zip(chars, "\u2265\u2264\u2265", strict=True)
+        }
+
+        self.assertEqual(extract.symbol_glyph_census(raw, rendered), {})
+
+    def test_the_pdf_boundary_supplies_the_rendering_to_text_and_census(self):
+        raw = rawline(
+            "\u0002\u0003:",
+            9.0,
+            [0.0] * 3,
+            font="MathematicalPi-One",
+        )
+        page = mock.Mock()
+        page.get_text.return_value = raw
+        def pixmap(**kwargs):
+            rows = (
+                self.LESS_OR_EQUAL
+                if kwargs["clip"][0] == 4.5
+                else self.GREATER_OR_EQUAL
+            )
+            samples, width, height = self.grayscale(rows)
+            return mock.Mock(
+                samples=samples,
+                width=width,
+                height=height,
+            )
+
+        page.get_pixmap.side_effect = pixmap
+        document = mock.MagicMock()
+        document.__iter__.return_value = iter([page])
+        document.metadata = {}
+        pymupdf = mock.Mock()
+        pymupdf.open.return_value = document
+        pymupdf.Rect.side_effect = lambda bbox: bbox
+
+        with mock.patch.dict("sys.modules", {"pymupdf": pymupdf}):
+            pages, _title, census = extract.extract_pages(Path("outside.pdf"))
+
+        self.assertEqual(pages, ["\u2265\u2264\u2265"])
+        self.assertEqual(census, {})
 
 
 class TheCensusThatStopsThisRecurringInSilence(unittest.TestCase):
@@ -1560,6 +1739,105 @@ class OutputStaysOutOfTheRepo(unittest.TestCase):
         """
         self.assertIn("worktree", extract.WHY_OUTSIDE)
         self.assertIn("outside", extract.WHY_OUTSIDE)
+
+
+class ExtractionCommandLock(unittest.TestCase):
+    def test_a_second_extraction_is_told_which_shared_artifact_is_busy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            fake_modules = root / "fake-modules"
+            fake_modules.mkdir()
+            started = root / "started"
+            release = root / "release"
+            (fake_modules / "pymupdf.py").write_text(
+                """\
+import os
+import time
+from pathlib import Path
+
+__version__ = "test"
+
+class Page:
+    def get_text(self, kind):
+        Path(os.environ["EXTRACTION_STARTED"]).write_text("ready", encoding="utf-8")
+        release = Path(os.environ["EXTRACTION_RELEASE"])
+        while not release.exists():
+            time.sleep(0.01)
+        return {"blocks": []}
+
+class Document:
+    metadata = {}
+    def __iter__(self):
+        return iter([Page()])
+    def close(self):
+        pass
+
+def open(path):
+    return Document()
+""",
+                encoding="utf-8",
+            )
+            source = root / "guidelines-src"
+            source.mkdir()
+            (source / "one.pdf").write_bytes(b"synthetic PDF placeholder")
+            output = root / "guidelines-text"
+            command = [
+                sys.executable,
+                str(Path(extract.__file__)),
+                str(source),
+                "--out",
+                str(output),
+                "--jobs",
+                "1",
+                "--quiet",
+            ]
+            environment = {
+                **os.environ,
+                "EXTRACTION_STARTED": str(started),
+                "EXTRACTION_RELEASE": str(release),
+                "PYTHONPATH": str(fake_modules),
+            }
+            first = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=environment,
+            )
+            try:
+                deadline = time.monotonic() + 5
+                while not started.exists() and first.poll() is None:
+                    if time.monotonic() >= deadline:
+                        self.fail("the first extraction did not reach its PDF read")
+                    time.sleep(0.01)
+
+                second = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=environment,
+                    timeout=5,
+                )
+                self.assertEqual(second.returncode, 2, second.stderr)
+                self.assertIn("another task is rebuilding", second.stderr)
+                self.assertIn(str(output), second.stderr)
+                self.assertIn("extracting guideline text", second.stderr)
+                self.assertIn("process", second.stderr)
+                self.assertIn("retry", second.stderr.lower())
+                self.assertIsNone(first.poll(), "the blocked build disturbed its owner")
+
+                release.write_text("continue", encoding="utf-8")
+                first_out, first_err = first.communicate(timeout=5)
+                self.assertEqual(first.returncode, 0, first_out + first_err)
+                self.assertTrue((output / "manifest.json").is_file())
+            finally:
+                if first.poll() is None:
+                    first.kill()
+                    first.communicate(timeout=5)
 
 
 class WritingADocument(unittest.TestCase):

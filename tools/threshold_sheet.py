@@ -203,6 +203,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import artifact_lock
 import guidelines_extract
 import guidelines_index
 from console_codec import use_utf8
@@ -869,7 +870,7 @@ def usable_probes(entry: dict, body: str) -> dict[str, str]:
     return probes
 
 
-def gate_watermark(
+def _gate_watermark(
     sheet: Sheet,
     text_root: Path | None,
     *,
@@ -986,6 +987,33 @@ def gate_watermark(
                     f"this row off the rendered page and declare {RENDERED_MARKER}."
                 )
     return findings, None, rendered, unprobed
+
+
+def gate_watermark(
+    sheet: Sheet,
+    text_root: Path | None,
+    *,
+    allow_untrusted_provenance: bool = False,
+) -> tuple[list[str], str | None, int, list[str]]:
+    """Run WATERMARK against one completed extraction, never an in-flight one."""
+    if text_root is None:
+        return _gate_watermark(
+            sheet,
+            text_root,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+        )
+    text_root = Path(text_root).resolve()
+    try:
+        with artifact_lock.hold(
+            text_root, "reading extracted guideline corpus", mode="read"
+        ):
+            return _gate_watermark(
+                sheet,
+                text_root,
+                allow_untrusted_provenance=allow_untrusted_provenance,
+            )
+    except artifact_lock.ArtifactBusy as busy:
+        return [], str(busy), 0, []
 
 
 # The line gate 5 prints on every run it makes, clean or not. #83 states the caveat

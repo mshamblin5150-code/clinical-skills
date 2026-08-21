@@ -937,9 +937,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if not args.source.is_dir():
-        parser.error(f"no such directory: {args.source}")
-
     try:
         results = build(
             args.source,
