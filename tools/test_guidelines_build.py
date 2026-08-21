@@ -64,8 +64,14 @@ class BuildCommandCase(unittest.TestCase):
                         "documents": [
                             {
                                 "doc_id": "one",
+                                "society": None,
+                                "title": None,
                                 "source": "one.pdf",
                                 "output": "one.txt",
+                                "document_class": "unknown",
+                                "pages": 1,
+                                "boilerplate": [],
+                                "margin_stripped": [],
                                 "error": None,
                             }
                         ],
@@ -194,10 +200,15 @@ class SeparatingDifferentInputs(BuildCommandCase):
             )["producer_files"]
         }
 
-        self.assertIn("tools/guidelines_extraction_artifact.py", extraction_files)
+        self.assertIn("tools/guidelines_manifest.py", extraction_files)
         self.assertNotIn("tools/guidelines_index_artifact.py", extraction_files)
         self.assertIn("tools/guidelines_index_artifact.py", index_files)
-        self.assertNotIn("tools/guidelines_extraction_artifact.py", index_files)
+        self.assertIn("tools/guidelines_manifest.py", index_files)
+
+    def test_extraction_stamping_is_owned_by_the_manifest_module(self):
+        import guidelines_manifest
+
+        self.assertIs(guidelines_build.stamp_manifest, guidelines_manifest.stamp)
 
     def test_index_identity_includes_extracted_content_not_commit_lineage(self):
         self.assertEqual(self.run_command(), 0)

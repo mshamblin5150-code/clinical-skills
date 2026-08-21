@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import contextlib
+import ast
 import json
 import tempfile
 import unittest
@@ -96,6 +97,48 @@ class ManifestSerializationTests(unittest.TestCase):
             }
             expected_bytes = (json.dumps(expected, indent=2, ensure_ascii=False) + "\n").encode()
             self.assertEqual(path.read_bytes(), expected_bytes)
+
+
+class ManifestOwnershipTests(unittest.TestCase):
+    def test_only_the_owner_assigns_manifest_name(self):
+        tools = Path(__file__).resolve().parent
+        owners = []
+        for path in tools.glob("*.py"):
+            if path.name.startswith("test_"):
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"), path)
+            if any(
+                isinstance(node, (ast.Assign, ast.AnnAssign))
+                and any(
+                    isinstance(target, ast.Name) and target.id == "MANIFEST_NAME"
+                    for target in (
+                        node.targets if isinstance(node, ast.Assign) else [node.target]
+                    )
+                )
+                for node in ast.walk(tree)
+            ):
+                owners.append(path.name)
+        self.assertEqual(owners, ["guidelines_manifest.py"])
+
+    def test_every_lexically_visible_manifest_consumer_imports_the_owner(self):
+        tools = Path(__file__).resolve().parent
+        missing = {}
+        for path in tools.glob("*.py"):
+            if path.name.startswith("test_") or path.name == "guidelines_manifest.py":
+                continue
+            source = path.read_text(encoding="utf-8")
+            if not any(token in source for token in manifest.DISCOVERY_CEILING):
+                continue
+            tree = ast.parse(source, path)
+            imports_owner = any(
+                (isinstance(node, ast.Import) and any(alias.name == "guidelines_manifest" for alias in node.names))
+                or (isinstance(node, ast.ImportFrom) and node.module == "guidelines_manifest")
+                for node in ast.walk(tree)
+            )
+            if not imports_owner:
+                missing[path.name] = manifest.NOT_MIGRATED.get(path.name)
+        self.assertEqual(missing, manifest.NOT_MIGRATED)
+        self.assertTrue(all(manifest.NOT_MIGRATED.values()))
 
 
 class ManifestReadingTests(unittest.TestCase):

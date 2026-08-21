@@ -80,10 +80,10 @@ from typing import Iterator
 
 from console_codec import use_utf8
 import guidelines_manifest
+from guidelines_manifest import MANIFEST_NAME
 from repo_root import ensure_outside_checkout, main_repo_root
 
 SCHEMA_VERSION = 1
-MANIFEST_NAME = guidelines_manifest.MANIFEST_NAME
 UNCLASSIFIED = "unclassified"
 DATABASE_ENVIRONMENT_VARIABLE = "CLINICAL_GUIDELINES_INDEX"
 UntrustedProvenance = artifact_provenance.UntrustedProvenance

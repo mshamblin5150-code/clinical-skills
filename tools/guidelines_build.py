@@ -29,9 +29,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import guidelines_extract
-import guidelines_extraction_artifact
 import guidelines_index
 import guidelines_index_artifact
+import guidelines_manifest
 from console_codec import use_utf8
 from repo_root import ensure_outside_checkout, main_repo_root
 
@@ -45,6 +45,7 @@ WHY_OUTSIDE = (
     "Guideline build artifacts contain society-copyrighted text and must stay "
     "outside every git checkout."
 )
+stamp_manifest = guidelines_manifest.stamp
 
 
 @dataclass(frozen=True)
@@ -128,7 +129,7 @@ def extraction_identity(source: Path) -> dict[str, object]:
         "source_files": source_files,
         "producer_files": _code_inputs(
             "guidelines_extract.py",
-            "guidelines_extraction_artifact.py",
+            "guidelines_manifest.py",
             "artifact_provenance.py",
         ),
         "runtime": {
@@ -148,6 +149,7 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
         "producer_files": _code_inputs(
             "guidelines_index.py",
             "guidelines_index_artifact.py",
+            "guidelines_manifest.py",
             "artifact_provenance.py",
         ),
         "runtime": {
@@ -163,14 +165,8 @@ def _extraction_inventory(extraction: SelectedArtifact) -> str:
     rows: list[dict[str, object]] = []
     for row in extraction.files:
         normalized = dict(row)
-        if row["path"] == guidelines_extract.MANIFEST_NAME:
-            manifest = json.loads(
-                (extraction.path / guidelines_extract.MANIFEST_NAME).read_text(
-                    encoding="utf-8"
-                )
-            )
-            if not isinstance(manifest, dict):
-                raise ValueError("extraction manifest is not a JSON object")
+        if row["path"] == guidelines_manifest.MANIFEST_NAME:
+            manifest = guidelines_manifest.load(extraction.path)
             manifest.pop("producer", None)
             normalized["sha256"] = identity_key(manifest)
             normalized.pop("bytes", None)
@@ -340,26 +336,9 @@ def _verify_artifact(
 
 
 def _validate_extraction(root: Path) -> None:
-    manifest_path = root / guidelines_extract.MANIFEST_NAME
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError) as failure:
-        raise ValueError(f"extraction did not produce a readable manifest: {failure}") from failure
-    documents = manifest.get("documents") if isinstance(manifest, dict) else None
-    if not isinstance(documents, list) or not documents:
+    handoff = guidelines_manifest.validate(root)
+    if not handoff.documents:
         raise ValueError("extraction manifest contains no documents")
-    failures = [
-        row.get("doc_id", row.get("source", "unknown"))
-        for row in documents
-        if isinstance(row, dict) and row.get("error")
-    ]
-    if failures:
-        raise ValueError(f"extraction manifest records failed documents: {failures}")
-    for row in documents:
-        if not isinstance(row, dict) or not row.get("output"):
-            raise ValueError("extraction manifest has a document with no output")
-        if not (root / str(row["output"])).is_file():
-            raise ValueError(f"extraction output is missing: {row['output']}")
 
 
 def _validate_index(database: Path) -> None:
@@ -561,7 +540,7 @@ def _build_extraction(
         _run_producer(command, "guideline extraction")
         if _files(source, "*.pdf") != identity["source_files"]:
             raise ValueError("source files changed during extraction; retry the build")
-        guidelines_extraction_artifact.stamp(temporary, trusted)
+        stamp_manifest(temporary, trusted)
         _validate_extraction(temporary)
 
     return _select_or_build(
@@ -590,14 +569,8 @@ def _build_index(
         ):
             if _files(extraction.path) != extraction.files:
                 raise ValueError("cached extraction changed before index production")
-            manifest = json.loads(
-                (extraction.path / guidelines_extract.MANIFEST_NAME).read_text(
-                    encoding="utf-8"
-                )
-            )
-            source_producer = (
-                manifest.get("producer") if isinstance(manifest, dict) else None
-            )
+            manifest = guidelines_manifest.load(extraction.path)
+            source_producer = manifest.get("producer")
             if not isinstance(source_producer, dict):
                 raise ValueError("cached extraction has no producer record")
             _run_producer(

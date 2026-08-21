@@ -13,6 +13,21 @@ import artifact_provenance
 
 MANIFEST_NAME = "manifest.json"
 
+# This lexical walk is a floor for the shapes present in this tree. It cannot see a
+# filename assembled by concatenation or JSON reached through an already-open file.
+DISCOVERY_CEILING = (
+    "MANIFEST_NAME",
+    MANIFEST_NAME,
+    "read_manifest",
+    "read_extracted_corpus",
+)
+
+# The refusing walk remains runnable during staged migration. Each exception must
+# say why it exists and is removed in the commit that migrates that consumer.
+NOT_MIGRATED = {
+    "threshold_sheet.py": "migrates last because its command runs in pre-commit",
+}
+
 
 @dataclass(frozen=True)
 class Document:
@@ -142,6 +157,7 @@ def _read_locked(
     *,
     allow_untrusted_provenance: bool,
     expected_commit: str | None,
+    verify_provenance: bool = True,
 ) -> Manifest:
     if not root.is_dir():
         return _problem(root, f"extracted corpus not found at {root}")
@@ -154,16 +170,18 @@ def _read_locked(
         return _problem(root, f"{path} is present but could not be read as JSON: {failure}")
 
     stamped = data.get("producer") if isinstance(data, dict) else None
-    try:
-        provenance = artifact_provenance.check_producer(
-            stamped,
-            path,
-            allow_untrusted=allow_untrusted_provenance,
-            expected_commit=expected_commit,
-            unchanged_paths=("tools/guidelines_extract.py",),
-        )
-    except ValueError as failure:
-        return _problem(root, str(failure), cause=failure)
+    provenance = None
+    if verify_provenance:
+        try:
+            provenance = artifact_provenance.check_producer(
+                stamped,
+                path,
+                allow_untrusted=allow_untrusted_provenance,
+                expected_commit=expected_commit,
+                unchanged_paths=("tools/guidelines_extract.py",),
+            )
+        except ValueError as failure:
+            return _problem(root, str(failure), cause=failure)
 
     entries = data.get("documents") if isinstance(data, dict) else data
     if not isinstance(entries, list):
@@ -260,6 +278,7 @@ def read(
                 root,
                 allow_untrusted_provenance=allow_untrusted_provenance,
                 expected_commit=expected_commit,
+                verify_provenance=True,
             )
     except artifact_lock.ArtifactBusy as failure:
         return _problem(root, str(failure), cause=failure)
@@ -277,6 +296,23 @@ def read_or_raise(
     return result
 
 
+def validate(root: Path) -> Manifest:
+    """Validate a newly produced artifact whose caller already owns its trust stamp."""
+    resolved = root.resolve()
+    with artifact_lock.hold(
+        resolved, "validating extracted guideline corpus", mode="read"
+    ):
+        result = _read_locked(
+            resolved,
+            allow_untrusted_provenance=False,
+            expected_commit=None,
+            verify_provenance=False,
+        )
+    if result.problems:
+        raise ValueError("; ".join(problem.message for problem in result.problems))
+    return result
+
+
 def stamp(root: Path, producer: dict[str, object]) -> None:
     """Write cache-specific producer provenance without changing any other bytes."""
     path = root / MANIFEST_NAME
@@ -289,3 +325,15 @@ def stamp(root: Path, producer: dict[str, object]) -> None:
         encoding="utf-8",
         newline="\n",
     )
+
+
+def load(root: Path) -> dict[str, Any]:
+    """Load the top-level object for callers already holding the artifact lock."""
+    path = root / MANIFEST_NAME
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError) as failure:
+        raise ValueError(f"extraction did not produce a readable manifest: {failure}") from failure
+    if not isinstance(value, dict):
+        raise ValueError("extraction manifest is not a JSON object")
+    return value
