@@ -1363,9 +1363,9 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
             self.assertNotEqual(marker, "•")
 
     def test_each_section_gets_its_own_numbered_list(self):
-        """Two lists under two headings are two ``w:num`` entries, which is the
-        whole restart mechanism: Word restarts numbering per ``numId``, so lists
-        sharing one are a single list however far apart they sit."""
+        """Two lists under two headings get distinct ``w:num`` entries. Allocation
+        and an explicit start override are separate limbs of #422's restart
+        contract, so this pins the first one without standing in for the second."""
         body, count = docx_write.render_body(
             "## One\n\n1. a\n2. b\n\n## Two\n\n1. c\n2. d\n"
         )
@@ -1376,6 +1376,25 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
             r'<w:num w:numId="(\d+)">', docx_write.numbering_xml(count)
         )
         self.assertEqual(declared, ["1", "2", "3"])
+
+    def test_each_decimal_list_explicitly_restarts_at_one(self):
+        """Each decimal ``w:num`` carries #422's level-zero start override."""
+        namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        root = ElementTree.fromstring(docx_write.numbering_xml(3))
+        nums = root.findall(f"{{{namespace}}}num")
+
+        self.assertEqual(
+            [node.get(f"{{{namespace}}}numId") for node in nums],
+            ["1", "2", "3", "4"],
+        )
+        self.assertIsNone(nums[0].find(f"{{{namespace}}}lvlOverride"))
+        for node in nums[1:]:
+            override = node.find(f"{{{namespace}}}lvlOverride")
+            self.assertIsNotNone(override)
+            self.assertEqual(override.get(f"{{{namespace}}}ilvl"), "0")
+            start = override.find(f"{{{namespace}}}startOverride")
+            self.assertIsNotNone(start)
+            self.assertEqual(start.get(f"{{{namespace}}}val"), "1")
 
     def test_a_paragraph_between_items_does_not_restart_the_list(self):
         """The mirror of the rule above, and the reason the reset is keyed on a
