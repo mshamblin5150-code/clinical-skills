@@ -31,6 +31,13 @@ an abstract definition continues that sequence unless its override restarts it, 
 16.0 was calibrated to do on #422. A document with no numbering part remains a successful
 ordinary read.
 
+**The declared bound is paragraph-level numbering.** Numbering inherited only through a
+paragraph style is outside this read and is named beside every ``--numbering`` report. The
+reader reconstructs decimal, zero-padded decimal, alphabetic and Roman placeholders plus
+literal markers such as bullets. A numbered paragraph whose definition is absent, whose
+level is absent or whose placeholder format is unsupported makes the read incomplete and
+exits 2 rather than returning partial text as a clean whole.
+
 **The remaining part limit is live rather than theoretical: a header is a part, and this
 does not read one.** Since #217 ``docx_write.py`` emits ``word/header1.xml`` for APA 7's
 page number, and nothing this reader is pointed at would show it. That costs nothing here
@@ -100,11 +107,15 @@ def _text_of(element) -> str:
 class _Numbering:
     """Reconstruct list markers from the document's numbering definitions."""
 
-    def __init__(self, root) -> None:
+    def __init__(self, root=None) -> None:
         self.levels = {}
         self.instances = {}
         self.counters = {}
         self.abstract_counters = {}
+        self.population = 0
+        self.unread = 0
+        if root is None:
+            return
         for abstract in root.findall(NS + "abstractNum"):
             abstract_id = abstract.get(NS + "abstractNumId")
             for level in abstract.findall(NS + "lvl"):
@@ -131,6 +142,53 @@ class _Numbering:
                     )
             self.instances[num_id] = (abstract.get(NS + "val"), overrides)
 
+    @staticmethod
+    def _letters(value: int) -> str:
+        out = ""
+        while value > 0:
+            value, remainder = divmod(value - 1, 26)
+            out = chr(ord("a") + remainder) + out
+        return out
+
+    @staticmethod
+    def _roman(value: int) -> str:
+        out = []
+        for number, numeral in (
+            (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
+            (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
+            (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+        ):
+            count, value = divmod(value, number)
+            out.append(numeral * count)
+        return "".join(out)
+
+    @classmethod
+    def _format(cls, value: int, num_fmt: str) -> str | None:
+        if num_fmt == "decimal":
+            return str(value)
+        if num_fmt == "decimalZero":
+            return str(value).zfill(2)
+        if num_fmt in ("lowerLetter", "upperLetter"):
+            rendered = cls._letters(value)
+            return rendered if num_fmt == "lowerLetter" else rendered.upper()
+        if num_fmt in ("lowerRoman", "upperRoman"):
+            rendered = cls._roman(value)
+            return rendered if num_fmt == "lowerRoman" else rendered.upper()
+        return None
+
+    @staticmethod
+    def _drop_deeper(store: dict, owner: str, ilvl: int) -> None:
+        for key in [row for row in store if row[0] == owner and row[1] > ilvl]:
+            del store[key]
+
+    @property
+    def report(self) -> str:
+        reconstructed = self.population - self.unread
+        return (
+            "docx numbering: reconstructed {read} of {all} paragraph-level list "
+            "markers; unread {unread}; style-inherited numbering is outside this read"
+        ).format(read=reconstructed, all=self.population, unread=self.unread)
+
     def marker(self, paragraph) -> tuple[str, int]:
         properties = paragraph.find(NS + "pPr")
         num_properties = properties.find(NS + "numPr") if properties is not None else None
@@ -138,26 +196,25 @@ class _Numbering:
             return "", 0
         num_id_node = num_properties.find(NS + "numId")
         level_node = num_properties.find(NS + "ilvl")
+        self.population += 1
         if num_id_node is None:
+            self.unread += 1
             return "", 0
         num_id = num_id_node.get(NS + "val")
         ilvl = int(level_node.get(NS + "val", "0")) if level_node is not None else 0
         if num_id not in self.instances:
+            self.unread += 1
             return "", ilvl
         abstract_id, overrides = self.instances[num_id]
         definition = self.levels.get((abstract_id, ilvl))
         if definition is None:
+            self.unread += 1
             return "", ilvl
         start, _, template = definition
         key = (num_id, ilvl)
         abstract_key = (abstract_id, ilvl)
-        for deeper in [row for row in self.counters if row[0] == num_id and row[1] > ilvl]:
-            del self.counters[deeper]
-        for deeper in [
-            row for row in self.abstract_counters
-            if row[0] == abstract_id and row[1] > ilvl
-        ]:
-            del self.abstract_counters[deeper]
+        self._drop_deeper(self.counters, num_id, ilvl)
+        self._drop_deeper(self.abstract_counters, abstract_id, ilvl)
         if key in self.counters:
             value = self.counters[key] + 1
         elif ilvl in overrides:
@@ -176,11 +233,15 @@ class _Numbering:
             if referenced_value is None:
                 return match.group(0)
             referenced = self.levels.get((abstract_id, referenced_level))
-            if referenced is None or referenced[1] != "decimal":
+            if referenced is None:
                 return match.group(0)
-            return str(referenced_value)
+            rendered = self._format(referenced_value, referenced[1])
+            return rendered if rendered is not None else match.group(0)
 
         marker = re.sub(r"%([1-9])", replace, template)
+        if not marker or re.search(r"%[1-9]", marker):
+            self.unread += 1
+            return "", ilvl
         return marker, ilvl
 
 
@@ -205,8 +266,7 @@ def _walk(parent, out: list, numbering: _Numbering | None = None) -> None:
             _walk(child, out, numbering)
 
 
-def read_docx(path, numbering: bool = False) -> list:
-    """The document's paragraphs, in order. Raises ``ValueError`` if it is not one."""
+def _read_docx(path, numbering: bool = False) -> tuple[list, _Numbering | None]:
     path = Path(path)
     try:
         archive = zipfile.ZipFile(path)
@@ -216,14 +276,21 @@ def read_docx(path, numbering: bool = False) -> list:
         if "word/document.xml" not in archive.namelist():
             raise ValueError("no word/document.xml in {p}".format(p=path))
         root = ElementTree.fromstring(archive.read("word/document.xml"))
-        numbering_part = None
-        if numbering and "word/numbering.xml" in archive.namelist():
-            numbering_part = _Numbering(
-                ElementTree.fromstring(archive.read("word/numbering.xml"))
-            )
+        numbering_part = _Numbering() if numbering else None
+        if numbering_part is not None and "word/numbering.xml" in archive.namelist():
+            numbering_part = _Numbering(ElementTree.fromstring(
+                archive.read("word/numbering.xml")
+            ))
     out: list = []
     _walk(root, out, numbering_part)
-    return [line.replace("﻿", "") for line in out]
+    if numbering_part is not None and numbering_part.unread:
+        raise ValueError(numbering_part.report)
+    return [line.replace("﻿", "") for line in out], numbering_part
+
+
+def read_docx(path, numbering: bool = False) -> list:
+    """The document's paragraphs, in order. Raises ``ValueError`` if it is not one."""
+    return _read_docx(path, numbering)[0]
 
 
 HEADING = re.compile(r"^(?:[A-Z][A-Z &/'-]{3,}|[A-Z][\w ,'/-]{2,60}:)$")
@@ -236,7 +303,7 @@ def main(argv: list) -> int:
         print("usage: docx_read.py <file.docx> [--normalize] [--outline] [--numbering]")
         return 2
     try:
-        lines = read_docx(args[0], numbering="--numbering" in flags)
+        lines, numbering_part = _read_docx(args[0], numbering="--numbering" in flags)
     except ValueError as problem:
         print(problem)
         return 2
@@ -244,6 +311,8 @@ def main(argv: list) -> int:
         lines = [normalize(line) for line in lines]
     if "--outline" in flags:
         lines = [line for line in lines if HEADING.match(line.strip())]
+    if numbering_part is not None:
+        print(numbering_part.report, file=sys.stderr)
     print("\n".join(lines))
     return 0
 
