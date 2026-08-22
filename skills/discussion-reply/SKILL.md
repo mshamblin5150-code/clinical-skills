@@ -159,12 +159,13 @@ python tools/discussion_reply_scan.py scratch/runs/<run-key>
 
 The default report is counts only. It reports how many `posts/*.md` files supplied an `AUTHOR:` and
 refuses partial roster coverage, then verifies the response filename and addressed first name
-against that roster, the 100-word floor, one APA author-year reference minimum, every recognized
-APA narrative or parenthetical author-year citation resolving to that response's own list, every
-Arabic numeral in the body tracing to an exact token in that response's tagged `CLAIM` heading or
-`RESTATEMENT`, and no source appearing in more than one response. Citation years and page locators,
-and the reference list, are excluded from the numeric-claim walk. Reference entries must be
-separated by blank lines. `--show` prints names and finding detail, so its output is private working
+against that roster, the 100-word floor, one APA author-year reference backed by the corresponding
+tagged claim record, every recognized APA narrative or parenthetical author-year citation resolving
+to that response's own list, every Arabic numeral in the body tracing to an exact token in that
+response's tagged `CLAIM` heading or `RESTATEMENT`, and no source appearing in more than one
+response. Citation years and page locators, and the reference list, are excluded from the
+numeric-claim walk. Reference entries must be separated by blank lines and copied from the ledger's
+`REFERENCE` field. `--show` prints names and finding detail, so its output is private working
 material and must not be pasted.
 
 Exit 0 means every scanned reply passes, 1 means a finding, and 2 means the run was not completely

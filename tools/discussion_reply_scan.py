@@ -56,6 +56,9 @@ CLAIM_TARGET = re.compile(r"^\[REPLY:\s*(?P<target>[^\]]+)\]\s*(?P<claim>.*)$", 
 RESTATEMENT = re.compile(
     r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
 )
+CLAIM_REFERENCE = re.compile(
+    r"(?mi)^REFERENCE\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
+)
 
 
 @dataclass(frozen=True)
@@ -150,9 +153,13 @@ def _word_finding(reply: Reply) -> Finding | None:
     return None
 
 
-def _reference_finding(reply: Reply) -> Finding | None:
-    if not _valid_references(reply):
-        return Finding(REFERENCE_MINIMUM, reply.path.name, "no APA author-year reference entry")
+def _reference_finding(reply: Reply, claims: str) -> Finding | None:
+    if not _claimed_references(reply, claims):
+        return Finding(
+            REFERENCE_MINIMUM,
+            reply.path.name,
+            "no APA author-year reference backed by this reply's claim record",
+        )
     return None
 
 
@@ -176,6 +183,32 @@ def _valid_references(reply: Reply) -> tuple[str, ...]:
         ):
             valid.append(entry)
     return tuple(valid)
+
+
+def _scoped_claim_blocks(claims: str, target: str) -> tuple[tuple[str, str], ...]:
+    scoped_blocks: list[tuple[str, str]] = []
+    for match in CLAIM_BLOCK.finditer(claims):
+        block = match.group("block")
+        claim_line = block.splitlines()[0] if block.splitlines() else ""
+        scoped = CLAIM_TARGET.match(claim_line)
+        if scoped is not None and _slug(scoped.group("target")) == target:
+            scoped_blocks.append((scoped.group("claim"), block))
+    return tuple(scoped_blocks)
+
+
+def _claimed_references(reply: Reply, claims: str) -> tuple[str, ...]:
+    target = reply.path.stem.removeprefix("response-")
+    ledger_keys = {
+        _source_key(reference.group("value").replace("\n", " "))
+        for _claim, block in _scoped_claim_blocks(claims, target)
+        for reference in [CLAIM_REFERENCE.search(block)]
+        if reference is not None
+    }
+    return tuple(
+        reference
+        for reference in _valid_references(reply)
+        if _source_key(reference) in ledger_keys
+    )
 
 
 def _reference_keys(reply: Reply) -> set[tuple[str, str]]:
@@ -210,14 +243,9 @@ def _number_findings(
 ) -> tuple[Finding, ...]:
     traced: set[str] = set()
     target = reply.path.stem.removeprefix("response-")
-    for match in CLAIM_BLOCK.finditer(claims):
-        block = match.group("block")
-        claim_line = block.splitlines()[0] if block.splitlines() else ""
-        scoped = CLAIM_TARGET.match(claim_line)
-        if scoped is None or _slug(scoped.group("target")) != target:
-            continue
+    for claim, block in _scoped_claim_blocks(claims, target):
         restatement = RESTATEMENT.search(block)
-        trace_text = scoped.group("claim") + "\n" + (
+        trace_text = claim + "\n" + (
             restatement.group("value") if restatement else ""
         )
         traced.update(value.casefold() for value in NUMBER.findall(trace_text))
@@ -339,7 +367,7 @@ def survey(source: RunSource) -> Scan:
         for finding in (
             _address_finding(reply, source.roster),
             _word_finding(reply),
-            _reference_finding(reply),
+            _reference_finding(reply, source.claims),
         )
         if finding is not None
     )
@@ -357,7 +385,9 @@ def survey(source: RunSource) -> Scan:
         posts_read=len(source.roster),
         posts_total=source.posts_total,
         words=sum(len(WORD.findall(AMPLIFICATION.sub("", reply.body))) for reply in source.replies),
-        references=sum(len(_valid_references(reply)) for reply in source.replies),
+        references=sum(
+            len(_claimed_references(reply, source.claims)) for reply in source.replies
+        ),
         citations=sum(len(reply_citations) for reply_citations in citations),
         numeric_claims=sum(
             len(_numeric_values(reply, reply_citations))

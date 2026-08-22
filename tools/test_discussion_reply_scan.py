@@ -152,7 +152,8 @@ class EachReplyCarriesEvidence(unittest.TestCase):
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
             response.write_text(
-                BODY.split("\nReferences\n", 1)[0] + "\nReferences\n\nplaceholder (2024)\n",
+                BODY.split("\nReferences\n", 1)[0]
+                + "\nReferences\n\nPlaceholder, P. (2024). Placeholder source. Journal.\n",
                 encoding="utf-8",
             )
             stdout = io.StringIO()
@@ -194,6 +195,10 @@ class EachReplyCarriesEvidence(unittest.TestCase):
     def test_two_author_narrative_citation_resolves_to_the_first_author(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("Quill, R. (2024)", "Quill, R., & Vale, S. (2024)"),
+                encoding="utf-8",
+            )
             response = run.root / "response-maren.md"
             response.write_text(
                 BODY.replace("(Quill, 2024)", "Quill and Vale (2024)").replace(
@@ -226,6 +231,10 @@ class EachReplyCarriesEvidence(unittest.TestCase):
     def test_narrative_page_locator_is_part_of_the_citation(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("Quill, R. (2024)", "Quill, R., & Vale, S. (2024)"),
+                encoding="utf-8",
+            )
             response = run.root / "response-maren.md"
             response.write_text(
                 BODY.replace("(Quill, 2024)", "Quill and Vale (2024, pp. 4–5)").replace(
@@ -295,6 +304,8 @@ class ASourceIsSpentOnlyOncePerRun(unittest.TestCase):
             (run.root / "response-solin.md").write_text(
                 BODY.replace("Maren,", "Solin,"), encoding="utf-8"
             )
+            with (run.root / "claims.md").open("a", encoding="utf-8") as ledger:
+                ledger.write("\n" + CLAIMS.split("\n\n", 1)[1].replace("[REPLY: maren]", "[REPLY: solin]"))
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
