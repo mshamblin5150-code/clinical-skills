@@ -78,8 +78,11 @@ of agreement, and the clinician's own argument need no record. A number, thresho
 comparison, or empirical assertion does. Reusing a source from the clinician's initial post is not
 verification; research the new claim on its own terms.
 
-Create `claims.md` with a `DATE:` header and one empty `## CLAIM:` heading per claim before
-research begins. Fan out one research agent per claim. Each returns a reputable source from one of
+Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per claim before research
+begins. Start the heading with the response filename's target slug, for example
+`## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.` This is the join that
+keeps the same number in another reply's record from tracing the wrong assertion. Fan out one
+research agent per claim. Each returns a reputable source from one of
 four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
 the read date, and the page's stated year and where it appears. The orchestrator alone writes the
@@ -93,7 +96,7 @@ honestly unsourced before drafting; it is never cited.
 Each record uses the full research-ledger shape:
 
 ```text
-## CLAIM: <the claim, including any number the reply will state>
+## CLAIM: [REPLY: <response filename target>] <the claim, including any number the reply will state>
 STATUS: sourced | unsourced - <what was searched>
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
@@ -153,13 +156,15 @@ After the drafting context returns the response, a fresh non-authoring context r
 python tools/discussion_reply_scan.py scratch/runs/<run-key>
 ```
 
-The default report is counts only. It verifies the response filename and addressed first name
-against `posts/`'s `AUTHOR:` roster, the 100-word floor, one reference minimum, every recognized
-APA author-year citation resolving to that response's own list, every Arabic numeral in the body
-tracing to an exact token in a `CLAIM` heading or `RESTATEMENT`, and no source appearing in more
-than one response. Citation years and the reference list are excluded from the numeric-claim walk.
-Reference entries must be separated by blank lines. `--show` prints names and finding detail, so
-its output is private working material and must not be pasted.
+The default report is counts only. It reports how many `posts/*.md` files supplied an `AUTHOR:` and
+refuses partial roster coverage, then verifies the response filename and addressed first name
+against that roster, the 100-word floor, one APA author-year reference minimum, every recognized
+APA narrative or parenthetical author-year citation resolving to that response's own list, every
+Arabic numeral in the body tracing to an exact token in that response's tagged `CLAIM` heading or
+`RESTATEMENT`, and no source appearing in more than one response. Citation years and page locators,
+and the reference list, are excluded from the numeric-claim walk. Reference entries must be
+separated by blank lines. `--show` prints names and finding detail, so its output is private working
+material and must not be pasted.
 
 Exit 0 means every scanned reply passes, 1 means a finding, and 2 means the run was not completely
 scannable. Fix any finding through the original drafting context, preserve the first checker
@@ -172,8 +177,8 @@ breaks and omitting the `AMPLIFICATION` comments. Submit it, then reread the pos
 ## 5. Draft and post reply two sequentially
 
 Only after reply one is posted, draft reply two. Read the posted first reply and its reference list
-before writing. Do not reuse its source, figure, or signature amplification. The clinician's review
-is the pacing; add no artificial delay.
+before writing. Do not reuse its source or figure. The clinician's review is the pacing; add no
+artificial delay.
 
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
 compares every response file, so a repeated source now fails. Show reply two and wait for a new,

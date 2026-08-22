@@ -4,7 +4,8 @@
 Default output is counts only. ``--show`` includes finding details and may name
 classmates, so its output is private working material and must not be pasted.
 Exit 0 means the scanned replies pass, 1 means at least one finding, and 2 means
-the run could not be completely scanned.
+the run could not be completely scanned. The roster coverage ceiling is every
+``posts/*.md`` file carrying one ``AUTHOR:`` line; other post layouts are unread.
 """
 
 from __future__ import annotations
@@ -40,14 +41,17 @@ AMPLIFICATION = re.compile(r"(?mi)^\s*<!--\s*AMPLIFICATION\s*:[^>]+-->\s*$")
 AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")
 PAREN_BLOCK = re.compile(r"\((?P<inside>[^()]+)\)")
 PAREN_PAIR = re.compile(
-    r"(?P<author>[A-Z][^;]*?),\s*(?P<year>(?:19|20)\d{2}[a-z]?)\s*$"
+    r"(?P<author>[A-Z][^;]*?),\s*(?P<year>(?:19|20)\d{2}[a-z]?)"
+    r"(?:,\s*(?:p{1,2}\.\s*)?\d+(?:[-–]\d+)?)?\s*$"
 )
 NARRATIVE_CITATION = re.compile(
-    r"\b(?P<author>[A-Z][A-Za-z'-]+(?:\s+et\s+al\.)?)\s*"
+    r"\b(?P<author>[A-Z][A-Za-z'-]+(?:\s+(?:(?:and|&)\s+"
+    r"[A-Z][A-Za-z'-]+|et\s+al\.))?)\s*"
     r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)"
 )
 REFERENCE_YEAR = re.compile(r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)")
 CLAIM_BLOCK = re.compile(r"(?ms)^## CLAIM:\s*(?P<block>.*?)(?=^## CLAIM:|\Z)")
+CLAIM_TARGET = re.compile(r"^\[REPLY:\s*(?P<target>[^\]]+)\]\s*(?P<claim>.*)$", re.IGNORECASE)
 RESTATEMENT = re.compile(
     r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
 )
@@ -81,11 +85,14 @@ class RunSource:
     replies: tuple[Reply, ...]
     claims: str
     roster: tuple[str, ...]
+    posts_total: int
 
 
 @dataclass(frozen=True)
 class Scan:
     responses: int
+    posts_read: int
+    posts_total: int
     words: int
     references: int
     citations: int
@@ -143,19 +150,32 @@ def _word_finding(reply: Reply) -> Finding | None:
 
 
 def _reference_finding(reply: Reply) -> Finding | None:
-    if not reply.references:
-        return Finding(REFERENCE_MINIMUM, reply.path.name, "no reference list entry")
+    if not _valid_references(reply):
+        return Finding(REFERENCE_MINIMUM, reply.path.name, "no APA author-year reference entry")
     return None
 
 
 def _author_key(value: str) -> str:
-    first = re.split(r"\s+(?:et\s+al\.)|\s*&\s*|\s*;\s*|,", value, maxsplit=1)[0]
+    first = re.split(
+        r"\s+(?:et\s+al\.)|\s+(?:and|&)\s+|\s*;\s*|,",
+        value,
+        maxsplit=1,
+    )[0]
     return re.sub(r"[^a-z0-9]", "", first.casefold())
+
+
+def _valid_references(reply: Reply) -> tuple[str, ...]:
+    valid: list[str] = []
+    for entry in reply.references:
+        year = REFERENCE_YEAR.search(entry)
+        if year and _author_key(entry[: year.start()].rstrip(". ")):
+            valid.append(entry)
+    return tuple(valid)
 
 
 def _reference_keys(reply: Reply) -> set[tuple[str, str]]:
     keys: set[tuple[str, str]] = set()
-    for entry in reply.references:
+    for entry in _valid_references(reply):
         year = REFERENCE_YEAR.search(entry)
         if year:
             keys.add((_author_key(entry[: year.start()].rstrip(". ")), year.group("year")))
@@ -184,11 +204,17 @@ def _number_findings(
     reply: Reply, citations: tuple[Citation, ...], claims: str
 ) -> tuple[Finding, ...]:
     traced: set[str] = set()
+    target = reply.path.stem.removeprefix("response-")
     for match in CLAIM_BLOCK.finditer(claims):
         block = match.group("block")
         claim_line = block.splitlines()[0] if block.splitlines() else ""
+        scoped = CLAIM_TARGET.match(claim_line)
+        if scoped is None or _slug(scoped.group("target")) != target:
+            continue
         restatement = RESTATEMENT.search(block)
-        trace_text = claim_line + "\n" + (restatement.group("value") if restatement else "")
+        trace_text = scoped.group("claim") + "\n" + (
+            restatement.group("value") if restatement else ""
+        )
         traced.update(value.casefold() for value in NUMBER.findall(trace_text))
     return tuple(
         Finding(UNTRACED_NUMBER, reply.path.name, f"{value} is absent from claims.md")
@@ -211,7 +237,7 @@ def _reuse_findings(replies: tuple[Reply, ...]) -> tuple[Finding, ...]:
     seen: dict[str, str] = {}
     findings: list[Finding] = []
     for reply in replies:
-        for reference in reply.references:
+        for reference in _valid_references(reply):
             key = _source_key(reference)
             if key in seen:
                 findings.append(
@@ -256,7 +282,7 @@ def _without_citation_years(body: str, citations: tuple[Citation, ...]) -> str:
     cleaned = body
     for citation in reversed(citations):
         span = cleaned[citation.start : citation.end]
-        cleaned = cleaned[: citation.start] + span.replace(citation.year, "") + cleaned[citation.end :]
+        cleaned = cleaned[: citation.start] + re.sub(r"\d", "", span) + cleaned[citation.end :]
     return cleaned
 
 
@@ -272,20 +298,32 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     response_paths = sorted(root.glob("response-*.md"))
     if not response_paths:
         raise run_grader.SourceError("run contains no response-<name>.md files")
+    post_paths = sorted(required[1].glob("*.md"))
     try:
         replies = tuple(_split_reply(path) for path in response_paths)
         claims = required[2].read_text(encoding="utf-8")
         roster = tuple(
             match.group("name").strip()
-            for path in sorted(required[1].glob("*.md"))
+            for path in post_paths
             for match in [AUTHOR.search(path.read_text(encoding="utf-8"))]
             if match
         )
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"could not read the run: {failure}") from failure
+    if len(roster) != len(post_paths):
+        raise run_grader.SourceError(
+            f"roster read {len(roster)} of {len(post_paths)} post files; "
+            f"unread remainder {len(post_paths) - len(roster)}"
+        )
     if not roster:
-        raise run_grader.SourceError("posts/ contains no readable AUTHOR: roster entries")
-    return RunSource(path=root, replies=replies, claims=claims, roster=roster)
+        raise run_grader.SourceError("roster read 0 of 0 post files; unread remainder 0")
+    return RunSource(
+        path=root,
+        replies=replies,
+        claims=claims,
+        roster=roster,
+        posts_total=len(post_paths),
+    )
 
 
 def survey(source: RunSource) -> Scan:
@@ -311,8 +349,10 @@ def survey(source: RunSource) -> Scan:
     ) + _reuse_findings(source.replies)
     return Scan(
         responses=len(source.replies),
+        posts_read=len(source.roster),
+        posts_total=source.posts_total,
         words=sum(len(WORD.findall(AMPLIFICATION.sub("", reply.body))) for reply in source.replies),
-        references=sum(len(reply.references) for reply in source.replies),
+        references=sum(len(_valid_references(reply)) for reply in source.replies),
         citations=sum(len(reply_citations) for reply_citations in citations),
         numeric_claims=sum(
             len(_numeric_values(reply, reply_citations))
@@ -327,6 +367,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = [
         f"discussion replies in {source}",
         f"responses: {scan.responses}",
+        f"roster posts read: {scan.posts_read} of {scan.posts_total}",
         f"words: {scan.words}",
         f"references: {scan.references}",
         f"citations: {scan.citations}",

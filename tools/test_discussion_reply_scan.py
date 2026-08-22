@@ -42,7 +42,7 @@ Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(
 CLAIMS = """\
 DATE: 2026-08-22
 
-## CLAIM: The combined program reported a 12% improvement.
+## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.
 STATUS: sourced
 SOURCE: peer-reviewed
 REFERENCE: Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.
@@ -131,6 +131,22 @@ class EachReplyCarriesEvidence(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("reference-minimum: 1", stdout.getvalue())
 
+    def test_placeholder_text_is_not_a_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.split("\nReferences\n", 1)[0] + "\nReferences\n\nplaceholder\n",
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("references: 0", stdout.getvalue())
+        self.assertIn("reference-minimum: 1", stdout.getvalue())
+
     def test_an_in_text_citation_missing_from_that_replys_list_fails(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -159,6 +175,38 @@ class EachReplyCarriesEvidence(unittest.TestCase):
         self.assertIn("citations: 2", stdout.getvalue())
         self.assertIn("unresolved-citation: 1", stdout.getvalue())
 
+    def test_two_author_narrative_citation_resolves_to_the_first_author(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("(Quill, 2024)", "Quill and Vale (2024)").replace(
+                    "Quill, R. (2024)", "Quill, R., & Vale, S. (2024)"
+                ),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+
+    def test_parenthetical_page_locator_is_part_of_the_citation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("(Quill, 2024)", "(Vale, 2023, p. 4)"),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("citations: 1", stdout.getvalue())
+        self.assertIn("numeric claims: 1", stdout.getvalue())
+        self.assertIn("unresolved-citation: 1", stdout.getvalue())
+
 
 class NumbersTraceToTheRunLedger(unittest.TestCase):
     def test_a_body_number_absent_from_claims_md_fails(self):
@@ -166,6 +214,19 @@ class NumbersTraceToTheRunLedger(unittest.TestCase):
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
             response.write_text(BODY.replace("12%", "17%", 1), encoding="utf-8")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-number: 1", stdout.getvalue())
+
+    def test_a_number_in_another_replys_record_does_not_trace_this_reply(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("[REPLY: maren]", "[REPLY: solin]"), encoding="utf-8"
+            )
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -237,6 +298,21 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
         self.assertEqual(2, status)
         self.assertEqual("", stdout.getvalue())
         self.assertIn("claims.md", stderr.getvalue())
+
+    def test_one_malformed_post_cannot_hide_behind_one_readable_roster_entry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "posts" / "unread.md").write_text(
+                "This post has no roster field.\n", encoding="utf-8"
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([temp])
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout.getvalue())
+        self.assertIn("roster read 1 of 2", stderr.getvalue())
+        self.assertIn("unread remainder 1", stderr.getvalue())
 
 
 if __name__ == "__main__":
