@@ -59,6 +59,8 @@ import re
 import unittest
 from pathlib import Path
 
+from prose_bind import ProseBind
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTE_SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 CODE_SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
@@ -116,7 +118,7 @@ def _section(text: str, heading: str) -> str:
     return "\n".join(body)
 
 
-class TheSkillCarriesTheObligation(unittest.TestCase):
+class TheSkillCarriesTheObligation(ProseBind, unittest.TestCase):
     """The ruling, in the file a generating pass opens."""
 
     @classmethod
@@ -233,7 +235,7 @@ class TheSkillCarriesTheObligation(unittest.TestCase):
         # Both halves are asserted now so a revert fails rather than reads well.
         self.assertIn("Nothing is filled in order to complete a score", self.section)
         self.assertIn("because the equation wanted it", self.section)
-        self.assertNotIn("No input to a risk score is ever filled**:", self.section)
+        self.assertProseNotIn("No input to a risk score is ever filled**:", self.section)
         self.assertIn("verify this number", self.section)
 
     def test_a_lipid_value_is_barred_outright(self):
@@ -560,7 +562,7 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         self.assertIn("a clean scan is not a walked row 24", self.text)
 
 
-class TheCoderGainsNoObligation(unittest.TestCase):
+class TheCoderGainsNoObligation(ProseBind, unittest.TestCase):
     """icd10-cpt: the reason was corrected and the ruling was not."""
 
     @classmethod
@@ -575,7 +577,7 @@ class TheCoderGainsNoObligation(unittest.TestCase):
         # paragraph quoting the old wording in order to retire it. That is
         # standing rule 4's mention-versus-use distinction and `spelling_scan`'s
         # rule, arriving in a test that was written the same week as both.
-        self.assertNotIn("for the same reason: no guidelines ship here", self.text)
+        self.assertProseNotIn("for the same reason: no guidelines ship here", self.text)
         self.assertNotIn("and for the same reason: no guidelines", self.text)
 
     def test_the_outpatient_rule_names_what_does_ship_and_why_it_misses(self):
