@@ -156,17 +156,17 @@ renderer can reach — and what it does not is written down rather than assumed 
 
 | APA rule | `docx_write.py` | Word calibration and tripwire |
 | --- | --- | --- |
-| Times New Roman 12 pt, double spaced, 1 inch margins | applied | 2026-08-22, Word 16.0; `body-defaults` |
-| 0.5 inch hanging indent on the whole reference list | applied | 2026-08-22, Word 16.0; `reference-hanging-indent` |
-| No extra space between entries | applied | 2026-08-22, Word 16.0; `reference-no-extra-space` |
-| `References` heading **bold** | applied | 2026-08-22, Word 16.0; `reference-heading-bold` |
-| `References` heading **centered** | applied | 2026-08-22, Word 16.0; `reference-heading-centered` |
-| `References` heading at **body size**, 12 pt | applied — every heading level is 12 pt | 2026-08-22, Word 16.0; `reference-heading-body-size` |
-| Reference list **starts on a new page** | applied | 2026-08-22, Word 16.0; `reference-page-break` |
-| **Page numbers**, top right of every page | applied | 2026-08-22, Word 16.0; `page-number-header` |
-| The singular **`Reference`** heading gets the hanging indent | applied | 2026-08-22, Word 16.0; `singular-reference-hanging-indent` |
-| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none | 2026-08-22, Word 16.0; `body-first-line-indent` |
-| A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row | 2026-08-22, Word 16.0; `table-horizontal-rules` |
+| Times New Roman 12 pt, double spaced, 1 inch margins | applied | `body-defaults` |
+| 0.5 inch hanging indent on the whole reference list | applied | `reference-hanging-indent` |
+| No extra space between entries | applied | `reference-no-extra-space` |
+| `References` heading **bold** | applied | `reference-heading-bold` |
+| `References` heading **centered** | applied | `reference-heading-centered` |
+| `References` heading at **body size**, 12 pt | applied — every heading level is 12 pt | `reference-heading-body-size` |
+| Reference list **starts on a new page** | applied | `reference-page-break` |
+| **Page numbers**, top right of every page | applied | `page-number-header` |
+| The singular **`Reference`** heading gets the hanging indent | applied | `singular-reference-hanging-indent` |
+| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none | `body-first-line-indent` |
+| A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row | `table-horizontal-rules` |
 
 **Word is the evidence for every verdict in both tables.** The dated observation and the
 semantic XML shape it covered are in
@@ -225,10 +225,10 @@ level 3 bold italic flush left, level 4 bold indented.
 
 | APA rule | `docx_write.py` | Word calibration and tripwire |
 | --- | --- | --- |
-| A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown | 2026-08-22, Word 16.0; `title-page` |
-| APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset | 2026-08-22, Word 16.0; `run-in-headings` |
-| The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row | 2026-08-22, Word 16.0; `reference-alphabetization` |
-| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [SKILL.md](../SKILL.md) step 7 catches it as an author defect | 2026-08-22, Word 16.0; `reference-single-paragraph` |
+| A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown | `title-page` |
+| APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset | `run-in-headings` |
+| The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row | `reference-alphabetization` |
+| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [SKILL.md](../SKILL.md) step 7 catches it as an author defect | `reference-single-paragraph` |
 
 **The last two rows are not #220's, and they were on neither table before it** — they are a gap
 that ticket's repair surfaced. This paragraph used to say the renderer applied *most of* §1, which

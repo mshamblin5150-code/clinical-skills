@@ -59,7 +59,7 @@ the other's:
   clinician on 2026-08-19 over warning. Two signals live in ``refusal`` below: Word's
   ``~$`` owner file beside the document, which means it is open *right now*, and an
   archive whose part list is not ``PART_NAMES``. The first ``NOT_GUARDED`` row records
-  the measured limit: Word 16.0 can save a closed probe while preserving that exact set.
+  the measured limit: the recorded Word save preserved that exact set.
 
 **The ticket's own signal 2 -- the ``.docx`` being newer than the ``.md`` -- is not
 implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``, so
@@ -89,7 +89,7 @@ not an APA-formatted document**, which is ``skills/practicum-case-study/SKILL.md
 9's sentence arriving one level down.
 
 Covered by ``tools/test_docx.py``, which writes into a temp directory and reads the
-result back with ``docx_read``. Word 16.0 is a one-time calibration instrument, not a
+result back with ``docx_read``. Word is a one-time calibration instrument, not a
 suite dependency; ``docx_word_probe.py`` records what Word drew and the suite holds the
 renderer inside each measured XML shape.
 """
@@ -167,7 +167,7 @@ NOT_APPLIED = (
 NOT_GUARDED = (
     (
         "a closed Word save that preserves exactly these parts",
-        "Measured 2026-08-22 with Word 16.0 via ``docx_word_probe.py --word``: Word "
+        "The committed Word calibration records that Word "
         "saved the renderer's probe with the same part set, and this guard therefore "
         "read the edited document as ours. The owner-file signal covers an open Word "
         "session; it says nothing after Word closes the document. Another editor that "

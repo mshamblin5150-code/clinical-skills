@@ -1,6 +1,6 @@
 """One file for the pair, the way ``test_icd10.py`` covers its builder and reader.
 
-**The round trip is the permanent test.** Word 16.0 was used once as a calibration
+**The round trip is the permanent test.** Word was used once as a calibration
 instrument on #424; it is deliberately not a suite dependency. These tests assert that
 the archive has the required parts, that every part parses as XML, that ``docx_read``
 gets back what ``docx_write`` was given, and that every calibrated renderer shape stays
@@ -863,7 +863,7 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
 
     Ruled by the clinician on 2026-08-19 -- refuse, with ``--force``. This renderer
     writes a fixed set of parts, so a different set is evidence of another writer or an
-    older renderer. #424 measured the limit: a closed Word 16.0 save can preserve the
+    older renderer. #424 measured the limit: a committed closed-Word save preserved the
     same set and pass this guard.
     """
 
@@ -969,7 +969,7 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
     def test_the_part_set_refusal_names_both_causes_without_diagnosing_word(self):
         """A message guessing Word reads as a diagnosis, and #424 proved it wrong.
 
-        A changed set can come from another writer or an older renderer. Word 16.0 can
+        A changed set can come from another writer or an older renderer. The committed Word measurement shows Word can
         save while preserving the set, so it is deliberately not named as the cause.
         """
         self._archive_with_foreign_parts()

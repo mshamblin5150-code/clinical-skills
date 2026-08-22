@@ -52,8 +52,10 @@ CALIBRATIONS = (
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 W = "{" + W_NS + "}"
 R = "{" + R_NS + "}"
+PR = "{" + PACKAGE_REL_NS + "}"
 
 COMMON = (
     "# Clinical Case\n\n"
@@ -140,6 +142,7 @@ def renderer_shapes() -> dict[str, dict]:
     document = _root(common, "word/document.xml")
     styles = _root(common, "word/styles.xml")
     header = _root(common, "word/header1.xml")
+    relationships = _root(common, "word/_rels/document.xml.rels")
     defaults = styles.find("./" + W + "docDefaults")
     default_run = defaults.find("./" + W + "rPrDefault/" + W + "rPr")
     default_para = defaults.find("./" + W + "pPrDefault/" + W + "pPr")
@@ -154,6 +157,8 @@ def renderer_shapes() -> dict[str, dict]:
 
     singular_parts = _rendered_parts(SINGULAR)
     singular_document = _root(singular_parts, "word/document.xml")
+    singular_styles = _root(singular_parts, "word/styles.xml")
+    singular_reference = _style(singular_styles, "Reference")
     singular_heading = _paragraph(singular_document, "Reference")
     singular_entry = _paragraph(singular_document, "Only, O. (2025). Entry.")
 
@@ -165,8 +170,22 @@ def renderer_shapes() -> dict[str, dict]:
     body_first_line = body_paragraph.find("./" + W + "pPr/" + W + "ind")
     table = document.find(".//" + W + "tbl")
     table_borders = table.find("./" + W + "tblPr/" + W + "tblBorders")
-    header_cell_border = table.find(
-        "./" + W + "tr/" + W + "tc/" + W + "tcPr/" + W + "tcBorders/" + W + "bottom"
+    row_cell_bottoms = [
+        [
+            _attr(
+                cell.find("./" + W + "tcPr/" + W + "tcBorders/" + W + "bottom"),
+                "val",
+            )
+            for cell in row.findall("./" + W + "tc")
+        ]
+        for row in table.findall("./" + W + "tr")
+    ]
+    header_reference = document.find(".//" + W + "sectPr/" + W + "headerReference")
+    header_relationship_id = _attr(header_reference, "id", R)
+    header_relationship = next(
+        relationship
+        for relationship in relationships.findall(PR + "Relationship")
+        if relationship.get("Id") == header_relationship_id
     )
 
     return {
@@ -222,11 +241,10 @@ def renderer_shapes() -> dict[str, dict]:
             > _texts(document).index("Body paragraph."),
         },
         "page-number-header": {
-            "relationship_id": _attr(
-                document.find(".//" + W + "sectPr/" + W + "headerReference"),
-                "id",
-                R,
-            ),
+            "reference_type": _attr(header_reference, "type"),
+            "relationship_id": header_relationship_id,
+            "relationship_target": header_relationship.get("Target"),
+            "relationship_type": header_relationship.get("Type"),
             "alignment": _attr(header.find(".//" + W + "jc"), "val"),
             "field": _attr(header.find(".//" + W + "fldSimple"), "instr"),
             "cached_text": "".join(node.text or "" for node in header.iter(W + "t")),
@@ -234,6 +252,12 @@ def renderer_shapes() -> dict[str, dict]:
         "singular-reference-hanging-indent": {
             "heading_style": _paragraph_style(singular_heading),
             "entry_style": _paragraph_style(singular_entry),
+            "left_twips": _attr(
+                singular_reference.find("./" + W + "pPr/" + W + "ind"), "left"
+            ),
+            "hanging_twips": _attr(
+                singular_reference.find("./" + W + "pPr/" + W + "ind"), "hanging"
+            ),
             "page_break_before": singular_heading.find(
                 "./" + W + "pPr/" + W + "pageBreakBefore"
             )
@@ -257,7 +281,7 @@ def renderer_shapes() -> dict[str, dict]:
                 edge: _attr(table_borders.find(W + edge), "val")
                 for edge in ("top", "left", "bottom", "right", "insideH", "insideV")
             },
-            "header_cell_bottom": _attr(header_cell_border, "val"),
+            "row_cell_bottoms": row_cell_bottoms,
             "style": _attr(table.find("./" + W + "tblPr/" + W + "tblStyle"), "val"),
         },
         "title-page": {"paragraphs": [text for text in _texts(title_document) if text]},
@@ -305,6 +329,7 @@ def word_report() -> dict:
             check=False,
             capture_output=True,
             encoding="utf-8-sig",
+            errors="replace",
         )
         if completed.returncode:
             print(completed.stderr.strip() or "Word COM probe failed", file=sys.stderr)

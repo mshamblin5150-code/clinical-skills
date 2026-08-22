@@ -6,6 +6,18 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
+$WdBorderTop = -1
+$WdBorderLeft = -2
+$WdBorderBottom = -3
+$WdBorderRight = -4
+$WdBorderHorizontal = -5
+$WdBorderVertical = -6
+$WdHeaderFooterPrimary = 1
+$WdDoNotSaveChanges = 0
+$WdActiveEndPageNumber = 3
+$WdStatisticPages = 2
+$WdAlertsNone = 0
+
 function Border-LineStyle($Borders, [int]$Index) {
     try {
         return [int]$Borders.Item($Index).LineStyle
@@ -23,7 +35,7 @@ function Paragraph-Record($Paragraph, [int]$Index) {
         index = $Index
         text = $range.Text.Trim([char]13, [char]7)
         style = $style.NameLocal
-        page = [int]$range.Information(3)
+        page = [int]$range.Information($WdActiveEndPageNumber)
         alignment = [int]$format.Alignment
         first_line_indent_points = [double]$format.FirstLineIndent
         left_indent_points = [double]$format.LeftIndent
@@ -43,14 +55,14 @@ function Table-Record($Table, [int]$Index) {
     $headerBottoms = @()
     if ($Table.Rows.Count -gt 0) {
         foreach ($cell in $Table.Rows.Item(1).Cells) {
-            $headerBottoms += Border-LineStyle $cell.Borders -3
+            $headerBottoms += Border-LineStyle $cell.Borders $WdBorderBottom
         }
     }
     $rowBottoms = @()
     foreach ($row in $Table.Rows) {
         $cellBottoms = @()
         foreach ($cell in $row.Cells) {
-            $cellBottoms += Border-LineStyle $cell.Borders -3
+            $cellBottoms += Border-LineStyle $cell.Borders $WdBorderBottom
         }
         $rowBottoms += ,$cellBottoms
     }
@@ -60,12 +72,12 @@ function Table-Record($Table, [int]$Index) {
         columns = [int]$Table.Columns.Count
         style = $Table.Style.NameLocal
         borders = [ordered]@{
-            top = Border-LineStyle $Table.Borders -1
-            left = Border-LineStyle $Table.Borders -2
-            bottom = Border-LineStyle $Table.Borders -3
-            right = Border-LineStyle $Table.Borders -4
-            inside_h = Border-LineStyle $Table.Borders -5
-            inside_v = Border-LineStyle $Table.Borders -6
+            top = Border-LineStyle $Table.Borders $WdBorderTop
+            left = Border-LineStyle $Table.Borders $WdBorderLeft
+            bottom = Border-LineStyle $Table.Borders $WdBorderBottom
+            right = Border-LineStyle $Table.Borders $WdBorderRight
+            inside_h = Border-LineStyle $Table.Borders $WdBorderHorizontal
+            inside_v = Border-LineStyle $Table.Borders $WdBorderVertical
         }
         header_cell_bottoms = $headerBottoms
         row_cell_bottoms = $rowBottoms
@@ -77,7 +89,7 @@ $documents = @()
 try {
     $word = New-Object -ComObject Word.Application
     $word.Visible = $false
-    $word.DisplayAlerts = 0
+    $word.DisplayAlerts = $WdAlertsNone
 
     foreach ($file in Get-ChildItem -LiteralPath $ProbeDirectory -Filter "*.docx" |
         Where-Object BaseName -ne "word-saved" | Sort-Object Name) {
@@ -95,7 +107,7 @@ try {
             }
 
             $section = $document.Sections.Item(1)
-            $header = $section.Headers.Item(1)
+            $header = $section.Headers.Item($WdHeaderFooterPrimary)
             $fields = @()
             foreach ($field in $header.Range.Fields) {
                 $fields += [pscustomobject]@{
@@ -107,7 +119,7 @@ try {
 
             $documents += [pscustomobject]@{
                 key = $file.BaseName
-                pages = [int]$document.ComputeStatistics(2)
+                pages = [int]$document.ComputeStatistics($WdStatisticPages)
                 margins_points = [ordered]@{
                     top = [double]$section.PageSetup.TopMargin
                     right = [double]$section.PageSetup.RightMargin
@@ -126,7 +138,7 @@ try {
         }
         finally {
             if ($null -ne $document) {
-                $document.Close(0)
+                $document.Close($WdDoNotSaveChanges)
                 [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($document)
             }
         }
@@ -140,7 +152,7 @@ try {
     }
     finally {
         if ($null -ne $saveProbe) {
-            $saveProbe.Close(0)
+            $saveProbe.Close($WdDoNotSaveChanges)
             [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($saveProbe)
         }
     }

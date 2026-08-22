@@ -32,7 +32,7 @@ calibration identity and record.
 
 ## What the calibration changed
 
-Word 16.0 confirmed the eleven applied rows and the four declared limits in section 6.
+The committed Word record confirmed every applied row and declared limit in section 6.
 It also settled a separate destination-guard premise: a closed Word save of the probe
 preserved the renderer's exact archive part set, so the part-set guard did **not** refuse
 it. `docx_write.NOT_GUARDED` now records that measured limit. A Word owner file still
