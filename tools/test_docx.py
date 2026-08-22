@@ -1,11 +1,10 @@
 """One file for the pair, the way ``test_icd10.py`` covers its builder and reader.
 
-**The round trip is the test.** A ``.docx`` Word refuses to open is byte-for-byte
-indistinguishable from a good one until Word opens it, and there is no Word here -- so
-what these assert is that the archive has the parts the format requires, that every part
-parses as XML, and that ``docx_read`` gets back what ``docx_write`` was given. That
-catches the failure that actually happens (a malformed part, an unescaped ``&``) and
-does not catch the one that cannot be checked without Word.
+**The round trip is the permanent test.** Word was used once as a calibration
+instrument on #424; it is deliberately not a suite dependency. These tests assert that
+the archive has the required parts, that every part parses as XML, that ``docx_read``
+gets back what ``docx_write`` was given, and that every calibrated renderer shape stays
+inside the set Word measured.
 
 Nothing here opens a real document. The faculty material and the clinician's submitted
 work are both outside this repo.
@@ -863,8 +862,9 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
     """#279's subject: the destination is a file a human opens in an editor.
 
     Ruled by the clinician on 2026-08-19 -- refuse, with ``--force``. This renderer
-    writes a fixed set of parts, so an archive carrying any other set was written by
-    something else.
+    writes a fixed set of parts, so a different set is evidence of another writer or an
+    older renderer. #424 measured the limit: a committed closed-Word save preserved the
+    same set and pass this guard.
     """
 
     def setUp(self):
@@ -877,8 +877,8 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
     def tearDown(self):
         self.directory.cleanup()
 
-    def _foreign(self):
-        """What a Word save leaves: this renderer's parts plus the ones Word adds."""
+    def _archive_with_foreign_parts(self):
+        """A synthetic archive whose extra parts make the guard's signal observable."""
         with zipfile.ZipFile(self.path, "w") as archive:
             for name, content in docx_write.parts("# Hand edited\n").items():
                 archive.writestr(name, content)
@@ -895,8 +895,8 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         docx_write.write_docx("# Second\n", self.path)
         self.assertIn("Second", docx_read.read_docx(self.path))
 
-    def test_a_word_saved_archive_is_refused(self):
-        before = self._foreign()
+    def test_an_archive_with_foreign_parts_is_refused(self):
+        before = self._archive_with_foreign_parts()
         with self.assertRaises(docx_write.RefusedToOverwrite):
             docx_write.write_docx("# New\n", self.path)
         self.assertEqual(self.path.read_bytes(), before)
@@ -933,8 +933,8 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         with self.assertRaises(docx_write.RefusedToOverwrite):
             docx_write.write_docx("# New\n", self.path)
 
-    def test_force_writes_over_a_word_saved_archive(self):
-        self._foreign()
+    def test_force_writes_over_an_archive_with_foreign_parts(self):
+        self._archive_with_foreign_parts()
         docx_write.write_docx("# Forced\n", self.path, force=True)
         self.assertIn("Forced", docx_read.read_docx(self.path))
 
@@ -946,7 +946,7 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
 
     def test_the_refusal_names_the_flag_that_overrides_it(self):
         """A refusal that does not say how to proceed is a dead end, not a guard."""
-        self._foreign()
+        self._archive_with_foreign_parts()
         with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
         self.assertIn("--force", str(caught.exception))
@@ -966,27 +966,27 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         with self.assertRaises(docx_write.RefusedToOverwrite):
             docx_write.write_docx("# New\n", self.path)
 
-    def test_the_part_set_refusal_names_both_causes(self):
-        """A message guessing one cause reads as a diagnosis, and it was wrong first.
+    def test_the_part_set_refusal_names_both_causes_without_diagnosing_word(self):
+        """A message guessing Word reads as a diagnosis, and #424 proved it wrong.
 
-        It said ``a Word save, most likely`` and nothing else, which is the wrong guess
-        for the older of the two documents in ``output/case-studies/``. Both causes are
-        pinned so neither can be quietly dropped back out.
+        A changed set can come from another writer or an older renderer. The committed Word measurement shows Word can
+        save while preserving the set, so it is deliberately not named as the cause.
         """
-        self._foreign()
+        self._archive_with_foreign_parts()
         with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
         message = str(caught.exception)
-        self.assertIn("Word", message)
+        self.assertIn("another writer", message)
         self.assertIn("older version of this renderer", message)
+        self.assertNotIn("most likely Word", message)
 
     def test_the_command_line_refusal_is_two_and_writes_nothing(self):
-        before = self._foreign()
+        before = self._archive_with_foreign_parts()
         self.assertEqual(docx_write.main([str(self.source), str(self.path)]), 2)
         self.assertEqual(self.path.read_bytes(), before)
 
     def test_the_command_line_takes_the_flag(self):
-        self._foreign()
+        self._archive_with_foreign_parts()
         self.assertEqual(docx_write.main([str(self.source), str(self.path), "--force"]), 0)
         self.assertIn("Rendered.", docx_read.read_docx(self.path))
 
