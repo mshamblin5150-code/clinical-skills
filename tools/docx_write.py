@@ -403,25 +403,24 @@ def _abstract_num(num_id: int, fmt: str) -> str:
 def numbering_xml(decimal_lists: int = 1) -> str:
     """The ``word/numbering.xml`` part, sized to the body that will reference it.
 
-    **One ``w:num`` per numbered list, and that is the whole restart mechanism.**
-    Word restarts a list at 1 for each ``w:num`` that points at an abstract
-    definition; two lists sharing one ``numId`` are *one* list to Word, however far
-    apart they sit and whatever comes between them. Before #215's follow-up every
-    numbered list in the document shared ``numId`` 2, so the Differential ran 1-7,
-    the MDM opened at 8 and the Plan carried on from wherever the MDM stopped --
-    the clinician's *"each section that is broken up is a continuation of the
-    previous section's number, that is bad, it should start over"*.
+    Measured 2026-08-22 against Word 16.0 via COM, using a probe rendered by this
+    renderer: a fresh ``w:num`` that shares an ``abstractNumId`` continues that
+    abstract sequence. It restarts at 1 only when it carries a level-zero
+    ``w:startOverride``. Before #422, allocating one ``w:num`` per numbered list
+    therefore did not restart the Differential, MDM, and Plan even though each
+    section had a distinct ``numId``.
 
     ``numId`` 1 is the bullet list. The decimal lists are numbered from 2 up, in the
     order ``render_body`` meets them, and all of them share abstract definition 1 --
-    so the format is defined once and only the restart point is per-list.
+    so the format is defined once and each decimal ``w:num`` explicitly overrides
+    level zero to start at 1. The bullet ``w:num`` has no override.
     """
     nums = ['<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>']
     for index in range(max(decimal_lists, 1)):
         nums.append(
-            '<w:num w:numId="{n}"><w:abstractNumId w:val="1"/></w:num>'.format(
-                n=index + 2
-            )
+            '<w:num w:numId="{n}"><w:abstractNumId w:val="1"/>'
+            '<w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/>'
+            '</w:lvlOverride></w:num>'.format(n=index + 2)
         )
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering {w}>
