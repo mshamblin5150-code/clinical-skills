@@ -228,6 +228,11 @@ EXPECTED_CHECKS = (
     # Added on
     # [#306](https://github.com/mshamblin5150-code/clinical-skills/issues/306).
     "the clinical decisions no command reaches",
+    # The reader gets reconstructed text rather than the raw archive, because
+    # Word draws list markers from ``numbering.xml`` and the paragraph text does
+    # not contain them. Added on
+    # [#423](https://github.com/mshamblin5150-code/clinical-skills/issues/423).
+    "the numbering in context",
     "the rendered document",
     "the faculty's own to-do list",
 )
@@ -256,6 +261,7 @@ SUBSTANTIATED_CLEAN = (
     "MDM completeness",
     "the dose against the record that sourced it",
     "the clinical decisions no command reaches",
+    "the numbering in context",
     "the rendered document",
 )
 
