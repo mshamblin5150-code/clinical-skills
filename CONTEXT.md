@@ -143,3 +143,11 @@ _Avoid_: patient list, roster, lookup table
 **Duplicate**:
 A second Patient Reference for a person who already had one, created because the encounter reached the portal without a name to match on. Indistinguishable from a new patient afterwards.
 _Avoid_: dupe, repeat, double entry
+
+**Writing sample**:
+One piece of the clinician's existing prose, chosen by them and handed over on its own, from which a register is read. Selection is the consent — they know what each one contains.
+_Avoid_: writing example, submission, document
+
+**Export**:
+The whole of what a clinician typed into an assistant, handed over as one container. Unlike a writing sample nothing in it was chosen, so its contents are unreviewed by the person supplying it and unknown to the person reading it.
+_Avoid_: chat history, archive, dump
