@@ -43,8 +43,9 @@ Converter contract
 This module is the ChatGPT reference implementation of the vendor-neutral method
 in ``skills/practicum-case-study/reference/voice-corpus.md``. A converter for
 another assistant emits a **top-level JSON list** of conversations. Each carries
-``conversation_id`` or ``id``, its own numeric ``create_time``, and a ``mapping``
-dict. Mapping nodes retain their ``children`` and any ``message``; each message
+``conversation_id`` or ``id``, its own numeric ``create_time`` or an explicitly
+missing timestamp reported as undated, and a ``mapping`` dict. Mapping nodes
+retain their ``children`` and any ``message``; each message
 retains ``author.role`` plus ``content.content_type`` and ``content.parts``.
 Nothing is flattened or silently discarded. A converter proves coverage with
 the population, partition, remainder, date, conversation, and hop report that

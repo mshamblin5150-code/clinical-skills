@@ -848,6 +848,7 @@ class TheLoaderRefusesRatherThanReadingEmpty(unittest.TestCase):
         self.assertIsNone(loaded)
         self.assertIn("mapping", why)
 
+
 class TheWriteTargetIsRefusedOutsideScratch(unittest.TestCase):
     """A mined record is his own writing and the corpus carries patient material.
 
