@@ -26,6 +26,28 @@ _Avoid_: writeup, report
 Which template a note is written against — FNP H&P or comprehensive SOAP.
 _Avoid_: format, type, form
 
+### Coursework
+
+**Board**:
+One LMS discussion topic, holding its prompt, the clinician's own contribution and every classmate's, replies nested beneath. The authoritative copy of what a classmate actually read.
+_Avoid_: thread, forum, discussion
+
+**Initial post**:
+The clinician's own first, graded, substantive contribution to a board. Its required shape is set by the individual discussion rather than by the course or the genre — one asks for a worked case, the next for a policy essay, and the one after that may ask for neither.
+_Avoid_: main post, discussion post, original post
+
+**Reply**:
+A short conversational answer to one named classmate's initial post. A separate graded artifact with its own word floor, and never a second initial post.
+_Avoid_: response, comment, peer review
+
+**Prompt**:
+The board's own statement of what one initial post must answer. It supplies that discussion's shape and does not necessarily supply its bar.
+_Avoid_: question, assignment, instructions
+
+**Bar**:
+The stated minimum a graded contribution must meet — words, references, source recency, required elements. Written on the course syllabus rather than on the board, so a run that reads only the topic page has not read it.
+_Avoid_: rubric, requirements, spec
+
 ### Tiers
 
 Every line of a finished note is a given, a derived value, or a filled one.
@@ -77,6 +99,10 @@ _Avoid_: unrecognized, garbage, typo
 **Working file**:
 The complete, identified record of a day's encounters, used to enter the portal. Never leaves the machine it was made on.
 _Avoid_: draft, local copy
+
+**Claim ledger**:
+The record of every new factual claim a graded document makes, one entry per claim, each naming what was searched, what was found, the page read and the date it was read on, and the result of an independent attempt to refute it. Written before the document that rests on it.
+_Avoid_: sources file, bibliography, notes
 
 **Fixture**:
 A regression set derived from a working file with the visit date and site removed, committed so a skill's behavior can be checked after an edit.
