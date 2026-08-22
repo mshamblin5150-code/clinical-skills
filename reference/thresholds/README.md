@@ -24,6 +24,14 @@ and never asked whether *publishing* it is. That question is now asked and answe
 the answer is that nothing here changes — but the judgment is written down rather than
 implied, because #223's whole point is that it had never been made.
 
+After [#429](https://github.com/mshamblin5150-code/clinical-skills/issues/429), the
+posture for every non-USPSTF work rests on **short, attributed quotation**, not on the
+work being public domain. Public availability does not change copyright status. What
+matters here is that each minimal snippet is tied to its society, document, page and
+recommendation identifier and is used to make a fabricated clinical citation
+detectable; USPSTF's separate public-domain status is not a premise for the other
+sources.
+
 **What is quoted, measured rather than characterized.** In
 [hypertension.md](hypertension.md):
 
@@ -62,9 +70,10 @@ python -m unittest test_threshold_sheet -k Quoting   # run from tools/
 
 **Why verbatim and not paraphrase, which is the part that is not a taste call.** The
 snippet is the sheet's honesty mechanism rather than its prose. `threshold_sheet.py`'s
-tier 1 requires the number in a row's `value` to appear in that row's snippet, and tier 2
-requires the snippet to be found on the cited page of the source PDF. **Paraphrase the
-snippet and both gates stop working** — a restatement cannot be located on a page, so a
+tier 0 requires the snippet from an exact source to occur in its own recommendation
+record, tier 1 requires the number in a row's `value` to appear in that snippet, and
+tier 2 requires the snippet to be found on the cited page of the source PDF.
+**Paraphrase the snippet and those provenance gates stop working** — a restatement cannot be located on a page, so a
 fabricated citation stops being detectable. The verbatim string is doing evidentiary work
 that no paraphrase does, which is the fair-use factor that actually bites here.
 
@@ -337,10 +346,11 @@ everything else checks what was written, only this checks what was not.
 ## What the sources being absent means
 
 Citation resolution needs the 410 MB of PDFs. In a fresh clone, in another worktree,
-and in CI it has nothing to resolve. So the gate is **two tiers**:
+and in CI it has nothing to resolve. So the gate is **three tiers**:
 
 | tier | needs | checks | runs |
 | --- | --- | --- | --- |
+| 0 | `recs-<key>.json` | the snippet is in its own recommendation record | exact sources; `NOT RUN` on bound sources |
 | 1 | nothing | the value's number is in the row's own snippet | everywhere |
 | 2 | the PDFs | the snippet is on the page it cites | where the corpus is |
 
@@ -356,8 +366,9 @@ A machine gate does not fail, it goes silent. The risk is that the ungated major
 starts reading as covered because the gated part is green, so these are named here and
 not left to be discovered:
 
-- **No gate here checks that a row says what its recommendation says.** Tier 2 proves
-  the snippet is on the page. Nothing proves the row's `quantity` is what that sentence
+- **No gate here checks that a row says what its recommendation says.** Tier 0 proves
+  an exact recommendation record states the snippet, and tier 2 proves the snippet is
+  on the page. Nothing proves the row's `quantity` is what that sentence
   was about, and **a sheet whose numbers are all real and all filed under the wrong
   heading passes every gate in this directory.**
 - **The population key is a judgment.** The grader checks it is declared, never that it

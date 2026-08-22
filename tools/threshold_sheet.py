@@ -40,13 +40,15 @@ row needed it.
     is clinically correct; it prevents an empty block, ``TODO``, or a paragraph that
     names only one side from discharging the structural rule.
 
-``CITATION`` refuses, in two tiers
-    Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
+``CITATION`` refuses, in three tiers
+    Tier 0 checks that every snippet from an exact source is a substring of its own
+    recommendation record; it reports ``NOT RUN`` on a bound source and never passes
+    one. Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
     row's ``snippet``. Tier 2 runs only where the PDFs are present: the snippet must
-    appear on the cited page. **The two tiers are the whole answer to "what happens
-    when the sources are absent"** -- there is no machine on which citation checking
-    drops to zero, and the sheet header records the date tier 2 last really ran, so
-    the artifact says so rather than only the console.
+    appear on the cited page. There is no machine on which citation checking drops
+    to zero, and the sheet header records the date tier 2 last really ran, so the
+    artifact says so rather than only the console. Tier 0 is a provenance floor, not
+    a reading: it cannot decide whether the snippet is the right text for the row.
 
 ``COVERAGE`` refuses on an exact source, warns on a bound
     #83 gate 2, the omission check: *"everything else checks what was written, only
@@ -123,8 +125,9 @@ row needed it.
 What no gate here reaches, stated the same day the gates were built
 --------------------------------------------------------------------
 
-- **Whether the row says what the recommendation says.** ``CITATION`` proves the
-  snippet is on the page. It cannot prove the row's ``quantity`` is what that
+- **Whether the row says what the recommendation says.** ``CITATION`` tier 0 proves
+  the recommendation record states the snippet and tier 2 proves the snippet is on
+  the page. Neither can prove the row's ``quantity`` is what that
   sentence was about, and a sheet whose numbers are all real and all filed under the
   wrong heading passes every *automatic* gate here. **``SECOND READ`` narrows this
   and does not close it**: it sets the row's heading beside an independent reader's
@@ -278,6 +281,24 @@ SCHEMA_MARKER = "<!-- schema: threshold-sheet/1 -->"
 # themselves merely by explaining the rule. Here the marker must START the snippet
 # cell, so a row discussing the hatch in its own text cannot claim it.
 RENDERED_MARKER = "RENDERED:"
+
+# The section headings are part of the sheet format's production interface. The
+# draft scaffolder imports these names so it cannot emit a section the auditor does
+# not read after a heading rename.
+SOURCES_HEADING = "## Sources"
+SCOPE_HEADING = "## Scope"
+POPULATIONS_HEADING = "## Populations"
+THRESHOLDS_HEADING = "## Thresholds"
+CONFLICTS_HEADING = "## Conflicts"
+COVERAGE_HEADING = "## Coverage"
+SECTION_HEADINGS = (
+    SOURCES_HEADING,
+    SCOPE_HEADING,
+    POPULATIONS_HEADING,
+    THRESHOLDS_HEADING,
+    CONFLICTS_HEADING,
+    COVERAGE_HEADING,
+)
 
 # The eight columns of a threshold row, in order. Named here rather than positionally
 # in the parser so a column added later fails loudly in one place.
@@ -643,11 +664,11 @@ def parse(text: str, path: Path) -> Sheet:
         heading = re.match(r"^\s*#{1,6}\s+(?P<name>.+?)\s*$", line)
         if heading:
             section = heading.group("name").strip().lower()
-            if section == "scope":
+            if section == SCOPE_HEADING.removeprefix("## ").lower():
                 sheet.has_scope_section = True
             continue
 
-        if section == "scope":
+        if section == SCOPE_HEADING.removeprefix("## ").lower():
             sheet.scope += line + "\n"
             # No `continue`: the `citations resolved against ...` line lives in this
             # section and is read below.
@@ -657,13 +678,13 @@ def parse(text: str, path: Path) -> Sheet:
             sheet.resolved_corpus = resolved.group("corpus")
             sheet.resolved_date = resolved.group("date")
 
-        if section == "conflicts":
+        if section == CONFLICTS_HEADING.removeprefix("## ").lower():
             conflict = _CONFLICT.match(line)
             if conflict:
                 sheet.conflicts[conflict.group("quantity").lower()] = conflict.group("rest").strip()
             continue
 
-        if section == "coverage":
+        if section == COVERAGE_HEADING.removeprefix("## ").lower():
             out = _OUT_LINE.match(line)
             if out:
                 sheet.scoped_out[out.group("rec_id")] = out.group("reason")
@@ -673,11 +694,15 @@ def parse(text: str, path: Path) -> Sheet:
         if cells is None or _is_rule(cells):
             continue
 
-        if section == "sources" and cells[0] == "key":
+        if section == SOURCES_HEADING.removeprefix("## ").lower() and cells[0] == "key":
             source_columns = [cell.lower() for cell in cells]
             continue
 
-        if section == "sources" and len(cells) >= 3 and cells[0] != "key":
+        if (
+            section == SOURCES_HEADING.removeprefix("## ").lower()
+            and len(cells) >= 3
+            and cells[0] != "key"
+        ):
             # Read by NAME against the header row rather than by position, which is
             # `ROW_COLUMNS`' rule applied to the table it was not applied to. `mode`
             # was `cells[-1]`, so appending a column to this table would silently
@@ -692,9 +717,17 @@ def parse(text: str, path: Path) -> Sheet:
                 "url": named.get("url", cells[5] if len(cells) > 5 else ""),
                 "mode": named.get("mode", cells[-1]),
             }
-        elif section == "populations" and len(cells) >= 2 and cells[0] != "key":
+        elif (
+            section == POPULATIONS_HEADING.removeprefix("## ").lower()
+            and len(cells) >= 2
+            and cells[0] != "key"
+        ):
             sheet.populations[cells[0]] = cells[1]
-        elif section == "thresholds" and len(cells) >= len(ROW_COLUMNS) and cells[0] != "quantity":
+        elif (
+            section == THRESHOLDS_HEADING.removeprefix("## ").lower()
+            and len(cells) >= len(ROW_COLUMNS)
+            and cells[0] != "quantity"
+        ):
             page = re.sub(r"^p", "", cells[5], flags=re.IGNORECASE)
             sheet.rows.append(
                 Row(
@@ -822,6 +855,103 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
         "CITATION tier 1",
         failures,
         report=(f"  CITATION tier 1 {len(failures)}",),
+    )
+
+
+def gate_citation_tier0(
+    sheet: Sheet,
+    records: dict[str, dict | None],
+    why_not: dict[str, str],
+) -> GateResult:
+    """Every snippet from an exact source occurs in its named recommendation.
+
+    This is a provenance floor, not a clinical reading. It proves only that the
+    source states the snippet somewhere in the recommendation record; it cannot
+    prove that the snippet answers the row's quantity or applies to its population.
+
+    ``bound`` recommendation records are deliberately not graded. Their running-text
+    windows can truncate before the value a row cites, so a mismatch is evidence
+    about the extractor rather than the sheet. The result says ``NOT RUN`` instead of
+    turning that limitation into either a pass or a refusal.
+    """
+    failures: list[str] = []
+    rendered = 0
+    ungraded_sources: list[str] = []
+
+    for source_key in sorted(sheet.sources):
+        record = records.get(source_key)
+        if record is None:
+            ungraded_sources.append(
+                f"{source_key} ({why_not.get(source_key, 'no recommendation record')})"
+            )
+            continue
+
+        mode = str(record.get("mode") or sheet.sources[source_key].get("mode") or "")
+        if mode != "exact":
+            reason = "source mode is 'bound'" if mode == "bound" else f"source mode is {mode!r}"
+            ungraded_sources.append(f"{source_key} ({reason})")
+            continue
+
+        recommendations = {
+            str(item.get("rec_id")): item
+            for item in record.get("recommendations", [])
+            if isinstance(item, dict) and item.get("rec_id")
+        }
+        source_rows = [candidate for candidate in sheet.rows if candidate.source == source_key]
+        textless = [
+            row.rec
+            for row in source_rows
+            if row.rec in recommendations
+            and not str(recommendations[row.rec].get("text") or "").strip()
+        ]
+        if textless:
+            ungraded_sources.append(
+                f"{source_key} (recommendation text is absent for {len(set(textless))} cited rec(s))"
+            )
+            continue
+
+        for row in source_rows:
+            if row.snippet.startswith(RENDERED_MARKER):
+                rendered += 1
+                continue
+            recommendation = recommendations.get(row.rec)
+            if recommendation is None:
+                failures.append(
+                    f"{sheet.path.name}:{row.line}  rec '{row.rec}' is not in the exact "
+                    f"recommendation record for source '{source_key}'"
+                )
+                continue
+            record_text = str(recommendation.get("text") or "")
+            if _normalize(row.snippet) not in _normalize(record_text):
+                failures.append(
+                    f"{sheet.path.name}:{row.line}  snippet is not in its recommendation "
+                    f"record '{row.rec}' for source '{source_key}'"
+                )
+
+    if ungraded_sources:
+        report = [
+            "  CITATION tier 0 NOT RUN -- " + "; ".join(ungraded_sources),
+        ]
+        if failures:
+            report.append(
+                f"                  {len(failures)} refusal(s) on exact source(s) that did run"
+            )
+    else:
+        report = [f"  CITATION tier 0 {len(failures)}"]
+    if rendered:
+        report.append(
+            f"                  {rendered} row(s) declared {RENDERED_MARKER} "
+            "and were read off the rendered page, so tier 0 skipped them"
+        )
+
+    return GateResult(
+        "CITATION tier 0",
+        failures,
+        rendered=rendered,
+        ungraded=len(ungraded_sources),
+        ungraded_sources=ungraded_sources,
+        report=tuple(report),
+        not_graded=bool(ungraded_sources),
     )
 
 
@@ -1915,6 +2045,7 @@ def survey(
     )
 
     schema = gate_schema(sheet)
+    tier0 = gate_citation_tier0(sheet, records, why_not)
     tier1 = gate_citation_tier1(sheet)
     tier2 = gate_citation_tier2(sheet, pdf_root)
     coverage = gate_coverage(sheet, records, why_not, recs_errors, missing_records)
@@ -1949,10 +2080,20 @@ def survey(
         or second_read_result.not_graded
     )
 
-    results = (schema, tier1, tier2, coverage, ranges, watermark, second_read_result)
+    results = (
+        schema,
+        tier0,
+        tier1,
+        tier2,
+        coverage,
+        ranges,
+        watermark,
+        second_read_result,
+    )
 
     refusals = (
         schema.findings
+        + tier0.findings
         + tier1.findings
         + tier2.findings
         + coverage.findings
@@ -1985,7 +2126,8 @@ def survey(
         # `differential_scan.py`'s ordering, for its reason.
         if not_graded:
             diagnostics.append(
-                "  note: COVERAGE did not run on every source, so the count above is a floor.",
+                "  note: CITATION tier 0, COVERAGE, or SECOND READ did not run on "
+                "every source, so the count above is a floor.",
             )
         status = 1
     elif not_graded:
