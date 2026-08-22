@@ -140,11 +140,12 @@ Write the map's format and location into `scratch/medatrax-profile.md` so the ot
 - The naming convention, and whether the preceptor appears in the filename, in a header, or both.
 - Typical shift start and length, which the Times convention uses to estimate visit times.
 
-### 8. Writing samples — for the case-study voice model
+### 8. Writing samples — for the graded-writing voice model
 
-[practicum-case-study](../practicum-case-study/SKILL.md) writes a graded document that has to sound
-like the person submitting it, and a run that satisfied every mechanic in the house style still read
-as a competent stranger — [#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213).
+[practicum-case-study](../practicum-case-study/SKILL.md) and
+[discussion-reply](../discussion-reply/SKILL.md) write graded work that has to sound like the person
+submitting it, and a run that satisfied every mechanic in the house style still read as a competent
+stranger — [#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213).
 The fix is a **voice model built from that clinician's own writing samples**, and this is where they
 are collected: a register is per-account whatever else it looks like, on step 5's rule.
 
@@ -156,9 +157,8 @@ Read it before asking, then read §4 to build the model.
 
 Three things belong to this step rather than to that sheet:
 
-- **It is skippable and says so.** A clinician who never writes a case study needs no voice model,
-  and the other skills do not read one. Offer it, take a no, and record the no in the profile so a
-  re-run does not ask again.
+- **It is skippable and says so.** A clinician who never uses a graded-writing skill needs no voice
+  model. Offer it, take a no, and record the no in the profile so a re-run does not ask again.
 - **The samples and the model are gitignored.** Samples go to `scratch/writing-samples/`, the built
   model to `scratch/voice-model.md`. Standing rule 1, and the same reason the identity map never
   leaves the machine — except that here it is the clinician's own work rather than a patient's.
@@ -230,4 +230,9 @@ Following the same split as [ADR 0001](../../docs/adr/0001-fixture-asserts-on-na
 
 **Hard, and it belongs above rather than here** — [clinical-note](../clinical-note/SKILL.md) step 2 and [batch-shift](../batch-shift/SKILL.md), for step 9's shorthand. An expansion collected from somebody else's hand does not make a note vague, it makes it **wrong in a way nothing downstream detects**. Where `scratch/shorthand.md` is absent the skills fall back to the field-standard glossary and surface what they cannot read as an unknown token, which is safe; where it holds another account's forms, it is not.
 
-**Soft, and the failure is visible rather than silent** — [practicum-case-study](../practicum-case-study/SKILL.md), for step 8's voice model. A case study written without one is clinically correct and reads as a stranger's, which is a real cost and not a wrong document. The run declares the voice unmodeled in its `PROPOSED` block rather than claiming a register it was never given, so the gap arrives labeled.
+**Soft, and the failure is visible rather than silent** —
+[practicum-case-study](../practicum-case-study/SKILL.md) and
+[discussion-reply](../discussion-reply/SKILL.md), for step 8's voice model. Graded work written
+without one can be substantively correct and still read as a stranger's, which is a real cost and
+not a wrong document. The run declares the relevant register unmodeled rather than claiming a
+register it was never given, so the gap arrives labeled.

@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""Grade discussion replies in one ``scratch/runs/<run-key>/`` directory.
+
+Default output is counts only. ``--show`` includes finding details and may name
+classmates, so its output is private working material and must not be pasted.
+Exit 0 means the scanned replies pass, 1 means at least one finding, and 2 means
+the run could not be completely scanned.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+import run_grader
+
+
+ADDRESSED_NAME = "addressed-name"
+WORD_FLOOR = "word-floor"
+REFERENCE_MINIMUM = "reference-minimum"
+UNRESOLVED_CITATION = "unresolved-citation"
+UNTRACED_NUMBER = "untraced-number"
+RESPENT_SOURCE = "respent-source"
+ROWS = {
+    ADDRESSED_NAME: "the addressed first name is on the run roster",
+    WORD_FLOOR: "the reply contains at least 100 words",
+    REFERENCE_MINIMUM: "the reply contains at least one reference",
+    UNRESOLVED_CITATION: "every in-text citation resolves within the reply",
+    UNTRACED_NUMBER: "every body number traces to claims.md",
+    RESPENT_SOURCE: "a later reply does not spend an earlier reply's source",
+}
+KINDS = tuple(ROWS)
+
+REFERENCE_LABEL = re.compile(r"(?mi)^References\s*$")
+WORD = re.compile(r"\b[\w'-]+\b", re.UNICODE)
+NUMBER = re.compile(r"(?<![\w])\d+(?:[.,]\d+)*(?:%|st|nd|rd|th)?(?![\w])", re.IGNORECASE)
+AMPLIFICATION = re.compile(r"(?mi)^\s*<!--\s*AMPLIFICATION\s*:[^>]+-->\s*$")
+AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")
+PAREN_BLOCK = re.compile(r"\((?P<inside>[^()]+)\)")
+PAREN_PAIR = re.compile(
+    r"(?P<author>[A-Z][^;]*?),\s*(?P<year>(?:19|20)\d{2}[a-z]?)\s*$"
+)
+NARRATIVE_CITATION = re.compile(
+    r"\b(?P<author>[A-Z][A-Za-z'-]+(?:\s+et\s+al\.)?)\s*"
+    r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)"
+)
+REFERENCE_YEAR = re.compile(r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)")
+CLAIM_BLOCK = re.compile(r"(?ms)^## CLAIM:\s*(?P<block>.*?)(?=^## CLAIM:|\Z)")
+RESTATEMENT = re.compile(
+    r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
+)
+
+
+@dataclass(frozen=True)
+class Finding(run_grader.Finding):
+    response: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class Reply:
+    path: Path
+    text: str
+    body: str
+    references: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Citation:
+    author: str
+    year: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class RunSource:
+    path: Path
+    replies: tuple[Reply, ...]
+    claims: str
+    roster: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Scan:
+    responses: int
+    words: int
+    references: int
+    citations: int
+    numeric_claims: int
+    amplifications: int
+    findings: tuple[Finding, ...] = ()
+
+
+def _split_reply(path: Path) -> Reply:
+    text = path.read_text(encoding="utf-8")
+    match = REFERENCE_LABEL.search(text)
+    body = text[: match.start()] if match else text
+    reference_text = text[match.end() :] if match else ""
+    references = tuple(
+        block.strip().replace("\n", " ")
+        for block in re.split(r"\n\s*\n", reference_text.strip())
+        if block.strip()
+    )
+    return Reply(path=path, text=text, body=body, references=references)
+
+
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
+
+
+def _target_name(reply: Reply, roster: tuple[str, ...]) -> str | None:
+    target = reply.path.stem.removeprefix("response-")
+    matches = [
+        name
+        for name in roster
+        if target in {_slug(name), _slug(name.split()[0])}
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _address_finding(reply: Reply, roster: tuple[str, ...]) -> Finding | None:
+    target = _target_name(reply, roster)
+    opening = next(
+        (line.strip() for line in reply.body.splitlines() if line.strip() and not line.lstrip().startswith("<!--")),
+        "",
+    )
+    if target is None:
+        return Finding(ADDRESSED_NAME, reply.path.name, "filename target is not unique on the roster")
+    first = target.split()[0]
+    if not opening.startswith(f"{first},"):
+        return Finding(ADDRESSED_NAME, reply.path.name, f"opening does not address {first}")
+    return None
+
+
+def _word_finding(reply: Reply) -> Finding | None:
+    count = len(WORD.findall(AMPLIFICATION.sub("", reply.body)))
+    if count < 100:
+        return Finding(WORD_FLOOR, reply.path.name, f"{count} words")
+    return None
+
+
+def _reference_finding(reply: Reply) -> Finding | None:
+    if not reply.references:
+        return Finding(REFERENCE_MINIMUM, reply.path.name, "no reference list entry")
+    return None
+
+
+def _author_key(value: str) -> str:
+    first = re.split(r"\s+(?:et\s+al\.)|\s*&\s*|\s*;\s*|,", value, maxsplit=1)[0]
+    return re.sub(r"[^a-z0-9]", "", first.casefold())
+
+
+def _reference_keys(reply: Reply) -> set[tuple[str, str]]:
+    keys: set[tuple[str, str]] = set()
+    for entry in reply.references:
+        year = REFERENCE_YEAR.search(entry)
+        if year:
+            keys.add((_author_key(entry[: year.start()].rstrip(". ")), year.group("year")))
+    return keys
+
+
+def _citation_findings(reply: Reply, citations: tuple[Citation, ...]) -> tuple[Finding, ...]:
+    references = _reference_keys(reply)
+    return tuple(
+        Finding(
+            UNRESOLVED_CITATION,
+            reply.path.name,
+            f"{citation.author}, {citation.year} has no matching reference",
+        )
+        for citation in citations
+        if (_author_key(citation.author), citation.year) not in references
+    )
+
+
+def _numeric_values(reply: Reply, citations: tuple[Citation, ...]) -> tuple[str, ...]:
+    body = _without_citation_years(reply.body, citations)
+    return tuple(NUMBER.findall(AMPLIFICATION.sub("", body)))
+
+
+def _number_findings(
+    reply: Reply, citations: tuple[Citation, ...], claims: str
+) -> tuple[Finding, ...]:
+    traced: set[str] = set()
+    for match in CLAIM_BLOCK.finditer(claims):
+        block = match.group("block")
+        claim_line = block.splitlines()[0] if block.splitlines() else ""
+        restatement = RESTATEMENT.search(block)
+        trace_text = claim_line + "\n" + (restatement.group("value") if restatement else "")
+        traced.update(value.casefold() for value in NUMBER.findall(trace_text))
+    return tuple(
+        Finding(UNTRACED_NUMBER, reply.path.name, f"{value} is absent from claims.md")
+        for value in dict.fromkeys(_numeric_values(reply, citations))
+        if value.casefold() not in traced
+    )
+
+
+def _source_key(reference: str) -> str:
+    doi = re.search(r"(?i)\b10\.\d{4,9}/[-._;()/:A-Z0-9]+", reference)
+    if doi:
+        return doi.group(0).casefold().rstrip(".")
+    url = re.search(r"(?i)https?://\S+", reference)
+    if url:
+        return re.sub(r"^https?://", "", url.group(0).casefold()).rstrip("/.,)")
+    return re.sub(r"[^a-z0-9]", "", reference.casefold())
+
+
+def _reuse_findings(replies: tuple[Reply, ...]) -> tuple[Finding, ...]:
+    seen: dict[str, str] = {}
+    findings: list[Finding] = []
+    for reply in replies:
+        for reference in reply.references:
+            key = _source_key(reference)
+            if key in seen:
+                findings.append(
+                    Finding(
+                        RESPENT_SOURCE,
+                        reply.path.name,
+                        f"source already appears in {seen[key]}",
+                    )
+                )
+            else:
+                seen[key] = reply.path.name
+    return tuple(findings)
+
+
+def read_citations(body: str) -> tuple[Citation, ...]:
+    found: list[Citation] = []
+    for block in PAREN_BLOCK.finditer(body):
+        offset = block.start("inside")
+        cursor = 0
+        for part in block.group("inside").split(";"):
+            leading = len(part) - len(part.lstrip())
+            match = PAREN_PAIR.match(part.strip())
+            if match:
+                start = offset + cursor + leading
+                found.append(
+                    Citation(
+                        match.group("author"),
+                        match.group("year"),
+                        start,
+                        start + len(part.strip()),
+                    )
+                )
+            cursor += len(part) + 1
+    found.extend(
+        Citation(match.group("author"), match.group("year"), match.start(), match.end())
+        for match in NARRATIVE_CITATION.finditer(body)
+    )
+    return tuple(sorted(found, key=lambda citation: citation.start))
+
+
+def _without_citation_years(body: str, citations: tuple[Citation, ...]) -> str:
+    cleaned = body
+    for citation in reversed(citations):
+        span = cleaned[citation.start : citation.end]
+        cleaned = cleaned[: citation.start] + span.replace(citation.year, "") + cleaned[citation.end :]
+    return cleaned
+
+
+def load(parsed: run_grader.Parsed) -> RunSource:
+    root = Path(parsed.source)
+    if not root.is_dir():
+        raise run_grader.SourceError(f"no run directory at {root}")
+    required = (root / "board.md", root / "posts", root / "claims.md")
+    if not required[0].is_file() or not required[1].is_dir() or not required[2].is_file():
+        raise run_grader.SourceError(
+            "run needs board.md, posts/, and claims.md before it can be scanned"
+        )
+    response_paths = sorted(root.glob("response-*.md"))
+    if not response_paths:
+        raise run_grader.SourceError("run contains no response-<name>.md files")
+    try:
+        replies = tuple(_split_reply(path) for path in response_paths)
+        claims = required[2].read_text(encoding="utf-8")
+        roster = tuple(
+            match.group("name").strip()
+            for path in sorted(required[1].glob("*.md"))
+            for match in [AUTHOR.search(path.read_text(encoding="utf-8"))]
+            if match
+        )
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"could not read the run: {failure}") from failure
+    if not roster:
+        raise run_grader.SourceError("posts/ contains no readable AUTHOR: roster entries")
+    return RunSource(path=root, replies=replies, claims=claims, roster=roster)
+
+
+def survey(source: RunSource) -> Scan:
+    citations = tuple(read_citations(reply.body) for reply in source.replies)
+    base_findings = tuple(
+        finding
+        for reply in source.replies
+        for finding in (
+            _address_finding(reply, source.roster),
+            _word_finding(reply),
+            _reference_finding(reply),
+        )
+        if finding is not None
+    )
+    findings = base_findings + tuple(
+        finding
+        for reply, reply_citations in zip(source.replies, citations)
+        for finding in _citation_findings(reply, reply_citations)
+    ) + tuple(
+        finding
+        for reply, reply_citations in zip(source.replies, citations)
+        for finding in _number_findings(reply, reply_citations, source.claims)
+    ) + _reuse_findings(source.replies)
+    return Scan(
+        responses=len(source.replies),
+        words=sum(len(WORD.findall(AMPLIFICATION.sub("", reply.body))) for reply in source.replies),
+        references=sum(len(reply.references) for reply in source.replies),
+        citations=sum(len(reply_citations) for reply_citations in citations),
+        numeric_claims=sum(
+            len(_numeric_values(reply, reply_citations))
+            for reply, reply_citations in zip(source.replies, citations)
+        ),
+        amplifications=sum(len(AMPLIFICATION.findall(reply.body)) for reply in source.replies),
+        findings=findings,
+    )
+
+
+def format_report(scan: Scan, source: str, show: bool = False) -> str:
+    lines = [
+        f"discussion replies in {source}",
+        f"responses: {scan.responses}",
+        f"words: {scan.words}",
+        f"references: {scan.references}",
+        f"citations: {scan.citations}",
+        f"numeric claims: {scan.numeric_claims}",
+        f"amplifications: {scan.amplifications} (counted, never graded)",
+        f"findings: {len(scan.findings)}",
+    ]
+    for kind in ROWS:
+        lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
+    if show:
+        lines.extend(
+            f"{finding.kind}: {finding.response}: {finding.detail}"
+            for finding in scan.findings
+        )
+    return "\n".join(lines)
+
+
+def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    scanned = survey(source)
+    return run_grader.Grade(
+        scan=scanned,
+        source=str(source.path),
+        findings_failed=bool(scanned.findings),
+    )
+
+
+GRADER = run_grader.Grader(
+    usage="usage: discussion_reply_scan.py <run directory> [--show]",
+    load=load,
+    grade=grade,
+    format_report=format_report,
+    options=(run_grader.Option("--show", repeatable=False),),
+    allow_extra_positionals=False,
+)
+
+
+def main(argv: list[str]) -> int:
+    return run_grader.run(GRADER, argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
