@@ -720,7 +720,7 @@ def numbering_advisories(sections: list[Section]) -> tuple[int, int]:
     transition. Nested items use their own level and do not participate.
     """
     not_opening_at_one = 0
-    broken_transitions = 0
+    all_ordinals = []
     for section in sections:
         ordinals = [
             block.ordinal
@@ -731,10 +731,11 @@ def numbering_advisories(sections: list[Section]) -> tuple[int, int]:
             continue
         if ordinals[0] != 1:
             not_opening_at_one += 1
-        broken_transitions += sum(
-            following not in (1, current + 1)
-            for current, following in zip(ordinals, ordinals[1:])
-        )
+        all_ordinals.extend(ordinals)
+    broken_transitions = sum(
+        following not in (1, current + 1)
+        for current, following in zip(all_ordinals, all_ordinals[1:])
+    )
     return not_opening_at_one, broken_transitions
 
 

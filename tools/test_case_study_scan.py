@@ -479,6 +479,26 @@ class NumberingAdvisoriesAreNotRows(unittest.TestCase):
         self.assertEqual(result.broken_numbered_transitions, 0)
         self.assertEqual(result.findings, [])
 
+    def test_a_broken_continuation_across_sections_is_counted(self):
+        text = CLEAN.replace(
+            "## Most Likely Clinical Diagnosis",
+            "## Patient Education:\n\n4. First teaching point.\n5. Second teaching point.\n\n"
+            "## Most Likely Clinical Diagnosis",
+        )
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 1)
+        self.assertEqual(result.broken_numbered_transitions, 1)
+
+    def test_a_consecutive_continuation_across_sections_is_not_broken(self):
+        text = CLEAN.replace(
+            "## Most Likely Clinical Diagnosis",
+            "## Patient Education:\n\n3. First teaching point.\n4. Second teaching point.\n\n"
+            "## Most Likely Clinical Diagnosis",
+        )
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 1)
+        self.assertEqual(result.broken_numbered_transitions, 0)
+
     def test_the_report_declares_both_counts_never_graded(self):
         report = scan.format_report(survey(CLEAN), "draft.md")
         self.assertIn("sections not opening at 1", report)
