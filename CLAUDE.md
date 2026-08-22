@@ -274,7 +274,7 @@ python tools/docx_word_probe.py --word
 ```
 
 **The third command is maintainer-only.** It requires installed Word, runs the one-time
-calibration in [ADR 0007](docs/adr/0007-word-is-a-one-time-calibration-instrument.md), and is
+calibration in [ADR 0008](docs/adr/0008-word-is-a-one-time-calibration-instrument.md), and is
 never on the consumer or CI path.
 
 **PyMuPDF was the obvious guess and it is the wrong tool**, asked and answered once so it is not re-litigated: PyMuPDF reads and writes PDFs, and no PDF library authors a Word document. The three tools here that carry a dependency all open a PDF; this is not a fourth. **That matters because a consumer runs Python on this path** — [AGENTS.md](AGENTS.md)'s point about `icd10_lookup.py`, arriving at a second skill.

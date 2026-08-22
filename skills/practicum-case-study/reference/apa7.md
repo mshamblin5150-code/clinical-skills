@@ -175,7 +175,7 @@ semantic XML shape it covered are in
 through Word COM and prints what Word reports. Word is not on the consumer or CI path. The
 permanent test opens no Office process: it compares the current shapes with all calibration keys
 and says the affected row must be retaken when one leaves the measured set. This is
-[ADR 0007](../../../docs/adr/0007-word-is-a-one-time-calibration-instrument.md).
+[ADR 0008](../../../docs/adr/0008-word-is-a-one-time-calibration-instrument.md).
 
 **The last two rows are [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220),
 landed 2026-08-19, and they were first checked the same way the nine above them were** — a document
