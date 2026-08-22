@@ -33,6 +33,7 @@ MEMBERS: set[str] = {
     "case_study_scan",
     "checks_ledger",
     "differential_scan",
+    "discussion_post_scan",
     "discussion_reply_scan",
     "reference_scan",
     "refusal_scan",

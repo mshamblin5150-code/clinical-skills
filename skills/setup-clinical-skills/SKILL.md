@@ -142,7 +142,8 @@ Write the map's format and location into `scratch/medatrax-profile.md` so the ot
 
 ### 8. Writing samples — for the graded-writing voice model
 
-[practicum-case-study](../practicum-case-study/SKILL.md) and
+[practicum-case-study](../practicum-case-study/SKILL.md),
+[discussion-post](../discussion-post/SKILL.md), and
 [discussion-reply](../discussion-reply/SKILL.md) write graded work that has to sound like the person
 submitting it, and a run that satisfied every mechanic in the house style still read as a competent
 stranger — [#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213).
@@ -231,7 +232,8 @@ Following the same split as [ADR 0001](../../docs/adr/0001-fixture-asserts-on-na
 **Hard, and it belongs above rather than here** — [clinical-note](../clinical-note/SKILL.md) step 2 and [batch-shift](../batch-shift/SKILL.md), for step 9's shorthand. An expansion collected from somebody else's hand does not make a note vague, it makes it **wrong in a way nothing downstream detects**. Where `scratch/shorthand.md` is absent the skills fall back to the field-standard glossary and surface what they cannot read as an unknown token, which is safe; where it holds another account's forms, it is not.
 
 **Soft, and the failure is visible rather than silent** —
-[practicum-case-study](../practicum-case-study/SKILL.md) and
+[practicum-case-study](../practicum-case-study/SKILL.md),
+[discussion-post](../discussion-post/SKILL.md), and
 [discussion-reply](../discussion-reply/SKILL.md), for step 8's voice model. Graded work written
 without one can be substantively correct and still read as a stranger's, which is a real cost and
 not a wrong document. The run declares the relevant register unmodeled rather than claiming a

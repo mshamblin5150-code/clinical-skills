@@ -13,6 +13,7 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 | icd10-cpt | [skills/icd10-cpt/SKILL.md](skills/icd10-cpt/SKILL.md) | A documented encounter needs ICD-10-CM or CPT codes proposed |
 | setup-clinical-skills | [skills/setup-clinical-skills/SKILL.md](skills/setup-clinical-skills/SKILL.md) | **Run once first.** A new clinician's portal, program, picklists and patient identity map need configuring |
 | practicum-case-study | [skills/practicum-case-study/SKILL.md](skills/practicum-case-study/SKILL.md) | A graded course case study needs writing up from faculty material, and submitting as a `.docx` |
+| discussion-post | [skills/discussion-post/SKILL.md](skills/discussion-post/SKILL.md) | One live LMS board needs a researched, evidence-backed initial post, except when its prompt asks for a worked clinical case |
 | discussion-reply | [skills/discussion-reply/SKILL.md](skills/discussion-reply/SKILL.md) | One live LMS discussion topic needs ranking, evidence-backed classmate replies, and explicit approval before each post |
 
 <!-- Additional skills are appended here as they are written. -->
@@ -31,6 +32,14 @@ trace, source reuse, and ungraded amplification count. A consumer that cannot ru
 same checks from [discussion-reply](skills/discussion-reply/SKILL.md) step 4, but cannot call the
 run mechanically verified. Its claim records use `tools/research_ledger.py` on the same full written contract as
 `practicum-case-study` step 3.
+
+**`discussion-post` depends on committed graders.** It uses `tools/research_ledger.py` and
+`tools/reference_scan.py` unchanged, then `tools/discussion_post_scan.py` grades the signed word
+floor, reference minimum, body-number trace and citation-to-record trace while counting the ceiling
+and amplification markers without grading them. A consumer that cannot run the new command can walk the same rows
+from [discussion-post](skills/discussion-post/SKILL.md) step 6, but cannot call the run mechanically
+verified. Its declared limits remain reader-owned and live in
+`discussion_post_scan.NOT_REACHED` rather than in a second prose copy.
 
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
 

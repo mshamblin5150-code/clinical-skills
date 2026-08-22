@@ -1,6 +1,6 @@
 ---
 name: practicum-case-study
-description: Turn a practicum case study's faculty material into a finished, APA-formatted graded submission — full workup, MDM, plan, prescriptions, patient education and references — delivered as a .docx. Use when the clinician hands over a course case study, a module video's intake data, a "case study" Word document, or asks to write up a graded case for a nursing practicum discussion board.
+description: Turn a practicum case study's faculty material into a finished, APA-formatted graded submission — full workup, MDM, plan, prescriptions, patient education and references — delivered as a .docx. Use when the clinician hands over a course case study, a module video's intake data, or a "case study" Word document.
 ---
 
 The input is **faculty material for a graded case study** — an intake block transcribed from a
@@ -27,6 +27,29 @@ the vitals it wants stated, and a vital it omits is one the case is not about.
 directory — standing rule 1, and a pre-commit hook enforces it. Write the Markdown and the `.docx`
 side by side under the same stem. Name files by course, module and date: `nur5144-m1-2026-08-18.md`.
 A filename carries no patient name.
+
+**The research paths follow the input.** In an ordinary faculty-material run,
+`<claims-ledger>` means `scratch/case-study-claims.md` and `<checks-ledger>` means
+`scratch/case-study-checks.md`. When [discussion-post](../discussion-post/SKILL.md) routes a worked
+clinical case here, its **board run directory** is part of the input: preserve that directory's
+`board-<date>.md`, `bar.md`, and `posts/`, set `<claims-ledger>` to
+`<run-directory>/claims.md`, and set `<checks-ledger>` to `<run-directory>/checks.md`. The board run
+therefore keeps one provenance chain; do not copy or merge either ledger into the ordinary paths.
+**This clinical skill owns those artifacts on that branch.** Before the case-study workflow below,
+open the handed board URL with the patient safeguards in this file, snapshot the complete live board
+to `board-<date>.md` and `posts/`, derive the course syllabus URL, and transcribe the topic and
+syllabus bar into `bar.md`. The topic overrides the syllabus where both state the same element; the
+syllabus fills the topic's silence. Show the transcription and precedence to the clinician, and do
+not write its `SIGNED:` ISO date or draft until the clinician explicitly approves it. The routing
+skill reads only enough of the prompt to choose this branch; it does not produce these
+patient-bearing artifacts.
+
+The drafting context on that routed branch **does not see the classmate posts**. Give it the faculty
+prompt and material, the signed bar, and the voice model, but not `posts/`. After the draft exists,
+send the draft and the snapshotted posts to a fresh differentiation reader. The reader reports what
+the existing posts converge on and where the clinician's completed draft already differs; the
+orchestrator alone writes that return to `<run-directory>/differentiation.md` and shows it to the
+clinician before approval. The report does not silently rewrite the draft.
 
 ## What it is graded by
 
@@ -472,7 +495,7 @@ states a dose, **the heading states a number too**: that is what puts the record
 `NUMERIC_CLAIM_UNQUANTIFIED` above, so the restatement has to answer with a number and the chain
 runs from the table's dose to a source.
 
-**Write the claim list down before spawning anything.** `scratch/case-study-claims.md`, its `DATE`
+**Write the claim list down before spawning anything.** `<claims-ledger>`, its `DATE`
 header and one `## CLAIM:` heading per claim, and nothing under them yet. That ordering is what
 makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
 refuses a record with no `STATUS`.
@@ -610,7 +633,7 @@ can be several of them at once:
 rows read the draft as well as the ledger the way #298's row below reads the evidence dump:
 
 ```bash
-python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
+python tools/research_ledger.py <claims-ledger> --draft <the draft>
 ```
 
 | The prescription | Why |
@@ -646,7 +669,7 @@ precedent is that a cut point is grounded where the corpus offers one and refuse
 the clinician 2026-08-20, grades what the run says it read:
 
 ```bash
-python tools/research_ledger.py scratch/case-study-claims.md --evidence <the evidence dump>
+python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 ```
 
 | The citation | Why |
@@ -687,7 +710,7 @@ sourced document.**
 **Then hand the ledger to a fresh checker, and do not draft until that checker reports it clean:**
 
 ```bash
-python tools/research_ledger.py scratch/case-study-claims.md
+python tools/research_ledger.py <claims-ledger>
 ```
 
 Exit 0 is clean, 1 names how many records failed, and **2 means it did not scan** — no file, no
@@ -773,7 +796,7 @@ finding again, one section down. See *Three modes, and none of them subtracts a 
 not run before the tables existed:
 
 ```bash
-python tools/research_ledger.py scratch/case-study-claims.md --draft <the draft>
+python tools/research_ledger.py <claims-ledger> --draft <the draft>
 ```
 
 Every rule it applies is written out in step 3 above, so a harness with no Python walks the drug rows
@@ -931,7 +954,7 @@ verification*, and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findi
 up. Two places qualify: a string test, where the rule is mechanical, and a **fresh reader** given
 the draft and the rule and nothing else, where it is not.
 
-**Write the check headings down before spawning anything.** `scratch/case-study-checks.md`, one
+**Write the check headings down before spawning anything.** `<checks-ledger>`, one
 `## CHECK:` heading per row of the table below, and nothing under them yet. That ordering is step
 3's and it is here for step 3's reason: a heading whose verdict never arrived is visible, and a
 check that was never run is not.
@@ -944,10 +967,10 @@ check that was never run is not.
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
-| the dose against the record that sourced it | every prescription table, and `scratch/case-study-claims.md` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
+| the dose against the record that sourced it | every prescription table, and `<claims-ledger>` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; and against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the rendered document | the Markdown draft and the rendered `.docx`, page by page | a vision-capable reader: open or render every page, compare it page by page with the Markdown, and report clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
-| the faculty's own to-do list | the faculty material and the draft's headings | a reader: does every item on it have a section that answers it | no |
+| the faculty's own to-do list | the faculty material, the draft's headings, and `bar.md` on a routed board run | a reader: does every faculty item have a section that answers it, and on a routed run does every signed bar element — including word floor, reference minimum, ISBN, and every prose element — hold in the finished draft | no |
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
 is some rows rather than every row.** On a row marked *yes* a `clean` verdict has to say what the
@@ -1157,7 +1180,7 @@ is for and previously had nothing to work with.
 clean:**
 
 ```bash
-python tools/checks_ledger.py scratch/case-study-checks.md
+python tools/checks_ledger.py <checks-ledger>
 ```
 
 Exit 0 is clean, 1 names how many checks failed, and **2 means it did not scan** — no file, or no
@@ -1196,7 +1219,8 @@ from standing rule 1.**
 Then walk this list, by eye — none of it is mechanical:
 
 - Does every item on the faculty's own to-do list have a section that answers it, **and is every
-  skeleton section present regardless of what the faculty asked for**?
+  skeleton section present regardless of what the faculty asked for**? On a routed board run, did
+  the same reader compare every signed bar element with the finished draft and report any miss?
 - Is the differential **numbered**, and is `1.` defensible as the thing that would kill first?
 - Does every MDM entry name a discriminator from *this* case, and carry a citation?
 - Does every drug in the Plan have a prescription table — **including any drug row that welds a
@@ -1207,7 +1231,7 @@ Then walk this list, by eye — none of it is mechanical:
   [reference/apa7.md](reference/apa7.md) rather than from memory, and does
   `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
   defect does not leave this step in the `PROPOSED` block — it gets fixed.
-- **Does `python tools/checks_ledger.py scratch/case-study-checks.md` exit 0**, and has every
+- **Does `python tools/checks_ledger.py <checks-ledger>` exit 0**, and has every
   `defect` been repaired in the document rather than reported? The command settles the record
   shape, and **the defect table above is the list** — this line used to name three of its rows and
   went stale the moment #255 added one, which is the shape that table exists to keep out of prose.

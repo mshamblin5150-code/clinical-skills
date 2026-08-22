@@ -743,7 +743,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         first and last columns.
         """
         reads = self.table_reads()["the dose against the record that sourced it"]
-        self.assertIn("scratch/case-study-claims.md", reads)
+        self.assertIn("<claims-ledger>", reads)
         self.assertIn("prescription table", reads)
 
     def test_the_shape_reader_and_the_correspondence_reader_are_two_rows(self):
@@ -790,7 +790,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("page by page", self.table_how()[name])
 
     def test_the_skill_names_the_command(self):
-        self.assertIn("python tools/checks_ledger.py scratch/case-study-checks.md", self.skill)
+        self.assertIn("python tools/checks_ledger.py <checks-ledger>", self.skill)
 
     def test_the_skill_shows_every_field_the_parser_reads(self):
         joined = "".join(self._worked_examples())

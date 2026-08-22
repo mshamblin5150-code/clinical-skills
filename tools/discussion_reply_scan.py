@@ -15,6 +15,22 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from discussion_artifact import (
+    AMPLIFICATION,
+    CLAIM_BLOCK,
+    CLAIM_REFERENCE,
+    NUMBER,
+    REFERENCE_YEAR,
+    RESTATEMENT,
+    WORD,
+    Citation,
+    author_key,
+    citation_occurrence_keys,
+    read_citations,
+    reference_key,
+    reference_keys,
+    split_references,
+)
 import run_grader
 
 
@@ -35,30 +51,8 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 REFERENCE_LABEL = re.compile(r"(?mi)^References\s*$")
-WORD = re.compile(r"\b[\w'-]+\b", re.UNICODE)
-NUMBER = re.compile(r"(?<![\w])\d+(?:[.,]\d+)*(?:%|st|nd|rd|th)?(?![\w])", re.IGNORECASE)
-AMPLIFICATION = re.compile(r"(?mi)^\s*<!--\s*AMPLIFICATION\s*:[^>]+-->\s*$")
 AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")
-PAREN_BLOCK = re.compile(r"\((?P<inside>[^()]+)\)")
-PAREN_PAIR = re.compile(
-    r"(?P<author>[A-Z][^;]*?),\s*(?P<year>(?:19|20)\d{2}[a-z]?)"
-    r"(?:,\s*(?:p{1,2}\.\s*)?\d+(?:[-–]\d+)?)?\s*$"
-)
-NARRATIVE_CITATION = re.compile(
-    r"\b(?P<author>[A-Z][A-Za-z'-]+(?:\s+(?:(?:and|&)\s+"
-    r"[A-Z][A-Za-z'-]+|et\s+al\.))?)\s*"
-    r"\((?P<year>(?:19|20)\d{2}[a-z]?)"
-    r"(?:,\s*(?:p{1,2}\.\s*)?\d+(?:[-–]\d+)?)?\)"
-)
-REFERENCE_YEAR = re.compile(r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)")
-CLAIM_BLOCK = re.compile(r"(?ms)^## CLAIM:\s*(?P<block>.*?)(?=^## CLAIM:|\Z)")
 CLAIM_TARGET = re.compile(r"^\[REPLY:\s*(?P<target>[^\]]+)\]\s*(?P<claim>.*)$", re.IGNORECASE)
-RESTATEMENT = re.compile(
-    r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
-)
-CLAIM_REFERENCE = re.compile(
-    r"(?mi)^REFERENCE\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
-)
 
 
 @dataclass(frozen=True)
@@ -73,14 +67,6 @@ class Reply:
     text: str
     body: str
     references: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class Citation:
-    author: str
-    year: str
-    start: int
-    end: int
 
 
 @dataclass(frozen=True)
@@ -107,14 +93,7 @@ class Scan:
 
 def _split_reply(path: Path) -> Reply:
     text = path.read_text(encoding="utf-8")
-    match = REFERENCE_LABEL.search(text)
-    body = text[: match.start()] if match else text
-    reference_text = text[match.end() :] if match else ""
-    references = tuple(
-        block.strip().replace("\n", " ")
-        for block in re.split(r"\n\s*\n", reference_text.strip())
-        if block.strip()
-    )
+    body, references = split_references(text, REFERENCE_LABEL)
     return Reply(path=path, text=text, body=body, references=references)
 
 
@@ -163,22 +142,13 @@ def _reference_finding(reply: Reply, claims: str) -> Finding | None:
     return None
 
 
-def _author_key(value: str) -> str:
-    first = re.split(
-        r"\s+(?:et\s+al\.)|\s+(?:and|&)\s+|\s*;\s*|,",
-        value,
-        maxsplit=1,
-    )[0]
-    return re.sub(r"[^a-z0-9]", "", first.casefold())
-
-
 def _valid_references(reply: Reply) -> tuple[str, ...]:
     valid: list[str] = []
     for entry in reply.references:
         year = REFERENCE_YEAR.search(entry)
         if (
             year
-            and _author_key(entry[: year.start()].rstrip(". "))
+            and author_key(entry[: year.start()].rstrip(". "))
             and re.search(r"[A-Za-z]{2,}", entry[year.end() :])
         ):
             valid.append(entry)
@@ -214,9 +184,7 @@ def _claimed_references(reply: Reply, claims: str) -> tuple[str, ...]:
 def _reference_keys(reply: Reply) -> set[tuple[str, str]]:
     keys: set[tuple[str, str]] = set()
     for entry in _valid_references(reply):
-        year = REFERENCE_YEAR.search(entry)
-        if year:
-            keys.add((_author_key(entry[: year.start()].rstrip(". ")), year.group("year")))
+        keys.update(reference_keys(entry))
     return keys
 
 
@@ -228,8 +196,8 @@ def _citation_findings(reply: Reply, citations: tuple[Citation, ...]) -> tuple[F
             reply.path.name,
             f"{citation.author}, {citation.year} has no matching reference",
         )
-        for citation in citations
-        if (_author_key(citation.author), citation.year) not in references
+        for citation, keys in zip(citations, citation_occurrence_keys(citations))
+        if not any(key in references for key in keys)
     )
 
 
@@ -285,32 +253,6 @@ def _reuse_findings(replies: tuple[Reply, ...]) -> tuple[Finding, ...]:
     return tuple(findings)
 
 
-def read_citations(body: str) -> tuple[Citation, ...]:
-    found: list[Citation] = []
-    for block in PAREN_BLOCK.finditer(body):
-        offset = block.start("inside")
-        cursor = 0
-        for part in block.group("inside").split(";"):
-            leading = len(part) - len(part.lstrip())
-            match = PAREN_PAIR.match(part.strip())
-            if match:
-                start = offset + cursor + leading
-                found.append(
-                    Citation(
-                        match.group("author"),
-                        match.group("year"),
-                        start,
-                        start + len(part.strip()),
-                    )
-                )
-            cursor += len(part) + 1
-    found.extend(
-        Citation(match.group("author"), match.group("year"), match.start(), match.end())
-        for match in NARRATIVE_CITATION.finditer(body)
-    )
-    return tuple(sorted(found, key=lambda citation: citation.start))
-
-
 def _without_citation_years(body: str, citations: tuple[Citation, ...]) -> str:
     cleaned = body
     for citation in reversed(citations):
@@ -323,18 +265,20 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     root = Path(parsed.source)
     if not root.is_dir():
         raise run_grader.SourceError(f"no run directory at {root}")
-    required = (root / "board.md", root / "posts", root / "claims.md")
-    if not required[0].is_file() or not required[1].is_dir() or not required[2].is_file():
+    board_paths = sorted(root.glob("board-*.md"))
+    posts = root / "posts"
+    claims_path = root / "claims.md"
+    if not board_paths or not posts.is_dir() or not claims_path.is_file():
         raise run_grader.SourceError(
-            "run needs board.md, posts/, and claims.md before it can be scanned"
+            "run needs board-<date>.md, posts/, and claims.md before it can be scanned"
         )
     response_paths = sorted(root.glob("response-*.md"))
     if not response_paths:
         raise run_grader.SourceError("run contains no response-<name>.md files")
-    post_paths = sorted(required[1].glob("*.md"))
+    post_paths = sorted(posts.glob("*.md"))
     try:
         replies = tuple(_split_reply(path) for path in response_paths)
-        claims = required[2].read_text(encoding="utf-8")
+        claims = claims_path.read_text(encoding="utf-8")
         roster = tuple(
             match.group("name").strip()
             for path in post_paths
