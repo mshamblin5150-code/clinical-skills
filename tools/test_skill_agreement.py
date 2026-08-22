@@ -1013,6 +1013,11 @@ class TheExportMethodHasOneConsumerContract(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, module)
 
+    def test_the_contract_does_not_claim_a_runtime_change_to_the_existing_reader(self):
+        corpus_method = squashed(read(VOICE_CORPUS_REFERENCE))
+        self.assertIn("changes no runtime behavior", corpus_method)
+        self.assertIn("converter's own counts-only report", corpus_method)
+
     def test_the_export_is_optional_and_consent_is_staged(self):
         voice = squashed(read(CASE_STUDY_VOICE))
         for required in (

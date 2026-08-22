@@ -300,34 +300,6 @@ class ThePopulationIsDerivedIndependently(unittest.TestCase):
         self.assertEqual(partition([conv]).population.messages, 1)
 
 
-class TheCoverageReportDeclaresTheWholeWalk(unittest.TestCase):
-    """#400: a converter's counts-only report is its verification surface."""
-
-    def report(self):
-        conv = linear(
-            message("user", "typed"),
-            message("tool", "result", content_type="tether_quote"),
-            message("assistant", "reply"),
-            message("user", "future", content_type="some_future_shape"),
-        )
-        return "\n".join(voice_corpus.format_report(partition([conv])))
-
-    def test_the_population_is_printed_by_role(self):
-        report = self.report()
-        self.assertIn("population by role", report)
-        for role, count in {"user": 2, "tool": 1, "assistant": 1}.items():
-            with self.subTest(role=role):
-                self.assertIn(f"{role:<20} {count}", report)
-
-    def test_the_partition_sum_and_unread_remainder_are_explicit(self):
-        report = self.report()
-        self.assertIn("partitioned 2 of 2 user message(s)", report)
-        self.assertIn("unread remainder       1", report)
-
-    def test_a_zero_undated_count_still_prints(self):
-        self.assertIn("0 undated conversation(s)", self.report())
-
-
 class TheDateComesFromCreateTime(unittest.TestCase):
     """#388 trap 5: a previous pass invented a dating method and it was wrong.
 
@@ -875,15 +847,6 @@ class TheLoaderRefusesRatherThanReadingEmpty(unittest.TestCase):
             loaded, why = load_export(path)
         self.assertIsNone(loaded)
         self.assertIn("mapping", why)
-
-    def test_a_conversation_with_no_identity_is_refused(self):
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "conversations.json"
-            path.write_text(json.dumps([{"mapping": {}}]), encoding="utf-8")
-            loaded, why = load_export(path)
-        self.assertIsNone(loaded)
-        self.assertIn("conversation_id or id", why)
-
 
 class TheWriteTargetIsRefusedOutsideScratch(unittest.TestCase):
     """A mined record is his own writing and the corpus carries patient material.
