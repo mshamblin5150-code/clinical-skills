@@ -1,0 +1,268 @@
+---
+name: discussion-post
+description: Read one LMS board and its course syllabus live, derive and confirm the graded bar, then research, draft, verify, render, and submit an evidence-backed initial post. Use for a nonpatient initial post whose shape comes from its prompt; route a worked clinical case to practicum-case-study.
+---
+
+# Initial post
+
+Write the clinician's initial post for one board. Its skeleton comes from that board's prompt and
+may change from one board to the next. Do not configure a skeleton or a course-specific bar.
+
+If the prompt asks for a worked clinical case, this is not the skill. Hand the board run directory
+to [practicum-case-study](../practicum-case-study/SKILL.md), whose clinical reasoning, coding, and
+patient safeguards are required. This routing line is also the PHI line: `discussion-post` never
+accepts patient material. A prompt asking for policy analysis, professional reflection, ethics,
+leadership, or another nonpatient academic argument remains here.
+
+The clinician signs the bar before drafting, reads the finished post, and gives the explicit
+go-ahead before anything is pasted into the LMS. Authorization to read, research, draft, or render
+is not submission authorization.
+
+## Inputs, outputs, and one board-keyed run
+
+The input is one board URL in the clinician's signed-in browser. A Canvas-style URL of
+`/courses/<id>/discussion_topics/<id>` supplies the course identifier needed to derive
+`/courses/<id>/assignments/syllabus`; do not ask for a second URL when that derivation works.
+
+Derive a lowercase run key from the live course and module breadcrumbs, with no date in it. A run
+is keyed to the board, not to the sitting, as recorded in
+[ADR 0005](../../docs/adr/0005-a-run-is-keyed-to-the-board.md). Write private state only under:
+
+```text
+scratch/runs/<course>-<module>/
+    board-<date>.md
+    posts/
+    bar.md
+    claims.md
+    post.md
+    differentiation.md
+```
+
+Each sitting writes a new `board-<date>.md`; never overwrite an earlier snapshot. `posts/` holds
+one file per classmate for provenance. `post.md` is the private working draft, not the handed-over
+artifact. Write the finished pair only to:
+
+```text
+output/discussions/<course>-<module>.md
+output/discussions/<course>-<module>.docx
+```
+
+Parallel readers and researchers each receive a new run-unique private path that no sibling reads
+or writes. They return findings to the orchestrating context and never append to the canonical run
+files. The orchestrator is the sole writer of `board-<date>.md`, `bar.md`, `claims.md`, `post.md`,
+and `differentiation.md`. Apply standing rule 6's independent-checker and cleanup sequence to every
+temporary path.
+
+## 1. Route from the prompt, then snapshot the nonpatient board
+
+Open the topic live and first read only its breadcrumbs and prompt. **If the prompt asks for a
+worked clinical case, stop this skill now.** Hand the board URL and the board run directory to
+`practicum-case-study`; do not read the classmate contributions, write a snapshot, derive a bar, or
+accept any patient material here. The clinical skill owns those patient-bearing reads and writes.
+
+For a nonpatient prompt, continue in this skill. Read the point value, due dates, the clinician's
+existing contribution if any, every classmate initial post, and every nested reply. The live board
+is authoritative, including edits. Write the complete state to `board-<date>.md` and split the
+classmate contributions under `posts/` for provenance.
+
+The drafting context does not see the classmate posts. Give it only the prompt, the signed bar,
+and `scratch/voice-model.md`. Neighboring posts demonstrate what normal looks like; showing them
+before drafting quietly normalizes the clinician's argument toward the board.
+
+Open the derived syllabus page. Read the initial-post bar there: word floor and ceiling, reference
+minimum, source recency, required textbook or ISBN, and every other stated element. The topic page
+overrides the syllabus when both state the same bar element; the syllabus fills the topic's
+silence. This precedence is declared and has not been observed in a live conflict, so report the
+conflict rather than silently choosing when a new shape makes the rule ambiguous.
+
+## 2. Write and sign `bar.md`
+
+Transcribe the relevant topic and syllabus language verbatim as block quotes, each with the page
+it came from. Above the quotes write the mechanical fields exactly once:
+
+```text
+TOPIC: <the board URL>
+SYLLABUS: <the derived syllabus URL>
+SIGNED: <ISO date after clinician approval>
+WORD-FLOOR: <integer, or 0 when none is stated>
+WORD-CEILING: <integer, or none>
+REFERENCE-MINIMUM: <integer, or 0 when none is stated>
+
+## Topic bar
+
+> <verbatim topic language>
+
+## Syllabus bar
+
+> <verbatim syllabus language>
+```
+
+Show `bar.md` to the clinician and wait for an explicit confirmation that the transcription and
+precedence are right. Only then write `SIGNED:` and begin drafting. A run that reads, transcribes,
+and grades its own transcription without this checkpoint is grading its own interpretation.
+
+The word floor is graded. The ceiling is counted and never graded: the clinician deliberately
+exceeds stated maxima. A clean mechanical scan therefore never means the post obeyed the ceiling.
+Every prose bar element remains a reader's check; `discussion_post_scan.NOT_REACHED` is the single
+inventory of what that command cannot decide.
+
+## 3. Draft blind, then derive the claim set from the document
+
+Read `scratch/voice-model.md` and use register 3 throughout. Preserve confirmed sentence shapes,
+hedges attached to facts, and the clinician's argumentative posture. Do not copy chat typos or
+lowercase message openings. A craft metaphor or named philosopher already present in the
+clinician's reasoning may stay; the skill is licensed to add none.
+
+Mark every consciously retained craft metaphor or named-philosopher move on its own working line:
+
+```html
+<!-- AMPLIFICATION: craft metaphor -->
+```
+
+The comments are counted and never graded. They never reach the LMS.
+
+Write the prompt-shaped working draft to `post.md`, including its in-text citations and reference
+list. This is not the finished artifact. Now derive the required claim set from the document
+rather than from the run's account of what it intended to claim:
+
+1. every in-text citation; and
+2. every Arabic numeral in the body that is not a citation year, page locator, or statute section
+   number.
+
+A factual claim without a citation still receives a record when it is new rather than the
+clinician's own reasoning. The mechanical `untraced-number` row is a floor, not permission to leave
+uncited prose unresearched.
+
+Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per derived claim. Use the full
+record shape:
+
+```text
+## CLAIM: <the drafted claim, including its exact numeric token where applicable>
+STATUS: sourced | unsourced - <what was searched>
+SOURCE: society guideline | peer-reviewed | government | tertiary reference
+REFERENCE: <full APA 7 entry>
+RESTATEMENT: <what the source says, including the draft's exact numeric token where applicable>
+RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
+RESOLVED: <URL or DOI> - read <ISO date>
+PAGE-YEAR: <year and where the page states it>
+REFUTATION: stands | refuted | paywalled - <reason>
+```
+
+For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. The source
+classes and recency dispositions are the same ones in `practicum-case-study` step 3: within two
+years is the target, within five is ordinarily expected, and `nothing newer` names what was
+searched. `guideline in force` applies only when the cited guideline is presently in force and the
+record says why; membership in a catalog does not establish standing.
+
+Fan out one research context per claim. Each returns the source class, full APA 7 reference,
+restatement, opened URL or DOI and read date, and the page's stated year and locator. The
+orchestrator alone writes the records. Then send every `sourced` record to a different context
+briefed to disprove the reference, locator, year, bibliographic details, or restatement. It returns
+`stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
+primary sources: a refuter checks whether the cited section says what the draft claims.
+
+A source already verified elsewhere in this board's ledger may discharge a second page-level
+read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `REFUTATION`; only
+`REFERENCE`, `RESOLVED`, and `PAGE-YEAR` may be inherited because those describe the page already
+opened. A claim is never inherited from another sentence.
+
+After every research and refutation result is gathered, a fresh non-authoring context runs:
+
+```bash
+python tools/research_ledger.py scratch/runs/<course>-<module>/claims.md
+```
+
+Exit 0 means the records are mechanically complete, 1 means a finding, and 2 means the ledger was
+not scanned. The command does not decide whether a source supports a claim; the refutation pass and
+the draft-to-ledger read own that judgment.
+
+## 4. Resolve dead claims before the draft is final
+
+Apply every ledger disposition before promoting `post.md` to the finished artifact:
+
+- `refuted`: the sentence is cut, not softened or hedged;
+- `unsourced`: the sentence may survive only as clearly uncited clinician reasoning, and the
+  unearned reference is removed; and
+- `paywalled`: the claim may ship on the recorded terms, and it is counted in the completion report on
+  its own line.
+
+Report every cut to the clinician before the draft is final because removing a sentence changes
+the argument. Repair the reference list after the cuts. A source supporting no surviving sentence
+is deleted rather than left as decoration.
+
+## 5. Differentiate only after the clinician's draft exists
+
+Give a fresh reader `posts/` and the completed working draft. Have it report where the classmate
+posts converge and where the clinician's already differs. Write that report to
+`differentiation.md` and show it to the clinician. This is a differentiation read, not permission
+to import classmates' claims or normalize the draft toward their median.
+
+Any substantive change made after this read reopens the affected claim records and reference
+walk. A new factual sentence is researched and independently refuted on the same terms as step 3.
+
+## 6. Write and independently grade the finished Markdown
+
+Copy the approved working text to `output/discussions/<course>-<module>.md`. Keep the
+`AMPLIFICATION` comments in the Markdown working artifact so the count remains auditable; omit them
+from the LMS.
+
+Fresh, non-authoring contexts run each artifact grader. One context never grades an artifact it
+authored, and a repair is checked by another fresh context:
+
+```bash
+python tools/research_ledger.py scratch/runs/<course>-<module>/claims.md
+python tools/reference_scan.py output/discussions/<course>-<module>.md --as-of <submission date>
+python tools/discussion_post_scan.py scratch/runs/<course>-<module> --draft output/discussions/<course>-<module>.md
+```
+
+`reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
+`discussion_post_scan.py` grades the signed word floor and reference minimum, then requires every
+body-number occurrence and every in-text citation occurrence to have its own claim record. It
+counts the word ceiling and amplification comments without grading them. Its default output is
+counts only; `--show` includes private finding detail and must not be pasted.
+
+Exit 0 means the scanner's rows pass, 1 means a finding, and 2 means it did not completely scan.
+Preserve the original checker result, fix findings through the drafting context, and have a new
+non-authoring context check the correction. Then walk `discussion_post_scan.NOT_REACHED` item by
+item against the live pages, signed bar, draft, and ledger. In particular, read whether an ISBN or
+other prose bar element is present and whether a reference supports the proposition the bar
+requires; do not substitute a reference count for either judgment.
+
+## 7. Render and inspect the `.docx`
+
+Render the checked Markdown:
+
+```bash
+python tools/docx_write.py output/discussions/<course>-<module>.md output/discussions/<course>-<module>.docx
+```
+
+If the renderer refuses an existing document, do not use `--force` without the clinician's
+permission; the refusal can mean Word or a person owns changes that Git cannot restore. A
+vision-capable, non-authoring context then compares every rendered page with the Markdown and
+reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
+headings. A text-only reread does not substitute for the visual check.
+
+The clinician pastes from Word because the `.docx` carries the hanging indent and heading
+structure into the LMS. Before pasting, manually demote the headings as the LMS requires and point
+to issue #418 as the renderer limitation. Delete this manual instruction when the renderer gains
+that mode.
+
+## 8. Approve, paste, and reread
+
+Show the final post and the clean-check summary to the clinician. Wait for an explicit go-ahead.
+Paste from Word into the LMS, omit every `AMPLIFICATION` comment, apply the heading demotion, and
+inspect the editor before submitting. Submit only after that inspection, then reread the posted
+board version.
+
+The graders read the Markdown and ledger, not the LMS editor. A clean scan is not a checked post
+in the box. The reread owns lost headings, broken paragraphs, missing references, and any change
+introduced by paste.
+
+## Completion
+
+Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
+discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
+count, amplification count, paywalled-claim count, rendered-page verdict, and the posted reread.
+Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, and `differentiation.md` together
+under the board-keyed run. Remove every temporary per-agent path after the independent checks; if
+cleanup fails, report the exact remaining path.

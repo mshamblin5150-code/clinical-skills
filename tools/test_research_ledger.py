@@ -1043,7 +1043,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         cls.skill = SKILL.read_text(encoding="utf-8")
 
     def test_the_skill_names_the_command(self):
-        self.assertIn("python tools/research_ledger.py scratch/case-study-claims.md", self.skill)
+        self.assertIn("python tools/research_ledger.py <claims-ledger>", self.skill)
 
     def test_the_skill_shows_every_field_the_parser_reads(self):
         """In the worked example rather than in prose, because the example is

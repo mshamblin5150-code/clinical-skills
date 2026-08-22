@@ -22,20 +22,24 @@ page live: its breadcrumbs, prompt, the clinician's initial post, every classmat
 nested reply. The live board is authoritative, including edits. Do not ask for pasted posts and do
 not use a draft under `output/` as the left-hand side.
 
-Derive a lowercase run key from the page's course and module breadcrumbs plus the current ISO
-date. Do not configure course names or module names elsewhere. Write only under the gitignored
-working directory:
+Derive a lowercase run key from the page's course and module breadcrumbs, with no date in it. A
+run is keyed to the board rather than to the sitting, as recorded in
+[ADR 0005](../../docs/adr/0005-a-run-is-keyed-to-the-board.md). Do not configure course names or
+module names elsewhere. Write only under the gitignored working directory:
 
 ```text
-scratch/runs/<course>-<module>-<date>/
-    board.md
+scratch/runs/<course>-<module>/
+    board-<date>.md
     posts/
     claims.md
+    post.md
     response-<name>.md
 ```
 
-`board.md` is the complete snapshot as read. Under `posts/`, write one file per classmate and start
-each with these fields before the post and its nested replies:
+`board-<date>.md` is the complete snapshot as read on this sitting; never overwrite an earlier
+snapshot. `post.md`, when present, is the clinician's initial-post working record and is not a
+reply. Under `posts/`, write one file per classmate and start each with these fields before the post
+and its nested replies:
 
 ```text
 AUTHOR: Maren Quill
@@ -49,8 +53,8 @@ name, or full name when first names collide: `response-maren.md` or
 detection layer, count, or report. They remain gitignored working material.
 
 Parallel readers or researchers each receive a new run-unique private path. They return findings
-to the orchestrating context and never append to `board.md`, `claims.md`, or a response. The
-orchestrator is the sole writer of those artifacts. The canonical `scratch/runs/<run-key>/`
+to the orchestrating context and never append to `board-<date>.md`, `claims.md`, or a reply file.
+The orchestrator is the sole writer of those artifacts. The canonical `scratch/runs/<run-key>/`
 directory is the orchestrator-owned provenance record, not a writer's private path. Apply standing
 rule 6's independent-checker and cleanup sequence to the temporary per-agent paths.
 
@@ -76,8 +80,12 @@ is a social judgment about a named classmate.
 
 List every new factual claim the replies may add. A paraphrase of the classmate's post, a statement
 of agreement, and the clinician's own argument need no record. A number, threshold, factual
-comparison, or empirical assertion does. Reusing a source from the clinician's initial post is not
-verification; research the new claim on its own terms.
+comparison, or empirical assertion does. A source already verified in this board's `claims.md`
+may discharge another page-level read, but the new claim does not inherit the earlier claim's
+verification. Give it a new `RESTATEMENT` and a new `REFUTATION`; it inherits `REFERENCE`,
+`RESOLVED` and `PAGE-YEAR`, which are facts about the page already opened. `respent-source` remains
+reply against reply and never compares a reply file with `post.md`, so a course-required initial-post
+source does not become unavailable to every reply.
 
 Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per claim before research
 begins. Start the heading with the response filename's target slug, for example
@@ -190,6 +198,6 @@ one.
 ## Completion
 
 Report the two posted addressees, the two grader exits, and the amplification count for each reply.
-Keep `board.md`, `posts/`, `claims.md`, and both responses together under the run key as the private
-provenance record. Remove every temporary per-agent path after the independent checks; if cleanup
-fails, report the exact remaining path.
+Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, and both replies
+together under the run key as the private provenance record. Remove every temporary per-agent path
+after the independent checks; if cleanup fails, report the exact remaining path.

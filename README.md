@@ -10,7 +10,7 @@ skills/<name>/*.md        reference the skill loads on demand
 reference/                shared reference (Medatrax field map, the ICD-10-CM code set)
 fixtures/                 regression sets — de-identified, committed
 scratch/                  live working files — gitignored, never committed
-output/                   finished notes and case studies — gitignored, never committed
+output/                   finished notes and graded coursework — gitignored, never committed
 tools/                    maintainer scripts + repository hooks
 CONTEXT.md                domain glossary
 docs/adr/                 architectural decisions

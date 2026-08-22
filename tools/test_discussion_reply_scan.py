@@ -58,7 +58,9 @@ class Run:
     def __init__(self, root: Path):
         self.root = root
         (root / "posts").mkdir()
-        (root / "board.md").write_text("COURSE: NUR 0000\nMODULE: 2\n", encoding="utf-8")
+        (root / "board-2026-08-22.md").write_text(
+            "COURSE: NUR 0000\nMODULE: 2\n", encoding="utf-8"
+        )
         (root / "posts" / "maren-quill.md").write_text(
             "AUTHOR: Maren Quill\nREPLIES: 0\n\nA synthetic classmate post.\n",
             encoding="utf-8",
@@ -83,6 +85,26 @@ class ACompleteRunPasses(unittest.TestCase):
         self.assertIn("numeric claims: 1", report)
         self.assertIn("findings: 0", report)
         self.assertNotIn("Maren", report)
+
+    def test_an_nd_citation_resolves_to_its_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "response-maren.md").write_text(
+                BODY.replace("Quill, 2024", "Quill, n.d.").replace(
+                    "Quill, R. (2024).", "Quill, R. (n.d.)."
+                ),
+                encoding="utf-8",
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("Quill, R. (2024).", "Quill, R. (n.d.)."),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("unresolved-citation: 0", stdout.getvalue())
 
 
 class AddressedNameIsCheckedAgainstTheRoster(unittest.TestCase):
