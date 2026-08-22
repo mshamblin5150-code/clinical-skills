@@ -117,16 +117,17 @@ is a patient record. Three rules, and they are the ones
 - **Ask before reading, and say what will be read.** A clinician handing over eight documents has
   agreed to a voice model, not to a general read of his writing.
 
-### The export offer comes after the document ask
+### The export offer comes after the writing-sample ask
 
-**Documents come first.** Ask for the existing pieces above; a chat export is then **offered as an
+**Writing samples come first.** Ask for the existing pieces above; a chat export is then **offered as an
 enhancement** rather than a replacement or a precondition. Name the option broadly — **ChatGPT,
 Claude, Grok**, Gemini, Copilot, or another assistant — because the clinician may have unwatched
 writing in any of them. Name the cost beside it: this repository reads ChatGPT directly; another
 format needs a converter following [voice-corpus.md](voice-corpus.md). An export is more evidence,
 not permission to make the skippable voice-model step mandatory.
 
-**An export takes two yeses because its contents were not selected.** With documents, selection is
+**An export takes two yeses because its contents were not selected.** With writing samples,
+selection is
 the consent: the clinician knows which file was handed over. With an export, neither the clinician
 nor the reader has reviewed the container. Stage consent on the seam the tool already provides:
 
@@ -139,7 +140,7 @@ nor the reader has reviewed the container. Stage consent on the seam the tool al
 
 If there is no converter for that vendor, the honest fallback is **ten named conversations** read
 as ordinary writing samples under the consent rules above. State the bound beside the result. A
-bounded sample may support a document-grade model; it must never be described as reading the
+bounded sample may support a writing-sample-grade model; it must never be described as reading the
 export.
 
 **The export does not settle register coverage.** A prompt, a pasted paper, and prose written to a

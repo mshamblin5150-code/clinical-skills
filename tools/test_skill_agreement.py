@@ -1016,7 +1016,7 @@ class TheExportMethodHasOneConsumerContract(unittest.TestCase):
     def test_the_export_is_optional_and_consent_is_staged(self):
         voice = squashed(read(CASE_STUDY_VOICE))
         for required in (
-            "Documents come first",
+            "Writing samples come first",
             "offered as an enhancement",
             "ChatGPT, Claude, Grok",
             "first yes",
@@ -1028,6 +1028,11 @@ class TheExportMethodHasOneConsumerContract(unittest.TestCase):
         ):
             with self.subTest(required=required):
                 self.assertIn(required, voice)
+
+    def test_setup_records_an_export_no_separately_from_the_whole_step(self):
+        setup = squashed(read(SETUP))
+        self.assertIn("export refusal separately", setup)
+        self.assertIn("whole voice-model step", setup)
 
     def test_the_model_records_source_and_confirmation_does_not_amplify(self):
         voice = read(CASE_STUDY_VOICE)

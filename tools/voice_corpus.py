@@ -281,6 +281,9 @@ def load_export(path: Path):
     for index, record in enumerate(loaded):
         if not isinstance(record, dict):
             return None, f"{path} member {index} is not a conversation record"
+        identity = record.get("conversation_id") or record.get("id")
+        if not isinstance(identity, str) or not identity.strip():
+            return None, f"{path} member {index} carries no conversation_id or id"
         if not isinstance(record.get("mapping"), dict):
             return None, f"{path} member {index} carries no mapping"
     return loaded, None
@@ -534,18 +537,24 @@ def format_report(scan: Scan, selection=None, joined=None, show=False) -> list[s
         f"  {population.conversations} conversation(s), {population.messages} message(s), "
         f"{_span(scan.dated)}",
         f"  {population.user_messages} user message(s), the denominator every row below divides by",
+        "  population by role",
     ]
+    for role, count in sorted(population.by_role.items()):
+        lines.append(f"    {role:<20} {count}")
+    partitioned = sum(scan.by_kind.values())
+    lines.append(f"  partitioned {partitioned} of {population.user_messages} user message(s)")
     for kind in KINDS:
         count = scan.by_kind.get(kind, 0)
         note = "  <- prose" if kind in PROSE_KINDS else ""
         if kind == "unclassified" and count:
             note = "  <- a shape this module does not recognize"
         lines.append(f"    {kind:<20} {count}{note}")
+    lines.append(f"  unread remainder       {scan.by_kind.get('unclassified', 0)}")
     lines.append(f"  {scan.prose_chars} character(s) of prose")
+    lines.append(f"  {scan.undated} undated conversation(s)")
     if scan.undated:
         lines.append(
-            f"  {scan.undated} undated conversation(s) -- no create_time, and there is no "
-            "second way to date one"
+            "    no create_time, and there is no second way to date one"
         )
     if selection is not None:
         lines.append("")

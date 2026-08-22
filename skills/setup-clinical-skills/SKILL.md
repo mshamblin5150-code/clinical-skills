@@ -163,6 +163,10 @@ Three things belong to this step rather than to that sheet:
 
 - **It is skippable and says so.** A clinician who never uses a graded-writing skill needs no voice
   model. Offer it, take a no, and record the no in the profile so a re-run does not ask again.
+- **A no has two scopes.** Declining the whole voice-model step means neither writing samples nor an
+  export will be collected. Accepting writing samples while declining the export still builds a
+  model. Record the **export refusal separately** in the profile so a re-run does not mistake it for
+  permission to ask again or for refusal of the whole step.
 - **The samples and the model are gitignored.** Samples go to `scratch/writing-samples/`, the built
   model to `scratch/voice-model.md`. Standing rule 1, and the same reason the identity map never
   leaves the machine — except that here it is the clinician's own work rather than a patient's.
