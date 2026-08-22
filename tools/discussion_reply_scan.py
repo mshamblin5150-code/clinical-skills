@@ -47,7 +47,8 @@ PAREN_PAIR = re.compile(
 NARRATIVE_CITATION = re.compile(
     r"\b(?P<author>[A-Z][A-Za-z'-]+(?:\s+(?:(?:and|&)\s+"
     r"[A-Z][A-Za-z'-]+|et\s+al\.))?)\s*"
-    r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)"
+    r"\((?P<year>(?:19|20)\d{2}[a-z]?)"
+    r"(?:,\s*(?:p{1,2}\.\s*)?\d+(?:[-–]\d+)?)?\)"
 )
 REFERENCE_YEAR = re.compile(r"\((?P<year>(?:19|20)\d{2}[a-z]?)\)")
 CLAIM_BLOCK = re.compile(r"(?ms)^## CLAIM:\s*(?P<block>.*?)(?=^## CLAIM:|\Z)")
@@ -168,7 +169,11 @@ def _valid_references(reply: Reply) -> tuple[str, ...]:
     valid: list[str] = []
     for entry in reply.references:
         year = REFERENCE_YEAR.search(entry)
-        if year and _author_key(entry[: year.start()].rstrip(". ")):
+        if (
+            year
+            and _author_key(entry[: year.start()].rstrip(". "))
+            and re.search(r"[A-Za-z]{2,}", entry[year.end() :])
+        ):
             valid.append(entry)
     return tuple(valid)
 

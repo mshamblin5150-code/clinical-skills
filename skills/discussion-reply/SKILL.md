@@ -50,8 +50,9 @@ detection layer, count, or report. They remain gitignored working material.
 
 Parallel readers or researchers each receive a new run-unique private path. They return findings
 to the orchestrating context and never append to `board.md`, `claims.md`, or a response. The
-orchestrator is the sole writer of those artifacts. Apply standing rule 6's independent-checker and
-cleanup sequence.
+orchestrator is the sole writer of those artifacts. The canonical `scratch/runs/<run-key>/`
+directory is the orchestrator-owned provenance record, not a writer's private path. Apply standing
+rule 6's independent-checker and cleanup sequence to the temporary per-agent paths.
 
 ## 1. Read and rank the whole board
 

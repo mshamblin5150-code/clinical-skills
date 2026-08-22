@@ -147,6 +147,22 @@ class EachReplyCarriesEvidence(unittest.TestCase):
         self.assertIn("references: 0", stdout.getvalue())
         self.assertIn("reference-minimum: 1", stdout.getvalue())
 
+    def test_a_year_shaped_placeholder_is_not_a_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.split("\nReferences\n", 1)[0] + "\nReferences\n\nplaceholder (2024)\n",
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("references: 0", stdout.getvalue())
+        self.assertIn("reference-minimum: 1", stdout.getvalue())
+
     def test_an_in_text_citation_missing_from_that_replys_list_fails(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -206,6 +222,24 @@ class EachReplyCarriesEvidence(unittest.TestCase):
         self.assertIn("citations: 1", stdout.getvalue())
         self.assertIn("numeric claims: 1", stdout.getvalue())
         self.assertIn("unresolved-citation: 1", stdout.getvalue())
+
+    def test_narrative_page_locator_is_part_of_the_citation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("(Quill, 2024)", "Quill and Vale (2024, pp. 4–5)").replace(
+                    "Quill, R. (2024)", "Quill, R., & Vale, S. (2024)"
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("citations: 1", stdout.getvalue())
+        self.assertIn("numeric claims: 1", stdout.getvalue())
 
 
 class NumbersTraceToTheRunLedger(unittest.TestCase):
