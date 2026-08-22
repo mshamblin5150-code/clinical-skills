@@ -156,10 +156,17 @@ rules that a picklist does not raise. **It is not restated here on purpose**, th
 not restate [batch-shift](../batch-shift/SKILL.md)'s lookup order, so the two cannot drift apart.
 Read it before asking, then read §4 to build the model.
 
+Where the clinician accepts the assistant-export offer, read the vendor-neutral method in
+[voice-corpus.md](../practicum-case-study/reference/voice-corpus.md) before accepting it.
+
 Three things belong to this step rather than to that sheet:
 
 - **It is skippable and says so.** A clinician who never uses a graded-writing skill needs no voice
   model. Offer it, take a no, and record the no in the profile so a re-run does not ask again.
+- **A no has two scopes.** Declining the whole voice-model step means neither writing samples nor an
+  export will be collected. Accepting writing samples while declining the export still builds a
+  model. Record the **export refusal separately** in the profile so a re-run does not mistake it for
+  permission to ask again or for refusal of the whole step.
 - **The samples and the model are gitignored.** Samples go to `scratch/writing-samples/`, the built
   model to `scratch/voice-model.md`. Standing rule 1, and the same reason the identity map never
   leaves the machine — except that here it is the clinician's own work rather than a patient's.
@@ -211,7 +218,7 @@ rule for drift rows, arriving on a numbered process.
 
 Show a draft of `scratch/medatrax-profile.md`, `scratch/identity-map.md`, and — where steps 8 and 9 produced them — `scratch/voice-model.md` and `scratch/shorthand.md`. Let the clinician edit before writing. Then write them, and tell them:
 
-**The voice model is the one that cannot be confirmed any other way.** The profile and the identity map are read back against the portal and the day files, and a wrong cell is findable later. A register is not: [voice.md](../practicum-case-study/reference/voice.md) §9 says a model cannot be verified by the run that built it, and *"this reads like you"* from that run is worth nothing. **So this step is the whole verification** — show the discriminating pairs and the per-register coverage, and ask him directly whether the quoted half sounds like him. A refusal, or a register he says the model has wrong, is recorded in the profile rather than argued with.
+**The voice model is the one that cannot be confirmed any other way.** The profile and the identity map are read back against the portal and the day files, and a wrong cell is findable later. A register is not: [voice.md](../practicum-case-study/reference/voice.md) §9 says a model cannot be verified by the run that built it, and *"this reads like you"* from that run is worth nothing. **So this step is the whole verification** — show the discriminating pairs, the per-register coverage and its source, every published two-tier row's direction, and the withheld count even when it is zero. Ask whether the quoted half sounds like him and whether the two-tier rows move in the direction his writing does. Do not ask whether a measured feature should be amplified: [voice.md](../practicum-case-study/reference/voice.md) makes a finding a floor rather than a target. A refusal, a reversed direction, or a register he says the model has wrong is recorded in the profile rather than argued with.
 
 **`shorthand.md` gets a different kind of confirmation and it is the more urgent one.** Read every expansion back and every ambiguity's tell with it. A wrong register produces a document that does not sound like him; **a wrong expansion produces a finding the patient does not have**, so this is the one list in the skill that is read line by line rather than skimmed.
 
