@@ -1362,10 +1362,13 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
             self.assertEqual(marker, "")
             self.assertNotEqual(marker, "•")
 
-    def test_each_section_gets_its_own_numbered_list(self):
-        """Two lists under two headings get distinct ``w:num`` entries. Allocation
-        and an explicit start override are separate limbs of #422's restart
-        contract, so this pins the first one without standing in for the second."""
+    def test_each_drafted_top_level_one_gets_its_own_numbered_list(self):
+        """Two lists that each begin at 1 get distinct ``w:num`` entries.
+
+        Allocation and an explicit start override are separate limbs of the
+        restart contract, so this pins the first without standing in for #422's
+        second limb.
+        """
         body, count = docx_write.render_body(
             "## One\n\n1. a\n2. b\n\n## Two\n\n1. c\n2. d\n"
         )
@@ -1376,6 +1379,23 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
             r'<w:num w:numId="(\d+)">', docx_write.numbering_xml(count)
         )
         self.assertEqual(declared, ["1", "2", "3"])
+
+    def test_a_top_level_one_starts_a_new_numbered_list(self):
+        """The drafted numeral declares the restart; the label shape does not.
+
+        Read the ``numId`` values from the rendered archive: two source lists that
+        share one Word list are the defect, even though their Markdown both starts
+        at 1.
+        """
+        markdown = "**Differential Diagnoses:**\n\n1. a\n2. b\n\n**Plan:**\n\n1. c\n2. d\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.docx"
+            docx_write.write_docx(markdown, path)
+            with zipfile.ZipFile(path) as archive:
+                body = archive.read("word/document.xml").decode("utf-8")
+
+        used = re.findall(r'<w:numId w:val="(\d+)"/>', body)
+        self.assertEqual(used, ["2", "2", "3", "3"])
 
     def test_each_decimal_list_explicitly_restarts_at_one(self):
         """Each decimal ``w:num`` carries #422's level-zero start override."""
@@ -1401,6 +1421,19 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         heading rather than on any interruption: an MDM entry may run to a second
         paragraph without becoming a second list."""
         body, count = docx_write.render_body("## One\n\n1. a\n\nprose\n\n2. b\n")
+        self.assertEqual(count, 1)
+        self.assertEqual(set(re.findall(r'<w:numId w:val="(\d+)"/>', body)), {"2"})
+
+    def test_a_non_one_continues_across_a_bold_label(self):
+        """A section may deliberately continue the prior list."""
+        body, count = docx_write.render_body(
+            "1. a\n2. b\n3. c\n\n**Plan:**\n\n4. d\n"
+        )
+        self.assertEqual(count, 1)
+        self.assertEqual(set(re.findall(r'<w:numId w:val="(\d+)"/>', body)), {"2"})
+
+    def test_a_nested_one_stays_in_the_open_numbered_list(self):
+        body, count = docx_write.render_body("1. parent\n  1. child\n2. second parent\n")
         self.assertEqual(count, 1)
         self.assertEqual(set(re.findall(r'<w:numId w:val="(\d+)"/>', body)), {"2"})
 

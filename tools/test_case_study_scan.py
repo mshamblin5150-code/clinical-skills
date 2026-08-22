@@ -450,6 +450,42 @@ class TheEmDashIsCountedAndNeverGraded(unittest.TestCase):
         self.assertNotIn("em", [kind.split("-")[0] for kind in scan.KINDS])
 
 
+class NumberingAdvisoriesAreNotRows(unittest.TestCase):
+    """#402: report authored-number surprises without rejecting valid continuations."""
+
+    def test_a_section_that_starts_above_one_is_counted(self):
+        text = CLEAN.replace(
+            "1. Pelvic inflammatory disease - N73.9\n2. Cervicitis - N72",
+            "4. Pelvic inflammatory disease - N73.9\n5. Cervicitis - N72",
+        )
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 1)
+        self.assertEqual(result.broken_numbered_transitions, 0)
+        self.assertEqual(result.findings, [])
+
+    def test_a_broken_sequence_is_counted(self):
+        text = CLEAN.replace("2. Cervicitis - N72", "3. Cervicitis - N72")
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 0)
+        self.assertEqual(result.broken_numbered_transitions, 1)
+        self.assertEqual(result.findings, [])
+
+    def test_the_report_declares_both_counts_never_graded(self):
+        report = scan.format_report(survey(CLEAN), "draft.md")
+        self.assertIn("sections not opening at 1", report)
+        self.assertIn("broken numbered transitions", report)
+        self.assertEqual(report.count("COUNTED, NEVER GRADED"), 3)
+
+    def test_an_advisory_does_not_change_the_exit_status(self):
+        text = CLEAN.replace("2. Cervicitis - N72", "3. Cervicitis - N72")
+        directory, path = draft_file(text)
+        try:
+            status, _, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 0)
+
+
 class TheReportIsCountsOnlyByDefault(unittest.TestCase):
     """``--show`` is PHI, so the default report may not carry the draft's prose.
 

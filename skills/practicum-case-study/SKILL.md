@@ -141,10 +141,11 @@ points"* — after a run set the HPI's OLDCARTS breakdown as a bulleted list. Th
 above named four sections because those four are where a bullet costs the *correspondence*; the
 wider rule is a house preference and it covers the whole document.
 
-**Each numbered list restarts at 1, and its section heading is what restarts it.** A run does not
-have to do anything to get this — `docx_write.py` allocates one `w:num` per section — but a reader
-comparing the Markdown to the `.docx` should know the numbering in the rendered file is per-section
-rather than continuous.
+**The drafted numeral controls whether a numbered list restarts.** A top-level item written `1.`
+starts a new list; any other top-level numeral continues the open list across headings, labels and
+prose. A nested `1.` remains a sub-list of the open list. A run does not have to do anything beyond
+writing the intended numerals — `docx_write.py` allocates the required `w:num` — but a reader
+comparing the Markdown to the `.docx` should know that Word receives those authored boundaries.
 
 **The intake block is *not* a table. Ruled 2026-08-19, reversing what this file used to say.**
 Demographics, the Review of Systems and the Physical Examination are written as defined fields with
@@ -1038,6 +1039,12 @@ written himself, which is
 that ticket exists because a recency filter cut a correct claim for a property the rule did not care
 about, and its closing comment records the same mistake being made again inside the fix. The count
 prints; nothing fails on it.
+
+**Authored numbering surprises are also counted and never graded.** The report counts a numbered
+section that does not open at `1.` and a transition that does not advance by one. A section may
+deliberately continue the prior list, so neither shape can fail the command or change its exit
+status. They stay visible for the reader who compares the drafted and rendered numerals.
+[#402](https://github.com/mshamblin5150-code/clinical-skills/issues/402).
 
 **A clean scan is not a checked draft.** Here is what no row of that command reaches: **the voice,
 and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop

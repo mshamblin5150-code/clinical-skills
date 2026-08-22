@@ -775,7 +775,7 @@ def body_xml(markdown: str) -> str:
 # the width of the whole parse rather than at one heading.
 HEADING = re.compile(r"(#{1,4})\s+(.*)")
 BULLET = re.compile(r"([ \t]*)[-*+]\s+(.*)")
-NUMBERED = re.compile(r"([ \t]*)\d+[.)]\s+(.*)")
+NUMBERED = re.compile(r"([ \t]*)(\d+)[.)]\s+(.*)")
 SEPARATORS = ("---", "***", "___")
 
 
@@ -785,18 +785,21 @@ class Block:
     ``kind`` is one of ``blank``, ``separator``, ``heading``, ``table``,
     ``bullet``, ``numbered`` and ``paragraph`` -- the seven branches
     ``render_body`` had, named. ``line`` is 1-indexed and nothing in this module
-    reads it; it is there because a scanner reports a finding at a line. ``source``
-    is populated for a table because ``markdown_tables`` returns that block for a
-    caller to render independently; retaining it here avoids a second parse.
+    reads it; it is there because a scanner reports a finding at a line.
+    ``ordinal`` retains the drafted numeral on a numbered block, because it states
+    whether a top-level list restarts. ``source`` is populated for a table because
+    ``markdown_tables`` returns that block for a caller to render independently;
+    retaining it here avoids a second parse.
     """
 
-    __slots__ = ("kind", "text", "line", "level", "rows", "source")
+    __slots__ = ("kind", "text", "line", "level", "ordinal", "rows", "source")
 
-    def __init__(self, kind, text="", line=0, level=0, rows=(), source=""):
+    def __init__(self, kind, text="", line=0, level=0, ordinal=0, rows=(), source=""):
         self.kind = kind
         self.text = text
         self.line = line
         self.level = level
+        self.ordinal = ordinal
         self.rows = rows
         self.source = source
 
@@ -882,9 +885,10 @@ def blocks(markdown: str):
         if numbered:
             yield Block(
                 "numbered",
-                numbered.group(2),
+                numbered.group(3),
                 line=number,
                 level=min(len(numbered.group(1).expandtabs(4)) // 2, 2),
+                ordinal=int(numbered.group(2)),
             )
             index += 1
             continue
@@ -921,11 +925,6 @@ def render_body(markdown: str):
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
             in_references = bool(REFERENCE_HEADING.match(block.text))
-            # A heading closes whatever list was open, so the next numbered line
-            # allocates a fresh ``w:num`` and Word restarts it at 1. This is the
-            # only place the counter resets: a plain paragraph *between* two
-            # numbered items is a continuation of one list and must not restart it.
-            decimal_id = 0
             out.append(
                 para(
                     block.text,
@@ -951,6 +950,12 @@ def render_body(markdown: str):
             continue
 
         if block.kind == "numbered":
+            # The drafted numeral carries the author's intent. A top-level ``1``
+            # starts a new list; another numeral continues the open list across
+            # headings, labels, and prose. Nested ``1`` starts a sub-list within
+            # the open Word list and therefore must not allocate a new ``w:num``.
+            if block.level == 0 and block.ordinal == 1:
+                decimal_id = 0
             if not decimal_id:
                 decimal_lists += 1
                 decimal_id = decimal_lists + 1
