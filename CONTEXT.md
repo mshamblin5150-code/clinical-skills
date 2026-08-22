@@ -151,3 +151,29 @@ _Avoid_: writing example, submission, document
 **Export**:
 The whole of what a clinician typed into an assistant, handed over as one container. Unlike a writing sample nothing in it was chosen, so its contents are unreviewed by the person supplying it and unknown to the person reading it.
 _Avoid_: chat history, archive, dump
+
+### Guidelines
+
+**Threshold sheet**:
+The distilled decision points of one clinical topic, drawn from every guideline in the corpus that addresses it. Curated Markdown that a tool audits, never a generated artifact.
+_Avoid_: summary, digest, extract, cheat sheet
+
+**Topic**:
+The subject a threshold sheet is keyed to, such as hypertension. The unit a clinician cites; a guideline document is not one, and several documents may address the same topic.
+_Avoid_: condition, subject, area
+
+**Source mode**:
+How completely a guideline's recommendations could be read, and therefore how strongly a claim about them can be gated. `exact` where every recommendation was counted from a ruled table or the curated federal table; `bound` where they were matched by marker in running prose, which over-reports and can truncate.
+_Avoid_: confidence, quality, extraction mode
+
+**Snippet**:
+The shortest verbatim fragment of a guideline that carries a decision point, quoted in the row that cites it. Verbatim is what makes a fabricated citation detectable, so a paraphrase is not one.
+_Avoid_: quote, excerpt, evidence, text
+
+**Decision point**:
+A quantity a guideline attaches a value to, which a clinician acts on — a threshold, a target, a duration, a dose ceiling. A recommendation carrying no such quantity has none.
+_Avoid_: threshold, recommendation, criterion
+
+**Scoped out**:
+A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.
+_Avoid_: excluded, skipped, filtered, ignored
