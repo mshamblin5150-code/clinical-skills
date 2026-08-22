@@ -42,6 +42,8 @@ import unittest
 from pathlib import Path
 from typing import NamedTuple
 
+from prose_bind import ProseBind
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTEXT = REPO_ROOT / "CONTEXT.md"
 FIXTURES_README = REPO_ROOT / "fixtures" / "README.md"
@@ -101,7 +103,7 @@ def _row_ids(path: Path) -> set[str]:
     return set(ROW_ID.findall(path.read_text(encoding="utf-8")))
 
 
-class TheGlossaryDefinesTheThreeTerms(unittest.TestCase):
+class TheGlossaryDefinesTheThreeTerms(ProseBind, unittest.TestCase):
     """``CONTEXT.md``, without implementation detail.
 
     The policy below is written in these three words and is unreadable without
@@ -114,7 +116,7 @@ class TheGlossaryDefinesTheThreeTerms(unittest.TestCase):
 
     def test_ruling_cohort_is_defined(self):
         self.assertIn("**Ruling cohort**:", self.text)
-        self.assertIn(
+        self.assertProseIn(
             "assertions across one or more fixtures that express one clinician"
             " ruling and share one promotion boundary",
             self.text,
@@ -147,7 +149,7 @@ class TheGlossaryDefinesTheThreeTerms(unittest.TestCase):
                 self.assertIn("_Avoid_:", block)
 
 
-class TheFixturePolicyStatesTheLifecycle(unittest.TestCase):
+class TheFixturePolicyStatesTheLifecycle(ProseBind, unittest.TestCase):
     """``fixtures/README.md``, which every set inherits.
 
     Each clause here is a decision that was open before #79 and is closed after
@@ -174,7 +176,7 @@ class TheFixturePolicyStatesTheLifecycle(unittest.TestCase):
         self.assertIn("**A fail promotes a row exactly as a pass does.**", self.text)
 
     def test_retrospective_scoring_needs_the_rule_to_have_been_in_force(self):
-        self.assertIn(
+        self.assertProseIn(
             "**A run may be scored retrospectively only where the rule it is"
             " graded against was already in force.**",
             self.text,

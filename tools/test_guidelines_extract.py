@@ -45,6 +45,7 @@ from unittest import mock
 
 import guidelines_extract as extract
 import guidelines_index as index
+from prose_bind import ProseBind
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
 
@@ -1240,7 +1241,7 @@ class SampleIndexes(unittest.TestCase):
         self.assertEqual(extract.sample_indexes(1), [0])
 
 
-class BoilerplateIsFoundAndRecorded(unittest.TestCase):
+class BoilerplateIsFoundAndRecorded(ProseBind, unittest.TestCase):
     def setUp(self):
         self.pages = extract.clean_pages(AHA)
         self.boilerplate = extract.find_boilerplate(self.pages)
@@ -1262,7 +1263,10 @@ class BoilerplateIsFoundAndRecorded(unittest.TestCase):
         self.assertFalse([line for line in self.boilerplate if "DOI:" in line])
 
     def test_a_line_appearing_once_is_not_boilerplate(self):
-        self.assertNotIn("2026 Guideline on the Management of Blood Cholesterol", self.boilerplate)
+        self.assertProseNotIn(
+            "2026 Guideline on the Management of Blood Cholesterol",
+            self.boilerplate,
+        )
 
     def test_a_threshold_row_survives_stripping(self):
         # The one thing this must never eat.
