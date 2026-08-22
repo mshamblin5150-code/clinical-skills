@@ -152,6 +152,199 @@ class TheRoundTrip(unittest.TestCase):
         self.assertIn("Hsu, K., & Khosropour, C. (2026). Chlamydia <adults>.", lines)
 
 
+class TheRenderedNumbering(unittest.TestCase):
+    """The opt-in read reconstructs the markers Word draws from numbering.xml."""
+
+    def write_parts(self, path, parts):
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, payload in parts.items():
+                archive.writestr(name, payload)
+
+    def test_decimal_markers_are_returned_with_the_paragraph_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "numbered.docx"
+            docx_write.write_docx("1. favored\n2. possible\n3. unlikely\n", path)
+
+            lines = docx_read.read_docx(path, numbering=True)
+
+        self.assertEqual(
+            [line for line in lines if line.strip()],
+            ["1. favored", "2. possible", "3. unlikely"],
+        )
+
+    def test_each_explicit_start_override_restarts_its_section_at_one(self):
+        markdown = "1. first\n2. second\n\n**MDM:**\n\n1. third\n2. fourth\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "restarted.docx"
+            docx_write.write_docx(markdown, path)
+
+            lines = docx_read.read_docx(path, numbering=True)
+
+        numbered = [line for line in lines if re.match(r"\d+\. ", line)]
+        self.assertEqual(numbered, ["1. first", "2. second", "1. third", "2. fourth"])
+
+    def test_a_fresh_num_id_without_a_start_override_continues_the_abstract_list(self):
+        markdown = "1. first\n2. second\n\n**MDM:**\n\n1. third\n2. fourth\n"
+        parts = docx_write.parts(markdown)
+        parts["word/numbering.xml"] = parts["word/numbering.xml"].replace(
+            '<w:num w:numId="3"><w:abstractNumId w:val="1"/>'
+            '<w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/>'
+            "</w:lvlOverride></w:num>",
+            '<w:num w:numId="3"><w:abstractNumId w:val="1"/></w:num>',
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "continued.docx"
+            self.write_parts(path, parts)
+
+            lines = docx_read.read_docx(path, numbering=True)
+
+        numbered = [line for line in lines if re.match(r"\d+\. ", line)]
+        self.assertEqual(numbered, ["1. first", "2. second", "3. third", "4. fourth"])
+
+    def test_a_deeper_level_restarts_under_the_next_parent(self):
+        markdown = "1. first parent\n  1. first child\n2. second parent\n  1. second child\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "nested.docx"
+            docx_write.write_docx(markdown, path)
+
+            lines = docx_read.read_docx(path, numbering=True)
+
+        self.assertEqual(
+            [line for line in lines if line.strip()],
+            [
+                "1. first parent",
+                "   1. first child",
+                "2. second parent",
+                "   1. second child",
+            ],
+        )
+
+    def test_a_multilevel_template_contains_each_ancestor_numeral(self):
+        parts = docx_write.parts("1. parent\n  1. child\n")
+        parts["word/numbering.xml"] = parts["word/numbering.xml"].replace(
+            '<w:lvlText w:val="%2."/>',
+            '<w:lvlText w:val="%1.%2."/>',
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "multilevel.docx"
+            self.write_parts(path, parts)
+
+            lines = docx_read.read_docx(path, numbering=True)
+
+        self.assertIn("   1.1. child", lines)
+
+    def test_the_cli_flag_prints_reconstructed_markers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cli.docx"
+            docx_write.write_docx("1. favored\n2. unlikely\n", path)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = docx_read.main([str(path), "--numbering"])
+
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            [line for line in output.getvalue().splitlines() if line],
+            ["1. favored", "2. unlikely"],
+        )
+
+    def test_a_document_with_no_numbering_part_is_still_a_successful_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plain.docx"
+            with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr(
+                    "word/document.xml",
+                    docx_write.document_xml("plain", docx_write.body_xml("plain")),
+                )
+            output = io.StringIO()
+            report = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(report):
+                status = docx_read.main([str(path), "--numbering"])
+
+        self.assertEqual(status, 0)
+        self.assertEqual(output.getvalue().splitlines(), ["plain"])
+        self.assertIn("reconstructed 0 of 0", report.getvalue())
+
+    def test_a_numbered_paragraph_with_no_definition_is_not_a_partial_success(self):
+        parts = docx_write.parts("1. favored\n")
+        parts["word/document.xml"] = parts["word/document.xml"].replace(
+            '<w:numId w:val="2"/>', '<w:numId w:val="99"/>'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "undefined.docx"
+            self.write_parts(path, parts)
+
+            with self.assertRaisesRegex(ValueError, "reconstructed 0 of 1"):
+                docx_read.read_docx(path, numbering=True)
+
+    def test_num_id_zero_explicitly_removes_numbering(self):
+        parts = docx_write.parts("1. ordinary paragraph\n")
+        parts["word/document.xml"] = parts["word/document.xml"].replace(
+            '<w:numId w:val="2"/>', '<w:numId w:val="0"/>'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "unnumbered.docx"
+            self.write_parts(path, parts)
+            output = io.StringIO()
+            report = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(report):
+                status = docx_read.main([str(path), "--numbering"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("ordinary paragraph", output.getvalue().splitlines())
+        self.assertIn("reconstructed 0 of 0", report.getvalue())
+
+    def test_an_unsupported_number_format_is_not_a_placeholder_success(self):
+        parts = docx_write.parts("1. favored\n")
+        parts["word/numbering.xml"] = parts["word/numbering.xml"].replace(
+            '<w:numFmt w:val="decimal"/>', '<w:numFmt w:val="ordinalText"/>'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "unsupported.docx"
+            self.write_parts(path, parts)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = docx_read.main([str(path), "--numbering"])
+
+        self.assertEqual(status, 2)
+        self.assertIn("reconstructed 0 of 1", output.getvalue())
+        self.assertNotIn("%1", output.getvalue())
+
+    def test_the_cli_reports_its_paragraph_level_numbering_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "coverage.docx"
+            docx_write.write_docx("1. favored\n2. unlikely\n", path)
+            output = io.StringIO()
+            report = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(report):
+                status = docx_read.main([str(path), "--numbering"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("reconstructed 2 of 2 paragraph-level list markers", report.getvalue())
+        self.assertIn("style-inherited numbering is outside this read", report.getvalue())
+
+    def test_common_word_number_formats_are_reconstructed(self):
+        expected = {
+            "decimalZero": "01. favored",
+            "lowerLetter": "a. favored",
+            "upperLetter": "A. favored",
+            "lowerRoman": "i. favored",
+            "upperRoman": "I. favored",
+        }
+        for num_fmt, rendered in expected.items():
+            with self.subTest(num_fmt=num_fmt), tempfile.TemporaryDirectory() as directory:
+                parts = docx_write.parts("1. favored\n")
+                parts["word/numbering.xml"] = parts["word/numbering.xml"].replace(
+                    '<w:numFmt w:val="decimal"/>',
+                    '<w:numFmt w:val="{fmt}"/>'.format(fmt=num_fmt),
+                )
+                path = Path(directory) / "formatted.docx"
+                self.write_parts(path, parts)
+
+                lines = docx_read.read_docx(path, numbering=True)
+
+                self.assertIn(rendered, lines)
+
+
 class TheReferenceStyle(unittest.TestCase):
     """APA 7's hanging indent is applied by heading, not by guessing at a line's shape."""
 
