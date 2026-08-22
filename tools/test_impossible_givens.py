@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 import unittest
 
+from prose_bind import ProseBind
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
@@ -67,7 +69,7 @@ class TheImpossibleGivenRule(unittest.TestCase):
         self.assertIn("GAPS", vitals)
 
 
-class HedgedDxAnchorsTheRule(unittest.TestCase):
+class HedgedDxAnchorsTheRule(ProseBind, unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.text = read(HEDGED)
@@ -83,7 +85,7 @@ class HedgedDxAnchorsTheRule(unittest.TestCase):
         self.assertIn("no heart-rate field", row)
 
     def test_the_case_is_no_longer_called_unscored(self):
-        self.assertNotIn("Case 1's impossible heart rate is unscored", self.text)
+        self.assertProseNotIn("Case 1's impossible heart rate is unscored", self.text)
 
 
 class DayBAnchorsTheMedicationStrengthComment(unittest.TestCase):

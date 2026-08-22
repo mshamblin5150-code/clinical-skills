@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 import unittest
 
+from prose_bind import ProseBind
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
@@ -26,7 +28,7 @@ def drift_row(text: str, number: int) -> str:
     return match.group(0)
 
 
-class AFlagReportsTheFinishedNote(unittest.TestCase):
+class AFlagReportsTheFinishedNote(ProseBind, unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.text = read(SKILL)
@@ -56,7 +58,7 @@ class AFlagReportsTheFinishedNote(unittest.TestCase):
         self.assertIn("belongs under `FILLED·proposed`, not `FLAG`", self.block)
 
     def test_the_voice_rule_no_longer_calls_every_tier_a_patient_claim(self):
-        self.assertNotIn("a tier block is for claims about the patient", self.text)
+        self.assertProseNotIn("a tier block is for claims about the patient", self.text)
         self.assertIn("tier block is not one kind of claim", self.text)
         self.assertIn("separate lanes hold arithmetic", self.text)
 
