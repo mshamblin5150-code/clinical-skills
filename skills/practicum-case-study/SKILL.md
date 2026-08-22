@@ -1040,7 +1040,7 @@ that ticket exists because a recency filter cut a correct claim for a property t
 about, and its closing comment records the same mistake being made again inside the fix. The count
 prints; nothing fails on it.
 
-**Authored numbering surprises are also counted and never graded.** The report counts a numbered
+**Authored numbering surprises are counted and never graded.** The report counts a numbered
 section that does not open at `1.` and a transition that does not advance by one. A section may
 deliberately continue the prior list, so neither shape can fail the command or change its exit
 status. They stay visible for the reader who compares the drafted and rendered numerals.

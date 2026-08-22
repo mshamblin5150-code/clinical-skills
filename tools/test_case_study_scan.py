@@ -470,11 +470,41 @@ class NumberingAdvisoriesAreNotRows(unittest.TestCase):
         self.assertEqual(result.broken_numbered_transitions, 1)
         self.assertEqual(result.findings, [])
 
+    def test_a_drafted_one_starts_a_new_sequence_without_an_advisory(self):
+        text = CLEAN.replace(
+            "2. Cervicitis - N72",
+            "2. Cervicitis - N72\n1. A deliberately restarted sequence - Z00.00\n2. Its next item - Z00.01",
+        )
+        result = survey(text)
+        self.assertEqual(result.broken_numbered_transitions, 0)
+        self.assertEqual(result.findings, [])
+
     def test_the_report_declares_both_counts_never_graded(self):
         report = scan.format_report(survey(CLEAN), "draft.md")
         self.assertIn("sections not opening at 1", report)
         self.assertIn("broken numbered transitions", report)
-        self.assertEqual(report.count("COUNTED, NEVER GRADED"), 3)
+        for label in (
+            "em dashes",
+            "sections not opening at 1",
+            "broken numbered transitions",
+        ):
+            line = next(line for line in report.splitlines() if line.startswith(label))
+            self.assertIn("COUNTED, NEVER GRADED", line)
+
+    def test_every_published_contract_names_the_numbering_advisories(self):
+        surfaces = (
+            scan.__doc__,
+            SKILL.read_text(encoding="utf-8"),
+            STYLE.read_text(encoding="utf-8"),
+            (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
+        )
+        for text in surfaces:
+            with self.subTest(surface=text[:40]):
+                section = " ".join(text.replace("**", "").split())
+                self.assertIn(
+                    "Authored numbering surprises are counted and never graded.",
+                    section,
+                )
 
     def test_an_advisory_does_not_change_the_exit_status(self):
         text = CLEAN.replace("2. Cervicitis - N72", "3. Cervicitis - N72")

@@ -102,10 +102,10 @@ and the prescription table in §8 are read by a scanner
 a rule that is remembered — [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
 *a prose edit to a rule fails nothing*, answered.
 
-**Three categories in this file are deliberately outside its graded rows.** The **em dash** is
+**Some behavior in this file is deliberately outside its graded rows.** The **em dash** is
 counted and never graded, because it is a preference with a stated exception and a row keyed on one
-would refuse a document he would have written himself. Authored numbering surprises are likewise
-counted and never graded: a section may intentionally continue a prior list above `1.`. And
+would refuse a document he would have written himself. **Authored numbering surprises are counted
+and never graded.** A section may intentionally continue a prior list above `1.`. And
 anything that takes a **reading** — whether a stop criterion's endpoint is the right endpoint,
 whether a wrapper instruction applies to this patient at all — stays a reader's, and
 [SKILL.md](../SKILL.md) step 9 names each one. **A clean scan is not a checked draft.**

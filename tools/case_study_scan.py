@@ -33,7 +33,7 @@ about a patient, and several rows here quote a sentence of it. **Deliberately no
 its code can draw from, and this one's is not: a scaffolding phrase is a fixed
 literal, but a bullet's finding is the bullet's own text.
 
-**Three categories are deliberately not rows, and this is the load-bearing part.**
+**Some behavior is deliberately not a row, and this is the load-bearing part.**
 
 The **em dash** is a stated preference with a stated exception -- *"generally I
 prefer not to use em dashes, just saying, though I do use them sometimes"* -- so
@@ -43,10 +43,10 @@ defect a third time: that ticket exists because a recency rule cut a correct
 claim for a property the rule did not care about, and its closing comment records
 the same mistake being made again inside the fix.
 
-The authored numbering advisories are also counted and never graded. A section
-that opens above 1 may deliberately continue the prior list, and a broken
-transition may be an authored exception. The counts put both shapes in front of
-a reader without rejecting a correct document.
+Authored numbering surprises are counted and never graded. A section that opens
+above 1 may deliberately continue the prior list. A drafted 1 starts another
+sequence; only a different nonconsecutive transition is counted. The counts put
+both shapes in front of a reader without rejecting a correct document.
 [#402](https://github.com/mshamblin5150-code/clinical-skills/issues/402).
 
 And **anything the run has to reason about**. A wrapper instruction inherited
@@ -716,8 +716,8 @@ def numbering_advisories(sections: list[Section]) -> tuple[int, int]:
     """Count authored top-level sequences that deserve a reader's attention.
 
     Neither count is a defect. A section may intentionally continue an earlier
-    list above 1, while a broken transition may reflect an authored exception.
-    Nested items use their own level and do not participate in this sequence.
+    list above 1. A drafted 1 starts a new sequence and is not a broken
+    transition. Nested items use their own level and do not participate.
     """
     not_opening_at_one = 0
     broken_transitions = 0
@@ -732,7 +732,7 @@ def numbering_advisories(sections: list[Section]) -> tuple[int, int]:
         if ordinals[0] != 1:
             not_opening_at_one += 1
         broken_transitions += sum(
-            following != current + 1
+            following not in (1, current + 1)
             for current, following in zip(ordinals, ordinals[1:])
         )
     return not_opening_at_one, broken_transitions

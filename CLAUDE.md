@@ -616,9 +616,11 @@ python tools/case_study_scan.py <a draft .md>
 
 **A fenced code block is not an escape, and that falls out of the parse rather than being decided here.** The renderer opens nothing on a fence, so a bulleted line inside one is a bullet in the finished document — which is why `spelling_scan.py`'s mention-versus-use rule deliberately does **not** transfer. The one rule this repo has that reads a backticked form as a mention is a rule about files describing rules, and a draft describes nothing.
 
-**Two things are deliberately not rows, and that is the load-bearing half of the ticket.**
+**Some behavior is deliberately not a row, and that is the load-bearing half of the ticket.**
 
 **The em dash is counted and never graded.** His words: *"generally I prefer not to use em dashes, just saying, though I do use them sometimes."* That is a preference with a stated exception, and a row keyed on it would refuse a document he would have written himself — [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s own defect a third time, that ticket existing because a five-year recency filter cut a correct claim for a property the rule did not care about, and its closing comment recording the same mistake made again inside the fix. The count prints on every run; nothing fails on it.
+
+**Authored numbering surprises are counted and never graded.** A numbered section that does not open at `1.` may deliberately continue the prior list. A drafted `1.` starts another sequence; only a different nonconsecutive transition is counted. The counts put both shapes in front of a reader without rejecting a correct document. [#402](https://github.com/mshamblin5150-code/clinical-skills/issues/402).
 
 **And anything the run has to *reason* about.** A wrapper instruction inherited from a pediatric case does not apply to a 26-year-old, and the correct behavior was to fold the applicable substance into the section that already owns it and write no heading. **A row that approximated that would fire on a document that got it right.**
 
