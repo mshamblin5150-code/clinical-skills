@@ -196,6 +196,8 @@ class _Numbering:
             return "", 0
         num_id_node = num_properties.find(NS + "numId")
         level_node = num_properties.find(NS + "ilvl")
+        if num_id_node is not None and num_id_node.get(NS + "val") == "0":
+            return "", 0
         self.population += 1
         if num_id_node is None:
             self.unread += 1

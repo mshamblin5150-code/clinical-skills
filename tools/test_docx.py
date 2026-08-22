@@ -276,6 +276,23 @@ class TheRenderedNumbering(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "reconstructed 0 of 1"):
                 docx_read.read_docx(path, numbering=True)
 
+    def test_num_id_zero_explicitly_removes_numbering(self):
+        parts = docx_write.parts("1. ordinary paragraph\n")
+        parts["word/document.xml"] = parts["word/document.xml"].replace(
+            '<w:numId w:val="2"/>', '<w:numId w:val="0"/>'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "unnumbered.docx"
+            self.write_parts(path, parts)
+            output = io.StringIO()
+            report = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(report):
+                status = docx_read.main([str(path), "--numbering"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("ordinary paragraph", output.getvalue().splitlines())
+        self.assertIn("reconstructed 0 of 0", report.getvalue())
+
     def test_an_unsupported_number_format_is_not_a_placeholder_success(self):
         parts = docx_write.parts("1. favored\n")
         parts["word/numbering.xml"] = parts["word/numbering.xml"].replace(
