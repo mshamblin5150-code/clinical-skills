@@ -66,6 +66,10 @@ BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 CASE_STUDY = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 CASE_STUDY_STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
 CASE_STUDY_VOICE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice.md"
+VOICE_CORPUS_REFERENCE = (
+    REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice-corpus.md"
+)
+VOICE_CORPUS_MODULE = REPO_ROOT / "tools" / "voice_corpus.py"
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 
 
@@ -958,6 +962,87 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         voice = read(CASE_STUDY_VOICE)
         self.assertIn("deliberately not restated here", voice)
         self.assertNotIn("isvery commonand", voice)
+
+
+class TheExportMethodHasOneConsumerContract(unittest.TestCase):
+    """#400's export option crosses setup, the voice method and one reader.
+
+    A clinician using another assistant must be offered the same corpus-grade
+    route without being sent to a tool whose input it cannot read. The shared
+    Markdown sheet owns that route; ``voice_corpus.py`` is the ChatGPT worked
+    implementation rather than a claim that every vendor shape is supported.
+    """
+
+    def test_setup_and_voice_point_to_the_vendor_neutral_method(self):
+        corpus_method = read(VOICE_CORPUS_REFERENCE)
+        self.assertIn("voice_corpus.py", corpus_method)
+        self.assertIn("reference implementation", corpus_method)
+        self.assertIn("voice-corpus.md", read(SETUP))
+        self.assertIn("voice-corpus.md", read(CASE_STUDY_VOICE))
+
+    def test_the_method_publishes_the_complete_walk_and_report(self):
+        corpus_method = read(VOICE_CORPUS_REFERENCE)
+        for required in (
+            "population off the export's structure",
+            "classes sum to that population",
+            "unrecognized type",
+            "export's own timestamp",
+            "distinct conversation",
+            "hop distribution",
+            "Only typed text",
+            "Counts only by default",
+            "exits non-zero",
+            "population by role",
+            "unread remainder",
+            "undated count",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, corpus_method)
+
+    def test_the_reference_implementation_states_the_converter_shape(self):
+        module = read(VOICE_CORPUS_MODULE)
+        for required in (
+            "Converter contract",
+            "top-level JSON list",
+            "mapping",
+            "author.role",
+            "content_type",
+            "create_time",
+            "voice-corpus.md",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, module)
+
+    def test_the_export_is_optional_and_consent_is_staged(self):
+        voice = squashed(read(CASE_STUDY_VOICE))
+        for required in (
+            "Documents come first",
+            "offered as an enhancement",
+            "ChatGPT, Claude, Grok",
+            "first yes",
+            "counts-only run",
+            "second yes",
+            "real figures",
+            "ten named conversations",
+            "coverage-driven second ask",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, voice)
+
+    def test_the_model_records_source_and_confirmation_does_not_amplify(self):
+        voice = read(CASE_STUDY_VOICE)
+        setup = read(SETUP)
+        for required in (
+            "| Register | Coverage | Source |",
+            "A finding is a floor, not a target",
+            "Withheld findings: <n>",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, voice)
+        self.assertIn("two-tier rows", setup)
+        self.assertIn("direction", setup)
+        self.assertIn("per-register coverage and its source", setup)
+        self.assertIn("withheld count", setup)
 
 class TheReferenceDeclaresWhichFieldsItHoldsValuesFor(unittest.TestCase):
     """#222's ruling of 2026-08-18: a declared inventory, and it states its own gap.

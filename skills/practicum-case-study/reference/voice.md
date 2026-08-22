@@ -73,6 +73,8 @@ for the same reason: one rule written twice is one rule that drifts. What belong
 rather than to this section is that the offer is skippable, that a refusal is recorded, and that a
 re-run reads an existing model instead of re-collecting.
 
+For an assistant export, [voice-corpus.md](voice-corpus.md) is the vendor-neutral method.
+
 **Ask for 5 at minimum. 8 is better. Coverage beats count** — two or three per register beats eight
 of one kind, and the count is the thing that looks like progress while the coverage is the thing
 that decides whether the model works.
@@ -114,6 +116,38 @@ is a patient record. Three rules, and they are the ones
   that forbade the one check would have left the model unverifiable and looked like caution.
 - **Ask before reading, and say what will be read.** A clinician handing over eight documents has
   agreed to a voice model, not to a general read of his writing.
+
+### The export offer comes after the document ask
+
+**Documents come first.** Ask for the existing pieces above; a chat export is then **offered as an
+enhancement** rather than a replacement or a precondition. Name the option broadly — **ChatGPT,
+Claude, Grok**, Gemini, Copilot, or another assistant — because the clinician may have unwatched
+writing in any of them. Name the cost beside it: this repository reads ChatGPT directly; another
+format needs a converter following [voice-corpus.md](voice-corpus.md). An export is more evidence,
+not permission to make the skippable voice-model step mandatory.
+
+**An export takes two yeses because its contents were not selected.** With documents, selection is
+the consent: the clinician knows which file was handed over. With an export, neither the clinician
+nor the reader has reviewed the container. Stage consent on the seam the tool already provides:
+
+1. The **first yes** permits copying the export under `scratch/` and running the **counts-only run**.
+   Show the conversation and message populations, classes, unread remainder, dated span, and
+   undated count. No corpus text is shown to a reader or printed in this stage.
+2. Put those **real figures** in front of the clinician. The **second yes** permits reading corpus
+   text, using `--show`, quoting into `scratch/voice-model.md`, and building observations. A no stops
+   the reading; record it in the profile rather than treating the first yes as blanket consent.
+
+If there is no converter for that vendor, the honest fallback is **ten named conversations** read
+as ordinary writing samples under the consent rules above. State the bound beside the result. A
+bounded sample may support a document-grade model; it must never be described as reading the
+export.
+
+**The export does not settle register coverage.** A prompt, a pasted paper, and prose written to a
+reader can share one message shape, so the register remains a reading. Fold the accepted material
+into the model, recalculate coverage by register and source, then make a **coverage-driven second
+ask** in plain language for whatever is still thin. Ask for patient explanations if register 2 is
+thin, clinical reasoning if register 1 is thin, or writing that argues a position if register 3 is
+thin. Coverage closes the loop; the size of the export does not.
 
 ---
 
@@ -295,11 +329,18 @@ against the last one:
 ```markdown
 # Voice model — <clinician>
 
-Built <date> from <n> samples. Registers covered: 1 (n=<x>), 2 (n=<y>), 3 (n=<z>).
+Built <date>. Sources: <n supplied samples>, <n export conversations>.
 
 ## Constraints on the setting     <- §6 damping: institution, faculty reader, audience
+## Coverage
+| Register | Coverage | Source |
+| --- | --- | --- |
+| 1 — clinical argument | <n or unmodeled> | <supplied samples / assistant export / both> |
+| 2 — spoken patient education | <n or unmodeled> | <supplied samples / assistant export / both> |
+| 3 — reflective and argumentative prose | <n or unmodeled> | <supplied samples / assistant export / both> |
+
 ## Sample index
-| File | Register | Graded work? | Date written |   <- and any excluded under §6, with why
+| File or conversation | Register | Graded work? | Date written | Source |   <- exclusions carry why
 
 ## Register 1 — clinical argument
 ### Observations            <- each with its quote, and the samples it appears in
@@ -315,7 +356,20 @@ Built <date> from <n> samples. Registers covered: 1 (n=<x>), 2 (n=<y>), 3 (n=<z>
 ## Seen once                              <- quarantined, not rules
 ## Seen in the samples, never reproduce   <- the §6 defect list, with quotes
 ## Open questions for the clinician       <- the §6 defect-or-trait calls
+
+## Two-tier findings
+| Feature | Chat | Graded | Direction | Source |
+| --- | --- | --- | --- | --- |
+| <feature> | <measure> | <measure> | <intensifies / survives / declines / stripped> | <cuts> |
+
+Withheld findings: <n>
 ```
+
+Every observation and finding carries its source: supplied file or export conversation, date where
+available, and the measurement or quotation it rests on. For a two-tier row, publish a direction
+only when the declared cuts agree; otherwise withhold it and increase the count even when that
+count is zero. **A finding is a floor, not a target.** It can forbid stripping a measured feature
+from graded prose; it never licenses amplifying the feature to imitate a percentage.
 
 **Where a run reads it.** [SKILL.md](../SKILL.md) step 5, before drafting, and step 9, where the
 draft is read back against the discriminating pairs.

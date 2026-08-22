@@ -37,6 +37,20 @@ carried a corpus-wide count here; no command in this module produces one, which
 made it exactly the unre-derivable figure
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is about.
 
+Converter contract
+------------------
+
+This module is the ChatGPT reference implementation of the vendor-neutral method
+in ``skills/practicum-case-study/reference/voice-corpus.md``. A converter for
+another assistant emits a **top-level JSON list** of conversations. Each carries
+``conversation_id`` or ``id``, its own numeric ``create_time``, and a ``mapping``
+dict. Mapping nodes retain their ``children`` and any ``message``; each message
+retains ``author.role`` plus ``content.content_type`` and ``content.parts``.
+Nothing is flattened or silently discarded. A converter proves coverage with
+the population, partition, remainder, date, conversation, and hop report that
+the reference sheet specifies; matching this shape alone does not prove a
+complete source walk.
+
 The population is independent of the extraction
 -----------------------------------------------
 
