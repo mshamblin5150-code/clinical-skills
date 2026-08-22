@@ -33,7 +33,7 @@ about a patient, and several rows here quote a sentence of it. **Deliberately no
 its code can draw from, and this one's is not: a scaffolding phrase is a fixed
 literal, but a bullet's finding is the bullet's own text.
 
-**Two things are deliberately not rows, and this is the load-bearing part.**
+**Some behavior is deliberately not a row, and this is the load-bearing part.**
 
 The **em dash** is a stated preference with a stated exception -- *"generally I
 prefer not to use em dashes, just saying, though I do use them sometimes"* -- so
@@ -42,6 +42,12 @@ it is **counted and never graded**. A mechanical filter on a stated preference i
 defect a third time: that ticket exists because a recency rule cut a correct
 claim for a property the rule did not care about, and its closing comment records
 the same mistake being made again inside the fix.
+
+Authored numbering surprises are counted and never graded. A section that opens
+above 1 may deliberately continue the prior list. A drafted 1 starts another
+sequence; only a different nonconsecutive transition is counted. The counts put
+both shapes in front of a reader without rejecting a correct document.
+[#402](https://github.com/mshamblin5150-code/clinical-skills/issues/402).
 
 And **anything the run has to reason about**. A wrapper instruction inherited
 from a pediatric case does not apply to a 26-year-old, and the correct behavior
@@ -369,6 +375,8 @@ class Scan:
     intake_sections: int
     tables: int
     em_dashes: int
+    numbered_sections_not_opening_at_one: int
+    broken_numbered_transitions: int
     no_section: bool
     skeleton_disagreement: list
     skeleton_unread: bool
@@ -704,8 +712,36 @@ def findings(sections: list[Section], every: list) -> list[Finding]:
     return sorted(found, key=lambda f: (order[f.kind], f.line))
 
 
+def numbering_advisories(sections: list[Section]) -> tuple[int, int]:
+    """Count authored top-level sequences that deserve a reader's attention.
+
+    Neither count is a defect. A section may intentionally continue an earlier
+    list above 1. A drafted 1 starts a new sequence and is not a broken
+    transition. Nested items use their own level and do not participate.
+    """
+    not_opening_at_one = 0
+    all_ordinals = []
+    for section in sections:
+        ordinals = [
+            block.ordinal
+            for block in section.blocks
+            if block.kind == "numbered" and block.level == 0
+        ]
+        if not ordinals:
+            continue
+        if ordinals[0] != 1:
+            not_opening_at_one += 1
+        all_ordinals.extend(ordinals)
+    broken_transitions = sum(
+        following not in (1, current + 1)
+        for current, following in zip(all_ordinals, all_ordinals[1:])
+    )
+    return not_opening_at_one, broken_transitions
+
+
 def survey(markdown: str, skill_text: str | None) -> Scan:
     sections, every = read_sections(markdown)
+    not_opening_at_one, broken_transitions = numbering_advisories(sections)
     return Scan(
         findings=findings(sections, every),
         sections=len(sections),
@@ -713,6 +749,8 @@ def survey(markdown: str, skill_text: str | None) -> Scan:
         tables=len([b for b in every if b.kind == "table"]),
         em_dashes=sum(block.text.count(EM_DASH) for block in every)
         + sum(block_text(b).count(EM_DASH) for b in every if b.kind == "table"),
+        numbered_sections_not_opening_at_one=not_opening_at_one,
+        broken_numbered_transitions=broken_transitions,
         no_section=not sections,
         skeleton_disagreement=check_skeleton(skill_text) if skill_text is not None else [],
         skeleton_unread=skill_text is None,
@@ -726,6 +764,16 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append("tables                               {n}".format(n=scan.tables))
     lines.append(
         "em dashes  COUNTED, NEVER GRADED     {n}".format(n=scan.em_dashes)
+    )
+    lines.append(
+        "sections not opening at 1  COUNTED, NEVER GRADED  {n}".format(
+            n=scan.numbered_sections_not_opening_at_one
+        )
+    )
+    lines.append(
+        "broken numbered transitions  COUNTED, NEVER GRADED  {n}".format(
+            n=scan.broken_numbered_transitions
+        )
     )
     lines.append("")
     by_kind = {kind: [] for kind in KINDS}

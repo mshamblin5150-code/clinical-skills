@@ -450,6 +450,92 @@ class TheEmDashIsCountedAndNeverGraded(unittest.TestCase):
         self.assertNotIn("em", [kind.split("-")[0] for kind in scan.KINDS])
 
 
+class NumberingAdvisoriesAreNotRows(unittest.TestCase):
+    """#402: report authored-number surprises without rejecting valid continuations."""
+
+    def test_a_section_that_starts_above_one_is_counted(self):
+        text = CLEAN.replace(
+            "1. Pelvic inflammatory disease - N73.9\n2. Cervicitis - N72",
+            "4. Pelvic inflammatory disease - N73.9\n5. Cervicitis - N72",
+        )
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 1)
+        self.assertEqual(result.broken_numbered_transitions, 0)
+        self.assertEqual(result.findings, [])
+
+    def test_a_broken_sequence_is_counted(self):
+        text = CLEAN.replace("2. Cervicitis - N72", "3. Cervicitis - N72")
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 0)
+        self.assertEqual(result.broken_numbered_transitions, 1)
+        self.assertEqual(result.findings, [])
+
+    def test_a_drafted_one_starts_a_new_sequence_without_an_advisory(self):
+        text = CLEAN.replace(
+            "2. Cervicitis - N72",
+            "2. Cervicitis - N72\n1. A deliberately restarted sequence - Z00.00\n2. Its next item - Z00.01",
+        )
+        result = survey(text)
+        self.assertEqual(result.broken_numbered_transitions, 0)
+        self.assertEqual(result.findings, [])
+
+    def test_a_broken_continuation_across_sections_is_counted(self):
+        text = CLEAN.replace(
+            "## Most Likely Clinical Diagnosis",
+            "## Patient Education:\n\n4. First teaching point.\n5. Second teaching point.\n\n"
+            "## Most Likely Clinical Diagnosis",
+        )
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 1)
+        self.assertEqual(result.broken_numbered_transitions, 1)
+
+    def test_a_consecutive_continuation_across_sections_is_not_broken(self):
+        text = CLEAN.replace(
+            "## Most Likely Clinical Diagnosis",
+            "## Patient Education:\n\n3. First teaching point.\n4. Second teaching point.\n\n"
+            "## Most Likely Clinical Diagnosis",
+        )
+        result = survey(text)
+        self.assertEqual(result.numbered_sections_not_opening_at_one, 1)
+        self.assertEqual(result.broken_numbered_transitions, 0)
+
+    def test_the_report_declares_both_counts_never_graded(self):
+        report = scan.format_report(survey(CLEAN), "draft.md")
+        self.assertIn("sections not opening at 1", report)
+        self.assertIn("broken numbered transitions", report)
+        for label in (
+            "em dashes",
+            "sections not opening at 1",
+            "broken numbered transitions",
+        ):
+            line = next(line for line in report.splitlines() if line.startswith(label))
+            self.assertIn("COUNTED, NEVER GRADED", line)
+
+    def test_every_published_contract_names_the_numbering_advisories(self):
+        surfaces = (
+            scan.__doc__,
+            SKILL.read_text(encoding="utf-8"),
+            STYLE.read_text(encoding="utf-8"),
+            (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
+        )
+        for text in surfaces:
+            with self.subTest(surface=text[:40]):
+                section = " ".join(text.replace("**", "").split())
+                self.assertIn(
+                    "Authored numbering surprises are counted and never graded.",
+                    section,
+                )
+
+    def test_an_advisory_does_not_change_the_exit_status(self):
+        text = CLEAN.replace("2. Cervicitis - N72", "3. Cervicitis - N72")
+        directory, path = draft_file(text)
+        try:
+            status, _, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 0)
+
+
 class TheReportIsCountsOnlyByDefault(unittest.TestCase):
     """``--show`` is PHI, so the default report may not carry the draft's prose.
 
