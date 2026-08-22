@@ -441,11 +441,113 @@ class CitationTier1(unittest.TestCase):
         self.assertEqual(gate.gate_citation_tier1(sheet(row())).findings, [])
 
 
+class CitationTier0(unittest.TestCase):
+    def recs(self, text: str, *, mode: str = "exact") -> dict:
+        return {
+            "mode": mode,
+            "recommendations": [
+                {
+                    "rec_id": "p41/goal/1",
+                    "text": text,
+                }
+            ],
+        }
+
+    def test_an_exact_source_refuses_a_snippet_absent_from_its_own_record(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(snippet="fabricated <130 mm Hg")),
+            {"src": self.recs("an SBP goal of <130 mm Hg")},
+            {},
+        )
+
+        self.assertEqual(len(result.findings), 1)
+        self.assertIn("not in its recommendation record", result.findings[0])
+        self.assertFalse(result.not_graded)
+
+    def test_an_exact_source_passes_the_same_text_under_the_auditors_normalization(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(snippet="an SBP goal of <130 mm Hg")),
+            {"src": self.recs("An SBP goal of <130\u00a0mm Hg is recommended")},
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+        self.assertFalse(result.not_graded)
+        self.assertEqual(result.report, ("  CITATION tier 0 0",))
+
+    def test_a_bound_source_reports_not_run_and_never_passes(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(), mode="bound"),
+            {"src": self.recs("an SBP goal of <130 mm Hg", mode="bound")},
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+        self.assertTrue(result.not_graded)
+        self.assertIn("NOT RUN", result.report[0])
+        self.assertIn("bound", result.report[0])
+
+    def test_a_rendered_snippet_is_exempt_and_counted(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(snippet="RENDERED: an SBP goal of <130 mm Hg")),
+            {"src": self.recs("different record text")},
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.rendered, 1)
+        self.assertIn("1 row(s) declared RENDERED:", "\n".join(result.report))
+
+    def test_one_textless_exact_record_does_not_hide_another_rows_fabrication(self):
+        parsed = sheet(
+            row(rec="p41/goal/1", snippet="first <130 mm Hg")
+            + row(rec="p41/goal/2", snippet="fabricated <120 mm Hg")
+        )
+        result = gate.gate_citation_tier0(
+            parsed,
+            {
+                "src": {
+                    "mode": "exact",
+                    "recommendations": [
+                        {"rec_id": "p41/goal/1", "text": ""},
+                        {"rec_id": "p41/goal/2", "text": "actual <120 mm Hg"},
+                    ],
+                }
+            },
+            {},
+        )
+
+        self.assertEqual(len(result.findings), 2)
+        self.assertTrue(any("has no text" in finding for finding in result.findings))
+        self.assertTrue(any("not in its recommendation" in finding for finding in result.findings))
+
+    def test_a_repeated_identifier_checks_every_record_occurrence(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(snippet="an SBP goal of <130 mm Hg")),
+            {
+                "src": {
+                    "mode": "exact",
+                    "recommendations": [
+                        {
+                            "rec_id": "p41/goal/1",
+                            "text": "an SBP goal of <130 mm Hg is recommended",
+                        },
+                        {"rec_id": "p41/goal/1", "text": "another occurrence"},
+                    ],
+                }
+            },
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+
+
 class EveryGateReturnsOneNamedShape(unittest.TestCase):
     def test_every_gate_returns_a_gate_result_that_names_its_gate(self):
         parsed = sheet(row())
         results = (
             ("SCHEMA", gate.gate_schema(parsed)),
+            ("CITATION tier 0", gate.gate_citation_tier0(parsed, {}, {})),
             ("CITATION tier 1", gate.gate_citation_tier1(parsed)),
             ("CITATION tier 2", gate.gate_citation_tier2(parsed, Path("C:/nowhere"))),
             ("COVERAGE", gate.gate_coverage(parsed, {})),
@@ -1167,10 +1269,11 @@ class TheGraderMatchesTheFormatItDocuments(unittest.TestCase):
         readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(gate.SCHEMA_MARKER, readme)
 
-    def test_the_readme_still_names_the_two_citation_tiers(self):
+    def test_the_readme_still_names_the_three_citation_tiers(self):
         readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("tier", readme.lower())
-        self.assertIn("everywhere", readme)
+        for tier in ("| 0 |", "| 1 |", "| 2 |"):
+            self.assertIn(tier, readme)
+        self.assertIn("`NOT RUN` on bound sources", readme)
 
 
 def quote_footprint(sheet_name: str, *, strip_rendered: bool = False):
@@ -1272,7 +1375,7 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
         """The gates are the argument. A section that lost that limb is a taste claim."""
         readme = self._readme()
         self.assertIn("## The quoting posture", readme)
-        for claim in ("tier 1", "tier 2", "Paraphrase"):
+        for claim in ("tier 0", "tier 1", "tier 2", "Paraphrase"):
             self.assertIn(claim, readme, f"the posture no longer states: {claim}")
 
 
@@ -1364,6 +1467,7 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
         self.assertEqual(code, 0, report)
         for verdict in (
             "SCHEMA          0",
+            "CITATION tier 0 NOT RUN",
             "CITATION tier 1 0",
             "CITATION tier 2 0",
             "COVERAGE        0 refusing, 0 warning",
