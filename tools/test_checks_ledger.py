@@ -772,6 +772,17 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("the clinical decisions no command reaches", checks.SUBSTANTIATED_CLEAN)
         self.assertIn("the rendered document", checks.SUBSTANTIATED_CLEAN)
 
+    def test_the_numbering_reader_gets_reconstructed_text_and_context(self):
+        """#423's reader sees Word's markers without being pointed at raw XML."""
+        name = "the numbering in context"
+        self.assertIn(name, checks.EXPECTED_CHECKS)
+        self.assertIn(name, checks.SUBSTANTIATED_CLEAN)
+        self.assertIn("<numbering-readback>", self.table_reads()[name])
+        self.assertIn("--numbering", self.table_reads()[name])
+        self.assertIn("never the raw `.docx`", self.table_how()[name])
+        self.assertIn("by name", self.table_how()[name])
+        self.assertIn("deliberate continuation", self.table_how()[name])
+
     def test_the_clinical_reader_owns_the_named_clinical_residue(self):
         """Bind the row to the command limits it was added to own, not merely to
         a durable heading that could survive after its brief was narrowed away."""

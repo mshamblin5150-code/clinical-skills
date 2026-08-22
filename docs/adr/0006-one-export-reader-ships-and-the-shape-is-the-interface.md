@@ -1,6 +1,6 @@
 # One export reader ships, and the export shape is the interface
 
-[#388](https://github.com/mshamblin5150-code/clinical-skills/issues/388) established that a chat export is a far better voice-model corpus than supplied documents, and built `tools/voice_corpus.py` to read one. Grilling [#400](https://github.com/mshamblin5150-code/clinical-skills/issues/400) on 2026-08-22 asked which vendors a second clinician may be offered, when the reader understands exactly one of them.
+[#388](https://github.com/mshamblin5150-code/clinical-skills/issues/388) established that a chat export is a far better voice-model corpus than supplied writing samples, and built `tools/voice_corpus.py` to read one. Grilling [#400](https://github.com/mshamblin5150-code/clinical-skills/issues/400) on 2026-08-22 asked which vendors a second clinician may be offered, when the reader understands exactly one of them.
 
 The clinician ruled on 2026-08-22: **this repo ships the ChatGPT reader and no other.** A clinician on another assistant writes a converter into the shape `voice_corpus.py` already takes, and the module grows no reader interface. The **method** that converter must follow is published vendor-neutrally in `skills/practicum-case-study/reference/voice-corpus.md`, with `voice_corpus.py` named as the reference implementation.
 
@@ -8,15 +8,15 @@ The assistants are still named in the ask — ChatGPT, Claude, Grok and the rest
 
 ## What was measured
 
-`voice_corpus.py` is keyed to the ChatGPT export at **four independent points**: a conversation must carry a `mapping` dict, a message must carry `author.role`, content must carry a `content_type` of `text` or `multimodal_text`, and the date is `create_time`. A Claude export satisfies none of them.
+`voice_corpus.py` is keyed to the ChatGPT export at several independent points: a conversation must carry a `mapping` dict, a message must carry `author.role`, content must carry a `content_type` of `text` or `multimodal_text`, and the date is `create_time`. A Claude export satisfies none of them.
 
-**It does not read one badly, it refuses it** — `member 0 carries no mapping`, exit 2. That is the good failure direction, and it is also the whole problem: the tool a clinician is being pointed at is silent about four of the five assistants they might use.
+**It does not read one badly, it refuses it** — `member 0 carries no mapping`, exit 2. That is the good failure direction, and it is also the whole problem: the tool a clinician is being pointed at is silent about the other assistants they might use.
 
 **There is no second real export in this repo, and there was none when this was ruled.** That is the fact the decision turns on.
 
 ## Considered options
 
-**Widen the tool to read the flat-transcript formats.** Rejected on evidence rather than cost. #388's first mining pass reported **85** paired versions where the corpus held **163** — a walk with no error, no unparsed remainder, and every record it found correct, which is *partial coverage reading as complete* and was caught only by measuring against a real export. A Claude or Grok reader written here would be tested against hand-made examples alone, which `CLAUDE.md`'s extractor-coverage rule refuses as sole evidence. Reachable if a real export of that shape ever lands.
+**Widen the tool to read the flat-transcript formats.** Rejected on evidence rather than cost. #388's first mining pass read roughly half the available paired versions — a walk with no error, no unparsed remainder, and every record it found correct, which is *partial coverage reading as complete* and was caught only by measuring against a real export. A Claude or Grok reader written here would be tested against hand-made examples alone, which `CLAUDE.md`'s extractor-coverage rule refuses as sole evidence. Reachable if a real export of that shape ever lands.
 
 **Grow a reader seam and let a consumer drop a module in.** Rejected. It designs an interface against exactly one implementation, and — by the row above — an interface shaped by guesswork about formats nobody here has seen. It is also strictly more work than the adopted option for the same result.
 
@@ -34,7 +34,7 @@ The assistants are still named in the ask — ChatGPT, Claude, Grok and the rest
 
 ## The cost this accepts
 
-**A clinician on another assistant gets a document-grade model rather than a corpus-grade one until somebody writes a converter**, and that has to be said out loud in the ask rather than discovered. It is the honest price of shipping one reader.
+**A clinician on another assistant gets a writing-sample-grade model rather than a corpus-grade one until somebody writes a converter**, and that has to be said out loud in the ask rather than discovered. It is the honest price of shipping one reader.
 
 **The export shape becomes an interface the moment a second clinician builds against it**, which is what makes this hard to reverse and is why it is recorded here. Changing what `voice_corpus.py` accepts stops being a private refactor at that point.
 

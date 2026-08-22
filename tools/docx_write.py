@@ -403,25 +403,24 @@ def _abstract_num(num_id: int, fmt: str) -> str:
 def numbering_xml(decimal_lists: int = 1) -> str:
     """The ``word/numbering.xml`` part, sized to the body that will reference it.
 
-    **One ``w:num`` per numbered list, and that is the whole restart mechanism.**
-    Word restarts a list at 1 for each ``w:num`` that points at an abstract
-    definition; two lists sharing one ``numId`` are *one* list to Word, however far
-    apart they sit and whatever comes between them. Before #215's follow-up every
-    numbered list in the document shared ``numId`` 2, so the Differential ran 1-7,
-    the MDM opened at 8 and the Plan carried on from wherever the MDM stopped --
-    the clinician's *"each section that is broken up is a continuation of the
-    previous section's number, that is bad, it should start over"*.
+    Measured 2026-08-22 against Word 16.0 via COM, using a probe rendered by this
+    renderer: a fresh ``w:num`` that shares an ``abstractNumId`` continues that
+    abstract sequence. It restarts at 1 only when it carries a level-zero
+    ``w:startOverride``. Before #422, allocating one ``w:num`` per numbered list
+    therefore did not restart the Differential, MDM, and Plan even though each
+    section had a distinct ``numId``.
 
     ``numId`` 1 is the bullet list. The decimal lists are numbered from 2 up, in the
     order ``render_body`` meets them, and all of them share abstract definition 1 --
-    so the format is defined once and only the restart point is per-list.
+    so the format is defined once and each decimal ``w:num`` explicitly overrides
+    level zero to start at 1. The bullet ``w:num`` has no override.
     """
     nums = ['<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>']
     for index in range(max(decimal_lists, 1)):
         nums.append(
-            '<w:num w:numId="{n}"><w:abstractNumId w:val="1"/></w:num>'.format(
-                n=index + 2
-            )
+            '<w:num w:numId="{n}"><w:abstractNumId w:val="1"/>'
+            '<w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/>'
+            '</w:lvlOverride></w:num>'.format(n=index + 2)
         )
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering {w}>
@@ -776,7 +775,7 @@ def body_xml(markdown: str) -> str:
 # the width of the whole parse rather than at one heading.
 HEADING = re.compile(r"(#{1,4})\s+(.*)")
 BULLET = re.compile(r"([ \t]*)[-*+]\s+(.*)")
-NUMBERED = re.compile(r"([ \t]*)\d+[.)]\s+(.*)")
+NUMBERED = re.compile(r"([ \t]*)(\d+)[.)]\s+(.*)")
 SEPARATORS = ("---", "***", "___")
 
 
@@ -786,18 +785,21 @@ class Block:
     ``kind`` is one of ``blank``, ``separator``, ``heading``, ``table``,
     ``bullet``, ``numbered`` and ``paragraph`` -- the seven branches
     ``render_body`` had, named. ``line`` is 1-indexed and nothing in this module
-    reads it; it is there because a scanner reports a finding at a line. ``source``
-    is populated for a table because ``markdown_tables`` returns that block for a
-    caller to render independently; retaining it here avoids a second parse.
+    reads it; it is there because a scanner reports a finding at a line.
+    ``ordinal`` retains the drafted numeral on a numbered block, because it states
+    whether a top-level list restarts. ``source`` is populated for a table because
+    ``markdown_tables`` returns that block for a caller to render independently;
+    retaining it here avoids a second parse.
     """
 
-    __slots__ = ("kind", "text", "line", "level", "rows", "source")
+    __slots__ = ("kind", "text", "line", "level", "ordinal", "rows", "source")
 
-    def __init__(self, kind, text="", line=0, level=0, rows=(), source=""):
+    def __init__(self, kind, text="", line=0, level=0, ordinal=0, rows=(), source=""):
         self.kind = kind
         self.text = text
         self.line = line
         self.level = level
+        self.ordinal = ordinal
         self.rows = rows
         self.source = source
 
@@ -883,9 +885,10 @@ def blocks(markdown: str):
         if numbered:
             yield Block(
                 "numbered",
-                numbered.group(2),
+                numbered.group(3),
                 line=number,
                 level=min(len(numbered.group(1).expandtabs(4)) // 2, 2),
+                ordinal=int(numbered.group(2)),
             )
             index += 1
             continue
@@ -922,11 +925,6 @@ def render_body(markdown: str):
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
             in_references = bool(REFERENCE_HEADING.match(block.text))
-            # A heading closes whatever list was open, so the next numbered line
-            # allocates a fresh ``w:num`` and Word restarts it at 1. This is the
-            # only place the counter resets: a plain paragraph *between* two
-            # numbered items is a continuation of one list and must not restart it.
-            decimal_id = 0
             out.append(
                 para(
                     block.text,
@@ -952,6 +950,12 @@ def render_body(markdown: str):
             continue
 
         if block.kind == "numbered":
+            # The drafted numeral carries the author's intent. A top-level ``1``
+            # starts a new list; another numeral continues the open list across
+            # headings, labels, and prose. Nested ``1`` starts a sub-list within
+            # the open Word list and therefore must not allocate a new ``w:num``.
+            if block.level == 0 and block.ordinal == 1:
+                decimal_id = 0
             if not decimal_id:
                 decimal_lists += 1
                 decimal_id = decimal_lists + 1

@@ -141,10 +141,11 @@ points"* — after a run set the HPI's OLDCARTS breakdown as a bulleted list. Th
 above named four sections because those four are where a bullet costs the *correspondence*; the
 wider rule is a house preference and it covers the whole document.
 
-**Each numbered list restarts at 1, and its section heading is what restarts it.** A run does not
-have to do anything to get this — `docx_write.py` allocates one `w:num` per section — but a reader
-comparing the Markdown to the `.docx` should know the numbering in the rendered file is per-section
-rather than continuous.
+**The drafted numeral controls whether a numbered list restarts.** A top-level item written `1.`
+starts a new list; any other top-level numeral continues the open list across headings, labels and
+prose. A nested `1.` remains a sub-list of the open list. A run does not have to do anything beyond
+writing the intended numerals — `docx_write.py` allocates the required `w:num` — but a reader
+comparing the Markdown to the `.docx` should know that Word receives those authored boundaries.
 
 **The intake block is *not* a table. Ruled 2026-08-19, reversing what this file used to say.**
 Demographics, the Review of Systems and the Physical Examination are written as defined fields with
@@ -969,8 +970,15 @@ check that was never run is not.
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
 | the dose against the record that sourced it | every prescription table, and `<claims-ledger>` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; and against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
+| the numbering in context | `<numbering-readback>` produced by `python tools/docx_read.py "<the case study document>" --numbering`, and the Markdown draft | a reader: read the reconstructed numerals in context, never the raw `.docx`; does each section start where it should, does each MDM entry discuss **by name** the diagnosis at the same position in the differential, and does every restart or deliberate continuation suit the section | yes |
 | the rendered document | the Markdown draft and the rendered `.docx`, page by page | a vision-capable reader: open or render every page, compare it page by page with the Markdown, and report clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
 | the faculty's own to-do list | the faculty material, the draft's headings, and `bar.md` on a routed board run | a reader: does every faculty item have a section that answers it, and on a routed run does every signed bar element — including word floor, reference minimum, ISBN, and every prose element — hold in the finished draft | no |
+
+**The orchestrating context produces `<numbering-readback>` before the fan-out** and is its sole
+writer. Run `python tools/docx_read.py "<the case study document>" --numbering` and redirect its
+output to a new run-unique path under `scratch/`; give the numbering reader that text and the
+Markdown draft, never the raw `.docx`. Remove the readback with the run's other private paths after
+the checks complete.
 
 **The last column is [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it
 is some rows rather than every row.** On a row marked *yes* a `clean` verdict has to say what the
@@ -1038,6 +1046,12 @@ written himself, which is
 that ticket exists because a recency filter cut a correct claim for a property the rule did not care
 about, and its closing comment records the same mistake being made again inside the fix. The count
 prints; nothing fails on it.
+
+**Authored numbering surprises are counted and never graded.** The report counts a numbered
+section that does not open at `1.` and a transition that does not advance by one. A section may
+deliberately continue the prior list, so neither shape can fail the command or change its exit
+status. They stay visible for the reader who compares the drafted and rendered numerals.
+[#402](https://github.com/mshamblin5150-code/clinical-skills/issues/402).
 
 **A clean scan is not a checked draft.** Here is what no row of that command reaches: **the voice,
 and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop
