@@ -892,21 +892,19 @@ def gate_citation_tier0(
             ungraded_sources.append(f"{source_key} ({reason})")
             continue
 
-        recommendations = {
-            str(item.get("rec_id")): item
-            for item in record.get("recommendations", [])
-            if isinstance(item, dict) and item.get("rec_id")
-        }
+        recommendations: dict[str, list[dict]] = {}
+        for item in record.get("recommendations", []):
+            if isinstance(item, dict) and item.get("rec_id"):
+                recommendations.setdefault(str(item["rec_id"]), []).append(item)
         source_rows = [candidate for candidate in sheet.rows if candidate.source == source_key]
-        textless = [
-            row.rec
-            for row in source_rows
-            if row.rec in recommendations
-            and not str(recommendations[row.rec].get("text") or "").strip()
-        ]
-        if textless:
+        present_rows = [row for row in source_rows if row.rec in recommendations]
+        if present_rows and all(
+            all(not str(item.get("text") or "").strip() for item in recommendations[row.rec])
+            for row in present_rows
+        ):
             ungraded_sources.append(
-                f"{source_key} (recommendation text is absent for {len(set(textless))} cited rec(s))"
+                f"{source_key} (recommendation text is absent for "
+                f"{len({row.rec for row in present_rows})} cited rec(s))"
             )
             continue
 
@@ -914,15 +912,25 @@ def gate_citation_tier0(
             if row.snippet.startswith(RENDERED_MARKER):
                 rendered += 1
                 continue
-            recommendation = recommendations.get(row.rec)
-            if recommendation is None:
+            occurrences = recommendations.get(row.rec)
+            if occurrences is None:
                 failures.append(
                     f"{sheet.path.name}:{row.line}  rec '{row.rec}' is not in the exact "
                     f"recommendation record for source '{source_key}'"
                 )
                 continue
-            record_text = str(recommendation.get("text") or "")
-            if _normalize(row.snippet) not in _normalize(record_text):
+            record_texts = [
+                str(item.get("text") or "")
+                for item in occurrences
+                if str(item.get("text") or "").strip()
+            ]
+            if not record_texts:
+                failures.append(
+                    f"{sheet.path.name}:{row.line}  rec '{row.rec}' in exact source "
+                    f"'{source_key}' has no text for CITATION tier 0"
+                )
+                continue
+            if not any(_normalize(row.snippet) in _normalize(text) for text in record_texts):
                 failures.append(
                     f"{sheet.path.name}:{row.line}  snippet is not in its recommendation "
                     f"record '{row.rec}' for source '{source_key}'"

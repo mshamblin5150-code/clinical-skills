@@ -498,6 +498,49 @@ class CitationTier0(unittest.TestCase):
         self.assertEqual(result.rendered, 1)
         self.assertIn("1 row(s) declared RENDERED:", "\n".join(result.report))
 
+    def test_one_textless_exact_record_does_not_hide_another_rows_fabrication(self):
+        parsed = sheet(
+            row(rec="p41/goal/1", snippet="first <130 mm Hg")
+            + row(rec="p41/goal/2", snippet="fabricated <120 mm Hg")
+        )
+        result = gate.gate_citation_tier0(
+            parsed,
+            {
+                "src": {
+                    "mode": "exact",
+                    "recommendations": [
+                        {"rec_id": "p41/goal/1", "text": ""},
+                        {"rec_id": "p41/goal/2", "text": "actual <120 mm Hg"},
+                    ],
+                }
+            },
+            {},
+        )
+
+        self.assertEqual(len(result.findings), 2)
+        self.assertTrue(any("has no text" in finding for finding in result.findings))
+        self.assertTrue(any("not in its recommendation" in finding for finding in result.findings))
+
+    def test_a_repeated_identifier_checks_every_record_occurrence(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(snippet="an SBP goal of <130 mm Hg")),
+            {
+                "src": {
+                    "mode": "exact",
+                    "recommendations": [
+                        {
+                            "rec_id": "p41/goal/1",
+                            "text": "an SBP goal of <130 mm Hg is recommended",
+                        },
+                        {"rec_id": "p41/goal/1", "text": "another occurrence"},
+                    ],
+                }
+            },
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+
 
 class EveryGateReturnsOneNamedShape(unittest.TestCase):
     def test_every_gate_returns_a_gate_result_that_names_its_gate(self):

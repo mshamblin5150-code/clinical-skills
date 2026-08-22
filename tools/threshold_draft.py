@@ -8,12 +8,15 @@ stdout; it never writes a sheet.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 import guidelines_catalog
 from console_codec import use_utf8
@@ -24,6 +27,7 @@ from threshold_sheet import (
     POPULATIONS_HEADING,
     ROW_COLUMNS,
     SCHEMA_MARKER,
+    Sheet,
     SCOPE_HEADING,
     SECTION_HEADINGS,
     SOURCES_HEADING,
@@ -74,6 +78,20 @@ def _source_key(row: guidelines_catalog.Row) -> str:
     return f"{society.split('-', 1)[0]}-{row.year}"
 
 
+def _source_keys(rows: list[guidelines_catalog.Row]) -> dict[guidelines_catalog.Row, str]:
+    bases = [_source_key(row) for row in rows]
+    counts = Counter(bases)
+    keys: dict[guidelines_catalog.Row, str] = {}
+    for row, base in zip(rows, bases, strict=True):
+        if counts[base] == 1:
+            keys[row] = base
+            continue
+        slug = re.sub(r"[^a-z0-9]+", "-", Path(row.filename).stem.casefold()).strip("-")
+        digest = hashlib.sha256(row.filename.casefold().encode("utf-8")).hexdigest()[:6]
+        keys[row] = f"{base}-{slug[:32]}-{digest}"
+    return keys
+
+
 def _document(row: guidelines_catalog.Row) -> str:
     return f"{row.society}/{Path(row.filename).stem}"
 
@@ -88,7 +106,14 @@ def _load_record(path: Path) -> dict:
 def _record_path(recs_root: Path, key: str, catalog_row: guidelines_catalog.Row) -> Path:
     expected = recs_root / f"recs-{key}.json"
     if expected.is_file():
-        return expected
+        try:
+            record = _load_record(expected)
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+        else:
+            built_from = Path(str(record.get("source") or "").replace("\\", "/")).name
+            if built_from.casefold() == catalog_row.filename.casefold():
+                return expected
 
     filename = catalog_row.filename.casefold()
     matches: list[Path] = []
@@ -105,19 +130,20 @@ def _record_path(recs_root: Path, key: str, catalog_row: guidelines_catalog.Row)
     return expected
 
 
-def _seed_sources(seed_text: str | None, seed_path: Path) -> dict[str, dict[str, str]]:
-    if seed_text is None:
-        return {}
-    seeded = parse(seed_text, seed_path)
-    return seeded.sources if seeded.ok else {}
+def _record_locator(record: dict) -> str:
+    raw = str(record.get("source") or "").replace("\\", "/")
+    if re.match(r"^[A-Za-z]:/", raw):
+        return "file:///" + quote(raw, safe="/:")
+    if raw.startswith("/"):
+        return "file://" + quote(raw, safe="/")
+    return ""
 
 
 def resolve_sources(
     topic: str,
     catalog_path: Path,
     recs_root: Path,
-    seed_text: str | None,
-    seed_path: Path,
+    seeded_sheet: Sheet | None,
 ) -> tuple[list[Source], list[str], list[str]]:
     catalog_rows, _, problems = guidelines_catalog.parse_catalog(
         catalog_path.read_text(encoding="utf-8")
@@ -135,7 +161,8 @@ def resolve_sources(
         and raw_topic
         and raw_topic in f"{row.topic} {row.title}".casefold()
     ]
-    seeded_sources = _seed_sources(seed_text, seed_path)
+    seeded_sources = seeded_sheet.sources if seeded_sheet else {}
+    source_keys = _source_keys(candidates)
     sources: list[Source] = []
     rejected = [
         f"{row.society}/{row.filename}: catalog topic is '{row.topic}', not '{wanted}'"
@@ -152,7 +179,7 @@ def resolve_sources(
             ),
             None,
         )
-        key = seeded[0] if seeded else _source_key(row)
+        key = seeded[0] if seeded else source_keys[row]
         record_path = _record_path(recs_root, key, row)
         if not record_path.is_file():
             errors.append(f"{row.society}/{row.filename}: no recommendation record at {record_path}")
@@ -163,6 +190,12 @@ def resolve_sources(
             errors.append(f"{row.society}/{row.filename}: {error}")
             continue
         metadata = seeded[1] if seeded else {}
+        url = metadata.get("url") or _record_locator(record)
+        if not url:
+            errors.append(
+                f"{row.society}/{row.filename}: recommendation record carries no source locator"
+            )
+            continue
         sources.append(
             Source(
                 key=key,
@@ -170,7 +203,7 @@ def resolve_sources(
                 document=metadata.get("document", document),
                 version=metadata.get("version", row.year),
                 published=metadata.get("published", row.year),
-                url=metadata.get("url", ""),
+                url=url,
                 mode=str(record.get("mode") or metadata.get("mode", "")),
                 record=record,
             )
@@ -190,11 +223,11 @@ def _recommendations(sources: list[Source]) -> dict[tuple[str, str], dict]:
 
 
 def select_rows(
-    sources: list[Source], seed_text: str | None, seed_path: Path
+    sources: list[Source], seeded_sheet: Sheet | None
 ) -> tuple[list[DraftRow], dict[str, str], list[str]]:
     known = _recommendations(sources)
     rejected: list[str] = []
-    if seed_text is None:
+    if seeded_sheet is None:
         rows = [
             DraftRow(
                 snippet=" ".join(str(item.get("text") or "").split()),
@@ -209,11 +242,8 @@ def select_rows(
         ]
         return rows, {}, rejected
 
-    seeded = parse(seed_text, seed_path)
-    if not seeded.ok:
-        return [], {}, [f"existing sheet cannot seed the draft: {seeded.why_not}"]
     rows: list[DraftRow] = []
-    for row in seeded.rows:
+    for row in seeded_sheet.rows:
         item = known.get((row.source, row.rec))
         if item is None:
             rejected.append(f"{row.source}/{row.rec}: not in its recommendation record")
@@ -231,7 +261,7 @@ def select_rows(
                 klass=str(item.get("cor") or ""),
             )
         )
-    return rows, dict(seeded.scoped_out), rejected
+    return rows, dict(seeded_sheet.scoped_out), rejected
 
 
 def _table(columns: tuple[str, ...], rows: list[list[str]]) -> str:
@@ -325,14 +355,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     seed_path = args.sheet_root / f"{args.topic.casefold().replace(' ', '-')}.md"
     seed_text = seed_path.read_text(encoding="utf-8") if seed_path.is_file() else None
+    seeded_sheet = parse(seed_text, seed_path) if seed_text is not None else None
+    if seeded_sheet is not None and not seeded_sheet.ok:
+        print(f"existing sheet cannot seed the draft: {seeded_sheet.why_not}", file=sys.stderr)
+        return 2
     try:
         sources, source_rejections, source_errors = resolve_sources(
-            args.topic, args.catalog, args.recs_root, seed_text, seed_path
+            args.topic, args.catalog, args.recs_root, seeded_sheet
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(error, file=sys.stderr)
         return 2
-    rows, scoped_out, row_rejections = select_rows(sources, seed_text, seed_path)
+    rows, scoped_out, row_rejections = select_rows(sources, seeded_sheet)
     rejected = source_rejections + source_errors + row_rejections
     print(render(args.topic, sources, rows, scoped_out, rejected), end="")
     if source_errors or row_rejections:

@@ -127,6 +127,12 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertIn("## Rejected candidates", result.stdout)
         self.assertIn("|  |  |  | \"Adults should have an SBP goal below 130 mm Hg.\"", result.stdout)
         self.assertIn("| aha-2025 | p3 | p3/topic/1 | 1 |", result.stdout)
+        source_row = next(
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("| aha-2025 |") and "AHA ACC/guideline" in line
+        )
+        self.assertIn("file:///C:/corpus/AHA%20ACC/guideline.pdf", source_row)
         scope = result.stdout.split("## Scope", 1)[1].split("## ", 1)[0]
         self.assertNotIn("Read:", scope)
         self.assertNotIn("Not read:", scope)
@@ -152,6 +158,65 @@ class ThresholdDraftCli(unittest.TestCase):
         scope = result.stdout.split("## Scope", 1)[1].split("## ", 1)[0]
         self.assertIn("| 2 | 1 | 1 |", scope)
         self.assertNotIn("recommendation tables", result.stdout)
+
+    def test_same_society_and_year_documents_keep_distinct_source_keys_and_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            recs = root / "recs"
+            sheets = root / "sheets"
+            recs.mkdir()
+            sheets.mkdir()
+            catalog.write_text(
+                "| society | filename | title | topic | population | year | page_count | class |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| USPSTF | adults.pdf | Adult oral health | oral health | adult | 2023 | 10 | recommendation-statement |\n"
+                "| USPSTF | children.pdf | Child oral health | oral health | pediatric | 2023 | 11 | recommendation-statement |\n",
+                encoding="utf-8",
+            )
+            for name, page in (("adults", 2), ("children", 4)):
+                payload = {
+                    "source": f"C:/corpus/USPSTF/{name}.pdf",
+                    "mode": "exact",
+                    "recommendations": [
+                        {
+                            "rec_id": f"p{page}/{name}/1",
+                            "page": page,
+                            "cor": "B",
+                            "text": f"{name} recommendation text",
+                        }
+                    ],
+                }
+                (recs / f"recs-{name}.json").write_text(
+                    json.dumps(payload), encoding="utf-8"
+                )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMMAND),
+                    "oral health",
+                    "--catalog",
+                    str(catalog),
+                    "--recs-root",
+                    str(recs),
+                    "--sheet-root",
+                    str(sheets),
+                ],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        drafted = threshold_sheet.parse(result.stdout, Path("draft.md"))
+        self.assertEqual(len(drafted.sources), 2)
+        self.assertEqual(len(set(drafted.sources)), 2)
+        self.assertEqual({row.rec for row in drafted.rows}, {"p2/adults/1", "p4/children/1"})
+        self.assertEqual({row.source for row in drafted.rows}, set(drafted.sources))
 
     def test_hypertension_reproduces_the_committed_data_half_when_records_exist(self):
         recs = Path(threshold_sheet.DEFAULT_RECS_ROOT) / "recs-aha-2025.json"
