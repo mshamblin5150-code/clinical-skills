@@ -154,22 +154,31 @@ and the references of a meta-analysis.
 §1 rule that is a matter of *format*** — plus the two rules from elsewhere in the manual that a
 renderer can reach — and what it does not is written down rather than assumed away:
 
-| APA rule | `docx_write.py` |
-| --- | --- |
-| Times New Roman 12 pt, double spaced, 1 inch margins | applied |
-| 0.5 inch hanging indent on the whole reference list | applied |
-| No extra space between entries | applied |
-| `References` heading **bold** | applied |
-| `References` heading **centered** | applied |
-| `References` heading at **body size**, 12 pt | applied — every heading level is 12 pt |
-| Reference list **starts on a new page** | applied |
-| **Page numbers**, top right of every page | applied |
-| The singular **`Reference`** heading gets the hanging indent | applied |
-| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none |
-| A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row |
+| APA rule | `docx_write.py` | Word calibration and tripwire |
+| --- | --- | --- |
+| Times New Roman 12 pt, double spaced, 1 inch margins | applied | 2026-08-22, Word 16.0; `body-defaults` |
+| 0.5 inch hanging indent on the whole reference list | applied | 2026-08-22, Word 16.0; `reference-hanging-indent` |
+| No extra space between entries | applied | 2026-08-22, Word 16.0; `reference-no-extra-space` |
+| `References` heading **bold** | applied | 2026-08-22, Word 16.0; `reference-heading-bold` |
+| `References` heading **centered** | applied | 2026-08-22, Word 16.0; `reference-heading-centered` |
+| `References` heading at **body size**, 12 pt | applied — every heading level is 12 pt | 2026-08-22, Word 16.0; `reference-heading-body-size` |
+| Reference list **starts on a new page** | applied | 2026-08-22, Word 16.0; `reference-page-break` |
+| **Page numbers**, top right of every page | applied | 2026-08-22, Word 16.0; `page-number-header` |
+| The singular **`Reference`** heading gets the hanging indent | applied | 2026-08-22, Word 16.0; `singular-reference-hanging-indent` |
+| Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none | 2026-08-22, Word 16.0; `body-first-line-indent` |
+| A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row | 2026-08-22, Word 16.0; `table-horizontal-rules` |
+
+**Word is the evidence for every verdict in both tables.** The dated observation and the
+semantic XML shape it covered are in
+[`word-renderer-calibration.json`](word-renderer-calibration.json). Re-derive them with
+`python tools/docx_word_probe.py --word`, the maintainer-only command that opens the probes
+through Word COM and prints what Word reports. Word is not on the consumer or CI path. The
+permanent test opens no Office process: it compares the current shapes with all calibration keys
+and says the affected row must be retaken when one leaves the measured set. This is
+[ADR 0007](../../../docs/adr/0007-word-is-a-one-time-calibration-instrument.md).
 
 **The last two rows are [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220),
-landed 2026-08-19, and they were measured the same way the nine above them were** — a document
+landed 2026-08-19, and they were first checked the same way the nine above them were** — a document
 rendered and its `word/document.xml` and `word/styles.xml` read, not the renderer's source. What
 that read: exactly one paragraph of a document carrying a heading, a body paragraph, two list
 items, a three-column table and a reference entry took `w:ind w:firstLine`, and it was the body
@@ -183,12 +192,13 @@ switch. An APA table is not the only kind of table a Markdown document can hold,
 consumer of this renderer is an APA document — and a parameter no caller passes is a branch
 nothing honestly tests.
 
-**The nine rows above those two were measured the same way, on a different day** — by rendering
+**The nine rows above those two were first checked the same way, on a different day** — by rendering
 a document and reading `word/document.xml`, `word/styles.xml` and `word/header1.xml`, not inferred
 from the source. 2026-08-18, on
-[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217)'s branch. **Five of those
-nine read *not applied* earlier the same day**, and the other four were already green — this table
-is re-measured rather than inherited because a row's verdict expires when the renderer changes,
+[#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217)'s branch. **Those XML
+reads were renderer-shape checks, not Word measurements.** Five of those
+nine read *not applied* earlier the same day, and the other four were already green — the table
+was rechecked rather than inherited because a row's verdict expires when the renderer changes,
 which here was hours rather than days.
 
 **Both dates have to stay attached to their own rows, and that is not a pedantry.** A single
@@ -213,12 +223,12 @@ level 3 bold italic flush left, level 4 bold indented.
 
 **What is still not applied**, so the list above does not read as the whole of APA:
 
-| APA rule | `docx_write.py` |
-| --- | --- |
-| A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown |
-| APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset |
-| The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row |
-| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [SKILL.md](../SKILL.md) step 7 catches it as an author defect |
+| APA rule | `docx_write.py` | Word calibration and tripwire |
+| --- | --- | --- |
+| A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown | 2026-08-22, Word 16.0; `title-page` |
+| APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset | 2026-08-22, Word 16.0; `run-in-headings` |
+| The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row | 2026-08-22, Word 16.0; `reference-alphabetization` |
+| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [SKILL.md](../SKILL.md) step 7 catches it as an author defect | 2026-08-22, Word 16.0; `reference-single-paragraph` |
 
 **The last two rows are not #220's, and they were on neither table before it** — they are a gap
 that ticket's repair surfaced. This paragraph used to say the renderer applied *most of* §1, which
@@ -238,9 +248,10 @@ sat in `tools/docx_write.py`'s docstring, and a **prose** edit to either failed 
 regression fails a behavior test, so the direction that was uncovered was the one where the two
 files quietly disagree and the reader who is misled is the one who checked the file nearer to hand.
 It is `docx_write.NOT_APPLIED` now, one object, on `REFERENCE_HEADING`'s precedent, and
-`tools/test_docx.py` asserts this table names the same items in both directions. **That bind
-still cannot establish whether a row's verdict is true**, so #323 executes every current row
-against the rendered archive and makes a new row fail until it gains its own measurement.
+`tools/test_docx.py` asserts this table names the same items in both directions. #323 executes
+every declared limit against the rendered archive. **Neither mechanism establishes what Word
+draws.** #424 adds that independent measurement and a Word-free shape tripwire for every row;
+a new row fails until it gains both a calibration identity and a dated Word record.
 
 **None of these is worth more than a point, and they are still real.**
 **A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's

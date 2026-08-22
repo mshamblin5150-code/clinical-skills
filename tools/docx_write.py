@@ -55,17 +55,17 @@ the other's:
   now -- ``guidelines_index.build``'s arrangement and its reason. **No hand edit is
   involved in this one**, so none of the three signals #279's body lists reaches it, and
   ``--force`` would not have helped: the author did intend to write.
-* **A hand edit** is refused, with ``--force`` to proceed -- ruled by the clinician on
-  2026-08-19 over warning, on this repo's posture that a silent destructive success is the
-  worst outcome. Two signals, in ``refusal`` below: Word's ``~$`` owner file beside the
-  document, which means it is open *right now*, and an archive whose part list is not
-  ``PART_NAMES``, which means something other than this renderer wrote it.
+* **A detectable hand edit** is refused, with ``--force`` to proceed -- ruled by the
+  clinician on 2026-08-19 over warning. Two signals live in ``refusal`` below: Word's
+  ``~$`` owner file beside the document, which means it is open *right now*, and an
+  archive whose part list is not ``PART_NAMES``. The first ``NOT_GUARDED`` row records
+  the measured limit: Word 16.0 can save a closed probe while preserving that exact set.
 
 **The ticket's own signal 2 -- the ``.docx`` being newer than the ``.md`` -- is not
 implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``, so
 *newer* is the ordinary post-render state: the test would fire on every legitimate
 re-render while never once distinguishing a Word save from a render. The part-set test is
-exact in the direction that matters instead, and costs one ``namelist()``.
+exact only for a changed part set, and costs one ``namelist()``.
 
 **What the guard does not reach is ``NOT_GUARDED`` below, not this paragraph** --
 ``NOT_APPLIED``'s arrangement and its reason, which this module already carries one screen
@@ -89,8 +89,9 @@ not an APA-formatted document**, which is ``skills/practicum-case-study/SKILL.md
 9's sentence arriving one level down.
 
 Covered by ``tools/test_docx.py``, which writes into a temp directory and reads the
-result back with ``docx_read`` -- the round trip is the test, because a ``.docx`` that
-Word refuses to open is indistinguishable from a good one until Word opens it.
+result back with ``docx_read``. Word 16.0 is a one-time calibration instrument, not a
+suite dependency; ``docx_word_probe.py`` records what Word drew and the suite holds the
+renderer inside each measured XML shape.
 """
 
 from __future__ import annotations
@@ -165,13 +166,12 @@ NOT_APPLIED = (
 # the row is here.
 NOT_GUARDED = (
     (
-        "an editor that writes exactly these parts",
-        "That a Word save always changes the part list is a claim about **Word**, and "
-        "there is no Word in this repo to check it against -- ``test_docx.py``'s standing "
-        "limit arriving on a guard rather than on a document. Anything that rewrote "
-        "exactly this part set would read as ours. The certain direction is the other "
-        "one: what this renderer produces always matches, because both come from "
-        "``parts``.",
+        "a closed Word save that preserves exactly these parts",
+        "Measured 2026-08-22 with Word 16.0 via ``docx_word_probe.py --word``: Word "
+        "saved the renderer's probe with the same part set, and this guard therefore "
+        "read the edited document as ours. The owner-file signal covers an open Word "
+        "session; it says nothing after Word closes the document. Another editor that "
+        "preserves the set has the same limit.",
     ),
     (
         "a part added here refuses every document already written",
@@ -180,8 +180,8 @@ NOT_GUARDED = (
         "``output/`` reads as foreign** and every re-render of one refuses until "
         "``--force``. That is not hypothetical and it is live in the tree today: "
         "``word/header1.xml`` arrived on #217, so the 2026-08-18 case study reads as "
-        "foreign for the version reason alone. The refusal message names this cause "
-        "beside the Word one for exactly that reason.",
+        "foreign for the version reason alone. The refusal message names that cause "
+        "without claiming a Word save necessarily changes the set.",
     ),
     (
         "an owner file belonging to a different document",
@@ -1088,7 +1088,9 @@ def refusal(destination: Path) -> str:
     **The part-set message names two causes and the second one is not hypothetical.**
     ``word/header1.xml`` arrived on #217, so **every document rendered before that reads
     as foreign** -- the claim *not written by this renderer* is exactly true of it, and
-    ``a Word save, most likely``, which is what this said first, is the wrong guess. Found
+    ``a Word save, most likely``, which is what this said first, is the wrong guess. Word
+    16.0 was measured on #424 preserving the exact part set after a save, so the message
+    cannot diagnose Word from a changed set at all. The older-version cause was found
     by pointing the guard at the real ``output/case-studies/`` rather than by a fixture:
     of the two documents there, the one #279 was filed over reads as **ours** -- so the
     clinician had in fact not saved it, which is what he told the session that asked --
@@ -1103,9 +1105,9 @@ def refusal(destination: Path) -> str:
             )
     if destination.exists() and not written_by_this_renderer(destination):
         return (
-            "{d} was not written by this renderer -- either something else saved it, "
-            "most likely Word, or an older version of this renderer wrote it before the "
-            "part set changed. Rendering over it destroys whatever is in it, and output/ "
+            "{d} does not carry this renderer's current part set -- another writer may "
+            "have changed it, or an older version of this renderer wrote it before the "
+            "set changed. Rendering over it destroys whatever is in it, and output/ "
             "is gitignored so there is no recovery. Pass --force if that is what you "
             "want.".format(d=destination)
         )

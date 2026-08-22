@@ -1,0 +1,208 @@
+{
+  "command": "python tools/docx_word_probe.py --word",
+  "word_save_guard": {
+    "measured_on": "2026-08-22",
+    "word_version": "16.0",
+    "word_build": "16.0.20228",
+    "original_and_saved_part_sets_equal": true,
+    "destination_guard_would_refuse": false,
+    "observation": "Word saved a closed renderer probe while preserving the exact archive part set. The part-set guard therefore read the saved document as this renderer's own."
+  },
+  "rows": {
+    "body-defaults": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported Times New Roman 12 pt, 24 pt double-line spacing, zero space after, and 72 pt margins on all four sides.",
+      "renderer_shape": {
+        "font": "Times New Roman",
+        "half_points": "24",
+        "line_rule": "auto",
+        "line_twips": "480",
+        "margins_twips": {
+          "bottom": "1440",
+          "left": "1440",
+          "right": "1440",
+          "top": "1440"
+        }
+      }
+    },
+    "reference-hanging-indent": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported both plural-heading entries in Reference style with 36 pt left indents and -36 pt first-line indents.",
+      "renderer_shape": {
+        "entry_styles": ["Reference", "Reference"],
+        "hanging_twips": "720",
+        "left_twips": "720"
+      }
+    },
+    "reference-no-extra-space": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported both reference entries at 24 pt double-line spacing and zero space after.",
+      "renderer_shape": {
+        "after_twips": "0",
+        "entry_styles": ["Reference", "Reference"],
+        "line_twips": "480"
+      }
+    },
+    "reference-heading-bold": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported the References paragraph in Heading 1 with bold = -1 (on).",
+      "renderer_shape": {
+        "bold_element": true,
+        "paragraph_style": "Heading1"
+      }
+    },
+    "reference-heading-centered": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported the References paragraph alignment as 1 (centered).",
+      "renderer_shape": {
+        "direct_alignment": "center",
+        "paragraph_style": "Heading1",
+        "style_alignment": "center"
+      }
+    },
+    "reference-heading-body-size": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported the References paragraph at 12 pt, the same size as body text.",
+      "renderer_shape": {
+        "half_points": "24",
+        "paragraph_style": "Heading1"
+      }
+    },
+    "reference-page-break": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported page-break-before = -1 on References and placed it on page 2 after body content on page 1.",
+      "renderer_shape": {
+        "page_break_before": true,
+        "preceded_by_body": true
+      }
+    },
+    "page-number-header": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported one page number in the primary header, alignment 2 (right), with a type-33 PAGE field whose displayed result was 1.",
+      "renderer_shape": {
+        "alignment": "right",
+        "cached_text": "1",
+        "field": "PAGE",
+        "relationship_id": "rId3"
+      }
+    },
+    "singular-reference-hanging-indent": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word placed singular Reference on page 2 and reported its entry in Reference style with a 36 pt left indent and -36 pt first-line indent.",
+      "renderer_shape": {
+        "entry_style": "Reference",
+        "heading_style": "Heading1",
+        "page_break_before": true
+      }
+    },
+    "body-first-line-indent": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported a 36 pt first-line indent on the body paragraph; the heading and table cells reported zero, the list used its own -18/36 pt list indent, and references used -36/36 pt hanging indents.",
+      "renderer_shape": {
+        "body_first_line_twips": "720",
+        "carve_out_styles": {
+          "Bullet item": "ListParagraph",
+          "Clinical Case": "Heading1",
+          "Zulu, Z. (2025). Last.": "Reference"
+        },
+        "first_line_count": 1
+      }
+    },
+    "table-horizontal-rules": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "applied",
+      "word_observation": "Word reported single top and bottom borders, no left, right, or vertical borders, single bottom borders on both header cells, no bottom borders on the intervening body row, and bottom borders on the last row.",
+      "renderer_shape": {
+        "header_cell_bottom": "single",
+        "style": "APATable",
+        "table_edges": {
+          "bottom": "single",
+          "insideH": "none",
+          "insideV": "none",
+          "left": "none",
+          "right": "none",
+          "top": "single"
+        }
+      }
+    },
+    "title-page": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "not applied",
+      "word_observation": "Word reported one page containing only the authored Clinical Case heading and Body paragraph; no title-page elements were added.",
+      "renderer_shape": {
+        "paragraphs": ["Clinical Case", "Body paragraph."]
+      }
+    },
+    "run-in-headings": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "not applied",
+      "word_observation": "Word reported Follow-up as its own Heading 4 paragraph and The plan continues. as a separate body paragraph.",
+      "renderer_shape": {
+        "heading_style": "Heading4",
+        "paragraphs": ["Follow-up", "The plan continues."]
+      }
+    },
+    "reference-alphabetization": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "not applied",
+      "word_observation": "Word drew the authored Zulu entry before the Alpha entry; it did not reorder them.",
+      "renderer_shape": {
+        "reference_paragraphs": [
+          "Zulu, Z. (2025). Last.",
+          "Alpha, A. (2025). First."
+        ]
+      }
+    },
+    "reference-single-paragraph": {
+      "measured_on": "2026-08-22",
+      "word_version": "16.0",
+      "word_build": "16.0.20228",
+      "verdict": "not applied",
+      "word_observation": "Word reported the hard-wrapped entry as two Reference paragraphs: Ross, J. (2025). Pelvic and disease. UpToDate.",
+      "renderer_shape": {
+        "reference_paragraphs": [
+          "Ross, J. (2025). Pelvic",
+          "disease. UpToDate."
+        ]
+      }
+    }
+  }
+}
