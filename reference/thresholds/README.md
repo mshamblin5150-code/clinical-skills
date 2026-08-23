@@ -360,15 +360,19 @@ everything else checks what was written, only this checks what was not.
 
 [`coverage.md`](coverage.md) is the denominator for this directory. It carries one row
 for every distinct topic derived from
-[`reference/guidelines-catalog.md`](../guidelines-catalog.md), with one of three states:
+[`reference/guidelines-catalog.md`](../guidelines-catalog.md), with one of these states:
 
 - `sheet`: the named sheet holds the topic's decision points;
 - `none`: the source documents were read and state no decision point;
 - `unread`: the sources have not been read completely enough to decide.
 
+The optional `artifact` column names a shipped sheet. It can accompany `unread` when
+the sheet contains verified decision points but the full-document read is incomplete;
+that artifact does not promote the topic to `sheet` or make its omissions meaningful.
+
 Run `python tools/threshold_coverage.py` from the repository root to re-derive the topic
-and state counts and to refuse missing, duplicate, or orphaned rows. `--draft` prints
-the catalog-derived topic column. An `unread` row is not a clinical finding, and a
+and state counts and to refuse missing, duplicate, or orphaned rows and artifacts.
+`--draft` prints the catalog-derived topic column. An `unread` row is not a clinical finding, and a
 `none` row does not change the rule inside a sheet: a missing threshold row still means
 `sheet does not settle it`.
 
@@ -426,8 +430,9 @@ not left to be discovered:
   — the majority of the corpus is `exact` now. The standing figure is the table below
   and is deliberately not restated here.
 - **The topic sweep is recorded rather than summarized by a hand-maintained count.**
-  [`coverage.md`](coverage.md) names every catalog topic and distinguishes a shipped
-  sheet, a completed read with no decision point, and an unread source. Run
+  [`coverage.md`](coverage.md) names every catalog topic and distinguishes a completed
+  sheet, a completed read with no decision point, and an unread source. Its separate
+  artifact column can name partial work without changing that state. Run
   `python tools/threshold_coverage.py` to re-derive the counts. An `unread` row is not
   a negative finding about a guideline.
 - **Most of the corpus can be gated now, and the number is measured.**

@@ -402,8 +402,9 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
             cells[2]
             for line in coverage.splitlines()
             if line.startswith("| ")
-            and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 3
-            and cells[1] == "sheet"
+            and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 4
+            and cells[1] in {"sheet", "none", "unread"}
+            and cells[2]
         )
         self.assertEqual(sheets, registered)
         self.assertIn("thresholds/coverage.md", self.text)

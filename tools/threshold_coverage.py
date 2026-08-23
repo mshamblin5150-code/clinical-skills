@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
-SCHEMA_MARKER = "<!-- schema: threshold-coverage/1 -->"
+SCHEMA_MARKER = "<!-- schema: threshold-coverage/2 -->"
 STATES = ("sheet", "none", "unread")
 
 
@@ -25,6 +25,7 @@ STATES = ("sheet", "none", "unread")
 class Entry:
     topic: str
     state: str
+    artifact: str
     record: str
     line: int
 
@@ -42,25 +43,29 @@ def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
     entries: list[Entry] = []
     in_table = False
     for number, line in enumerate(text.splitlines(), start=1):
-        if re.match(r"^\|\s*topic\s*\|\s*state\s*\|\s*record\s*\|\s*$", line, re.I):
+        if re.match(
+            r"^\|\s*topic\s*\|\s*state\s*\|\s*artifact\s*\|\s*record\s*\|\s*$",
+            line,
+            re.I,
+        ):
             in_table = True
             continue
         if not in_table or not line.startswith("|"):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) != 3 or all(set(cell) <= set("-: ") and cell for cell in cells):
+        if len(cells) != 4 or all(set(cell) <= set("-: ") and cell for cell in cells):
             continue
-        entries.append(Entry(cells[0], cells[1].casefold(), cells[2], number))
+        entries.append(Entry(cells[0], cells[1].casefold(), cells[2], cells[3], number))
     return entries, problems
 
 
 def render_draft(topics: list[str]) -> str:
-    rows = "\n".join(f"| {topic} |  |  |" for topic in topics)
+    rows = "\n".join(f"| {topic} |  |  |  |" for topic in topics)
     return (
         "# Threshold-sheet coverage\n\n"
         f"{SCHEMA_MARKER}\n\n"
-        "| topic | state | record |\n"
-        "| --- | --- | --- |\n"
+        "| topic | state | artifact | record |\n"
+        "| --- | --- | --- | --- |\n"
         f"{rows}\n"
     )
 
@@ -81,15 +86,19 @@ def audit(
             failures.append(
                 f"coverage.md:{entry.line} topic '{entry.topic}' state '{entry.state}' has no record"
             )
-        if entry.state == "sheet" and entry.record:
-            record = Path(entry.record)
-            if record.name != entry.record or record.suffix.casefold() != ".md":
+        if entry.state == "sheet" and not entry.artifact:
+            failures.append(
+                f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' has no artifact"
+            )
+        if entry.artifact:
+            artifact = Path(entry.artifact)
+            if artifact.name != entry.artifact or artifact.suffix.casefold() != ".md":
                 failures.append(
-                    f"coverage.md:{entry.line} topic '{entry.topic}' has invalid sheet record '{entry.record}'"
+                    f"coverage.md:{entry.line} topic '{entry.topic}' has invalid artifact '{entry.artifact}'"
                 )
-            elif not (sheet_root / record).is_file():
+            elif not (sheet_root / artifact).is_file():
                 failures.append(
-                    f"coverage.md:{entry.line} sheet '{entry.record}' does not exist"
+                    f"coverage.md:{entry.line} artifact '{entry.artifact}' does not exist"
                 )
 
     wanted = {topic.casefold(): topic for topic in topics}
@@ -105,15 +114,15 @@ def audit(
                 failures.append(f"coverage.md:{entry.line} unknown topic '{entry.topic}'")
 
     registered = {
-        entry.record.casefold()
+        entry.artifact.casefold()
         for entry in entries
-        if entry.state == "sheet" and entry.record
+        if entry.artifact
     }
     for path in sorted(sheet_root.glob("*.md")):
         if path.name.casefold() in {"readme.md", "coverage.md"}:
             continue
         if path.name.casefold() not in registered:
-            failures.append(f"sheet '{path.name}' has no registry row in state 'sheet'")
+            failures.append(f"sheet '{path.name}' has no registry artifact")
     return failures, counts
 
 

@@ -24,10 +24,10 @@ CATALOG = """| society | filename | title | topic | population | year | page_cou
 def registry(*rows: str) -> str:
     return """# Threshold-sheet coverage
 
-<!-- schema: threshold-coverage/1 -->
+<!-- schema: threshold-coverage/2 -->
 
-| topic | state | record |
-| --- | --- | --- |
+| topic | state | artifact | record |
+| --- | --- | --- | --- |
 """ + "".join(rows)
 
 
@@ -70,14 +70,14 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.count("| cervical cancer |"), 1)
         self.assertEqual(result.stdout.count("| hypertension |"), 1)
-        self.assertIn("<!-- schema: threshold-coverage/1 -->", result.stdout)
+        self.assertIn("<!-- schema: threshold-coverage/2 -->", result.stdout)
 
     def test_a_complete_registry_reports_rederived_state_counts(self):
         result = self.run_cli(
             CATALOG,
             registry(
-                "| cervical cancer | none | guideline read; no decision point |\n",
-                "| hypertension | unread | blocked on #436 |\n",
+                "| cervical cancer | none |  | guideline read; no decision point |\n",
+                "| hypertension | unread |  | blocked on #436 |\n",
             ),
         )
 
@@ -90,8 +90,8 @@ class ThresholdCoverageCli(unittest.TestCase):
         result = self.run_cli(
             CATALOG,
             registry(
-                "| cervical cancer | pending | later |\n",
-                "| cervical cancer | none | guideline read; no decision point |\n",
+                "| cervical cancer | pending |  | later |\n",
+                "| cervical cancer | none |  | guideline read; no decision point |\n",
             ),
         )
 
@@ -100,18 +100,55 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertIn("missing topic 'hypertension'", result.stderr)
         self.assertIn("unknown state 'pending'", result.stderr)
 
-    def test_a_state_requires_a_record_and_sheet_state_requires_its_file(self):
+    def test_a_state_requires_a_record_and_sheet_state_requires_an_artifact(self):
         result = self.run_cli(
             CATALOG,
             registry(
-                "| cervical cancer | sheet | cervical-cancer.md |\n",
-                "| hypertension | unread |  |\n",
+                "| cervical cancer | sheet |  | full-document read complete |\n",
+                "| hypertension | unread |  |  |\n",
             ),
         )
 
         self.assertEqual(result.returncode, 1)
-        self.assertIn("sheet 'cervical-cancer.md' does not exist", result.stderr)
+        self.assertIn("state 'sheet' has no artifact", result.stderr)
         self.assertIn("state 'unread' has no record", result.stderr)
+
+    def test_an_unread_topic_may_register_a_partial_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            coverage = root / "coverage.md"
+            sheets = root / "thresholds"
+            catalog.write_text(CATALOG, encoding="utf-8")
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text("partial", encoding="utf-8")
+            coverage.write_text(
+                registry(
+                    "| cervical cancer | unread | cervical.md | full-document read pending |\n",
+                    "| hypertension | unread |  | blocked on #436 |\n",
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMMAND),
+                    "--catalog",
+                    str(catalog),
+                    "--coverage",
+                    str(coverage),
+                    "--sheet-root",
+                    str(sheets),
+                ],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_the_committed_registry_audits_against_the_committed_catalog_and_sheets(self):
         result = subprocess.run(

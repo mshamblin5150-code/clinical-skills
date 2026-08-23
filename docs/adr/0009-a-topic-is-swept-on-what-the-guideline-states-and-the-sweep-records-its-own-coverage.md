@@ -15,7 +15,8 @@ clinician ruled the term and the sweep on 2026-08-22.
    row for every distinct topic derived from
    [`reference/guidelines-catalog.md`](../../reference/guidelines-catalog.md). Each row
    is in state `sheet`, `none`, or `unread`, and the registry auditor re-derives both
-   the population and the state counts.
+   the population and the state counts. A separate optional artifact column can name
+   partial work; an artifact does not change an `unread` topic's state.
 4. **A method-dependent value names the method in its quantity key.** Quantity keys
    are declared under `## Quantities` on the same terms that population keys are
    declared under `## Populations`. This represents alternatives without pretending
@@ -57,7 +58,7 @@ then sources with no recommendation record. Bound-only topics wait on #436.
 The registry is an additional maintained artifact, and `none` is a substantive reading
 that a later source revision can invalidate. The auditor therefore derives its topic
 column from the catalog, requires every disposition to carry a record, and refuses a
-sheet that is absent from the registry or a `sheet` row whose file is absent.
+sheet that is absent from the artifact column or a `sheet` row with no artifact.
 
 ## Rejected
 
