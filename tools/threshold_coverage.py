@@ -114,6 +114,13 @@ def audit(
                         f"a usable threshold-sheet/2: {sheet.why_not}"
                     )
                     continue
+                schema_findings = threshold_sheet.gate_schema(sheet).findings
+                if schema_findings:
+                    failures.append(
+                        f"coverage.md:{entry.line} artifact '{entry.artifact}' fails "
+                        "threshold-sheet/2 schema: " + "; ".join(schema_findings)
+                    )
+                    continue
                 unread = [span for span in sheet.spans if span.is_unread]
                 if entry.state == "sheet" and unread:
                     failures.append(

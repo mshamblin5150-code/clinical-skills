@@ -209,6 +209,28 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertIn("state 'sheet'", result.stderr)
         self.assertIn("unread span", result.stderr)
 
+    def test_registry_state_is_not_bound_to_an_artifact_that_fails_schema(self):
+        malformed = artifact("yes").replace(
+            "| whole document | 1-10 | yes |",
+            "| whole document | 1-10 | banana |",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(malformed, encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | sheet | cervical.md | complete |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("fails threshold-sheet/2 schema", result.stderr)
+        self.assertIn("invalid read value", result.stderr)
+
     def test_a_complete_artifact_stranded_under_unread_refuses(self):
         """The second direction reproduces #455 rather than only asserting symmetry."""
         with tempfile.TemporaryDirectory() as directory:

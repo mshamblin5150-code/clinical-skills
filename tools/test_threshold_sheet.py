@@ -1322,6 +1322,13 @@ class ScopeSpanTable(unittest.TestCase):
         )
         self.assertEqual(self.findings(text), [])
 
+    def test_an_impossible_null_marker_date_is_refused(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | read 2026-99-99 |",
+        )
+        self.assertTrue(any("invalid read value" in item for item in self.findings(text)))
+
     def test_only_references_may_use_a_reasoned_class_exemption(self):
         allowed = HEADER.replace(
             "| narrative sections and appendices | 51-60 | no |",
@@ -1607,7 +1614,7 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
     RECS_ROOT = Path("C:/codeing/guidelines-index")
     SECOND_READ = RECS_ROOT / "second-read-diabetes.json"
 
-    def test_all_seven_gates_grade_the_committed_diabetes_sheet(self):
+    def test_the_complete_gate_set_grades_the_committed_diabetes_sheet(self):
         required = (
             self.PDF_ROOT / "ADA" / "standards-of-care-2026.pdf",
             self.TEXT_ROOT / "manifest.json",

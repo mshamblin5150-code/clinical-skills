@@ -217,6 +217,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 import guidelines_extract
@@ -529,7 +530,14 @@ class Span:
 
     @property
     def has_dated_marker(self) -> bool:
-        return _DATED_SPAN_READ.fullmatch(self.read) is not None
+        match = _DATED_SPAN_READ.fullmatch(self.read)
+        if match is None:
+            return False
+        try:
+            date.fromisoformat(match.group("date"))
+        except ValueError:
+            return False
+        return True
 
     @property
     def exemption_reason(self) -> str | None:
