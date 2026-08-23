@@ -33,14 +33,16 @@ class TheInitialPostHasOneRoutingSurface(unittest.TestCase):
         description = read(CASE_STUDY).split("---", 2)[1]
         self.assertNotIn("discussion board", description)
 
-    def test_practicum_accepts_the_board_run_and_scopes_both_ledgers_to_it(self):
+    def test_practicum_scopes_every_run_artifact_to_the_derived_directory(self):
         case_study = read(CASE_STUDY)
 
-        self.assertIn("board run directory", case_study)
+        self.assertIn("scratch/runs/<course>-<module>-case-study/", case_study)
         self.assertIn("<run-directory>/claims.md", case_study)
         self.assertIn("<run-directory>/checks.md", case_study)
-        self.assertEqual(1, case_study.count("scratch/case-study-claims.md"))
-        self.assertEqual(1, case_study.count("scratch/case-study-checks.md"))
+        self.assertNotIn("scratch/claims.md", case_study)
+        self.assertNotIn("scratch/checks.md", case_study)
+        self.assertIn("<run-directory>/evidence.txt", case_study)
+        self.assertIn("<run-directory>/proposed-<date>.md", case_study)
         self.assertGreater(case_study.count("<claims-ledger>"), 6)
         self.assertGreater(case_study.count("<checks-ledger>"), 3)
         self.assertRegex(case_study, r"(?is)every signed bar element.*finished draft")
@@ -55,10 +57,10 @@ class TheInitialPostHasOneRoutingSurface(unittest.TestCase):
 
         self.assertIsNotNone(route)
         self.assertLess(route.start(), classmate_read)
-        self.assertRegex(
-            case_study := read(CASE_STUDY),
-            r"(?is)board run directory.*owns.*board-<date>\.md.*bar\.md",
-        )
+        case_study = read(CASE_STUDY)
+        self.assertIn("case-study run directory", case_study)
+        self.assertIn("board-<date>.md", case_study)
+        self.assertIn("bar.md", case_study)
         self.assertIn("does not see the classmate posts", case_study)
         self.assertRegex(case_study, r"(?is)after the draft exists.*differentiation\.md")
 
@@ -73,7 +75,7 @@ class OneBoardOwnsOneRun(unittest.TestCase):
         for path in (POST, REPLY):
             with self.subTest(skill=path.parent.name):
                 text = read(path)
-                self.assertIn("scratch/runs/<course>-<module>/", text)
+                self.assertIn("scratch/runs/<course>-<module>-discussion/", text)
                 self.assertIn("board-<date>.md", text)
                 self.assertNotIn("<course>-<module>-<date>", text)
 
@@ -88,7 +90,7 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
             "research_ledger.py",
             "reference_scan.py",
             "discussion_post_scan.py",
-            "output/discussions/<course>-<module>.md",
+            "output/discussions/<course>-<module>-discussion-<date>.md",
             "docx_write.py",
             "explicit go-ahead",
         ):

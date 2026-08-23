@@ -49,6 +49,12 @@ paragraph has no named heading style or outline level; bold and level-three ital
 run properties, while centering and the level-four indent remain paragraph properties.
 This is the paste-target mode ruled on #418. Everything outside headings is unchanged.
 
+**A finished submission never lands in a disposable worktree, and that is #417.**
+``write_docx`` asks ``repo_root.ensure_main_checkout`` about the destination before creating its
+parent directory. The main checkout and a deliberate external export are allowed; a foreign
+checkout is refused, and the command boundary converts that refusal to exit 2 with the surviving
+main ``output/`` path.
+
 **It refuses to overwrite a document it did not write, and that is #279.** ``output/``
 is gitignored, so a destructive write here has no recovery -- and the destination is the
 one file this repo produces that a human opens in an editor. Two failures, and neither is
@@ -107,6 +113,7 @@ import zipfile
 from pathlib import Path
 
 from console_codec import use_utf8
+from repo_root import ForeignCheckout, ensure_main_checkout
 
 # Twips throughout. One inch is 1440.
 MARGIN = 1440
@@ -1189,7 +1196,7 @@ def write_docx(
     before the sibling existed, so nothing exercised the cleanup. One mechanism, and the
     limb is now on the path the test drives.
     """
-    destination = Path(destination)
+    destination = ensure_main_checkout(destination)
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
     if not force:
@@ -1243,6 +1250,9 @@ def main(argv: list) -> int:
             force=force,
             bold_headings=bold_headings,
         )
+    except ForeignCheckout as reason:
+        print("refused: {r}".format(r=reason), file=sys.stderr)
+        return 2
     except RefusedToOverwrite as reason:
         # 2 is every way of not having written, on ``docx_read.py``'s convention. There
         # is no 1, because a writer has no "found nothing" to report -- but that is a

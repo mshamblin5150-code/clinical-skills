@@ -122,7 +122,7 @@ def run(argv: list[str]) -> tuple[int, str, str]:
     return status, out.getvalue(), err.getvalue()
 
 
-def in_a_file(text: str, name: str = "case-study-checks.md"):
+def in_a_file(text: str, name: str = "checks.md"):
     """Write ``text`` to a throwaway directory and hand back the path."""
     directory = tempfile.TemporaryDirectory()
     path = Path(directory.name) / name
@@ -511,7 +511,7 @@ class ACleanSaysWhatItWalkedOnTheExpensiveRows(unittest.TestCase):
         silently. The names printed are the module's own tuple, so this prints no
         text the run wrote."""
         scan = checks.survey(checks.read_records(whole_file()))
-        report = checks.format_report(scan, source="case-study-checks.md")
+        report = checks.format_report(scan, source="checks.md")
         for name in checks.SUBSTANTIATED_CLEAN:
             with self.subTest(check=name):
                 self.assertIn(name, report)
@@ -536,7 +536,7 @@ class ACleanSaysWhatItWalkedOnTheExpensiveRows(unittest.TestCase):
         scan = checks.survey(checks.read_records(bare))
         self.assertEqual(scan.clean_required, len(checks.SUBSTANTIATED_CLEAN))
         self.assertEqual(scan.failing_checks, len(checks.SUBSTANTIATED_CLEAN))
-        report = checks.format_report(scan, source="case-study-checks.md")
+        report = checks.format_report(scan, source="checks.md")
         self.assertIn("must say what it walked", report)
         self.assertNotIn("saying what it walked", report)
 
@@ -548,34 +548,34 @@ class TheReportCarriesNoFindingTextWithoutShow(unittest.TestCase):
     def test_the_default_report_prints_no_finding_text(self):
         text = whole_file(CLEAN_RECORD, DEFECT_RECORD).replace("VERDICT: defect", "VERDICT: awful")
         scan = checks.survey(checks.read_records(text))
-        report = checks.format_report(scan, source="case-study-checks.md")
+        report = checks.format_report(scan, source="checks.md")
         self.assertNotIn("awful", report)
         self.assertNotIn("diverticulitis", report)
 
     def test_show_prints_it(self):
         text = whole_file(CLEAN_RECORD, DEFECT_RECORD).replace("VERDICT: defect", "VERDICT: awful")
         scan = checks.survey(checks.read_records(text))
-        report = checks.format_report(scan, source="case-study-checks.md", show=True)
+        report = checks.format_report(scan, source="checks.md", show=True)
         self.assertIn("PHI", report)
         self.assertIn("awful", report)
 
     def test_every_row_is_named_in_the_report_with_its_ticket(self):
-        report = checks.format_report(self.scan, source="case-study-checks.md")
+        report = checks.format_report(self.scan, source="checks.md")
         for kind in checks.KINDS:
             with self.subTest(row=kind):
                 self.assertIn(kind, report)
                 self.assertIn(f"{checks.ROWS[kind]} - {kind}", report)
 
     def test_the_report_names_the_file_and_never_a_path(self):
-        report = checks.format_report(self.scan, source="case-study-checks.md")
-        self.assertIn("case-study-checks.md", report)
+        report = checks.format_report(self.scan, source="checks.md")
+        self.assertIn("checks.md", report)
 
     def test_the_default_report_names_a_missing_check(self):
         """The one thing it prints beside a count, and the string comes from
         ``EXPECTED_CHECKS`` rather than from the file."""
         text = "\n".join(a_clean_record(name) for name in checks.EXPECTED_CHECKS[:-1])
         scan = checks.survey(checks.read_records(text))
-        report = checks.format_report(scan, source="case-study-checks.md")
+        report = checks.format_report(scan, source="checks.md")
         self.assertIn(checks.EXPECTED_CHECKS[-1], report)
 
     def test_a_heading_outside_the_table_is_never_named_without_show(self):
@@ -584,14 +584,14 @@ class TheReportCarriesNoFindingTextWithoutShow(unittest.TestCase):
         text = whole_file() + "\n## CHECK: the patient's own words\nVERDICT: clean\n"
         scan = checks.survey(checks.read_records(text))
         self.assertEqual(scan.outside_the_table, 1)
-        self.assertNotIn("the patient", checks.format_report(scan, source="case-study-checks.md"))
+        self.assertNotIn("the patient", checks.format_report(scan, source="checks.md"))
 
     def test_a_duplicate_heading_is_counted_and_not_named_without_show(self):
         """A duplicate's name is read off the file, so it takes the file's rule
         and not the missing-check exception."""
         extra = "## CHECK: the patient's own words\nVERDICT: clean\n"
         scan = checks.survey(checks.read_records(whole_file() + "\n" + extra + "\n" + extra))
-        report = checks.format_report(scan, source="case-study-checks.md")
+        report = checks.format_report(scan, source="checks.md")
         self.assertIn(f"{checks.DUPLICATE_CHECK:<{checks.KIND_COLUMN}} 1", report)
         self.assertNotIn("the patient", report)
 
@@ -672,7 +672,7 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def test_the_error_messages_name_the_file_and_never_the_path(self):
         """A checks file sits under ``scratch/``, so the path is a directory
         naming a patient's run."""
-        directory, path = in_a_file("nothing here\n", name="case-study-checks.md")
+        directory, path = in_a_file("nothing here\n", name="checks.md")
         with directory:
             _status, _out, err = run([str(path)])
         self.assertNotIn(str(path.parent), err)
@@ -836,8 +836,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("A clean scan is not a checked draft", self.skill)
 
     def test_the_skill_sends_the_checks_file_to_a_gitignored_directory(self):
-        self.assertIn("scratch/case-study-checks.md", self.skill)
-        self.assertNotIn("output/case-study-checks.md", self.skill)
+        self.assertIn("<run-directory>/checks.md", self.skill)
+        ledger_lines = [line for line in self.skill.splitlines() if "checks.md" in line]
+        self.assertTrue(ledger_lines)
+        self.assertFalse(any("output/" in line for line in ledger_lines))
 
     def test_the_skill_keeps_one_writer_on_the_checks_file(self):
         self.assertIn("They return their record; they do not write it", self.skill)

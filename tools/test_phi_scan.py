@@ -17,6 +17,7 @@ from random import Random
 
 import name_index as ni
 import phi_scan as ps
+from repo_root import output_root, scratch_root
 
 NAMES = {"Jordan Vance", "Priya Raman"}
 DATES = {"4-17-88", "11/02/2011"}
@@ -448,6 +449,11 @@ class PhiDirectories(unittest.TestCase):
         for directory in ("scratch/", "output/"):
             with self.subTest(directory=directory):
                 self.assertIn(directory, ps.PHI_DIRECTORIES)
+
+    def test_shared_root_names_are_bound_to_the_path_layer(self):
+        """A renamed output root must not escape both gitignore and the PHI guard."""
+        self.assertIn(scratch_root().name + "/", ps.PHI_DIRECTORIES)
+        self.assertIn(output_root().name + "/", ps.PHI_DIRECTORIES)
 
     def test_gitignore_lists_every_guarded_directory(self):
         """A guarded directory that is not gitignored is a trap, not a guard."""
