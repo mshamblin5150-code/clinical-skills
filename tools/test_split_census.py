@@ -135,6 +135,8 @@ class CommandTests(unittest.TestCase):
             (Path(tmp) / "synthetic.pdf").touch()
             with mock.patch.object(
                 census, "scan_corpus", return_value=measured
+            ), mock.patch.object(
+                census.guidelines_extract, "require_pymupdf"
             ), redirect_stdout(io.StringIO()) as out:
                 status = census.main([tmp])
 
@@ -148,7 +150,9 @@ class CommandTests(unittest.TestCase):
         (root / "synthetic.pdf").touch()
         with mock.patch.object(census, "scan_corpus", return_value=measured), mock.patch.object(
             census, "harvest_lexicon", return_value={"primary", "care"}
-        ) as harvest, redirect_stdout(io.StringIO()):
+        ) as harvest, mock.patch.object(
+            census.guidelines_extract, "require_pymupdf"
+        ), redirect_stdout(io.StringIO()):
             status = census.main(["--classify", str(root)])
 
         self.assertEqual(status, 0)
