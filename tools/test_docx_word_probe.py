@@ -103,12 +103,37 @@ class TheCommittedWordMeasurement(unittest.TestCase):
         self.assertTrue(guard["original_and_saved_part_sets_equal"])
         self.assertFalse(guard["destination_guard_would_refuse"])
 
+    def test_the_heading_clipboard_measurements_are_dated_and_versioned(self):
+        record = json.loads(self.RECORD.read_text(encoding="utf-8"))
+        specs = {spec.key: spec for spec in docx_word_probe.PASTE_CALIBRATIONS}
+        self.assertEqual(set(record["paste_rows"]), set(specs))
+        for key, row in record["paste_rows"].items():
+            with self.subTest(key=key):
+                self.assertEqual(row["measured_on"], "2026-08-22")
+                self.assertEqual(row["word_version"], "16.0")
+                self.assertTrue(row["word_build"])
+                self.assertEqual(row["verdict"], specs[key].verdict)
+                self.assertTrue(row["word_observation"])
+                self.assertTrue(row["renderer_shape"])
+
+    def test_the_heading_measurement_still_covers_both_renderer_shapes(self):
+        record = json.loads(self.RECORD.read_text(encoding="utf-8"))
+        expected = {
+            key: row["renderer_shape"]
+            for key, row in record["paste_rows"].items()
+        }
+        self.assertEqual(docx_word_probe.paste_renderer_shapes(), expected)
+
 
 class TheMaintainerCommand(unittest.TestCase):
     def test_word_mode_has_one_probe_for_every_calibration(self):
         self.assertEqual(
             set(docx_word_probe.PROBES),
             {spec.key for spec in docx_word_probe.CALIBRATIONS},
+        )
+        self.assertEqual(
+            set(docx_word_probe.PASTE_PROBES),
+            {spec.key for spec in docx_word_probe.PASTE_CALIBRATIONS},
         )
 
     def test_shape_mode_prints_the_word_free_side_without_opening_word(self):
@@ -122,6 +147,10 @@ class TheMaintainerCommand(unittest.TestCase):
             set(report["rows"]), {spec.key for spec in docx_word_probe.CALIBRATIONS}
         )
         self.assertEqual(report["instrument"], "renderer XML shape only; Word not opened")
+        self.assertEqual(
+            set(report["paste_rows"]),
+            {spec.key for spec in docx_word_probe.PASTE_CALIBRATIONS},
+        )
 
 
 if __name__ == "__main__":

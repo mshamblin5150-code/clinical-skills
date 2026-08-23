@@ -49,6 +49,29 @@ CALIBRATIONS = (
     Calibration("reference-single-paragraph", "one paragraph", "not applied"),
 )
 
+PASTE_CALIBRATIONS = (
+    Calibration(
+        "named-heading-clipboard",
+        "a named heading becomes a heading tag on the clipboard",
+        "observed",
+    ),
+    Calibration(
+        "unnamed-heading-clipboard",
+        "a heading style with no name becomes a normal paragraph without bold",
+        "observed",
+    ),
+    Calibration(
+        "renamed-heading-clipboard",
+        "a renamed heading style carries bold only in the clipboard stylesheet",
+        "observed",
+    ),
+    Calibration(
+        "direct-heading-clipboard",
+        "a directly bold heading becomes an inline bold paragraph on the clipboard",
+        "observed",
+    ),
+)
+
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -88,13 +111,48 @@ PROBES = {
     "reference-single-paragraph": HARD_WRAP,
 }
 
+HEADING_PROBE_MARKDOWN = (
+    "# Level One Heading\n\n### Level Three Heading\n\n#### Level Four Heading\n"
+)
+PASTE_PROBES = {
+    "named-heading-clipboard": "named",
+    "unnamed-heading-clipboard": "unnamed",
+    "renamed-heading-clipboard": "renamed",
+    "direct-heading-clipboard": "direct",
+}
 
-def _rendered_parts(markdown: str) -> dict[str, bytes]:
+
+def _rendered_parts(markdown: str, bold_headings: bool = False) -> dict[str, bytes]:
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "probe.docx"
-        docx_write.write_docx(markdown, path)
+        docx_write.write_docx(markdown, path, bold_headings=bold_headings)
         with zipfile.ZipFile(path) as archive:
             return {name: archive.read(name) for name in archive.namelist()}
+
+
+def _paste_probe_parts(mode: str) -> dict[str, bytes]:
+    parts = _rendered_parts(
+        HEADING_PROBE_MARKDOWN, bold_headings=mode == "direct"
+    )
+    if mode not in {"unnamed", "renamed"}:
+        return parts
+    styles = parts["word/styles.xml"].decode("utf-8")
+    for level in range(1, 5):
+        original = '<w:name w:val="heading {n}"/>'.format(n=level)
+        replacement = (
+            ""
+            if mode == "unnamed"
+            else '<w:name w:val="APA Head {n}"/>'.format(n=level)
+        )
+        styles = styles.replace(original, replacement)
+    parts["word/styles.xml"] = styles.encode("utf-8")
+    return parts
+
+
+def _write_parts(parts: dict[str, bytes], destination: Path) -> None:
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, content in parts.items():
+            archive.writestr(name, content)
 
 
 def _root(parts: dict[str, bytes], name: str):
@@ -306,6 +364,60 @@ def renderer_shapes() -> dict[str, dict]:
     }
 
 
+def paste_renderer_shapes() -> dict[str, dict]:
+    """The renderer side of the dated Word-to-clipboard observations."""
+
+    shapes = {}
+    heading_texts = (
+        "Level One Heading",
+        "Level Three Heading",
+        "Level Four Heading",
+    )
+    for key, mode in PASTE_PROBES.items():
+        parts = _paste_probe_parts(mode)
+        document = _root(parts, "word/document.xml")
+        styles = _root(parts, "word/styles.xml")
+        paragraphs = [_paragraph(document, text) for text in heading_texts]
+        style_ids = [_paragraph_style(paragraph) for paragraph in paragraphs]
+        referenced_styles = [
+            _style(styles, style_id) for style_id in style_ids if style_id is not None
+        ]
+        shapes[key] = {
+            "paragraph_styles": style_ids,
+            "referenced_style_names": [
+                _attr(style.find("./" + W + "name"), "val")
+                for style in referenced_styles
+            ],
+            "outline_levels": [
+                _attr(style.find("./" + W + "pPr/" + W + "outlineLvl"), "val")
+                for style in referenced_styles
+            ],
+            "direct_bold": [
+                all(
+                    run.find("./" + W + "rPr/" + W + "b") is not None
+                    for run in paragraph.findall("./" + W + "r")
+                )
+                for paragraph in paragraphs
+            ],
+            "direct_italic": [
+                all(
+                    run.find("./" + W + "rPr/" + W + "i") is not None
+                    for run in paragraph.findall("./" + W + "r")
+                )
+                for paragraph in paragraphs
+            ],
+            "direct_left_indent_twips": [
+                _attr(paragraph.find("./" + W + "pPr/" + W + "ind"), "left")
+                for paragraph in paragraphs
+            ],
+            "direct_alignment": [
+                _attr(paragraph.find("./" + W + "pPr/" + W + "jc"), "val")
+                for paragraph in paragraphs
+            ],
+        }
+    return shapes
+
+
 def word_report() -> dict:
     """Render one probe per row, ask installed Word what it draws, and return JSON data."""
 
@@ -314,6 +426,8 @@ def word_report() -> dict:
         root = Path(directory)
         for key, markdown in PROBES.items():
             docx_write.write_docx(markdown, root / (key + ".docx"))
+        for key, mode in PASTE_PROBES.items():
+            _write_parts(_paste_probe_parts(mode), root / (key + ".docx"))
         docx_write.write_docx(TITLE, root / "word-saved.docx")
         completed = subprocess.run(
             [
@@ -347,6 +461,7 @@ def word_report() -> dict:
             "destination_guard_would_refuse": set(saved_parts) != set(original_parts),
         }
     report["renderer_shapes"] = renderer_shapes()
+    report["paste_renderer_shapes"] = paste_renderer_shapes()
     return report
 
 
@@ -358,6 +473,7 @@ def main(argv=None) -> int:
                 {
                     "instrument": "renderer XML shape only; Word not opened",
                     "rows": renderer_shapes(),
+                    "paste_rows": paste_renderer_shapes(),
                 },
                 indent=2,
                 sort_keys=True,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -94,6 +95,13 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, post)
 
+    def test_step_seven_renders_one_bold_heading_document_and_grades_it(self):
+        post = read(POST)
+        self.assertRegex(post, r"docx_write\.py[^\n]+--bold-headings")
+        self.assertRegex(post, r"discussion_post_scan\.py[^\n]+--docx")
+        self.assertNotRegex(post, r"(?i)manually demote|heading demotion")
+        self.assertNotRegex(post, r"carries the hanging indent.*heading structure")
+
     def test_the_post_claim_set_is_derived_from_citations_and_body_numbers(self):
         post = read(POST)
 
@@ -114,6 +122,20 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
 
         self.assertIn("does not see the classmate posts", post)
         self.assertIn("differentiation", post)
+
+
+class TheCanvasPasteMeasurement(unittest.TestCase):
+    RECORD = ROOT / "skills" / "discussion-post" / "reference" / "canvas-paste-calibration.json"
+
+    def test_scope_is_carried_in_schema_fields_and_the_observation_is_recorded(self):
+        record = json.loads(read(self.RECORD))
+        for field in ("measured_on", "institution", "course", "theme", "instrument"):
+            with self.subTest(field=field):
+                self.assertTrue(record[field])
+        self.assertEqual(record["measured_on"], "2026-08-22")
+        self.assertEqual(record["sanitizer"]["keeps"], "tags only")
+        self.assertTrue(record["rendered_type_scale"])
+        self.assertNotIn("editor", record["observed_in"])
 
 
 class VerifiedSourcesComposeAcrossTheBoard(unittest.TestCase):

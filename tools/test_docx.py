@@ -25,6 +25,7 @@ from xml.etree import ElementTree
 
 import docx_read
 import docx_write
+from prose_bind import ProseBind, normalized
 
 SOURCE = Path(__file__).resolve().parent / "docx_write.py"
 
@@ -470,6 +471,79 @@ class TheHeadingLevels(unittest.TestCase):
             self.assertEqual(seen, sorted(seen), level)
 
 
+class BoldHeadingsForPaste(unittest.TestCase):
+    """Ticket #418's public renderer mode: headings carry direct formatting."""
+
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+    def paragraphs(self):
+        markdown = "# One\n\n## Two\n\n### Three\n\n#### Four\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "paste.docx"
+            docx_write.write_docx(markdown, path, bold_headings=True)
+            with zipfile.ZipFile(path) as archive:
+                document = ElementTree.fromstring(archive.read("word/document.xml"))
+        paragraphs = {
+            "".join(node.text or "" for node in paragraph.iter(self.W + "t")): paragraph
+            for paragraph in document.iter(self.W + "p")
+        }
+        return {text: paragraphs[text] for text in ("One", "Two", "Three", "Four")}
+
+    def test_every_heading_is_directly_bold_without_a_named_heading_style(self):
+        for text, paragraph in self.paragraphs().items():
+            with self.subTest(text=text):
+                self.assertIsNone(paragraph.find("./" + self.W + "pPr/" + self.W + "pStyle"))
+                self.assertIsNone(paragraph.find("./" + self.W + "pPr/" + self.W + "outlineLvl"))
+                runs = paragraph.findall("./" + self.W + "r")
+                self.assertTrue(runs)
+                self.assertTrue(
+                    all(run.find("./" + self.W + "rPr/" + self.W + "b") is not None for run in runs)
+                )
+
+    def test_level_three_is_directly_italic_and_level_four_keeps_its_indent(self):
+        paragraphs = self.paragraphs()
+        for text in ("One", "Two", "Four"):
+            self.assertIsNone(
+                paragraphs[text].find("./" + self.W + "r/" + self.W + "rPr/" + self.W + "i")
+            )
+        self.assertIsNotNone(
+            paragraphs["Three"].find("./" + self.W + "r/" + self.W + "rPr/" + self.W + "i")
+        )
+        indent = paragraphs["Four"].find("./" + self.W + "pPr/" + self.W + "ind")
+        self.assertEqual(indent.get(self.W + "left"), str(docx_write.HANGING))
+
+    def test_level_one_keeps_its_centering(self):
+        alignment = self.paragraphs()["One"].find(
+            "./" + self.W + "pPr/" + self.W + "jc"
+        )
+        self.assertEqual(alignment.get(self.W + "val"), "center")
+
+    def test_the_cli_accepts_the_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "post.md"
+            destination = Path(directory) / "post.docx"
+            source.write_text("# Heading\n", encoding="utf-8")
+            status = docx_write.main(
+                [str(source), str(destination), "--bold-headings"]
+            )
+        self.assertEqual(status, 0)
+
+    def test_nonheading_parts_and_paper_properties_are_unchanged(self):
+        markdown = (
+            "# Opening\n\nBody paragraph.\n\n# References\n\n"
+            "Quill, R. (2024). Example.\n"
+        )
+        ordinary = docx_write.parts(markdown)
+        direct = docx_write.parts(markdown, bold_headings=True)
+        for name in ordinary.keys() - {"word/document.xml"}:
+            self.assertEqual(ordinary[name], direct[name], name)
+        document = direct["word/document.xml"]
+        self.assertIn('<w:ind w:firstLine="720"/>', document)
+        self.assertIn('<w:pStyle w:val="Reference"/>', document)
+        self.assertIn("<w:pageBreakBefore/>", document)
+        self.assertIn('<w:jc w:val="center"/>', document)
+
+
 class TheHomoglyphFold(unittest.TestCase):
     """The UpToDate paste is salted, and a search over it fails silently without this."""
 
@@ -637,24 +711,23 @@ class TheTableRules(unittest.TestCase):
 
 
 class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
-    """#220's own comment: the list lives in two files and nothing pinned them together.
+    """#220's APA rows live in prose and code and are pinned together here.
 
-    ``apa7.md`` section 6 carries it for a reader of the skill and ``docx_write.py``
-    carries it for a reader of the code, and a **prose** edit to either failed nothing
-    -- so the reader who was misled is the one who checked the file nearer to hand.
-    The repair is ``REFERENCE_HEADING``'s: the docstring's copy stopped being a copy by
-    becoming ``NOT_APPLIED``, one object, and this asserts the sheet names the same
-    items.
+    ``apa7.md`` section 6 carries the APA subset for a reader of the skill and
+    ``docx_write.py`` carries the combined declared-limit object for a reader of the
+    code. A **prose** edit to either used to fail nothing, so this class selects the APA
+    rows and checks the sheet in both directions. ``PasteModeLimitsAreBoundToTheRuling``
+    owns the other prose surface without creating another limit registry.
 
     **Both of section 6's tables are read**, which the comment asked for and the first
     version of this class did not do -- it parsed the *not applied* table alone, so a row
     sitting in both tables at once, or wrongly promoted into the applied one, was
     invisible to it.
 
-    **What this bind does not reach** is whether a row's verdict is *true*. #323 adds
+    **What this bind does not reach** is whether an APA row's verdict is *true*. #323 adds
     ``EveryNotAppliedRowIsReDerivedFromTheRenderedArchive`` for that second property:
-    every current row is executed and a new row without a measurement fails its
-    exhaustive key comparison.
+    every current APA row is executed and a new sheet row without a measurement fails
+    its exhaustive key comparison.
     """
 
     SHEET = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
@@ -680,17 +753,25 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
 
     def test_every_item_the_module_names_is_a_row_on_the_sheet(self):
         rows = self.not_applied()
-        for key, _ in docx_write.NOT_APPLIED:
+        for key, _ in self.apa_limits():
             self.assertEqual(len([r for r in rows if key in r]), 1, key)
 
     def test_the_sheet_names_nothing_the_module_does_not(self):
-        self.assertEqual(len(self.not_applied()), len(docx_write.NOT_APPLIED))
+        self.assertEqual(len(self.not_applied()), len(self.apa_limits()))
 
     def test_no_item_sits_in_both_tables(self):
         """A row promoted by editing one table and not the other is the failure here."""
         applied = " ".join(self.applied())
-        for key, _ in docx_write.NOT_APPLIED:
+        for key, _ in self.apa_limits():
             self.assertNotIn(key, applied, key)
+
+    def apa_limits(self):
+        rows = self.not_applied()
+        return tuple(
+            (key, reason)
+            for key, reason in docx_write.NOT_APPLIED
+            if any(key in row for row in rows)
+        )
 
     def test_the_two_rows_this_ticket_applied_are_in_the_applied_table(self):
         """#220's rows, asserted where they are rather than only where they are not."""
@@ -706,7 +787,7 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
 
 
 class EveryNotAppliedRowIsReDerivedFromTheRenderedArchive(unittest.TestCase):
-    """#323: prove each row's verdict instead of only binding its name to §6."""
+    """#323: prove each APA row's verdict instead of only binding its name to §6."""
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
@@ -715,7 +796,8 @@ class EveryNotAppliedRowIsReDerivedFromTheRenderedArchive(unittest.TestCase):
             "alphabetized": self.alphabetized_references,
             "one paragraph": self.one_reference_paragraph,
         }
-        self.assertEqual(set(handlers), set(dict(docx_write.NOT_APPLIED)))
+        sheet = TheTwoCopiesOfWhatTheRendererApplies()
+        self.assertEqual(set(handlers), set(dict(sheet.apa_limits())))
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
@@ -753,6 +835,59 @@ class EveryNotAppliedRowIsReDerivedFromTheRenderedArchive(unittest.TestCase):
             "# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n"
         )["word/document.xml"]
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
+
+
+class PasteModeLimitsAreBoundToTheRuling(ProseBind, unittest.TestCase):
+    ADR = (
+        Path(__file__).resolve().parent.parent
+        / "docs"
+        / "adr"
+        / "0013-the-paste-target-keeps-tags-and-the-renderer-carries-formatting-directly.md"
+    )
+
+    def ruling_limits(self):
+        text = self.ADR.read_text(encoding="utf-8")
+        section = text.split("## What this does not settle", 1)[1].split(
+            "## Rejected alternatives", 1
+        )[0]
+        return tuple(
+            paragraph
+            for paragraph in section.split("\n\n")
+            if paragraph.strip()
+        )
+
+    def paste_limits(self):
+        paragraphs = self.ruling_limits()
+        return tuple(
+            (key, reason)
+            for key, reason in docx_write.NOT_APPLIED
+            if any(normalized(key) in normalized(paragraph) for paragraph in paragraphs)
+        )
+
+    def test_every_paste_limit_row_is_named_once_in_the_ruling(self):
+        paragraphs = self.ruling_limits()
+        for key, _reason in self.paste_limits():
+            self.assertEqual(
+                sum(normalized(key) in normalized(paragraph) for paragraph in paragraphs),
+                1,
+                key,
+            )
+
+    def test_every_ruling_limit_has_one_not_applied_row(self):
+        keys = tuple(key for key, _reason in self.paste_limits())
+        for paragraph in self.ruling_limits():
+            self.assertEqual(
+                sum(normalized(key) in normalized(paragraph) for key in keys),
+                1,
+                paragraph,
+            )
+
+    def test_every_not_applied_row_belongs_to_one_prose_source(self):
+        apa = TheTwoCopiesOfWhatTheRendererApplies().apa_limits()
+        self.assertCountEqual(
+            [key for key, _reason in docx_write.NOT_APPLIED],
+            [key for key, _reason in apa + self.paste_limits()],
+        )
 
 
 class TheRendererClaimsInStepSeven(unittest.TestCase):
@@ -1718,9 +1853,9 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         calls = []
         original = docx_write.render_body
 
-        def counted(markdown):
+        def counted(markdown, **options):
             calls.append(markdown)
-            return original(markdown)
+            return original(markdown, **options)
 
         docx_write.render_body = counted
         try:
