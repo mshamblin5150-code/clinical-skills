@@ -2,6 +2,8 @@
 
 [ADR 0005](0005-a-run-is-keyed-to-the-board.md) ruled the date out of the run key on 2026-08-22 and settled on `scratch/runs/<course>-<module>/`. Grilling [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417) on 2026-08-22 into 2026-08-23 found that `<course>-<module>` is not a key.
 
+**This record was ratified as `0010` and renumbered to `0014` on 2026-08-23**, by `git mv`, because it took a number [#406](https://github.com/mshamblin5150-code/clinical-skills/issues/406)'s untrusted-read ADR already held by ten hours. Nothing in the ruling changed. The allocation mechanism is [#452](https://github.com/mshamblin5150-code/clinical-skills/issues/452).
+
 **Nothing in this repo states that a module holds one graded artifact, and a Canvas module normally holds several.** Both discussion skills derive their key from the course and module breadcrumbs and stop there, so a module carrying both a discussion board and a case study puts two skills on one `claims.md`. That is #417's own defect 1 — one ledger path, several runs, silent overwrite — rebuilt inside the fix for it.
 
 The clinician ruled the artifact slot on 2026-08-22. The key is `scratch/runs/<course>-<module>-<artifact>/`.
