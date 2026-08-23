@@ -15,7 +15,7 @@ python tools/uspstf_table.py "C:/codeing/guidelines-text" --allow-untrusted-prov
 git add reference/guidelines-uspstf.md
 ```
 
-The clinician ruled on 2026-08-22: **when the escape hatch is set, a write aimed at a
+The clinician ruled on 2026-08-22: **when the escape hatch is set, publication to a
 path inside any git checkout is refused.** The flag is documented as existing for
 deliberate development work, and publishing a committed artifact is not development work.
 
@@ -23,11 +23,11 @@ deliberate development work, and publishing a committed artifact is not developm
 
 `artifact_provenance.refuse_publication(destination, *, allow_untrusted)` is a no-op when
 the flag is off and `repo_root.ensure_outside_checkout` when it is on. `uspstf_table` is
-its only caller today, because it is the only one of the flag-bearing commands that can
-write into the repo at all: `guidelines_search`, `guidelines_catalog` and
-`threshold_sheet` write nothing durable, `guidelines_index` is already guarded
-unconditionally, and `guidelines_manifest` writes into the extraction directory, which
-the extractor already refuses to place inside a checkout.
+its only caller today, because it is the only flag-bearing command whose durable
+destination can be inside the repo. `guidelines_search`, `guidelines_catalog` and
+`threshold_sheet` produce no durable artifact, `guidelines_index` is already guarded
+unconditionally, and `guidelines_manifest` targets the extraction directory, which the
+extractor already refuses to place inside a checkout.
 
 The refusal exits 2, on `docx_write.py`'s recorded rule that a writer's refusal is 2 and
 there is no 1, because a writer has no *found nothing* to report.
@@ -64,6 +64,6 @@ buildable from a dirty, foreign or unstamped corpus with nothing downstream able
 Four currently-open tickets are arguing about the contents of that exact file.
 
 **An AST completeness walk over every flag-bearing command.** Rejected as the predicate
-#176 already refused: it would have to decide mechanically which commands "write," and
-three of the six write nothing at all. Declaring the coverage is the standing answer where
-widening the instrument would require a guess.
+#176 already refused: it would have to decide mechanically which commands can publish,
+and some produce no durable artifact at all. Declaring the coverage is the standing
+answer where widening the instrument would require a guess.
