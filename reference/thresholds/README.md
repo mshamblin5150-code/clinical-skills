@@ -276,8 +276,26 @@ document as a whole, so a threshold row whose snippet happens to quote *"not rea
 cannot discharge the rule. That is `block_scan.py`'s mention-versus-use distinction,
 which applies wherever a keyword decides a verdict.
 
-It also carries `citations resolved against <corpus> on <date>`. That is the artifact's
-own record of when the citation gate last ran against real PDFs — see below.
+It also carries `citations resolved against <corpus> on <date>`. That is a **held
+declaration**, not a courteous footer. CITATION tier 2 refuses its absence whether the
+live PDF gate ran or skipped. When the gate ran, it also refuses a corpus path that does
+not resolve to the run's `--pdf-root` and a date in the future; an older date is not a
+finding. When the gate skipped, the line's content cannot be checked and is the only
+artifact-level distinction between *checked once against real PDFs* and *never checked*.
+
+The corpus token deliberately remains a machine-local path. A second machine reaches a
+disagreement only when its owner explicitly supplies a live `--pdf-root`; the ordinary hook
+keeps the absent maintainer-path default there, so tier 2 skips and cannot compare the two
+paths. After an explicit live run, updating the line makes the maintainer's next live run
+refuse in the mirror direction. That one-edit ping-pong is a declared limit and a re-ruling
+trigger, not a silent pass and not a request for date arithmetic.
+
+Every line currently present in `## Scope` is held by something. SCHEMA refuses a missing
+`Read:` or `Not read:` limb, and CITATION tier 2 holds the resolution declaration in both its
+live and skipped states. ADR 0019's accepted-distrust declaration is another instance of the
+same **Held declaration** principle, but its WATERMARK mechanism belongs to #460 and is not
+claimed by this build: the resolution declaration holds a skip and presence, while that
+separate declaration holds a pass.
 
 When WATERMARK passes only because `--allow-untrusted-provenance` admitted the
 extracted corpus, this section also carries the exact block the command prints:
