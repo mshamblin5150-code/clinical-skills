@@ -1,6 +1,6 @@
 """Render a Markdown subset to a .docx, with the standard library and nothing else.
 
-    python tools/docx_write.py <in.md> <out.docx> [--force]
+    python tools/docx_write.py <in.md> <out.docx> [--bold-headings] [--force]
 
 **Why this is not PyMuPDF, asked and answered once.** PyMuPDF reads and writes PDFs.
 A finished case study is submitted to Canvas as a Word document, and no PDF library
@@ -44,6 +44,11 @@ centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
 indented. The rubric gives APA format 5 of 100 points, and this is most of what that
 line can be given mechanically -- see ``skills/practicum-case-study/reference/rubric.md``.
 
+**``--bold-headings`` carries that same visible heading format directly.** The heading
+paragraph has no named heading style or outline level; bold and level-three italic are
+run properties, while centering and the level-four indent remain paragraph properties.
+This is the paste-target mode ruled on #418. Everything outside headings is unchanged.
+
 **It refuses to overwrite a document it did not write, and that is #279.** ``output/``
 is gitignored, so a destructive write here has no recovery -- and the destination is the
 one file this repo produces that a human opens in an editor. Two failures, and neither is
@@ -81,12 +86,11 @@ horizontal rules rather than a grid -- both #220, and both carved out where APA 
 them out: a heading, a list item, a reference entry and a table cell take no first line,
 and the one rule that is not a table edge sits on the header row's cells.
 
-**What it still does not do is ``NOT_APPLIED`` below, not this paragraph.** That list
-used to be prose here and prose again in ``apa7.md`` section 6, and a prose edit to
-either failed nothing -- so it is one object now, on ``REFERENCE_HEADING``'s precedent,
-and ``tools/test_docx.py`` asserts the sheet names the same items. **A rendered .docx is
-not an APA-formatted document**, which is ``skills/practicum-case-study/SKILL.md`` step
-9's sentence arriving one level down.
+**What it still does not do is ``NOT_APPLIED`` below, not this paragraph.** Its APA rows
+are bound to ``apa7.md`` section 6 and its paste-target rows are bound to ADR 0013;
+``tools/test_docx.py`` checks both prose surfaces in both directions with
+``prose_bind.py``. **A rendered .docx is not an APA-formatted document**, which is
+``skills/practicum-case-study/SKILL.md`` step 9's sentence arriving one level down.
 
 Covered by ``tools/test_docx.py``, which writes into a temp directory and reads the
 result back with ``docx_read``. Word is a one-time calibration instrument, not a
@@ -111,12 +115,12 @@ FIRST_LINE = 720
 LINE_DOUBLE = 480
 
 
-# What this renderer does **not** apply. One object rather than prose repeated in two
-# files -- ``skills/practicum-case-study/reference/apa7.md`` section 6 carries the same
-# list for a reader of the skill, and ``tools/test_docx.py`` asserts the two name the
-# same items. #220's own comment is why: a code regression fails a behavior test, and a
-# prose edit to either copy failed nothing, so the reader who was misled was the one who
-# checked the file nearer to hand.
+# What this renderer does **not** apply. One object rather than another prose inventory:
+# ``skills/practicum-case-study/reference/apa7.md`` section 6 names the APA limits and
+# ADR 0013 names the paste-target limits. ``tools/test_docx.py`` binds every row to one
+# of those prose surfaces and every prose limit back to a row. #220's own comment is why:
+# a code regression fails a behavior test, and a prose edit to either copy failed
+# nothing, so the reader who was misled was the one who checked the file nearer to hand.
 #
 # The first element is a **distinctive phrase from** the sheet's row, matched as a
 # substring -- not the phrase it opens with, which two of these are not. That is what
@@ -156,6 +160,27 @@ NOT_APPLIED = (
         "and the second hangs on nothing. Joining them is an edit on the same terms "
         "as sorting, and it is caught as an author defect instead -- by "
         "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
+    (
+        "cannot prove the paste target still draws it as recorded",
+        "The bold-heading gate reads the rendered archive, while the destination is "
+        "an external system whose dated observation is evidence rather than a live "
+        "check.",
+    ),
+    (
+        "which ``.docx`` was copied from",
+        "The scanner can establish the supplied archive's shape, but no offline "
+        "artifact records which open document supplied a later paste.",
+    ),
+    (
+        "unreachable in the box",
+        "The destination discards centering and hanging-indent formatting, and the "
+        "renderer cannot restore properties the paste sanitizer removes.",
+    ),
+    (
+        "figure nothing in this repo can re-derive",
+        "The destination measurement came from a third party and is preserved as a "
+        "dated observation; the repository has no instrument that can repeat it.",
     ),
 )
 
@@ -444,13 +469,13 @@ def esc(text: str) -> str:
 _INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*(?!\*)|`[^`]+?`)", re.DOTALL)
 
 
-def runs(text: str, bold: bool = False) -> str:
+def runs(text: str, bold: bool = False, italic: bool = False) -> str:
     """Split bold, italic and monospace spans into Word runs."""
     out = []
     for piece in _INLINE.split(text):
         if not piece:
             continue
-        is_bold, is_italic, is_mono = bold, False, False
+        is_bold, is_italic, is_mono = bold, italic, False
         body = piece
         if piece.startswith("**") and piece.endswith("**") and len(piece) > 4:
             inner = piece[2:-2]
@@ -461,7 +486,7 @@ def runs(text: str, bold: bool = False) -> str:
             # whole and never re-split. That is the stray ``*`` the clinician found
             # in the Most Likely Clinical Diagnosis line of a graded document.
             if _INLINE.search(inner):
-                out.append(runs(inner, bold=True))
+                out.append(runs(inner, bold=True, italic=italic))
                 continue
             is_bold, body = True, inner
         elif piece.startswith("*") and piece.endswith("*") and len(piece) > 2:
@@ -495,6 +520,9 @@ def para(
     page_break: bool = False,
     align: str = "",
     first_line: bool = False,
+    indent: int = 0,
+    bold: bool = False,
+    italic: bool = False,
 ) -> str:
     """One paragraph. The property order is the schema's, not a preference.
 
@@ -521,10 +549,14 @@ def para(
         )
     if first_line:
         props.append('<w:ind w:firstLine="{f}"/>'.format(f=FIRST_LINE))
+    elif indent:
+        props.append('<w:ind w:left="{i}"/>'.format(i=indent))
     if align:
         props.append('<w:jc w:val="{a}"/>'.format(a=align))
     ppr = "<w:pPr>{p}</w:pPr>".format(p="".join(props)) if props else ""
-    return "<w:p>{ppr}{r}</w:p>".format(ppr=ppr, r=runs(text))
+    return "<w:p>{ppr}{r}</w:p>".format(
+        ppr=ppr, r=runs(text, bold=bold, italic=italic)
+    )
 
 
 def table(rows: list) -> str:
@@ -762,9 +794,9 @@ def separator_artifacts(markdown: str) -> list:
     return found
 
 
-def body_xml(markdown: str) -> str:
+def body_xml(markdown: str, bold_headings: bool = False) -> str:
     """Convert the Markdown subset to the payload of a ``w:body`` element."""
-    return render_body(markdown)[0]
+    return render_body(markdown, bold_headings=bold_headings)[0]
 
 
 # The Markdown subset, as three patterns and a name for the separators. **They
@@ -897,7 +929,7 @@ def blocks(markdown: str):
         index += 1
 
 
-def render_body(markdown: str):
+def render_body(markdown: str, bold_headings: bool = False):
     """``(body payload, number of decimal lists)``.
 
     The count is what ``numbering_xml`` has to be sized by, and it is returned
@@ -925,15 +957,25 @@ def render_body(markdown: str):
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
             in_references = bool(REFERENCE_HEADING.match(block.text))
+            heading = HEADING_LEVELS[block.level]
             out.append(
                 para(
                     block.text,
-                    style="Heading{n}".format(n=block.level),
+                    style=(
+                        "" if bold_headings else "Heading{n}".format(n=block.level)
+                    ),
                     # A page break on the document's first paragraph renders an empty
                     # first page, so a document that opens on its reference list takes
                     # the centering and not the break.
                     page_break=in_references and has_content,
-                    align="center" if in_references else "",
+                    align=(
+                        "center"
+                        if in_references
+                        else heading.get("align", "") if bold_headings else ""
+                    ),
+                    indent=heading.get("indent", 0) if bold_headings else 0,
+                    bold=bold_headings,
+                    italic=bool(heading.get("italic")) if bold_headings else False,
                 )
             )
             has_content = True
@@ -1009,7 +1051,7 @@ class RefusedToOverwrite(Exception):
     """The destination holds work this renderer did not write, or Word has it open."""
 
 
-def parts(markdown: str) -> dict:
+def parts(markdown: str, bold_headings: bool = False) -> dict:
     """Every part of the archive, keyed by name, in the order it is written.
 
     **One object, so the guard cannot hold a different answer than the writer.**
@@ -1024,7 +1066,7 @@ def parts(markdown: str) -> dict:
     finding, and this function is where the two branches met: the guard needs the part
     *names* and the writer needs the part *contents*, and they must come from one walk.
     """
-    body, decimal_lists = render_body(markdown)
+    body, decimal_lists = render_body(markdown, bold_headings=bold_headings)
     return {
         "[Content_Types].xml": CONTENT_TYPES,
         "_rels/.rels": ROOT_RELS,
@@ -1127,7 +1169,12 @@ def partial_name(destination: Path) -> Path:
     )
 
 
-def write_docx(markdown: str, destination, force: bool = False) -> Path:
+def write_docx(
+    markdown: str,
+    destination,
+    force: bool = False,
+    bold_headings: bool = False,
+) -> Path:
     """Render ``markdown`` to ``destination``, refusing to destroy work it did not write.
 
     The archive is built into a sibling and moved into place, so a render that dies part
@@ -1153,7 +1200,9 @@ def write_docx(markdown: str, destination, force: bool = False) -> Path:
     partial.unlink(missing_ok=True)
     try:
         with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
-            for name, content in parts(markdown).items():
+            for name, content in parts(
+                markdown, bold_headings=bold_headings
+            ).items():
                 archive.writestr(name, content)
         os.replace(partial, destination)
     except BaseException:
@@ -1162,21 +1211,23 @@ def write_docx(markdown: str, destination, force: bool = False) -> Path:
     return destination
 
 
-USAGE = "usage: docx_write.py <in.md> <out.docx> [--force]"
+USAGE = "usage: docx_write.py <in.md> <out.docx> [--bold-headings] [--force]"
 
 
 def main(argv: list) -> int:
     force = "--force" in argv
+    bold_headings = "--bold-headings" in argv
     # An unrecognized ``--`` argument is refused rather than sliding into a positional
     # slot. ``--forse`` would otherwise be read as a third path, ignored in silence, and
     # the guard it was meant to disable would refuse the write -- which reads as the
     # guard being broken rather than as the flag being mistyped.
-    unknown = [a for a in argv if a.startswith("--") and a != "--force"]
+    known = {"--bold-headings", "--force"}
+    unknown = [a for a in argv if a.startswith("--") and a not in known]
     if unknown:
         print("unknown option: {o}".format(o=unknown[0]))
         print(USAGE)
         return 2
-    argv = [argument for argument in argv if argument != "--force"]
+    argv = [argument for argument in argv if argument not in known]
     if len(argv) < 2:
         print(USAGE)
         return 2
@@ -1186,7 +1237,12 @@ def main(argv: list) -> int:
         return 2
     markdown = source.read_text(encoding="utf-8")
     try:
-        written = write_docx(markdown, Path(argv[1]), force=force)
+        written = write_docx(
+            markdown,
+            Path(argv[1]),
+            force=force,
+            bold_headings=bold_headings,
+        )
     except RefusedToOverwrite as reason:
         # 2 is every way of not having written, on ``docx_read.py``'s convention. There
         # is no 1, because a writer has no "found nothing" to report -- but that is a

@@ -1,0 +1,27 @@
+{
+  "measured_on": "2026-08-22",
+  "institution": "Bluefield",
+  "course": "NUR 5042",
+  "board": "M2 board",
+  "theme": "the course theme active on the measurement date; its identifier was not exposed",
+  "instrument": "browser developer tools computed-style inspection",
+  "source_shape": "Microsoft Word 16.0 clipboard HTML",
+  "sanitizer": {
+    "keeps": "tags only",
+    "discards": [
+      "style attributes",
+      "class attributes",
+      "embedded style blocks"
+    ]
+  },
+  "rendered_type_scale": {
+    "h1_h2": {"pixels": 28.8, "weight": 400},
+    "h3": {"pixels": 24, "weight": 400},
+    "h4": {"pixels": 18, "weight": 400},
+    "h5": {"pixels": 16, "weight": 400},
+    "h6": {"pixels": 12, "weight": 400},
+    "p": {"pixels": 16, "weight": 400},
+    "p_strong": {"pixels": 16, "weight": 700}
+  },
+  "observed_in": ["paste box before submission", "rendered post body"]
+}

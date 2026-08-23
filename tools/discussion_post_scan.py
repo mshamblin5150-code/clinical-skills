@@ -7,6 +7,10 @@ counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
 and 2 means the run could not be completely scanned.
 
+``--docx`` names the rendered handoff and grades that its document XML carries no
+``Heading{N}`` paragraph style. Without the option, that row reports ``not graded``;
+an absent input never masquerades as a passing count.
+
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
 copies none of its rows.
@@ -16,10 +20,12 @@ from __future__ import annotations
 
 import re
 import sys
+import zipfile
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from xml.etree import ElementTree
 
 from discussion_artifact import (
     AMPLIFICATION,
@@ -41,11 +47,13 @@ WORD_FLOOR = "word-floor"
 REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
+BOLD_HEADINGS = "bold-headings"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has its own claim record",
+    BOLD_HEADINGS: "the rendered document carries no named heading style",
 }
 KINDS = tuple(ROWS)
 
@@ -105,6 +113,8 @@ class RunSource:
     references: tuple[str, ...]
     claims: str
     bar: Bar
+    docx: Path | None
+    named_heading_styles: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -123,6 +133,7 @@ class Scan:
     numeric_claims: int
     citations: int
     amplifications: int
+    docx_graded: bool
     findings: tuple[Finding, ...] = ()
 
 
@@ -228,6 +239,28 @@ def _maximum_record_matching(candidates: tuple[tuple[int, ...], ...]) -> set[int
     return matched
 
 
+W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+HEADING_STYLE = re.compile(r"Heading\d+")
+
+
+def _docx_heading_styles(path: Path) -> tuple[str, ...]:
+    if not path.is_file():
+        raise run_grader.SourceError(f"no rendered document at {path}")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            document = ElementTree.fromstring(archive.read("word/document.xml"))
+    except (OSError, KeyError, zipfile.BadZipFile, ElementTree.ParseError) as failure:
+        raise run_grader.SourceError(
+            f"could not read the rendered document: {failure}"
+        ) from failure
+    return tuple(
+        value
+        for node in document.iter(W + "pStyle")
+        if (value := node.get(W + "val")) is not None
+        and HEADING_STYLE.fullmatch(value)
+    )
+
+
 def load(parsed: run_grader.Parsed) -> RunSource:
     root = Path(parsed.source)
     if not root.is_dir():
@@ -238,6 +271,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     if draft_value is None:
         raise run_grader.SourceError("--draft needs a Markdown file")
     draft = Path(draft_value)
+    docx_value = parsed.value("--docx")
+    docx = Path(docx_value) if docx_value is not None else None
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
     if not draft.is_file():
@@ -250,7 +285,17 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         )
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
-    return RunSource(root, draft, body, references, claims, bar)
+    named_heading_styles = _docx_heading_styles(docx) if docx is not None else ()
+    return RunSource(
+        root,
+        draft,
+        body,
+        references,
+        claims,
+        bar,
+        docx,
+        named_heading_styles,
+    )
 
 
 def survey(source: RunSource) -> Scan:
@@ -267,6 +312,14 @@ def survey(source: RunSource) -> Scan:
                 REFERENCE_MINIMUM,
                 source.draft.name,
                 f"{len(source.references)} references",
+            )
+        )
+    if source.named_heading_styles:
+        findings.append(
+            Finding(
+                BOLD_HEADINGS,
+                source.docx.name,
+                "named heading styles: " + ", ".join(source.named_heading_styles),
             )
         )
     requirements: list[tuple[str, str, tuple[int, ...]]] = []
@@ -319,6 +372,7 @@ def survey(source: RunSource) -> Scan:
         numeric_claims=len(numbers),
         citations=len(citations),
         amplifications=len(AMPLIFICATION.findall(source.body)),
+        docx_graded=source.docx is not None,
         findings=tuple(findings),
     )
 
@@ -337,7 +391,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
+        if kind == BOLD_HEADINGS and not scan.docx_graded:
+            lines.append(f"{kind}: not graded")
+        else:
+            lines.append(
+                f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}"
+            )
     if show:
         lines.extend(
             f"{finding.kind}: {finding.artifact}: {finding.detail}"
@@ -356,12 +415,16 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
 
 
 GRADER = run_grader.Grader(
-    usage="usage: discussion_post_scan.py <run directory> --draft <Markdown file> [--show]",
+    usage=(
+        "usage: discussion_post_scan.py <run directory> --draft <Markdown file> "
+        "[--docx <Word file>] [--show]"
+    ),
     load=load,
     grade=grade,
     format_report=format_report,
     options=(
         run_grader.Option("--draft", takes_value=True, missing_value="--draft needs a Markdown file", repeatable=False),
+        run_grader.Option("--docx", takes_value=True, missing_value="--docx needs a Word file", repeatable=False),
         run_grader.Option("--show", repeatable=False),
     ),
     allow_extra_positionals=False,

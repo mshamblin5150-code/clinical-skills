@@ -220,6 +220,8 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module> --draft outp
 body-number occurrence and every in-text citation occurrence to have its own claim record. It
 counts the word ceiling and amplification comments without grading them. Its default output is
 counts only; `--show` includes private finding detail and must not be pasted.
+The `bold-headings` row reports `not graded` at this stage because the document does not exist yet;
+step 7 renders it and reruns this grader with `--docx`.
 
 Exit 0 means the scanner's rows pass, 1 means a finding, and 2 means it did not completely scan.
 Preserve the original checker result, fix findings through the drafting context, and have a new
@@ -233,7 +235,8 @@ requires; do not substitute a reference count for either judgment.
 Render the checked Markdown:
 
 ```bash
-python tools/docx_write.py output/discussions/<course>-<module>.md output/discussions/<course>-<module>.docx
+python tools/docx_write.py output/discussions/<course>-<module>.md output/discussions/<course>-<module>.docx --bold-headings
+python tools/discussion_post_scan.py scratch/runs/<course>-<module> --draft output/discussions/<course>-<module>.md --docx output/discussions/<course>-<module>.docx
 ```
 
 If the renderer refuses an existing document, do not use `--force` without the clinician's
@@ -242,16 +245,15 @@ vision-capable, non-authoring context then compares every rendered page with the
 reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
 headings. A text-only reread does not substitute for the visual check.
 
-The clinician pastes from Word because the `.docx` carries the hanging indent and heading
-structure into the LMS. Before pasting, manually demote the headings as the LMS requires and point
-to issue #418 as the renderer limitation. Delete this manual instruction when the renderer gains
-that mode.
+The clinician pastes from Word because direct bold on each heading survives as inline bold in the
+LMS. The paste discards the hanging indent, centering, page break, and first-line indent; those
+properties remain in the document because the visual check above still needs a paper-shaped file.
 
 ## 8. Approve, paste, and reread
 
 Show the final post and the clean-check summary to the clinician. Wait for an explicit go-ahead.
-Paste from Word into the LMS, omit every `AMPLIFICATION` comment, apply the heading demotion, and
-inspect the editor before submitting. Submit only after that inspection, then reread the posted
+Paste from Word into the LMS, omit every `AMPLIFICATION` comment, and inspect the paste box before
+submitting. Submit only after that inspection, then reread the posted
 board version.
 
 The graders read the Markdown and ledger, not the LMS editor. A clean scan is not a checked post

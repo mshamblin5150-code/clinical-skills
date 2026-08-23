@@ -269,7 +269,7 @@ Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that fil
 
 ```bash
 python tools/docx_read.py <file.docx> [--normalize] [--outline] [--numbering]
-python tools/docx_write.py <in.md> <out.docx> [--force]
+python tools/docx_write.py <in.md> <out.docx> [--bold-headings] [--force]
 python tools/docx_word_probe.py --word
 ```
 
