@@ -48,6 +48,8 @@ import re
 import unittest
 from pathlib import Path
 
+from assertion_record import ROW_ID
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTE_DIR = REPO_ROOT / "skills" / "clinical-note"
 SKILL = NOTE_DIR / "SKILL.md"
@@ -1097,12 +1099,10 @@ class TheSetTotalIsReDerivedRatherThanTyped(unittest.TestCase):
         45: "forty-five",
     }
 
-    ROW_ID = re.compile(r"^\| ([DBCGR][0-9]+) \|")
-
     def row_ids(self) -> set[str]:
         found = set()
         for line in read(self.DAY_B).splitlines():
-            match = self.ROW_ID.match(line)
+            match = ROW_ID.match(line)
             if match:
                 found.add(match.group(1))
         return found

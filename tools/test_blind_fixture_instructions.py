@@ -18,6 +18,8 @@ import re
 import unittest
 from pathlib import Path
 
+from assertion_record import ROW_ID
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
@@ -54,13 +56,7 @@ def concrete_fixture_names() -> list[str]:
 def concrete_assertion_rows() -> list[str]:
     rows = set()
     for path in FIXTURES.glob("*/assertions.md"):
-        rows.update(
-            re.findall(
-                r"^\|\s*([A-Z]\d+)\s*\|",
-                path.read_text(encoding="utf-8"),
-                re.MULTILINE,
-            )
-        )
+        rows.update(ROW_ID.findall(path.read_text(encoding="utf-8")))
     return sorted(rows - CLINICAL_ROW_HOMONYMS)
 
 
