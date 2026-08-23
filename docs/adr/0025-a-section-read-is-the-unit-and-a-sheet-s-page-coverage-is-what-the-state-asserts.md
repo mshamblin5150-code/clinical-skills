@@ -17,6 +17,19 @@ Grilled on 2026-08-23. The clinician ruled every point below on the same day.
 7. **A second read's record names what it was briefed on**, and a span retired on a null carries a dated marker in the sheet itself. A span retired with no rows and no marker is refused.
 8. **The registry auditor checks the state against the artifact's page arithmetic, in both directions.** A `sheet` row whose artifact still lists an unread span is refused, and so is a non-`sheet` row whose artifact shows every page read.
 9. **A reference list may be retired by class, and nothing else may.** The exemption is written in the table with its reason, so a sheet that reached `sheet` with spans exempted says so on its face.
+10. **A reading ticket may retire spans that hold nothing before [#464](https://github.com/mshamblin5150-code/clinical-skills/issues/464) lands, and may not record a narrative row until it does.** The three exact-source sheets are sequenced behind that ticket for their positive half only. ADR 0009's order is unchanged.
+
+## The premise #471 was filed on does not hold
+
+#471 calls the two USPSTF sheets *the cheap pair* and says each is *blocked on reading effort only*. That is false, and the grilling found it in the tracker rather than in the ticket.
+
+[#464](https://github.com/mshamblin5150-code/clinical-skills/issues/464) establishes that an `exact` source cannot carry a decision point stated in narrative without a fabricated `rec` identifier, and enumerates the four escapes that do not work: an invented identifier is refused by the exact record, attaching the value to a real identifier falsely claims it came from that recommendation, `RENDERED:` does not make the identifier true, and scoping it out leaves the topic unpromotable. Its worked case is a USPSTF recommendation statement whose *Practice Considerations* defines an ever smoker as 100 or more cigarettes, which decides whether grade B or grade C applies.
+
+Three of the four sheets are exact-source — cervical cancer, both prediabetes statements, and AHA/ACC 2025. Only `diabetes.md` is `bound`. **And the span this record used as its own worked example of a valuable read — USPSTF's clinical considerations — is precisely the narrative location #464 says the format cannot represent.**
+
+None of points 1 through 9 depends on that. What moves is only sequencing, which is point 10. The half of a section read that #464 blocks is the half that already carries evidence; the half it does not block is the null retirement, which is the half with none and the half point 2's second read exists for. So the mechanism is exercised on live work rather than on a fixture while #464 is settled.
+
+Reordering to put the 377-page `bound` source first was rejected: it routes around a blocker rather than settling it, and #464 carries the `grilling` label, so it needs a ruling and not merely a build.
 
 ## What was measured before anything was ruled
 
@@ -91,5 +104,7 @@ The dated marker in the `read` cell is what the committed sheet asserts, on `REN
 **The marker records that a read happened, never that it was careful.** It is an audit claim in the sense `RENDERED:` is one.
 
 **A span retired by class is not a span that was read.** The exemption is marked and countable for exactly that reason.
+
+**The sequencing in point 10 is #464's to retire, not this record's.** When that ticket lands, the exact-source reading tickets stop being half-blocked and nothing here needs rewriting.
 
 **Nothing here says anything about `none`.** A `none` topic has no artifact, so it has nowhere to carry a page-coverage table, which leaves the registry's most substantive claim its least checkable one. That is the symmetric hole and it is filed rather than ruled here.
