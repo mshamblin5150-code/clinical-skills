@@ -11,6 +11,14 @@ How the engineering skills should consume this repo's domain documentation.
 
 If these don't exist, **proceed silently**. Don't flag their absence or suggest creating them upfront. `/domain-modeling` creates them lazily when terms or decisions actually get resolved.
 
+When an ADR is warranted, claim its number and create its file together:
+
+```bash
+python tools/adr_next.py "short title of the decision"
+```
+
+Do not choose a number by eyeballing `docs/adr/`; the command reads every registered worktree's on-disk claims. A ratified record's facts may be corrected in place, with a dated correction line at the bottom recording what changed and why. Its ruling may not be rewritten. A filename is an index and may be corrected only with `git mv`, preserving `git log --follow`. [ADR 0016](../adr/0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md).
+
 ## File structure
 
 Single-context repo:

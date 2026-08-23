@@ -850,7 +850,7 @@ def gate_schema(sheet: Sheet) -> GateResult:
 def gate_citation_tier1(sheet: Sheet) -> GateResult:
     """Every number in a row's value must appear in that row's snippet.
 
-    Runs on every machine, which is the point. Tier 2 needs 410 MB of PDFs that live
+    Runs on every machine, which is the point. Tier 2 needs source PDFs that live
     outside this repo, so on a fresh clone it has nothing to resolve -- and a gate
     that silently drops to zero there is the same hole `phi_scan.py`'s corpus layer
     documents and that #93 watched fire for real.

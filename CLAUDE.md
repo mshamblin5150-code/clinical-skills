@@ -49,6 +49,16 @@ The five canonical roles, kept at their default strings, plus a local `grilling`
 
 Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily by `/domain-modeling` rather than scaffolded upfront. See `docs/agents/domain.md`.
 
+### ADR number allocation
+
+Claim a number by writing its record in the invoking checkout:
+
+```bash
+python tools/adr_next.py "a record is corrected in place"
+```
+
+The command reads `git worktree list --porcelain`, then reads every registered worktree's on-disk `docs/adr/` directory. It reports the number of worktrees enumerated and names every unreadable directory before printing the new path. Exit 0 means the file was written; exit 2 covers every no-write result, including an absent title, a failed worktree enumeration, an absent local `docs/adr/`, an existing destination, or an operating-system write error. Its boundaries are the module-level `DECLARED_LIMITS` in `tools/adr_next.py`; do not copy that moving list into prose.
+
 ## Maintainer tooling
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
@@ -1025,7 +1035,7 @@ The lower-level extractor remains available for development and a deliberately u
 python tools/guidelines_extract.py "C:/codeing/guidelines-src"
 ```
 
-**The corpus stays outside the repo, and so does the output.** Source is 410 MB and mostly society-copyrighted ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)); output defaults to a sibling of it, `guidelines-text`. The script **refuses to write inside any git checkout**, walking up from the output directory for a `.git` entry rather than only comparing against its own repo root — run from a worktree, that root is the worktree and says nothing about the main clone's `reference/`.
+**The corpus stays outside the repo, and so does the output.** Source is mostly society-copyrighted ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)); output defaults to a sibling of it, `guidelines-text`. The script **refuses to write inside any git checkout**, walking up from the output directory for a `.git` entry rather than only comparing against its own repo root — run from a worktree, that root is the worktree and says nothing about the main clone's `reference/`.
 
 **The shared output has an explicit owner: the clean producer that created it.** `manifest.json` records the commit and whether its checkout was dirty. A legacy artifact from an ancestor stays trusted only while its extractor is unchanged; a content-addressed artifact from an unrelated commit carries exact producer-file hashes and stays trusted only while those match. Every committed consumer refuses an unstamped, dirty, or mismatched manifest by default; the index records both its own producer and its source manifest's provenance, so rebuilding a database cannot launder a foreign extraction. `--allow-untrusted-provenance` exists for deliberate development work and carries the distrust into derived output. Its trace is a stderr line on every check, naming the flag, which no warnings filter can reach -- it was a `RuntimeWarning` alone until [#406](https://github.com/mshamblin5150-code/clinical-skills/issues/406), so `PYTHONWARNINGS=ignore` silenced it and the run exited 0. Under the flag, publication inside any git checkout is **refused**, which is [ADR 0010](docs/adr/0010-an-untrusted-read-may-not-publish-into-the-checkout.md) and lands on `uspstf_table` alone, the one flag-bearing command whose durable destination can be inside the repo. **What none of it reaches is `artifact_provenance.NOT_GUARDED`, and this paragraph deliberately copies no row of it.** This is [#184](https://github.com/mshamblin5150-code/clinical-skills/issues/184)'s ownership ruling as extended by #383's explicit producer identity. [#276](https://github.com/mshamblin5150-code/clinical-skills/issues/276) adds the concurrency half: extraction owns a nonblocking write lock for its whole run, and every committed extracted-text consumer takes a shared read lock before reading. Readers may overlap one another; a writer excludes every reader and writer. An index build also owns its destination until publication. A competing command exits 2, names the busy artifact and tells the task to retry; a crashed process releases its operating-system lock. Lock records are keyed by the resolved artifact path under the operating system's temporary directory, so reading an input inside a checkout writes nothing beside it. The index is built under a process-specific `.building` name before `os.replace`, so one process never deletes another process's partial database.
 
@@ -1132,7 +1142,7 @@ python tools/uspstf_table.py "C:/codeing/guidelines-text"
 
 **Stdlib-only and downstream of #80.** The builder opens no PDF: it reads the form-feed-delimited `.txt` files through `guidelines_index.discover` and joins them to `manifest.json`. The `--out` default writes into the repo regardless of the working directory, the way `icd10_build.py` anchors on `REPO_ROOT`.
 
-**The corpus lives outside this repo** at `C:\codeing\guidelines-src` — 179 PDFs, 410 MB, most of them society-copyrighted — and stays there. [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is why, and the source PDFs are closed rather than deferred: no consumer needs them, they need the derived facts.
+**The corpus lives outside this repo** at `C:\codeing\guidelines-src` — mostly society-copyrighted PDFs — and stays there. [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is why, and the source PDFs are closed rather than deferred: no consumer needs them, they need the derived facts.
 
 **The redirect onto [#80](https://github.com/mshamblin5150-code/clinical-skills/issues/80)'s output landed on [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108).** Three documents take their topic from the PDF's metadata title because page 1 is browser chrome, opens with the recommendation instead of a title, or extracted without space glyphs. The manifest carries that title for all three, so the handoff preserves them while removing the second PDF reader. A missing manifest is a failure rather than a corpus with blank titles.
 
@@ -1144,7 +1154,7 @@ Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in
 
 ### Guideline catalog
 
-`reference/guidelines-catalog.md` is **committed**, and lists the 179-document guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The corpus itself is 410 MB of mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` and **stays outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because at 179 documents nothing can navigate the corpus by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
+`reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
 
 ```bash
 python tools/guidelines_catalog.py                              # audit the committed catalog
@@ -1312,7 +1322,7 @@ python tools/threshold_sheet.py --all
 
 **The population column is load-bearing and it came from the clinician rather than from the corpus.** A draft of this called KDIGO's `SBP <120` and AHA/ACC's `<130/80` a cross-society contradiction; they are not, because KDIGO's is CKD-only. So a conflict is keyed on **quantity and population together**, the key is drawn from a fixed vocabulary the sheet declares, and the guideline's own wording sits beside it — a machine can only compare strings, and a mis-keyed row is a wrong *word* a reader can see rather than a silent miss. Checking ADA 2026 afterwards found it **agrees** with AHA/ACC at `<130/80`: once population is respected the contradiction the ticket predicted mostly evaporates.
 
-**Citation resolution is two tiers, which is the whole answer to what happens when the sources are absent.** Tier 1 needs nothing and runs everywhere: the number in a row's value must appear in that row's snippet. Tier 2 needs the 410 MB of PDFs and checks the snippet is on the cited page. **There is no machine on which citation checking drops to zero**, tier 2 skipping prints a banner that survives `--quiet`, and the sheet itself records the date tier 2 last really ran — so the artifact says so and not only the console. That is `phi_scan.py`'s corpus-layer hole, answered rather than repeated.
+**Citation resolution is two tiers, which is the whole answer to what happens when the sources are absent.** Tier 1 needs nothing and runs everywhere: the number in a row's value must appear in that row's snippet. Tier 2 needs the source PDFs and checks the snippet is on the cited page. **There is no machine on which citation checking drops to zero**, tier 2 skipping prints a banner that survives `--quiet`, and the sheet itself records the date tier 2 last really ran — so the artifact says so and not only the console. That is `phi_scan.py`'s corpus-layer hole, answered rather than repeated.
 
 **Gate 3 was wrong first, and it was found by pointing it at the real sheet.** It matched a sanity bound by substring against the row's *quantity name* and graded every number in the value against it; on the first real sheet that produced ten failures and **all ten were correct rows** — the `2` in `kg/m2`, `>=7 days` in a row whose name contains `bp`, `15% in 24 h`, `within 30 to 60 min`. Bounds are keyed on the **unit** now. Both of `block_scan.py`'s parser bugs were found the same way, and the synthetic tests came afterwards.
 

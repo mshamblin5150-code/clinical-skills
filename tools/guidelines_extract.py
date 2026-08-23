@@ -10,7 +10,7 @@ corpus layer is untouched by this and still applies.
     python tools/guidelines_extract.py <source-directory> [--out <directory>]
 
 ``<source-directory>`` is the corpus as downloaded: one subdirectory per society,
-PDFs inside. It lives outside this repo and stays there -- 179 files, 410 MB, most
+PDFs inside. It lives outside this repo and stays there -- most
 of them society-copyrighted. Issue #87 rules on that and is not reopened here.
 
 **Nothing this writes goes inside the repo, and the script refuses to.** Output

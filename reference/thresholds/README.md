@@ -8,7 +8,7 @@ referral and follow-up threshold, staging cutoff. Not full text.
 That shape is deliberate and it is what makes the series shippable. **Facts are not
 copyrightable; expression is.** A restated staging table is a fact this repo may hold
 freely. A dumped guideline PDF is the copyrighted expression, and it also happens to be
-410 MB. The distilled form is both the legally clean artifact and the only one small
+too large to belong here. The distilled form is both the legally clean artifact and the only one small
 enough to commit.
 
 The 179 source PDFs stay outside this repo at `C:/codeing/guidelines-src`
@@ -378,7 +378,7 @@ and state counts and to refuse missing, duplicate, or orphaned rows and artifact
 
 ## What the sources being absent means
 
-Citation resolution needs the 410 MB of PDFs. In a fresh clone, in another worktree,
+Citation resolution needs the source PDFs. In a fresh clone, in another worktree,
 and in CI it has nothing to resolve. So the gate is **three tiers**:
 
 | tier | needs | checks | runs |
