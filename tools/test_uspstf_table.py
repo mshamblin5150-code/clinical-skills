@@ -681,6 +681,22 @@ class DocumentTests(unittest.TestCase):
 
 
 class RenderingTests(unittest.TestCase):
+    def test_the_header_explains_the_interval_rules_reach_and_alternatives(self):
+        markdown = ut.render_markdown(
+            [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
+        )
+        self.assertIn(
+            "from the statement sentence alone, so a period the document states elsewhere "
+            "is outside the rule's reach rather than missed by it.",
+            markdown,
+        )
+        self.assertIn(
+            "Where a recommendation offers alternatives, `interval` names every period its "
+            f"statement names, joined with `{ut.INTERVAL_ALTERNATIVE_JOIN.strip()}`; the "
+            "modality that distinguishes them is in `## Statements` and not in the cell.",
+            markdown,
+        )
+
     def test_a_pipe_in_a_cell_is_escaped_so_it_cannot_break_the_table(self):
         self.assertEqual(ut.escape_cell("a | b"), "a \\| b")
 

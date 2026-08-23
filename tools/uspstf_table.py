@@ -515,17 +515,22 @@ INTERVAL_PHRASE = re.compile(
     r"|\bperiodic(?:ally)?\b|\bat each visit\b|\brepeated\b",
     re.I,
 )
+INTERVAL_ALTERNATIVE_JOIN = " or "
 
 
 def derive_interval(statement: str) -> str:
-    """The screening interval named in the statement, verbatim and lowercased.
+    """The distinct screening periods in the statement, in source order.
 
     Most USPSTF recommendations name no interval at all -- an I statement has nothing to
     space out, and a counseling recommendation is not periodic -- so ``not stated`` is the
     common and correct answer here, not a gap.
     """
-    match = INTERVAL_PHRASE.search(statement)
-    return match.group(0).lower() if match else NOT_STATED
+    periods = list(
+        dict.fromkeys(match.group(0).lower() for match in INTERVAL_PHRASE.finditer(statement))
+    )
+    if not periods:
+        return NOT_STATED
+    return INTERVAL_ALTERNATIVE_JOIN.join(periods)
 
 
 # The masthead that follows the title in every layout. Spaces are optional throughout
@@ -790,8 +795,13 @@ def render_markdown(results: list[DocumentResult]) -> str:
         "the source `filename` and the `page` the grade was read from, so any grade can be "
         "checked against the document in one jump — and a row that matters to a patient "
         "should be. `population` and `interval` are *derived from the statement text*, not "
-        "quoted from a field the document declares; `not stated` means the rule found "
-        "nothing there, which for `interval` is the ordinary case rather than a gap."
+        "quoted from a field the document declares — from the statement sentence alone, "
+        "so a period the document states elsewhere is outside the rule's reach rather than "
+        "missed by it. `not stated` means the rule found nothing there, which for `interval` "
+        "is the ordinary case rather than a gap. Where a recommendation offers alternatives, "
+        "`interval` names every period its statement names, joined with "
+        f"`{INTERVAL_ALTERNATIVE_JOIN.strip()}`; the modality that distinguishes them is in "
+        "`## Statements` and not in the cell."
     )
     out.append("")
     out.append(
