@@ -30,6 +30,16 @@ def runs_root(start: Path | None = None) -> Path:
     return scratch_root(start) / "runs"
 
 
+def run_for_submission(path: Path | str, start: Path | None = None) -> Path:
+    """Return the canonical run directory joined to a dated submission."""
+    return runs_root(start) / key_of(Path(path).stem)
+
+
+def submission_belongs_to_run(submission: Path | str, run: Path | str) -> bool:
+    """Whether ``submission`` carries the exact assignment key of ``run``."""
+    return key_of(Path(submission).stem) == Path(run).name
+
+
 def is_run_directory(path: Path | str, start: Path | None = None) -> bool:
     """Whether ``path`` is one direct assignment directory under ``runs_root``."""
     candidate = Path(path).expanduser().resolve()

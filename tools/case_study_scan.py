@@ -841,7 +841,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         ) from failure
 
     if coursework_run.is_submission(path):
-        run = coursework_run.runs_root() / coursework_run.key_of(path.stem)
+        run = coursework_run.run_for_submission(path)
         if not run.is_dir():
             raise run_grader.SourceError(
                 f"no run directory at {run} for submission {path.name}"

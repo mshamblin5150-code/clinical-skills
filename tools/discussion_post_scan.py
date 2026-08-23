@@ -279,9 +279,11 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     if not draft.is_file():
         raise run_grader.SourceError(f"no draft Markdown at {draft}")
     if coursework_run.is_submission(draft):
-        run_key = coursework_run.key_of(draft.stem)
-        expected = coursework_run.runs_root() / run_key
-        if coursework_run.is_run_directory(root) and root.name != run_key:
+        expected = coursework_run.run_for_submission(draft)
+        if (
+            coursework_run.is_run_directory(root)
+            and not coursework_run.submission_belongs_to_run(draft, root)
+        ):
             raise run_grader.SourceError(
                 f"submission {draft.name} does not belong to run directory {root.name}"
             )

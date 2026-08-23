@@ -244,7 +244,7 @@ convincingly and wrongly.
 the UpToDate topics pasted in full. That is the source, and it is read rather than remembered:
 
 ```bash
-python tools/docx_read.py "<the references document>" --normalize > scratch/evidence.txt
+python tools/docx_read.py "<the references document>" --normalize > <run-directory>/evidence.txt
 ```
 
 **`--normalize` is not optional on an UpToDate paste.** The rendered pages are salted with

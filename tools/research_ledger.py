@@ -1760,7 +1760,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         if (
             coursework_run.is_submission(draft_path)
             and coursework_run.is_run_directory(path.parent)
-            and not draft_path.stem.startswith(path.parent.name)
+            and not coursework_run.submission_belongs_to_run(draft_path, path.parent)
         ):
             raise run_grader.SourceError(
                 f"submission {draft_path.name} does not belong to run directory {path.parent.name}"

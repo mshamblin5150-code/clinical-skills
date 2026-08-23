@@ -20,7 +20,7 @@ stays copied.
 ``Path(__file__).resolve().parent.parent`` is the **worktree** root. That is the
 right answer for almost everything in ``tools/`` -- a test reading a committed
 fixture, a tool writing into the tree it was run from -- and it is the wrong
-answer for exactly two things: ``scratch/`` and ``output/``.
+answer for the gitignored, account-owned ``scratch/`` and ``output/`` trees.
 
 ``scratch/`` is gitignored, so ``git worktree`` does not bring it. It exists in
 the main clone and nowhere else. A tool that resolves it from its own location

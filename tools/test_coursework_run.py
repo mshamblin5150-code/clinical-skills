@@ -41,6 +41,18 @@ class Populations(unittest.TestCase):
             self.root / "scratch" / "runs",
         )
 
+    def test_a_submission_joins_to_its_canonical_run(self):
+        draft = self.root / "output" / "key-2026-08-20.md"
+        self.assertEqual(
+            coursework_run.run_for_submission(draft, self.root / "tools"),
+            self.root / "scratch" / "runs" / "key",
+        )
+
+    def test_run_membership_is_an_exact_key_join(self):
+        draft = self.root / "output" / "case-study-extra-2026-08-20.md"
+        run = self.root / "scratch" / "runs" / "case-study"
+        self.assertFalse(coursework_run.submission_belongs_to_run(draft, run))
+
     def test_a_direct_child_is_a_canonical_run_directory(self):
         run = self.root / "scratch" / "runs" / "nur5144-m1-case-study"
         self.assertTrue(coursework_run.is_run_directory(run, self.root / "tools"))

@@ -21,7 +21,7 @@ actually about: not that every writer takes a guard, but that nobody
 re-implements the rule.
 
 **And the divergences that survive are intentional rather than discovered.**
-Four of them: one module blesses a directory inside a checkout, one returns a
+They include a module that blesses a directory inside a checkout, one that returns a
 reason string instead of raising, and the command lines do not agree on the exit
 status a refusal produces. #303 ruled that each command keeps the status its own
 boundary gives the refusal. Each is argued where it lives; this file is where a
@@ -517,10 +517,10 @@ class EveryWriteSiteImportsTheRule(unittest.TestCase):
     **The list is typed, and that is a ceiling rather than coverage** -- the
     distinction ``test_build_artifacts_ignored.py`` records about its own third
     name, which went stale under a rename with the check green throughout. A
-    *sixth writer* that took no guard at all is invisible here, and deriving the
+    new writer that took no guard at all is invisible here, and deriving the
     list is not available: the predicate would have to decide which tools write,
-    which the class above explains is not mechanical. What catches a fifth
-    *rule* is that class; what this catches is one of these six being unwired.
+    which the class above explains is not mechanical. What catches another
+    *rule* is that class; what this catches is a listed site being unwired.
     """
 
     WRITERS = {
