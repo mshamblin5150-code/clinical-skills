@@ -33,8 +33,8 @@ Without that block the command reports shape-only mode rather than claiming the
 corpus audit passed. A block for different distrust refuses, and a later trusted
 passing audit refuses until the superseded block is deleted. `--draft` carries no
 declaration: it prints values rather than a verdict, and the next audit grades what
-a person pastes. This is ADR 0019's human-mediated record; ADR 0010's stderr trace
-and checkout-publication refusal remain unchanged.
+a person pastes. This is the **held declaration** for accepted distrust under ADR
+0019; ADR 0010's stderr trace and checkout-publication refusal remain unchanged.
 
 ## How to read a row
 

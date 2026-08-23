@@ -288,8 +288,9 @@ combining or paraphrasing it. Without the block WATERMARK reports **NOT GRADED**
 the command exits 2; a block copied from another artifact or run refuses. A later
 trusted WATERMARK pass supersedes the status and refuses until the entire block is
 deleted. An absent corpus does neither: it skips the gate and leaves the last status
-alone. This is accepted distrust's artifact contract from ADR 0019, not a replacement
-for the stderr trace or the checkout-publication refusal from ADR 0010.
+alone. This is the **held declaration** for accepted distrust, under ADR 0019; it is
+not a replacement for the stderr trace or the checkout-publication refusal from ADR
+0010.
 
 ### `## Populations`
 

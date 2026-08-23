@@ -69,6 +69,11 @@ TRUST_FLOOR = {
     ),
 }
 
+# Hand-kept by clinician ruling rather than inferred from flag-bearing commands.
+# A mechanical predicate cannot decide whether a command's durable output is a
+# human verdict; ADR 0019 rejected that guess explicitly.
+ACCEPTED_DISTRUST_COMMANDS = ("guidelines_catalog", "threshold_sheet")
+
 WHY_NO_PUBLISH = (
     f"{FLAG} exists for deliberate development work, and publishing a committed "
     "artifact is not development work -- see issue #406 and docs/adr/0010. Send the "
@@ -196,12 +201,39 @@ def parse_accepted_distrust(
     """Read the one accepted-distrust declaration in a curated Markdown region."""
     lines = text.splitlines()
     starts: list[int] = []
-    in_fence = False
+    fence: tuple[str, int] | None = None
+    in_comment = False
     for index, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
+        visible = line
+        if in_comment:
+            if "-->" not in visible:
+                continue
+            visible = visible.split("-->", 1)[1]
+            in_comment = False
+        while "<!--" in visible:
+            before, after = visible.split("<!--", 1)
+            if "-->" in after:
+                visible = before + after.split("-->", 1)[1]
+            else:
+                visible = before
+                in_comment = True
+                break
+
+        if fence is not None:
+            character, width = fence
+            closing = re.fullmatch(
+                rf" {{0,3}}{re.escape(character)}{{{width},}}[ \t]*", visible
+            )
+            if closing:
+                fence = None
             continue
-        if not in_fence and line.startswith(_ACCEPTED_DISTRUST_PREFIX):
+
+        opening = re.match(r"^ {0,3}(?P<fence>`{3,}|~{3,})", visible)
+        if opening:
+            marker = opening.group("fence")
+            fence = (marker[0], len(marker))
+            continue
+        if visible.startswith(_ACCEPTED_DISTRUST_PREFIX):
             starts.append(index)
     if not starts:
         return None, ()
