@@ -69,8 +69,8 @@ def repository_survivors(root: Path) -> set[tuple[str, str]]:
 
     The 40-character cutoff is a proxy for *the haystack is prose*, not a length
     rule. A dated measurement on 2026-08-23 at ``d3e39e6`` lowered this function's
-    cutoff, classified the 26 returned assertion sites by haystack, and found 22
-    non-prose sites where normalization was meaningless. That historical 22-of-26
+    cutoff, classified the 26 returned assertion sites by haystack, and found 21
+    non-prose sites where normalization was meaningless. That historical 21-of-26
     observation is why #445 kept this conservative floor and #474 owns haystack
     discrimination instead; it is not a current inventory of the tree.
 
