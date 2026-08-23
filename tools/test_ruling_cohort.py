@@ -11,7 +11,7 @@ runnable test is one a tidy can delete without failing anything.
 Four things, because the ruling binds a glossary, a policy, an ADR and the two
 sets it was applied to:
 
-- ``CONTEXT.md`` -- the three terms, defined without implementation detail.
+- ``CONTEXT.md`` -- the terms, defined without implementation detail.
 - ``fixtures/README.md`` -- the operating policy, which every set inherits.
 - ``docs/adr/0003-...`` -- the tradeoffs and the alternatives that lost.
 - ``fixtures/day-b/assertions.md`` and ``fixtures/day-a/assertions.md`` -- #29's
@@ -66,7 +66,7 @@ class Member(NamedTuple):
     verdict: str
 
 
-#: The four terms the promotion policy and #200/#201's briefs are written in.
+#: The terms the promotion policy and #200/#201's briefs are written in.
 GLOSSARY_TERMS = (
     "**Ruling cohort**",
     "**Valid score**",
@@ -102,10 +102,10 @@ def _row_ids(path: Path) -> set[str]:
     return set(ROW_ID.findall(path.read_text(encoding="utf-8")))
 
 
-class TheGlossaryDefinesTheThreeTerms(ProseBind, unittest.TestCase):
+class TheGlossaryDefinesItsTerms(ProseBind, unittest.TestCase):
     """``CONTEXT.md``, without implementation detail.
 
-    The policy below is written in these three words and is unreadable without
+    The policy below is written in these terms and is unreadable without
     them. A term used in four files and defined in none is what #70 was filed
     over.
     """

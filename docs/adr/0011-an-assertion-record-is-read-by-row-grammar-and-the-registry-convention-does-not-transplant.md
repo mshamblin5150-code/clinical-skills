@@ -17,7 +17,7 @@
 
 **Two of the narrowings are undeclared, and one fails with the wrong remedy.** `\d{1,2}` carries a comment that explains its `set()` dedupe and says nothing about the digit bound. `[DBCGR]` carries no comment at all — and day-b gaining a class letter outside it shrinks `row_ids()`, which fails `test_every_published_total_agrees_with_the_tables` with a message instructing the reader to *"re-derive both files together"*, i.e. to edit a published total to a wrong number. That is worse than a silent miss: it is a false alarm that prescribes the defect.
 
-**The ticket's premise about the glossary was also wrong.** `CONTEXT.md` names five terms for this artifact and #413 says no module speaks any of them. `test_ruling_cohort.py` holds `GLOSSARY_TERMS` and asserts four of the five are present with an `_Avoid_:` line — and it is the **only** module in `tools/` that opens `CONTEXT.md` at all. The honest form is that one module asserts four of five are written down and none implements any. That half is split out and is not this ADR's subject.
+**The ticket's premise about the glossary was also wrong.** `CONTEXT.md` names five terms for this artifact and #413 says no module speaks any of them. At ratification, `test_ruling_cohort.py` held `GLOSSARY_TERMS`, asserted four of the five were present with an `_Avoid_:` line, and was the **only** module in `tools/` that opened `CONTEXT.md` at all. The honest form then was that one module asserted four of five were written down and none implemented any. That half was split out and is not this ADR's subject.
 
 ## Why the registry's convention cannot transplant
 
@@ -71,3 +71,5 @@ It is the widest of the four spellings — any class letter, any digit count, to
 **The two conventions now coexist deliberately, and the next Markdown record will have to choose.** No general rule is stated here for which to pick, because there are exactly two instances to derive one from and they are one of each. The discriminator this ADR used — one table with a fixed header, or a document of many — is offered as the question to ask rather than as a rule that has been tested on anything.
 
 **A schema marker for `assertions.md` is refused rather than deferred.** It would be the honest way to declare the row grammar in the file itself, and it is the first thing a reader will propose. The cost is an edit to seven committed fixture records to serve a reader, and `fixtures/README.md`'s standing position is that these files are evidence. Reversing this means paying that cost, which is what makes the decision worth recording.
+
+*Corrected 2026-08-23: the glossary paragraph previously stated `test_ruling_cohort.py`'s uniqueness as current. [#444](https://github.com/mshamblin5150-code/clinical-skills/issues/444) later added `test_glossary_vocabulary.py`, a second module that opens `CONTEXT.md`; the correction dates the original fact and does not change this ADR's ruling.*
