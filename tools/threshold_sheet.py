@@ -570,20 +570,14 @@ class Sheet:
     why_not: str | None = None
 
 
-def _positive_span_for_row(sheet: Sheet, row: Row) -> Span | None:
-    """Return the first positive span that owns ``row``.
-
-    Page ranges may overlap, so page membership alone cannot let one row retire
-    several spans. Declaration order is the deterministic tie-breaker; null,
-    exempt, and unread spans never borrow a row from a positive span.
-    """
-    return next((
-        span for span in sheet.spans
-        if span.read.casefold() == "yes"
-        and span.source == row.source
+def _rows_cited_within_span(sheet: Sheet, span: Span) -> list[Row]:
+    """Return rows whose source and cited page fall within ``span``."""
+    return [
+        row for row in sheet.rows
+        if row.source == span.source
         and row.page is not None
         and span.first_page <= row.page <= span.last_page
-    ), None)
+    ]
 
 
 @dataclass
@@ -935,7 +929,7 @@ def gate_schema(sheet: Sheet) -> GateResult:
             failures.append(
                 f"{where} only a references span may carry a class exemption"
             )
-        rows = [row for row in sheet.rows if _positive_span_for_row(sheet, row) == span]
+        rows = _rows_cited_within_span(sheet, span)
         if read == "yes" and not rows:
             failures.append(
                 f"{where} read span '{span.name}' has neither rows nor a dated marker"
@@ -1921,7 +1915,7 @@ def gate_second_read(
     # By position rather than by ``id()``: two entries of a read can be equal dicts,
     # and identity is not what "this entry answered a row" means.
     matched: set[tuple[tuple[str, str], int]] = set()
-    span_rows = [row for row in sheet.rows if _positive_span_for_row(sheet, row) == span]
+    span_rows = _rows_cited_within_span(sheet, span)
     # A dated marker is the span's explicit null claim. Page ranges may overlap, so
     # a row on one of these pages can belong to another span and must not silently
     # turn this marker into a positive read.

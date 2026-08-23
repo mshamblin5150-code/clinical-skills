@@ -1300,20 +1300,27 @@ class ScopeSpanTable(unittest.TestCase):
         findings = self.findings(text)
         self.assertTrue(any("neither rows nor a dated marker" in item for item in findings))
 
-    def test_a_real_overlapping_span_cannot_borrow_another_spans_rows(self):
+    def test_a_real_span_with_no_rows_cannot_be_retired_without_a_marker(self):
         path = (Path(__file__).resolve().parent.parent / "reference" / "thresholds"
                 / "cervical-cancer.md")
         text = path.read_text(encoding="utf-8").replace(
-            "| rationale and clinical considerations | 1-11 | no |",
-            "| rationale and clinical considerations | 1-11 | yes |",
+            "| references | 11-13 | no |",
+            "| references | 11-13 | yes |",
         )
-        self.assertIn("| rationale and clinical considerations | 1-11 | yes |", text)
+        self.assertIn("| references | 11-13 | yes |", text)
         findings = gate.gate_schema(gate.parse(text, path)).findings
         self.assertTrue(any(
-            "rationale and clinical considerations" in item
+            "references" in item
             and "neither rows nor a dated marker" in item
             for item in findings
         ), findings)
+
+    def test_overlapping_positive_spans_do_not_make_table_order_semantic(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| overlapping recommendation summary | 41-60 | yes |",
+        )
+        self.assertEqual(self.findings(text), [])
 
     def test_a_dated_null_marker_retires_a_span(self):
         text = HEADER.replace(

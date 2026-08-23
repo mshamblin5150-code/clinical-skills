@@ -286,14 +286,10 @@ than a partition. Their union must account for every page in the catalog's indep
 derived `page_count`, and the command prints the unaccounted remainder on every run,
 including `none`.
 
-When positive spans overlap, a threshold row retires the first matching `yes` span
-in table order. It cannot be borrowed by every overlapping span. A dated null marker
-or the reasoned `references` exemption retires its own span without borrowing rows.
-
 The `read` cell is `no`, `yes` where the span contains a threshold row, or
 `read YYYY-MM-DD` when a completed read found no row. A `references` span alone may
-instead use `exempt: <reason>`. A positive span with neither its own rows nor a dated
-marker is refused. The marker records that a read happened; it never establishes that
+instead use `exempt: <reason>`. A positive span with neither a row cited inside its
+range nor a dated marker is refused. The marker records that a read happened; it never establishes that
 the read was careful. Page coverage likewise catches an omitted span, not a boundary
 drawn on the wrong page.
 
