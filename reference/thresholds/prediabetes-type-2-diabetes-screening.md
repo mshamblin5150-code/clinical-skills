@@ -17,9 +17,15 @@ restates, and choosing among them is the clinician's. Graded by
 
 ## Scope
 
-**Read:** both recommendation statements represented by the two source records.
+**Read:** both recommendation statements represented by the two source records, plus
+the 2022 article information and references (null read independently confirmed
+2026-08-23). The 2021 reference list is retired by class because it is a citation
+list with no clinical prose.
 
-**Not read:** the rationale, practice considerations, evidence reviews, and references.
+**Not read:** the 2021 importance and rationale; both practice-consideration spans;
+and both supporting-evidence spans, including research needs and recommendations of
+others. Each contains narrative decision points that cannot be represented under the
+current exact-source contract while #464 remains open.
 
 **Source: `uspstf-2021`**
 
@@ -29,7 +35,7 @@ restates, and choosing among them is the clinician's. Graded by
 | importance and rationale | 1-2 | no |
 | practice considerations | 3-4 | no |
 | supporting evidence, research needs, and recommendations of others | 4-6 | no |
-| references | 6-8 | no |
+| references | 6-8 | exempt: citation list has no clinical prose |
 
 **Source: `uspstf-2022`**
 
@@ -38,7 +44,7 @@ restates, and choosing among them is the clinician's. Graded by
 | recommendation statement and assessment | 1-2 | read 2026-08-22 |
 | practice considerations | 2-3 | no |
 | supporting evidence | 3-4 | no |
-| article information and references | 5 | no |
+| article information and references | 5 | read 2026-08-23 |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-22
 
