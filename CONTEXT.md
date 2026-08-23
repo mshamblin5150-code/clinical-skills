@@ -188,6 +188,10 @@ _Avoid_: producer paths, unchanged paths, provenance list
 Everything a content-addressed build hashes to decide whether it may reuse an earlier artifact instead of producing one again. Deliberately wider than the trust floor, because the price of a miss is a rebuild and the price of a wrong hit is a stale answer.
 _Avoid_: build key, fingerprint, producer identity
 
+**Held declaration**:
+A claim a curated artifact makes about a check its reader may be unable to re-run. The run that *can* re-run it is the only thing enforcing the claim — refusing where it is absent, and refusing where it describes a different run than the one that just happened. Never checked against elapsed time, because no artifact knows what its reader's machine holds. Which claims qualify is enumerated by hand, never inferred.
+_Avoid_: provenance line, status line, audit note, metadata
+
 **Accepted distrust**:
 A verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
 _Avoid_: provenance stamp, taint, untrusted flag
