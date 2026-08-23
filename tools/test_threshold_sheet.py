@@ -1472,7 +1472,7 @@ class ScopeSpanTable(unittest.TestCase):
         path = (Path(__file__).resolve().parent.parent / "reference" / "thresholds"
                 / "cervical-cancer.md")
         text = path.read_text(encoding="utf-8").replace(
-            "| references | 11-13 | no |",
+            "| references | 11-13 | exempt: citation list has no clinical prose |",
             "| references | 11-13 | yes |",
         )
         self.assertIn("| references | 11-13 | yes |", text)
