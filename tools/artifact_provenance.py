@@ -11,16 +11,20 @@ both halves of what that costs: the *trace*, which announces an accepted distrus
 on a channel no warnings filter reaches, and the *publication rule*, which refuses
 to let an untrusted read publish inside a git checkout. #406, and docs/adr/0010.
 
-What neither reaches is ``NOT_GUARDED``.
+For the two curated artifacts a person can carry a verdict into, this module also
+owns the accepted-distrust declaration grammar and the pass/retirement rule. #460,
+and docs/adr/0019. What none of those mechanisms reaches is ``NOT_GUARDED``.
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 import sys
 import warnings
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from repo_root import ensure_outside_checkout
@@ -146,6 +150,113 @@ class ProvenanceCheck:
     @property
     def trusted(self) -> bool:
         return not self.reasons
+
+
+@dataclass(frozen=True)
+class AcceptedDistrust:
+    """The human-authored declaration that holds a verdict earned under distrust."""
+
+    corpus: str
+    date: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AcceptedDistrustVerdict:
+    """What a passing gate owes the declaration in the artifact it grades."""
+
+    failures: tuple[str, ...] = ()
+    not_graded: bool = False
+    expected: str | None = None
+
+
+_ACCEPTED_DISTRUST = re.compile(
+    r"^accepted distrust against (?P<corpus>.+) on "
+    r"(?P<date>\d{4}-\d{2}-\d{2}):$"
+)
+_ACCEPTED_DISTRUST_PREFIX = "accepted distrust against "
+
+
+def render_accepted_distrust(
+    corpus: Path | str,
+    reasons: tuple[str, ...],
+    *,
+    on: date | None = None,
+) -> str:
+    """Render the declaration without paraphrasing any provenance reason."""
+    today = on or date.today()
+    lines = [f"{_ACCEPTED_DISTRUST_PREFIX}{Path(corpus).resolve()} on {today.isoformat()}:"]
+    lines.extend(f"  - {reason}" for reason in reasons)
+    return "\n".join(lines)
+
+
+def parse_accepted_distrust(
+    text: str,
+) -> tuple[AcceptedDistrust | None, tuple[str, ...]]:
+    """Read the one accepted-distrust declaration in a curated Markdown region."""
+    lines = text.splitlines()
+    starts: list[int] = []
+    in_fence = False
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.startswith(_ACCEPTED_DISTRUST_PREFIX):
+            starts.append(index)
+    if not starts:
+        return None, ()
+    if len(starts) != 1:
+        return None, ("more than one accepted distrust declaration is present",)
+    index = starts[0]
+    match = _ACCEPTED_DISTRUST.fullmatch(lines[index])
+    if match is None:
+        return None, ("the accepted distrust declaration header is malformed",)
+    reasons: list[str] = []
+    for line in lines[index + 1 :]:
+        if line.startswith("  - "):
+            reasons.append(line.removeprefix("  - "))
+            continue
+        break
+    if not reasons:
+        return None, ("the accepted distrust declaration carries no provenance reasons",)
+    return (
+        AcceptedDistrust(match.group("corpus"), match.group("date"), tuple(reasons)),
+        (),
+    )
+
+
+def grade_accepted_distrust(
+    declaration: AcceptedDistrust | None,
+    corpus: Path | str,
+    provenance: ProvenanceCheck,
+    *,
+    passed: bool,
+    on: date | None = None,
+) -> AcceptedDistrustVerdict:
+    """Bind a genuine gate pass to its declaration, or retire a superseded one."""
+    if not passed:
+        return AcceptedDistrustVerdict()
+    expected = render_accepted_distrust(corpus, provenance.reasons, on=on)
+    if provenance.trusted:
+        if declaration is None:
+            return AcceptedDistrustVerdict()
+        return AcceptedDistrustVerdict(
+            failures=(
+                "a trusted passing run supersedes the accepted distrust declaration; "
+                "delete the accepted distrust declaration",
+            ),
+        )
+    if declaration is None:
+        return AcceptedDistrustVerdict(not_graded=True, expected=expected)
+    parsed_expected, _ = parse_accepted_distrust(expected)
+    if declaration != parsed_expected:
+        return AcceptedDistrustVerdict(
+            failures=(
+                "the accepted distrust declaration describes different distrust than "
+                "this run; replace it with:\n" + expected,
+            ),
+        )
+    return AcceptedDistrustVerdict()
 
 
 def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:

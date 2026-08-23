@@ -19,6 +19,23 @@ records a page locator and evidence kind. `tools/guidelines_catalog.py` fails on
 an incomplete reading, changed PDF bytes, or a disagreement that has no dated
 clinician ruling.
 
+When the mechanical catalog audit passes only because
+`--allow-untrusted-provenance` admitted the extracted corpus, the catalog carries
+the exact declaration block the command prints:
+
+```text
+accepted distrust against <corpus> on <date>:
+  - <one artifact_provenance reason, verbatim>
+  - <another artifact_provenance reason, verbatim>
+```
+
+Without that block the command reports shape-only mode rather than claiming the
+corpus audit passed. A block for different distrust refuses, and a later trusted
+passing audit refuses until the superseded block is deleted. `--draft` carries no
+declaration: it prints values rather than a verdict, and the next audit grades what
+a person pastes. This is ADR 0019's human-mediated record; ADR 0010's stderr trace
+and checkout-publication refusal remain unchanged.
+
 ## How to read a row
 
 | Column | What it is |

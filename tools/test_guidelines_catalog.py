@@ -614,6 +614,110 @@ class CheckingTheAuditFromTheCli(unittest.TestCase):
         self.assertIn("SKIPPED document digest verification", stdout.getvalue())
 
 
+class AcceptedDistrustOnTheCatalogCli(unittest.TestCase):
+    def _catalog(self, declaration: str = "") -> str:
+        return (
+            "# Catalog\n\n"
+            "| `class` | `guideline`, `recommendation-statement`, `web-capture`, "
+            "`draft`, `errata`, or `scope-of-work` |\n\n"
+            + (declaration + "\n\n" if declaration else "")
+            + gc.render_table([row()])
+            + "\n\n## Unsettled cells\n"
+        )
+
+    def _corpus(self, root: Path, *, dirty: bool) -> Path:
+        corpus = root / "corpus"
+        record = extract.build_document(
+            Path("USPSTF/copd-screening.pdf"),
+            [
+                "Screening for Chronic Obstructive Pulmonary Disease 2022\n"
+                "US Preventive Services Task Force Recommendation Statement"
+                for _ in range(6)
+            ],
+            corpus,
+            "Screening for Chronic Obstructive Pulmonary Disease",
+        )
+        producer = clean_producer()
+        producer["dirty"] = dirty
+        extract.write_manifest(
+            corpus,
+            [record],
+            Path("C:/outside/guidelines-src"),
+            producer=producer,
+        )
+        return corpus
+
+    def _run(self, root: Path, corpus: Path, catalog: str, *, allow: bool) -> tuple[int, str]:
+        catalog_path = root / "catalog.md"
+        audit_path = root / "audit.md"
+        catalog_path.write_text(catalog, encoding="utf-8")
+        audit_path.write_text(AUDIT, encoding="utf-8")
+        arguments = [
+            "--catalog", str(catalog_path),
+            "--audit", str(audit_path),
+            "--src", str(corpus),
+            "--pdf-src", str(root / "absent-pdfs"),
+        ]
+        if allow:
+            arguments.insert(0, "--allow-untrusted-provenance")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            status = gc.main(arguments)
+        return status, output.getvalue()
+
+    def test_an_undeclared_untrusted_audit_reports_shape_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            corpus = self._corpus(root, dirty=True)
+            status, output = self._run(root, corpus, self._catalog(), allow=True)
+
+        self.assertEqual(status, 0, output)
+        self.assertIn("shape only", output)
+        self.assertNotIn("row(s) against", output)
+
+    def test_an_exact_declaration_holds_the_untrusted_audit_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            corpus = self._corpus(root, dirty=True)
+            declaration = artifact_provenance.render_accepted_distrust(
+                corpus, ("was produced by a dirty checkout",)
+            )
+            status, output = self._run(
+                root, corpus, self._catalog(declaration), allow=True
+            )
+
+        self.assertEqual(status, 0, output)
+        self.assertIn(f"against {corpus}", output)
+
+    def test_a_declaration_for_different_distrust_refuses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            corpus = self._corpus(root, dirty=True)
+            declaration = artifact_provenance.render_accepted_distrust(
+                corpus, ("has no producer provenance stamp",)
+            )
+            status, output = self._run(
+                root, corpus, self._catalog(declaration), allow=True
+            )
+
+        self.assertEqual(status, 1, output)
+        self.assertIn("different distrust", output)
+
+    def test_a_trusted_audit_pass_refuses_until_the_declaration_is_deleted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            corpus = self._corpus(root, dirty=False)
+            declaration = artifact_provenance.render_accepted_distrust(
+                corpus, ("was produced by a dirty checkout",)
+            )
+            status, output = self._run(
+                root, corpus, self._catalog(declaration), allow=False
+            )
+
+        self.assertEqual(status, 1, output)
+        self.assertIn("delete the accepted distrust", output)
+
+
 class CheckShape(unittest.TestCase):
     def test_an_unsettled_cell_nobody_listed_fails(self):
         failures = gc.check_shape([row(population="?")], {})

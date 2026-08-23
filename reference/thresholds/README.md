@@ -274,6 +274,23 @@ which applies wherever a keyword decides a verdict.
 It also carries `citations resolved against <corpus> on <date>`. That is the artifact's
 own record of when the citation gate last ran against real PDFs — see below.
 
+When WATERMARK passes only because `--allow-untrusted-provenance` admitted the
+extracted corpus, this section also carries the exact block the command prints:
+
+```text
+accepted distrust against <corpus> on <date>:
+  - <one artifact_provenance reason, verbatim>
+  - <another artifact_provenance reason, verbatim>
+```
+
+The source path and date identify that run, and every reason is copied without
+combining or paraphrasing it. Without the block WATERMARK reports **NOT GRADED** and
+the command exits 2; a block copied from another artifact or run refuses. A later
+trusted WATERMARK pass supersedes the status and refuses until the entire block is
+deleted. An absent corpus does neither: it skips the gate and leaves the last status
+alone. This is accepted distrust's artifact contract from ADR 0019, not a replacement
+for the stderr trace or the checkout-publication refusal from ADR 0010.
+
 ### `## Populations`
 
 The controlled vocabulary, and the answer to the one correction that reshaped this

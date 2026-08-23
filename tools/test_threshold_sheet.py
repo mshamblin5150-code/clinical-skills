@@ -1478,11 +1478,31 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
         if absent:
             self.skipTest("external gate input absent: " + ", ".join(absent))
 
+        handoff_stderr = io.StringIO()
+        with contextlib.redirect_stderr(handoff_stderr):
+            handoff = gate.read_extraction(
+                self.TEXT_ROOT, allow_untrusted_provenance=True
+            )
+        self.assertFalse(handoff.problems, handoff.problems)
+
+        source_sheet = gate.SHEET_ROOT / "diabetes.md"
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        sheet_path = source_sheet
+        if handoff.provenance and handoff.provenance.reasons:
+            declaration = artifact_provenance.render_accepted_distrust(
+                handoff.root, handoff.provenance.reasons
+            )
+            sheet_path = Path(temporary.name) / source_sheet.name
+            text = source_sheet.read_text(encoding="utf-8")
+            text = text.replace("## Scope\n", "## Scope\n\n" + declaration + "\n", 1)
+            sheet_path.write_text(text, encoding="utf-8")
+
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             code = gate.main(
                 [
-                    str(gate.SHEET_ROOT / "diabetes.md"),
+                    str(sheet_path),
                     "--recs-root",
                     str(self.RECS_ROOT),
                     "--pdf-root",
@@ -2375,6 +2395,112 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
 
         self.assertIn("different commit", skip)
         self.assertIsNone(allowed_skip)
+
+    def _sheet_with_accepted_distrust(self, declaration: str) -> gate.Sheet:
+        marked_header = header().replace(
+            "citations resolved against C:/nowhere on 2026-08-16",
+            "citations resolved against C:/nowhere on 2026-08-16\n\n" + declaration,
+        )
+        return gate.parse(
+            marked_header + "\n## Thresholds\n\n" + row(),
+            Path("test-sheet.md"),
+        )
+
+    def _dirty_corpus(self) -> tuple[Path, tuple[str, ...]]:
+        text_corpus(
+            self.root,
+            "Society/doc",
+            "an SBP goal of <130 mm Hg",
+            boilerplate=["Jones et al"],
+        )
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["producer"]["dirty"] = True
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        return self.root.resolve(), ("was produced by a dirty checkout",)
+
+    def test_an_untrusted_pass_without_a_declaration_is_not_graded(self):
+        corpus, _ = self._dirty_corpus()
+
+        with self.assertWarns(RuntimeWarning):
+            result = gate.gate_watermark(
+                sheet(row()), corpus, allow_untrusted_provenance=True
+            )
+
+        self.assertTrue(result.not_graded)
+        self.assertIn("NOT GRADED", "\n".join(result.report))
+
+    def test_the_command_exits_two_when_the_untrusted_pass_is_not_declared(self):
+        corpus, _ = self._dirty_corpus()
+        sheet_path = self.root / "sheet.md"
+        sheet_path.write_text(
+            header() + "\n## Thresholds\n\n" + row(), encoding="utf-8"
+        )
+        recs_path = self.root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with self.assertWarns(RuntimeWarning), contextlib.redirect_stdout(
+            io.StringIO()
+        ), contextlib.redirect_stderr(stderr):
+            status = grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=corpus,
+                allow_untrusted_provenance=True,
+            )
+
+        self.assertEqual(status, 2)
+        self.assertIn("add this declaration under ## Scope", stderr.getvalue())
+
+    def test_an_exact_declaration_holds_the_untrusted_pass(self):
+        corpus, reasons = self._dirty_corpus()
+        declaration = artifact_provenance.render_accepted_distrust(corpus, reasons)
+
+        with self.assertWarns(RuntimeWarning):
+            result = gate.gate_watermark(
+                self._sheet_with_accepted_distrust(declaration),
+                corpus,
+                allow_untrusted_provenance=True,
+            )
+
+        self.assertFalse(result.not_graded)
+        self.assertEqual(result.findings, [])
+        self.assertIn("WATERMARK       0 refusing", "\n".join(result.report))
+
+    def test_a_declaration_for_different_distrust_refuses(self):
+        corpus, _ = self._dirty_corpus()
+        declaration = artifact_provenance.render_accepted_distrust(
+            corpus, ("has no producer provenance stamp",)
+        )
+
+        with self.assertWarns(RuntimeWarning):
+            result = gate.gate_watermark(
+                self._sheet_with_accepted_distrust(declaration),
+                corpus,
+                allow_untrusted_provenance=True,
+            )
+
+        self.assertTrue(any("different distrust" in finding for finding in result.findings))
+
+    def test_a_trusted_pass_refuses_until_the_declaration_is_deleted(self):
+        text_corpus(
+            self.root,
+            "Society/doc",
+            "an SBP goal of <130 mm Hg",
+            boilerplate=["Jones et al"],
+        )
+        declaration = artifact_provenance.render_accepted_distrust(
+            self.root.resolve(), ("was produced by a dirty checkout",)
+        )
+
+        result = gate.gate_watermark(
+            self._sheet_with_accepted_distrust(declaration), self.root
+        )
+
+        self.assertTrue(any("delete the accepted distrust" in finding for finding in result.findings))
 
     def test_a_foreign_manifest_makes_the_command_exit_two(self):
         text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")

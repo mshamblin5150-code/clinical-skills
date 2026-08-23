@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 import warnings
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -85,6 +86,33 @@ class ArtifactIdentityTables(unittest.TestCase):
             [call.kwargs["unchanged_paths"] for call in check.call_args_list],
             [floors["index"], floors["extraction"]],
         )
+
+
+class AcceptedDistrustDeclarations(unittest.TestCase):
+    def test_reasons_round_trip_without_splitting_a_semicolon(self):
+        reasons = (
+            "was produced by a different commit (abc; current is def)",
+            "was produced by a dirty checkout",
+        )
+        rendered = artifact_provenance.render_accepted_distrust(
+            Path("C:/corpus"), reasons, on=date(2026, 8, 23)
+        )
+
+        declaration, problems = artifact_provenance.parse_accepted_distrust(rendered)
+
+        self.assertEqual(problems, ())
+        self.assertEqual(declaration.reasons, reasons)
+
+    def test_a_fenced_format_example_is_a_mention_not_a_declaration(self):
+        text = """The artifact uses this form:\n\n```text
+accepted distrust against <corpus> on <date>:
+  - <reason>
+```\n"""
+
+        declaration, problems = artifact_provenance.parse_accepted_distrust(text)
+
+        self.assertIsNone(declaration)
+        self.assertEqual(problems, ())
 
 
 class MergeParentTrustTests(unittest.TestCase):
