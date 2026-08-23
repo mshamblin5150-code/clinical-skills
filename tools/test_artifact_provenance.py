@@ -114,10 +114,6 @@ class MergeParentTrustTests(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TheTraceSurvivesAHostileFilter(unittest.TestCase):
     """#406. The escape hatch's trace was a ``RuntimeWarning`` and nothing else, so an
     operator with ``PYTHONWARNINGS=ignore`` set for unrelated reasons read a dirty or
@@ -131,6 +127,26 @@ class TheTraceSurvivesAHostileFilter(unittest.TestCase):
 
     def _trace_lines(self, stderr: str) -> list[str]:
         return [line for line in stderr.splitlines() if line.startswith("untrusted artifact")]
+
+    def _run_with_pythonwarnings(self, setting: str) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "run.py"
+            script.write_text(
+                "import sys\n"
+                f"sys.path.insert(0, {str(TOOLS)!r})\n"
+                "import artifact_provenance as ap\n"
+                "ap.check_producer(None, 'X', allow_untrusted=True, expected_commit='abc')\n",
+                encoding="utf-8",
+            )
+            environment = dict(os.environ, PYTHONWARNINGS=setting)
+            return subprocess.run(
+                [sys.executable, str(script)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=environment,
+            )
 
     def test_the_line_survives_an_in_process_ignore_filter(self):
         stderr = io.StringIO()
@@ -171,27 +187,32 @@ class TheTraceSurvivesAHostileFilter(unittest.TestCase):
 
     def test_pythonwarnings_ignore_does_not_reach_it(self):
         """The row #406 measured as *printed not at all*, driven end to end."""
-        with tempfile.TemporaryDirectory() as directory:
-            script = Path(directory) / "run.py"
-            script.write_text(
-                "import sys\n"
-                f"sys.path.insert(0, {str(TOOLS)!r})\n"
-                "import artifact_provenance as ap\n"
-                "ap.check_producer(None, 'X', allow_untrusted=True, expected_commit='abc')\n",
-                encoding="utf-8",
-            )
-            environment = dict(os.environ, PYTHONWARNINGS="ignore")
-            completed = subprocess.run(
-                [sys.executable, str(script)],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=environment,
-            )
+        completed = self._run_with_pythonwarnings("ignore")
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(completed.stderr.count("untrusted artifact X"), 1)
         self.assertNotIn("RuntimeWarning", completed.stderr)
+
+    def test_pythonwarnings_error_cannot_abort_or_hide_it(self):
+        completed = self._run_with_pythonwarnings("error")
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stderr.count("untrusted artifact X"), 1)
+        self.assertNotIn("Traceback", completed.stderr)
+
+    def test_an_error_filter_cannot_preempt_the_audit_line(self):
+        """Ambient warning policy cannot erase the trace or abort the override."""
+        stderr = io.StringIO()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with contextlib.redirect_stderr(stderr):
+                check = artifact_provenance.check_producer(
+                    None,
+                    "the-artifact",
+                    allow_untrusted=True,
+                    expected_commit="abc",
+                )
+        self.assertFalse(check.trusted)
+        self.assertEqual(len(self._trace_lines(stderr.getvalue())), 1)
+        self.assertIn(artifact_provenance.FLAG, stderr.getvalue())
 
     def test_the_trace_stays_off_stdout(self):
         """A command's stdout is its result. A trace on it would corrupt every caller
@@ -268,6 +289,7 @@ class TheDedupIsDeclaredRatherThanFixed(unittest.TestCase):
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                env=dict(os.environ, PYTHONWARNINGS="default"),
             )
         self.assertEqual(completed.stderr.count("RuntimeWarning"), 1)
         self.assertEqual(completed.stderr.count("continuing because"), 2)
@@ -328,9 +350,8 @@ class ThePublicationRule(unittest.TestCase):
     """docs/adr/0010. An untrusted read may not publish into a checkout.
 
     ``uspstf_table`` is the only caller because it is the only flag-bearing command that
-    can write inside the repo at all: three write nothing durable, ``guidelines_index``
-    is guarded unconditionally, and ``guidelines_manifest`` writes into the extraction
-    directory, which the extractor already refuses to place inside a checkout.
+    can publish inside the repo at all: the others either produce no durable artifact or
+    already guard their destination outside every checkout.
     """
 
     def test_the_flag_off_is_a_no_op_even_inside_a_checkout(self):
@@ -395,7 +416,7 @@ class TheCommandRefusesBeforeItReads(unittest.TestCase):
     def test_the_committed_default_out_is_refused_under_the_flag(self):
         status, stderr = self._run("C:/no-such-corpus", "--allow-untrusted-provenance")
         self.assertEqual(status, 2)
-        self.assertIn("refusing to write inside a git checkout", stderr)
+        self.assertIn(artifact_provenance.WHY_NO_PUBLISH, stderr)
 
     def test_the_refusal_beats_the_missing_corpus(self):
         """Both conditions hold at once. The placement question is about argv alone, so
@@ -406,7 +427,7 @@ class TheCommandRefusesBeforeItReads(unittest.TestCase):
     def test_without_the_flag_the_guard_does_not_fire(self):
         status, stderr = self._run("C:/no-such-corpus")
         self.assertEqual(status, 2)
-        self.assertNotIn("refusing to write inside a git checkout", stderr)
+        self.assertNotIn(artifact_provenance.WHY_NO_PUBLISH, stderr)
         self.assertIn("extracted corpus not found", stderr)
 
     def test_an_out_outside_every_checkout_passes_the_guard(self):
@@ -418,7 +439,7 @@ class TheCommandRefusesBeforeItReads(unittest.TestCase):
                 str(Path(directory) / "table.md"),
             )
         self.assertEqual(status, 2)
-        self.assertNotIn("refusing to write inside a git checkout", stderr)
+        self.assertNotIn(artifact_provenance.WHY_NO_PUBLISH, stderr)
         self.assertIn("extracted corpus not found", stderr)
 
 
@@ -428,7 +449,7 @@ class EveryParserUsesTheSharedEffectClause(unittest.TestCase):
 
     **The narrow predicate, not the one #176 refused.** It keys on *declares this
     argument*, which is a literal in the parser, and asserts a property of the help
-    string. It never has to guess which commands write.
+    string. It never has to guess which commands publish.
     """
 
     def _declarations(self):
@@ -459,12 +480,16 @@ class EveryParserUsesTheSharedEffectClause(unittest.TestCase):
     def _cites_the_constant(node) -> bool:
         if node is None or isinstance(node, ast.Constant):
             return False
-        names = {
+        names = EveryParserUsesTheSharedEffectClause._referenced_names(node)
+        return "FLAG_HELP_EFFECT" in names
+
+    @staticmethod
+    def _referenced_names(node) -> set[str]:
+        return {
             child.attr if isinstance(child, ast.Attribute) else child.id
             for child in ast.walk(node)
             if isinstance(child, (ast.Attribute, ast.Name))
         }
-        return "FLAG_HELP_EFFECT" in names
 
     def test_the_population_is_not_empty(self):
         """Without this the class passes on a walk that found nothing."""
@@ -516,11 +541,7 @@ class EveryParserUsesTheSharedEffectClause(unittest.TestCase):
         declaration rather than off a parser object that does not exist."""
         declarations = dict(self._declarations())
         node = declarations["uspstf_table.py"]
-        names = {
-            child.attr if isinstance(child, ast.Attribute) else child.id
-            for child in ast.walk(node)
-            if isinstance(child, (ast.Attribute, ast.Name))
-        }
+        names = self._referenced_names(node)
         self.assertIn("FLAG_HELP_NO_PUBLISH", names)
 
     def test_no_other_command_claims_to_refuse_a_publish(self):
@@ -529,11 +550,7 @@ class EveryParserUsesTheSharedEffectClause(unittest.TestCase):
         for name, node in self._declarations():
             if name == "uspstf_table.py":
                 continue
-            names = {
-                child.attr if isinstance(child, ast.Attribute) else child.id
-                for child in ast.walk(node)
-                if isinstance(child, (ast.Attribute, ast.Name))
-            }
+            names = self._referenced_names(node)
             self.assertNotIn("FLAG_HELP_NO_PUBLISH", names, name)
 
 
@@ -592,3 +609,7 @@ happens to say {headline} across a wrap"""
         for headline, reason in artifact_provenance.NOT_GUARDED:
             self.assertTrue(headline.strip())
             self.assertGreater(len(reason.split()), 8, headline)
+
+
+if __name__ == "__main__":
+    unittest.main()

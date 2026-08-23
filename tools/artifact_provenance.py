@@ -9,7 +9,7 @@ either parent is a valid ancestor and comparison remains against the merged tree
 ``--allow-untrusted-provenance`` is the deliberate escape hatch. This module owns
 both halves of what that costs: the *trace*, which announces an accepted distrust
 on a channel no warnings filter reaches, and the *publication rule*, which refuses
-to let an untrusted read write inside a git checkout. #406, and docs/adr/0010.
+to let an untrusted read publish inside a git checkout. #406, and docs/adr/0010.
 
 What neither reaches is ``NOT_GUARDED``.
 """
@@ -38,12 +38,12 @@ FLAG = "--allow-untrusted-provenance"
 # is the effect clause rather than the whole string, and tools/test_write_guards.py
 # asserts no parser spells it out as a bare literal.
 FLAG_HELP_EFFECT = "traces to stderr on every check and continues"
-FLAG_HELP_NO_PUBLISH = "and refuses to write inside a git checkout"
+FLAG_HELP_NO_PUBLISH = "and refuses publication inside a git checkout"
 
 WHY_NO_PUBLISH = (
     f"{FLAG} exists for deliberate development work, and publishing a committed "
     "artifact is not development work -- see issue #406 and docs/adr/0010. Send the "
-    "output outside every checkout, or drop the flag and read a trusted artifact."
+    "artifact outside every checkout, or drop the flag and read a trusted artifact."
 )
 
 # Declared rather than built, on #254's and #141's terms: a limit a reader can find
@@ -51,15 +51,15 @@ WHY_NO_PUBLISH = (
 # being true.
 NOT_GUARDED = (
     (
-        "the guard is on the write, not on the file",
+        "the guard is on publication, not on the file",
         "--out to a temp path followed by a hand copy into the checkout defeats it, "
         "and always will.",
     ),
     (
         "nothing mechanically catches a further flag-bearing command",
-        "#176 refused a predicate over which tools write. Three of the six commands "
-        "declaring this flag write nothing durable at all, and deciding that "
-        "mechanically is the guess that ticket rejected.",
+        "#176 refused a predicate over which tools publish. Some commands declaring "
+        "this flag produce nothing durable at all, and deciding that mechanically is "
+        "the guess that ticket rejected.",
     ),
     (
         "the warning deduplicates and the stderr line does not",
@@ -74,9 +74,10 @@ def _trace(message: str) -> None:
     """Announce an accepted distrust, on a channel no warnings filter reaches.
 
     **Two channels deliberately.** ``warnings.warn`` stays because a caller may catch
-    it programmatically and this repo's own suite does, nine times. The print is the
-    audit record: ``PYTHONWARNINGS=ignore`` cannot silence it, and it never
-    deduplicates, so an artifact checked twice traces twice.
+    it programmatically and this repo's own suite does in several places. The print is
+    the audit record: ``PYTHONWARNINGS=ignore`` cannot silence it, and it never
+    deduplicates, so an artifact checked twice traces twice. An ambient ``error`` filter
+    cannot turn the deliberately accepted distrust back into a refusal either.
 
     **Lowercase rather than a banner**, on #258's register ruling. A shout is what
     ``PATIENT NAMES ARE NOT CHECKED`` spends on a safety check going *unenforced*;
@@ -84,27 +85,28 @@ def _trace(message: str) -> None:
     reading the terminal. The clause naming the flag is the part that matters -- a
     later reader of a scrollback otherwise cannot tell why the run continued.
     """
-    warnings.warn(message, RuntimeWarning, stacklevel=3)
     print(f"{message} -- continuing because {FLAG} was given", file=sys.stderr)
+    try:
+        warnings.warn(message, RuntimeWarning, stacklevel=3)
+    except RuntimeWarning:
+        pass
 
 
-def refuse_publication(
-    destination: Path | str, *, allow_untrusted: bool, detail: str = ""
-) -> Path:
-    """The resolved destination, or ``InsideCheckout`` if an untrusted read wrote it.
+def refuse_publication(destination: Path | str, *, allow_untrusted: bool) -> Path:
+    """The resolved destination, or ``InsideCheckout`` before an untrusted publish.
 
     A no-op when the flag is off: a trusted read may publish wherever its own guard
     allows, and this rule is about the hatch rather than about placement in general.
 
     **#383's rule one artifact over** -- *a dirty checkout may reuse a trusted build
     but may not publish a new one*. ``uspstf_table`` is the only caller today because
-    it is the only flag-bearing command that can write inside the repo at all; see
+    it is the only flag-bearing command that can publish inside the repo at all; see
     ``NOT_GUARDED`` for why no walk asserts that stays true.
     """
     resolved = Path(destination)
     if not allow_untrusted:
         return resolved
-    return ensure_outside_checkout(resolved, detail=detail or WHY_NO_PUBLISH)
+    return ensure_outside_checkout(resolved, detail=WHY_NO_PUBLISH)
 
 
 class UntrustedProvenance(ValueError):
