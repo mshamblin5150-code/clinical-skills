@@ -75,6 +75,9 @@ def header(mode: str = "exact") -> str:
                           f"| 2025 | 2025 | https://example.invalid | {mode} |")
 
 
+TEST_PDF_ROOT = Path(__file__).resolve().parent.as_posix()
+
+
 HEADER = f"""# Test sheet
 
 {gate.SCHEMA_MARKER}
@@ -91,7 +94,7 @@ HEADER = f"""# Test sheet
 
 **Not read:** the narrative sections and the appendices.
 
-citations resolved against C:/nowhere on 2026-08-16
+citations resolved against {TEST_PDF_ROOT} on 2026-08-16
 
 ## Populations
 
@@ -157,7 +160,7 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 
 **Not read:** the narrative sections and the appendices.
 
-citations resolved against C:/nowhere on 2026-08-16
+citations resolved against {TEST_PDF_ROOT} on 2026-08-16
 
 ## Populations
 
@@ -459,6 +462,154 @@ class CitationTier1(unittest.TestCase):
         self.assertIsNotNone(skipped)
         self.assertEqual(rendered, 0)
         self.assertEqual(gate.gate_citation_tier1(sheet(row())).findings, [])
+
+
+class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
+    @staticmethod
+    def parsed(text: str = HEADER) -> gate.Sheet:
+        return gate.parse(
+            text
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(page="p1"),
+            Path("test-sheet.md"),
+        )
+
+    def test_a_skipped_run_refuses_a_missing_resolution_declaration(self):
+        text = HEADER.replace(
+            f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
+            "",
+        )
+        parsed = self.parsed(text)
+
+        result = gate.gate_citation_tier2(parsed, Path("C:/nowhere-at-all"))
+
+        self.assertIsNotNone(result.skip_reason)
+        self.assertTrue(
+            any("resolution" in finding.lower() for finding in result.findings),
+            result.findings,
+        )
+
+    def test_a_missing_declaration_exits_one_even_when_tier_two_skips(self):
+        text = HEADER.replace(
+            f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
+            "",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(
+                text
+                + "\n## Thresholds\n\n"
+                + "| quantity | population | value | snippet | source | page | rec | class |\n"
+                + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row(page="p1"),
+                encoding="utf-8",
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = grade(path, [], Path(directory) / "absent", quiet=True)
+
+        self.assertEqual(status, 1)
+        self.assertIn("CITATION tier 2", err.getvalue())
+
+    def test_a_live_failing_verdict_also_refuses_a_missing_declaration(self):
+        text = HEADER.replace(
+            f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
+            "",
+        )
+
+        result = gate.gate_citation_tier2(
+            self.parsed(text),
+            Path(__file__).resolve().parent,
+        )
+
+        self.assertIsNone(result.skip_reason)
+        self.assertTrue(any("no such PDF" in finding for finding in result.findings))
+        self.assertTrue(
+            any("resolution" in finding.lower() for finding in result.findings),
+            result.findings,
+        )
+
+    def test_corpus_disagreement_prints_beside_a_failing_live_verdict(self):
+        fictional = HEADER.replace(TEST_PDF_ROOT, "C:/nowhere")
+
+        result = gate.gate_citation_tier2(
+            self.parsed(fictional),
+            Path(__file__).resolve().parent,
+        )
+
+        self.assertTrue(any("no such PDF" in finding for finding in result.findings))
+        self.assertTrue(
+            any("different corpus" in finding.lower() for finding in result.findings),
+            result.findings,
+        )
+
+    def test_a_live_run_refuses_the_existing_fictional_fixture_path(self):
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("pymupdf absent; tier 2 cannot produce a verdict")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf_path = root / "Society" / "doc.pdf"
+            pdf_path.parent.mkdir()
+            document = pymupdf.open()
+            page = document.new_page()
+            page.insert_text((72, 72), "an SBP goal of <130 mm Hg")
+            document.save(pdf_path)
+            document.close()
+
+            fictional = HEADER.replace(TEST_PDF_ROOT, "C:/nowhere")
+            result = gate.gate_citation_tier2(self.parsed(fictional), root)
+
+        self.assertTrue(
+            any("different corpus" in finding.lower() for finding in result.findings),
+            result.findings,
+        )
+
+    def test_a_live_run_refuses_a_future_resolution_date(self):
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("pymupdf absent; tier 2 cannot produce a verdict")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf_path = root / "Society" / "doc.pdf"
+            pdf_path.parent.mkdir()
+            document = pymupdf.open()
+            page = document.new_page()
+            page.insert_text((72, 72), "an SBP goal of <130 mm Hg")
+            document.save(pdf_path)
+            document.close()
+            text = HEADER.replace(
+                f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16",
+                f"citations resolved against {root.as_posix()} on 9999-12-31",
+            )
+
+            result = gate.gate_citation_tier2(self.parsed(text), root)
+
+        self.assertTrue(
+            any("future" in finding.lower() for finding in result.findings),
+            result.findings,
+        )
+
+    def test_a_matching_older_declaration_adds_no_finding(self):
+        result = gate.gate_citation_tier2(
+            self.parsed(),
+            Path(__file__).resolve().parent,
+        )
+
+        self.assertFalse(
+            any(
+                phrase in finding.lower()
+                for finding in result.findings
+                for phrase in ("resolution declaration", "different corpus", "future")
+            ),
+            result.findings,
+        )
 
 
 class CitationTier0(unittest.TestCase):

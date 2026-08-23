@@ -46,9 +46,11 @@ row needed it.
     one. Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
     row's ``snippet``. Tier 2 runs only where the PDFs are present: the snippet must
     appear on the cited page. There is no machine on which citation checking drops
-    to zero, and the sheet header records the date tier 2 last really ran, so the
-    artifact says so rather than only the console. Tier 0 is a provenance floor, not
-    a reading: it cannot decide whether the snippet is the right text for the row.
+    to zero. Its resolution declaration is required in both tier 2 states; a live
+    verdict also refuses when that declaration names a different corpus or a future
+    date, while a skipped verdict cannot check its content. Tier 0 is a provenance
+    floor, not a reading: it cannot decide whether the snippet is the right text for
+    the row.
 
 ``COVERAGE`` refuses on an exact source, warns on a bound
     #83 gate 2, the omission check: *"everything else checks what was written, only
@@ -204,6 +206,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 import guidelines_extract
@@ -996,6 +999,34 @@ def _citation_tier2_not_run(reason: str) -> GateResult:
     )
 
 
+def _hold_tier2_resolution_declaration(
+    sheet: Sheet,
+    result: GateResult,
+    pdf_root: Path | None,
+) -> GateResult:
+    """Hold tier 2's declaration in both its skipped and live states."""
+    if not sheet.resolved_corpus or not sheet.resolved_date:
+        result.findings.append(
+            f"{sheet.path.name}  CITATION tier 2 has no resolution declaration in "
+            "## Scope. A corpus-free reader cannot tell checked once from never checked."
+        )
+    elif result.skip_reason is None:
+        assert pdf_root is not None  # A live tier-2 result can only come from a real root.
+        if Path(sheet.resolved_corpus).resolve() != pdf_root.resolve():
+            result.findings.append(
+                f"{sheet.path.name}  CITATION tier 2 resolved against {pdf_root}, but its "
+                f"## Scope declaration names {sheet.resolved_corpus}: a different corpus."
+            )
+        if sheet.resolved_date > date.today().isoformat():
+            result.findings.append(
+                f"{sheet.path.name}  CITATION tier 2 resolution date "
+                f"{sheet.resolved_date} is in the future."
+            )
+    if result.skip_reason is None:
+        result.report = (f"  CITATION tier 2 {len(result.findings)}", *result.report[1:])
+    return result
+
+
 def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     """Every snippet must appear on the page it cites.
 
@@ -1009,11 +1040,19 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     whole design of decision 2 is that this **must not be readable as passing**.
     """
     if pdf_root is None or not pdf_root.is_dir():
-        return _citation_tier2_not_run(f"source PDFs not found at {pdf_root}")
+        return _hold_tier2_resolution_declaration(
+            sheet,
+            _citation_tier2_not_run(f"source PDFs not found at {pdf_root}"),
+            pdf_root,
+        )
     try:
         import pymupdf
     except ImportError:
-        return _citation_tier2_not_run("pymupdf is not installed")
+        return _hold_tier2_resolution_declaration(
+            sheet,
+            _citation_tier2_not_run("pymupdf is not installed"),
+            pdf_root,
+        )
 
     failures: list[str] = []
     rendered = 0
@@ -1055,11 +1094,15 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
             f"                  {rendered} row(s) declared {RENDERED_MARKER} "
             "and were read off the rendered page, so tier 2 skipped them"
         )
-    return GateResult(
-        "CITATION tier 2",
-        failures,
-        rendered=rendered,
-        report=tuple(report),
+    return _hold_tier2_resolution_declaration(
+        sheet,
+        GateResult(
+            "CITATION tier 2",
+            failures,
+            rendered=rendered,
+            report=tuple(report),
+        ),
+        pdf_root,
     )
 
 

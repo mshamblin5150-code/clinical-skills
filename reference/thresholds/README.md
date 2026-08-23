@@ -271,8 +271,25 @@ document as a whole, so a threshold row whose snippet happens to quote *"not rea
 cannot discharge the rule. That is `block_scan.py`'s mention-versus-use distinction,
 which applies wherever a keyword decides a verdict.
 
-It also carries `citations resolved against <corpus> on <date>`. That is the artifact's
-own record of when the citation gate last ran against real PDFs — see below.
+It also carries `citations resolved against <corpus> on <date>`. That is a **held
+declaration**, not a courteous footer. CITATION tier 2 refuses its absence whether the
+live PDF gate ran or skipped. When the gate ran, it also refuses a corpus path that does
+not resolve to the run's `--pdf-root` and a date in the future; an older date is not a
+finding. When the gate skipped, the line's content cannot be checked and is the only
+artifact-level distinction between *checked once against real PDFs* and *never checked*.
+
+The corpus token deliberately remains a machine-local path. A second machine with the
+same corpus at another root therefore refuses the first machine's declaration; its owner
+updates the line, and the first machine's next live run refuses in the mirror direction.
+That one-edit ping-pong is a declared limit and a re-ruling trigger, not a silent pass and
+not a request for date arithmetic.
+
+After these holds, every line in `## Scope` is held by something. SCHEMA refuses a missing
+`Read:` or `Not read:` limb; CITATION tier 2 holds the resolution declaration in both its
+live and skipped states; and WATERMARK holds the accepted-distrust declaration that carries
+its otherwise unreproducible pass. The two declarations obey one **Held declaration**
+principle, not one mechanism: the resolution declaration holds a skip and presence, while
+the accepted-distrust declaration holds a pass.
 
 ### `## Populations`
 
