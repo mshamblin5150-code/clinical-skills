@@ -2,7 +2,7 @@
 
 143 recommendation statements from 90 of 90 USPSTF documents in the guideline corpus, one row each. Built by `tools/uspstf_table.py`; see that module for how every column is derived. Issue #82.
 
-**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. `population` and `interval` are *derived from the statement text*, not quoted from a field the document declares; `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap.
+**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. `population` and `interval` are *derived from the statement text*, not quoted from a field the document declares — from the statement sentence alone, so a period the document states elsewhere is outside the rule's reach rather than missed by it. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. Where a recommendation offers alternatives, `interval` names every period its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell.
 
 **USPSTF recommendation statements are federal work and public domain**, which is why this half of the corpus ships as a table of its own content while the society documents do not. The source PDFs stay outside this repo and are not redistributed.
 
@@ -93,7 +93,7 @@
 | Screening for Cardiovascular Disease Risk With Electrocardiography | asymptomatic adults at intermediate or high risk of CVD events | I | not stated | 2018 |  | `cvd-screening-with-ecg-final-rec-statement.pdf` | 1 |
 | Screening for Celiac Disease | asymptomatic persons | I | not stated | 2017 |  | `celiacscreening-recstatement.pdf` | 1 |
 | Screening for Cervical Cancer | women aged 21 to 29 years | A | every 3 years | 2018 |  | `cervical-cancer-final-rec-statement.pdf` | 1 |
-| Screening for Cervical Cancer | women aged 30 to 65 years | A | every 3 years | 2018 |  | `cervical-cancer-final-rec-statement.pdf` | 1 |
+| Screening for Cervical Cancer | women aged 30 to 65 years | A | every 3 years or every 5 years | 2018 |  | `cervical-cancer-final-rec-statement.pdf` | 1 |
 | Screening for Cervical Cancer | women older than 65 years who have had adequate prior screening and are not otherwise at high risk for cervical cancer | D | not stated | 2018 |  | `cervical-cancer-final-rec-statement.pdf` | 1 |
 | Screening for Cervical Cancer | women who have had a hysterectomy with removal of the cervix and do not have a history of a high-grade precancerous lesion or cervical cancer | D | not stated | 2018 |  | `cervical-cancer-final-rec-statement.pdf` | 1 |
 | Screening for Cervical Cancer | women younger than 21 years | D | not stated | 2018 |  | `cervical-cancer-final-rec-statement.pdf` | 1 |

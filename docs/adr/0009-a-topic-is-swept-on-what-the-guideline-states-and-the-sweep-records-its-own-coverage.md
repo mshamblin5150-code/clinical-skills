@@ -31,8 +31,9 @@ documents, but it does not decide whether a topic needs a threshold sheet. Its c
 cannot represent every kind of decision point: the aspirin recommendation for
 preeclampsia states a dose and start week, while the table has no dose column; the
 cervical-cancer recommendation states modality-dependent intervals, while its interval
-cell is single-valued. Society and recommendation grade therefore do not sort topics
-into sheet and no-sheet groups. The guideline does.
+cell names the periods but leaves their modalities to the paired statement. Society and
+recommendation grade therefore do not sort topics into sheet and no-sheet groups. The
+guideline does.
 
 ## Why `none` and `unread` are separate
 
