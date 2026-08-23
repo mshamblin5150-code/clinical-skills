@@ -288,6 +288,19 @@ machine can only compare strings, which is why the key is drawn from a fixed lis
 the verbatim text sits beside it — a mis-keyed row is a wrong *word* a reader can see,
 rather than a silent miss.
 
+### `## Quantities`
+
+The controlled vocabulary for what each row measures. Each key is declared once with
+the guideline's own wording verbatim beside it, and the grader refuses a threshold row
+whose key is absent from this table.
+
+**The method belongs in this key when the value depends on the method.** Cervical
+cancer screening is the calibration case: cytology alone and hrHPV testing legitimately
+carry different intervals for the same patients. Putting the method in `population`
+would misdescribe the patient; giving both rows one quantity would call alternatives a
+conflict. Method-specific quantity keys represent the recommendation without either
+distortion. [ADR 0009](../../docs/adr/0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md).
+
 ### `## Thresholds`
 
 Eight columns: `quantity | population | value | snippet | source | page | rec | class`.
@@ -343,6 +356,22 @@ Every recommendation in an exact source is either cited by a row or listed here 
 `` - `<rec_id>` - <reason> ``. **Omission is the failure no other gate can see**:
 everything else checks what was written, only this checks what was not.
 
+## Coverage of the topic sweep
+
+[`coverage.md`](coverage.md) is the denominator for this directory. It carries one row
+for every distinct topic derived from
+[`reference/guidelines-catalog.md`](../guidelines-catalog.md), with one of three states:
+
+- `sheet`: the named sheet holds the topic's decision points;
+- `none`: the source documents were read and state no decision point;
+- `unread`: the sources have not been read completely enough to decide.
+
+Run `python tools/threshold_coverage.py` from the repository root to re-derive the topic
+and state counts and to refuse missing, duplicate, or orphaned rows. `--draft` prints
+the catalog-derived topic column. An `unread` row is not a clinical finding, and a
+`none` row does not change the rule inside a sheet: a missing threshold row still means
+`sheet does not settle it`.
+
 ## What the sources being absent means
 
 Citation resolution needs the 410 MB of PDFs. In a fresh clone, in another worktree,
@@ -396,9 +425,11 @@ not left to be discovered:
   only ever be warned about*, and #173 made that false without touching the sentence**
   — the majority of the corpus is `exact` now. The standing figure is the table below
   and is deliberately not restated here.
-- **Two topics have sheets.** Everything else in the 179-document corpus is reachable
-  through `tools/guidelines_search.py` and has not been distilled. An empty directory
-  entry is not a negative finding about a guideline.
+- **The topic sweep is recorded rather than summarized by a hand-maintained count.**
+  [`coverage.md`](coverage.md) names every catalog topic and distinguishes a shipped
+  sheet, a completed read with no decision point, and an unread source. Run
+  `python tools/threshold_coverage.py` to re-derive the counts. An `unread` row is not
+  a negative finding about a guideline.
 - **Most of the corpus can be gated now, and the number is measured.**
   `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-19, after
   [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173) added the

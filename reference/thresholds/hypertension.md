@@ -67,6 +67,56 @@ citations resolved against C:/codeing/guidelines-src on 2026-08-16
 | adults-hospitalized-severe-htn | adults hospitalized for noncardiac conditions without acute target organ damage |
 | adults-preop | patients scheduled for elective major surgery |
 
+## Quantities
+
+| key | verbatim |
+| --- | --- |
+| acute-ich-bp-control-duration | lower SBP to 130 to <140 mm Hg for at least 7 days |
+| acute-ich-sbp-lowering-floor | SBP should not be lowered below 130 mm Hg |
+| acute-ich-sbp-target | immediately lower SBP to 130 to <140 mm Hg |
+| acute-stroke-bp-reduction-target | it might be reasonable to lower BP by 15% during the first 24 hours |
+| acute-stroke-bp-treatment-threshold | In patients with BP of ≥220/120 mm Hg who did not receive IV |
+| alcohol-limit | reduce alcohol intake to ≤1 drink/d for women |
+| antihypertensive-dosing-frequency | dosing once daily rather than multiple times daily |
+| aspirin-preeclampsia-prophylaxis-dose | counseled about the benefits of low-dose (81 mg/day) aspirin to reduce the risk |
+| bariatric-surgery-bmi-threshold | obesity with a BMI ≥35.0 kg/m2, bariatric surgery |
+| bp-stage-1-range-dbp | and DBP 80-89 mm Hg), initiation of antihypertensive drug therapy |
+| bp-stage-1-range-sbp | In adults with stage 1 hypertension (SBP 130- 139 mm Hg |
+| bp-stage-2-threshold-dbp | and DBP ≥90 mm Hg), initiation of antihypertensive drug therapy |
+| bp-stage-2-threshold-sbp | In adults with stage 2 hypertension (SBP ≥ 140 mm Hg |
+| bp-treatment-goal-dbp | a DBP target of <80 mm Hg is recommended |
+| bp-treatment-goal-sbp | an SBP goal of at least <130 mm Hg |
+| bp-treatment-threshold-dbp | initiation of medications to lower BP is recommended when average DBP is ≥90 mm Hg |
+| bp-treatment-threshold-sbp | initiation of medications to lower BP is recommended when average SBP is ≥140 mm Hg |
+| chronic-htn-pregnancy-staging-cutoff | SBP 140 to 159 mm Hg and/or DBP 90 to 109 mm Hg prior to |
+| dietary-sodium-ideal-limit | moving toward an ideal limit of <1500 mg/d |
+| dietary-sodium-limit | reduction of dietary sodium intake* is recommended to <2300 mg/d |
+| egfr-threshold-mra | with an eGFR of ≥45 mL/min/1.73 m2), addition of a MRA is recommended |
+| egfr-threshold-rdn | eGFR ≥40 mL/ min/1.73 m2 who have resistant hypertension despite optimal treatment |
+| follow-up-interval | follow-up evaluations for medication adherence and response to treatment at monthly intervals |
+| hypertensive-emergency-bp-reduction-first-hour | reduced with oral or parenteral therapy by no more than 25% within the first hour |
+| hypertensive-emergency-bp-target-2-6h | then, if stable, to <160/100 mm Hg within the next 2 to 6 hours |
+| hypertensive-emergency-bp-target-24-48h | to 130 to 140 mm Hg during the next 24 to 48 hours |
+| hypertensive-emergency-bp-threshold | (BP >180 and/or >120 mm Hg and evidence of acute target organ damage) |
+| hypertensive-emergency-sbp-target | SBP should be reduced to <140 mm Hg for most conditions |
+| incretin-mimetic-bmi-threshold | obesity with a BMI ≥27 kg/m2 |
+| lifestyle-trial-duration | after a 3- to 6-month trial of lifestyle intervention |
+| masked-htn-exclusion-bp-threshold | untreated office SBP <130 mm Hg and DBP <80 mm Hg |
+| post-reperfusion-sbp-floor | lowering SBP <140 mm Hg within the first 24 to 72 hours after reperfusion |
+| post-thrombolysis-bp-ceiling | maintained below 180/105 mm Hg for at least the first 24 hours |
+| pregnancy-acute-bp-target | lower BP to <160/<110 mm Hg within 30 to 60 minutes |
+| pregnancy-bp-treatment-goal | should receive antihypertensive therapy to achieve BP <140/90 mm Hg to prevent maternal |
+| pregnancy-severe-bp-treatment-threshold | Pregnant individuals with SBP ≥160 mm Hg or DBP ≥110 mm Hg confirmed on repeat |
+| primary-aldo-screening-stroke-age-cutoff | or stroke at a young age (<40 years) |
+| raasi-indication-egfr-threshold | as identified by eGFR <60 mL/min/1.73 m2 |
+| rdn-eligibility-bp | office SBP 140-180 mm Hg and DBP ≥90 mm Hg |
+| severe-hypertension-threshold | severe hypertension (>180/120 mm Hg) who are hospitalized for noncardiac conditions |
+| surgery-deferral-bp-threshold | elective major surgery with SBP ≥180 mm Hg or DBP ≥110 mm Hg |
+| thrombolysis-eligibility-bp-threshold | their BP lowered to SBP <185 mm Hg and DBP <110 mm Hg before IV |
+| weight-loss-goal | weight loss is recommended with a goal of at least 5% of body weight reduction |
+| white-coat-exclusion-bp-threshold | untreated office SBP ≥130 mm Hg or DBP ≥80 mm Hg |
+| white-coat-exclusion-bp-upper-limit | without office SBP ≥160 mm Hg or DBP ≥100 mm Hg |
+
 ## Thresholds
 
 | quantity | population | value | snippet | source | page | rec | class |

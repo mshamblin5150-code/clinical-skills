@@ -28,7 +28,7 @@ words. Caught in the tracker sweep for #85.
 
 That is also why every count the skill states is re-derived here rather than
 pinned as a literal on both sides. **This docstring claimed that before it was
-true**: the first version checked *90 of 90* and *one topic* and left *143* and
+true**: the first version checked *90 of 90* and the original topic-count claim and left *143* and
 *179* -- the two figures that appear in three files each -- asserted nowhere,
 which is [#143]'s shape appearing in the very file written to prevent it. Caught
 in review. Every figure the new prose states is now counted from the artifact, so
@@ -68,6 +68,7 @@ AGENTS = REPO_ROOT / "AGENTS.md"
 USPSTF = REPO_ROOT / "reference" / "guidelines-uspstf.md"
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 THRESHOLDS = REPO_ROOT / "reference" / "thresholds"
+COVERAGE = THRESHOLDS / "coverage.md"
 
 
 def _row(text: str, number: int) -> str:
@@ -372,11 +373,10 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         cls.agents = AGENTS.read_text(encoding="utf-8")
         cls.sheet = (THRESHOLDS / "hypertension.md").read_text(encoding="utf-8")
 
-    def test_all_three_sheets_the_skill_names_are_on_disk(self):
+    def test_the_guideline_artifacts_the_skill_names_are_on_disk(self):
         self.assertTrue(USPSTF.is_file())
         self.assertTrue(THRESHOLDS.is_dir())
-        self.assertTrue((THRESHOLDS / "diabetes.md").is_file())
-        self.assertTrue((THRESHOLDS / "hypertension.md").is_file())
+        self.assertTrue(COVERAGE.is_file())
 
     def test_uspstf_is_still_complete_for_its_corpus(self):
         # The skill says 90 of 90, and the whole "no USPSTF row means something"
@@ -391,14 +391,23 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         uspstf_docs = re.findall(r"^\| USPSTF \| ", self.catalog, re.M)
         self.assertEqual(len(uspstf_docs), 90)
 
-    def test_the_thresholds_directory_holds_the_two_declared_topics(self):
-        # The consumer-facing skill and AGENTS.md both declare the shipped topic
-        # count. A new sheet is good news and makes that count false, so it fails
-        # here rather than going stale in either file.
-        sheets = sorted(p.name for p in THRESHOLDS.glob("*.md") if p.name != "README.md")
-        self.assertEqual(sheets, ["diabetes.md", "hypertension.md"])
-        self.assertIn("**two topics**", self.text)
-        self.assertIn("**two topics**", self.agents)
+    def test_the_thresholds_directory_is_derived_from_the_coverage_registry(self):
+        sheets = sorted(
+            p.name
+            for p in THRESHOLDS.glob("*.md")
+            if p.name not in {"README.md", "coverage.md"}
+        )
+        coverage = COVERAGE.read_text(encoding="utf-8")
+        registered = sorted(
+            cells[2]
+            for line in coverage.splitlines()
+            if line.startswith("| ")
+            and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 3
+            and cells[1] == "sheet"
+        )
+        self.assertEqual(sheets, registered)
+        self.assertIn("thresholds/coverage.md", self.text)
+        self.assertIn("thresholds/coverage.md", self.agents)
 
     def test_the_colorectal_example_is_a_real_uspstf_row(self):
         # One regex over the whole row, never a separate assertIn for the year --
