@@ -2060,7 +2060,14 @@ class WritingADocument(unittest.TestCase):
 
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
 
-        self.assertEqual(manifest["producer"], producer)
+        self.assertEqual(
+            {key: manifest["producer"][key] for key in ("commit", "dirty")},
+            producer,
+        )
+        self.assertEqual(
+            {row["path"] for row in manifest["producer"]["inputs"]},
+            set(extract.artifact_provenance.TRUST_FLOOR["extraction"]),
+        )
 
 
 class TheIndexerCanReadWhatThisWrites(unittest.TestCase):

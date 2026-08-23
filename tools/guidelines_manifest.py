@@ -229,7 +229,7 @@ def _read_locked(
                 path,
                 allow_untrusted=allow_untrusted_provenance,
                 expected_commit=expected_commit,
-                unchanged_paths=("tools/guidelines_extract.py",),
+                unchanged_paths=artifact_provenance.TRUST_FLOOR["extraction"],
             )
         except ValueError as failure:
             return _problem(root, str(failure), cause=failure)

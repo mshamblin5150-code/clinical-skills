@@ -20,11 +20,13 @@ import io
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
+import textwrap
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import closing, redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
@@ -64,6 +66,227 @@ The 2019–2024 cohort’s median clearance was 40 μmol/L.
 """
 
 
+class ProducerEditHandoffTests(unittest.TestCase):
+    """Real producer-to-reader checks inside a private throwaway checkout."""
+
+    TOOL_FILES = (
+        "artifact_lock.py",
+        "artifact_provenance.py",
+        "console_codec.py",
+        "guidelines_extract.py",
+        "guidelines_index.py",
+        "guidelines_manifest.py",
+        "guidelines_search.py",
+        "repo_root.py",
+    )
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name).resolve()
+        self.checkout = self.root / "checkout"
+        self.checkout_tools = self.checkout / "tools"
+        self.checkout_tools.mkdir(parents=True)
+        for name in self.TOOL_FILES:
+            shutil.copy2(TOOLS / name, self.checkout_tools / name)
+        self._git("init", "--initial-branch=main")
+        self._git("config", "user.email", "fixture@example.com")
+        self._git("config", "user.name", "Fixture")
+        self._git("add", "tools")
+        self._git("commit", "-m", "fixture producers")
+
+        self.text_dir = self.root / "guidelines-text"
+        (self.text_dir / "Society").mkdir(parents=True)
+        (self.text_dir / "Society" / "one.txt").write_text(
+            "A synthetic recommendation.\n", encoding="utf-8"
+        )
+        self.database = self.root / "guidelines-index" / "guidelines.sqlite"
+        self._write_trusted_manifest()
+
+    def _git(self, *arguments: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(self.checkout), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+
+    def _python(self, source: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-c", textwrap.dedent(source)],
+            cwd=self.checkout,
+            env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+    def _write_trusted_manifest(self) -> None:
+        completed = self._python(
+            f"""
+            import hashlib
+            import json
+            import sys
+            from pathlib import Path
+
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import artifact_provenance as provenance
+
+            producer = provenance.current_producer()
+            producer["inputs"] = [
+                {{
+                    "path": path,
+                    "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                }}
+                for path in provenance.TRUST_FLOOR["extraction"]
+            ]
+            manifest = {{
+                "producer": producer,
+                "documents": [{{"doc_id": "Society/one"}}],
+            }}
+            path = Path({str(self.text_dir / 'manifest.json')!r})
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            """
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_edit_then_build_then_read_trusts_the_code_that_built_the_index(self):
+        with (self.checkout_tools / "guidelines_index.py").open(
+            "a", encoding="utf-8"
+        ) as source:
+            source.write("\n# uncommitted producer edit before the build\n")
+
+        completed = self._python(
+            f"""
+            import sys
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import guidelines_index
+            import guidelines_search
+
+            guidelines_index.build({str(self.text_dir)!r}, {str(self.database)!r})
+            with guidelines_search.open_index({str(self.database)!r}) as connection:
+                assert connection.execute("SELECT COUNT(*) FROM document").fetchone() == (1,)
+            """
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_build_then_edit_then_read_names_the_working_tree(self):
+        built = self._python(
+            f"""
+            import sys
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import guidelines_index
+
+            guidelines_index.build({str(self.text_dir)!r}, {str(self.database)!r})
+            """
+        )
+        self.assertEqual(built.returncode, 0, built.stderr)
+        with (self.checkout_tools / "guidelines_index.py").open(
+            "a", encoding="utf-8"
+        ) as source:
+            source.write("\n# uncommitted producer edit after the build\n")
+
+        opened = self._python(
+            f"""
+            import sys
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import guidelines_search
+
+            guidelines_search.open_index({str(self.database)!r})
+            """
+        )
+
+        self.assertNotEqual(opened.returncode, 0)
+        self.assertIn("uncommitted changes in the working tree", opened.stderr)
+
+    def test_edit_then_write_then_read_trusts_the_extraction_manifest(self):
+        with (self.checkout_tools / "guidelines_extract.py").open(
+            "a", encoding="utf-8"
+        ) as source:
+            source.write("\n# uncommitted extractor edit before the build\n")
+        extraction = self.root / "fresh-extraction"
+
+        completed = self._python(
+            f"""
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import guidelines_extract
+            import guidelines_manifest
+
+            root = Path({str(extraction)!r})
+            text = root / "Society" / "one.txt"
+            text.parent.mkdir(parents=True)
+            text.write_text("A synthetic recommendation.\\n", encoding="utf-8")
+            record = guidelines_manifest.Record(
+                doc_id="Society/one",
+                society="Society",
+                title="One",
+                source="Society/one.pdf",
+                output="Society/one.txt",
+                document_class="guideline",
+                pages=1,
+                chars=len("A synthetic recommendation.\\n"),
+            )
+            guidelines_extract.write_manifest(root, [record], Path("source"))
+            result = guidelines_manifest.read(root)
+            assert not result.problems, result.problems
+            """
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_write_then_edit_then_read_refuses_the_extraction_manifest(self):
+        extraction = self.root / "earlier-extraction"
+        written = self._python(
+            f"""
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import guidelines_extract
+            import guidelines_manifest
+
+            root = Path({str(extraction)!r})
+            text = root / "Society" / "one.txt"
+            text.parent.mkdir(parents=True)
+            text.write_text("A synthetic recommendation.\\n", encoding="utf-8")
+            record = guidelines_manifest.Record(
+                doc_id="Society/one",
+                society="Society",
+                title="One",
+                source="Society/one.pdf",
+                output="Society/one.txt",
+                document_class="guideline",
+                pages=1,
+                chars=len("A synthetic recommendation.\\n"),
+            )
+            guidelines_extract.write_manifest(root, [record], Path("source"))
+            """
+        )
+        self.assertEqual(written.returncode, 0, written.stderr)
+        with (self.checkout_tools / "guidelines_extract.py").open(
+            "a", encoding="utf-8"
+        ) as source:
+            source.write("\n# uncommitted extractor edit after the build\n")
+
+        read = self._python(
+            f"""
+            import sys
+            sys.path.insert(0, {str(self.checkout_tools)!r})
+            import guidelines_manifest
+
+            guidelines_manifest.read_or_raise({str(extraction)!r})
+            """
+        )
+
+        self.assertNotEqual(read.returncode, 0)
+        self.assertIn("uncommitted changes in the working tree", read.stderr)
+
+
 def write_single(text_dir: Path, doc_id: str, pages):
     """Whole-document layout: <text-dir>/<doc_id>.txt, pages split on form feed."""
     path = text_dir / f"{doc_id}.txt"
@@ -76,6 +299,9 @@ def write_manifest(text_dir: Path, documents):
     path = text_dir / "manifest.json"
     producer = artifact_provenance.current_producer()
     producer["dirty"] = False
+    producer["inputs"] = artifact_provenance.producer_file_identity(
+        artifact_provenance.TRUST_FLOOR["extraction"]
+    )
     path.write_text(
         json.dumps({"producer": producer, "documents": documents}), encoding="utf-8"
     )
@@ -181,25 +407,27 @@ class ManifestTests(TempCorpus):
         with self.assertRaisesRegex(gi.UntrustedProvenance, "producer"):
             gi.read_manifest(self.text_dir)
 
-    def test_a_manifest_from_another_commit_is_refused(self):
+    def test_matching_manifest_inputs_outweigh_an_unrelated_commit(self):
         write_manifest(self.text_dir, [{"doc_id": "USPSTF/example"}])
         path = self.text_dir / "manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8"))
         manifest["producer"]["commit"] = "f" * 40
         path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with self.assertRaisesRegex(gi.UntrustedProvenance, "different commit"):
-            gi.read_manifest(self.text_dir)
+        manifest = gi.read_manifest(self.text_dir)
 
-    def test_a_manifest_from_a_dirty_tree_is_refused(self):
+        self.assertIn("USPSTF/example", manifest)
+
+    def test_matching_manifest_inputs_outweigh_the_legacy_dirty_flag(self):
         write_manifest(self.text_dir, [{"doc_id": "USPSTF/example"}])
         path = self.text_dir / "manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8"))
         manifest["producer"]["dirty"] = True
         path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
-            gi.read_manifest(self.text_dir)
+        manifest = gi.read_manifest(self.text_dir)
+
+        self.assertIn("USPSTF/example", manifest)
 
     def test_the_explicit_override_reads_and_warns(self):
         (self.text_dir / "manifest.json").write_text(
@@ -351,7 +579,7 @@ class RepoContainmentTests(TempCorpus):
 
 
 class BuildTests(TempCorpus):
-    def test_a_dirty_index_build_needs_the_explicit_override(self):
+    def test_a_dirty_index_build_is_trusted_by_its_exact_inputs(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
         dirty = artifact_provenance.current_producer()
@@ -360,14 +588,12 @@ class BuildTests(TempCorpus):
         with mock.patch.object(
             artifact_provenance, "current_producer", return_value=dirty
         ):
-            with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
-                gi.build(self.text_dir, self.db)
-            with self.assertWarnsRegex(RuntimeWarning, "dirty"):
-                gi.build(
-                    self.text_dir,
-                    self.db,
-                    allow_untrusted_provenance=True,
-                )
+            gi.build(self.text_dir, self.db)
+
+        with closing(gs.open_index(self.db)) as connection:
+            self.assertEqual(
+                connection.execute("SELECT COUNT(*) FROM document").fetchone(), (1,)
+            )
 
     def test_a_text_directory_without_a_manifest_is_refused(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
@@ -561,7 +787,7 @@ class MissingIndexTests(TempCorpus):
         with self.assertRaisesRegex(gi.UntrustedProvenance, "provenance"):
             gs.open_index(self.db)
 
-    def test_an_index_from_another_commit_is_refused(self):
+    def test_matching_index_inputs_outweigh_an_unrelated_commit(self):
         self.build_default_corpus()
         connection = sqlite3.connect(self.db)
         provenance = json.loads(
@@ -577,8 +803,10 @@ class MissingIndexTests(TempCorpus):
         connection.commit()
         connection.close()
 
-        with self.assertRaisesRegex(gi.UntrustedProvenance, "different commit"):
-            gs.open_index(self.db)
+        with closing(gs.open_index(self.db)) as opened:
+            self.assertEqual(
+                opened.execute("SELECT COUNT(*) FROM document").fetchone(), (2,)
+            )
 
     def test_the_override_opens_an_untrusted_index_and_warns(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
@@ -591,7 +819,7 @@ class MissingIndexTests(TempCorpus):
             )
         connection.close()
 
-    def test_a_dirty_embedded_source_stamp_cannot_be_laundered(self):
+    def test_matching_source_inputs_outweigh_the_legacy_dirty_flag(self):
         self.build_default_corpus()
         connection = sqlite3.connect(self.db)
         provenance = json.loads(
@@ -608,8 +836,10 @@ class MissingIndexTests(TempCorpus):
         connection.commit()
         connection.close()
 
-        with self.assertRaisesRegex(gi.UntrustedProvenance, "dirty"):
-            gs.open_index(self.db)
+        with closing(gs.open_index(self.db)) as opened:
+            self.assertEqual(
+                opened.execute("SELECT COUNT(*) FROM document").fetchone(), (2,)
+            )
 
 
 class CommandLineTests(TempCorpus):

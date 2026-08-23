@@ -2123,6 +2123,9 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
     (root / output).write_text(body, encoding="utf-8")
     producer = artifact_provenance.current_producer()
     producer["dirty"] = False
+    producer["inputs"] = artifact_provenance.producer_file_identity(
+        artifact_provenance.TRUST_FLOOR["extraction"]
+    )
     (root / "manifest.json").write_text(
         json.dumps(
             {
@@ -2357,6 +2360,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         path = self.root / "manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8"))
         manifest["producer"]["commit"] = "f" * 40
+        manifest["producer"].pop("inputs")
         path.write_text(json.dumps(manifest), encoding="utf-8")
 
         result = gate.gate_watermark(sheet(row()), self.root)
@@ -2377,6 +2381,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         manifest_path = self.root / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["producer"]["commit"] = "f" * 40
+        manifest["producer"].pop("inputs")
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         sheet_path = self.root / "sheet.md"
         sheet_path.write_text(header() + "\n## Thresholds\n\n" + row(), encoding="utf-8")

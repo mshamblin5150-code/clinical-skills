@@ -205,6 +205,31 @@ class SeparatingDifferentInputs(BuildCommandCase):
         self.assertIn("tools/guidelines_index_artifact.py", index_files)
         self.assertIn("tools/guidelines_manifest.py", index_files)
 
+    def test_both_cache_keys_are_derived_from_the_shared_identity_table(self):
+        identities = {
+            "extraction": ("tools/extraction-sentinel.py",),
+            "index": ("tools/index-sentinel.py",),
+        }
+        selected = guidelines_build.SelectedArtifact(
+            "extraction", "key", self.source, True, ()
+        )
+        with (
+            mock.patch.object(artifact_provenance, "CACHE_IDENTITY", identities),
+            mock.patch.object(
+                guidelines_build, "_code_inputs", return_value=()
+            ) as code_inputs,
+        ):
+            guidelines_build.extraction_identity(self.source)
+            guidelines_build.index_identity(selected)
+
+        self.assertEqual(
+            code_inputs.call_args_list,
+            [
+                mock.call("tools/extraction-sentinel.py"),
+                mock.call("tools/index-sentinel.py"),
+            ],
+        )
+
     def test_extraction_stamping_is_owned_by_the_manifest_module(self):
         import guidelines_manifest
 
@@ -273,9 +298,20 @@ class PreservingContentAddressedTrust(BuildCommandCase):
                 ).fetchone()[0]
             )
 
-        self.assertTrue(manifest["producer"]["inputs"])
-        self.assertTrue(provenance["producer"]["inputs"])
-        self.assertTrue(provenance["source"]["inputs"])
+        extraction_floor = set(artifact_provenance.TRUST_FLOOR["extraction"])
+        index_floor = set(artifact_provenance.TRUST_FLOOR["index"])
+        self.assertEqual(
+            {row["path"] for row in manifest["producer"]["inputs"]},
+            extraction_floor,
+        )
+        self.assertEqual(
+            {row["path"] for row in provenance["producer"]["inputs"]},
+            index_floor,
+        )
+        self.assertEqual(
+            {row["path"] for row in provenance["source"]["inputs"]},
+            extraction_floor,
+        )
         self.assertTrue(
             artifact_provenance.check_producer(
                 manifest["producer"],

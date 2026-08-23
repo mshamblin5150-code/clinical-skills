@@ -108,6 +108,10 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
         extract.write_manifest(
             root, [record], Path("C:/outside/guidelines-src"), producer=producer
         )
+        path = root / extract.MANIFEST_NAME
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["producer"] = producer
+        path.write_text(json.dumps(value), encoding="utf-8")
 
     def conformance_read(self, root, *, allow):
         try:

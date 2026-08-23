@@ -1758,8 +1758,12 @@ def write_manifest(
     of the wrong shape, and the indexer raised rather than indexing 179 documents
     with no title, society or class. That refusal is the contract working.
     """
+    recorded_producer = dict(producer or artifact_provenance.current_producer())
+    recorded_producer["inputs"] = artifact_provenance.producer_file_identity(
+        artifact_provenance.TRUST_FLOOR["extraction"]
+    )
     manifest = {
-        "producer": producer or artifact_provenance.current_producer(),
+        "producer": recorded_producer,
         "source": str(source_root),
         "codec": OUTPUT_CODEC,
         "engine": _engine_version(),

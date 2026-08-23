@@ -104,11 +104,11 @@ def identity_key(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _code_inputs(*names: str) -> tuple[dict[str, str], ...]:
-    tools = Path(__file__).resolve().parent
+def _code_inputs(*paths: str) -> tuple[dict[str, str], ...]:
+    repo = Path(__file__).resolve().parent.parent
     return tuple(
-        {"path": f"tools/{name}", "sha256": _sha256(tools / name)}
-        for name in names
+        {"path": path, "sha256": _sha256(repo / path)}
+        for path in paths
     )
 
 
@@ -128,9 +128,7 @@ def extraction_identity(source: Path) -> dict[str, object]:
         "schema": ARTIFACT_SCHEMA_VERSION,
         "source_files": source_files,
         "producer_files": _code_inputs(
-            "guidelines_extract.py",
-            "guidelines_manifest.py",
-            "artifact_provenance.py",
+            *artifact_provenance.CACHE_IDENTITY["extraction"]
         ),
         "runtime": {
             "python": platform.python_version(),
@@ -146,12 +144,7 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
         "schema": ARTIFACT_SCHEMA_VERSION,
         "extraction_key": extraction.key,
         "extraction_inventory": _extraction_inventory(extraction),
-        "producer_files": _code_inputs(
-            "guidelines_index.py",
-            "guidelines_index_artifact.py",
-            "guidelines_manifest.py",
-            "artifact_provenance.py",
-        ),
+        "producer_files": _code_inputs(*artifact_provenance.CACHE_IDENTITY["index"]),
         "runtime": {
             "python": platform.python_version(),
             "sqlite": sqlite3.sqlite_version,
@@ -325,7 +318,7 @@ def _verify_artifact(
     ):
         raise ValueError(f"{kind} build {key} has no trusted clean producer")
     if identity_key(producer.get("inputs")) != identity_key(
-        identity.get("producer_files")
+        _trust_floor_inputs(identity)
     ):
         raise ValueError(f"{kind} build {key} has the wrong producer identity")
     recorded = record.get("files")
@@ -353,13 +346,24 @@ def _validate_index(database: Path) -> None:
         raise ValueError(f"index database failed SQLite verification: {verdict}")
 
 
+def _trust_floor_inputs(identity: dict[str, object]) -> tuple[dict[str, str], ...]:
+    kind = identity.get("kind")
+    inputs = identity.get("producer_files")
+    if kind not in artifact_provenance.TRUST_FLOOR:
+        raise ValueError(f"unknown artifact kind {kind!r}")
+    if not isinstance(inputs, tuple) or not inputs:
+        raise ValueError("build identity has no producer-file fingerprints")
+    floor = set(artifact_provenance.TRUST_FLOOR[str(kind)])
+    selected = tuple(row for row in inputs if row.get("path") in floor)
+    if {row.get("path") for row in selected} != floor:
+        raise ValueError("build identity does not cover the artifact trust floor")
+    return selected
+
+
 def _trusted_producer(
     producer: dict[str, str | bool], identity: dict[str, object]
 ) -> dict[str, object]:
-    inputs = identity.get("producer_files")
-    if not isinstance(inputs, tuple) or not inputs:
-        raise ValueError("build identity has no producer-file fingerprints")
-    return {**producer, "inputs": list(inputs)}
+    return {**producer, "inputs": list(_trust_floor_inputs(identity))}
 
 
 def _run_producer(command: list[str], label: str) -> None:
