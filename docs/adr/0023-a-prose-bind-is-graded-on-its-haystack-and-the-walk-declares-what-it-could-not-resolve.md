@@ -12,7 +12,7 @@ The clinician ruled on 2026-08-23.
 
 ## What was measured
 
-Every figure below was re-derived on `d3e39e6` immediately before the ruling, over the 71 tracked `tools/test_*.py` modules, counting only two-argument `assertNotIn` with a constant string needle. The module owns the live counts; these are the dated evidence the ruling was made from.
+Every figure below was measured on `d3e39e6` immediately before the ruling and **re-derived unchanged on `e234687`**, the merge that carries this record — a merged tree is one neither branch produced, which is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s unguarded moment. The population is the 71 tracked `tools/test_*.py` modules, counting only two-argument `assertNotIn` with a constant string needle. The module owns the live counts; these are the dated evidence the ruling was made from.
 
 **The ticket's headline figures hold.** 233 such sites; exactly 2 at the 40-character floor, both already declared; 26 shorter sites carrying glue.
 
