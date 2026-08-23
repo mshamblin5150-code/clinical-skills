@@ -58,10 +58,13 @@ fields rather than in prose beside them. Tests assert the renderer shape only.
 
 The gate proves a render was bold-headed. It cannot prove the paste target still draws it
 as recorded; nothing offline reaches that, and the dated record is evidence rather than a
-live check. It cannot tell which `.docx` was copied from, which is why the skill renders
-one file rather than an APA copy beside a paste copy.
+live check.
+
+It cannot tell which `.docx` was copied from, which is why the skill renders one file
+rather than an APA copy beside a paste copy.
 
 Centering and the hanging indent are unreachable in the box by any tool from any source.
+
 The record is a figure nothing in this repo can re-derive, which is
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape accepted
 deliberately, and it is why the disclosure is a field.

@@ -17,6 +17,7 @@ from pathlib import Path
 import discussion_post_scan as scan
 import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
+import docx_write
 from grader_conformance import for_module
 
 
@@ -121,6 +122,33 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertIn("untraced-number: 0", stdout)
         self.assertNotIn("Quill", stdout)
         self.assertNotIn("482.13", stdout)
+
+    def test_the_docx_row_is_not_graded_when_no_archive_is_supplied(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, _ = Run(Path(temp)).grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("bold-headings: not graded", stdout)
+
+    def test_a_named_heading_style_fails_the_docx_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("bold-headings: 1", stdout)
+
+    def test_a_directly_formatted_heading_passes_the_docx_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertIn("bold-headings: 0", stdout)
 
     def test_an_nd_citation_and_reference_are_traced(self):
         with tempfile.TemporaryDirectory() as temp:
