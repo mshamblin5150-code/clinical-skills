@@ -12,7 +12,7 @@ What earns the override is a measurement rather than an argument, taken 2026-08-
 
 - `prose_bind.GLUE` and `test_run_record_claim.GLUE` are **byte-identical**, and the two `normalized` functions produce **identical output over all 268 tracked `.md` and `.py` files — zero differences.** There is no divergence for the copy to permit. #253's test finds nothing to protect.
 - Moving every `squashed` site to `prose_bind` changes **no verdict**: 90 constant needles against 7 haystacks, 0 changes.
-- The two sites feeding *regexes* rather than assertions — `BLANKET_STANDING.finditer` and `NOT_IN_FORCE_FORMS` — carry no glue characters in their patterns, so they call `prose_bind.normalized` directly.
+- The two sites feeding *regexes* rather than assertions — `BLANKET_STANDING.finditer` and `NOT_IN_FORCE_FORMS` — carry no prose marks in their patterns, so they call `prose_bind.normalized` directly.
 
 `prose_bind` is `console_codec`'s class of module: infrastructure, not a tool another tool happens to need. That is the test #253 states and this passes it where `keyword_of` failed it.
 
@@ -31,15 +31,15 @@ Adopting `prose_bind` wholesale therefore tightens every absence bind and loosen
 
 **Split by assertion kind — absence normalized, presence raw.** Rejected: refuses the long hard-wrapped definitions `assertProseIn` was built for.
 
-**Declare the split that already exists.** Chosen. `test_ruling_cohort.py` already mixes them on purpose — plain `assertIn("**Ruling cohort**:", ...)` for the short formatted marker, `assertProseIn(...)` for the definition beneath it. Formatting-as-subject raw, formatting-as-glue normalized. Nothing declared that rule; it is declared now, and each raw site carries a reason. The two entries in `DECLARED_RAW_ASSERT_NOT_IN` reading *"the module owns squashed"* get real reasons, because that one dissolves the moment `squashed` does.
+**Declare the split that already exists.** Chosen. `test_ruling_cohort.py` already mixes them on purpose — plain `assertIn("**Ruling cohort**:", ...)` for the short formatted marker, `assertProseIn(...)` for the definition beneath it. Formatting-as-subject stays raw; formatting that is only a prose mark is normalized. Nothing declared that rule; it is declared now, and each raw site carries a reason. The two entries in `DECLARED_RAW_ASSERT_NOT_IN` reading *"the module owns squashed"* get real reasons, because that one dissolves the moment `squashed` does.
 
 ## The declared-raw walk keeps its population, and its floor is renamed
 
-`test_prose_bind.repository_survivors` refuses raw `assertNotIn` at a 40-character floor. That population is **exactly 2** across all 71 tracked test modules. Dropping the floor to catch short glue-carrying needles pulls in 26 sites, of which:
+`test_prose_bind.repository_survivors` refuses raw `assertNotIn` at a 40-character floor. That population is **exactly 2** across all 71 tracked test modules. Dropping the floor to catch short needles carrying prose marks pulls in 26 sites, of which:
 
 | | |
 | ---: | --- |
-| **18** | `test_docx.py` raw OOXML — `<w:jc w:val="center"/>`, `<w:i/>`, `w:val="28"`, where `<`, `>`, `"`, `*` are **XML syntax, not prose glue** |
+| **18** | `test_docx.py` raw OOXML — `<w:jc w:val="center"/>`, `<w:i/>`, `w:val="28"`, where `<`, `>`, `"`, `*` are **XML syntax, not prose marks** |
 | **2** | `test_case_study_scan.py` regex patterns — `#{1,4}`, `[-*+]` |
 | **1** | a run-key template — `<course>-<module>-<date>` |
 | **5** | genuinely prose |
