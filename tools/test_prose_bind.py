@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 import unittest
 
-from prose_bind import GLUE, ProseBind
+from prose_bind import PROSE_MARK, ProseBind
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -408,7 +408,7 @@ def raw_prose_assert_not_in(
             resolved_reads += 1
         if node.func.attr == "assertNotIn" and (
             any(character.isspace() for character in needle.value)
-            or GLUE.search(needle.value)
+            or PROSE_MARK.search(needle.value)
         ):
             found.add(needle.value)
     return found, resolved_reads

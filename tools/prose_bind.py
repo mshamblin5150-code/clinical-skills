@@ -9,7 +9,7 @@ from collections.abc import Iterable
 #: changed no result over every tracked ``.md`` and ``.py`` file while turning a
 #: literal ``\n`` into an ``n`` mid-sentence. A transform that changes text and
 #: buys nothing is an undeclared escape route.
-GLUE = re.compile(r"[\"'#>*`]")
+PROSE_MARK = re.compile(r"[\"'#>*`]")
 
 
 def normalized(text: str | Iterable[str]) -> str:
@@ -17,7 +17,7 @@ def normalized(text: str | Iterable[str]) -> str:
 
     if not isinstance(text, str):
         text = "\n".join(text)
-    return re.sub(r"\s+", " ", GLUE.sub(" ", text)).strip()
+    return re.sub(r"\s+", " ", PROSE_MARK.sub(" ", text)).strip()
 
 
 class ProseBind:
