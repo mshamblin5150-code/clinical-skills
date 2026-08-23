@@ -36,9 +36,10 @@ guideline does.
 
 **Extended by issue [#432](https://github.com/mshamblin5150-code/clinical-skills/issues/432)
 on 2026-08-22:** the recommendation artifact's `interval` cell now carries every
-modality-qualified alternative in statement order. This reopens only the earlier
-single-value representation. The artifact remains an index rather than the topic sweep:
-it still has no general decision-point schema, and its recommendation rows cannot
+distinct period its statement sentence names, in source order. The modality that
+distinguishes those alternatives remains in the paired statement. This reopens only the
+earlier single-value representation. The artifact remains an index rather than the topic
+sweep: it still has no general decision-point schema, and its recommendation rows cannot
 establish what the rest of a document does not state.
 
 ## Why `none` and `unread` are separate

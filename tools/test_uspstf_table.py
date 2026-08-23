@@ -506,18 +506,6 @@ class IntervalTests(unittest.TestCase):
             "every 3 years",
         )
 
-    def test_modality_dependent_alternatives_are_all_kept(self):
-        self.assertEqual(
-            ut.derive_interval(
-                "The USPSTF recommends screening every 3 years with cervical cytology alone, "
-                "every 5 years with hrHPV testing alone, or every 5 years with hrHPV testing "
-                "in combination with cytology (cotesting) in women aged 30 to 65 years."
-            ),
-            "every 3 years with cervical cytology alone; "
-            "every 5 years with hrHPV testing alone; "
-            "every 5 years with hrHPV testing in combination with cytology (cotesting)",
-        )
-
     def test_one_time_screening_is_an_interval(self):
         self.assertEqual(
             ut.derive_interval("The USPSTF recommends 1-time screening for AAA."), "1-time"
@@ -693,13 +681,19 @@ class DocumentTests(unittest.TestCase):
 
 
 class RenderingTests(unittest.TestCase):
-    def test_the_header_explains_modality_dependent_interval_alternatives(self):
+    def test_the_header_explains_the_interval_rules_reach_and_alternatives(self):
         markdown = ut.render_markdown(
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
         )
         self.assertIn(
-            "When one statement offers multiple intervals, `interval` keeps every "
-            "modality-qualified alternative in statement order, separated by semicolons.",
+            "from the statement sentence alone, so a period the document states elsewhere "
+            "is outside the rule's reach rather than missed by it.",
+            markdown,
+        )
+        self.assertIn(
+            "Where a recommendation offers alternatives, `interval` names every period its "
+            f"statement names, joined with `{ut.INTERVAL_ALTERNATIVE_JOIN.strip()}`; the "
+            "modality that distinguishes them is in `## Statements` and not in the cell.",
             markdown,
         )
 
