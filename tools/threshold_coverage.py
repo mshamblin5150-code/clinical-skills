@@ -120,7 +120,10 @@ def audit(
                         f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' "
                         f"but artifact '{entry.artifact}' still lists {len(unread)} unread span(s)"
                     )
-                all_pages_read = bool(sheet.sources)
+                # An overlapping positive span may cover the same page range as an
+                # unread span. Completion requires both the page union and the
+                # named-span inventory, or neither registry state could be valid.
+                all_pages_read = bool(sheet.sources) and not unread
                 for source_key, source in sheet.sources.items():
                     page_count = page_counts.get(source.get("document", ""))
                     if page_count is None:

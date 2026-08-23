@@ -228,6 +228,27 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertIn("state 'unread'", result.stderr)
         self.assertIn("every page", result.stderr)
 
+    def test_an_overlapping_unread_span_keeps_the_artifact_partial(self):
+        overlapping = artifact("yes").replace(
+            "| whole document | 1-10 | yes |",
+            "| recommendation statement | 1-10 | yes |\n"
+            "| rationale | 1-10 | no |",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(overlapping, encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | unread | cervical.md | rationale pending |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_the_committed_registry_audits_against_the_committed_catalog_and_sheets(self):
         result = subprocess.run(
             [sys.executable, str(COMMAND)],

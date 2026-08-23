@@ -603,7 +603,11 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
                 gate.gate_second_read(
                     parsed,
                     gate.SecondRead(
-                        Path("read.json"), values=[], briefed=briefed(), read_on="2026-08-21"
+                        Path("read.json"), values=[],
+                        briefed=gate.BriefedSpan(
+                            "Society/doc", "recommendation tables", 1, 50
+                        ),
+                        read_on="2026-08-21",
                     ),
                 ),
             ),
@@ -1255,7 +1259,9 @@ class ScopeSpanTable(unittest.TestCase):
         ])
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(result.findings, [])
-        self.assertIn("unaccounted pages: none", "\n".join(result.stdout))
+        rendered = "\n".join(result.stdout)
+        self.assertIn("page_count: 60", rendered)
+        self.assertIn("unaccounted pages: none", rendered)
 
     def test_a_multi_source_span_table_must_name_its_source(self):
         text = TWO_SOURCE_HEADER.replace("**Source: `aha`**\n\n", "")
@@ -1284,6 +1290,7 @@ class ScopeSpanTable(unittest.TestCase):
         result = gate.gate_page_coverage(gate.parse(HEADER, Path("test-sheet.md")), {})
         self.assertTrue(result.not_graded)
         self.assertIn("Society/doc", result.skip_reason)
+        self.assertIn("page_count: NOT RESOLVED", "\n".join(result.stdout))
 
     def test_a_read_span_with_neither_a_row_nor_a_dated_marker_is_refused(self):
         text = HEADER.replace(
@@ -1292,6 +1299,21 @@ class ScopeSpanTable(unittest.TestCase):
         )
         findings = self.findings(text)
         self.assertTrue(any("neither rows nor a dated marker" in item for item in findings))
+
+    def test_a_real_overlapping_span_cannot_borrow_another_spans_rows(self):
+        path = (Path(__file__).resolve().parent.parent / "reference" / "thresholds"
+                / "cervical-cancer.md")
+        text = path.read_text(encoding="utf-8").replace(
+            "| rationale and clinical considerations | 1-11 | no |",
+            "| rationale and clinical considerations | 1-11 | yes |",
+        )
+        self.assertIn("| rationale and clinical considerations | 1-11 | yes |", text)
+        findings = gate.gate_schema(gate.parse(text, path)).findings
+        self.assertTrue(any(
+            "rationale and clinical considerations" in item
+            and "neither rows nor a dated marker" in item
+            for item in findings
+        ), findings)
 
     def test_a_dated_null_marker_retires_a_span(self):
         text = HEADER.replace(
@@ -2789,6 +2811,29 @@ class SecondReadGate(unittest.TestCase):
             second_read(
                 seen("<80 mm Hg", page=55),
                 briefed_block=briefed(span="narrative sections and appendices", pages="41-60"),
+            ),
+            Path("read.json"),
+        )
+        result = gate.gate_second_read(parsed, read)
+        self.assertEqual(len(result.findings), 1)
+        self.assertIn("retired as null", result.findings[0])
+
+    def test_a_value_found_in_a_references_exemption_refuses(self):
+        parsed = gate.parse(
+            HEADER.replace(
+                "| narrative sections and appendices | 51-60 | no |",
+                "| references | 51-60 | exempt: citation list has no clinical prose |",
+            )
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("test-sheet.md"),
+        )
+        read = gate.load_second_read_record(
+            second_read(
+                seen("<80 mm Hg", page=55),
+                briefed_block=briefed(span="references", pages="51-60"),
             ),
             Path("read.json"),
         )

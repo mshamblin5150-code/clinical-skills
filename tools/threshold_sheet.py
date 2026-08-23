@@ -15,7 +15,7 @@ producing fluent, plausible, confident text from a source only it has read. Noth
 here checks that a guideline was *understood*. Each gate eliminates one way a sheet
 can be confidently wrong.
 
-Seven gates, and what each one can and cannot see
+The gates, and what each one can and cannot see
 ------------------------------------------------
 
 **It was four until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174).**
@@ -562,6 +562,22 @@ class Sheet:
     why_not: str | None = None
 
 
+def _positive_span_for_row(sheet: Sheet, row: Row) -> Span | None:
+    """Return the first positive span that owns ``row``.
+
+    Page ranges may overlap, so page membership alone cannot let one row retire
+    several spans. Declaration order is the deterministic tie-breaker; null,
+    exempt, and unread spans never borrow a row from a positive span.
+    """
+    return next((
+        span for span in sheet.spans
+        if span.read.casefold() == "yes"
+        and span.source == row.source
+        and row.page is not None
+        and span.first_page <= row.page <= span.last_page
+    ), None)
+
+
 @dataclass
 class Scan:
     """A completed sheet survey whose output has not been emitted."""
@@ -911,12 +927,7 @@ def gate_schema(sheet: Sheet) -> GateResult:
             failures.append(
                 f"{where} only a references span may carry a class exemption"
             )
-        rows = [
-            row for row in sheet.rows
-            if row.source == span.source
-            and row.page is not None
-            and span.first_page <= row.page <= span.last_page
-        ]
+        rows = [row for row in sheet.rows if _positive_span_for_row(sheet, row) == span]
         if read == "yes" and not rows:
             failures.append(
                 f"{where} read span '{span.name}' has neither rows nor a dated marker"
@@ -1010,7 +1021,8 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
         if page_count is None:
             unresolved.append(document or source_key)
             stdout.append(
-                f"  PAGE COVERAGE  {source_key} unaccounted pages: NOT GRADED "
+                f"  PAGE COVERAGE  {source_key} page_count: NOT RESOLVED; "
+                "unaccounted pages: NOT GRADED "
                 f"(page_count unresolved for {document or source_key})"
             )
             continue
@@ -1023,7 +1035,8 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
         expected = set(range(1, page_count + 1))
         remainder = expected - covered
         stdout.append(
-            f"  PAGE COVERAGE  {source_key} unaccounted pages: {_page_runs(remainder)}"
+            f"  PAGE COVERAGE  {source_key} page_count: {page_count}; "
+            f"unaccounted pages: {_page_runs(remainder)}"
         )
         if remainder:
             findings.append(
@@ -1561,6 +1574,16 @@ SECOND_READ_IS_A_SMOKE_TEST = (
 SECOND_READ_FIELDS = ("document", "page", "value", "about")
 
 
+@dataclass(frozen=True)
+class BriefedSpan:
+    """The exact source span assigned to an independent reader."""
+
+    document: str
+    span: str
+    first_page: int
+    last_page: int
+
+
 @dataclass
 class SecondRead:
     """An independent extraction of the pages a sheet cites. ``ok`` is false when it
@@ -1568,7 +1591,7 @@ class SecondRead:
 
     path: Path
     values: list[dict] = field(default_factory=list)
-    briefed: dict[str, str] = field(default_factory=dict)
+    briefed: BriefedSpan | None = None
     read_on: str | None = None
     ok: bool = True
     why_not: str | None = None
@@ -1616,7 +1639,8 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
             path=path, ok=False,
             why_not=f"'briefed' has no {', '.join(missing_briefed)}",
         )
-    if _SPAN_RANGE.fullmatch(str(briefed["pages"]).strip()) is None:
+    briefed_range = _SPAN_RANGE.fullmatch(str(briefed["pages"]).strip())
+    if briefed_range is None:
         return SecondRead(
             path=path, ok=False,
             why_not=f"'briefed.pages' is not a page range: {briefed['pages']!r}",
@@ -1646,10 +1670,17 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
                 path=path, ok=False,
                 why_not=f"entry {position} has no page number in {entry['page']!r}",
             )
+    briefed_first = int(briefed_range.group("first"))
+    briefed_last = int(briefed_range.group("last") or briefed_first)
     return SecondRead(
         path=path,
         values=values,
-        briefed={name: str(briefed[name]).strip() for name in ("document", "span", "pages")},
+        briefed=BriefedSpan(
+            document=str(briefed["document"]).strip(),
+            span=str(briefed["span"]).strip(),
+            first_page=briefed_first,
+            last_page=briefed_last,
+        ),
         read_on=str(read_on),
     )
 
@@ -1837,18 +1868,15 @@ def gate_second_read(
             not_graded=True,
         )
 
-    briefed_range = _SPAN_RANGE.fullmatch(read.briefed["pages"])
-    assert briefed_range is not None
-    briefed_first = int(briefed_range.group("first"))
-    briefed_last = int(briefed_range.group("last") or briefed_first)
-    briefed_document = guidelines_manifest.normalize_doc_id(read.briefed["document"])
+    assert read.briefed is not None
+    briefed_document = guidelines_manifest.normalize_doc_id(read.briefed.document)
     matching_spans = [
         span for span in sheet.spans
         if guidelines_manifest.normalize_doc_id(sheet.sources.get(span.source, {}).get("document", ""))
         == briefed_document
-        and span.name.casefold() == read.briefed["span"].casefold()
-        and span.first_page == briefed_first
-        and span.last_page == briefed_last
+        and span.name.casefold() == read.briefed.span.casefold()
+        and span.first_page == read.briefed.first_page
+        and span.last_page == read.briefed.last_page
     ]
     if len(matching_spans) != 1:
         reason = "the 'briefed' block does not name exactly one declared span"
@@ -1885,16 +1913,11 @@ def gate_second_read(
     # By position rather than by ``id()``: two entries of a read can be equal dicts,
     # and identity is not what "this entry answered a row" means.
     matched: set[tuple[tuple[str, str], int]] = set()
-    span_rows = [
-        row for row in sheet.rows
-        if row.source == span.source
-        and row.page is not None
-        and span.first_page <= row.page <= span.last_page
-    ]
+    span_rows = [row for row in sheet.rows if _positive_span_for_row(sheet, row) == span]
     # A dated marker is the span's explicit null claim. Page ranges may overlap, so
     # a row on one of these pages can belong to another span and must not silently
     # turn this marker into a positive read.
-    null_span = span.has_dated_marker
+    null_span = span.has_dated_marker or span.exemption_reason is not None
     if null_span:
         for key in sorted(by_citation):
             for entry in by_citation[key]:
