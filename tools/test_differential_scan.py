@@ -394,6 +394,49 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         self.write("case-01.md", "S:\n\nPatient reports a cough.\n")
         self.assertEqual(ds.main([str(self.root)]), 2)
 
+    def test_every_documented_exit_two_limb_is_driven_through_the_command(self):
+        """The docstring's enumeration is bound to the public command behavior.
+
+        The labels are the reader-facing limbs, and each setup independently
+        drives the status it names. Adding, narrowing, or removing a limb now
+        requires this contract and the module documentation to move together.
+        """
+        missing = self.root / "absent"
+        empty = self.root / "empty"
+        no_entry = self.root / "no-entry"
+        no_numbered_item = self.root / "no-numbered-item"
+        bare_mark = self.root / "bare-mark"
+        for directory in (empty, no_entry, no_numbered_item, bare_mark):
+            directory.mkdir()
+        (no_entry / "case-01.md").write_text(
+            "S:\n\nPatient reports a cough.\n", encoding="utf-8"
+        )
+        (no_numbered_item / "case-01.md").write_text(
+            "A:\n\nAlso addressed:\nAcute bronchitis - J20.9: favored.\n",
+            encoding="utf-8",
+        )
+        (bare_mark / "case-01.md").write_text(
+            "A:\n\nDifferential:\n"
+            "1. Acute bronchitis - J20.9: favored. NOT CODED, no code supplied.\n",
+            encoding="utf-8",
+        )
+        cases = (
+            ("invalid invocation", ["--unknown"]),
+            ("no directory", [str(missing)]),
+            ("no notes in it", [str(empty)]),
+            ("no differential entry in any note read", [str(no_entry)]),
+            ("no numbered item in a labeled block", [str(no_numbered_item)]),
+            ("any bare ``NOT CODED`` mark", [str(bare_mark)]),
+        )
+
+        documented = " ".join((ds.__doc__ or "").split())
+        for limb, argv in cases:
+            with self.subTest(limb=limb):
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    status = ds.main(argv)
+                self.assertEqual(status, 2)
+                self.assertIn(limb, documented)
+
     def test_a_clean_run_is_zero(self):
         self.write("case-01.md", CLEAN_SOAP)
         self.write("case-02.md", TWO_REFUSALS)

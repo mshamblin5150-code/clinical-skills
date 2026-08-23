@@ -149,7 +149,7 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 **Exit status distinguishes not having scanned from having found nothing**, on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when every reached floor is clean, 1 on a violation, and **2 for every way of not having
-scanned** -- no argument, no directory, no notes in it, **no differential entry in
+scanned** -- invalid invocation, no directory, no notes in it, **no differential entry in
 any note read, no numbered item in a labeled block, and any bare ``NOT CODED``
 mark.** The last three matter most: a run
 whose differential was written in some shape this parser does not read, or whose
