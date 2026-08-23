@@ -152,6 +152,22 @@ _Avoid_: writing example, submission, document
 The whole of what a clinician typed into an assistant, handed over as one container. Unlike a writing sample nothing in it was chosen, so its contents are unreviewed by the person supplying it and unknown to the person reading it.
 _Avoid_: chat history, archive, dump
 
+**Paste box**:
+The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
+_Avoid_: editor, text field, LMS box
+
+**Clipboard courier**:
+A rendered `.docx` that exists only to be opened and copied from, never uploaded and never graded. Its own layout is inspected by a person and reaches no reader.
+_Avoid_: submission copy, output document, export
+
+**Direct formatting**:
+A run or paragraph property written onto the element itself rather than inherited from a named style. The only form that survives the clipboard, because a style is carried by reference and the reference is what a paste target drops.
+_Avoid_: inline style, hard formatting, manual formatting
+
+**Dated observation**:
+A committed measurement of a third party this repo cannot re-derive, carrying the date, the instrument and the scope it was taken at in its own fields. Evidence that something behaved a certain way once, never a claim that it still does.
+_Avoid_: fixture, baseline, snapshot
+
 ### Guidelines
 
 **Threshold sheet**:
