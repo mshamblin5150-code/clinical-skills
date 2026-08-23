@@ -133,6 +133,43 @@ class TheRunnerOwnsTheCommandTail(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("salted marker", stdout)
 
+    def test_a_declared_exit_two_vocabulary_rejects_an_unmapped_source_failure(self):
+        def load(_parsed):
+            raise run_grader.SourceError(
+                "source could not be read", exit_2_limb="a different source failure"
+            )
+
+        command = run_grader.Grader(
+            usage="usage: example.py <source>",
+            load=load,
+            grade=lambda _source, _parsed: None,
+            format_report=lambda _scan, _source, show=False: "never",
+            exit_2_limbs=("invalid invocation", "source unavailable"),
+            invalid_invocation_limb="invalid invocation",
+        )
+
+        with self.assertRaisesRegex(ValueError, "undeclared exit-2 limb"):
+            self.run_command(command, ["source"])
+
+    def test_a_declared_exit_two_vocabulary_requires_coverage_to_name_its_limbs(self):
+        result = run_grader.Grade(
+            scan=ExampleScan(()),
+            source="source",
+            coverage_failed=True,
+            diagnostics=("nothing was scanned",),
+        )
+        command = run_grader.Grader(
+            usage="usage: example.py <source>",
+            load=lambda parsed: parsed.source,
+            grade=lambda _source, _parsed: result,
+            format_report=lambda _scan, _source, show=False: "report",
+            exit_2_limbs=("invalid invocation", "coverage incomplete"),
+            invalid_invocation_limb="invalid invocation",
+        )
+
+        with self.assertRaisesRegex(ValueError, "names no exit-2 limb"):
+            self.run_command(command, ["source"])
+
 
 class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
     def test_every_grader_shape_is_declared_with_the_walks_ceiling(self):

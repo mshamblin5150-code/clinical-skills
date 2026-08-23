@@ -1,6 +1,6 @@
 # Diabetes — threshold sheet
 
-<!-- schema: threshold-sheet/1 -->
+<!-- schema: threshold-sheet/2 -->
 
 Decision points only, distilled from the source below. **Not a substitute for the
 guideline** and not a clinical instruction: every row is a fact this repo restates,
@@ -36,6 +36,14 @@ set: 116 first occurrences + 10 duplicate occurrences = 126 records.
 outside those extracted markers. A number stated only in those places is not here,
 so **absent from this sheet does not mean absent from the guideline.** The source is
 `bound`, so even an omission from the marker set warns rather than refuses.
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation markers | 12-363 | yes |
+| front matter and methodology | 1-11 | no |
+| chapter narrative, evidence tables, and references | 12-363 | no |
+| disclosures | 364-368 | no |
+| index | 369-377 | no |
 
 **Second read:** the blind 2026-08-20 read covered every cited page and produced no
 refusal after its reader independently confirmed the `G3 or higher` staging cutoff.

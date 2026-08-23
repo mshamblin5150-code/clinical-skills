@@ -144,9 +144,7 @@ def write_claim(checkout: Path, number: int, title: str) -> Path:
     if not slug:
         raise ValueError("title must contain a letter or number")
     destination = checkout / "docs" / "adr" / f"{number:04d}-{slug}.md"
-    body = "---\nstatus: proposed\n---\n\n# {title}\n".format(
-        title=display_title(title)
-    )
+    body = "# {title}\n".format(title=display_title(title))
     with destination.open("x", encoding="utf-8", newline="\n") as stream:
         stream.write(body)
     return destination

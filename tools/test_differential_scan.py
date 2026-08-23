@@ -394,6 +394,59 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         self.write("case-01.md", "S:\n\nPatient reports a cough.\n")
         self.assertEqual(ds.main([str(self.root)]), 2)
 
+    def test_every_documented_exit_two_limb_is_driven_through_the_command(self):
+        """The docstring's enumeration is bound to the public command behavior.
+
+        The labels are the reader-facing limbs, and each setup independently
+        drives the status it names. Adding, narrowing, or removing a limb now
+        requires this contract and the module documentation to move together.
+        """
+        missing = self.root / "absent"
+        empty = self.root / "empty"
+        no_entry = self.root / "no-entry"
+        no_numbered_item = self.root / "no-numbered-item"
+        bare_mark = self.root / "bare-mark"
+        for directory in (empty, no_entry, no_numbered_item, bare_mark):
+            directory.mkdir()
+        (no_entry / "case-01.md").write_text(
+            "S:\n\nPatient reports a cough.\n", encoding="utf-8"
+        )
+        (no_numbered_item / "case-01.md").write_text(
+            "A:\n\nAlso addressed:\nAcute bronchitis - J20.9: favored.\n",
+            encoding="utf-8",
+        )
+        (bare_mark / "case-01.md").write_text(
+            "A:\n\nDifferential:\n"
+            "1. Acute bronchitis - J20.9: favored. NOT CODED, no code supplied.\n",
+            encoding="utf-8",
+        )
+        cases = (
+            ("invalid invocation", ["--unknown"]),
+            ("no directory", [str(missing)]),
+            ("no notes in it", [str(empty)]),
+            ("no differential entry in any note read", [str(no_entry)]),
+            ("no numbered item in a labeled block", [str(no_numbered_item)]),
+            ("any bare ``NOT CODED`` mark", [str(bare_mark)]),
+        )
+
+        documented = " ".join((ds.__doc__ or "").split())
+        limbs = tuple(limb for limb, _argv in cases)
+        self.assertEqual(limbs, ds.GRADER.exit_2_limbs)
+        exact_enumeration = (
+            "scanned** -- "
+            + ", ".join(limbs[:-1])
+            + ", and "
+            + limbs[-1]
+            + ".** The last three matter most"
+        )
+        self.assertIn(exact_enumeration, documented)
+        for limb, argv in cases:
+            with self.subTest(limb=limb):
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    status = ds.main(argv)
+                self.assertEqual(status, 2)
+                self.assertIn(limb, documented)
+
     def test_a_clean_run_is_zero(self):
         self.write("case-01.md", CLEAN_SOAP)
         self.write("case-02.md", TWO_REFUSALS)
@@ -661,13 +714,13 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.addCleanup(self._tmp.cleanup)
 
-    def run_command(self, proposed: str) -> tuple[int, str, str]:
+    def run_command(self, proposed: str, *extra: str) -> tuple[int, str, str]:
         text = self.DIFFERENTIAL + proposed + "\nFLAG              none\n"
         (self.root / "case-01.md").write_text(text, encoding="utf-8")
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            status = ds.main([str(self.root)])
+            status = ds.main([str(self.root), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
     def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
@@ -736,6 +789,38 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         )
 
         self.assertEqual(status, 0)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+    def test_a_false_no_shipped_sheet_claim_is_caught_by_the_registry_topic(self):
+        control = (
+            "FILLED·proposed   1. Blood pressure recheck in 4 weeks "
+            "[thresholds/hypertension: sheet does not settle it]"
+        )
+        control_status, control_report, _ = self.run_command(control)
+        mutated = control.replace(
+            "thresholds/hypertension: sheet does not settle it",
+            "recalled, no shipped sheet",
+        )
+        self.assertNotEqual(mutated, control, "the mutation changed no guideline tail")
+
+        status, report, _ = self.run_command(mutated, "--show")
+
+        self.assertEqual(control_status, 0, control_report)
+        self.assertEqual(status, 1, report)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+        self.assertRegex(
+            report,
+            r"line 6\s+ROW 24\s+recalled, no shipped sheet contradicts a shipped topic",
+        )
+
+    def test_a_no_shipped_sheet_claim_without_a_topic_join_stays_a_candidate(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Continue lisinopril 20 mg daily "
+            "[recalled, no shipped sheet]"
+        )
+
+        self.assertEqual(status, 0, report)
         self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertIn("row 24 candidates - dependency needs a reader  1", report)
 

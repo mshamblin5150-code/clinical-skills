@@ -206,6 +206,7 @@ def for_module(module: Any) -> type[unittest.TestCase]:
                     source="source",
                     findings_failed=True,
                     coverage_failed=True,
+                    coverage_limbs=module.GRADER.exit_2_limbs[-1:],
                     diagnostics=("tier-two-diagnostic",),
                 ),
             )

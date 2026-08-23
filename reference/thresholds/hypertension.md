@@ -1,6 +1,6 @@
 # Hypertension — threshold sheet
 
-<!-- schema: threshold-sheet/1 -->
+<!-- schema: threshold-sheet/2 -->
 
 Decision points only, distilled from the source below. **Not a substitute for the
 guideline** and not a clinical instruction: every row is a fact this repo restates,
@@ -39,6 +39,14 @@ counts a header reprinted after a page break as another table.
 **Not read:** the narrative sections, the evidence tables, the appendices and the
 reference list. A number stated only in the prose around a recommendation is not
 here, so **absent from this sheet does not mean absent from the guideline.**
+
+| span | pages | read |
+| --- | --- | --- |
+| front matter and methods | 1-10 | no |
+| recommendation tables | 11-74 | yes |
+| narrative sections and evidence tables | 11-74 | no |
+| references | 75-97 | no |
+| appendices | 98-105 | no |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-16
 

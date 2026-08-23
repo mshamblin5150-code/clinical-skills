@@ -4,15 +4,20 @@ import re
 from collections.abc import Iterable
 
 
-GLUE = re.compile(r"[\"'#>*`]")
+#: Quotes, comment marks and emphasis are prose marks rather than part of the
+#: words. A backslash was once included here and was removed after it
+#: changed no result over every tracked ``.md`` and ``.py`` file while turning a
+#: literal ``\n`` into an ``n`` mid-sentence. A transform that changes text and
+#: buys nothing is an undeclared escape route.
+PROSE_MARK = re.compile(r"[\"'#>*`]")
 
 
 def normalized(text: str | Iterable[str]) -> str:
-    """Remove prose glue and collapse whitespace for one membership operand."""
+    """Remove prose marks and collapse whitespace for one membership operand."""
 
     if not isinstance(text, str):
         text = "\n".join(text)
-    return re.sub(r"\s+", " ", GLUE.sub(" ", text)).strip()
+    return re.sub(r"\s+", " ", PROSE_MARK.sub(" ", text)).strip()
 
 
 class ProseBind:
