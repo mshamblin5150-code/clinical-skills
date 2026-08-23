@@ -58,6 +58,11 @@ def grade(
         text_root,
         second_read_path,
         allow_untrusted_provenance,
+        {
+            "Society/doc": 60,
+            "Society/aha": 60,
+            "Society/kdigo": 60,
+        },
     )
     return gate._emit_scan(scan, quiet=quiet)
 
@@ -90,6 +95,11 @@ HEADER = f"""# Test sheet
 **Read:** the recommendation tables.
 
 **Not read:** the narrative sections and the appendices.
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation tables | 1-50 | yes |
+| narrative sections and appendices | 51-60 | no |
 
 citations resolved against C:/nowhere on 2026-08-16
 
@@ -156,6 +166,20 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 **Read:** the recommendation tables.
 
 **Not read:** the narrative sections and the appendices.
+
+**Source: `aha`**
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation tables | 1-50 | yes |
+| narrative sections and appendices | 51-60 | no |
+
+**Source: `kdigo`**
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation tables | 1-50 | yes |
+| narrative sections and appendices | 51-60 | no |
 
 citations resolved against C:/nowhere on 2026-08-16
 
@@ -320,7 +344,7 @@ class RawInputOperatorGate(unittest.TestCase):
         """The raw-input refusal preserves the sheet line that needs a visual read."""
         parsed = sheet(row(value="\u001f120 mm Hg"))
         self.assertFalse(parsed.ok)
-        self.assertIn("test-sheet.md:36", parsed.why_not)
+        self.assertIn("test-sheet.md:41", parsed.why_not)
         self.assertIn("U+001F", parsed.why_not)
         self.assertIn("PyMuPDF", parsed.why_not)
 
@@ -329,7 +353,7 @@ class RawInputOperatorGate(unittest.TestCase):
         self.assertEqual("a\u001eb".splitlines(), ["a", "b"])
         parsed = sheet(row(value="\u001e120 mm Hg"))
         self.assertFalse(parsed.ok)
-        self.assertIn("test-sheet.md:36", parsed.why_not)
+        self.assertIn("test-sheet.md:41", parsed.why_not)
         self.assertIn("U+001E", parsed.why_not)
         self.assertIn("PyMuPDF", parsed.why_not)
 
@@ -567,6 +591,7 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
         parsed = sheet(row())
         results = (
             ("SCHEMA", gate.gate_schema(parsed)),
+            ("PAGE COVERAGE", gate.gate_page_coverage(parsed, {"Society/doc": 60})),
             ("CITATION tier 0", gate.gate_citation_tier0(parsed, {}, {})),
             ("CITATION tier 1", gate.gate_citation_tier1(parsed)),
             ("CITATION tier 2", gate.gate_citation_tier2(parsed, Path("C:/nowhere"))),
@@ -577,7 +602,13 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
                 "SECOND READ",
                 gate.gate_second_read(
                     parsed,
-                    gate.SecondRead(Path("read.json"), values=[], read_on="2026-08-21"),
+                    gate.SecondRead(
+                        Path("read.json"), values=[],
+                        briefed=gate.BriefedSpan(
+                            "Society/doc", "recommendation tables", 1, 50
+                        ),
+                        read_on="2026-08-21",
+                    ),
                 ),
             ),
         )
@@ -1075,7 +1106,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             return out.getvalue()
 
     def coverage_line(self, report: str) -> str:
-        lines = [line for line in report.splitlines() if "COVERAGE" in line]
+        lines = [line for line in report.splitlines() if line.startswith("  COVERAGE")]
         self.assertEqual(len(lines), 1, f"expected one COVERAGE line, got {lines}")
         return lines[0]
 
@@ -1190,6 +1221,129 @@ class TheScopeSectionIsGraded(unittest.TestCase):
             '"an SBP goal of <130 mm Hg"', '"read the label; not read elsewhere"')
         findings = self.schema_findings(text)
         self.assertTrue(any("scope" in f.lower() for f in findings), findings)
+
+
+class ScopeSpanTable(unittest.TestCase):
+    """Issue #478 makes source-section spans the arithmetic behind Scope."""
+
+    def findings(self, text: str) -> list[str]:
+        if "## Thresholds" not in text:
+            text += (
+                "\n## Thresholds\n\n"
+                "| quantity | population | value | snippet | source | page | rec | class |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row()
+            )
+        return gate.gate_schema(gate.parse(text, Path("test-sheet.md"))).findings
+
+    def test_a_sheet_without_a_span_table_is_refused(self):
+        text = re.sub(
+            r"\n\| span \| pages \| read \|.*?\| narrative sections and appendices \| 51-60 \| no \|\n",
+            "\n",
+            HEADER,
+            flags=re.S,
+        )
+        self.assertNotIn("| span | pages | read |", text)
+        self.assertTrue(any("span table" in item for item in self.findings(text)))
+
+    def test_the_three_column_table_is_parsed_and_overlap_is_permitted(self):
+        parsed = gate.parse(
+            HEADER.replace("| narrative sections and appendices | 51-60 | no |",
+                           "| narrative sections and appendices | 41-60 | no |"),
+            Path("test-sheet.md"),
+        )
+        self.assertEqual([(span.name, span.first_page, span.last_page)
+                          for span in parsed.spans], [
+            ("recommendation tables", 1, 50),
+            ("narrative sections and appendices", 41, 60),
+        ])
+        result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
+        self.assertEqual(result.findings, [])
+        rendered = "\n".join(result.stdout)
+        self.assertIn("page_count: 60", rendered)
+        self.assertIn("unaccounted pages: none", rendered)
+
+    def test_a_multi_source_span_table_must_name_its_source(self):
+        text = TWO_SOURCE_HEADER.replace("**Source: `aha`**\n\n", "")
+        parsed = gate.parse(
+            text + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(source="aha"),
+            Path("test-sheet.md"),
+        )
+        findings = gate.gate_schema(parsed).findings
+        self.assertTrue(any("multi-source sheet" in item for item in findings), findings)
+
+    def test_an_unaccounted_page_refuses_and_the_remainder_is_printed(self):
+        parsed = gate.parse(
+            HEADER.replace("| narrative sections and appendices | 51-60 | no |",
+                           "| narrative sections and appendices | 52-60 | no |"),
+            Path("test-sheet.md"),
+        )
+        result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
+        self.assertEqual(len(result.findings), 1)
+        self.assertIn("51", result.findings[0])
+        self.assertIn("unaccounted pages: 51", "\n".join(result.stdout))
+
+    def test_an_unresolved_source_page_count_is_not_graded(self):
+        result = gate.gate_page_coverage(gate.parse(HEADER, Path("test-sheet.md")), {})
+        self.assertTrue(result.not_graded)
+        self.assertIn("Society/doc", result.skip_reason)
+        self.assertIn("page_count: NOT RESOLVED", "\n".join(result.stdout))
+
+    def test_a_read_span_with_neither_a_row_nor_a_dated_marker_is_refused(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | yes |",
+        )
+        findings = self.findings(text)
+        self.assertTrue(any("neither rows nor a dated marker" in item for item in findings))
+
+    def test_a_real_span_with_no_rows_cannot_be_retired_without_a_marker(self):
+        path = (Path(__file__).resolve().parent.parent / "reference" / "thresholds"
+                / "cervical-cancer.md")
+        text = path.read_text(encoding="utf-8").replace(
+            "| references | 11-13 | no |",
+            "| references | 11-13 | yes |",
+        )
+        self.assertIn("| references | 11-13 | yes |", text)
+        findings = gate.gate_schema(gate.parse(text, path)).findings
+        self.assertTrue(any(
+            "references" in item
+            and "neither rows nor a dated marker" in item
+            for item in findings
+        ), findings)
+
+    def test_overlapping_positive_spans_do_not_make_table_order_semantic(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| overlapping recommendation summary | 41-60 | yes |",
+        )
+        self.assertEqual(self.findings(text), [])
+
+    def test_a_dated_null_marker_retires_a_span(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | read 2026-08-23 |",
+        )
+        self.assertEqual(self.findings(text), [])
+
+    def test_an_impossible_null_marker_date_is_refused(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | read 2026-99-99 |",
+        )
+        self.assertTrue(any("invalid read value" in item for item in self.findings(text)))
+
+    def test_only_references_may_use_a_reasoned_class_exemption(self):
+        allowed = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| references | 51-60 | exempt: citation list has no clinical prose |",
+        )
+        refused = allowed.replace("| references |", "| appendices |")
+        self.assertEqual(self.findings(allowed), [])
+        self.assertTrue(any("only a references span" in item for item in self.findings(refused)))
 
 
 class TheSourceRowCarriesItsProvenance(unittest.TestCase):
@@ -1467,7 +1621,7 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
     RECS_ROOT = Path("C:/codeing/guidelines-index")
     SECOND_READ = RECS_ROOT / "second-read-diabetes.json"
 
-    def test_all_six_gates_grade_the_committed_diabetes_sheet(self):
+    def test_the_complete_gate_set_grades_the_committed_diabetes_sheet(self):
         required = (
             self.PDF_ROOT / "ADA" / "standards-of-care-2026.pdf",
             self.TEXT_ROOT / "manifest.json",
@@ -1477,6 +1631,10 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
         absent = [str(path) for path in required if not path.is_file()]
         if absent:
             self.skipTest("external gate input absent: " + ", ".join(absent))
+        external_read = gate.load_second_read(self.SECOND_READ)
+        if not external_read.ok:
+            self.skipTest("external second-read record predates threshold-sheet/2: "
+                          + str(external_read.why_not))
 
         handoff_stderr = io.StringIO()
         with contextlib.redirect_stderr(handoff_stderr):
@@ -1864,7 +2022,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
             return status, out.getvalue(), err.getvalue()
 
     def coverage_line(self, report):
-        lines = [line for line in report.splitlines() if "COVERAGE" in line]
+        lines = [line for line in report.splitlines() if line.startswith("  COVERAGE")]
         self.assertEqual(len(lines), 1, f"expected one COVERAGE line, got {lines}")
         return lines[0]
 
@@ -1933,7 +2091,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
                 status = grade(path, [], Path("C:/nowhere-at-all"), quiet=False)
-        line = [row_ for row_ in out.getvalue().splitlines() if "COVERAGE" in row_]
+        line = [row_ for row_ in out.getvalue().splitlines() if row_.startswith("  COVERAGE")]
         self.assertEqual(status, 1)
         self.assertEqual(len(line), 1)
         self.assertIn("NOT RUN", line[0])
@@ -2082,6 +2240,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "artifact_lock.py",
                 "artifact_provenance.py",
                 "guidelines_extract.py",
+                "guidelines_catalog.py",
                 "guidelines_manifest.py",
                 "guidelines_recs.py",
                 "console_codec.py",
@@ -2099,6 +2258,10 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             )
             sheet_path = sheets / "hypertension.md"
             shutil.copy2(gate.SHEET_ROOT / "hypertension.md", sheet_path)
+            shutil.copy2(
+                gate.DEFAULT_CATALOG,
+                root / "reference" / "guidelines-catalog.md",
+            )
 
             subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
             subprocess.run([git, "config", "user.email", "test@example.invalid"], cwd=root, check=True)
@@ -2609,9 +2772,19 @@ class TheWatermarkGateAgainstTheCommittedSheet(unittest.TestCase):
         self.assertEqual(failures, [])
 
 
-def second_read(*values: dict, read_on: str = "2026-08-19") -> dict:
+def briefed(document: str = "Society/doc", span: str = "recommendation tables",
+            pages: str = "1-50") -> dict:
+    return {"document": document, "span": span, "pages": pages}
+
+
+def second_read(*values: dict, read_on: str = "2026-08-19",
+                briefed_block: dict | None = None) -> dict:
     """A `--second-read` record: what an independent reader found on the cited pages."""
-    return {"read_on": read_on, "values": list(values)}
+    return {
+        "read_on": read_on,
+        "briefed": briefed_block or briefed(),
+        "values": list(values),
+    }
 
 
 def seen(value: str, about: str = "the office BP treatment target",
@@ -2635,7 +2808,7 @@ class SecondReadGate(unittest.TestCase):
     only when it fires.
     """
 
-    def test_a_value_the_second_read_did_not_find_there_is_refused(self):
+    def test_a_reader_miss_where_the_sheet_has_a_row_only_warns(self):
         read = gate.load_second_read_record(
             second_read(seen("<140 mm Hg")), Path("read.json")
         )
@@ -2644,8 +2817,9 @@ class SecondReadGate(unittest.TestCase):
         )
         refusals, _, _, _, uncovered = result.findings, result.warnings, result.pairings, result.undiffed, result.uncovered
         self.assertEqual(uncovered, [])
-        self.assertEqual(len(refusals), 1)
-        self.assertIn("<130 mm Hg", refusals[0])
+        self.assertEqual(refusals, [])
+        self.assertGreaterEqual(len(result.warnings), 1)
+        self.assertIn("<130 mm Hg", result.warnings[0])
 
     def test_an_agreeing_value_passes_and_is_paired_for_a_reader(self):
         read = gate.load_second_read_record(
@@ -2708,7 +2882,7 @@ class SecondReadGate(unittest.TestCase):
         )
         refusals, warnings, _, _, uncovered = result.findings, result.warnings, result.pairings, result.undiffed, result.uncovered
         self.assertEqual(refusals, [], "the read never opened the page the row cites")
-        self.assertEqual(len(uncovered), 1)
+        self.assertEqual(uncovered, [])
         self.assertTrue(any("99" in warning for warning in warnings))
 
     def test_a_citation_the_read_did_not_cover_is_uncovered_and_never_refused(self):
@@ -2724,8 +2898,8 @@ class SecondReadGate(unittest.TestCase):
         result = gate.gate_second_read(sheet(rows), read)
         refusals, _, _, _, uncovered = result.findings, result.warnings, result.pairings, result.undiffed, result.uncovered
         self.assertEqual(refusals, [])
-        self.assertEqual(len(uncovered), 1)
-        self.assertIn("p.7", uncovered[0])
+        self.assertEqual(uncovered, [])
+        self.assertTrue(any("<80 mm Hg" in warning for warning in result.warnings))
 
     def test_the_page_is_part_of_the_match_and_not_only_the_document(self):
         """A value found on a different page of the same document is a miscitation,
@@ -2741,7 +2915,8 @@ class SecondReadGate(unittest.TestCase):
         )
         refusals, _, _, _, uncovered = result.findings, result.warnings, result.pairings, result.undiffed, result.uncovered
         self.assertEqual(uncovered, [])
-        self.assertEqual(len(refusals), 1)
+        self.assertEqual(refusals, [])
+        self.assertTrue(result.warnings)
 
     def test_a_value_carrying_no_number_is_reported_as_undiffed_and_never_clean(self):
         """`monthly`, `at every visit`. Nothing mechanical pairs those, and a gate
@@ -2766,7 +2941,54 @@ class SecondReadGate(unittest.TestCase):
         marked = row(value="<130 mm Hg", snippet=f"{gate.RENDERED_MARKER} a goal of <130 mm Hg")
         result = gate.gate_second_read(sheet(marked), read)
         refusals, _, _, _, _ = result.findings, result.warnings, result.pairings, result.undiffed, result.uncovered
-        self.assertEqual(len(refusals), 1)
+        self.assertEqual(refusals, [])
+        self.assertGreaterEqual(len(result.warnings), 1)
+
+    def test_a_value_found_in_a_span_the_sheet_retired_as_null_refuses(self):
+        parsed = gate.parse(
+            HEADER.replace(
+                "| narrative sections and appendices | 51-60 | no |",
+                "| narrative sections and appendices | 41-60 | read 2026-08-23 |",
+            )
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("test-sheet.md"),
+        )
+        read = gate.load_second_read_record(
+            second_read(
+                seen("<80 mm Hg", page=55),
+                briefed_block=briefed(span="narrative sections and appendices", pages="41-60"),
+            ),
+            Path("read.json"),
+        )
+        result = gate.gate_second_read(parsed, read)
+        self.assertEqual(len(result.findings), 1)
+        self.assertIn("retired as null", result.findings[0])
+
+    def test_a_value_found_in_a_references_exemption_refuses(self):
+        parsed = gate.parse(
+            HEADER.replace(
+                "| narrative sections and appendices | 51-60 | no |",
+                "| references | 51-60 | exempt: citation list has no clinical prose |",
+            )
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("test-sheet.md"),
+        )
+        read = gate.load_second_read_record(
+            second_read(
+                seen("<80 mm Hg", page=55),
+                briefed_block=briefed(span="references", pages="51-60"),
+            ),
+            Path("read.json"),
+        )
+        result = gate.gate_second_read(parsed, read)
+        self.assertEqual(len(result.findings), 1)
+        self.assertIn("retired as null", result.findings[0])
 
 
 class LoadingASecondReadRecord(unittest.TestCase):
@@ -2803,35 +3025,55 @@ class LoadingASecondReadRecord(unittest.TestCase):
         """`research_ledger.py`'s dateless-ledger limb: a read with no date cannot be
         told from a read taken against a corpus that has since been re-extracted, and
         this repo has a ticket about exactly that."""
-        read = gate.load_second_read_record({"values": [seen("<130 mm Hg")]}, Path("read.json"))
+        read = gate.load_second_read_record(
+            {"briefed": briefed(), "values": [seen("<130 mm Hg")]}, Path("read.json")
+        )
         self.assertFalse(read.ok)
         self.assertIn("read_on", read.why_not)
 
+    def test_a_record_with_no_briefed_block_is_not_a_record(self):
+        read = gate.load_second_read_record(
+            {"read_on": "2026-08-19", "values": []}, Path("read.json")
+        )
+        self.assertFalse(read.ok)
+        self.assertIn("briefed", read.why_not)
+
 
 class TheBriefLeaksTheLocatorAndNeverTheAnswer(unittest.TestCase):
-    """#83 asks for a read *"with no access to the sheet"*. A page number is a
+    """#83 asks for a read *"with no access to the sheet"*. A page range is a
     locator rather than an answer, and without one the second reader has a hundred
-    pages to search -- so the brief names documents and pages and nothing else.
+    pages to search -- so the brief names document, span, and range and nothing else.
     That it names them at all is a leak, named here rather than left implied.
     """
 
     def test_the_brief_names_every_cited_document_and_page(self):
-        text = gate.brief(sheet(row(page="p41") + row(page="p7", rec="p7/goal/1")))
+        text = gate.brief(sheet(row(page="p41") + row(page="p7", rec="p7/goal/1")),
+                          "recommendation tables")
         self.assertIn("Society/doc", text)
-        self.assertIn("41", text)
-        self.assertIn("7", text)
+        self.assertIn("recommendation tables", text)
+        self.assertIn("1-50", text)
 
     def test_the_brief_carries_no_value_quantity_or_snippet_from_the_sheet(self):
-        marked = row(quantity="bp-goal-secret", value="<133 mm Hg",
-                     snippet="a very distinctive snippet")
-        text = gate.brief(sheet(marked))
-        self.assertNotIn("bp-goal-secret", text)
-        self.assertNotIn("133", text)
-        self.assertNotIn("distinctive", text)
+        marked = row(
+            quantity="quantity-secret",
+            population="population-secret",
+            value="<133 mm Hg",
+            snippet="a very distinctive snippet",
+            source="source-secret",
+            page="p47",
+            rec="rec-secret",
+            klass="class-secret",
+        )
+        text = gate.brief(sheet(marked), "recommendation tables")
+        for secret in (
+            "quantity-secret", "population-secret", "133", "distinctive",
+            "source-secret", "47", "rec-secret", "class-secret",
+        ):
+            self.assertNotIn(secret, text)
 
     def test_the_brief_states_the_record_shape_the_grader_reads(self):
-        text = gate.brief(sheet(row()))
-        for field_name in ("document", "page", "value", "about", "read_on"):
+        text = gate.brief(sheet(row()), "recommendation tables")
+        for field_name in ("document", "span", "pages", "briefed", "page", "value", "about", "read_on"):
             self.assertIn(field_name, text)
 
 
@@ -2934,8 +3176,8 @@ class TheWatermarkBannerIsHardToReadPast(unittest.TestCase):
 
 class TheCommandLineRefusesWhatItCannotBind(unittest.TestCase):
     """`--all`'s `--recs` rule, one gate over. A record and a read are both bound to
-    one sheet's own vocabulary -- a source key in one case, a set of (document, page)
-    citations in the other -- so pointed at a directory neither knows which sheet it
+    one sheet's own vocabulary -- a source key in one case, a declared span in the
+    other -- so pointed at a directory neither knows which sheet it
     answers for."""
 
     def setUp(self):
@@ -2957,6 +3199,23 @@ class TheCommandLineRefusesWhatItCannotBind(unittest.TestCase):
     def test_brief_on_a_missing_file_grades_nothing(self):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(gate.main([str(self.root / "nowhere.md"), "--brief"]), 2)
+
+    def test_brief_emits_one_named_span(self):
+        path = self.root / "sheet.md"
+        path.write_text(
+            header() + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            encoding="utf-8",
+        )
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = gate.main([
+                str(path), "--brief", "--span", "recommendation tables"
+            ])
+        self.assertEqual(status, 0)
+        self.assertIn("span: recommendation tables", output.getvalue())
 
     def test_the_text_root_is_derived_from_the_pdf_root_rather_than_typed(self):
         """A second literal path here is what would let #80's output rule and this
@@ -2995,7 +3254,7 @@ class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
 
     def test_the_readme_states_every_field_the_second_read_grader_requires(self):
         readme = self.readme()
-        for field_name in gate.SECOND_READ_FIELDS + ("read_on",):
+        for field_name in gate.SECOND_READ_FIELDS + ("read_on", "briefed", "span", "pages"):
             self.assertIn(f'"{field_name}"', readme, f"{field_name} is not documented")
 
     def test_the_readme_says_a_second_read_is_a_smoke_test(self):
@@ -3056,9 +3315,10 @@ class TheBriefAndTheDiffReadOneSetOfCitations(unittest.TestCase):
             + row(page="p7", value="<80 mm Hg", snippet="a DBP goal of <80 mm Hg", rec="p7/g/1")
         )
         parsed = sheet(rows)
-        work_order = gate.brief(parsed)
-        for document, page in gate.cited_citations(parsed):
-            self.assertIn(f"{document}  p.{page}", work_order)
+        work_order = gate.brief(parsed, "recommendation tables")
+        self.assertIn("document: Society/doc", work_order)
+        self.assertIn("span: recommendation tables", work_order)
+        self.assertIn("pages: 1-50", work_order)
         read = gate.load_second_read_record(
             second_read(*[seen("<130 mm Hg", document=document, page=int(page))
                           for document, page in sorted(gate.cited_citations(parsed))]),
@@ -3322,14 +3582,13 @@ class AReadThatCoversNothingIsNotAGradedSheet(unittest.TestCase):
             )
         return status, out.getvalue()
 
-    def test_a_wholly_off_brief_read_reports_not_run(self):
+    def test_a_value_outside_the_brief_warns_but_the_named_span_is_graded(self):
         _, printed = self._grade(seen("<130 mm Hg", page=99))
-        self.assertIn("SECOND READ     NOT RUN", printed)
-        self.assertNotIn("SECOND READ     0 refusing", printed)
+        self.assertIn("SECOND READ     0 refusing", printed)
 
-    def test_a_read_of_nothing_at_all_reports_not_run(self):
+    def test_a_reader_finding_nothing_in_a_span_with_rows_warns(self):
         _, printed = self._grade()
-        self.assertIn("SECOND READ     NOT RUN", printed)
+        self.assertIn("SECOND READ     0 refusing, 1 warning", printed)
 
     def test_a_read_covering_one_citation_is_graded_and_not_reported_as_not_run(self):
         """The other direction, so the limb cannot be satisfied by never grading."""
@@ -3337,8 +3596,6 @@ class AReadThatCoversNothingIsNotAGradedSheet(unittest.TestCase):
         self.assertIn("SECOND READ     0 refusing", printed)
         self.assertNotIn("SECOND READ     NOT RUN", printed)
 
-    def test_the_smoke_test_caveat_is_not_printed_for_a_read_that_graded_nothing(self):
-        """A caveat about what a diff is worth, printed over a diff that did not
-        happen, would read as a diff having happened."""
+    def test_the_smoke_test_caveat_prints_for_a_named_span_even_on_a_reader_miss(self):
         _, printed = self._grade(seen("<130 mm Hg", page=99))
-        self.assertNotIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
+        self.assertIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
