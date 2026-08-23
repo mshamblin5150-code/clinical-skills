@@ -699,7 +699,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_the_post_draft_checks_write_their_headings_first(self):
         """#206's lost-record shape and the ledger's answer to it: a heading whose
         verdict never arrived is visible, and a check that never ran is not."""
-        self.assertIn("scratch/case-study-checks.md", self.skill)
+        self.assertIn("<run-directory>/checks.md", self.skill)
         self.assertIn("VERDICT", self.skill)
 
     def test_the_post_draft_checks_are_not_graded_by_the_pass_that_wrote_the_draft(self):

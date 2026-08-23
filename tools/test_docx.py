@@ -26,6 +26,7 @@ from xml.etree import ElementTree
 import docx_read
 import docx_write
 from prose_bind import ProseBind, normalized
+from repo_root import ForeignCheckout
 
 SOURCE = Path(__file__).resolve().parent / "docx_write.py"
 
@@ -929,6 +930,48 @@ class TheRendererClaimsInStepSeven(unittest.TestCase):
             "word/document.xml"
         ]
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
+
+
+class FinishedSubmissionsAvoidDisposableWorktrees(unittest.TestCase):
+    """The placement refusal is answered before the destination directory exists."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name).resolve()
+        self.main = self.root / "clinical_skills"
+        (self.main / ".git" / "worktrees" / "ticket-417").mkdir(parents=True)
+        self.worktree = self.root / "ticket-417"
+        self.worktree.mkdir()
+        (self.worktree / ".git").write_text(
+            "gitdir: "
+            + (self.main / ".git" / "worktrees" / "ticket-417").as_posix()
+            + "\n",
+            encoding="utf-8",
+        )
+        self.source = self.root / "case.md"
+        self.source.write_text("# Case\n", encoding="utf-8")
+
+    def test_the_library_refuses_before_mkdir(self):
+        destination = self.worktree / "output" / "case-studies" / "case.docx"
+        original = docx_write.ensure_main_checkout
+        docx_write.ensure_main_checkout = lambda path: original(path, self.main / "tools")
+        self.addCleanup(setattr, docx_write, "ensure_main_checkout", original)
+        with self.assertRaises(ForeignCheckout):
+            docx_write.write_docx("# Case\n", destination)
+        self.assertFalse(destination.parent.exists())
+
+    def test_the_command_converts_the_refusal_to_status_two(self):
+        destination = self.worktree / "output" / "case-studies" / "case.docx"
+        original = docx_write.ensure_main_checkout
+        docx_write.ensure_main_checkout = lambda path: original(path, self.main / "tools")
+        self.addCleanup(setattr, docx_write, "ensure_main_checkout", original)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            status = docx_write.main([str(self.source), str(destination)])
+        self.assertEqual(status, 2)
+        self.assertIn(str(self.main / "output"), stderr.getvalue())
+        self.assertFalse(destination.parent.exists())
 
 
 class TheDestinationSurvivesAFailedRender(unittest.TestCase):

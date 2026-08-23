@@ -1,9 +1,10 @@
 """Which checkout holds the corpus, and which paths are inside a checkout at all.
 
 Two questions about the same subject, and both used to be answered in several
-places at once. ``main_repo_root`` and ``scratch_root`` are #93's half: *which
-tree am I standing in*. ``enclosing_checkout`` and ``ensure_outside_checkout``
-are #176's: *would writing here land inside one*. They share the fact that a
+places at once. ``main_repo_root``, ``scratch_root`` and ``output_root`` answer
+*which tree owns shared state*. ``enclosing_checkout``,
+``ensure_outside_checkout`` and ``ensure_main_checkout`` answer *would writing
+here land in an allowed checkout*. They share the fact that a
 worktree's ``.git`` is a file rather than a directory, which is the detail every
 copy of either had to get right independently.
 
@@ -19,7 +20,7 @@ stays copied.
 ``Path(__file__).resolve().parent.parent`` is the **worktree** root. That is the
 right answer for almost everything in ``tools/`` -- a test reading a committed
 fixture, a tool writing into the tree it was run from -- and it is the wrong
-answer for exactly one thing: ``scratch/``.
+answer for exactly two things: ``scratch/`` and ``output/``.
 
 ``scratch/`` is gitignored, so ``git worktree`` does not bring it. It exists in
 the main clone and nowhere else. A tool that resolves it from its own location
@@ -42,8 +43,10 @@ comment thread invites reading it as one. Most of them want the worktree: a test
 reading ``fixtures/``, ``scan_all`` walking the files being committed, ``_git``
 choosing a working directory. Making those adopt this would send a worktree's
 scan into the wrong tree, which is worse than the bug being fixed. **Only a
-caller reaching for ``scratch/`` wants the main checkout** -- that is the test,
-and it is stated as a test rather than as a list on purpose.
+caller reaching for gitignored, account-owned state wants the main checkout** --
+that is the test, stated as a property rather than as a list. Working material
+lives under ``scratch/`` and finished submissions under ``output/``; neither
+belongs to a disposable worktree.
 
 An earlier draft of that sentence ended by counting the qualifying call sites.
 It was correct when written, nothing recomputed it, and it sat four lines above
@@ -103,6 +106,16 @@ def scratch_root(start: Path | None = None) -> Path:
     return main_repo_root(start) / "scratch"
 
 
+def output_root(start: Path | None = None) -> Path:
+    """The finished-submission directory in the checkout that survives worktrees.
+
+    Like :func:`scratch_root`, this returns the path whether or not it exists.
+    The producer decides when to create it; resolution must not silently choose
+    a disposable worktree because that is where the command was launched.
+    """
+    return main_repo_root(start) / "output"
+
+
 class InsideCheckout(ValueError):
     """A build artifact was aimed at a path inside a git checkout.
 
@@ -132,6 +145,24 @@ class InsideCheckout(ValueError):
             f"  {checkout} is a repository."
         )
         super().__init__(f"{message}\n{detail}" if detail else message)
+
+
+class ForeignCheckout(ValueError):
+    """A finished submission was aimed at a checkout other than the main one.
+
+    This is deliberately a sibling of :class:`InsideCheckout`. The outside-
+    every-checkout policy and main-checkout-only policy point in opposite
+    directions, so one call cannot raise both and their callers do not share a
+    remedy.
+    """
+
+    def __init__(self, target: Path, expected: Path) -> None:
+        self.target = target
+        self.expected = expected
+        super().__init__(
+            f"refusing to write a finished submission into a foreign checkout: {target}\n"
+            f"  use {expected / 'output'} instead."
+        )
 
 
 def enclosing_checkout(
@@ -192,4 +223,19 @@ def ensure_outside_checkout(
     checkout = enclosing_checkout(target, permitted)
     if checkout is not None:
         raise InsideCheckout(target, checkout, detail)
+    return target
+
+
+def ensure_main_checkout(path: Path | str, start: Path | None = None) -> Path:
+    """The resolved target, or ``ForeignCheckout`` for a disposable checkout.
+
+    A target under the main checkout is allowed. A target outside every checkout
+    is also allowed so tests and deliberate exports can render in temporary
+    directories. Only a target inside another checkout is refused.
+    """
+    target = Path(path).expanduser().resolve()
+    expected = main_repo_root(start).resolve()
+    checkout = enclosing_checkout(target)
+    if checkout is not None and checkout.resolve() != expected:
+        raise ForeignCheckout(target, expected)
     return target

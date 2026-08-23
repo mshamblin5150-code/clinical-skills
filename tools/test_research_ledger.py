@@ -30,11 +30,13 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 import checks_ledger
 import docx_write
 import reference_scan
 import research_ledger as ledger
+import coursework_run
 from grader_conformance import constructed_kinds, for_module
 
 GraderConformance = for_module(ledger)
@@ -942,24 +944,24 @@ class TheReportCarriesNoClaimTextWithoutShow(unittest.TestCase):
         self.scan = ledger.survey(ledger.read_records(ledger_text(record)), AS_OF)
 
     def test_the_default_report_prints_no_claim_and_no_field(self):
-        report = ledger.format_report(self.scan, source="case-study-claims.md")
+        report = ledger.format_report(self.scan, source="claims.md")
         self.assertNotIn("white count", report)
         self.assertNotIn("a blog post", report)
 
     def test_show_prints_them(self):
-        report = ledger.format_report(self.scan, source="case-study-claims.md", show=True)
+        report = ledger.format_report(self.scan, source="claims.md", show=True)
         self.assertIn("white count", report)
         self.assertIn("a blog post", report)
 
     def test_every_row_is_named_in_the_report_with_its_ticket(self):
-        report = ledger.format_report(self.scan, source="case-study-claims.md")
+        report = ledger.format_report(self.scan, source="claims.md")
         for kind in ledger.KINDS:
             with self.subTest(row=kind):
                 self.assertIn(f"{ledger.ROWS[kind]} - {kind}", report)
 
 
 class TheCommandExitsOnWhatItFound(unittest.TestCase):
-    def _run(self, text: str, name: str = "case-study-claims.md") -> int:
+    def _run(self, text: str, name: str = "claims.md") -> int:
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / name
             path.write_text(text, encoding="utf-8")
@@ -1005,7 +1007,7 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def test_the_missing_date_banner_prints_beside_the_exit_one(self):
         """So the finding reads as a floor rather than as the whole."""
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "case-study-claims.md"
+            path = Path(temp) / "claims.md"
             path.write_text(
                 ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp=""),
                 encoding="utf-8",
@@ -1026,7 +1028,7 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
 
     def test_the_exit_one_message_names_no_claim(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "case-study-claims.md"
+            path = Path(temp) / "claims.md"
             path.write_text(ledger_text(replace_field(CLEAN, "SOURCE", "a blog post")), encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
@@ -1187,8 +1189,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("is not a defect and is not graded", self._flat())
 
     def test_the_skill_sends_the_ledger_to_a_gitignored_directory(self):
-        self.assertIn("scratch/case-study-claims.md", self.skill)
-        self.assertNotIn("output/case-study-claims.md", self.skill)
+        self.assertIn("<run-directory>/claims.md", self.skill)
+        ledger_lines = [line for line in self.skill.splitlines() if "claims.md" in line]
+        self.assertTrue(ledger_lines)
+        self.assertFalse(any("output/" in line for line in ledger_lines))
 
     def test_the_worked_example_in_the_skill_passes_the_scanner(self):
         """**The one that catches drift a substring cannot see.** A documented
@@ -1816,7 +1820,7 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
 
     def _run(self, ledger_body: str, draft: str | None, *flags: str) -> tuple[int, str, str]:
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "case-study-claims.md"
+            path = Path(temp) / "claims.md"
             path.write_text(ledger_body, encoding="utf-8")
             argv = [str(path), *flags]
             if draft is not None:
@@ -1955,7 +1959,7 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
 
     def test_a_missing_draft_file_exits_two(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "case-study-claims.md"
+            path = Path(temp) / "claims.md"
             path.write_text(ledger_text(CLEAN), encoding="utf-8")
             err = io.StringIO()
             with redirect_stdout(io.StringIO()), redirect_stderr(err):
@@ -1967,7 +1971,7 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         """``--draft`` swallowing the next argument, or being dropped, are the two
         ways a run believes it graded its prescriptions and did not."""
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "case-study-claims.md"
+            path = Path(temp) / "claims.md"
             path.write_text(ledger_text(CLEAN), encoding="utf-8")
             err = io.StringIO()
             with redirect_stdout(io.StringIO()), redirect_stderr(err):
@@ -2002,6 +2006,29 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
         self.assertIsNone(run_grader.parse(ledger.GRADER, ["ledger.md"]).value("--draft"))
         with self.assertRaises(run_grader.ParseError):
             run_grader.parse(ledger.GRADER, ["ledger.md", "--draft"])
+
+
+class ASubmissionDraftJoinsTheLedgerRun(unittest.TestCase):
+    def test_a_different_run_key_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            run = root / "scratch" / "runs" / "nur5144-m1-case-study"
+            run.mkdir(parents=True)
+            claims = run / "claims.md"
+            claims.write_text(ledger_text(CLEAN), encoding="utf-8")
+            draft = root / "output" / "case-studies" / "nur5144-m2-case-study-2026-08-20.md"
+            draft.parent.mkdir(parents=True)
+            draft.write_text("# Draft\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(coursework_run, "output_root", return_value=root / "output"),
+                mock.patch.object(coursework_run, "scratch_root", return_value=root / "scratch"),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(stderr),
+            ):
+                status = ledger.main([str(claims), "--draft", str(draft)])
+        self.assertEqual(status, 2)
+        self.assertIn("does not belong", stderr.getvalue())
 
 
 class TheDocumentedTableIsStillReadable(unittest.TestCase):

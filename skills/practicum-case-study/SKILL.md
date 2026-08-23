@@ -3,9 +3,10 @@ name: practicum-case-study
 description: Turn a practicum case study's faculty material into a finished, APA-formatted graded submission — full workup, MDM, plan, prescriptions, patient education and references — delivered as a .docx. Use when the clinician hands over a course case study, a module video's intake data, or a "case study" Word document.
 ---
 
-The input is **faculty material for a graded case study** — an intake block transcribed from a
-module video, usually with the clinician's own rough differential and plan underneath it. The
-output is the finished academic document that gets submitted, plus the `.docx` it is submitted as.
+The input is **the live assignment URL and faculty material for a graded case study** — an intake
+block transcribed from a module video, usually with the clinician's own rough differential and plan
+underneath it. The output is the finished academic document that gets submitted, plus the `.docx`
+it is submitted as and the run directory that proves what produced it.
 
 This is **not** [clinical-note](../clinical-note/SKILL.md), and the difference is not the format.
 A clinical note documents a patient the clinician saw. A case study answers a faculty prompt about
@@ -23,26 +24,29 @@ appears in nearly every graded submission in the clinician's corpus and has neve
 reasoning.** Standing rule 2's vitals exception does not reach here: the faculty material states
 the vitals it wants stated, and a vital it omits is one the case is not about.
 
-**Where the work goes.** `output/case-studies/`, never the repo root and never a tracked
-directory — standing rule 1, and a pre-commit hook enforces it. Write the Markdown and the `.docx`
-side by side under the same stem. Name files by course, module and date: `nur5144-m1-2026-08-18.md`.
-A filename carries no patient name.
+**Derive the assignment key live before writing.** Open the assignment URL and read the course and
+module from the LMS breadcrumbs. The fixed artifact word for this skill is `case-study`, so the run
+directory is `scratch/runs/<course>-<module>-case-study/`. Never type a course or module from
+memory. Transcribe the live assignment and course syllabus requirements into that directory's
+`bar.md`; the assignment overrides the syllabus where both state the same element, and the syllabus
+fills the assignment's silence. Show the transcription and precedence to the clinician, and do not
+write its `SIGNED:` ISO date or draft until the clinician explicitly approves it.
 
-**The research paths follow the input.** In an ordinary faculty-material run,
-`<claims-ledger>` means `scratch/case-study-claims.md` and `<checks-ledger>` means
-`scratch/case-study-checks.md`. When [discussion-post](../discussion-post/SKILL.md) routes a worked
-clinical case here, its **board run directory** is part of the input: preserve that directory's
-`board-<date>.md`, `bar.md`, and `posts/`, set `<claims-ledger>` to
-`<run-directory>/claims.md`, and set `<checks-ledger>` to `<run-directory>/checks.md`. The board run
-therefore keeps one provenance chain; do not copy or merge either ledger into the ordinary paths.
-**This clinical skill owns those artifacts on that branch.** Before the case-study workflow below,
-open the handed board URL with the patient safeguards in this file, snapshot the complete live board
-to `board-<date>.md` and `posts/`, derive the course syllabus URL, and transcribe the topic and
-syllabus bar into `bar.md`. The topic overrides the syllabus where both state the same element; the
-syllabus fills the topic's silence. Show the transcription and precedence to the clinician, and do
-not write its `SIGNED:` ISO date or draft until the clinician explicitly approves it. The routing
-skill reads only enough of the prompt to choose this branch; it does not produce these
-patient-bearing artifacts.
+**Every run uses one provenance layout.** Set `<run-directory>` to that derived directory,
+`<claims-ledger>` to `<run-directory>/claims.md`, and `<checks-ledger>` to
+`<run-directory>/checks.md`. Evidence handed to the ledger is
+`<run-directory>/evidence.txt`; the clinician's standing-rule-3 review copy is
+`<run-directory>/proposed-<date>.md`. When [discussion-post](../discussion-post/SKILL.md) routes a
+worked clinical case here, this skill owns the patient-bearing board snapshot too: preserve
+`board-<date>.md`, `posts/`, and the signed `bar.md` in this same case-study run directory. The
+routing skill reads only enough of the prompt to choose this branch.
+
+**Only the submission goes under `output/`.** Write the Markdown and `.docx` side by side in
+`output/case-studies/` as `<course>-<module>-case-study-<date>.md` and `.docx`. The run directory is
+undated because it names the assignment; the output is dated because it names one sitting. A
+filename carries no patient name. `output_root()` resolves this directory to the main checkout, and
+the renderer refuses a destination inside a disposable worktree while still allowing an explicit
+temporary export outside every checkout.
 
 The drafting context on that routed branch **does not see the classmate posts**. Give it the faculty
 prompt and material, the signed bar, and the voice model, but not `posts/`. After the draft exists,
@@ -334,10 +338,10 @@ inversion at the top of this file:
 pressure because a box demands one; a case study has no box, and a fabricated finding changes the
 answer to the question being graded.
 
-Standing rule 3 still binds: a `PROPOSED (verify before use)` block sits **after** the References,
-outside the document body, listing every clinical claim this skill contributed that the clinician's
-draft did not already contain — each differential added, each code, each drug, each dose. It is
-what he reads before submitting, and it is deleted from the copy that goes to Canvas.
+Standing rule 3 still binds: a `PROPOSED (verify before use)` block lists every clinical claim this
+skill contributed that the clinician's draft did not already contain — each differential added,
+each code, each drug, each dose. Write it to `<run-directory>/proposed-<date>.md`, show it to the
+clinician before submission, and never put it after References in the submission Markdown.
 
 ## Credentials — two strings in one document, and that is correct
 
@@ -846,7 +850,7 @@ each topic's own revision date — use it.
 wrong with it:**
 
 ```bash
-python tools/reference_scan.py output/case-studies/<stem>.md --as-of <the exam date>
+python tools/reference_scan.py output/case-studies/<course>-<module>-case-study-<date>.md --as-of <the exam date>
 ```
 
 `--as-of` is **the exam date** — the day the paper is written. The retrieval-date row is measured
@@ -888,10 +892,10 @@ classes of tool citation apart deliberately.
 
 ### 8. Emit the document
 
-Write the Markdown to `output/case-studies/`, then render it:
+Write only the submission Markdown to `output/case-studies/`, then render it:
 
 ```bash
-python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx
+python tools/docx_write.py output/case-studies/<course>-<module>-case-study-<date>.md output/case-studies/<course>-<module>-case-study-<date>.docx
 ```
 
 **It refuses rather than overwriting a document it did not write** —
@@ -903,7 +907,7 @@ means something else saved it. Either is **exit 2 with nothing written**, and th
 flag that proceeds anyway:
 
 ```bash
-python tools/docx_write.py output/case-studies/<stem>.md output/case-studies/<stem>.docx --force
+python tools/docx_write.py output/case-studies/<course>-<module>-case-study-<date>.md output/case-studies/<course>-<module>-case-study-<date>.docx --force
 ```
 
 **Ask him before passing it, and that is this step's rule rather than part of his ruling.** What
@@ -938,8 +942,8 @@ was filed over.
 it rather than assuming the render finished the job. Two things it will not do for you: the label
 must be `References` or, for a single entry, exactly `Reference` — the singular is matched only as
 a complete heading, so `Reference Ranges` is safe and `Reference List` is not a reference list.
-**Strip the `PROPOSED` block from the `.docx`**, or render from a copy that does not carry it: it
-is for the clinician, not for the grader.
+The `PROPOSED (verify before use)` block is written separately to the run directory as
+`proposed-<date>.md`; it never enters the Markdown submission or the rendered `.docx`.
 
 ### 9. Check
 
@@ -1009,7 +1013,7 @@ prose edit to a rule fails nothing.**
 it after every repair:**
 
 ```bash
-python tools/case_study_scan.py output/case-studies/<stem>.md
+python tools/case_study_scan.py output/case-studies/<course>-<module>-case-study-<date>.md
 ```
 
 Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file, no section
@@ -1030,7 +1034,8 @@ the document, no table under Demographics, the Review of Systems or the Physical
 Review of Systems closing with the all-other-systems disclaimer **and the Physical Examination not
 carrying one**, no scaffolding language from §1a's closed set, the Most Likely Clinical Diagnosis
 not set wholly bold, the signature and its date on one line, the prescription table at six rows and
-three columns wide, and **a drug that continues carrying a stop criterion**.
+three columns wide, **a drug that continues carrying a stop criterion**, and **no `PROPOSED
+(verify before use)` heading in the submission**; that review block belongs in the run directory.
 
 **It reads the Markdown through the renderer's own parser rather than a copy of it.** A line it
 calls a bullet is a `ListParagraph` in the `.docx`, because `docx_write.blocks` is what both of them
@@ -1268,7 +1273,8 @@ Then walk this list, by eye — none of it is mechanical:
   one that matters most.
 - **Is every `unsourced` ledger record accounted for** — in `PROPOSED` if it is a claim, and out of
   the document entirely if it is a number the clinician would act on?
-- Is the `PROPOSED` block complete, and is it out of the `.docx`?
+- Is `<run-directory>/proposed-<date>.md` complete, and is no `PROPOSED (verify before use)`
+  heading present in either submitted file?
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,

@@ -13,8 +13,10 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import discussion_post_scan as scan
+import coursework_run
 import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
@@ -365,6 +367,61 @@ class ACompletePostPasses(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIs(getattr(artifact, name), getattr(reply_scan, name))
                 self.assertIs(getattr(artifact, name), getattr(scan, name))
+
+
+class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):
+    def roots(self, root: Path):
+        return (
+            mock.patch.object(coursework_run, "output_root", return_value=root / "output"),
+            mock.patch.object(coursework_run, "scratch_root", return_value=root / "scratch"),
+        )
+
+    def make(self, root: Path, run_key: str, draft_key: str | None = None):
+        run = root / "scratch" / "runs" / run_key
+        run.mkdir(parents=True)
+        (run / "bar.md").write_text(BAR, encoding="utf-8")
+        (run / "claims.md").write_text(CLAIMS, encoding="utf-8")
+        draft = root / "output" / "discussions" / f"{draft_key or run_key}-2026-08-22.md"
+        draft.parent.mkdir(parents=True)
+        draft.write_text(BODY, encoding="utf-8")
+        return run, draft
+
+    def test_a_matching_submission_and_run_pass_the_join(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            run, draft = self.make(root, "nur0000-m2-discussion")
+            first, second = self.roots(root)
+            with first, second:
+                status = scan.main([str(run), "--draft", str(draft)])
+        self.assertEqual(status, 0)
+
+    def test_a_submission_with_a_different_key_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            run, draft = self.make(root, "nur0000-m2-discussion", "nur0000-m3-discussion")
+            first, second = self.roots(root)
+            stderr = io.StringIO()
+            with first, second, redirect_stderr(stderr):
+                status = scan.main([str(run), "--draft", str(draft)])
+        self.assertEqual(status, 2)
+        self.assertIn("does not belong", stderr.getvalue())
+
+    def test_a_submission_with_no_derived_run_directory_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            loose = root / "loose-run"
+            loose.mkdir()
+            (loose / "bar.md").write_text(BAR, encoding="utf-8")
+            (loose / "claims.md").write_text(CLAIMS, encoding="utf-8")
+            draft = root / "output" / "discussions" / "nur0000-m2-discussion-2026-08-22.md"
+            draft.parent.mkdir(parents=True)
+            draft.write_text(BODY, encoding="utf-8")
+            first, second = self.roots(root)
+            stderr = io.StringIO()
+            with first, second, redirect_stderr(stderr):
+                status = scan.main([str(loose), "--draft", str(draft)])
+        self.assertEqual(status, 2)
+        self.assertIn("no run directory", stderr.getvalue())
 
 
 class TheSignedBarIsTheScannerInput(unittest.TestCase):

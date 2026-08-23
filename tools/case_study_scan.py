@@ -96,6 +96,7 @@ from enum import Enum
 from pathlib import Path
 
 import docx_write
+import coursework_run
 import run_grader
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -243,6 +244,7 @@ DIAGNOSIS_ALL_BOLD = "diagnosis-all-bold"
 SIGNATURE_DATE_SPLIT = "signature-date-split"
 RX_TABLE_SHAPE = "rx-table-shape"
 NO_STOP_CRITERION = "no-stop-criterion"
+PROPOSED_HEADING = "proposed-heading"
 
 # Where each row's rule is written, so a reader knows which file to open. Keyed
 # rather than built from ``KINDS``, on ``checks_ledger.ROW_TICKET``'s reasoning: a
@@ -259,6 +261,9 @@ ROWS = {
     SIGNATURE_DATE_SPLIT: "style.md 1a - the signature is one line",
     RX_TABLE_SHAPE: "style.md 8 - six rows, three columns wide",
     NO_STOP_CRITERION: "style.md 8 - a drug that continues carries its stop criterion",
+    PROPOSED_HEADING: (
+        "skills/practicum-case-study/SKILL.md step 8 - proposed material lives in the run directory"
+    ),
 }
 KINDS = tuple(ROWS)
 
@@ -692,6 +697,16 @@ def _rx_findings(sections: list[Section]) -> list[Finding]:
     return findings
 
 
+def _proposed_findings(every: list) -> list[Finding]:
+    """Standing rule 3's review block is provenance, never submitted body text."""
+    return [
+        Finding(PROPOSED_HEADING, OUTSIDE_ANY_SECTION, block.line, block.text)
+        for block in every
+        if block.kind == "heading"
+        and normalize(block.text) == "proposed (verify before use)"
+    ]
+
+
 def findings(sections: list[Section], every: list) -> list[Finding]:
     """Every row, sorted by ``KINDS``.
 
@@ -707,6 +722,7 @@ def findings(sections: list[Section], every: list) -> list[Finding]:
         + _bold_findings(sections)
         + _signature_findings(sections, every)
         + _rx_findings(sections)
+        + _proposed_findings(every)
     )
     order = {kind: index for index, kind in enumerate(KINDS)}
     return sorted(found, key=lambda f: (order[f.kind], f.line))
@@ -823,6 +839,13 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(
             "case_study_scan.py: cannot read {s}: {f}".format(s=parsed.source, f=failure)
         ) from failure
+
+    if coursework_run.is_submission(path):
+        run = coursework_run.runs_root() / coursework_run.key_of(path.stem)
+        if not run.is_dir():
+            raise run_grader.SourceError(
+                f"no run directory at {run} for submission {path.name}"
+            )
 
     try:
         skill_text = SKILL.read_text(encoding="utf-8", errors="replace")

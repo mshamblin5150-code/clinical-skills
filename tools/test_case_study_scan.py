@@ -36,8 +36,10 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import case_study_scan as scan
+import coursework_run
 from grader_conformance import for_module
 
 GraderConformance = for_module(scan)
@@ -123,6 +125,7 @@ ROW_PHRASES = {
     scan.SIGNATURE_DATE_SPLIT: "the signature and its date on one line",
     scan.RX_TABLE_SHAPE: "the prescription table at six rows and three columns wide",
     scan.NO_STOP_CRITERION: "a drug that continues carrying a stop criterion",
+    scan.PROPOSED_HEADING: "no `PROPOSED (verify before use)` heading in the submission",
 }
 
 
@@ -639,6 +642,26 @@ class TheExitStatus(unittest.TestCase):
         result = scan.survey(CLEAN, None)
         report = scan.format_report(result, "draft.md")
         self.assertIn("SKILL.md was not read", report)
+
+    def test_a_submission_with_no_run_directory_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            draft = root / "output" / "case-studies" / "nur5144-m1-case-study-2026-08-20.md"
+            draft.parent.mkdir(parents=True)
+            draft.write_text(CLEAN, encoding="utf-8")
+            with (
+                mock.patch.object(coursework_run, "output_root", return_value=root / "output"),
+                mock.patch.object(coursework_run, "scratch_root", return_value=root / "scratch"),
+            ):
+                status, _, err = run([str(draft)])
+        self.assertEqual(status, 2)
+        self.assertIn("no run directory", err)
+
+
+class ProposedMaterialIsNotASubmission(unittest.TestCase):
+    def test_a_proposed_heading_is_a_finding(self):
+        fired = kinds(CLEAN + "\n## PROPOSED (verify before use)\n\nA proposed plan.\n")
+        self.assertIn(scan.PROPOSED_HEADING, fired)
 
 
 class TheSkeletonIsTheSkillsOwn(unittest.TestCase):
