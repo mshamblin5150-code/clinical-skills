@@ -30,9 +30,16 @@ clinician ruled the term and the sweep on 2026-08-22.
 documents, but it does not decide whether a topic needs a threshold sheet. Its columns
 cannot represent every kind of decision point: the aspirin recommendation for
 preeclampsia states a dose and start week, while the table has no dose column; the
-cervical-cancer recommendation states modality-dependent intervals, while its interval
-cell is single-valued. Society and recommendation grade therefore do not sort topics
-into sheet and no-sheet groups. The guideline does.
+cervical-cancer recommendation states modality-dependent intervals. Society and
+recommendation grade therefore do not sort topics into sheet and no-sheet groups. The
+guideline does.
+
+**Extended by issue [#432](https://github.com/mshamblin5150-code/clinical-skills/issues/432)
+on 2026-08-22:** the recommendation artifact's `interval` cell now carries every
+modality-qualified alternative in statement order. This reopens only the earlier
+single-value representation. The artifact remains an index rather than the topic sweep:
+it still has no general decision-point schema, and its recommendation rows cannot
+establish what the rest of a document does not state.
 
 ## Why `none` and `unread` are separate
 

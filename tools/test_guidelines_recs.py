@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import guidelines_recs as recs  # noqa: E402
+import uspstf_table as uspstf  # noqa: E402
 
 
 def table(title: str, *rows: tuple[str, str, str]) -> list[list[str]]:
@@ -427,6 +428,15 @@ class TheCommittedCuratedTable(unittest.TestCase):
             for row in rows:
                 self.assertTrue(row.statement.strip(), filename)
                 self.assertGreaterEqual(row.page, 1)
+
+    def test_every_interval_equals_the_value_derived_from_its_statement(self):
+        for filename, rows in self.rows.items():
+            for row in rows:
+                self.assertEqual(
+                    row.interval,
+                    uspstf.derive_interval(row.statement),
+                    f"{filename} page {row.page}: {row.topic}",
+                )
 
     def test_the_grades_are_the_five_uspstf_letters(self):
         grades = {row.grade for rows in self.rows.values() for row in rows}
