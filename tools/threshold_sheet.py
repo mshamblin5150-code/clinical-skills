@@ -246,10 +246,10 @@ DEFAULT_RECS_ROOT = "C:/codeing/guidelines-index"
 # rather than half-checked.
 WHY_NO_WRITE_GUARD = (
     "threshold_sheet reads recs-<key>.json and never writes one, so it takes no "
-    "write guard. What it shares with the four writers is the convention about "
-    "where such a record lives, and the enforceable half of that is that its "
-    "default is absolute -- a relative one would resolve inside the checkout the "
-    "command was run from."
+    "write guard. What it shares with the other write-guarded commands is the "
+    "convention about where such a record lives, and the enforceable half of that "
+    "is that its default is absolute -- a relative one would resolve inside the "
+    "checkout the command was run from."
 )
 
 # A text-marker record is a bound in both directions: it over-reports when prose
