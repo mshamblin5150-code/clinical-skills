@@ -44,16 +44,16 @@ sources.
 | words in the `## Populations` table, 19 rows of verbatim scope wording | **115** |
 | pages in the source guideline | **105** |
 
-In [diabetes.md](diabetes.md), ruled on #186 rather than inheriting the first
-sheet's answer:
+In [diabetes.md](diabetes.md), re-ruled on #482 after its complete source-page read
+rather than inheriting the first sheet's answer:
 
 | | |
 | --- | --- |
-| rows | **25** |
-| snippet cells, and distinct snippets among them | 25, of which **24** are distinct |
-| words across the distinct snippets, excluding the two `RENDERED:` markers | **87** |
-| longest / median / shortest quoted fragment, in words | 8 / 3 / 1 |
-| words in the `## Populations` table, 17 rows of verbatim scope wording | **124** |
+| rows | **349** |
+| snippet cells, and distinct snippets among them | 349, of which **346** are distinct |
+| words across the distinct snippets, excluding the two `RENDERED:` markers | **3,267** |
+| longest / median / shortest quoted fragment, in words | 36 / 7 / 1 |
+| words in the `## Populations` table, 32 rows of verbatim scope wording | **197** |
 | pages in the source guideline | **377** |
 
 **Every row in both tables above is re-derived by a test, and none of them is a figure
@@ -89,7 +89,7 @@ for the guideline, and it says so in its own opener. Nothing here blesses commit
 anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
 
 **No later sheet gets this for free.** Diabetes was re-asked against one 377-page ADA
-standard and answered with 87 quoted words across 24 distinct minimal snippets. A directory
+standard and answered with 3,267 quoted words across 346 distinct minimal snippets. A directory
 of twenty sheets quoting one society is still a different quantity question, and it is
 worth re-asking there rather than reading either ruling as settling the class.
 

@@ -75,7 +75,7 @@
 | dental caries prevention | unread |  | exact recommendation index available; full-document read pending |
 | depression and suicide risk screening | unread |  | exact recommendation index available; full-document read pending |
 | diabetes in chronic kidney disease | unread |  | blocked on #436: bound recommendation records are incomplete |
-| diabetes mellitus | unread | diabetes.md | blocked on #436: bound recommendation records are incomplete |
+| diabetes mellitus | sheet | diabetes.md | all 377 source pages accounted for on 2026-08-23; recommendation accounting remains bound under #436 |
 | diabetes-related foot infection | unread |  | blocked on #436: bound recommendation records are incomplete |
 | drug-susceptible tuberculosis treatment | unread |  | blocked on #436: bound recommendation records are incomplete |
 | dyslipidemia | unread |  | exact recommendation index available; full-document read pending |
