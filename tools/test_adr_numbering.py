@@ -18,7 +18,7 @@ PRE_COMMIT = Path(__file__).with_name("hooks") / "pre-commit"
 
 
 def adr_stems_are_unique_on_disk(adr_dir: Path) -> bool:
-    """Independent merge assertion: first four filename characters, Markdown only.
+    """Independent merge assertion over the first four characters of every file.
 
     It deliberately shares no matcher with ``adr_next``. A production extractor
     that matches no files, or only conventional ``NNNN-slug.md`` files, must not
@@ -29,7 +29,6 @@ def adr_stems_are_unique_on_disk(adr_dir: Path) -> bool:
         path.name[:4]
         for path in adr_dir.iterdir()
         if path.is_file()
-        and path.suffix == ".md"
         and len(path.name) >= 4
         and path.name[:4].isdecimal()
     ]
@@ -84,7 +83,7 @@ class AdrNumberUniquenessTests(unittest.TestCase):
     def test_a_real_duplicate_makes_the_predicate_fail(self) -> None:
         with TemporaryDirectory() as tmp:
             adr_dir = Path(tmp)
-            (adr_dir / "0007.md").write_text("# First\n", encoding="utf-8")
+            (adr_dir / "0007.txt").write_text("first\n", encoding="utf-8")
             (adr_dir / "0007-second-record.md").write_text("# Second\n", encoding="utf-8")
 
             self.assertFalse(adr_next.adr_numbers_are_unique(adr_dir))

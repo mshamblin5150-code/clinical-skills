@@ -60,7 +60,7 @@ def adr_claims(adr_dir: Path) -> list[AdrClaim]:
     claims = []
     for path in adr_dir.iterdir():
         match = ADR_PREFIX.match(path.name)
-        if path.is_file() and path.suffix == ".md" and match:
+        if path.is_file() and match:
             claims.append(AdrClaim(int(match.group("number")), path.name))
     return claims
 
@@ -170,7 +170,7 @@ def staged_adr_claims(checkout: Path) -> tuple[AdrClaim, ...]:
             continue
         filename = Path(normalized).name
         match = ADR_PREFIX.match(filename)
-        if Path(filename).suffix == ".md" and match:
+        if match:
             claims.append(AdrClaim(int(match.group("number")), filename))
     return tuple(claims)
 
