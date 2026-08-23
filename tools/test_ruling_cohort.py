@@ -42,6 +42,7 @@ import unittest
 from pathlib import Path
 from typing import NamedTuple
 
+from assertion_record import ROW_ID
 from prose_bind import ProseBind
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -50,12 +51,6 @@ FIXTURES_README = REPO_ROOT / "fixtures" / "README.md"
 ADR = REPO_ROOT / "docs" / "adr" / "0003-a-ruling-cohort-promotes-when-fully-scored.md"
 DAY_A = REPO_ROOT / "fixtures" / "day-a" / "assertions.md"
 DAY_B = REPO_ROOT / "fixtures" / "day-b" / "assertions.md"
-
-#: A row identifier opening a table line -- ``| B19 | ...``. Deliberately a
-#: **set** rather than a count of matches: a promoted row is named twice, once
-#: in its own class table and once in the promotion record beside its successor,
-#: and counting occurrences would report a set larger than it is.
-ROW_ID = re.compile(r"^\| ([A-Z]\d{1,2}) \|", re.M)
 
 #: #29's cohort: the historical row, the successor appended for it, and the
 #: first verdict the successor carries. The verdicts are the five this repo
@@ -100,6 +95,10 @@ def _row(text: str, row_id: str) -> str:
 
 
 def _row_ids(path: Path) -> set[str]:
+    #: Deliberately a **set** rather than a count of matches: a promoted row is
+    #: named twice, once in its own class table and once in the promotion record
+    #: beside its successor, and counting occurrences would report a set larger
+    #: than it is.
     return set(ROW_ID.findall(path.read_text(encoding="utf-8")))
 
 
