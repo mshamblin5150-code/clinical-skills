@@ -240,8 +240,12 @@ The one-row-per-topic record of the threshold-sheet sweep. Its topic population 
 _Avoid_: checklist, index, inventory
 
 **Sweep state**:
-One of `sheet`, `none`, or `unread`. `none` means the guideline was read and states no decision point; `unread` establishes nothing.
+One of `sheet`, `none`, or `unread`. `none` means the guideline was read and states no decision point; `unread` establishes nothing. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question.
 _Avoid_: status, result, disposition
+
+**Shipped artifact**:
+The sheet a coverage-registry row names in its artifact column. This is what a run joins on and may consult, whatever the row's sweep state; an artifact on an `unread` row is a real sheet whose full-document read is pending, and every sheet's own scope names what it did not read. Reading it settles no less than reading any other — a missing row means the sheet does not settle the question, in a partial sheet and a complete one alike.
+_Avoid_: partial sheet, draft sheet, provisional sheet, candidate sheet
 
 **Scoped out**:
 A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.
