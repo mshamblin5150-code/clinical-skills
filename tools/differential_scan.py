@@ -149,7 +149,7 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 **Exit status distinguishes not having scanned from having found nothing**, on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when every reached floor is clean, 1 on a violation, and **2 for every way of not having
-scanned** -- no argument, no directory, no notes in it, **no differential entry in
+scanned** -- invalid invocation, no directory, no notes in it, no differential entry in
 any note read, no numbered item in a labeled block, and any bare ``NOT CODED``
 mark.** The last three matter most: a run
 whose differential was written in some shape this parser does not read, or whose
@@ -1320,13 +1320,33 @@ class Source:
     texts: tuple[str, ...]
 
 
+INVALID_INVOCATION = "invalid invocation"
+NO_DIRECTORY = "no directory"
+NO_NOTES = "no notes in it"
+NO_DIFFERENTIAL_ENTRY = "no differential entry in any note read"
+NO_NUMBERED_ITEM = "no numbered item in a labeled block"
+BARE_NOT_CODED = "any bare ``NOT CODED`` mark"
+EXIT_2_LIMBS = (
+    INVALID_INVOCATION,
+    NO_DIRECTORY,
+    NO_NOTES,
+    NO_DIFFERENTIAL_ENTRY,
+    NO_NUMBERED_ITEM,
+    BARE_NOT_CODED,
+)
+
+
 def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
-        raise run_grader.SourceError(f"no directory named {directory.name}")
+        raise run_grader.SourceError(
+            f"no directory named {directory.name}", exit_2_limb=NO_DIRECTORY
+        )
     texts = tuple(read_notes(directory))
     if not texts:
-        raise run_grader.SourceError(f"no notes found in {directory.name}")
+        raise run_grader.SourceError(
+            f"no notes found in {directory.name}", exit_2_limb=NO_NOTES
+        )
     return Source(directory, texts)
 
 
@@ -1339,6 +1359,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         or scan.guideline_findings
     )
     diagnostics: list[str] = []
+    coverage_limbs: list[str] = []
     if has_findings:
         messages = []
         if scan.findings:
@@ -1383,6 +1404,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             + " This is not a clean run."
         )
         coverage_failed = True
+        coverage_limbs.append(NO_DIFFERENTIAL_ENTRY)
     if scan.unwelded_marks and not has_findings:
         diagnostics.append(
             f"\n{scan.unwelded_marks} NOT CODED mark(s) in {source.directory.name} are not"
@@ -1391,6 +1413,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " The slot limb was not evaluated -- this is not a clean run."
         )
         coverage_failed = True
+        coverage_limbs.append(BARE_NOT_CODED)
     if not scan.numbered_items and scan.differential_entries:
         diagnostics.append(
             f"\nrow 13 floor was not run in {source.directory.name}: no numbered item"
@@ -1398,11 +1421,13 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " QA result; the wide Assessment count still needs a reader."
         )
         coverage_failed = True
+        coverage_limbs.append(NO_NUMBERED_ITEM)
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
         findings_failed=has_findings,
         coverage_failed=coverage_failed,
+        coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
     )
 
@@ -1413,6 +1438,8 @@ GRADER = run_grader.Grader(
     load=_load,
     grade=_grade,
     format_report=format_report,
+    exit_2_limbs=EXIT_2_LIMBS,
+    invalid_invocation_limb=INVALID_INVOCATION,
 )
 
 
