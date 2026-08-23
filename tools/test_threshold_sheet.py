@@ -2416,8 +2416,12 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         manifest_path = self.root / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["producer"]["dirty"] = True
+        manifest["producer"].pop("inputs")
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-        return self.root.resolve(), ("was produced by a dirty checkout",)
+        return self.root.resolve(), (
+            "records no producer-file identity",
+            "was produced by a dirty checkout",
+        )
 
     def test_an_untrusted_pass_without_a_declaration_is_not_graded(self):
         corpus, _ = self._dirty_corpus()

@@ -645,6 +645,11 @@ class AcceptedDistrustOnTheCatalogCli(unittest.TestCase):
             Path("C:/outside/guidelines-src"),
             producer=producer,
         )
+        if dirty:
+            manifest_path = corpus / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["producer"].pop("inputs")
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         return corpus
 
     def _run(self, root: Path, corpus: Path, catalog: str, *, allow: bool) -> tuple[int, str]:
@@ -680,7 +685,11 @@ class AcceptedDistrustOnTheCatalogCli(unittest.TestCase):
             root = Path(tmp)
             corpus = self._corpus(root, dirty=True)
             declaration = artifact_provenance.render_accepted_distrust(
-                corpus, ("was produced by a dirty checkout",)
+                corpus,
+                (
+                    "records no producer-file identity",
+                    "was produced by a dirty checkout",
+                ),
             )
             status, output = self._run(
                 root, corpus, self._catalog(declaration), allow=True
