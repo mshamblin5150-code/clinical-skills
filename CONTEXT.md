@@ -246,3 +246,11 @@ _Avoid_: number split, bad break
 **Orphaned figure**:
 A published measurement whose producing instrument no longer exists, so no command will ever print it again. It is a declared limit rather than a stale figure — nothing will make it decay and nothing will make it re-derivable — and it is named in one object that prose points at rather than copies.
 _Avoid_: historical figure, legacy number, dated result
+
+**Declared limit**:
+A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives.
+_Avoid_: caveat, known issue, disclaimer
+
+**Underived count**:
+A figure stating the size of a population that is sitting in code and was never consulted. The remedy is to derive it or to drop it; the corrected number is as underived as the wrong one. Distinct from an **orphaned figure**, whose instrument no longer exists at all — that one is declared, this one is repaired.
+_Avoid_: stale count, off-by-one, magic number
