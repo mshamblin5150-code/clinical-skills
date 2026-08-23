@@ -26,7 +26,7 @@ for python in python python3 py; do
         # draft may warn but must never refuse this commit. The allocation tool
         # names every other worktree claiming a staged number. No staged ADR
         # means this cross-worktree read costs nothing.
-        if git diff --cached --name-only --diff-filter=ACM \
+        if git diff --cached --name-only -M --diff-filter=ACMR \
             | grep -q '^docs/adr/'; then
             "$python" "$repo_root/tools/adr_next.py" --check-staged >&2 || true
         fi

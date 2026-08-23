@@ -12,7 +12,7 @@ from pathlib import Path
 from console_codec import use_utf8
 
 
-ADR_FILENAME = re.compile(r"^(?P<number>\d{4})-.+\.md$")
+ADR_PREFIX = re.compile(r"^(?P<number>\d{4})")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ``repo_root.ensure_outside_checkout`` protects generated artifacts that must not
@@ -35,26 +35,38 @@ class WorktreeListFailed(Exception):
 
 
 @dataclass(frozen=True)
+class AdrClaim:
+    number: int
+    filename: str
+
+
+@dataclass(frozen=True)
+class WorktreeClaims:
+    root: Path
+    claims: tuple[AdrClaim, ...]
+
+
+@dataclass(frozen=True)
 class WorktreeScan:
     roots: tuple[Path, ...]
     unreadable: tuple[Path, ...]
     numbers: tuple[int, ...]
-    claims: tuple[tuple[Path, tuple[tuple[int, str], ...]], ...] = ()
+    claims: tuple[WorktreeClaims, ...] = ()
 
 
-def adr_claims(adr_dir: Path) -> list[tuple[int, str]]:
+def adr_claims(adr_dir: Path) -> list[AdrClaim]:
     """Return every four-digit ADR number and filename in an on-disk directory."""
 
     claims = []
     for path in adr_dir.iterdir():
-        match = ADR_FILENAME.fullmatch(path.name)
-        if path.is_file() and match:
-            claims.append((int(match.group("number")), path.name))
+        match = ADR_PREFIX.match(path.name)
+        if path.is_file() and path.suffix == ".md" and match:
+            claims.append(AdrClaim(int(match.group("number")), path.name))
     return claims
 
 
 def adr_numbers(adr_dir: Path) -> list[int]:
-    return [number for number, _ in adr_claims(adr_dir)]
+    return [claim.number for claim in adr_claims(adr_dir)]
 
 
 def adr_numbers_are_unique(adr_dir: Path) -> bool:
@@ -62,27 +74,25 @@ def adr_numbers_are_unique(adr_dir: Path) -> bool:
     return len(numbers) == len(set(numbers))
 
 
-def checkout_root(cwd: Path) -> Path:
-    finished = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+def run_git(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *arguments],
         cwd=cwd,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
     )
+
+
+def checkout_root(cwd: Path) -> Path:
+    finished = run_git(cwd, "rev-parse", "--show-toplevel")
     if finished.returncode != 0:
         raise WorktreeListFailed(finished.stderr.strip() or "not inside a Git checkout")
     return Path(finished.stdout.strip()).resolve()
 
 
 def worktree_roots(checkout: Path) -> tuple[Path, ...]:
-    finished = subprocess.run(
-        ["git", "worktree", "list", "--porcelain"],
-        cwd=checkout,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    finished = run_git(checkout, "worktree", "list", "--porcelain")
     if finished.returncode != 0:
         raise WorktreeListFailed(finished.stderr.strip() or "git worktree list failed")
     roots = tuple(
@@ -103,8 +113,8 @@ def scan_worktrees(checkout: Path) -> WorktreeScan:
     for root in roots:
         try:
             claimed = tuple(adr_claims(root / "docs" / "adr"))
-            numbers.extend(number for number, _ in claimed)
-            claims.append((root, claimed))
+            numbers.extend(claim.number for claim in claimed)
+            claims.append(WorktreeClaims(root, claimed))
         except OSError:
             unreadable.append(root)
     return WorktreeScan(roots, tuple(unreadable), tuple(numbers), tuple(claims))
@@ -134,19 +144,22 @@ def write_claim(checkout: Path, number: int, title: str) -> Path:
     if not slug:
         raise ValueError("title must contain a letter or number")
     destination = checkout / "docs" / "adr" / f"{number:04d}-{slug}.md"
-    body = "# {title}\n\nStatus: proposed\n\n".format(title=display_title(title))
+    body = "---\nstatus: proposed\n---\n\n# {title}\n".format(
+        title=display_title(title)
+    )
     with destination.open("x", encoding="utf-8", newline="\n") as stream:
         stream.write(body)
     return destination
 
 
-def staged_adr_claims(checkout: Path) -> tuple[tuple[int, str], ...]:
-    finished = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-        cwd=checkout,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
+def staged_adr_claims(checkout: Path) -> tuple[AdrClaim, ...]:
+    finished = run_git(
+        checkout,
+        "diff",
+        "--cached",
+        "--name-only",
+        "-M",
+        "--diff-filter=ACMR",
     )
     if finished.returncode != 0:
         raise OSError(finished.stderr.strip() or "could not read staged paths")
@@ -155,32 +168,33 @@ def staged_adr_claims(checkout: Path) -> tuple[tuple[int, str], ...]:
         normalized = raw_path.replace("\\", "/")
         if not normalized.startswith("docs/adr/"):
             continue
-        match = ADR_FILENAME.fullmatch(Path(normalized).name)
-        if match:
-            claims.append((int(match.group("number")), Path(normalized).name))
+        filename = Path(normalized).name
+        match = ADR_PREFIX.match(filename)
+        if Path(filename).suffix == ".md" and match:
+            claims.append(AdrClaim(int(match.group("number")), filename))
     return tuple(claims)
 
 
 def warn_about_staged_collisions(checkout: Path, scan: WorktreeScan) -> None:
     staged = set(staged_adr_claims(checkout))
-    for root, claimed in scan.claims:
-        if root == checkout:
+    for worktree in scan.claims:
+        if worktree.root == checkout:
             continue
-        for number, filename in sorted(staged):
+        for claim in sorted(staged, key=lambda item: (item.number, item.filename)):
             conflicting = sorted(
-                other_filename
-                for other_number, other_filename in claimed
-                if other_number == number and other_filename != filename
+                other.filename
+                for other in worktree.claims
+                if other.number == claim.number and other.filename != claim.filename
             )
             if not conflicting:
                 continue
             print(
                 "warning: staged ADR {number:04d} ({filename}) conflicts with {other} "
                 "in {root}".format(
-                    number=number,
-                    filename=filename,
+                    number=claim.number,
+                    filename=claim.filename,
                     other=", ".join(conflicting),
-                    root=root,
+                    root=worktree.root,
                 ),
                 file=sys.stderr,
             )
@@ -206,7 +220,9 @@ def main(argv: list[str]) -> int:
         except OSError as error:
             print(f"could not check staged ADRs: {error}", file=sys.stderr)
             return 2
-        return 0
+        # This mode is advisory for the hook, which deliberately suppresses its
+        # status. The writer's contract remains exact: no file written means 2.
+        return 2
     if len(argv) != 1 or not argv[0].strip():
         print(USAGE, file=sys.stderr)
         return 2
