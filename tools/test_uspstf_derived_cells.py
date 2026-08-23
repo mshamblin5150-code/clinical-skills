@@ -21,14 +21,23 @@ Issue #432.
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
 import guidelines_recs
-import uspstf_table
 
 REFERENCE = (
     Path(__file__).resolve().parent.parent / "reference" / "guidelines-uspstf.md"
+)
+NOT_STATED = "not stated"
+ALTERNATIVE_JOIN = " or "
+INTERVAL_PHRASE = re.compile(
+    r"\bevery \d+(?: to \d+)? (?:years?|months?|weeks?)\b"
+    r"|\bbiennial(?:ly)?\b|\bannual(?:ly)?\b|\bevery year\b"
+    r"|\b1-time\b|\bone-time\b|\bat least once\b|\bdaily\b"
+    r"|\bperiodic(?:ally)?\b|\bat each visit\b|\brepeated\b",
+    re.I,
 )
 
 
@@ -37,7 +46,7 @@ def statement_periods(statement: str) -> list[str]:
     return list(
         dict.fromkeys(
             match.group(0).lower()
-            for match in uspstf_table.INTERVAL_PHRASE.finditer(statement)
+            for match in INTERVAL_PHRASE.finditer(statement)
         )
     )
 
@@ -53,11 +62,7 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
     def test_every_interval_phrase_a_statement_names_appears_in_its_cell(self) -> None:
         for row in self.rows:
             periods = statement_periods(row.statement)
-            expected = (
-                uspstf_table.INTERVAL_ALTERNATIVE_JOIN.join(periods)
-                if periods
-                else uspstf_table.NOT_STATED
-            )
+            expected = ALTERNATIVE_JOIN.join(periods) if periods else NOT_STATED
             self.assertEqual(
                 row.interval,
                 expected,
