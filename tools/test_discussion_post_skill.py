@@ -7,6 +7,8 @@ import re
 import unittest
 from pathlib import Path
 
+from prose_bind import ProseBind
+
 
 ROOT = Path(__file__).resolve().parent.parent
 POST = ROOT / "skills" / "discussion-post" / "SKILL.md"
@@ -19,7 +21,7 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-class TheInitialPostHasOneRoutingSurface(unittest.TestCase):
+class TheInitialPostHasOneRoutingSurface(ProseBind, unittest.TestCase):
     def test_the_skill_and_index_exist_and_route_worked_cases_away(self):
         post = read(POST)
         rows = [line for line in read(AGENTS).splitlines() if line.startswith("| discussion-post ")]
@@ -31,7 +33,7 @@ class TheInitialPostHasOneRoutingSurface(unittest.TestCase):
 
     def test_practicum_frontmatter_no_longer_claims_generic_board_posts(self):
         description = read(CASE_STUDY).split("---", 2)[1]
-        self.assertNotIn("discussion board", description)
+        self.assertProseNotIn("discussion board", description)
 
     def test_practicum_scopes_every_run_artifact_to_the_derived_directory(self):
         case_study = read(CASE_STUDY)

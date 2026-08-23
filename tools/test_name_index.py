@@ -35,6 +35,7 @@ from pathlib import Path
 import corpus_census as cc
 import name_index as ni
 import phi_scan as ps
+from prose_bind import ProseBind
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BATCH_SHIFT = REPO_ROOT / "skills" / "batch-shift" / "SKILL.md"
@@ -562,7 +563,7 @@ class TheReportIsCountsOnly(unittest.TestCase):
         self.assertIn(self.tree.corpus.name, self.tree.run()[1])
 
 
-class TheParserAgreesWithItsWrittenSpec(unittest.TestCase):
+class TheParserAgreesWithItsWrittenSpec(ProseBind, unittest.TestCase):
     """`batch-shift` step 3 is this parser's spec and names it, both directions."""
 
     def setUp(self):
@@ -572,7 +573,7 @@ class TheParserAgreesWithItsWrittenSpec(unittest.TestCase):
         self.assertIn("tools/name_index.py", self.text)
 
     def test_the_step_no_longer_says_no_generator_is_committed(self):
-        self.assertNotIn("no generator for the index is committed", self.text)
+        self.assertProseNotIn("no generator for the index is committed", self.text)
 
     def test_the_window_rule_is_still_written_there(self):
         self.assertIn("The name is not reliably the line after `Note N`", self.text)

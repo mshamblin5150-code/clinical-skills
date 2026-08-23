@@ -50,6 +50,8 @@ import unittest
 from pathlib import Path
 from typing import Iterator, NamedTuple
 
+from prose_bind import ProseBind
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SELF = Path(__file__).resolve()
 SKILLS_DIR = REPO_ROOT / "skills"
@@ -73,7 +75,7 @@ VOICE_CORPUS_MODULE = REPO_ROOT / "tools" / "voice_corpus.py"
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 
 
-class InferredAgeHasOnePrivateRecordAndPlainEntry(unittest.TestCase):
+class InferredAgeHasOnePrivateRecordAndPlainEntry(ProseBind, unittest.TestCase):
     """#158: fill the age, but never label the submitted values as guesses.
 
     The public seam is the note body plus the Medatrax field block.  Provenance
@@ -107,7 +109,7 @@ class InferredAgeHasOnePrivateRecordAndPlainEntry(unittest.TestCase):
             "as filled, inferred, guessed, or needing confirmation",
             row,
         )
-        self.assertNotIn("under GAPS", row)
+        self.assertProseNotIn("under GAPS", row)
         self.assertNotIn("unfilled", row)
 
 
@@ -125,7 +127,7 @@ def squashed(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(unittest.TestCase):
+class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(ProseBind, unittest.TestCase):
     """#149's converse descriptor rule stays aligned across both consumers."""
 
     SHARED = (
@@ -164,7 +166,7 @@ class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(unittest.TestCase):
                 self.assertIn("F2 is unscored", text)
 
     def test_the_pre_landing_marker_is_retired(self):
-        self.assertNotIn(
+        self.assertProseNotIn(
             "until it lands this example is the only place the distinction is written down",
             read(CLINICAL_NOTE),
         )
@@ -640,7 +642,7 @@ class BatchShiftHasOneEntryPointAndItIsAFile(unittest.TestCase):
         self.assertIn("still scans each shift", read(BATCH_SHIFT))
 
 
-class TheBranchIsNamedBeforeAShiftIsWritten(unittest.TestCase):
+class TheBranchIsNamedBeforeAShiftIsWritten(ProseBind, unittest.TestCase):
     """#90 decision 4: ``clinical-note`` standalone picks its own branch.
 
     ``fixtures/day-a`` run 2 is the evidence: given the shorthand with no branch
@@ -694,7 +696,7 @@ class TheBranchIsNamedBeforeAShiftIsWritten(unittest.TestCase):
         text = read(BATCH_SHIFT)
         self.assertIn("must not reach step 5 disguised as a choice", text)
         self.assertIn("on the branch step 4 settled", text)
-        self.assertNotIn("on the branch the user named", text)
+        self.assertProseNotIn("on the branch the user named", text)
 
 
 class BothSkillsRuleTheSameWayOnAnUnmappedPreceptor(unittest.TestCase):
@@ -747,7 +749,7 @@ class BothSkillsRuleTheSameWayOnAnUnmappedPreceptor(unittest.TestCase):
 
 
 
-class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
+class ThePerAccountPicklistsAreNotInTheReference(ProseBind, unittest.TestCase):
     """#212's ruling, and the one half of it a reader can check without a name.
 
     ``setup-clinical-skills`` states the split this repo runs on -- *this file
@@ -787,7 +789,7 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         # reader following that sentence after the move finds nothing and has to
         # guess, which is the failure #212's move would otherwise have created.
         note = read(CLINICAL_NOTE)
-        self.assertNotIn("The rules live in the reference", note)
+        self.assertProseNotIn("The rules live in the reference", note)
         self.assertIn("keys on the site, which makes it per-account", note)
 
     def test_no_consumer_still_addresses_the_payer_rule_to_the_reference(self):
@@ -798,11 +800,11 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         # step 1 asserted the per-account content was *written into* the
         # reference, eighty lines above the rule this branch added saying it must
         # not be. Both read as coherent alone, which is this file's whole subject.
-        self.assertNotIn(
+        self.assertProseNotIn(
             "**declared rule** in ``reference/medatrax-fields.md``",
             read(BLOCK_SCAN),
         )
-        self.assertNotIn(
+        self.assertProseNotIn(
             "all of it is currently written into", read(SETUP)
         )
 
@@ -814,7 +816,7 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         )
 
 
-class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
+class TheVoiceModelIsPerAccountAndTheMethodIsNot(ProseBind, unittest.TestCase):
     """#213's build, on the rule #212 settled and this class already pins above.
 
     **The ticket asked for one file and the answer is two**, so the thing most
@@ -880,7 +882,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         setup = read(SETUP)
         self.assertIn("practicum-case-study/reference/voice.md", setup)
         self.assertIn("not restated here on purpose", setup)
-        self.assertNotIn("Ask for 5 at minimum", setup)
+        self.assertProseNotIn("Ask for 5 at minimum", setup)
 
     def test_the_skill_names_the_collector_rather_than_collecting(self):
         # The other direction. A run drafting against a deadline that stopped to
@@ -961,7 +963,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         # not imitate them, which is a different claim and needs no second copy.
         voice = read(CASE_STUDY_VOICE)
         self.assertIn("deliberately not restated here", voice)
-        self.assertNotIn("isvery commonand", voice)
+        self.assertProseNotIn("isvery commonand", voice)
 
 
 class TheExportMethodHasOneConsumerContract(unittest.TestCase):

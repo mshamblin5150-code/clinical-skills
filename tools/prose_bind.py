@@ -4,15 +4,16 @@ import re
 from collections.abc import Iterable
 
 
-GLUE = re.compile(r"[\"'#>*`]")
+#: Punctuation that marks prose structure rather than a literal substring.
+PROSE_MARK = re.compile(r"[\"'#>*`]")
 
 
 def normalized(text: str | Iterable[str]) -> str:
-    """Remove prose glue and collapse whitespace for one membership operand."""
+    """Remove prose marks and collapse whitespace for one membership operand."""
 
     if not isinstance(text, str):
         text = "\n".join(text)
-    return re.sub(r"\s+", " ", GLUE.sub(" ", text)).strip()
+    return re.sub(r"\s+", " ", PROSE_MARK.sub(" ", text)).strip()
 
 
 class ProseBind:

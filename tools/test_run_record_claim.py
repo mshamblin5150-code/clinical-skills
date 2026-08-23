@@ -118,7 +118,7 @@ EXCEPTION = re.compile(r"SITE-A|SITE-B|site name|site-name|redact|notes/README",
 #: result -- while quietly turning a literal ``\n`` into an ``n`` mid-sentence.
 #: A transform that alters text and buys nothing is an escape route nobody
 #: declared, which is what a review called it.
-GLUE = re.compile(r"[\"'#>*`]")
+PROSE_MARK = re.compile(r"[\"'#>*`]")
 
 #: This module, dropped from the walk by resolved path. See the docstring: its
 #: fixtures are bare claims on purpose and a path constant cannot be talked into
@@ -127,7 +127,7 @@ SELF = Path(__file__).resolve()
 
 
 def normalized(block: str) -> str:
-    return re.sub(r"\s+", " ", GLUE.sub(" ", block)).strip()
+    return re.sub(r"\s+", " ", PROSE_MARK.sub(" ", block)).strip()
 
 
 def blocks(text: str) -> list[tuple[int, str]]:
