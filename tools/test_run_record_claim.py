@@ -86,6 +86,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from prose_bind import normalized
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
 NOTES_README = NOTES / "README.md"
@@ -109,25 +111,10 @@ SUBJECT = re.compile(r"filled-anchor|day-b", re.IGNORECASE)
 #: rewrite.
 EXCEPTION = re.compile(r"SITE-A|SITE-B|site name|site-name|redact|notes/README", re.IGNORECASE)
 
-#: Quotes, comment marks and emphasis are glue between the words of the claim,
-#: not part of it. Stripping them is what lets a split string literal and a
-#: hard-wrapped docstring be read as the sentence a reader hears.
-#:
-#: **A backslash was in this set and came out.** It changed nothing on the real
-#: corpus -- measured both ways over every tracked ``.md`` and ``.py``, same
-#: result -- while quietly turning a literal ``\n`` into an ``n`` mid-sentence.
-#: A transform that alters text and buys nothing is an escape route nobody
-#: declared, which is what a review called it.
-GLUE = re.compile(r"[\"'#>*`]")
-
 #: This module, dropped from the walk by resolved path. See the docstring: its
 #: fixtures are bare claims on purpose and a path constant cannot be talked into
 #: existing by the file it exempts.
 SELF = Path(__file__).resolve()
-
-
-def normalized(block: str) -> str:
-    return re.sub(r"\s+", " ", GLUE.sub(" ", block)).strip()
 
 
 def blocks(text: str) -> list[tuple[int, str]]:

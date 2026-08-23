@@ -13,16 +13,16 @@ DECLARED_RAW_ASSERT_NOT_IN = {
     (
         "tools/test_skill_agreement.py",
         "until it lands this example is the only place the distinction is written down",
-    ): "the module owns squashed and is outside #412's measured no-normalizer population",
+    ): "the exact staging marker is the retired artifact; paraphrases are outside the regression",
     (
         "tools/test_skill_agreement.py",
         "**declared rule** in ``reference/medatrax-fields.md``",
-    ): "the module owns squashed and is outside #412's measured no-normalizer population",
+    ): "the exact Markdown address is retired, not every differently formatted discussion",
 }
 
 
 def raw_long_assert_not_in(source: str) -> set[str]:
-    """Return constant needles at the silent 40-character floor."""
+    """Return long constant needles used as the proxy for prose haystacks."""
 
     found: set[str] = set()
     for node in ast.walk(ast.parse(source)):
@@ -67,6 +67,12 @@ def repository_survivors(root: Path) -> set[tuple[str, str]]:
     data-flow analysis, so this walk safely refuses every long raw guard. A
     non-Markdown guard can survive only by being declared with its reason.
 
+    The 40-character cutoff is a proxy for *the haystack is prose*, not a length
+    rule. Lowering it found 26 sites: 19 raw OOXML assertions, two regex-pattern
+    assertions and one run-key template where prose normalization is meaningless,
+    plus four genuine prose sites. The 22 non-prose sites are why #445 keeps this
+    conservative floor and #474 owns haystack discrimination instead.
+
     This remains a membership floor. Prose enumeration or counting stays beyond
     #412's declared ceiling and can still undercount silently.
     """
@@ -107,7 +113,7 @@ class ProseAssertionsNormalizeBothSides(ProseBind, unittest.TestCase):
 
 
 class TheSilentDirectionHasARefusingWalk(unittest.TestCase):
-    def test_the_floor_is_forty_characters_and_only_raw_assert_not_in(self):
+    def test_the_prose_proxy_is_long_constants_and_only_raw_assert_not_in(self):
         forty = "x" * 40
         thirty_nine = "x" * 39
         source = (

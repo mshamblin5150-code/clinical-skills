@@ -50,6 +50,8 @@ import unittest
 from pathlib import Path
 from typing import Iterator, NamedTuple
 
+from prose_bind import ProseBind, normalized
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SELF = Path(__file__).resolve()
 SKILLS_DIR = REPO_ROOT / "skills"
@@ -115,17 +117,7 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def squashed(text: str) -> str:
-    """``text`` with every run of whitespace collapsed to one space.
-
-    This repo hard-wraps its prose, so a phrase broken across two lines is
-    invisible to a search for it -- ``test_run_record_claim.normalized``'s
-    finding, and it holds for any needle longer than a few words.
-    """
-    return re.sub(r"\s+", " ", text)
-
-
-class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(unittest.TestCase):
+class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(ProseBind, unittest.TestCase):
     """#149's converse descriptor rule stays aligned across both consumers."""
 
     SHARED = (
@@ -137,33 +129,35 @@ class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(unittest.TestCase):
 
     def test_both_skills_state_the_culture_and_imaging_rule(self):
         for path in (CLINICAL_NOTE, ICD10_CPT):
-            text = squashed(read(path))
             with self.subTest(path=path):
                 for clause in self.SHARED:
-                    self.assertIn(clause, text)
+                    self.assertProseIn(clause, read(path))
 
     def test_filled_anchor_declares_the_committed_split(self):
-        text = squashed(read(FILLED_ANCHOR_ASSERTIONS))
+        text = read(FILLED_ANCHOR_ASSERTIONS)
+        # The pipe-delimited row is the subject, so its formatting stays raw.
         self.assertIn("| F2 | 5, 7, 8, 10, 12 |", text)
-        self.assertIn(
+        self.assertProseIn(
             "a pending culture does not by itself refuse a code whose descriptor names no organism",
             text,
         )
-        self.assertIn(
+        self.assertProseIn(
             "case 10 refuses `J18.9` because the absent film would establish the disease itself",
             text,
         )
 
     def test_the_new_row_is_unscored_and_in_both_denominators(self):
-        assertions = squashed(read(FILLED_ANCHOR_ASSERTIONS))
-        fixtures = squashed(read(FIXTURES_README))
+        assertions = read(FILLED_ANCHOR_ASSERTIONS)
+        fixtures = read(FIXTURES_README)
         for text in (assertions, fixtures):
             with self.subTest(text=text[:40]):
+                # The backticks distinguish the literal score marker from prose.
                 self.assertIn("`REFUSAL 1/2`", text)
-                self.assertIn("eight of fourteen rows", text)
-                self.assertIn("F2 is unscored", text)
+                self.assertProseIn("eight of fourteen rows", text)
+                self.assertProseIn("F2 is unscored", text)
 
     def test_the_pre_landing_marker_is_retired(self):
+        # This exact staging marker is the retired artifact; paraphrases are not.
         self.assertNotIn(
             "until it lands this example is the only place the distinction is written down",
             read(CLINICAL_NOTE),
@@ -798,6 +792,8 @@ class ThePerAccountPicklistsAreNotInTheReference(unittest.TestCase):
         # step 1 asserted the per-account content was *written into* the
         # reference, eighty lines above the rule this branch added saying it must
         # not be. Both read as coherent alone, which is this file's whole subject.
+        # The exact Markdown address is the retired artifact; this does not ban
+        # every differently formatted discussion of the reference.
         self.assertNotIn(
             "**declared rule** in ``reference/medatrax-fields.md``",
             read(BLOCK_SCAN),
@@ -964,7 +960,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(unittest.TestCase):
         self.assertNotIn("isvery commonand", voice)
 
 
-class TheExportMethodHasOneConsumerContract(unittest.TestCase):
+class TheExportMethodHasOneConsumerContract(ProseBind, unittest.TestCase):
     """#400's export option crosses setup, the voice method and one reader.
 
     A clinician using another assistant must be offered the same corpus-grade
@@ -1014,12 +1010,12 @@ class TheExportMethodHasOneConsumerContract(unittest.TestCase):
                 self.assertIn(required, module)
 
     def test_the_contract_does_not_claim_a_runtime_change_to_the_existing_reader(self):
-        corpus_method = squashed(read(VOICE_CORPUS_REFERENCE))
-        self.assertIn("changes no runtime behavior", corpus_method)
-        self.assertIn("converter's own counts-only report", corpus_method)
+        corpus_method = read(VOICE_CORPUS_REFERENCE)
+        self.assertProseIn("changes no runtime behavior", corpus_method)
+        self.assertProseIn("converter's own counts-only report", corpus_method)
 
     def test_the_export_is_optional_and_consent_is_staged(self):
-        voice = squashed(read(CASE_STUDY_VOICE))
+        voice = read(CASE_STUDY_VOICE)
         for required in (
             "Writing samples come first",
             "offered as an enhancement",
@@ -1032,12 +1028,12 @@ class TheExportMethodHasOneConsumerContract(unittest.TestCase):
             "coverage-driven second ask",
         ):
             with self.subTest(required=required):
-                self.assertIn(required, voice)
+                self.assertProseIn(required, voice)
 
     def test_setup_records_an_export_no_separately_from_the_whole_step(self):
-        setup = squashed(read(SETUP))
-        self.assertIn("export refusal separately", setup)
-        self.assertIn("whole voice-model step", setup)
+        setup = read(SETUP)
+        self.assertProseIn("export refusal separately", setup)
+        self.assertProseIn("whole voice-model step", setup)
 
     def test_the_model_records_source_and_confirmation_does_not_amplify(self):
         voice = read(CASE_STUDY_VOICE)
@@ -2465,7 +2461,7 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         self.catalog = read(CATALOG)
 
     def catalog_prose(self):
-        """The catalog with its document rows dropped, whitespace squashed.
+        """The catalog with its document rows dropped and prose normalized.
 
         **A table row is not the catalog declaring anything.** Two of
         ``NOT_IN_FORCE_FORMS`` match a hand-read ``title`` cell -- ``Errata`` and
@@ -2475,7 +2471,7 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         is the ticket saying nothing checks those columns. Keying on the prose
         keeps this check off them.
         """
-        return squashed(
+        return normalized(
             "\n".join(
                 line
                 for line in self.catalog.splitlines()
@@ -2624,7 +2620,7 @@ class TheCatalogSettlesFormAndNeverStanding(unittest.TestCase):
         """The defect itself, over every file a run reads as instruction."""
         offenders = []
         for path in self.instruction_files():
-            for found in self.BLANKET_STANDING.finditer(squashed(read(path))):
+            for found in self.BLANKET_STANDING.finditer(normalized(read(path))):
                 offenders.append(f"{path.relative_to(REPO_ROOT)}: {found.group(0)}")
         self.assertEqual(
             offenders,
