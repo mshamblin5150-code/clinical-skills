@@ -188,6 +188,10 @@ _Avoid_: producer paths, unchanged paths, provenance list
 Everything a content-addressed build hashes to decide whether it may reuse an earlier artifact instead of producing one again. Deliberately wider than the trust floor, because the price of a miss is a rebuild and the price of a wrong hit is a stale answer.
 _Avoid_: build key, fingerprint, producer identity
 
+**Accepted distrust**:
+A verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
+_Avoid_: provenance stamp, taint, untrusted flag
+
 **Paste box**:
 The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
 _Avoid_: editor, text field, LMS box
