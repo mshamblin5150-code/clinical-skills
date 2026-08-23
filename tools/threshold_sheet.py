@@ -210,6 +210,7 @@ import guidelines_extract
 import guidelines_manifest
 import artifact_provenance
 from console_codec import use_utf8
+from guidelines_recs import MODE_BOUND, MODE_EXACT
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
@@ -902,8 +903,8 @@ def gate_citation_tier0(
             continue
 
         mode = str(record.get("mode") or sheet.sources[source_key].get("mode") or "")
-        if mode != "exact":
-            reason = "source mode is 'bound'" if mode == "bound" else f"source mode is {mode!r}"
+        if mode != MODE_EXACT:
+            reason = "source mode is 'bound'" if mode == MODE_BOUND else f"source mode is {mode!r}"
             ungraded_sources.append(f"{source_key} ({reason})")
             continue
 
@@ -1865,7 +1866,7 @@ def gate_coverage(
                 f"omission refuses or warns, so these cannot disagree."
             )
 
-        if mode == "exact":
+        if mode == MODE_EXACT:
             for row in rows:
                 if row.rec not in known:
                     refusals.append(
@@ -1905,7 +1906,7 @@ def gate_coverage(
             + ", ".join(unaccounted[:6])
             + (f", and {len(unaccounted) - 6} more" if len(unaccounted) > 6 else "")
         )
-        if mode == "exact":
+        if mode == MODE_EXACT:
             refusals.append(message)
         else:
             warnings.append(message + "  (source mode is 'bound', so this over-reports)")
@@ -1917,7 +1918,8 @@ def gate_coverage(
     # completed work, the same fabrication surface as an unresolvable row citation.
     loaded_records = [records.get(key) for key in sorted(sheet.sources)]
     if loaded_records and all(
-        record is not None and record.get("mode") == "exact" for record in loaded_records
+        record is not None and record.get("mode") == MODE_EXACT
+        for record in loaded_records
     ):
         known_anywhere = {
             recommendation["rec_id"]
