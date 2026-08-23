@@ -180,6 +180,14 @@ _Avoid_: chat history, archive, dump
 Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
 _Avoid_: write, output, emit, save
 
+**Trust floor**:
+The code whose change makes a found artifact no longer believable — the files that decide what the artifact *contains*, never the ones that decide how it is stamped. Trust is settled by comparing what is recorded against what is on disk, so a reader can re-derive it; a producing commit only ever approximates it.
+_Avoid_: producer paths, unchanged paths, provenance list
+
+**Cache identity**:
+Everything a content-addressed build hashes to decide whether it may reuse an earlier artifact instead of producing one again. Deliberately wider than the trust floor, because the price of a miss is a rebuild and the price of a wrong hit is a stale answer.
+_Avoid_: build key, fingerprint, producer identity
+
 **Paste box**:
 The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
 _Avoid_: editor, text field, LMS box
