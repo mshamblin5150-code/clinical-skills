@@ -38,6 +38,7 @@ import reference_scan
 import research_ledger as ledger
 import coursework_run
 from grader_conformance import constructed_kinds, for_module
+from prose_bind import ProseBind
 
 GraderConformance = for_module(ledger)
 import run_grader
@@ -1036,7 +1037,7 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         self.assertNotIn("white count", out.getvalue() + err.getvalue())
 
 
-class TheSkillSaysWhatThisChecks(unittest.TestCase):
+class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     """``test_spelling_scan``'s rule: a scanner that has drifted from the file a
     reader opens is worse than none, because it reads as agreement."""
 
@@ -1138,8 +1139,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         """#215's correction. The retired version cut a correct claim for being
         old, and a run reading it would cut one again."""
         self.assertIn("stands where nothing newer exists", self.skill)
-        self.assertNotIn("five years the outside limit", self.skill)
-        self.assertNotIn("written as historical or dropped", self.skill)
+        self.assertProseNotIn("five years the outside limit", self.skill)
+        self.assertProseNotIn("written as historical or dropped", self.skill)
 
     def test_the_skill_keeps_one_writer_on_the_ledger(self):
         """#206. Two writers on one file lose records, and the grader has no

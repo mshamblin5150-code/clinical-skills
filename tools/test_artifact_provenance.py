@@ -596,7 +596,7 @@ class TheCommandRefusesBeforeItReads(unittest.TestCase):
         self.assertIn("extracted corpus not found", stderr)
 
 
-class EveryParserUsesTheSharedEffectClause(unittest.TestCase):
+class EveryParserUsesTheSharedEffectClause(ProseBind, unittest.TestCase):
     """#406's fifth decision. All five parsers said ``and warn``, which the fix
     falsifies, and five hand-kept copies of one sentence is #220's shape.
 
@@ -662,8 +662,8 @@ class EveryParserUsesTheSharedEffectClause(unittest.TestCase):
             if path.name.startswith("test_"):
                 continue
             text = path.read_text(encoding="utf-8")
-            self.assertNotIn("unstamped extracted corpus and warn", text, path.name)
-            self.assertNotIn("unstamped index and warn", text, path.name)
+            self.assertProseNotIn("unstamped extracted corpus and warn", text, path.name)
+            self.assertProseNotIn("unstamped index and warn", text, path.name)
 
     def test_the_predicate_catches_a_planted_bare_literal(self):
         """Mutation-driven. A predicate that cannot fail is not a check."""

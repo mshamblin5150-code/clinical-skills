@@ -596,7 +596,7 @@ class TheCoderGainsNoObligation(ProseBind, unittest.TestCase):
         # standing rule 4's mention-versus-use distinction and `spelling_scan`'s
         # rule, arriving in a test that was written the same week as both.
         self.assertProseNotIn("for the same reason: no guidelines ship here", self.text)
-        self.assertNotIn("and for the same reason: no guidelines", self.text)
+        self.assertProseNotIn("and for the same reason: no guidelines", self.text)
 
     def test_the_outpatient_rule_names_what_does_ship_and_why_it_misses(self):
         self.assertIn("CMS and NCHS document", self.text)
