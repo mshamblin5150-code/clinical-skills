@@ -12,7 +12,7 @@ here; this is the record the build reads.
 
 ## The ticket's framing assumes the two lines are one shape, and they are not
 
-#473 is written as *two status lines of identical shape obeying two different rules*, and
+#473 is written as *two declarations of identical shape obeying two different rules*, and
 asks whether they should obey one. Measured first, that premise does not hold, and every
 decision below turns on why.
 
@@ -97,20 +97,18 @@ was really about.
 
 ## The finding that shaped the build
 
-The ticket's measurement is that all four committed sheets carry the line, so enforcing it
-retroactively **passes everywhere on the first run** — the condition under which nobody
-notices what the rule costs the fifth sheet. It names the remedy: drive the rule red with a
-sheet built to fail it.
+Before this build, the committed sheets already carried the line, so enforcing it
+retroactively **passed everywhere on the first run** — the condition under which nobody
+would notice what the rule costs the next sheet. The ticket names the remedy: drive the rule
+red with a sheet built to fail it.
 
-The sheet built to fail it is **already in the tree, and it is the grader's own fixture**.
-`tools/test_threshold_sheet.py:94` and `:160` declare `citations resolved against C:/nowhere
-on 2026-08-16`. `_RESOLVED` parses `corpus` as any non-space token with no validation and
-the date with no calendar check, so that line parses, reaches `_report_footer`, and prints
-as a resolution **against a path that has never existed on any machine**. No test objects:
-`_report_footer`, `resolved_date` and `resolved_corpus` appear in zero test files repo-wide,
-and the one assertion touching the output uses `last resolved` purely as an ordering
-landmark. So the format's own fixture is a worked example of the defect the ticket was filed
-over, and decision 2's red-driver is one existing file.
+The sheet built to fail it was **already in the tree, and it was the grader's own shared
+fixture**. Its synthetic `## Scope` declared `citations resolved against C:/nowhere on
+2026-08-16`. `_RESOLVED` accepted that corpus token, and the footer printed it as a
+resolution **against a path that had never existed on any machine**. The tests treated
+`last resolved` only as an ordering landmark, so none held the declaration's content. The
+format's own fixture was therefore the worked example of the defect this ticket was filed
+over and the red driver for decision 2.
 
 ## What is declared rather than built
 

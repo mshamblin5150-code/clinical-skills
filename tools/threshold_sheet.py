@@ -679,13 +679,10 @@ def parse(text: str, path: Path) -> Sheet:
 
         if section == SCOPE_HEADING.removeprefix("## ").lower():
             sheet.scope += line + "\n"
-            # No `continue`: the `citations resolved against ...` line lives in this
-            # section and is read below.
-
-        resolved = _RESOLVED.search(line)
-        if resolved:
-            sheet.resolved_corpus = resolved.group("corpus")
-            sheet.resolved_date = resolved.group("date")
+            resolved = _RESOLVED.search(line)
+            if resolved:
+                sheet.resolved_corpus = resolved.group("corpus")
+                sheet.resolved_date = resolved.group("date")
 
         if section == CONFLICTS_HEADING.removeprefix("## ").lower():
             conflict = _CONFLICT.match(line)

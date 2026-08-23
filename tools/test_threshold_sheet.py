@@ -476,6 +476,25 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
             Path("test-sheet.md"),
         )
 
+    @staticmethod
+    @contextlib.contextmanager
+    def live_pdf_root():
+        try:
+            import pymupdf
+        except ImportError:
+            raise unittest.SkipTest("pymupdf absent; tier 2 cannot produce a verdict")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf_path = root / "Society" / "doc.pdf"
+            pdf_path.parent.mkdir()
+            document = pymupdf.open()
+            page = document.new_page()
+            page.insert_text((72, 72), "an SBP goal of <130 mm Hg")
+            document.save(pdf_path)
+            document.close()
+            yield root
+
     def test_a_skipped_run_refuses_a_missing_resolution_declaration(self):
         text = HEADER.replace(
             f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
@@ -486,6 +505,23 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
         result = gate.gate_citation_tier2(parsed, Path("C:/nowhere-at-all"))
 
         self.assertIsNotNone(result.skip_reason)
+        self.assertTrue(
+            any("resolution" in finding.lower() for finding in result.findings),
+            result.findings,
+        )
+
+    def test_a_resolution_mention_outside_scope_cannot_satisfy_the_hold(self):
+        text = HEADER.replace(
+            f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
+            "",
+        )
+        parsed = self.parsed(
+            text
+            + "\nA footer mentions citations resolved against C:/fiction on 2026-08-16.\n"
+        )
+
+        result = gate.gate_citation_tier2(parsed, Path("C:/nowhere-at-all"))
+
         self.assertTrue(
             any("resolution" in finding.lower() for finding in result.findings),
             result.findings,
@@ -546,21 +582,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
         )
 
     def test_a_live_run_refuses_the_existing_fictional_fixture_path(self):
-        try:
-            import pymupdf
-        except ImportError:
-            self.skipTest("pymupdf absent; tier 2 cannot produce a verdict")
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            pdf_path = root / "Society" / "doc.pdf"
-            pdf_path.parent.mkdir()
-            document = pymupdf.open()
-            page = document.new_page()
-            page.insert_text((72, 72), "an SBP goal of <130 mm Hg")
-            document.save(pdf_path)
-            document.close()
-
+        with self.live_pdf_root() as root:
             fictional = HEADER.replace(TEST_PDF_ROOT, "C:/nowhere")
             result = gate.gate_citation_tier2(self.parsed(fictional), root)
 
@@ -570,20 +592,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
         )
 
     def test_a_live_run_refuses_a_future_resolution_date(self):
-        try:
-            import pymupdf
-        except ImportError:
-            self.skipTest("pymupdf absent; tier 2 cannot produce a verdict")
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            pdf_path = root / "Society" / "doc.pdf"
-            pdf_path.parent.mkdir()
-            document = pymupdf.open()
-            page = document.new_page()
-            page.insert_text((72, 72), "an SBP goal of <130 mm Hg")
-            document.save(pdf_path)
-            document.close()
+        with self.live_pdf_root() as root:
             text = HEADER.replace(
                 f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16",
                 f"citations resolved against {root.as_posix()} on 9999-12-31",
