@@ -31,6 +31,47 @@ def registry(*rows: str) -> str:
 """ + "".join(rows)
 
 
+def artifact(read: str) -> str:
+    return f"""# Cervical cancer
+
+<!-- schema: threshold-sheet/2 -->
+
+## Sources
+
+| key | society | document | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- |
+| first | USPSTF | USPSTF/first | 2018 | 2018 | https://example.invalid | exact |
+
+## Scope
+
+**Read:** recommendation statement.
+
+**Not read:** as declared below.
+
+| span | pages | read |
+| --- | --- | --- |
+| whole document | 1-10 | {read} |
+
+## Populations
+
+| key | verbatim |
+| --- | --- |
+| adults | adults |
+
+## Quantities
+
+| key | verbatim |
+| --- | --- |
+| interval | interval |
+
+## Thresholds
+
+| quantity | population | value | snippet | source | page | rec | class |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| interval | adults | 3 years | "every 3 years" | first | p1 | p1/rec/1 | B |
+"""
+
+
 class ThresholdCoverageCli(unittest.TestCase):
     def run_cli(
         self, catalog_text: str, coverage_text: str | None, *extra: str
@@ -121,7 +162,7 @@ class ThresholdCoverageCli(unittest.TestCase):
             sheets = root / "thresholds"
             catalog.write_text(CATALOG, encoding="utf-8")
             sheets.mkdir()
-            (sheets / "cervical.md").write_text("partial", encoding="utf-8")
+            (sheets / "cervical.md").write_text(artifact("no"), encoding="utf-8")
             coverage.write_text(
                 registry(
                     "| cervical cancer | unread | cervical.md | full-document read pending |\n",
@@ -149,6 +190,43 @@ class ThresholdCoverageCli(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_sheet_state_refuses_an_artifact_with_an_unread_span(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(artifact("no"), encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | sheet | cervical.md | complete |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("state 'sheet'", result.stderr)
+        self.assertIn("unread span", result.stderr)
+
+    def test_a_complete_artifact_stranded_under_unread_refuses(self):
+        """The second direction reproduces #455 rather than only asserting symmetry."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(artifact("yes"), encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | unread | cervical.md | state not promoted |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("state 'unread'", result.stderr)
+        self.assertIn("every page", result.stderr)
 
     def test_the_committed_registry_audits_against_the_committed_catalog_and_sheets(self):
         result = subprocess.run(

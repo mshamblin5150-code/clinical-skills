@@ -146,7 +146,8 @@ python tools/threshold_sheet.py reference/thresholds/hypertension.md \
     --text-root C:/codeing/guidelines-text
 
 # SECOND READ, #83 gate 5. Two commands and a reader in between.
-python tools/threshold_sheet.py reference/thresholds/hypertension.md --brief
+python tools/threshold_sheet.py reference/thresholds/hypertension.md \
+    --brief --span "narrative sections and evidence tables"
 # ... hand that work order to somebody who has NOT seen the sheet, and grade what
 # they hand back:
 python tools/threshold_sheet.py reference/thresholds/hypertension.md \
@@ -154,7 +155,8 @@ python tools/threshold_sheet.py reference/thresholds/hypertension.md \
 ```
 
 **The read is written by an agent that has not read the sheet, and that independence
-is the whole instrument.** `--brief` prints documents and pages and nothing else — a
+is the whole instrument.** `--brief --span` prints one document, span name and page
+range and nothing else from the sheet — a
 test drives a distinctive quantity, value and snippet through the sheet and asserts
 none of them comes out. Naming the pages is itself a small leak and is named as one:
 without it the reader has a hundred-page guideline to search, and the diff would
@@ -164,19 +166,22 @@ measure how thoroughly it searched rather than what it read.
 
 ```json
 {"read_on": "2026-08-19",
+ "briefed": {"document": "AHA ACC/jones-et-al-2025-...",
+              "span": "narrative sections and evidence tables",
+              "pages": "11-74"},
  "values": [{"document": "AHA ACC/jones-et-al-2025-...",
              "page": 41,
              "value": "<130 mm Hg",
              "about": "the office systolic target for adults on treatment"}]}
 ```
 
-Every field is required, and a record short of one is **not graded** rather than
+Every field is required, including all three fields in `briefed`, and a record short of one is **not graded** rather than
 graded on what is left — `bind_recs`' ruling, for its reason. `read_on` is required
 too: a read carries no trace of which extraction of the corpus it was taken against,
 and this repo has watched three review agents read one shared build directory a second
 branch had overwritten.
 
-**Six gates now.** What each one can see, and what it cannot, is written out in full in
+**Seven gates now.** What each one can see, and what it cannot, is written out in full in
 `tools/threshold_sheet.py`'s docstring rather than summarized here, on
 `icd10_lookup.py`'s terms: a rule is cheapest to keep true where the code that enforces
 it lives. What belongs here is the part a reader of the *sheets* needs.
@@ -190,7 +195,7 @@ reaches it only if somebody reads the pairs.
 ## The file format
 
 A sheet is Markdown, and every part of it is read by the grader. The
-`<!-- schema: threshold-sheet/1 -->` marker is what says so; a file without it is
+`<!-- schema: threshold-sheet/2 -->` marker is what says so; a file without it is
 reported as **not graded** rather than as clean.
 
 ### `## Sources`
@@ -273,6 +278,20 @@ which applies wherever a keyword decides a verdict.
 
 It also carries `citations resolved against <corpus> on <date>`. That is the artifact's
 own record of when the citation gate last ran against real PDFs — see below.
+
+The section also carries one `span | pages | read` table per source. A one-source
+sheet may omit the source label; each table in a multi-source sheet is preceded by a
+`Source:` line naming the source key in backticks. Page ranges may overlap because a page is a locator rather
+than a partition. Their union must account for every page in the catalog's independently
+derived `page_count`, and the command prints the unaccounted remainder on every run,
+including `none`.
+
+The `read` cell is `no`, `yes` where the span contains a threshold row, or
+`read YYYY-MM-DD` when a completed read found no row. A `references` span alone may
+instead use `exempt: <reason>`. A retired span with neither rows nor a dated marker is
+refused. The marker records that a read happened; it never establishes that the read
+was careful. Page coverage likewise catches an omitted span, not a boundary drawn on
+the wrong page.
 
 ### `## Populations`
 
@@ -375,6 +394,12 @@ and state counts and to refuse missing, duplicate, or orphaned rows and artifact
 `--draft` prints the catalog-derived topic column. An `unread` row is not a clinical finding, and a
 `none` row does not change the rule inside a sheet: a missing threshold row still means
 `sheet does not settle it`.
+
+The registry also binds state to the artifact's page arithmetic in both directions. A
+`sheet` row refuses while any declared span remains unread. A non-`sheet` row refuses
+when the artifact's completed or exempt spans cover every catalog page. This prevents a
+completed artifact from remaining stranded under `unread` as well as preventing an
+incomplete artifact from being promoted.
 
 ## What the sources being absent means
 
@@ -534,10 +559,10 @@ not left to be discovered:
   no code path in `threshold_sheet.py` that produces a `--second-read` record, because
   one it produced would be the same code over the same page — the check that module's
   docstring calls worthless by name.
-- **A partial second read is a floor and says so.** A citation the read did not cover
-  is reported as uncovered and never refused. The first version refused it, and
-  pointing the gate at the committed sheet is what showed that up: a read of three
-  pages produced sixty-odd confident refusals about pages nobody had opened.
+- **A second read is bound to one declared span.** A reader miss where the sheet has
+  a row warns; a value found where the sheet retired the span as null refuses. The
+  required `briefed` block makes a null read for one span distinguishable from every
+  other null read and from a record produced without opening anything.
 - **Gate 1's "different path" is different-function, not different-library, and #174
   settled that it does not need to be.** #83 asks that the citation gate *"pulls that
   page's text through a different path than the writer used"*. The writer reads

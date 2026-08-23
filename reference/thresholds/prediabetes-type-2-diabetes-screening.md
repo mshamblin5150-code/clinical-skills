@@ -1,6 +1,6 @@
 # Prediabetes and type 2 diabetes screening — threshold sheet
 
-<!-- schema: threshold-sheet/1 -->
+<!-- schema: threshold-sheet/2 -->
 
 Decision points only, distilled from both source documents below. **Not a substitute
 for either guideline** and not a clinical instruction: every row is a fact this repo
@@ -20,6 +20,25 @@ restates, and choosing among them is the clinician's. Graded by
 **Read:** both recommendation statements represented by the two source records.
 
 **Not read:** the rationale, practice considerations, evidence reviews, and references.
+
+**Source: `uspstf-2021`**
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation statement | 1 | yes |
+| importance and rationale | 1-2 | no |
+| practice considerations | 3-4 | no |
+| supporting evidence, research needs, and recommendations of others | 4-6 | no |
+| references | 6-8 | no |
+
+**Source: `uspstf-2022`**
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation statement and assessment | 1-2 | read 2026-08-22 |
+| practice considerations | 2-3 | no |
+| supporting evidence | 3-4 | no |
+| article information and references | 5 | no |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-22
 

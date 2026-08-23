@@ -1,7 +1,7 @@
 """Grade a distilled threshold sheet against the guideline it claims to come from.
 
     python tools/threshold_sheet.py <sheet.md> [--recs <key>=<recs.json> ...] [--pdf-root <dir>]
-    python tools/threshold_sheet.py <sheet.md> --brief
+    python tools/threshold_sheet.py <sheet.md> --brief --span <name>
     python tools/threshold_sheet.py <sheet.md> --second-read <read.json>
     python tools/threshold_sheet.py --all
 
@@ -15,7 +15,7 @@ producing fluent, plausible, confident text from a source only it has read. Noth
 here checks that a guideline was *understood*. Each gate eliminates one way a sheet
 can be confidently wrong.
 
-Six gates, and what each one can and cannot see
+Seven gates, and what each one can and cannot see
 ------------------------------------------------
 
 **It was four until [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174).**
@@ -39,6 +39,13 @@ row needed it.
     for ``<``) normalized before comparison. This does not verify that the explanation
     is clinically correct; it prevents an empty block, ``TODO``, or a paragraph that
     names only one side from discharging the structural rule.
+
+``PAGE COVERAGE`` refuses, and prints the remainder on every run
+    The union of each source's named span ranges covers ``1..page_count`` from the
+    committed guideline catalog. Overlap is allowed. An unresolved count is not
+    graded rather than passed. The check catches an omitted span, not a boundary
+    drawn around the wrong pages; ``PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES``
+    declares that limit beside the code.
 
 ``CITATION`` refuses, in three tiers
     Tier 0 checks that every snippet from an exact source is a substring of its own
@@ -97,8 +104,14 @@ row needed it.
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
     the diff is the gate. The only mechanism that catches misreading rather than
-    miscitation."* ``--brief`` prints the work order -- documents and pages and
-    nothing else -- and ``--second-read`` diffs the result against the sheet.
+    miscitation."* ``--brief --span`` prints the work order -- document, span name,
+    and page range and nothing else from the sheet -- and ``--second-read`` diffs the
+    result against that span.
+
+    **The two directions are deliberately asymmetric.** A value found in a span the
+    sheet retired as null refuses. A reader miss where the sheet carries a row warns,
+    because the row already carries a snippet located by the citation gates and a
+    second reader's miss must not overturn it.
 
     **#83's caveat is a build instruction and #174 says so**: correlated error --
     same model, same PDF, same mangling, same wrong answer -- means the *pass* is
@@ -165,7 +178,7 @@ what makes it worth anything is that this module **does not perform the read** -
 ``gate_second_read`` grades a record somebody else produced and there is no code
 path here that can produce one. A ``--second-read`` this module generated would be
 the same code over the same page, which is the check named worthless above; that is
-why ``--brief`` prints a work order for a reader instead of doing the work.
+why ``--brief --span`` prints a work order for a reader instead of doing the work.
 
 Exit status
 -----------
@@ -208,12 +221,14 @@ from pathlib import Path
 
 import guidelines_extract
 import guidelines_manifest
+import guidelines_catalog
 import artifact_provenance
 from console_codec import use_utf8
 from guidelines_recs import MODE_BOUND, MODE_EXACT
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
+DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 
 # Where `recs-<key>.json` is looked for when `--recs-root` is not given. A module
 # constant rather than an inline default so the literal can be graded: an env var
@@ -265,7 +280,14 @@ WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED = (
     "where an absent identifier is dispositive."
 )
 
-SCHEMA_MARKER = "<!-- schema: threshold-sheet/1 -->"
+SCHEMA_MARKER = "<!-- schema: threshold-sheet/2 -->"
+
+# Page coverage proves that every page was assigned to a named span. It cannot prove
+# that the boundary was drawn correctly: a references span beginning one page too
+# late can still leave that page covered by the preceding, wrongly named span.
+PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES = (
+    "page coverage catches an omitted span, not a misdrawn one"
+)
 
 # The escape hatch #83 asks for by name: *"Table-derived values need an escape hatch
 # on the `phi-scan: synthetic` pattern: a per-row annotation meaning read off the
@@ -439,6 +461,13 @@ _ROW_PIPE = re.compile(r"^\s*\|(?P<body>.+)\|\s*$")
 _CONFLICT = re.compile(r"^\s*\*{0,2}CONFLICT\*{0,2}:\s*(?P<quantity>[a-z0-9-]+)\b(?P<rest>.*)$", re.IGNORECASE)
 _OUT_LINE = re.compile(r"^\s*-\s*`(?P<rec_id>[^`]+)`\s*[-\u2014:]\s*(?P<reason>.+?)\s*$")
 _RESOLVED = re.compile(r"citations resolved against\s+(?P<corpus>\S+)\s+on\s+(?P<date>\d{4}-\d{2}-\d{2})", re.IGNORECASE)
+_SPAN_SOURCE = re.compile(
+    r"^\s*\*{0,2}Source:\s*`?(?P<source>[a-z0-9-]+)`?\*{0,2}\s*$",
+    re.IGNORECASE,
+)
+_SPAN_RANGE = re.compile(r"^p?(?P<first>\d+)(?:\s*-\s*p?(?P<last>\d+))?$", re.I)
+_DATED_SPAN_READ = re.compile(r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})$", re.I)
+_SPAN_EXEMPTION = re.compile(r"^exempt:\s*(?P<reason>\S.+)$", re.I)
 
 _INEQUALITY_WORDS = (
     (r"\b(?:less than or equal to|at or below|no more than)\b", "<="),
@@ -485,6 +514,29 @@ class Row:
     line: int
 
 
+@dataclass(frozen=True)
+class Span:
+    source: str
+    name: str
+    first_page: int
+    last_page: int
+    read: str
+    line: int
+
+    @property
+    def is_unread(self) -> bool:
+        return self.read.casefold() == "no"
+
+    @property
+    def has_dated_marker(self) -> bool:
+        return _DATED_SPAN_READ.fullmatch(self.read) is not None
+
+    @property
+    def exemption_reason(self) -> str | None:
+        match = _SPAN_EXEMPTION.fullmatch(self.read)
+        return match.group("reason") if match else None
+
+
 @dataclass
 class Sheet:
     """A parsed sheet. ``ok`` is false when it could not be read as one at all."""
@@ -496,6 +548,8 @@ class Sheet:
     quantities: dict[str, str] = field(default_factory=dict)
     conflicts: dict[str, str] = field(default_factory=dict)
     scoped_out: dict[str, str] = field(default_factory=dict)
+    spans: list[Span] = field(default_factory=list)
+    span_problems: list[str] = field(default_factory=list)
     # The prose of the ``## Scope`` section, and nothing from anywhere else. Kept as
     # its own field rather than searched for over the whole document because the two
     # phrases that satisfy it are ordinary English: a threshold row whose snippet
@@ -666,16 +720,24 @@ def parse(text: str, path: Path) -> Sheet:
 
     section: str | None = None
     source_columns: list[str] = []
+    span_source: str | None = None
+    reading_span_table = False
     for number, line in enumerate(text.splitlines(), start=1):
         heading = re.match(r"^\s*#{1,6}\s+(?P<name>.+?)\s*$", line)
         if heading:
             section = heading.group("name").strip().lower()
             if section == SCOPE_HEADING.removeprefix("## ").lower():
                 sheet.has_scope_section = True
+                span_source = None
+                reading_span_table = False
             continue
 
         if section == SCOPE_HEADING.removeprefix("## ").lower():
             sheet.scope += line + "\n"
+            source_match = _SPAN_SOURCE.match(line)
+            if source_match:
+                span_source = source_match.group("source")
+                reading_span_table = False
             # No `continue`: the `citations resolved against ...` line lives in this
             # section and is read below.
 
@@ -698,6 +760,44 @@ def parse(text: str, path: Path) -> Sheet:
 
         cells = _cells(line)
         if cells is None or _is_rule(cells):
+            continue
+
+        if (
+            section == SCOPE_HEADING.removeprefix("## ").lower()
+            and [cell.casefold() for cell in cells] == ["span", "pages", "read"]
+        ):
+            reading_span_table = True
+            continue
+
+        if section == SCOPE_HEADING.removeprefix("## ").lower() and reading_span_table:
+            if len(cells) != 3:
+                sheet.span_problems.append(
+                    f"{path.name}:{number} span row has {len(cells)} cells, expected 3"
+                )
+                continue
+            source = span_source
+            if source is None and len(sheet.sources) == 1:
+                source = next(iter(sheet.sources))
+            if source is None:
+                sheet.span_problems.append(
+                    f"{path.name}:{number} span table in a multi-source sheet has no "
+                    "preceding 'Source: `<source key>`' line"
+                )
+                continue
+            page_match = _SPAN_RANGE.fullmatch(cells[1])
+            if page_match is None:
+                sheet.span_problems.append(
+                    f"{path.name}:{number} span '{cells[0]}' has invalid page range '{cells[1]}'"
+                )
+                continue
+            first = int(page_match.group("first"))
+            last = int(page_match.group("last") or first)
+            if first < 1 or last < first:
+                sheet.span_problems.append(
+                    f"{path.name}:{number} span '{cells[0]}' has invalid page range '{cells[1]}'"
+                )
+                continue
+            sheet.spans.append(Span(source, cells[0], first, last, cells[2], number))
             continue
 
         if section == SOURCES_HEADING.removeprefix("## ").lower() and cells[0] == "key":
@@ -787,6 +887,41 @@ def gate_schema(sheet: Sheet) -> GateResult:
                 "number cannot be told from an unread section"
             )
 
+    failures.extend(sheet.span_problems)
+    if not sheet.spans:
+        failures.append(f"{sheet.path.name}  '## Scope' has no required span table")
+    seen_spans: set[tuple[str, str]] = set()
+    for span in sheet.spans:
+        where = f"{sheet.path.name}:{span.line}"
+        identity = (span.source, span.name.casefold())
+        if identity in seen_spans:
+            failures.append(
+                f"{where} duplicate span '{span.name}' for source '{span.source}'"
+            )
+        seen_spans.add(identity)
+        if span.source not in sheet.sources:
+            failures.append(f"{where} span source '{span.source}' is not declared under '## Sources'")
+        read = span.read.casefold()
+        if read not in {"yes", "no"} and not span.has_dated_marker and span.exemption_reason is None:
+            failures.append(
+                f"{where} span '{span.name}' has invalid read value '{span.read}'"
+            )
+            continue
+        if span.exemption_reason is not None and span.name.casefold() != "references":
+            failures.append(
+                f"{where} only a references span may carry a class exemption"
+            )
+        rows = [
+            row for row in sheet.rows
+            if row.source == span.source
+            and row.page is not None
+            and span.first_page <= row.page <= span.last_page
+        ]
+        if read == "yes" and not rows:
+            failures.append(
+                f"{where} read span '{span.name}' has neither rows nor a dated marker"
+            )
+
     # A threshold with no edition behind it is the failure the format exists to
     # prevent: societies revise, and 2017's number under 2025's heading is wrong in
     # the most expensive way. These three cells were parsed past until they were not.
@@ -845,6 +980,92 @@ def gate_schema(sheet: Sheet) -> GateResult:
         failures,
         report=(f"  SCHEMA          {len(failures)}",),
     )
+
+
+def _page_runs(pages: set[int]) -> str:
+    """Compact a page set without hiding any member of the remainder."""
+    if not pages:
+        return "none"
+    ordered = sorted(pages)
+    runs: list[str] = []
+    start = previous = ordered[0]
+    for page in ordered[1:]:
+        if page == previous + 1:
+            previous = page
+            continue
+        runs.append(str(start) if start == previous else f"{start}-{previous}")
+        start = previous = page
+    runs.append(str(start) if start == previous else f"{start}-{previous}")
+    return ", ".join(runs)
+
+
+def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
+    """Require each source's span union to cover its independently counted pages."""
+    findings: list[str] = []
+    stdout: list[str] = []
+    unresolved: list[str] = []
+    for source_key, source in sheet.sources.items():
+        document = source.get("document", "")
+        page_count = page_counts.get(document)
+        if page_count is None:
+            unresolved.append(document or source_key)
+            stdout.append(
+                f"  PAGE COVERAGE  {source_key} unaccounted pages: NOT GRADED "
+                f"(page_count unresolved for {document or source_key})"
+            )
+            continue
+        covered = {
+            page
+            for span in sheet.spans
+            if span.source == source_key
+            for page in range(span.first_page, span.last_page + 1)
+        }
+        expected = set(range(1, page_count + 1))
+        remainder = expected - covered
+        stdout.append(
+            f"  PAGE COVERAGE  {source_key} unaccounted pages: {_page_runs(remainder)}"
+        )
+        if remainder:
+            findings.append(
+                f"{sheet.path.name} source '{source_key}' leaves page(s) "
+                f"{_page_runs(remainder)} unaccounted for"
+            )
+        outside = {page for page in covered if page > page_count}
+        if outside:
+            findings.append(
+                f"{sheet.path.name} source '{source_key}' assigns page(s) "
+                f"{_page_runs(outside)} beyond page_count {page_count}"
+            )
+    reason = (
+        "page_count unresolved for " + ", ".join(unresolved)
+        if unresolved else None
+    )
+    return GateResult(
+        "PAGE COVERAGE",
+        findings,
+        skip_reason=reason,
+        not_graded=bool(unresolved),
+        stdout=tuple(stdout),
+        report=(f"  PAGE COVERAGE   {len(findings)}",),
+    )
+
+
+def load_catalog_page_counts(path: Path = DEFAULT_CATALOG) -> tuple[dict[str, int], list[str]]:
+    """Resolve source document ids to the catalog's independently derived count."""
+    try:
+        rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        return {}, [str(error)]
+    counts: dict[str, int] = {}
+    for row in rows:
+        document = f"{row.society}/{Path(row.filename).stem}"
+        if row.page_count.isdigit():
+            counts[document] = int(row.page_count)
+        else:
+            problems.append(
+                f"catalog source '{document}' has unresolved page_count '{row.page_count}'"
+            )
+    return counts, problems
 
 
 def gate_citation_tier1(sheet: Sheet) -> GateResult:
@@ -1347,6 +1568,7 @@ class SecondRead:
 
     path: Path
     values: list[dict] = field(default_factory=list)
+    briefed: dict[str, str] = field(default_factory=dict)
     read_on: str | None = None
     ok: bool = True
     why_not: str | None = None
@@ -1379,6 +1601,26 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
             path=path, ok=False,
             why_not=f"'values' is a {type(values).__name__}, not a list of entries",
         )
+    briefed = loaded.get("briefed")
+    if not isinstance(briefed, dict):
+        return SecondRead(
+            path=path, ok=False,
+            why_not="no 'briefed' block naming document, span, and page range",
+        )
+    missing_briefed = [
+        name for name in ("document", "span", "pages")
+        if not str(briefed.get(name, "")).strip()
+    ]
+    if missing_briefed:
+        return SecondRead(
+            path=path, ok=False,
+            why_not=f"'briefed' has no {', '.join(missing_briefed)}",
+        )
+    if _SPAN_RANGE.fullmatch(str(briefed["pages"]).strip()) is None:
+        return SecondRead(
+            path=path, ok=False,
+            why_not=f"'briefed.pages' is not a page range: {briefed['pages']!r}",
+        )
     read_on = loaded.get("read_on")
     if not read_on:
         return SecondRead(
@@ -1404,7 +1646,12 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
                 path=path, ok=False,
                 why_not=f"entry {position} has no page number in {entry['page']!r}",
             )
-    return SecondRead(path=path, values=values, read_on=str(read_on))
+    return SecondRead(
+        path=path,
+        values=values,
+        briefed={name: str(briefed[name]).strip() for name in ("document", "span", "pages")},
+        read_on=str(read_on),
+    )
 
 
 def load_second_read(path: Path) -> SecondRead:
@@ -1456,11 +1703,35 @@ def cited_citations(sheet: Sheet) -> set[tuple[str, str]]:
     }
 
 
-def brief(sheet: Sheet) -> str:
+def _named_span(sheet: Sheet, name: str) -> Span:
+    """Resolve one human span name without guessing between source documents."""
+    source, separator, span_name = name.partition(":")
+    if not separator:
+        source, span_name = "", name
+    matches = [
+        span for span in sheet.spans
+        if span.name.casefold() == span_name.strip().casefold()
+        and (not source or span.source.casefold() == source.strip().casefold())
+    ]
+    if len(matches) != 1:
+        qualifier = "<source>:<span>" if len(matches) > 1 else "a declared span"
+        raise ValueError(f"{name!r} does not identify exactly one span; name {qualifier}")
+    return matches[0]
+
+
+def _span_pages(span: Span) -> str:
+    return (
+        str(span.first_page)
+        if span.first_page == span.last_page
+        else f"{span.first_page}-{span.last_page}"
+    )
+
+
+def brief(sheet: Sheet, span_name: str) -> str:
     """The work order for a second independent read: what to open, and what to write.
 
     #83 asks for a read *"with no access to the sheet"*. This is what that reader is
-    handed, and it carries **document and page and nothing else** -- no quantity, no
+    handed, and it carries **document, span, and page range and nothing else** -- no quantity, no
     value, no snippet, no population. A test drives a distinctive string through every
     one of those cells and asserts none of them comes out here.
 
@@ -1470,22 +1741,27 @@ def brief(sheet: Sheet) -> str:
     it searched rather than what it read. The narrower a locator gets the more the
     read is steered, and page is the widest one that makes the task finite.
     """
-    citations = sorted(cited_citations(sheet))
+    span = _named_span(sheet, span_name)
+    document = sheet.sources[span.source]["document"]
+    pages = _span_pages(span)
     lines = [
-        f"== a second independent read for {sheet.path.name}",
+        "== a second independent span read",
         "",
-        "Open each page below in the source PDF and extract EVERY threshold, target,",
+        f"  document: {document}",
+        f"  span: {span.name}",
+        f"  pages: {pages}",
+        "",
+        "Open the page range above in the source PDF and extract EVERY threshold, target,",
         "cutoff, dose and interval it states. Do not consult the threshold sheet: this",
         "read is worth what its independence is worth.",
-        "",
     ]
-    for document, page in citations:
-        lines.append(f"  {document}  p.{page}")
     lines += [
         "",
         "Write the result as JSON:",
         "",
         '  {"read_on": "<YYYY-MM-DD>",',
+        '   "briefed": {"document": "<as above>", "span": "<as above>",',
+        '                "pages": "<as above>"},',
         '   "values": [{"document": "<as above>", "page": <n>,',
         '               "value": "<the threshold as the page states it>",',
         '               "about": "<what this number is the threshold FOR, in your own',
@@ -1549,7 +1825,7 @@ def gate_second_read(
         return GateResult(
             "SECOND READ",
             report=(
-                "  SECOND READ     NOT RUN -- no --second-read given; --brief prints the work order",
+                "  SECOND READ     NOT RUN -- no --second-read given; --brief --span prints the work order",
             ),
         )
     if not read.ok:
@@ -1561,13 +1837,39 @@ def gate_second_read(
             not_graded=True,
         )
 
+    briefed_range = _SPAN_RANGE.fullmatch(read.briefed["pages"])
+    assert briefed_range is not None
+    briefed_first = int(briefed_range.group("first"))
+    briefed_last = int(briefed_range.group("last") or briefed_first)
+    briefed_document = guidelines_manifest.normalize_doc_id(read.briefed["document"])
+    matching_spans = [
+        span for span in sheet.spans
+        if guidelines_manifest.normalize_doc_id(sheet.sources.get(span.source, {}).get("document", ""))
+        == briefed_document
+        and span.name.casefold() == read.briefed["span"].casefold()
+        and span.first_page == briefed_first
+        and span.last_page == briefed_last
+    ]
+    if len(matching_spans) != 1:
+        reason = "the 'briefed' block does not name exactly one declared span"
+        return GateResult(
+            "SECOND READ",
+            report=(f"  SECOND READ     NOT RUN -- {reason}",),
+            diagnostics=(f"  SECOND READ     NOT RUN -- {read.path}: {reason}",),
+            not_graded=True,
+        )
+    span = matching_spans[0]
+
     refusals: list[str] = []
     warnings: list[str] = []
     pairings: list[str] = []
     undiffed: list[str] = []
     uncovered: list[str] = []
 
-    cited = cited_citations(sheet)
+    cited = {
+        _citation(briefed_document, page)
+        for page in range(span.first_page, span.last_page + 1)
+    }
     by_citation: dict[tuple[str, str], list[dict]] = {}
     for entry in read.values:
         key = _citation(entry["document"], entry["page"])
@@ -1583,7 +1885,25 @@ def gate_second_read(
     # By position rather than by ``id()``: two entries of a read can be equal dicts,
     # and identity is not what "this entry answered a row" means.
     matched: set[tuple[tuple[str, str], int]] = set()
-    for row in sheet.rows:
+    span_rows = [
+        row for row in sheet.rows
+        if row.source == span.source
+        and row.page is not None
+        and span.first_page <= row.page <= span.last_page
+    ]
+    # A dated marker is the span's explicit null claim. Page ranges may overlap, so
+    # a row on one of these pages can belong to another span and must not silently
+    # turn this marker into a positive read.
+    null_span = span.has_dated_marker
+    if null_span:
+        for key in sorted(by_citation):
+            for entry in by_citation[key]:
+                refusals.append(
+                    f"{sheet.path.name} span '{span.name}' was retired as null, but the "
+                    f"independent read found {entry['value']!r} on {key[0]} p.{key[1]}"
+                )
+
+    for row in (() if null_span else span_rows):
         wanted = _NUMBER.findall(row.value)
         where = f"{sheet.path.name}:{row.line}"
         if not wanted:
@@ -1593,8 +1913,9 @@ def gate_second_read(
             continue  # already a SCHEMA failure; not counted twice
         key = _citation(_document_of(sheet, row), row.page)
         if key not in by_citation:
-            uncovered.append(
-                f"{where}  the read covers nothing on {key[0]} p.{key[1]}"
+            warnings.append(
+                f"{where}  the independent reader found nothing matching value "
+                f"{row.value!r} in briefed span '{span.name}'"
             )
             continue
         found = None
@@ -1614,9 +1935,9 @@ def gate_second_read(
                 if found is None:
                     found = entry
         if found is None:
-            refusals.append(
-                f"{where}  value {row.value!r} is not among what an independent read "
-                f"found on {key[0]} p.{key[1]}"
+            warnings.append(
+                f"{where}  the independent reader did not find value {row.value!r} "
+                f"on {key[0]} p.{key[1]} in briefed span '{span.name}'"
             )
             continue
         pairings.append(
@@ -1631,25 +1952,13 @@ def gate_second_read(
                     f"({entry['about']}) and no row carries it -- the independent read "
                     "cannot see '## Coverage', so this over-reports"
                 )
-    graded = bool(pairings or refusals)
-    if not graded:
-        report = (
-            f"  SECOND READ     NOT RUN -- the read covers none of this sheet's "
-            f"citations, so no row was diffed ({len(read.values)} value(s) read "
-            f"on {read.read_on})",
-        )
-        stdout: tuple[str, ...] = ()
-    else:
-        report_lines = [
-            f"  SECOND READ     {len(refusals)} refusing, {len(warnings)} warning "
-            f"over {len(read.values)} value(s) read on {read.read_on}",
-            f"                  {len(undiffed)} row(s) carried no number to diff, "
-            f"{len(uncovered)} row(s) cite a page the read did not cover",
-        ]
-        if uncovered:
-            report_lines.append("                  so the counts above are a floor, not the whole")
-        report = tuple(report_lines)
-        stdout = (f"                  {SECOND_READ_IS_A_SMOKE_TEST}",)
+    report = (
+        f"  SECOND READ     {len(refusals)} refusing, {len(warnings)} warning "
+        f"over {len(read.values)} value(s) read on {read.read_on}",
+        f"                  span '{span.name}' pages {_span_pages(span)}; "
+        f"{len(undiffed)} row(s) carried no number to diff",
+    )
+    stdout = (f"                  {SECOND_READ_IS_A_SMOKE_TEST}",)
 
     return GateResult(
         "SECOND READ",
@@ -1660,11 +1969,11 @@ def gate_second_read(
         uncovered,
         report=report,
         stdout=stdout,
-        not_graded=not graded,
+        not_graded=False,
         report_after_stdout=tuple(
             f"                  {pairing}" for pairing in pairings
         ),
-        stdout_before_footer=graded,
+        stdout_before_footer=True,
     )
 
 def bind_recs(
@@ -2033,6 +2342,7 @@ def survey(
     text_root: Path | None = None,
     second_read_path: Path | None = None,
     allow_untrusted_provenance: bool = False,
+    page_counts: dict[str, int] | None = None,
 ) -> Scan:
     """Read and grade one sheet without emitting either report or findings."""
 
@@ -2070,6 +2380,16 @@ def survey(
     )
 
     schema = gate_schema(sheet)
+    catalog_problems: list[str] = []
+    if page_counts is None:
+        page_counts, catalog_problems = load_catalog_page_counts()
+    page_coverage = gate_page_coverage(sheet, page_counts)
+    if catalog_problems:
+        page_coverage.not_graded = True
+        page_coverage.skip_reason = "; ".join(catalog_problems)
+        page_coverage.diagnostics = tuple(
+            f"  PAGE COVERAGE   NOT GRADED -- {problem}" for problem in catalog_problems
+        )
     tier0 = gate_citation_tier0(sheet, records, why_not)
     tier1 = gate_citation_tier1(sheet)
     tier2 = gate_citation_tier2(sheet, pdf_root)
@@ -2103,10 +2423,12 @@ def survey(
     not_graded = (
         coverage.not_graded
         or second_read_result.not_graded
+        or page_coverage.not_graded
     )
 
     results = (
         schema,
+        page_coverage,
         tier0,
         tier1,
         tier2,
@@ -2118,6 +2440,7 @@ def survey(
 
     refusals = (
         schema.findings
+        + page_coverage.findings
         + tier0.findings
         + tier1.findings
         + tier2.findings
@@ -2126,7 +2449,8 @@ def survey(
         + watermark.findings
         + second_read_result.findings
     )
-    diagnostics = list(watermark.diagnostics[:1])
+    diagnostics = list(page_coverage.diagnostics)
+    diagnostics.extend(watermark.diagnostics[:1])
     diagnostics.extend(f"  FAIL  {message}" for message in refusals)
     diagnostics.extend(
         f"  WARN  {message}"
@@ -2151,8 +2475,8 @@ def survey(
         # `differential_scan.py`'s ordering, for its reason.
         if not_graded:
             diagnostics.append(
-                "  note: CITATION tier 0, COVERAGE, or SECOND READ did not run on "
-                "every source, so the count above is a floor.",
+                "  note: PAGE COVERAGE, CITATION tier 0, COVERAGE, or SECOND READ "
+                "did not run completely, so the count above is a floor.",
             )
         status = 1
     elif not_graded:
@@ -2251,14 +2575,19 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=(
-            "an independent extraction of the pages this sheet cites, to diff against "
-            "it. See --brief for the work order and the record shape"
+            "an independent extraction of one declared span, to diff against it. "
+            "See --brief --span for the work order and record shape"
         ),
     )
     parser.add_argument(
         "--brief",
         action="store_true",
-        help="print the work order for a second independent read and grade nothing",
+        help="print the work order for --span and grade nothing",
+    )
+    parser.add_argument(
+        "--span",
+        default=None,
+        help="span to brief, or <source>:<span> where two sources reuse a name",
     )
     return parser
 
@@ -2293,7 +2622,14 @@ def main(argv: list[str]) -> int:
         if not sheet.ok:
             print(f"  NOT GRADED  {sheet.why_not}", file=sys.stderr)
             return 2
-        print(brief(sheet), end="")
+        if not args.span:
+            parser.error("--brief needs --span <name>")
+        try:
+            work_order = brief(sheet, args.span)
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            return 2
+        print(work_order, end="")
         return 0
 
     if args.all:
