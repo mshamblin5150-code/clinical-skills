@@ -18,11 +18,12 @@ import unittest
 from pathlib import Path
 from typing import NamedTuple
 
+from assertion_record import ROW_ID
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "fixtures"
 FIXTURES_README = FIXTURES / "README.md"
 
-ROW_ID = re.compile(r"^\| ([A-Z]\d+) \|", re.M)
 SET_LINK = re.compile(r"^\[([a-z0-9-]+)\]\([^)]*/assertions\.md\)$")
 ROW_TOTAL = re.compile(
     r"\b(?:\d+|[a-z]+(?:-[a-z]+)?) of "
