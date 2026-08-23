@@ -188,6 +188,10 @@ _Avoid_: producer paths, unchanged paths, provenance list
 Everything a content-addressed build hashes to decide whether it may reuse an earlier artifact instead of producing one again. Deliberately wider than the trust floor, because the price of a miss is a rebuild and the price of a wrong hit is a stale answer.
 _Avoid_: build key, fingerprint, producer identity
 
+**Held declaration**:
+A claim a curated artifact makes about a check its reader may be unable to re-run. The run that *can* re-run it is the only thing enforcing the claim — refusing where it is absent, and refusing where it describes a different run than the one that just happened. Never checked against elapsed time, because no artifact knows what its reader's machine holds. Which claims qualify is enumerated by hand, never inferred.
+_Avoid_: provenance line, status line, audit note, metadata
+
 **Accepted distrust**:
 A verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
 _Avoid_: provenance stamp, taint, untrusted flag
@@ -240,12 +244,24 @@ The one-row-per-topic record of the threshold-sheet sweep. Its topic population 
 _Avoid_: checklist, index, inventory
 
 **Sweep state**:
-One of `sheet`, `none`, or `unread`. `none` means the guideline was read and states no decision point; `unread` establishes nothing. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question.
+One of `sheet`, `none`, or `unread`. `none` means the guideline was read and states no decision point; `unread` establishes nothing. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question. What `sheet` asserts is that every page of the source sits in a read span — it is derived from the sheet's own span table rather than typed, and the registry refuses a disagreement in either direction.
 _Avoid_: status, result, disposition
 
 **Shipped artifact**:
 The sheet a coverage-registry row names in its artifact column. This is what a run joins on and may consult, whatever the row's sweep state; an artifact on an `unread` row is a real sheet whose full-document read is pending, and every sheet's own scope names what it did not read. Reading it settles no less than reading any other — a missing row means the sheet does not settle the question, in a partial sheet and a complete one alike.
 _Avoid_: partial sheet, draft sheet, provisional sheet, candidate sheet
+
+**Span**:
+One named part of a source document with a page range, such as its clinical considerations or its reference list. The unit a sheet's unread list is written in, and the unit a blind second reader is briefed on. Spans may overlap, because a page can carry two of them.
+_Avoid_: section, chapter, part, region
+
+**Section read**:
+Reading one span for decision points. It leaves the rows that span holds and a narrowed unread list, and it is the unit of work — a sheet is completed one span at a time, never in a single promotion. A span leaves the unread list when it yields rows, when a blind independent read agrees it holds none, or when it is a reference list retired by class with that reason recorded.
+_Avoid_: sweep, pass, promotion, full read
+
+**Page coverage**:
+The requirement that the read and unread spans of a sheet together account for every page of its source, counted against the guideline catalog's own page count. It catches a span nobody listed; it does not catch a span whose page range is drawn wrong.
+_Avoid_: coverage — unqualified, that word names three different things here: the `## Coverage` section inside a sheet is which recommendation identifiers were accounted for, the coverage registry is the per-topic sweep record, and this is the per-page document read. Always say which.
 
 **Scoped out**:
 A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.

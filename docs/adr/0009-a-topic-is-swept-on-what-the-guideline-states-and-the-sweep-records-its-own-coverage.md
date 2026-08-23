@@ -24,6 +24,16 @@ clinician ruled the term and the sweep on 2026-08-22.
 5. **A topic whose only records are `bound` remains `unread` while #436 is open.** A
    fixed marker window that can end before the decision point is not a document read.
 
+   **Point 5 is discharged rather than overruled — see
+   [ADR 0025](0025-a-section-read-is-the-unit-and-a-sheet-s-page-coverage-is-what-the-state-asserts.md),
+   2026-08-23.** Its reason names an instrument that record replaces: a read is now a
+   named span with a page range, checked against the catalog's `page_count`, and it
+   opens no recommendation record at all. The sentence stands as it was ruled and is
+   correct about the instrument it names; this pointer is an annotation rather than an
+   amendment, on [ADR 0014](0014-a-run-is-keyed-to-the-graded-artifact.md)'s
+   arrangement, because rewriting it would make the ruling look wider than it was.
+   #436 continues to own the recommendation accounting inside `diabetes.md`.
+
 ## Why the USPSTF table is not the sweep
 
 `reference/guidelines-uspstf.md` remains the recommendation artifact for the federal
