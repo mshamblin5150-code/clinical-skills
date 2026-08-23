@@ -59,7 +59,7 @@ import artifact_lock
 import artifact_provenance
 from console_codec import use_utf8
 from guidelines_extract import CLASSES, publication_year_page_counts
-from guidelines_manifest import read_or_raise
+from guidelines_manifest import Manifest, read_or_raise
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
@@ -473,10 +473,10 @@ def looks_like_title(candidate: str, filename: str) -> bool:
     return True
 
 
-def read_corpus(
+def read_corpus_handoff(
     src: Path, *, allow_untrusted_provenance: bool = False
-) -> list[Document]:
-    """Read every document from #80's extracted text and manifest.
+) -> tuple[list[Document], Manifest]:
+    """Read every document and retain the manifest handoff that established trust.
 
     The manifest is required because it carries the source filename, metadata
     title, producer-owned class, and the pre-strip page vote used by the year rule.
@@ -505,6 +505,16 @@ def read_corpus(
                 year_guess=year_guess(title, pages, document.year_page_counts),
             )
         )
+    return docs, handoff
+
+
+def read_corpus(
+    src: Path, *, allow_untrusted_provenance: bool = False
+) -> list[Document]:
+    """Read every document from #80's extracted text and manifest."""
+    docs, _ = read_corpus_handoff(
+        src, allow_untrusted_provenance=allow_untrusted_provenance
+    )
     return docs
 
 
@@ -934,6 +944,10 @@ def main(argv: list[str] | None = None) -> int:
     text = catalog_path.read_text(encoding="utf-8")
     rows, unsettled_index, problems = parse_catalog(text)
     problems = problems + check_legend(text)
+    accepted_distrust, distrust_problems = (
+        artifact_provenance.parse_accepted_distrust(text)
+    )
+    problems = problems + list(distrust_problems)
 
     audit_path = Path(args.audit)
     if not audit_path.exists():
@@ -946,7 +960,7 @@ def main(argv: list[str] | None = None) -> int:
 
     text_src = Path(args.src)
     try:
-        docs = read_corpus(
+        docs, handoff = read_corpus_handoff(
             text_src,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
@@ -956,9 +970,29 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         mechanical_failures = check_shape(rows, unsettled_index)
         scope = f"{len(rows)} row(s), shape only (no extracted corpus at {text_src})"
+        corpus_status = None
     else:
-        mechanical_failures = check(rows, unsettled_index, docs)
-        scope = f"{len(rows)} row(s) against {text_src}"
+        audited_failures = check(rows, unsettled_index, docs)
+        distrust_verdict = artifact_provenance.grade_accepted_distrust(
+            accepted_distrust,
+            handoff.root,
+            handoff.provenance,
+            passed=not audited_failures,
+        )
+        if distrust_verdict.not_graded:
+            mechanical_failures = check_shape(rows, unsettled_index)
+            scope = (
+                f"{len(rows)} row(s), shape only (the untrusted corpus pass is not "
+                "declared in the catalog)"
+            )
+            corpus_status = (
+                "SKIPPED extracted corpus verification: add this declaration to the "
+                "catalog:\n" + str(distrust_verdict.expected)
+            )
+        else:
+            mechanical_failures = audited_failures + list(distrust_verdict.failures)
+            scope = f"{len(rows)} row(s) against {text_src}"
+            corpus_status = None
 
     pdf_src = Path(args.pdf_src)
     if pdf_src.is_dir():
@@ -976,6 +1010,8 @@ def main(argv: list[str] | None = None) -> int:
     failures = problems + mechanical_failures + audit_failures + digest_failures
 
     print(f"guidelines catalog: {scope}")
+    if corpus_status:
+        print(f"  {corpus_status}")
     print(f"  {digest_status}")
     for failure in failures:
         print(f"  FAIL {failure}")

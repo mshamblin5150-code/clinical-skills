@@ -193,7 +193,7 @@ A claim a curated artifact makes about a check its reader may be unable to re-ru
 _Avoid_: provenance line, status line, audit note, metadata
 
 **Accepted distrust**:
-A verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
+A held declaration for a verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
 _Avoid_: provenance stamp, taint, untrusted flag
 
 **Paste box**:

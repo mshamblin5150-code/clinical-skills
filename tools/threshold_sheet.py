@@ -504,6 +504,8 @@ class Sheet:
     has_scope_section: bool = False
     resolved_corpus: str | None = None
     resolved_date: str | None = None
+    accepted_distrust: artifact_provenance.AcceptedDistrust | None = None
+    accepted_distrust_problems: tuple[str, ...] = ()
     ok: bool = True
     why_not: str | None = None
 
@@ -758,12 +760,18 @@ def parse(text: str, path: Path) -> Sheet:
     if not sheet.rows:
         sheet.ok = False
         sheet.why_not = "no row under a '## Thresholds' heading"
+    sheet.accepted_distrust, sheet.accepted_distrust_problems = (
+        artifact_provenance.parse_accepted_distrust(sheet.scope)
+    )
     return sheet
 
 
 def gate_schema(sheet: Sheet) -> GateResult:
     """Structure, provenance, scope, declared vocabulary, and the conflict rule."""
     failures: list[str] = []
+    failures.extend(
+        f"{sheet.path.name}  {problem}" for problem in sheet.accepted_distrust_problems
+    )
 
     # #83 lists the scope line among the things a sheet *carries*, and gives the
     # reason: *"so that 'absent from the sheet' is never misread as 'absent from the
@@ -1296,7 +1304,19 @@ def gate_watermark(
                     f"page-repeated text. The text stream was interleaved here, so read "
                     f"this row off the rendered page and declare {RENDERED_MARKER}."
                 )
+    declaration_verdict = artifact_provenance.grade_accepted_distrust(
+        sheet.accepted_distrust,
+        handoff.root,
+        handoff.provenance,
+        passed=not findings and not unprobed,
+    )
+    findings.extend(declaration_verdict.failures)
     report = [f"  WATERMARK       {len(findings)} refusing"]
+    if declaration_verdict.not_graded:
+        report = [
+            "  WATERMARK       NOT GRADED -- the untrusted pass is not declared in "
+            "the sheet's ## Scope",
+        ]
     if rendered:
         report.append(
             f"                  {rendered} row(s) declared {RENDERED_MARKER}, "
@@ -1312,6 +1332,11 @@ def gate_watermark(
         "extracted text, or no string stripped from it that could serve as a probe"
         for key in unprobed
     )
+    if declaration_verdict.not_graded:
+        diagnostics += (
+            "  WATERMARK       NOT GRADED -- add this declaration under ## Scope:\n"
+            + str(declaration_verdict.expected),
+        )
     return GateResult(
         "WATERMARK",
         findings,
@@ -1319,6 +1344,7 @@ def gate_watermark(
         unprobed_sources=unprobed,
         report=tuple(report),
         diagnostics=diagnostics,
+        not_graded=declaration_verdict.not_graded,
     )
 
 
@@ -2102,6 +2128,7 @@ def survey(
     # sweep did. Partial coverage stays a floor and is reported as one.
     not_graded = (
         coverage.not_graded
+        or watermark.not_graded
         or second_read_result.not_graded
     )
 
