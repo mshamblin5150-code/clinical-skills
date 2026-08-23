@@ -278,3 +278,21 @@ _Avoid_: number split, bad break
 **Orphaned figure**:
 A published measurement whose producing instrument no longer exists, so no command will ever print it again. It is a declared limit rather than a stale figure — nothing will make it decay and nothing will make it re-derivable — and it is named in one object that prose points at rather than copies.
 _Avoid_: historical figure, legacy number, dated result
+
+### Checks
+
+**Prose bind**:
+An assertion that a phrase is present in, or absent from, a document the repo tracks. It is what couples a rule written in one file to the check that holds it, so a bind that passes for a formatting reason is a rule nothing is holding.
+_Avoid_: assertion, string check, doc test
+
+**Needle**:
+The phrase a bind looks for. Written by the author of the check, so it is the half a rule can be stated in.
+_Avoid_: pattern, search term, target
+
+**Haystack**:
+The text a bind looks in. Whether it is a tracked document or something the code under test produced is the property that decides whether a bind can fail silently, so it is the half that is graded.
+_Avoid_: source, corpus, subject
+
+**Prose mark**:
+Emphasis, comment and quotation punctuation that a document's formatting may add or drop without changing what it says. Removed from both halves of a bind so hard wrapping and emphasis cannot decide the outcome. Distinct from a **glued run**, which is an extraction failure rather than a formatting choice.
+_Avoid_: glue, noise, markup
