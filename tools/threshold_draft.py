@@ -25,6 +25,7 @@ from threshold_sheet import (
     COVERAGE_HEADING,
     DEFAULT_RECS_ROOT,
     POPULATIONS_HEADING,
+    QUANTITIES_HEADING,
     ROW_COLUMNS,
     SCHEMA_MARKER,
     Sheet,
@@ -323,6 +324,7 @@ def render(
             [[str(len(known)), str(len(cited)), str(len(scoped_out))]],
         ),
         POPULATIONS_HEADING + "\n\n" + _table(("key", "verbatim"), []),
+        QUANTITIES_HEADING + "\n\n" + _table(("key", "verbatim"), []),
         THRESHOLDS_HEADING + "\n\n" + _table(ROW_COLUMNS, threshold_rows),
         CONFLICTS_HEADING,
         COVERAGE_HEADING
@@ -350,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     # Importing the tuple is an executable assertion that the draft and auditor share
     # one section vocabulary rather than two lists that can drift independently.
-    if len(SECTION_HEADINGS) != 6:
+    if len(SECTION_HEADINGS) != 7:
         print("threshold-sheet section interface is incomplete", file=sys.stderr)
         return 2
     seed_path = args.sheet_root / f"{args.topic.casefold().replace(' ', '-')}.md"

@@ -289,6 +289,7 @@ RENDERED_MARKER = "RENDERED:"
 SOURCES_HEADING = "## Sources"
 SCOPE_HEADING = "## Scope"
 POPULATIONS_HEADING = "## Populations"
+QUANTITIES_HEADING = "## Quantities"
 THRESHOLDS_HEADING = "## Thresholds"
 CONFLICTS_HEADING = "## Conflicts"
 COVERAGE_HEADING = "## Coverage"
@@ -296,6 +297,7 @@ SECTION_HEADINGS = (
     SOURCES_HEADING,
     SCOPE_HEADING,
     POPULATIONS_HEADING,
+    QUANTITIES_HEADING,
     THRESHOLDS_HEADING,
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
@@ -490,6 +492,7 @@ class Sheet:
     rows: list[Row] = field(default_factory=list)
     sources: dict[str, dict[str, str]] = field(default_factory=dict)
     populations: dict[str, str] = field(default_factory=dict)
+    quantities: dict[str, str] = field(default_factory=dict)
     conflicts: dict[str, str] = field(default_factory=dict)
     scoped_out: dict[str, str] = field(default_factory=dict)
     # The prose of the ``## Scope`` section, and nothing from anywhere else. Kept as
@@ -542,6 +545,7 @@ def _report_opening(sheet: Sheet) -> list[str]:
                 f"  rows            {len(sheet.rows)}",
                 f"  sources         {len(sheet.sources)}",
                 f"  populations     {len(sheet.populations)}",
+                f"  quantities      {len(sheet.quantities)}",
                 f"  scoped out      {len(sheet.scoped_out)}",
                 "",
             )
@@ -725,6 +729,12 @@ def parse(text: str, path: Path) -> Sheet:
         ):
             sheet.populations[cells[0]] = cells[1]
         elif (
+            section == QUANTITIES_HEADING.removeprefix("## ").lower()
+            and len(cells) >= 2
+            and cells[0] != "key"
+        ):
+            sheet.quantities[cells[0]] = cells[1]
+        elif (
             section == THRESHOLDS_HEADING.removeprefix("## ").lower()
             and len(cells) >= len(ROW_COLUMNS)
             and cells[0] != "quantity"
@@ -786,6 +796,10 @@ def gate_schema(sheet: Sheet) -> GateResult:
 
     for row in sheet.rows:
         where = f"{sheet.path.name}:{row.line}"
+        if row.quantity not in sheet.quantities:
+            failures.append(
+                f"{where}  quantity key '{row.quantity}' is not declared under '## Quantities'"
+            )
         if row.population not in sheet.populations:
             failures.append(
                 f"{where}  population key '{row.population}' is not declared under '## Populations'"
@@ -2306,7 +2320,11 @@ def main(argv: list[str]) -> int:
             )
 
         sheets = sorted(SHEET_ROOT.glob("*.md"))
-        sheets = [path for path in sheets if path.name.lower() != "readme.md"]
+        sheets = [
+            path
+            for path in sheets
+            if path.name.lower() not in {"readme.md", "coverage.md"}
+        ]
         if not sheets:
             print(f"no sheet under {SHEET_ROOT}", file=sys.stderr)
             return 2

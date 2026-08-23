@@ -75,6 +75,35 @@ citations resolved against C:/codeing/guidelines-src on 2026-08-20
 | pediatric-diabetes | children and adolescents with diabetes and their parents or caregivers |
 | pregnancy-t1d-t2d | pregnant individuals with type 1 or type 2 diabetes |
 
+## Quantities
+
+| key | verbatim |
+| --- | --- |
+| albuminuria-eligibility-threshold | ≥300 mg/g |
+| albuminuria-reduction-target | reduce urinary albumin by ≥30% |
+| caregiver-dsmes-age-threshold | aged <18 years |
+| chronic-pancreatitis-screening-interval | annually |
+| cognitive-screening-age-threshold | 65 years of age or older |
+| cognitive-screening-interval | annually |
+| diabetes-distress-screening-interval | at least annually |
+| dialysis-protein-intake | 1.0–1.2 g/kg/day |
+| lifestyle-counseling-bp-threshold | blood pressure >120/80 mmHg |
+| mra-consideration-medication-threshold | three classes of antihypertensive medications (including a diuretic) |
+| nondialysis-ckd-stage-threshold | CKD stage G3 or higher |
+| nondialysis-protein-intake | 0.8 g/kg body weight per day |
+| nsmra-egfr-threshold | eGFR is ≥25 mL/min/1.73 m2 |
+| nsmra-potassium-follow-up | 1 month after initiation |
+| obesity-bmi-threshold | BMI ≥30.0 kg/m2 |
+| post-pancreatitis-initial-screening-interval | within 3–6 months |
+| post-pancreatitis-ongoing-screening-interval | and annually thereafter |
+| pregnancy-aspirin-alternative-dose | 162 mg/day |
+| pregnancy-aspirin-dose | 100–150 mg/day |
+| pregnancy-aspirin-start | 12–16 weeks of gestation |
+| sglt2-continuation-egfr-threshold | eGFR <20 mL/min/1.73 m2 |
+| sglt2-nsmra-egfr-range | eGFR 30–90 mL/min/1.73 m2 |
+| sglt2-nsmra-uacr-threshold | UACR ≥100 mg/g |
+| teplizumab-discussion-age-threshold | aged ≥8 years |
+
 ## Thresholds
 
 | quantity | population | value | snippet | source | page | rec | class |
