@@ -49,6 +49,8 @@ class ManifestSerializationTests(unittest.TestCase):
             margin_stripped=["S1"],
             year_page_counts={"2024": 2},
             symbol_glyphs={"Symbol U+2265": 1},
+            split_boundaries={"digit|digit": 1},
+            quantity_split_shapes={"2024 -> 20|24": 1},
             error=None,
         )
 
@@ -64,7 +66,9 @@ class ManifestSerializationTests(unittest.TestCase):
             '"sampled_pages": 2, "codec": "utf-8", '
             '"boilerplate": ["folio"], "margin_patterns": ["S#"], '
             '"margin_stripped": ["S1"], "year_page_counts": {"2024": 2}, '
-            '"symbol_glyphs": {"Symbol U+2265": 1}, "error": null}',
+            '"symbol_glyphs": {"Symbol U+2265": 1}, '
+            '"split_boundaries": {"digit|digit": 1}, '
+            '"quantity_split_shapes": {"2024 -> 20|24": 1}, "error": null}',
         )
 
     def test_reordering_the_declared_order_refuses_cache_invalidation(self):
@@ -243,6 +247,22 @@ class ManifestReadingTests(unittest.TestCase):
         self.assertEqual(result.documents, {})
         self.assertEqual(len(result.problems), 1)
         self.assertIn("output must be", result.problems[0].message)
+
+    def test_read_rejects_malformed_split_census_maps(self):
+        self.text()
+        for field in ("split_boundaries", "quantity_split_shapes"):
+            with self.subTest(field=field):
+                self.write([self.entry(**{field: {"shape": "one"}})])
+
+                result = manifest.read(self.root)
+
+                self.assertEqual(result.documents, {})
+                self.assertTrue(
+                    any(
+                        f"{field} must map strings to integers" in problem.message
+                        for problem in result.problems
+                    )
+                )
 
     def test_read_resolves_before_it_takes_the_shared_lock(self):
         self.text()

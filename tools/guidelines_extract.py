@@ -43,19 +43,10 @@ So ``rebuild_text`` walks ``rawdict``'s per-character boxes and inserts a space
 wherever the horizontal gap stands out against the line's own spacing -- see
 ``line_baseline`` for why *against the line* and not against the font size.
 
-**Measured over all 179 documents and all 7,733 pages, 2026-08-16.** Zero read
-errors from either library:
-
-=========================  =========  =====  ======  =====
-reader                         words  glued   split   time
-=========================  =========  =====  ======  =====
-pypdf                      5,340,439   4168      --  342 s
-fitz get_text (default)    5,319,299   6568      --     --
-fitz + rebuild_text        5,369,614    719   6,881  195 s
-=========================  =========  =====  ======  =====
-
-``glued`` is words longer than 25 characters -- a run whose spaces were lost.
-``split`` is the reverse and is defined under *What the rebuild costs*.
+The dated reader comparison and the four unrecoverable rows of its five-bucket
+classification live once in ``ORPHANED_FIGURES``. They are not restated in this
+docstring because #404 deletes their producers: every row was measured before
+#178's second bar and #172's operator repair.
 
 **These figures replace a 14-document, 4-page-each sample, and the sample was
 wrong in a way worth recording.** It reported 117 glued for pypdf against 4,168,
@@ -66,42 +57,27 @@ glued runs, which is **worse than the library it replaced**. A reader trusting t
 table would have picked the one value that loses to pypdf. #83 published it, and it
 was caught by being asked to read every document rather than a selection.
 
-**Historical measurement, 2026-08-16.** ``split`` above is a set difference -- words
-present in ``get_text``'s output and absent after the rebuild -- and it counts every
-short glued run the rebuild correctly broke apart as though it were damage. ``seethe``
--> ``see the`` is in it. Every split in that run was recorded as ``run -> pieces`` and
-classified against a lexicon built from tokens **the PDF itself delimited with real
-space glyphs**, which needed no outside dictionary and was not defined by the inference
-under test. The classifier was not saved, so the table is preserved as a dated result,
-not a current cost:
+**Historical measurement, 2026-08-16.** The old ``wrongly split`` figure was a set
+difference produced by the now-deleted ``reader_compare.py``. The five-bucket
+classifier genuinely was never saved. ``split_census.py`` owns the historical shape
+figures that still have evidence and consumes this module's current glyph generator;
+its current result is therefore a new measurement, not a restatement of that table.
 
-=================================  ======  =====  ==========================
-class                                   n      %  verdict
-=================================  ======  =====  ==========================
-glued run fixed                     9,622  70.3%  correct, the point
-punctuation, tab or bullet          3,179  23.2%  harmless separation
-digit-break                           390   2.8%  damage, all in citations
-letter-spaced word                    306   2.2%  classified as damage in that run
-word broken, pieces not all single    188   1.4%  mostly a footnote marker
-=================================  ======  =====  ==========================
+**The historical safety reading covered only the 390 ``digit|digit`` breaks.** Every
+distinct run in that narrow population was citation apparatus. It did not examine
+decimal-and-comma-adjacent shapes, which are how a dose such as ``0.5`` breaks. The
+continuous census now records all five digit-adjacent boundary classes and every
+quantity-shaped split per document, then prints the corpus totals, distinct shapes,
+and a finding on every extraction refresh.
 
-13,685 split occurrences over 10,731 distinct shapes, all 179 documents, 2026-08-16.
-
-**The safety result from that historical run was zero damaged clinical units.** Of
-the 390 digit-breaks, every distinct run was citation apparatus -- a year
-(``2009;``, 158 of them),
-supplement page ranges (``S131-S155``), a superscript reference marker welded to
-its word (``al,23``). **Not one carried a clinical unit**, so that run found no
-threshold value broken by the reader. That was the risk worth measuring: a repo whose
-subject is numbers cannot afford a reader that splits a clinical unit.
-
-**The table above is pre-#178 and is left as it was measured.** In that classification,
+**The historical classification is pre-#178 and is left as it was measured.** In that classification,
 284 of the 696 were
 one running footer in one document, and that footer is fixed below; the table is not
 restated against the new extraction because the classifier that produced its five
-buckets was never saved. **390 and 13,685 re-derive and 9,622 / 3,179 / 306 / 188 do
-not**, and reasonable bucket rules put ``letter-spaced word`` anywhere from 128 to
-466. What replaces it is the measured delta in the next paragraphs, which does
+buckets was never saved. The exact re-derivable partition lives in
+``split_census.py`` and ``ORPHANED_FIGURES`` rather than as a third prose copy.
+Reasonable bucket rules put ``letter-spaced word`` anywhere from 128 to 466. What
+replaces the table is the measured delta in the next paragraphs, which does
 re-derive from this module's own functions.
 
 **That footer is fixed -- #178.**
@@ -317,6 +293,7 @@ from __future__ import annotations
 import argparse
 import artifact_lock
 import artifact_provenance
+import collections
 import json
 import os
 import re
@@ -332,6 +309,38 @@ from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
 from repo_root import InsideCheckout, ensure_outside_checkout
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Figures whose producers #404 deletes. Each row names why it is historical rather
+# than current: all were measured before #178's second spacing bar and #172's
+# operator repair, by an instrument that no longer exists. ``CLAUDE.md`` points at
+# this object and copies no row, so this is the one place their dated evidence lives.
+ORPHANED_FIGURES = (
+    ("pypdf words", "5,340,439", "pre-#178 reader comparison producer deleted"),
+    ("pypdf glued", "4,168", "pre-#178 reader comparison producer deleted"),
+    ("pypdf time", "342 s", "pre-#178 reader comparison producer deleted"),
+    ("fitz default words", "5,319,299", "pre-#178 reader comparison producer deleted"),
+    ("fitz default glued", "6,568", "pre-#178 reader comparison producer deleted"),
+    ("rebuilt words", "5,369,614", "pre-#178 reader comparison producer deleted"),
+    ("rebuilt glued", "719", "pre-#178 reader comparison producer deleted"),
+    ("rebuilt split", "6,881", "pre-#178 reader comparison producer deleted"),
+    ("rebuild time", "195 s", "pre-#178 reader comparison producer deleted"),
+    ("glued run fixed", "9,622", "pre-#178 five-bucket classifier was never saved"),
+    (
+        "punctuation, tab or bullet",
+        "3,179",
+        "pre-#178 five-bucket classifier was never saved",
+    ),
+    (
+        "letter-spaced word",
+        "306",
+        "pre-#178 five-bucket classifier was never saved",
+    ),
+    (
+        "word broken, pieces not all single",
+        "188",
+        "pre-#178 five-bucket classifier was never saved",
+    ),
+)
 
 # Written with an explicit codec on every call and recorded in the manifest. This
 # is not ceremony: the en dash in "130-139 mm Hg" survives extraction intact and
@@ -1120,6 +1129,8 @@ def build_document(
     out_root: Path,
     title: str | None = None,
     symbol_glyphs: dict[str, int] | None = None,
+    split_boundaries: dict[str, int] | None = None,
+    quantity_split_shapes: dict[str, int] | None = None,
 ) -> Record:
     """Normalize, strip, write one text file, and describe what was done to it.
 
@@ -1168,6 +1179,8 @@ def build_document(
         margin_stripped=margin_stripped,
         year_page_counts=publication_year_page_counts(pages),
         symbol_glyphs=dict(symbol_glyphs or {}),
+        split_boundaries=dict(split_boundaries or {}),
+        quantity_split_shapes=dict(quantity_split_shapes or {}),
         error=None,
     )
 
@@ -1464,6 +1477,67 @@ def glyph_baselines(line: dict) -> list[list[float]]:
         result.append(baselines)
     return result
 
+def walk_line_glyphs(
+    line: dict,
+    rendered_operators: dict[RenderedOperatorKey, str] | None = None,
+) -> Iterable[tuple[str, bool]]:
+    """Yield each repaired glyph and whether the gap rule inserts space before it.
+
+    This is the one owner of the spacing decision. ``rebuild_text`` renders it and
+    ``split_census`` observes it; the audit therefore moves whenever the production
+    rule moves rather than carrying a second implementation that can go stale.
+    """
+    rendered_operators = rendered_operators or {}
+    baselines = glyph_baselines(line)
+    if not baselines:
+        return
+    advances = span_space_advances(line)
+    buffer: list[str] = []
+    previous_right: float | None = None
+    for index, span in enumerate(line.get("spans", ())):
+        size = span.get("size", 0.0)
+        advance = advances[index]
+        threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
+        # #172. Looked up once per span rather than once per character, and empty
+        # for every font in the corpus but two.
+        name = font_key(span.get("font", ""))
+        operators = SYMBOL_FONT_OPERATORS.get(name, {})
+        for char_index, char in enumerate(span.get("chars", ())):
+            baseline = baselines[index][char_index]
+            # Substituted before the gap rule reads it. Every mapping is 1:1 and
+            # none produces a space, so the spacing decision is unchanged.
+            rendered_key = rendered_operator_key(name, char)
+            glyph = (
+                rendered_operators.get(rendered_key)
+                if rendered_key is not None
+                else None
+            )
+            if glyph is None:
+                glyph = operators.get(char["c"], char["c"])
+            left, _, right, _ = char["bbox"]
+            # Two independent bars: the gap must stand out against its line and,
+            # where the line supplies a real-space advance, resemble a word break.
+            gap_is_wide = (
+                previous_right is not None
+                and (left - previous_right) - baseline > threshold
+                and (
+                    advance is None
+                    or advance <= 0.0
+                    or (left - previous_right) >= SPACE_ADVANCE_FRACTION * advance
+                )
+            )
+            inserted = (
+                gap_is_wide and glyph != " " and bool(buffer) and buffer[-1] != " "
+            )
+            yield glyph, inserted
+            # Keep the buffer because preventing a second inferred space is part
+            # of the production rule the yielded decision represents.
+            if inserted:
+                buffer.append(" ")
+            buffer.append(glyph)
+            previous_right = right
+
+
 def rebuild_text(
     raw: dict, rendered_operators: dict[RenderedOperatorKey, str] | None = None
 ) -> str:
@@ -1485,74 +1559,39 @@ def rebuild_text(
     back in PyMuPDF's reading order and are joined with newlines, because
     ``page_lines`` splits on them and the boilerplate rule counts whole lines.
     """
-    rendered_operators = rendered_operators or {}
     lines: list[str] = []
     for block in raw.get("blocks", ()):
         if block.get("type") != 0:
             continue
         for line in block.get("lines", ()):
-            baselines = glyph_baselines(line)
-            if not baselines:
+            walked = list(walk_line_glyphs(line, rendered_operators))
+            if not walked:
                 continue
-            advances = span_space_advances(line)
-            buffer: list[str] = []
-            previous_right: float | None = None
-            for index, span in enumerate(line.get("spans", ())):
-                size = span.get("size", 0.0)
-                advance = advances[index]
-                threshold = max(SPACE_GAP_FRACTION * size, SPACE_GAP_FLOOR)
-                # #172. Looked up once per span rather than once per character,
-                # and empty for every font in the corpus but two.
-                name = font_key(span.get("font", ""))
-                operators = SYMBOL_FONT_OPERATORS.get(name, {})
-                for char_index, char in enumerate(span.get("chars", ())):
-                    baseline = baselines[index][char_index]
-                    # Substituted before the gap rule reads it, which is safe
-                    # because every row is 1:1 and no row produces a space -- so
-                    # `glyph != " "` below decides the same thing either way.
-                    rendered_key = rendered_operator_key(name, char)
-                    glyph = (
-                        rendered_operators.get(rendered_key)
-                        if rendered_key is not None
-                        else None
-                    )
-                    if glyph is None:
-                        glyph = operators.get(char["c"], char["c"])
-                    left, _, right, _ = char["bbox"]
-                    # Two independent bars, and a gap has to clear both. The first
-                    # asks whether the gap stands out against the line's own
-                    # spacing; the second, where the line set real spaces, asks
-                    # whether it comes anywhere near what this line charges for a
-                    # word break. The second does not apply where the line never
-                    # said -- `None` -- or where what it said cannot bind, which is
-                    # a non-positive advance. Both are `span_space_advances`'s to
-                    # explain and both are pinned by tests.
-                    gap_is_wide = (
-                        previous_right is not None
-                        and (left - previous_right) - baseline > threshold
-                        and (
-                            advance is None
-                            or advance <= 0.0
-                            or (left - previous_right)
-                            >= SPACE_ADVANCE_FRACTION * advance
-                        )
-                    )
-                    # Never two spaces, and never a space before one the PDF set
-                    # itself: `buffer[-1] != " "` covers the first and
-                    # `glyph != " "` the second. Without them a document with real
-                    # space glyphs AND wide inter-word gaps -- which is most of
-                    # AHA/ACC -- comes back double-spaced, and `normalize`
-                    # collapsing runs of spaces would hide that rather than make
-                    # it correct.
-                    if gap_is_wide and glyph != " " and buffer and buffer[-1] != " ":
-                        buffer.append(" ")
-                    buffer.append(glyph)
-                    previous_right = right
-            lines.append("".join(buffer))
+            lines.append(
+                "".join((" " if inserted else "") + glyph for glyph, inserted in walked)
+            )
     return "\n".join(lines)
 
 
-def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
+def rendered_operator_map_for_page(page, raw: dict) -> dict[RenderedOperatorKey, str]:
+    """Classify rendered operator glyphs for one already-open PyMuPDF page."""
+    import pymupdf
+
+    def render_glyph(bbox):
+        pixmap = page.get_pixmap(
+            matrix=pymupdf.Matrix(OPERATOR_RENDER_SCALE, OPERATOR_RENDER_SCALE),
+            clip=pymupdf.Rect(bbox),
+            colorspace=pymupdf.csGRAY,
+            alpha=False,
+        )
+        return bytes(pixmap.samples), pixmap.width, pixmap.height
+
+    return rendered_operator_map(raw, render_glyph)
+
+
+def extract_pages(
+    path: Path,
+) -> tuple[list[str], str | None, dict[str, int], dict[str, int], dict[str, int]]:
     """Every page of a PDF as raw text, its embedded title, and #172's census.
 
     The census comes back from here and not from anywhere downstream because this
@@ -1574,21 +1613,19 @@ def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
     document = pymupdf.open(str(path))
     pages: list[str] = []
     symbol_glyphs: dict[str, int] = {}
+    import split_census
+
+    split_boundaries = split_census.empty_boundaries()
+    quantity_split_shapes: collections.Counter[str] = collections.Counter()
     for page in document:
         try:
             raw = page.get_text("rawdict")
 
-            def render_glyph(bbox):
-                pixmap = page.get_pixmap(
-                    matrix=pymupdf.Matrix(OPERATOR_RENDER_SCALE, OPERATOR_RENDER_SCALE),
-                    clip=pymupdf.Rect(bbox),
-                    colorspace=pymupdf.csGRAY,
-                    alpha=False,
-                )
-                return bytes(pixmap.samples), pixmap.width, pixmap.height
-
-            rendered_operators = rendered_operator_map(raw, render_glyph)
+            rendered_operators = rendered_operator_map_for_page(page, raw)
             pages.append(rebuild_text(raw, rendered_operators))
+            split_result = split_census.census_rawdict(raw, rendered_operators)
+            split_boundaries.update(split_result.boundaries)
+            quantity_split_shapes.update(split_result.quantity_shapes)
             for key, count in symbol_glyph_census(raw, rendered_operators).items():
                 symbol_glyphs[key] = symbol_glyphs.get(key, 0) + count
         except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
@@ -1599,7 +1636,13 @@ def extract_pages(path: Path) -> tuple[list[str], str | None, dict[str, int]]:
     except Exception:  # noqa: BLE001 - a broken metadata dictionary is not a failed read
         title = None
     document.close()
-    return pages, title, dict(sorted(symbol_glyphs.items()))
+    return (
+        pages,
+        title,
+        dict(sorted(symbol_glyphs.items())),
+        dict(split_boundaries),
+        dict(sorted(quantity_split_shapes.items())),
+    )
 
 
 def _engine_version() -> str:
@@ -1640,8 +1683,18 @@ def _extract_one(job: tuple[Path, Path, Path]) -> Record:
     """
     source_root, relative, out_root = job
     try:
-        raw_pages, title, symbol_glyphs = extract_pages(source_root / relative)
-        return build_document(relative, raw_pages, out_root, title, symbol_glyphs)
+        raw_pages, title, symbol_glyphs, split_boundaries, quantity_shapes = extract_pages(
+            source_root / relative
+        )
+        return build_document(
+            relative,
+            raw_pages,
+            out_root,
+            title,
+            symbol_glyphs,
+            split_boundaries,
+            quantity_shapes,
+        )
     except Exception as error:  # noqa: BLE001 - a failure is recorded, never skipped
         return failed_document(relative, f"{type(error).__name__}: {error}")
 
@@ -1655,6 +1708,38 @@ def orphaned_outputs(out_root: Path, records: list[Record]) -> list[Path]:
     """
     claimed = {(out_root / record.output) for record in records if record.output}
     return sorted(path for path in out_root.rglob("*.txt") if path not in claimed)
+
+
+def split_census_summary(records: list[Record], limit: int = 12) -> list[str]:
+    """Bounded run-summary lines for #404's continuous split-safety census."""
+    import split_census
+
+    boundaries = split_census.empty_boundaries()
+    quantity_shapes: collections.Counter[str] = collections.Counter()
+    for record in records:
+        boundaries.update(record.split_boundaries)
+        quantity_shapes.update(record.quantity_split_shapes)
+    lines = [
+        "splits      "
+        + ", ".join(
+            f"{name} {boundaries[name]:,}" for name in split_census.BOUNDARY_CLASSES
+        )
+    ]
+    quantity = sum(quantity_shapes.values())
+    lines.append(
+        f"split safety {quantity:,} quantity-shaped occurrence(s), "
+        f"{len(quantity_shapes):,} distinct shape(s)"
+    )
+    lines.extend(
+        f"            {count:>6,}  {shape[:160]}"
+        for shape, count in quantity_shapes.most_common(max(0, limit))
+    )
+    lines.append(
+        "            FINDING quantity-shaped inferred split(s) require review"
+        if quantity
+        else "            clean"
+    )
+    return lines
 
 
 def write_manifest(
@@ -1848,6 +1933,8 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
         f"symbols     {unmapped:,} glyph(s) in {carriers:,} document(s) from a symbol "
         "font this build does not map; see symbol_glyphs in the manifest"
     )
+    for line in split_census_summary(records):
+        print(line)
     print(f"manifest    {manifest}")
 
     orphans = orphaned_outputs(out_root, records)

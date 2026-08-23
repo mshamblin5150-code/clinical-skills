@@ -54,6 +54,8 @@ class Record(Document):
     margin_patterns: list[str] = field(default_factory=list)
     year_page_counts: dict[str, int] = field(default_factory=dict)
     symbol_glyphs: dict[str, int] = field(default_factory=dict)
+    split_boundaries: dict[str, int] = field(default_factory=dict)
+    quantity_split_shapes: dict[str, int] = field(default_factory=dict)
     error: str | None = None
 
 
@@ -78,6 +80,8 @@ SERIALIZED_ORDER = (
     "margin_stripped",
     "year_page_counts",
     "symbol_glyphs",
+    "split_boundaries",
+    "quantity_split_shapes",
     "error",
 )
 
@@ -158,7 +162,12 @@ def _record(entry: dict[str, Any], doc_id: str) -> Record:
         "sampled_pages",
     }
     list_fields = {"boilerplate", "margin_patterns", "margin_stripped"}
-    count_fields = {"year_page_counts", "symbol_glyphs"}
+    count_fields = {
+        "year_page_counts",
+        "symbol_glyphs",
+        "split_boundaries",
+        "quantity_split_shapes",
+    }
     for name, expected in scalar_types.items():
         if name in entry and not isinstance(entry[name], expected):
             raise TypeError(f"{name} must be a string or null")

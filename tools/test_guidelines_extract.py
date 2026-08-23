@@ -726,10 +726,14 @@ class MathematicalPiOperatorsFollowTheRenderedGlyph(unittest.TestCase):
         pymupdf.Rect.side_effect = lambda bbox: bbox
 
         with mock.patch.dict("sys.modules", {"pymupdf": pymupdf}):
-            pages, _title, census = extract.extract_pages(Path("outside.pdf"))
+            pages, _title, census, boundaries, quantity_shapes = extract.extract_pages(
+                Path("outside.pdf")
+            )
 
         self.assertEqual(pages, ["\u2265\u2264\u2265"])
         self.assertEqual(census, {})
+        self.assertEqual(sum(boundaries.values()), 0)
+        self.assertEqual(quantity_shapes, {})
 
 
 class TheCensusThatStopsThisRecurringInSilence(unittest.TestCase):
@@ -877,6 +881,52 @@ class TheCensusReachesTheManifest(unittest.TestCase):
         is the same either way, and ``error`` is what tells them apart."""
         self.assertEqual(extract.failed_document(Path("SOC/d.pdf"), "boom").symbol_glyphs, {})
 
+    def test_a_record_carries_all_five_boundary_classes_and_quantity_shapes(self):
+        boundaries = {
+            "alpha|digit": 1,
+            "digit|alpha": 2,
+            "punct|digit": 3,
+            "digit|punct": 4,
+            "digit|digit": 5,
+        }
+        record = extract.build_document(
+            Path("SOC/doc.pdf"),
+            ["a page"],
+            Path(tempfile.mkdtemp()),
+            split_boundaries=boundaries,
+            quantity_split_shapes={"0.5 -> 0.|5": 3},
+        )
+
+        self.assertEqual(record.split_boundaries, boundaries)
+        self.assertEqual(record.quantity_split_shapes, {"0.5 -> 0.|5": 3})
+
+    def test_the_run_summary_names_every_class_distinct_shapes_and_the_verdict(self):
+        record = extract.Record(
+            doc_id="SOC/doc",
+            split_boundaries={
+                "alpha|digit": 1,
+                "digit|alpha": 2,
+                "punct|digit": 3,
+                "digit|punct": 4,
+                "digit|digit": 5,
+            },
+            quantity_split_shapes={"0.5 -> 0.|5": 3, "2024 -> 20|24": 2},
+        )
+
+        summary = "\n".join(extract.split_census_summary([record]))
+
+        for boundary in (
+            "alpha|digit",
+            "digit|alpha",
+            "punct|digit",
+            "digit|punct",
+            "digit|digit",
+        ):
+            self.assertIn(boundary, summary)
+        self.assertIn("5 quantity-shaped occurrence(s)", summary)
+        self.assertIn("2 distinct shape(s)", summary)
+        self.assertIn("FINDING", summary)
+
 class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
     """#178: the damage ``span_baselines`` could not reach, and what fixes it.
 
@@ -920,6 +970,7 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
     def test_the_footer_is_left_alone(self):
         text = "American Journal of Transplantation 2009; 9 (Suppl 3): S6-S9"
         self.assertEqual(extract.rebuild_text(self.footer(text)), text)
+
 
     def test_real_spaces_bound_local_spacing_regimes(self):
         """A long compressed phrase must not redefine normally spaced neighbors.
@@ -1073,6 +1124,26 @@ class TheLineSaysWhatASpaceIsWorth(unittest.TestCase):
         chars = line["spans"][0]["chars"]
         space = next(c for c in chars if c["c"] == " ")
         self.assertLess(advance, space["bbox"][2] - space["bbox"][0])
+
+class TheSharedGlyphWalk(unittest.TestCase):
+    def test_it_yields_each_glyph_and_marks_only_the_inserted_space(self):
+        line = rawline("abcd", 10.0, [0.0, 2.0, 0.0, 0.0])["blocks"][0]["lines"][0]
+
+        self.assertEqual(
+            list(extract.walk_line_glyphs(line)),
+            [("a", False), ("b", False), ("c", True), ("d", False)],
+        )
+
+    def test_rebuild_text_is_the_join_of_the_shared_walk(self):
+        page = rawline("abcd", 10.0, [0.0, 2.0, 0.0, 0.0])
+        line = page["blocks"][0]["lines"][0]
+        walked = "".join(
+            (" " if inserted else "") + glyph
+            for glyph, inserted in extract.walk_line_glyphs(line)
+        )
+
+        self.assertEqual(extract.rebuild_text(page), walked)
+
 
 class LineBaseline(unittest.TestCase):
     def test_it_is_the_median_gap(self):
