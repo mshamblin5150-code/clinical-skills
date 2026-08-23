@@ -141,7 +141,8 @@ class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(ProseBind, unittest.Tes
             "a pending culture does not by itself refuse a code whose descriptor names no organism",
             text,
         )
-        self.assertProseIn(
+        # The backticks make J18.9 a literal code, so its formatting is subject.
+        self.assertIn(
             "case 10 refuses `J18.9` because the absent film would establish the disease itself",
             text,
         )

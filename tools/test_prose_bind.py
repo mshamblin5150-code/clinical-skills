@@ -68,10 +68,11 @@ def repository_survivors(root: Path) -> set[tuple[str, str]]:
     non-Markdown guard can survive only by being declared with its reason.
 
     The 40-character cutoff is a proxy for *the haystack is prose*, not a length
-    rule. Lowering it found 26 sites: 19 raw OOXML assertions, two regex-pattern
-    assertions and one run-key template where prose normalization is meaningless,
-    plus four genuine prose sites. The 22 non-prose sites are why #445 keeps this
-    conservative floor and #474 owns haystack discrimination instead.
+    rule. A dated measurement on 2026-08-23 at ``d3e39e6`` lowered this function's
+    cutoff, classified the 26 returned assertion sites by haystack, and found 22
+    non-prose sites where normalization was meaningless. That historical 22-of-26
+    observation is why #445 kept this conservative floor and #474 owns haystack
+    discrimination instead; it is not a current inventory of the tree.
 
     This remains a membership floor. Prose enumeration or counting stays beyond
     #412's declared ceiling and can still undercount silently.
