@@ -157,3 +157,14 @@ about.
 **A grader that rewrites the line itself.** ADR 0019 rejected the same move for its mark:
 it makes a grader mutate a committed curated artifact, which is the opposite of this
 directory's posture, and it would need a write guard of its own.
+
+Correction, 2026-08-23: decision 4's second-machine ping-pong is narrower than the
+paragraph above states, and the narrowing was found by the tracker sweep this record's
+own merge triggered. `tools/hooks/pre-commit` invokes `threshold_sheet.py --all --quiet`
+with no `--pdf-root`, and unlike `--recs-root` and `--text-root` that flag has **no
+environment-variable override** — so on a second machine the hook resolves the absent
+maintainer path, tier 2 skips, and decision 2 never fires there at all. The ping-pong
+requires somebody running an explicit `--pdf-root`, which is a deliberate act rather than
+the ordinary commit path. That makes the declared limit smaller than it reads, not larger,
+so the ruling itself is unchanged — but a second machine's owner meets it at a command
+they typed rather than at a hook they did not.
