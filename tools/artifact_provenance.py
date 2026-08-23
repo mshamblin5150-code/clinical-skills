@@ -40,6 +40,31 @@ FLAG = "--allow-untrusted-provenance"
 FLAG_HELP_EFFECT = "traces to stderr on every check and continues"
 FLAG_HELP_NO_PUBLISH = "and refuses publication inside a git checkout"
 
+CACHE_IDENTITY = {
+    "extraction": (
+        "tools/guidelines_extract.py",
+        "tools/guidelines_manifest.py",
+        "tools/artifact_provenance.py",
+    ),
+    "index": (
+        "tools/guidelines_index.py",
+        "tools/guidelines_index_artifact.py",
+        "tools/guidelines_manifest.py",
+        "tools/artifact_provenance.py",
+    ),
+}
+
+TRUST_FLOOR = {
+    "extraction": (
+        "tools/guidelines_extract.py",
+        "tools/guidelines_manifest.py",
+    ),
+    "index": (
+        "tools/guidelines_index.py",
+        "tools/guidelines_manifest.py",
+    ),
+}
+
 WHY_NO_PUBLISH = (
     f"{FLAG} exists for deliberate development work, and publishing a committed "
     "artifact is not development work -- see issue #406 and docs/adr/0010. Send the "
@@ -146,6 +171,19 @@ def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
     return {"commit": commit, "dirty": dirty}
 
 
+def producer_file_identity(
+    paths: tuple[str, ...], repo_root: Path = REPO_ROOT
+) -> list[dict[str, str]]:
+    """Record the exact checkout bytes that determine an artifact's contents."""
+    return [
+        {
+            "path": Path(path).as_posix(),
+            "sha256": hashlib.sha256((repo_root / path).read_bytes()).hexdigest(),
+        }
+        for path in paths
+    ]
+
+
 def _is_checkout_ancestor(commit: str, repo_root: Path) -> bool:
     """Whether ``commit`` belongs to either side of the checkout's live history."""
     candidates = ["HEAD", "MERGE_HEAD"]
@@ -227,6 +265,8 @@ def check_producer(
             reasons.append("has no producer commit")
         if not isinstance(dirty, bool):
             reasons.append("has no producer dirty-state flag")
+        if inputs_match is None and unchanged_paths:
+            reasons.append("records no producer-file identity")
         if inputs_match is False:
             reasons.append("producer inputs do not match the current checkout")
         unchanged_ancestor = (
@@ -245,14 +285,15 @@ def check_producer(
         ):
             reasons.append(f"was produced by a different commit ({commit}; current is {expected})")
         if (
-            isinstance(commit, str)
-            and commit == expected
-            and unchanged_paths
-            and not _paths_unchanged(commit, unchanged_paths, repo_root)
+            unchanged_paths
+            and not _paths_unchanged("HEAD", unchanged_paths, repo_root)
             and inputs_match is not True
         ):
-            reasons.append("producer code has changed since the artifact was built")
-        if dirty is True:
+            reasons.append(
+                "producer files have uncommitted changes in the working tree "
+                "since the artifact was built"
+            )
+        if dirty is True and inputs_match is not True:
             reasons.append("was produced by a dirty checkout")
         if isinstance(commit, str) and commit and isinstance(dirty, bool):
             normalized = {"commit": commit, "dirty": dirty}
@@ -284,13 +325,13 @@ def check_derived(
         provenance.get("producer"),
         artifact,
         allow_untrusted=allow_untrusted,
-        unchanged_paths=("tools/guidelines_index.py",),
+        unchanged_paths=TRUST_FLOOR["index"],
     )
     source_check = check_producer(
         provenance.get("source"),
         f"{artifact} source manifest",
         allow_untrusted=allow_untrusted,
-        unchanged_paths=("tools/guidelines_extract.py",),
+        unchanged_paths=TRUST_FLOOR["extraction"],
     )
     inherited = provenance.get("untrusted_reasons")
     reasons: list[str] = []

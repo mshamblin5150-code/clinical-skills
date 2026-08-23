@@ -12,6 +12,7 @@ import tempfile
 import unittest
 import warnings
 from pathlib import Path
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parent
 REPO = TOOLS.parent
@@ -21,6 +22,69 @@ import artifact_provenance  # noqa: E402
 import uspstf_table  # noqa: E402
 from repo_root import InsideCheckout  # noqa: E402
 from prose_bind import ProseBind  # noqa: E402
+
+
+class ArtifactIdentityTables(unittest.TestCase):
+    def test_each_cache_identity_contains_its_content_trust_floor(self):
+        expected_cache = {
+            "extraction": {
+                "tools/guidelines_extract.py",
+                "tools/guidelines_manifest.py",
+                "tools/artifact_provenance.py",
+            },
+            "index": {
+                "tools/guidelines_index.py",
+                "tools/guidelines_index_artifact.py",
+                "tools/guidelines_manifest.py",
+                "tools/artifact_provenance.py",
+            },
+        }
+        expected_floor = {
+            "extraction": {
+                "tools/guidelines_extract.py",
+                "tools/guidelines_manifest.py",
+            },
+            "index": {
+                "tools/guidelines_index.py",
+                "tools/guidelines_manifest.py",
+            },
+        }
+
+        self.assertEqual(
+            {kind: set(paths) for kind, paths in artifact_provenance.CACHE_IDENTITY.items()},
+            expected_cache,
+        )
+        self.assertEqual(
+            {kind: set(paths) for kind, paths in artifact_provenance.TRUST_FLOOR.items()},
+            expected_floor,
+        )
+        for kind in expected_cache:
+            self.assertGreater(
+                set(artifact_provenance.CACHE_IDENTITY[kind]),
+                set(artifact_provenance.TRUST_FLOOR[kind]),
+            )
+
+    def test_the_derived_reader_uses_both_shared_trust_floors(self):
+        floors = {
+            "extraction": ("tools/extraction-sentinel.py",),
+            "index": ("tools/index-sentinel.py",),
+        }
+        trusted = artifact_provenance.ProvenanceCheck({}, ())
+        with (
+            mock.patch.object(artifact_provenance, "TRUST_FLOOR", floors),
+            mock.patch.object(
+                artifact_provenance, "check_producer", return_value=trusted
+            ) as check,
+        ):
+            artifact_provenance.check_derived(
+                {"producer": {}, "source": {}, "untrusted_reasons": []},
+                "index.sqlite",
+            )
+
+        self.assertEqual(
+            [call.kwargs["unchanged_paths"] for call in check.call_args_list],
+            [floors["index"], floors["extraction"]],
+        )
 
 
 class MergeParentTrustTests(unittest.TestCase):
@@ -50,6 +114,40 @@ class MergeParentTrustTests(unittest.TestCase):
             errors="replace",
         ).stdout.strip()
 
+    def test_a_legacy_stamp_names_its_missing_producer_file_identity(self):
+        commit = self._git("rev-parse", "HEAD")
+
+        with self.assertRaisesRegex(
+            artifact_provenance.UntrustedProvenance,
+            "records no producer-file identity",
+        ):
+            artifact_provenance.check_producer(
+                {"commit": commit, "dirty": False},
+                self.repo / "manifest.json",
+                repo_root=self.repo,
+                unchanged_paths=("tools/guidelines_extract.py",),
+            )
+
+    def test_an_older_stamp_also_names_a_new_uncommitted_working_tree_edit(self):
+        recorded = self._git("rev-parse", "HEAD")
+        (self.repo / "later.txt").write_text("later\n", encoding="utf-8")
+        self._git("add", "later.txt")
+        self._git("commit", "-m", "later commit")
+        (self.repo / "tools" / "guidelines_extract.py").write_text(
+            "EXTRACTOR = 'uncommitted'\n", encoding="utf-8"
+        )
+
+        with self.assertRaises(artifact_provenance.UntrustedProvenance) as refused:
+            artifact_provenance.check_producer(
+                {"commit": recorded, "dirty": False},
+                self.repo / "manifest.json",
+                repo_root=self.repo,
+                unchanged_paths=("tools/guidelines_extract.py",),
+            )
+
+        self.assertIn("different commit", str(refused.exception))
+        self.assertIn("uncommitted changes in the working tree", str(refused.exception))
+
     def test_an_unchanged_extractor_built_on_the_incoming_parent_is_trusted(self):
         (self.repo / "main.txt").write_text("main\n", encoding="utf-8")
         self._git("add", "main.txt")
@@ -60,9 +158,12 @@ class MergeParentTrustTests(unittest.TestCase):
         self._git("add", "feature.txt")
         self._git("commit", "-m", "feature work")
         self._git("merge", "--no-commit", "--no-ff", "main")
+        inputs = artifact_provenance.producer_file_identity(
+            ("tools/guidelines_extract.py",), repo_root=self.repo
+        )
 
         result = artifact_provenance.check_producer(
-            {"commit": incoming_parent, "dirty": False},
+            {"commit": incoming_parent, "dirty": False, "inputs": inputs},
             self.repo / "manifest.json",
             repo_root=self.repo,
             unchanged_paths=("tools/guidelines_extract.py",),
@@ -104,7 +205,7 @@ class MergeParentTrustTests(unittest.TestCase):
         self._git("merge", "--no-commit", "--no-ff", "main")
 
         with self.assertRaisesRegex(
-            artifact_provenance.UntrustedProvenance, "producer code has changed"
+            artifact_provenance.UntrustedProvenance, "working tree"
         ):
             artifact_provenance.check_producer(
                 {"commit": current_parent, "dirty": False},

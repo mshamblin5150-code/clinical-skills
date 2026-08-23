@@ -309,6 +309,9 @@ def build(
         target.parent.mkdir(parents=True, exist_ok=True)
         locks.enter_context(artifact_lock.hold(target, "building guideline index"))
         producer = artifact_provenance.current_producer()
+        producer["inputs"] = artifact_provenance.producer_file_identity(
+            artifact_provenance.TRUST_FLOOR["index"]
+        )
         producer_provenance = artifact_provenance.check_producer(
             producer,
             target,
