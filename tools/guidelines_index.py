@@ -58,7 +58,8 @@ build requires the manifest: without it, the shared text directory has no owner.
 dirty, foreign, stale, unstamped or unreadable manifest **raises** rather than
 degrading to derived values.
 ``--allow-untrusted-provenance`` is the explicit development escape hatch; the index
-records why its source was untrusted so a later search cannot launder the override.
+records why its source was untrusted so a later search cannot launder the override,
+and every accepted distrust traces to stderr where no warnings filter reaches it.
 A manifest entry with no extracted text is likewise **reported**, never swallowed,
 because #80's contract is a recorded failure rather than a silent skip.
 """
@@ -412,7 +413,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
-        help="index a dirty, foreign, or unstamped extracted corpus and warn",
+        help=(
+            "index a dirty, foreign, or unstamped extracted corpus; "
+            f"{artifact_provenance.FLAG_HELP_EFFECT}"
+        ),
     )
     args = parser.parse_args(argv)
 

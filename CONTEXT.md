@@ -40,6 +40,18 @@ _Avoid_: main post, discussion post, original post
 A short conversational answer to one named classmate's initial post. A separate graded artifact with its own word floor, and never a second initial post.
 _Avoid_: response, comment, peer review
 
+**Graded artifact**:
+One thing a course marks on its own — a board, a case study, a quiz. What identifies it is the artifact, not the module it sits in: a module normally holds several, so a module number names where something is rather than what it is.
+_Avoid_: assignment, deliverable, submission
+
+**Sitting**:
+One occasion of working on a graded artifact. An artifact is usually written over several, days apart, and each produces its own submission. A sitting is provenance and never identity.
+_Avoid_: session, attempt, revision
+
+**Run key**:
+The identity of a graded artifact, as course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed. It names the directory holding that artifact's whole provenance record, and prefixes the filename of every submission made from it.
+_Avoid_: slug, run id, folder name
+
 **Prompt**:
 The board's own statement of what one initial post must answer. It supplies that discussion's shape and does not necessarily supply its bar.
 _Avoid_: question, assignment, instructions
@@ -104,6 +116,18 @@ _Avoid_: draft, local copy
 The record of every new factual claim a graded document makes, one entry per claim, each naming what was searched, what was found, the page read and the date it was read on, and the result of an independent attempt to refute it. Written before the document that rests on it.
 _Avoid_: sources file, bibliography, notes
 
+**Run directory**:
+The one place a graded artifact's provenance is kept — its bar, its board snapshots, its claim and check ledgers, and the evidence it was handed. Named by the run key, so it carries no date and outlives every sitting.
+_Avoid_: run folder, workspace, scratch dir
+
+**Submission**:
+The finished document handed to the course, and the only artifact here a course marks. One per sitting, named by its run key and the date it was written, living in the checkout a person looks in rather than in whichever tree a run stood in.
+_Avoid_: final, output, deliverable
+
+**Evidence dump**:
+The topics the clinician was handed wholesale, and the whole of what was read without going looking. A claim it does not cover is one nobody opened, which is why it belongs to the run that was handed it rather than to the account.
+_Avoid_: sources, corpus, articles
+
 **Fixture**:
 A regression set derived from a working file with the visit date and site removed, committed so a skill's behavior can be checked after an edit.
 _Avoid_: test data, sample, example
@@ -152,6 +176,10 @@ _Avoid_: writing example, submission, document
 The whole of what a clinician typed into an assistant, handed over as one container. Unlike a writing sample nothing in it was chosen, so its contents are unreviewed by the person supplying it and unknown to the person reading it.
 _Avoid_: chat history, archive, dump
 
+**Publish**:
+Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
+_Avoid_: write, output, emit, save
+
 **Paste box**:
 The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
 _Avoid_: editor, text field, LMS box
@@ -167,6 +195,7 @@ _Avoid_: inline style, hard formatting, manual formatting
 **Dated observation**:
 A committed measurement of a third party this repo cannot re-derive, carrying the date, the instrument and the scope it was taken at in its own fields. Evidence that something behaved a certain way once, never a claim that it still does.
 _Avoid_: fixture, baseline, snapshot
+
 
 ### Guidelines
 
