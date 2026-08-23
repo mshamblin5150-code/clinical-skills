@@ -518,14 +518,34 @@ INTERVAL_PHRASE = re.compile(
 
 
 def derive_interval(statement: str) -> str:
-    """The screening interval named in the statement, verbatim and lowercased.
+    """The screening interval or modality-qualified alternatives in the statement.
 
     Most USPSTF recommendations name no interval at all -- an I statement has nothing to
     space out, and a counseling recommendation is not periodic -- so ``not stated`` is the
     common and correct answer here, not a gap.
     """
-    match = INTERVAL_PHRASE.search(statement)
-    return match.group(0).lower() if match else NOT_STATED
+    matches = list(INTERVAL_PHRASE.finditer(statement))
+    if not matches:
+        return NOT_STATED
+    if len(matches) == 1:
+        return matches[0].group(0).lower()
+
+    alternatives_end = len(statement)
+    population = derive_population(statement)
+    if population != NOT_STATED:
+        population_suffix = re.search(
+            rf"\s+in\s+{re.escape(population)}\.?\s*$", statement, re.I
+        )
+        if population_suffix:
+            alternatives_end = population_suffix.start()
+
+    alternatives = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else alternatives_end
+        qualifier = statement[match.end() : end]
+        qualifier = re.sub(r"[,;:\s]*(?:or|and)?\s*$", "", qualifier, flags=re.I)
+        alternatives.append(match.group(0).lower() + qualifier)
+    return "; ".join(alternatives)
 
 
 # The masthead that follows the title in every layout. Spaces are optional throughout
@@ -791,7 +811,9 @@ def render_markdown(results: list[DocumentResult]) -> str:
         "checked against the document in one jump — and a row that matters to a patient "
         "should be. `population` and `interval` are *derived from the statement text*, not "
         "quoted from a field the document declares; `not stated` means the rule found "
-        "nothing there, which for `interval` is the ordinary case rather than a gap."
+        "nothing there, which for `interval` is the ordinary case rather than a gap. "
+        "When one statement offers multiple intervals, `interval` keeps every "
+        "modality-qualified alternative in statement order, separated by semicolons."
     )
     out.append("")
     out.append(
