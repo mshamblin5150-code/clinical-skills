@@ -56,6 +56,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import artifact_lock
+import artifact_provenance
 from console_codec import use_utf8
 from guidelines_extract import CLASSES, publication_year_page_counts
 from guidelines_manifest import read_or_raise
@@ -898,7 +899,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
-        help="read a dirty, foreign, or unstamped extracted corpus and warn",
+        help=(
+            "read a dirty, foreign, or unstamped extracted corpus; "
+            f"{artifact_provenance.FLAG_HELP_EFFECT}"
+        ),
     )
     args = parser.parse_args(argv)
 

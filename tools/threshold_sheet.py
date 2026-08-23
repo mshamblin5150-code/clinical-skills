@@ -208,6 +208,7 @@ from pathlib import Path
 
 import guidelines_extract
 import guidelines_manifest
+import artifact_provenance
 from console_codec import use_utf8
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -2238,7 +2239,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
-        help="grade against a dirty, foreign, or unstamped extracted corpus and warn",
+        help=(
+            "grade against a dirty, foreign, or unstamped extracted corpus; "
+            f"{artifact_provenance.FLAG_HELP_EFFECT}"
+        ),
     )
     parser.add_argument(
         "--second-read",

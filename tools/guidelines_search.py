@@ -34,7 +34,7 @@ genuine zero, and 2 for every way of not having searched -- no index, a file tha
 not one, one built by another schema or commit, one carrying inherited distrust from
 its source manifest, a query that would not parse, or a ``--class`` or ``--society``
 value no document in the index carries. ``--allow-untrusted-provenance`` is explicit
-and warns. An index that had quietly failed to build would otherwise answer every
+and traces to stderr on every check. An index that had quietly failed to build would otherwise answer every
 clinical question with silence and look like a settled negative.
 
 **That last limb is #185's**, and it is the same defect one level up. The catalog and
@@ -310,7 +310,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
-        help="read a dirty, foreign, or unstamped index and warn",
+        help=(
+            "read a dirty, foreign, or unstamped index; "
+            f"{artifact_provenance.FLAG_HELP_EFFECT}"
+        ),
     )
     parser.add_argument(
         "--society",
