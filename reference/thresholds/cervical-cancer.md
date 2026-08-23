@@ -19,10 +19,9 @@ ruled in [ADR 0009](../../docs/adr/0009-a-topic-is-swept-on-what-the-guideline-s
 
 ## Scope
 
-**Read:** all five recommendation statements in the USPSTF recommendation table;
-the references are retired by class as a citation list.
+**Read:** all five recommendation statements in the USPSTF recommendation table.
 
-**Not read:** the rationale, clinical considerations, and evidence review.
+**Not read:** the rationale, clinical considerations, evidence review, and references.
 
 | span | pages | read |
 | --- | --- | --- |
