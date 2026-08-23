@@ -278,18 +278,19 @@ not resolve to the run's `--pdf-root` and a date in the future; an older date is
 finding. When the gate skipped, the line's content cannot be checked and is the only
 artifact-level distinction between *checked once against real PDFs* and *never checked*.
 
-The corpus token deliberately remains a machine-local path. A second machine with the
-same corpus at another root therefore refuses the first machine's declaration; its owner
-updates the line, and the first machine's next live run refuses in the mirror direction.
-That one-edit ping-pong is a declared limit and a re-ruling trigger, not a silent pass and
-not a request for date arithmetic.
+The corpus token deliberately remains a machine-local path. A second machine reaches a
+disagreement only when its owner explicitly supplies a live `--pdf-root`; the ordinary hook
+keeps the absent maintainer-path default there, so tier 2 skips and cannot compare the two
+paths. After an explicit live run, updating the line makes the maintainer's next live run
+refuse in the mirror direction. That one-edit ping-pong is a declared limit and a re-ruling
+trigger, not a silent pass and not a request for date arithmetic.
 
-After these holds, every line in `## Scope` is held by something. SCHEMA refuses a missing
-`Read:` or `Not read:` limb; CITATION tier 2 holds the resolution declaration in both its
-live and skipped states; and WATERMARK holds the accepted-distrust declaration that carries
-its otherwise unreproducible pass. The two declarations obey one **Held declaration**
-principle, not one mechanism: the resolution declaration holds a skip and presence, while
-the accepted-distrust declaration holds a pass.
+Every line currently present in `## Scope` is held by something. SCHEMA refuses a missing
+`Read:` or `Not read:` limb, and CITATION tier 2 holds the resolution declaration in both its
+live and skipped states. ADR 0019's accepted-distrust declaration is another instance of the
+same **Held declaration** principle, but its WATERMARK mechanism belongs to #460 and is not
+claimed by this build: the resolution declaration holds a skip and presence, while that
+separate declaration holds a pass.
 
 ### `## Populations`
 

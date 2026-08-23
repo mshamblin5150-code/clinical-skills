@@ -466,6 +466,14 @@ class CitationTier1(unittest.TestCase):
 
 class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
     @staticmethod
+    def require_pymupdf():
+        try:
+            import pymupdf
+        except ImportError:
+            raise unittest.SkipTest("pymupdf absent; tier 2 cannot produce a verdict")
+        return pymupdf
+
+    @staticmethod
     def parsed(text: str = HEADER) -> gate.Sheet:
         return gate.parse(
             text
@@ -479,10 +487,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
     @staticmethod
     @contextlib.contextmanager
     def live_pdf_root():
-        try:
-            import pymupdf
-        except ImportError:
-            raise unittest.SkipTest("pymupdf absent; tier 2 cannot produce a verdict")
+        pymupdf = TierTwoHoldsItsResolutionDeclaration.require_pymupdf()
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -550,6 +555,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
         self.assertIn("CITATION tier 2", err.getvalue())
 
     def test_a_live_failing_verdict_also_refuses_a_missing_declaration(self):
+        self.require_pymupdf()
         text = HEADER.replace(
             f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
             "",
@@ -568,6 +574,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
         )
 
     def test_corpus_disagreement_prints_beside_a_failing_live_verdict(self):
+        self.require_pymupdf()
         fictional = HEADER.replace(TEST_PDF_ROOT, "C:/nowhere")
 
         result = gate.gate_citation_tier2(
@@ -606,6 +613,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
         )
 
     def test_a_matching_older_declaration_adds_no_finding(self):
+        self.require_pymupdf()
         result = gate.gate_citation_tier2(
             self.parsed(),
             Path(__file__).resolve().parent,
