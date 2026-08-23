@@ -17,10 +17,13 @@ import unittest
 from pathlib import Path
 
 from repo_root import (
+    ForeignCheckout,
     InsideCheckout,
     enclosing_checkout,
+    ensure_main_checkout,
     ensure_outside_checkout,
     main_repo_root,
+    output_root,
     scratch_root,
 )
 
@@ -90,6 +93,19 @@ class ScratchRoot(Checkouts):
         about a layer going quiet, so the resolver must not quietly return None."""
         self.assertFalse(scratch_root(self.main / "tools").exists())
         self.assertEqual(scratch_root(self.main / "tools").name, "scratch")
+
+
+class OutputRoot(Checkouts):
+    """Finished submissions share the main checkout across worktrees -- #417."""
+
+    def test_from_a_worktree_it_points_at_the_main_checkout(self):
+        gitdir = self.main / ".git" / "worktrees" / "ticket-93"
+        tree = self.worktree(gitdir.as_posix())
+        self.assertEqual(output_root(tree / "tools"), self.main / "output")
+
+    def test_it_does_not_require_the_directory_to_exist(self):
+        self.assertFalse(output_root(self.main / "tools").exists())
+        self.assertEqual(output_root(self.main / "tools").name, "output")
 
 
 class EnclosingCheckout(Checkouts):
@@ -218,6 +234,31 @@ class EnsureOutsideCheckout(Checkouts):
             ensure_outside_checkout(scratch / "name-index.json", permitted=[scratch]),
             (scratch / "name-index.json").resolve(),
         )
+
+
+class EnsureMainCheckout(Checkouts):
+    """A finished submission may be external, but never in a disposable worktree."""
+
+    def test_it_allows_the_main_checkout(self):
+        target = self.main / "output" / "case-studies" / "draft.docx"
+        self.assertEqual(ensure_main_checkout(target, self.main / "tools"), target.resolve())
+
+    def test_it_allows_a_path_outside_every_checkout(self):
+        target = self.root / "rendered" / "draft.docx"
+        self.assertEqual(ensure_main_checkout(target, self.main / "tools"), target.resolve())
+
+    def test_it_refuses_a_foreign_worktree(self):
+        tree = self.worktree((self.main / ".git" / "worktrees" / "ticket-93").as_posix())
+        target = tree / "output" / "case-studies" / "draft.docx"
+        with self.assertRaises(ForeignCheckout) as refused:
+            ensure_main_checkout(target, self.main / "tools")
+        self.assertEqual(refused.exception.target, target.resolve())
+        self.assertEqual(refused.exception.expected, self.main)
+        self.assertIn(str(self.main / "output"), str(refused.exception))
+
+    def test_the_two_opposite_policies_have_sibling_exception_types(self):
+        self.assertTrue(issubclass(ForeignCheckout, ValueError))
+        self.assertFalse(issubclass(ForeignCheckout, InsideCheckout))
 
 
 if __name__ == "__main__":

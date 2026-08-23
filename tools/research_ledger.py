@@ -494,6 +494,7 @@ from datetime import date
 from pathlib import Path
 
 import run_grader
+import coursework_run
 from docx_write import markdown_tables, split_row
 
 # **The draft's reference list is parsed once, by the module that grades it.**
@@ -1756,6 +1757,14 @@ def _load(parsed: run_grader.Parsed) -> Source:
         draft_name = draft_path.name
         if not draft_path.is_file():
             raise run_grader.SourceError(f"no draft file named {draft_path.name}")
+        if (
+            coursework_run.is_submission(draft_path)
+            and coursework_run.is_run_directory(path.parent)
+            and not coursework_run.submission_belongs_to_run(draft_path, path.parent)
+        ):
+            raise run_grader.SourceError(
+                f"submission {draft_path.name} does not belong to run directory {path.parent.name}"
+            )
         draft_text = draft_path.read_text(encoding="utf-8", errors="replace")
         prescriptions = tuple(read_prescriptions(draft_text))
         half_anchored = half_anchored_tables(draft_text)

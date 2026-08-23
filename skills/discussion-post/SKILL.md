@@ -8,7 +8,7 @@ description: Read one LMS board and its course syllabus live, derive and confirm
 Write the clinician's initial post for one board. Its skeleton comes from that board's prompt and
 may change from one board to the next. Do not configure a skeleton or a course-specific bar.
 
-If the prompt asks for a worked clinical case, this is not the skill. Hand the board run directory
+If the prompt asks for a worked clinical case, this is not the skill. Hand the board URL
 to [practicum-case-study](../practicum-case-study/SKILL.md), whose clinical reasoning, coding, and
 patient safeguards are required. This routing line is also the PHI line: `discussion-post` never
 accepts patient material. A prompt asking for policy analysis, professional reflection, ethics,
@@ -24,12 +24,13 @@ The input is one board URL in the clinician's signed-in browser. A Canvas-style 
 `/courses/<id>/discussion_topics/<id>` supplies the course identifier needed to derive
 `/courses/<id>/assignments/syllabus`; do not ask for a second URL when that derivation works.
 
-Derive a lowercase run key from the live course and module breadcrumbs, with no date in it. A run
+Derive a lowercase run key from the live course and module breadcrumbs, then append this skill's
+fixed artifact word, `discussion`. The key has no date in it. A run
 is keyed to the board, not to the sitting, as recorded in
 [ADR 0005](../../docs/adr/0005-a-run-is-keyed-to-the-board.md). Write private state only under:
 
 ```text
-scratch/runs/<course>-<module>/
+scratch/runs/<course>-<module>-discussion/
     board-<date>.md
     posts/
     bar.md
@@ -43,8 +44,8 @@ one file per classmate for provenance. `post.md` is the private working draft, n
 artifact. Write the finished pair only to:
 
 ```text
-output/discussions/<course>-<module>.md
-output/discussions/<course>-<module>.docx
+output/discussions/<course>-<module>-discussion-<date>.md
+output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
 Parallel readers and researchers each receive a new run-unique private path that no sibling reads
@@ -56,9 +57,10 @@ temporary path.
 ## 1. Route from the prompt, then snapshot the nonpatient board
 
 Open the topic live and first read only its breadcrumbs and prompt. **If the prompt asks for a
-worked clinical case, stop this skill now.** Hand the board URL and the board run directory to
-`practicum-case-study`; do not read the classmate contributions, write a snapshot, derive a bar, or
-accept any patient material here. The clinical skill owns those patient-bearing reads and writes.
+worked clinical case, stop this skill now.** Hand the board URL to `practicum-case-study`; do not
+create a discussion run directory, read the classmate contributions, write a snapshot, derive a
+bar, or accept any patient material here. The clinical skill derives the `case-study` run key and
+owns those patient-bearing reads and writes.
 
 For a nonpatient prompt, continue in this skill. Read the point value, due dates, the clinician's
 existing contribution if any, every classmate initial post, and every nested reply. The live board
@@ -169,7 +171,7 @@ opened. A claim is never inherited from another sentence.
 After every research and refutation result is gathered, a fresh non-authoring context runs:
 
 ```bash
-python tools/research_ledger.py scratch/runs/<course>-<module>/claims.md
+python tools/research_ledger.py scratch/runs/<course>-<module>-discussion/claims.md
 ```
 
 Exit 0 means the records are mechanically complete, 1 means a finding, and 2 means the ledger was
@@ -202,7 +204,7 @@ walk. A new factual sentence is researched and independently refuted on the same
 
 ## 6. Write and independently grade the finished Markdown
 
-Copy the approved working text to `output/discussions/<course>-<module>.md`. Keep the
+Copy the approved working text to `output/discussions/<course>-<module>-discussion-<date>.md`. Keep the
 `AMPLIFICATION` comments in the Markdown working artifact so the count remains auditable; omit them
 from the LMS.
 
@@ -210,9 +212,9 @@ Fresh, non-authoring contexts run each artifact grader. One context never grades
 authored, and a repair is checked by another fresh context:
 
 ```bash
-python tools/research_ledger.py scratch/runs/<course>-<module>/claims.md
-python tools/reference_scan.py output/discussions/<course>-<module>.md --as-of <submission date>
-python tools/discussion_post_scan.py scratch/runs/<course>-<module> --draft output/discussions/<course>-<module>.md
+python tools/research_ledger.py scratch/runs/<course>-<module>-discussion/claims.md
+python tools/reference_scan.py output/discussions/<course>-<module>-discussion-<date>.md --as-of <submission date>
+python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md
 ```
 
 `reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
@@ -235,8 +237,8 @@ requires; do not substitute a reference count for either judgment.
 Render the checked Markdown:
 
 ```bash
-python tools/docx_write.py output/discussions/<course>-<module>.md output/discussions/<course>-<module>.docx --bold-headings
-python tools/discussion_post_scan.py scratch/runs/<course>-<module> --draft output/discussions/<course>-<module>.md --docx output/discussions/<course>-<module>.docx
+python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date>.md output/discussions/<course>-<module>-discussion-<date>.docx --bold-headings
+python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --docx output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
 If the renderer refuses an existing document, do not use `--force` without the clinician's

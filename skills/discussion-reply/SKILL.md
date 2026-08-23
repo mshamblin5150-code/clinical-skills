@@ -22,13 +22,14 @@ page live: its breadcrumbs, prompt, the clinician's initial post, every classmat
 nested reply. The live board is authoritative, including edits. Do not ask for pasted posts and do
 not use a draft under `output/` as the left-hand side.
 
-Derive a lowercase run key from the page's course and module breadcrumbs, with no date in it. A
+Derive a lowercase run key from the page's course and module breadcrumbs, then append the fixed
+artifact word `discussion`. The key has no date in it. A
 run is keyed to the board rather than to the sitting, as recorded in
 [ADR 0005](../../docs/adr/0005-a-run-is-keyed-to-the-board.md). Do not configure course names or
 module names elsewhere. Write only under the gitignored working directory:
 
 ```text
-scratch/runs/<course>-<module>/
+scratch/runs/<course>-<module>-discussion/
     board-<date>.md
     posts/
     claims.md

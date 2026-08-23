@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Grade one initial post against its signed mechanical bar.
 
-The source is one ``scratch/runs/<course>-<module>/`` directory and ``--draft``
+The source is one ``scratch/runs/<course>-<module>-discussion/`` directory and ``--draft``
 names the Markdown handoff under ``output/discussions/``. Default output is
 counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
@@ -41,6 +41,7 @@ from discussion_artifact import (
     split_references,
 )
 import run_grader
+import coursework_run
 
 
 WORD_FLOOR = "word-floor"
@@ -277,6 +278,23 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
     if not draft.is_file():
         raise run_grader.SourceError(f"no draft Markdown at {draft}")
+    if coursework_run.is_submission(draft):
+        expected = coursework_run.run_for_submission(draft)
+        if (
+            coursework_run.is_run_directory(root)
+            and not coursework_run.submission_belongs_to_run(draft, root)
+        ):
+            raise run_grader.SourceError(
+                f"submission {draft.name} does not belong to run directory {root.name}"
+            )
+        if not expected.is_dir():
+            raise run_grader.SourceError(
+                f"no run directory at {expected} for submission {draft.name}"
+            )
+        if root.resolve() != expected.resolve():
+            raise run_grader.SourceError(
+                f"submission {draft.name} does not belong to run directory {root.name}"
+            )
     try:
         bar = _read_bar(bar_path.read_text(encoding="utf-8"))
         claims = claims_path.read_text(encoding="utf-8")

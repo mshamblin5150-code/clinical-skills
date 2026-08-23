@@ -339,7 +339,9 @@ python tools/research_ledger.py <a ledger file> [--draft <a draft .md>] [--evide
 graded document and listed them in `PROPOSED` with **verify this** against each; the clinician's
 ruling is that such a claim gets researched, one agent per claim, in parallel. `SKILL.md` already
 said so. **What a written instruction cannot do is fail**, so the fan-out now writes one record per
-claim into `scratch/case-study-claims.md` and this grades them.
+claim into `scratch/runs/<course>-<module>-<artifact>/claims.md` and this grades them. The run key
+is undated and uses the fixed artifact vocabulary from ADR 0014; each submission stem appends its
+ISO sitting date. `coursework_run.py` owns that parse and the canonical run/submission populations.
 
 **The rows belong to three rulings.** #214's contract: every field present, `STATUS` one
 of two branches, an `unsourced` record saying what was searched, no citation field on an unsourced
@@ -576,7 +578,7 @@ Covered by `tools/test_reference_scan.py`, which builds synthetic drafts in that
 
 ### Post-draft checks
 
-The reference scan reads a `practicum-case-study` draft. This one reads **the record of the readers who read it** — `scratch/case-study-checks.md`, the second fan-out's file — and it is [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240).
+The reference scan reads a `practicum-case-study` draft. This one reads **the record of the readers who read it** — `scratch/runs/<course>-<module>-case-study/checks.md`, the second fan-out's file — and it is [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240).
 
 ```bash
 python tools/checks_ledger.py <a checks file>
@@ -1426,11 +1428,19 @@ Audit everything already committed with `python tools/phi_scan.py --all`.
 
 `scratch/` is gitignored, so `git worktree` does not bring it. Every tool that reached for it resolved through `Path(__file__).resolve().parent.parent`, which in a worktree is **the worktree** — a tree that has never had a corpus. [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93).
 
-`tools/repo_root.py` is the one place that resolves it now. `main_repo_root()` reads the worktree's `.git` pointer file and walks up to the clone that owns it; `scratch_root()` is that plus `scratch/`. **Run `python tools/phi_scan.py --layers` from a worktree and the corpus line reads `ACTIVE`** — the figures beside it are counted from `scratch/` and are deliberately not restated here, on `differential_scan.py`'s terms: nothing committed can re-derive a number measured against a directory under `scratch/`, and [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is what one such figure copied into many files becomes. They match what a dozen by-hand workarounds recorded on the ticket, which is the check worth making.
+`tools/repo_root.py` is the one place that resolves shared gitignored state now. `main_repo_root()` reads the worktree's `.git` pointer file and walks up to the clone that owns it; `scratch_root()` is that plus `scratch/`, and `output_root()` is that plus `output/`. **Run `python tools/phi_scan.py --layers` from a worktree and the corpus line reads `ACTIVE`** — the figures beside it are counted from `scratch/` and are deliberately not restated here, on `differential_scan.py`'s terms: nothing committed can re-derive a number measured against a directory under `scratch/`, and [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is what one such figure copied into many files becomes. They match what a dozen by-hand workarounds recorded on the ticket, which is the check worth making.
+
+**Finished submissions belong to the main checkout, not to a disposable worktree.**
+`docx_write.write_docx` calls `ensure_main_checkout()` before it creates the destination directory.
+A path inside the main checkout is allowed; an explicit temporary export outside every checkout is
+allowed; a path inside any foreign checkout is exit 2 and names the correct main `output/` root.
+This points opposite to `ensure_outside_checkout()` because the artifacts differ: guideline builds
+must stay outside every checkout, while graded submissions must survive worktree removal. The two
+policies use sibling `ValueError` types and no caller can receive both from one call.
 
 **Two tools shared the line and failed differently, and the difference is why one cost a firewall and the other a ticket.** `corpus_census.py` degraded *loudly* — it named the path it looked at and stopped — so #78 got its figures by typing the main checkout's path as an argument. `phi_scan.py` degraded *silently*: the corpus layer went quiet, the shape layer kept passing, and the commit went through on two thirds of its evidence. `harvest_review.py` imports `phi_scan` and inherits whatever it does, which is now the fix.
 
-**The count of modules repeating that line is not a to-do list**, and the ticket thread invites reading it as one — it has been posted there as 11, corrected to 14, re-derived as 20, and this paragraph first said 21 and was **23 by the time the branch it was written on finished**. That is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape happening inside the paragraph warning about it, which is why no number is stated here now. The durable claim is the qualitative one: **most of those callers want the worktree** — a test reading `fixtures/`, `scan_all` walking the files being committed, `_git` choosing a working directory — and **moving them would make a worktree scan somebody else's tree**, which is worse than the bug. Only a caller reaching for `scratch/` wants the main checkout. `phi_scan` holds both roots as two named constants for exactly that reason.
+**The count of modules repeating that line is not a to-do list**, and the ticket thread invites reading it as one — it has been posted there as 11, corrected to 14, re-derived as 20, and this paragraph first said 21 and was **23 by the time the branch it was written on finished**. That is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape happening inside the paragraph warning about it, which is why no number is stated here now. The durable claim is the qualitative one: **most of those callers want the worktree** — a test reading `fixtures/`, `scan_all` walking the files being committed, `_git` choosing a working directory — and **moving them would make a worktree scan somebody else's tree**, which is worse than the bug. Only a caller reaching for account-owned gitignored state wants the main checkout: `scratch/` is working material and `output/` is handed-in work. `phi_scan` holds both roots as two named constants because its tracked-file scans still want the worktree.
 
 **An absent corpus is exit 2 — *did not scan*.** That is `guidelines_search.py`'s convention, already copied into `specificity_scan`, `differential_scan`, `anchor_scan` and `block_scan`, and #93 names the defect it fixes in its own comments: *those two exit-0s mean different things and nothing in the status distinguishes them*. The hook needed no edit — it already ORs any non-zero into its status. **Where a finding and a dead corpus both hold, 1 wins**, on `differential_scan.py`'s reasoning, and the layer report prints above it so the refusal reads as a floor.
 

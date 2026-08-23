@@ -32,7 +32,7 @@ It now takes the assignment URL, derives the key off the breadcrumbs, and transc
 
 **Keep `<course>-<module>` and assert one graded artifact per module.** Rejected, and it is the option that looks cheapest because it is what the convention already assumed without saying. It is an unverified claim about an LMS, holding up a join key, that this repo cannot check — which is its own recurring failure: a check that could not have worked, reading as a settled negative.
 
-**Keep `<course>-<module>` as a container and type the artifact into the filenames inside** — `claims.md` for the board, `case-study-claims.md` beside it. Rejected. Every ledger filename becomes artifact-typed, and two unrelated artifacts share a directory for no reason beyond sharing a module number.
+**Keep `<course>-<module>` as a container and distinguish the artifacts through ledger filenames inside** — `claims.md` for the board and a differently named case-study ledger beside it. Rejected. Ledger naming becomes artifact-specific, and two unrelated artifacts share a directory for no reason beyond sharing a module number.
 
 **Key on the slugged breadcrumb leaf.** Rejected on the evidence above. Its one genuine advantage is that a module holding two case studies does not collide.
 

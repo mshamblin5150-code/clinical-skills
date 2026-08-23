@@ -21,7 +21,7 @@ actually about: not that every writer takes a guard, but that nobody
 re-implements the rule.
 
 **And the divergences that survive are intentional rather than discovered.**
-Three of them: one module blesses a directory inside a checkout, one returns a
+They include a module that blesses a directory inside a checkout, one that returns a
 reason string instead of raising, and the command lines do not agree on the exit
 status a refusal produces. #303 ruled that each command keeps the status its own
 boundary gives the refusal. Each is argued where it lives; this file is where a
@@ -42,6 +42,7 @@ from unittest import mock
 import guidelines_extract
 import guidelines_index
 import artifact_provenance
+import docx_write
 import guidelines_recs
 import name_index
 import voice_corpus
@@ -203,6 +204,18 @@ class Checkout:
             "voice_corpus": self.refused_by_voice_corpus(target),
         }
 
+    def refused_by_docx(self, target: Path) -> bool:
+        source = self.root / "case.md"
+        source.write_text("# Case\n", encoding="utf-8")
+        stderr = io.StringIO()
+        with mock.patch.object(repo_root, "main_repo_root", return_value=self.clone):
+            with contextlib.redirect_stderr(stderr):
+                status = docx_write.main([str(source), str(target / "case.docx")])
+        if status == 2 and "foreign checkout" in stderr.getvalue():
+            return True
+        self.case.assertEqual(status, 0, "docx writer did not reach the allow path")
+        return False
+
 
 class EveryWriteSiteReachesTheSameVerdict(unittest.TestCase):
     """Driven through each site's own entry point, never through the helper.
@@ -247,6 +260,30 @@ class EveryWriteSiteReachesTheSameVerdict(unittest.TestCase):
 
     def test_a_directory_under_no_checkout_at_all_is_allowed_everywhere(self):
         self.assert_all(self.tree.root / "elsewhere", False)
+
+
+class TheOutputSiteReachesTheOppositeVerdict(unittest.TestCase):
+    """The submission writer permits only the main checkout, plus external exports."""
+
+    def setUp(self):
+        self.tree = Checkout(self)
+
+    def test_the_main_checkout_is_allowed(self):
+        self.assertFalse(self.tree.refused_by_docx(self.tree.clone / "output"))
+
+    def test_a_sibling_worktree_is_refused(self):
+        self.assertTrue(self.tree.refused_by_docx(self.tree.worktree / "output"))
+
+    def test_a_sibling_of_the_clone_is_allowed(self):
+        self.assertFalse(self.tree.refused_by_docx(self.tree.root / "guidelines-index"))
+
+    def test_a_name_prefix_is_not_the_main_checkout(self):
+        self.assertFalse(
+            self.tree.refused_by_docx(self.tree.root / "clinical_skills-notes")
+        )
+
+    def test_a_directory_under_no_checkout_is_allowed(self):
+        self.assertFalse(self.tree.refused_by_docx(self.tree.root / "elsewhere"))
 
 
 class TheIntentionalDivergences(unittest.TestCase):
@@ -480,10 +517,10 @@ class EveryWriteSiteImportsTheRule(unittest.TestCase):
     **The list is typed, and that is a ceiling rather than coverage** -- the
     distinction ``test_build_artifacts_ignored.py`` records about its own third
     name, which went stale under a rename with the check green throughout. A
-    *fifth writer* that took no guard at all is invisible here, and deriving the
+    new writer that took no guard at all is invisible here, and deriving the
     list is not available: the predicate would have to decide which tools write,
-    which the class above explains is not mechanical. What catches a fifth
-    *rule* is that class; what this catches is one of these four being unwired.
+    which the class above explains is not mechanical. What catches another
+    *rule* is that class; what this catches is a listed site being unwired.
     """
 
     WRITERS = {
@@ -492,6 +529,7 @@ class EveryWriteSiteImportsTheRule(unittest.TestCase):
         "guidelines_recs.py": "ensure_outside_checkout",
         "name_index.py": "enclosing_checkout",
         "voice_corpus.py": "enclosing_checkout",
+        "docx_write.py": "ensure_main_checkout",
     }
 
     def test_every_writer_imports_the_rule_from_repo_root(self):
