@@ -152,6 +152,10 @@ _Avoid_: writing example, submission, document
 The whole of what a clinician typed into an assistant, handed over as one container. Unlike a writing sample nothing in it was chosen, so its contents are unreviewed by the person supplying it and unknown to the person reading it.
 _Avoid_: chat history, archive, dump
 
+**Publish**:
+Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
+_Avoid_: write, output, emit, save
+
 ### Guidelines
 
 **Threshold sheet**:

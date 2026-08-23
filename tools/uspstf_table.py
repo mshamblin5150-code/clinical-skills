@@ -46,8 +46,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import artifact_provenance
 from console_codec import use_utf8
 from guidelines_manifest import read_or_raise
+from repo_root import InsideCheckout
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
@@ -934,9 +936,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
-        help="read a dirty, foreign, or unstamped extracted corpus and warn",
+        help=(
+            "read a dirty, foreign, or unstamped extracted corpus; "
+            f"{artifact_provenance.FLAG_HELP_EFFECT}, "
+            f"{artifact_provenance.FLAG_HELP_NO_PUBLISH}"
+        ),
     )
     args = parser.parse_args(argv)
+
+    # Asked of the arguments alone and before the expensive read, on #176's lesson:
+    # `guidelines_extract` used to ask this after loading a PDF library and
+    # `guidelines_recs` after reading the document, so a refused run had already
+    # spent the half that costs. Where the output lands is a question about argv.
+    try:
+        artifact_provenance.refuse_publication(
+            args.out, allow_untrusted=args.allow_untrusted_provenance
+        )
+    except InsideCheckout as refused:
+        print(str(refused), file=sys.stderr)
+        return 2
 
     try:
         results = build(
