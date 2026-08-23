@@ -12,7 +12,9 @@ an invented Assessment heading.
 **Drift row 24's mechanical floor** reads every physical ``FILLED·proposed``
 opener, including an unnumbered one, and checks same-line guideline tails against
 the shipped USPSTF and threshold sheets wherever a direct join is mechanical. A
-known screening, counseling, immunization, vaccination, target, cutoff or threshold
+``recalled, no shipped sheet`` verdict is a finding when the subject joins a topic
+registered with an artifact; an undecidable join stays a candidate. A known
+screening, counseling, immunization, vaccination, target, cutoff or threshold
 subject without a tail is a finding. Any other absent tail is a candidate outside
 the exit status, because the scanner cannot decide whether that item rests on a
 population or threshold. It also cannot decide whether a correctly extracted
@@ -218,6 +220,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+import threshold_coverage
 
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
 # extension -- which is what keeps ``97.3`` and ``4/10`` out.
@@ -327,6 +330,7 @@ THRESHOLD_SIGNAL = re.compile(
 REFERENCE_ROOT = Path(__file__).resolve().parent.parent / "reference"
 USPSTF_SHEET = REFERENCE_ROOT / "guidelines-uspstf.md"
 THRESHOLD_ROOT = REFERENCE_ROOT / "thresholds"
+THRESHOLD_COVERAGE = THRESHOLD_ROOT / "coverage.md"
 
 
 # **What this scanner's validation set does not reach**, declared rather than
@@ -756,10 +760,13 @@ def _topic_words(text: str) -> set[str]:
         "infection",
         "offered",
         "of",
+        "recheck",
         "review",
         "screening",
         "status",
         "the",
+        "week",
+        "weeks",
     }
     words = {
         word
@@ -778,20 +785,39 @@ def _topic_words(text: str) -> set[str]:
     return words
 
 
-def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
-    """High-confidence lexical joins only; synonym-shaped misses stay candidates."""
+def _lexical_subject_topic_names(item: str, topics: tuple[str, ...]) -> set[str]:
+    """Return topic names making the one high-confidence lexical join."""
     words = _topic_words(item)
-    decisive: list[tuple[str, str, str]] = []
-    for row in USPSTF_ROWS:
-        shared = words & _topic_words(row[0])
+    decisive: set[str] = set()
+    for topic in topics:
+        shared = words & _topic_words(topic)
         if not shared:
             continue
         # A one-token subject such as HIV is decisive. Longer subjects need most
         # of their informative words joined; ``blood pressure`` alone must not
         # join an adult screening item to the pediatric sheet row.
         if words <= shared or (len(shared) >= 2 and len(shared) / len(words) >= 0.67):
-            decisive.append(row)
+            decisive.add(topic)
     return decisive
+
+
+def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
+    """High-confidence lexical joins only; synonym-shaped misses stay candidates."""
+    topic_names = _lexical_subject_topic_names(item, tuple(row[0] for row in USPSTF_ROWS))
+    return [row for row in USPSTF_ROWS if row[0] in topic_names]
+
+
+def _threshold_artifact_topics() -> tuple[tuple[str, str], ...]:
+    """Registry topic and artifact pairs, whatever the row's sweep state."""
+    entries, problems = threshold_coverage.parse_registry(
+        THRESHOLD_COVERAGE.read_text(encoding="utf-8")
+    )
+    if problems:
+        raise RuntimeError("; ".join(problems))
+    return tuple((entry.topic, entry.artifact) for entry in entries if entry.artifact)
+
+
+THRESHOLD_ARTIFACT_TOPICS = _threshold_artifact_topics()
 
 
 def _uspstf_citation_matches(item: str, grade: str, year: str) -> bool | None:
@@ -918,6 +944,18 @@ def _guideline_floor(
             subject = (item.text[: match.start()] + item.text[match.end() :]).strip()
             lowered = tail.casefold()
             if lowered.startswith("recalled, no shipped sheet"):
+                checked += 1
+                topics = tuple(topic for topic, _artifact in THRESHOLD_ARTIFACT_TOPICS)
+                if _lexical_subject_topic_names(subject, topics):
+                    findings.append(
+                        GuidelineFinding(
+                            item.line,
+                            "recalled, no shipped sheet contradicts a shipped topic",
+                            item.text,
+                        )
+                    )
+                else:
+                    candidates.append(GuidelineCandidate(item.line, item.text))
                 continue
             if lowered.startswith("uspstf:"):
                 checked += 1

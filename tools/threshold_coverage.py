@@ -72,9 +72,12 @@ def render_draft(topics: list[str]) -> str:
 
 def audit(
     topics: list[str], entries: list[Entry], sheet_root: Path
-) -> tuple[list[str], Counter[str]]:
+) -> tuple[list[str], Counter[str], Counter[str]]:
     failures: list[str] = []
     counts = Counter(entry.state for entry in entries if entry.state in STATES)
+    artifact_counts = Counter(
+        entry.state for entry in entries if entry.state in STATES and entry.artifact
+    )
     by_topic: dict[str, list[Entry]] = {}
     for entry in entries:
         by_topic.setdefault(entry.topic.casefold(), []).append(entry)
@@ -123,7 +126,7 @@ def audit(
             continue
         if path.name.casefold() not in registered:
             failures.append(f"sheet '{path.name}' has no registry artifact")
-    return failures, counts
+    return failures, counts, artifact_counts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -154,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as error:
         print(error, file=sys.stderr)
         return 2
-    failures, counts = audit(topics, entries, args.sheet_root)
+    failures, counts, artifact_counts = audit(topics, entries, args.sheet_root)
     failures = parse_problems + failures
     if failures:
         for failure in failures:
@@ -162,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"topics     {len(topics)}")
     for state in STATES:
-        print(f"{state:<10} {counts[state]}")
+        print(f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}")
     return 0
 
 

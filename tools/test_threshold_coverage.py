@@ -82,9 +82,13 @@ class ThresholdCoverageCli(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("topics     2", result.stdout)
-        self.assertIn("none       1", result.stdout)
-        self.assertIn("unread     1", result.stdout)
+        self.assertEqual(
+            result.stdout,
+            "topics     2\n"
+            "sheet      0   artifacts   0\n"
+            "none       1   artifacts   0\n"
+            "unread     1   artifacts   0\n",
+        )
 
     def test_missing_topic_duplicate_topic_and_unknown_state_refuse(self):
         result = self.run_cli(
@@ -149,6 +153,13 @@ class ThresholdCoverageCli(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 0, result.stderr)
+        state_artifacts = [
+            int(line.rsplit(maxsplit=1)[1])
+            for line in result.stdout.splitlines()
+            if "artifacts" in line
+        ]
+        self.assertEqual(state_artifacts, [0, 0, 1])
+        self.assertEqual(sum(state_artifacts), 1)
 
     def test_the_committed_registry_audits_against_the_committed_catalog_and_sheets(self):
         result = subprocess.run(

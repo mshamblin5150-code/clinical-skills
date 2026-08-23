@@ -661,13 +661,13 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.addCleanup(self._tmp.cleanup)
 
-    def run_command(self, proposed: str) -> tuple[int, str, str]:
+    def run_command(self, proposed: str, *extra: str) -> tuple[int, str, str]:
         text = self.DIFFERENTIAL + proposed + "\nFLAG              none\n"
         (self.root / "case-01.md").write_text(text, encoding="utf-8")
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            status = ds.main([str(self.root)])
+            status = ds.main([str(self.root), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
     def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
@@ -736,6 +736,38 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         )
 
         self.assertEqual(status, 0)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+    def test_a_false_no_shipped_sheet_claim_is_caught_by_the_registry_topic(self):
+        control = (
+            "FILLED·proposed   1. Blood pressure recheck in 4 weeks "
+            "[thresholds/hypertension: sheet does not settle it]"
+        )
+        control_status, control_report, _ = self.run_command(control)
+        mutated = control.replace(
+            "thresholds/hypertension: sheet does not settle it",
+            "recalled, no shipped sheet",
+        )
+        self.assertNotEqual(mutated, control, "the mutation changed no guideline tail")
+
+        status, report, _ = self.run_command(mutated, "--show")
+
+        self.assertEqual(control_status, 0, control_report)
+        self.assertEqual(status, 1, report)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+        self.assertRegex(
+            report,
+            r"line 6\s+ROW 24\s+recalled, no shipped sheet contradicts a shipped topic",
+        )
+
+    def test_a_no_shipped_sheet_claim_without_a_topic_join_stays_a_candidate(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. Continue lisinopril 20 mg daily "
+            "[recalled, no shipped sheet]"
+        )
+
+        self.assertEqual(status, 0, report)
         self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertIn("row 24 candidates - dependency needs a reader  1", report)
 
