@@ -63,6 +63,6 @@ It fired four times in two days across five tickets, and twice it fired on the *
 **Whether the correction rule was applied honestly.** Nothing checks that an in-place edit to a ratified record left the dated line, or that what was edited was a fact rather than a ruling. That is a reading, and it stays one.
 
 Correction, 2026-08-23: this sentence formerly read "its heading and status lines".
-No ratified record has ever carried a status line and none was ever committed; the
-clause described a house convention that did not exist. [#472]. The ruling itself is
+No ratified record carried a status line when this record was committed; the clause
+described a house convention that did not exist then. [#472]. The ruling itself is
 unchanged.

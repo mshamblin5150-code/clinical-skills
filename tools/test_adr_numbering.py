@@ -100,6 +100,7 @@ class AdrNumberUniquenessTests(unittest.TestCase):
             scaffold = adr_next.write_claim(checkout, 0, title)
             scaffold_opening = scaffold.read_text(encoding="utf-8").splitlines()[0]
             opening_marker = scaffold_opening.removesuffix(adr_next.display_title(title))
+            self.assertTrue(opening_marker, "the scaffold opening marker must not be empty")
 
         records = sorted((adr_next.REPO_ROOT / "docs" / "adr").glob("*.md"))
         denominator = len(records)
