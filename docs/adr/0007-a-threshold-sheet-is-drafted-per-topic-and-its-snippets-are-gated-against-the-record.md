@@ -20,7 +20,7 @@ The clinician ruled, 2026-08-22:
 
 **The sheet's rows have never been hand-edited.** Three commits in its life: the build, and those two prose corrections. The curated artifact has been curated only in prose.
 
-**`recs-<key>.json` carries the full recommendation `text`, and no gate reads it.** The only comparison of record text to anything is `gate_citation_tier2`, which opens the 392 MB of source PDFs and skips wherever they are absent. So the snippet — the one cell whose purpose is to make a fabricated citation detectable — was checked against the PDFs or against nothing.
+**`recs-<key>.json` carries the full recommendation `text`, and no gate reads it.** The only comparison of record text to anything is `gate_citation_tier2`, which opens the 410,197,235 bytes of source PDFs and skips wherever they are absent. So the snippet — the one cell whose purpose is to make a fabricated citation detectable — was checked against the PDFs or against nothing.
 
 **Tier 0 is free where it can run.** Snippet-is-a-substring-of-its-own-record, measured over both shipped sheets under three folds including `threshold_sheet._normalize` and `guidelines_recs.fold`:
 
@@ -37,7 +37,7 @@ The fold made **zero** difference to either, so the diabetes misses are not typo
 
 ## Considered options
 
-**Leave the generator outside and declare the limit** — the ticket's own no-move branch, on [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)'s *declare the coverage*. Rejected once the disk argument was measured against the right object. `guidelines-src` is **392 MB** and stays outside on [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)'s terms, untouched by this. `build_htn_sheet.py` is **23.7 KB**, and all seven scripts together are 48 KB — about 8000:1. Keeping the corpus out saves what the clinician wanted saved; keeping the script out saves nothing and costs the four things the ticket lists.
+**Leave the generator outside and declare the limit** — the ticket's own no-move branch, on [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)'s *declare the coverage*. Rejected once the disk argument was measured against the right object. `guidelines-src` is **410,197,235 bytes** and stays outside on [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)'s terms, untouched by this. `build_htn_sheet.py` is **23.7 KB**, and all seven scripts together are 48 KB — about four orders of magnitude. Keeping the corpus out saves what the clinician wanted saved; keeping the script out saves nothing and costs the four things the ticket lists.
 
 **Freehand authoring, on `diabetes.md`'s precedent.** Rejected, and it was the closest call, because it is the only option with a shipped instance: [#186](https://github.com/mshamblin5150-code/clinical-skills/issues/186) produced `reference/thresholds/diabetes.md` on 2026-08-20 with no generator at all — an agent read the guideline and wrote the committed Markdown, gates green. What decided against it is that freehand makes a language model **retype the snippet**, which is the one cell that exists to be un-retypeable, once per row for as many topics as get swept.
 
@@ -70,3 +70,5 @@ It holds for a reason that is checkable rather than promised: **the draft emits 
 **The quoting posture's ground changes and the prose does not yet say so.** `reference/thresholds/README.md` names public domain only about USPSTF. After a sweep it would read as covering the corpus, when for the other 89 documents the posture rests on short attributed quotation instead. That paragraph is owed.
 
 **`build_htn_sheet.py` is a live hazard until it is retired.** Running it today reinstates a retired figure and deletes a #223 ruling with the suite green. Its `RAW` block is also a second, unbound copy of 74 clinical values, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s shape carrying thresholds instead of prose. It is superseded by `threshold_draft.py` rather than preserved.
+
+Correction, 2026-08-23: the two corpus-size statements formerly read `392 MB`, and the script-to-corpus comparison read `about 8000:1`. The size was corrected to bytes to follow #87, and the moving ratio was replaced with its decision-relevant order of magnitude. The ruling itself is unchanged.

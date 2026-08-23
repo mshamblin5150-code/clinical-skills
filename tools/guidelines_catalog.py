@@ -6,7 +6,7 @@ index of the guideline corpus.
     python tools/guidelines_catalog.py --audit-draft <pdf-dir> # emit a blind audit
 
 The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
-repo** and stays there: 410 MB, most of it society-copyrighted, and no consumer
+repo** and stays there: most of it society-copyrighted, and no consumer
 needs the sources, they need the derived facts. Issue #87.
 
 **The catalog is curated, not generated, and that is the point.** ``--draft``
@@ -558,7 +558,7 @@ def check_legend(text: str) -> list[str]:
     """The ``class`` legend publishes exactly the vocabulary the index can answer.
 
     Needs no corpus, which is the point: the artifacts that would otherwise settle this
-    -- the 410 MB source corpus, the extracted text, the FTS index -- all live outside
+    -- the source corpus, the extracted text, the FTS index -- all live outside
     every checkout and are absent on most machines, so a check that needed them would
     be a check that mostly did not run. Both vocabularies are tracked, one as this
     legend row and one as ``guidelines_extract.CLASSES``.

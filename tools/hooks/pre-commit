@@ -22,6 +22,15 @@ for python in python python3 py; do
         # staged Markdown, Python and filenames are clean. See tools/spelling_scan.py.
         "$python" "$repo_root/tools/spelling_scan.py" --quiet >&2 || true
 
+        # Advisory because ADR 0016 rules that another worktree's uncommitted
+        # draft may warn but must never refuse this commit. The allocation tool
+        # names every other worktree claiming a staged number. No staged ADR
+        # means this cross-worktree read costs nothing.
+        if git diff --cached --name-only -M --diff-filter=ACMR \
+            | grep -q '^docs/adr/'; then
+            "$python" "$repo_root/tools/adr_next.py" --check-staged >&2 || true
+        fi
+
         status=0
 
         # **The second thing in this repo that can refuse a commit, and the first
