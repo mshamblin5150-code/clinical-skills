@@ -99,6 +99,12 @@ citations resolved against C:/nowhere on 2026-08-16
 | --- | --- |
 | adults | adults |
 | adults-ckd | adults with chronic kidney disease |
+
+## Quantities
+
+| key | verbatim |
+| --- | --- |
+| bp-goal | blood pressure goal |
 """
 
 
@@ -159,6 +165,12 @@ citations resolved against C:/nowhere on 2026-08-16
 | --- | --- |
 | adults | adults |
 | adults-ckd | adults with chronic kidney disease |
+
+## Quantities
+
+| key | verbatim |
+| --- | --- |
+| bp-goal | blood pressure goal |
 """
 
 
@@ -220,9 +232,17 @@ class Parsing(unittest.TestCase):
         self.assertEqual(len(parsed.rows), 1)
         self.assertEqual(len(parsed.sources), 1)
         self.assertEqual(len(parsed.populations), 2)
+        self.assertEqual(parsed.quantities, {"bp-goal": "blood pressure goal"})
 
 
 class SchemaGate(unittest.TestCase):
+    def test_an_undeclared_quantity_key_fails(self):
+        result = gate.gate_schema(sheet(row(quantity="screening-interval")))
+        self.assertTrue(
+            any("'## Quantities'" in message for message in result.findings),
+            result.findings,
+        )
+
     def test_an_undeclared_population_key_fails(self):
         """The key is the whole conflict mechanism, so an undeclared one is not a
         typo -- it is a row that can never be compared with any other."""
@@ -300,7 +320,7 @@ class RawInputOperatorGate(unittest.TestCase):
         """The raw-input refusal preserves the sheet line that needs a visual read."""
         parsed = sheet(row(value="\u001f120 mm Hg"))
         self.assertFalse(parsed.ok)
-        self.assertIn("test-sheet.md:30", parsed.why_not)
+        self.assertIn("test-sheet.md:36", parsed.why_not)
         self.assertIn("U+001F", parsed.why_not)
         self.assertIn("PyMuPDF", parsed.why_not)
 
@@ -309,7 +329,7 @@ class RawInputOperatorGate(unittest.TestCase):
         self.assertEqual("a\u001eb".splitlines(), ["a", "b"])
         parsed = sheet(row(value="\u001e120 mm Hg"))
         self.assertFalse(parsed.ok)
-        self.assertIn("test-sheet.md:30", parsed.why_not)
+        self.assertIn("test-sheet.md:36", parsed.why_not)
         self.assertIn("U+001E", parsed.why_not)
         self.assertIn("PyMuPDF", parsed.why_not)
 
@@ -884,7 +904,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
         _, out, _ = self.run_grade(True, self.BROKEN)
         self.assertIn("CITATION TIER 2 DID NOT RUN", out)
 
-    def test_all_quiet_suppresses_exactly_the_29_report_lines(self):
+    def test_all_quiet_suppresses_exactly_the_31_report_lines(self):
         def stdout_for(*arguments: str) -> str:
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -912,7 +932,23 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
                 loud = stdout_for()
                 quiet = stdout_for("--quiet")
 
-        self.assertEqual(len(loud.splitlines()) - len(quiet.splitlines()), 29)
+        self.assertEqual(len(loud.splitlines()) - len(quiet.splitlines()), 31)
+
+    def test_all_excludes_the_topic_coverage_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheet_path = root / "topic.md"
+            sheet_path.write_text("sheet", encoding="utf-8")
+            (root / "coverage.md").write_text("registry", encoding="utf-8")
+            scan = gate.Scan(gate.Sheet(sheet_path))
+            with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
+                gate, "survey", return_value=scan
+            ) as survey:
+                status = gate.main(["--all"])
+
+        self.assertEqual(status, 0)
+        self.assertEqual(survey.call_count, 1)
+        self.assertEqual(survey.call_args.args[0], sheet_path)
 
 
 class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
@@ -1970,11 +2006,17 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 encoding="utf-8",
             )
             marker = root / "threshold-ran"
+            coverage_marker = root / "coverage-ran"
             for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
                 (root / "tools" / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
             (root / "tools" / "threshold_sheet.py").write_text(
                 "import os, pathlib\n"
                 "pathlib.Path(os.environ['THRESHOLD_HOOK_MARKER']).write_text('ran')\n",
+                encoding="utf-8",
+            )
+            (root / "tools" / "threshold_coverage.py").write_text(
+                "import os, pathlib\n"
+                "pathlib.Path(os.environ['COVERAGE_HOOK_MARKER']).write_text('ran')\n",
                 encoding="utf-8",
             )
             subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
@@ -1985,15 +2027,23 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             readme = root / "reference" / "thresholds" / "README.md"
             readme.write_text("prose only\n", encoding="utf-8")
             subprocess.run([git, "add", "--", str(readme)], cwd=root, check=True)
-            environment = {**os.environ, "THRESHOLD_HOOK_MARKER": str(marker)}
+            environment = {
+                **os.environ,
+                "THRESHOLD_HOOK_MARKER": str(marker),
+                "COVERAGE_HOOK_MARKER": str(coverage_marker),
+            }
             subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
             self.assertFalse(marker.exists(), "README.md invoked the sheet grader")
+            self.assertFalse(coverage_marker.exists(), "README.md invoked the coverage auditor")
 
             actual_sheet = root / "reference" / "thresholds" / "hypertension.md"
             actual_sheet.write_text("a sheet\n", encoding="utf-8")
             subprocess.run([git, "add", "--", str(actual_sheet)], cwd=root, check=True)
             subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
             self.assertTrue(marker.exists(), "an actual sheet did not invoke the grader")
+            self.assertTrue(
+                coverage_marker.exists(), "an actual sheet did not invoke the coverage auditor"
+            )
 
     def test_the_hook_command_warns_and_passes_without_a_recommendation_record(self):
         shell = shutil.which("sh")
@@ -2023,6 +2073,9 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             )
             for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
                 (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
+            (tools / "threshold_coverage.py").write_text(
+                "raise SystemExit(0)\n", encoding="utf-8"
+            )
             sheet_path = sheets / "hypertension.md"
             shutil.copy2(gate.SHEET_ROOT / "hypertension.md", sheet_path)
 

@@ -171,8 +171,20 @@ The shortest verbatim fragment of a guideline that carries a decision point, quo
 _Avoid_: quote, excerpt, evidence, text
 
 **Decision point**:
-A quantity a guideline attaches a value to, which a clinician acts on — a threshold, a target, a duration, a dose ceiling. A recommendation carrying no such quantity has none.
+A quantity a guideline attaches a value to that changes what is done to a patient — a dose, a period, a cutoff, or a target. It is read from what the guideline states, never inferred from a catalog or recommendation index. A recommendation carrying no such quantity has none.
 _Avoid_: threshold, recommendation, criterion
+
+**Quantity key**:
+The stable name for what a threshold row measures. A method-dependent value names the method in this key, so the method is neither mistaken for a patient population nor reported as a conflict.
+_Avoid_: metric, field, variable
+
+**Coverage registry**:
+The one-row-per-topic record of the threshold-sheet sweep. Its topic population is derived from the guideline catalog, and each row names whether the topic has a sheet, was read and had no decision point, or remains unread.
+_Avoid_: checklist, index, inventory
+
+**Sweep state**:
+One of `sheet`, `none`, or `unread`. `none` means the guideline was read and states no decision point; `unread` establishes nothing.
+_Avoid_: status, result, disposition
 
 **Scoped out**:
 A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.

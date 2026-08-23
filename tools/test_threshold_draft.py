@@ -125,6 +125,7 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("## Candidate set", result.stdout)
         self.assertIn("## Rejected candidates", result.stdout)
+        self.assertIn("## Quantities", result.stdout)
         self.assertIn("|  |  |  | \"Adults should have an SBP goal below 130 mm Hg.\"", result.stdout)
         self.assertIn("| aha-2025 | p3 | p3/topic/1 | 1 |", result.stdout)
         source_row = next(
