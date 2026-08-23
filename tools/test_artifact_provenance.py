@@ -128,6 +128,26 @@ class MergeParentTrustTests(unittest.TestCase):
                 unchanged_paths=("tools/guidelines_extract.py",),
             )
 
+    def test_an_older_stamp_also_names_a_new_uncommitted_working_tree_edit(self):
+        recorded = self._git("rev-parse", "HEAD")
+        (self.repo / "later.txt").write_text("later\n", encoding="utf-8")
+        self._git("add", "later.txt")
+        self._git("commit", "-m", "later commit")
+        (self.repo / "tools" / "guidelines_extract.py").write_text(
+            "EXTRACTOR = 'uncommitted'\n", encoding="utf-8"
+        )
+
+        with self.assertRaises(artifact_provenance.UntrustedProvenance) as refused:
+            artifact_provenance.check_producer(
+                {"commit": recorded, "dirty": False},
+                self.repo / "manifest.json",
+                repo_root=self.repo,
+                unchanged_paths=("tools/guidelines_extract.py",),
+            )
+
+        self.assertIn("different commit", str(refused.exception))
+        self.assertIn("uncommitted changes in the working tree", str(refused.exception))
+
     def test_an_unchanged_extractor_built_on_the_incoming_parent_is_trusted(self):
         (self.repo / "main.txt").write_text("main\n", encoding="utf-8")
         self._git("add", "main.txt")

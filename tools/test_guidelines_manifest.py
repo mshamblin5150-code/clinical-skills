@@ -109,6 +109,31 @@ class ManifestSerializationTests(unittest.TestCase):
             expected_bytes = (json.dumps(expected, indent=2, ensure_ascii=False) + "\n").encode()
             self.assertEqual(path.read_bytes(), expected_bytes)
 
+    def test_the_extraction_writer_imports_the_shared_trust_floor(self):
+        floors = {
+            "extraction": ("tools/extraction-sentinel.py",),
+            "index": ("tools/index-sentinel.py",),
+        }
+        inputs = [{"path": floors["extraction"][0], "sha256": "a" * 64}]
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                mock.patch.object(extract.artifact_provenance, "TRUST_FLOOR", floors),
+                mock.patch.object(
+                    extract.artifact_provenance,
+                    "producer_file_identity",
+                    return_value=inputs,
+                ) as identity,
+                mock.patch.object(extract, "_engine_version", return_value="engine-test"),
+            ):
+                extract.write_manifest(
+                    Path(tmp),
+                    [manifest.Record(doc_id="USPSTF/screening")],
+                    Path("C:/outside/guidelines-src"),
+                    producer={"commit": "f" * 40, "dirty": False},
+                )
+
+        identity.assert_called_once_with(floors["extraction"])
+
 
 class ManifestOwnershipTests(unittest.TestCase):
     def test_only_the_owner_assigns_manifest_name(self):

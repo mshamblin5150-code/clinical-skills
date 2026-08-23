@@ -230,6 +230,27 @@ class SeparatingDifferentInputs(BuildCommandCase):
             ],
         )
 
+    def test_artifact_stamps_are_filtered_by_the_shared_trust_floor(self):
+        floors = {
+            "extraction": ("tools/extraction-sentinel.py",),
+            "index": ("tools/index-sentinel.py",),
+        }
+        identity = {
+            "kind": "index",
+            "producer_files": (
+                {"path": "tools/index-sentinel.py", "sha256": "a" * 64},
+                {"path": "tools/cache-only.py", "sha256": "b" * 64},
+            ),
+        }
+
+        with mock.patch.object(artifact_provenance, "TRUST_FLOOR", floors):
+            stamped = guidelines_build._trusted_producer(self.producer, identity)
+
+        self.assertEqual(
+            stamped["inputs"],
+            [{"path": "tools/index-sentinel.py", "sha256": "a" * 64}],
+        )
+
     def test_extraction_stamping_is_owned_by_the_manifest_module(self):
         import guidelines_manifest
 

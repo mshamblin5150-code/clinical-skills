@@ -285,10 +285,8 @@ def check_producer(
         ):
             reasons.append(f"was produced by a different commit ({commit}; current is {expected})")
         if (
-            isinstance(commit, str)
-            and commit == expected
-            and unchanged_paths
-            and not _paths_unchanged(commit, unchanged_paths, repo_root)
+            unchanged_paths
+            and not _paths_unchanged("HEAD", unchanged_paths, repo_root)
             and inputs_match is not True
         ):
             reasons.append(

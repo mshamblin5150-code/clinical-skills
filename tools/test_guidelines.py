@@ -579,6 +579,37 @@ class RepoContainmentTests(TempCorpus):
 
 
 class BuildTests(TempCorpus):
+    def test_the_index_writer_imports_the_shared_trust_floor(self):
+        write_single(self.text_dir, "IDSA/2010-uti", ["one"])
+        write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
+        floors = {
+            **artifact_provenance.TRUST_FLOOR,
+            "index": ("tools/test_guidelines.py",),
+        }
+        real_identity = artifact_provenance.producer_file_identity
+
+        with (
+            mock.patch.object(artifact_provenance, "TRUST_FLOOR", floors),
+            mock.patch.object(
+                artifact_provenance,
+                "producer_file_identity",
+                wraps=real_identity,
+            ) as producer_identity,
+        ):
+            gi.build(self.text_dir, self.db)
+
+        self.assertIn(mock.call(floors["index"]), producer_identity.call_args_list)
+        with closing(sqlite3.connect(self.db)) as connection:
+            provenance = json.loads(
+                connection.execute(
+                    "SELECT value FROM meta WHERE key = 'provenance'"
+                ).fetchone()[0]
+            )
+        self.assertEqual(
+            provenance["producer"]["inputs"],
+            real_identity(floors["index"]),
+        )
+
     def test_a_dirty_index_build_is_trusted_by_its_exact_inputs(self):
         write_single(self.text_dir, "IDSA/2010-uti", ["one"])
         write_manifest(self.text_dir, [{"doc_id": "IDSA/2010-uti"}])
