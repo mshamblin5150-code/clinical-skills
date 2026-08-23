@@ -180,6 +180,10 @@ _Avoid_: chat history, archive, dump
 Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
 _Avoid_: write, output, emit, save
 
+**Accepted distrust**:
+A verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
+_Avoid_: provenance stamp, taint, untrusted flag
+
 **Paste box**:
 The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
 _Avoid_: editor, text field, LMS box
