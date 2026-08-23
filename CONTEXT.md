@@ -189,3 +189,15 @@ _Avoid_: status, result, disposition
 **Scoped out**:
 A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.
 _Avoid_: excluded, skipped, filtered, ignored
+
+**Glued run**:
+Several words reaching the extracted text with no space between them, because the PDF positioned the glyphs and set no space glyph. The information is not lost — the geometry still carries the boundary — so a glued run is a reconstruction failure and never an absence.
+_Avoid_: run-on, mangled word, concatenation
+
+**Digit-break**:
+A space the reconstruction inserted with a digit on at least one side of it. The class matters because a quantity broken apart is the one extraction defect this repo cannot afford, and it is graded by boundary class rather than in aggregate — a boundary between two digits is a different risk from one beside a decimal point.
+_Avoid_: number split, bad break
+
+**Orphaned figure**:
+A published measurement whose producing instrument no longer exists, so no command will ever print it again. It is a declared limit rather than a stale figure — nothing will make it decay and nothing will make it re-derivable — and it is named in one object that prose points at rather than copies.
+_Avoid_: historical figure, legacy number, dated result
