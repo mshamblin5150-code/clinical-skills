@@ -1,7 +1,3 @@
----
-status: accepted
----
-
 # A declared verdict is held by the machine that can re-derive it
 
 [#473](https://github.com/mshamblin5150-code/clinical-skills/issues/473) is the spillover
