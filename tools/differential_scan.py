@@ -371,7 +371,7 @@ NOT_VALIDATED_AGAINST = (
     ),
     (
         "the aggregate of the exit-2 limbs",
-        "Each of the four ways of not having scanned is separately correct and "
+        "Each way of not having scanned is separately correct and "
         "separately documented above, and none of them says what they come to "
         "together. **That total used to be *nothing committed is legible here at "
         "all*, and ``fixtures/slot-form-run`` ended it.** The residue is narrower "
