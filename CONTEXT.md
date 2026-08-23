@@ -171,8 +171,20 @@ The shortest verbatim fragment of a guideline that carries a decision point, quo
 _Avoid_: quote, excerpt, evidence, text
 
 **Decision point**:
-A quantity a guideline attaches a value to, which a clinician acts on — a threshold, a target, a duration, a dose ceiling. A recommendation carrying no such quantity has none.
+A quantity a guideline attaches a value to, which a clinician acts on — a cutoff, a target, a period, a duration, a dose. Read off what the guideline states, never off an index derived from it: an index may carry no column for the quantity, and a topic does not lack a decision point because the index is silent about it. A recommendation carrying no such quantity has none.
 _Avoid_: threshold, recommendation, criterion
+
+**Quantity key**:
+The identifier a threshold row files its number under. Declared once in the sheet with the guideline's own wording verbatim beside it, on the same terms as a population key, so a mis-keyed row is a wrong word a reader can see rather than a silent miss. Where one guideline states several values for one quantity depending on the method chosen, the method belongs in this key and never in the population.
+_Avoid_: metric, measure, field, label
+
+**Coverage registry**:
+The record of which topics have been swept for decision points and what came of each, one row per topic, keyed to the catalog's own topic cells. It is what lets an absent sheet be told apart from an unexamined topic.
+_Avoid_: index, manifest, tracker, coverage report
+
+**Sweep state**:
+What the coverage registry records about one topic: `sheet` where one exists, `none` where the guideline was read and states no quantity, `unread` where nothing has been established. `none` is a finding a reader may lean on and `unread` is not, which is the distinction the registry exists to carry.
+_Avoid_: verdict, status, result
 
 **Scoped out**:
 A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.
