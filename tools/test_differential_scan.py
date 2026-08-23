@@ -430,6 +430,16 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         )
 
         documented = " ".join((ds.__doc__ or "").split())
+        limbs = tuple(limb for limb, _argv in cases)
+        self.assertEqual(limbs, ds.GRADER.exit_2_limbs)
+        exact_enumeration = (
+            "scanned** -- "
+            + ", ".join(limbs[:-1])
+            + ", and "
+            + limbs[-1]
+            + ".** The last three matter most"
+        )
+        self.assertIn(exact_enumeration, documented)
         for limb, argv in cases:
             with self.subTest(limb=limb):
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
