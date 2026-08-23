@@ -42,7 +42,7 @@ stamping the USPSTF table on the ground that it *"records the problem where the 
 prevents it"*, and here nothing prevents it: the crossing is a person committing a file.
 The ground that rejected a record does not hold.
 
-`artifact_provenance.NOT_GUARDED`'s first row already declares the neighbouring shape, and
+`artifact_provenance.NOT_GUARDED`'s first row already declares the neighboring shape, and
 this is not that row restated. A hand-copied file is the same bytes the guard saw. A
 WATERMARK pass is an assertion that a gate was satisfied, and the hook's own re-grade
 cannot contradict it — it returns *skipped*, not *disagrees*.
@@ -83,7 +83,7 @@ mode that already exists.
 This is the half that could most easily have gone wrong. The precedent the mark copies —
 `citations resolved against <corpus> on <date>` in a sheet's `## Scope` — is hand-written
 and touches no exit status, and `reference/thresholds/README.md` records what that costs
-in a neighbouring clause: it was *"the one part of the format a sheet could drop for free,
+in a neighboring clause: it was *"the one part of the format a sheet could drop for free,
 and dropping it scored cleaner."* A mark on those terms would make the honest artifact
 score worse than the silent one, in a file about clinical numbers. Holding the pass inverts
 the incentive: omit the mark and you have not claimed a pass, you have a skip — which is
@@ -97,7 +97,7 @@ the artifact has no other way to tell them apart, and they are the whole differe
 the mark should cost them. They are free to author, because the run that requires the mark
 is the run that just printed them. The comparison is free too: decision 3 already forces the
 grader to parse the mark, so checking that it describes *this* distrust is the same read.
-Without it a mark copied from a neighbouring sheet satisfies the rule while describing an
+Without it a mark copied from a neighboring sheet satisfies the rule while describing an
 event that never happened to that file — #460's own complaint rebuilt inside its fix.
 
 **5. A run in which the gate genuinely passes against a trusted corpus refuses while the
