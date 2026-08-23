@@ -2063,6 +2063,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "artifact_provenance.py",
                 "guidelines_extract.py",
                 "guidelines_manifest.py",
+                "guidelines_recs.py",
                 "console_codec.py",
                 "repo_root.py",
             ):
