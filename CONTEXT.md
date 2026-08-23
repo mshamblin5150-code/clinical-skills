@@ -180,6 +180,23 @@ _Avoid_: chat history, archive, dump
 Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
 _Avoid_: write, output, emit, save
 
+**Paste box**:
+The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
+_Avoid_: editor, text field, LMS box
+
+**Clipboard courier**:
+A rendered `.docx` that exists only to be opened and copied from, never uploaded and never graded. Its own layout is inspected by a person and reaches no reader.
+_Avoid_: submission copy, output document, export
+
+**Direct formatting**:
+A run or paragraph property written onto the element itself rather than inherited from a named style. The only form that survives the clipboard, because a style is carried by reference and the reference is what a paste target drops.
+_Avoid_: inline style, hard formatting, manual formatting
+
+**Dated observation**:
+A committed measurement of a third party this repo cannot re-derive, carrying the date, the instrument and the scope it was taken at in its own fields. Evidence that something behaved a certain way once, never a claim that it still does.
+_Avoid_: fixture, baseline, snapshot
+
+
 ### Guidelines
 
 **Threshold sheet**:
@@ -217,3 +234,15 @@ _Avoid_: status, result, disposition
 **Scoped out**:
 A recommendation the sheet's source states and the sheet deliberately does not carry, named by identifier so the omission is recorded rather than silent.
 _Avoid_: excluded, skipped, filtered, ignored
+
+**Glued run**:
+Several words reaching the extracted text with no space between them, because the PDF positioned the glyphs and set no space glyph. The information is not lost — the geometry still carries the boundary — so a glued run is a reconstruction failure and never an absence.
+_Avoid_: run-on, mangled word, concatenation
+
+**Digit-break**:
+A space the reconstruction inserted with a digit on at least one side of it. The class matters because a quantity broken apart is the one extraction defect this repo cannot afford, and it is graded by boundary class rather than in aggregate — a boundary between two digits is a different risk from one beside a decimal point.
+_Avoid_: number split, bad break
+
+**Orphaned figure**:
+A published measurement whose producing instrument no longer exists, so no command will ever print it again. It is a declared limit rather than a stale figure — nothing will make it decay and nothing will make it re-derivable — and it is named in one object that prose points at rather than copies.
+_Avoid_: historical figure, legacy number, dated result
