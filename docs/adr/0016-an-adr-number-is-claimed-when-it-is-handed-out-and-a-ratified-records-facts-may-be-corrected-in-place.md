@@ -28,7 +28,7 @@ It fired four times in two days across five tickets, and twice it fired on the *
 
 **A ratified record's facts may be corrected in place, and a dated line at the bottom records what they said and why they changed.** The paragraph that does the *deciding* stays untouchable. **The filename is an index rather than the ruling, so a record may be renamed with `git mv`** — never delete-and-re-add, which loses `git log --follow`.
 
-**A number is claimed at the moment it is handed out.** `tools/adr_next.py` takes a title, reads every worktree's `docs/adr/` — the working tree and not only what is committed — writes the file with its heading and status lines already in it, and prints the path. The claim and the check are the same act.
+**A number is claimed at the moment it is handed out.** `tools/adr_next.py` takes a title, reads every worktree's `docs/adr/` — the working tree and not only what is committed — writes the file with its heading already in it, and prints the path. The claim and the check are the same act.
 
 **A test asserts no two files in `docs/adr/` share a four-digit stem.** It lives in `tools/`, so `python -m unittest discover -s tools -t tools` runs it and CI runs it at every merge with no workflow edit.
 
@@ -61,3 +61,8 @@ It fired four times in two days across five tickets, and twice it fired on the *
 **An abandoned worktree still on disk.** Its draft keeps its number claimed and the sequence skips one. Harmless: the number is an index and not a count, so a gap costs nothing.
 
 **Whether the correction rule was applied honestly.** Nothing checks that an in-place edit to a ratified record left the dated line, or that what was edited was a fact rather than a ruling. That is a reading, and it stays one.
+
+Correction, 2026-08-23: this sentence formerly read "its heading and status lines".
+No ratified record has ever carried a status line and none was ever committed; the
+clause described a house convention that did not exist. [#472]. The ruling itself is
+unchanged.

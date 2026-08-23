@@ -92,6 +92,27 @@ class AdrNumberUniquenessTests(unittest.TestCase):
     def test_the_real_adr_directory_is_unique(self) -> None:
         self.assertTrue(adr_stems_are_unique_on_disk(adr_next.REPO_ROOT / "docs" / "adr"))
 
+    def test_the_scaffold_and_real_adr_records_share_an_opening_shape(self) -> None:
+        with TemporaryDirectory() as tmp:
+            checkout = Path(tmp)
+            (checkout / "docs" / "adr").mkdir(parents=True)
+            title = "opening marker"
+            scaffold = adr_next.write_claim(checkout, 0, title)
+            scaffold_opening = scaffold.read_text(encoding="utf-8").splitlines()[0]
+            opening_marker = scaffold_opening.removesuffix(adr_next.display_title(title))
+
+        records = sorted((adr_next.REPO_ROOT / "docs" / "adr").glob("*.md"))
+        denominator = len(records)
+        self.assertGreaterEqual(denominator, 10, f"{denominator} ADR records checked")
+        # This binds only the opening shape; a later section such as ## Status is outside it.
+        for record in records:
+            with self.subTest(record=record.name, denominator=denominator):
+                self.assertEqual(
+                    record.read_text(encoding="utf-8")[: len(opening_marker)],
+                    opening_marker,
+                    f"{denominator} ADR records checked",
+                )
+
 
 class AdrPreCommitHookTests(unittest.TestCase):
     def test_the_cross_worktree_check_is_staged_only_and_advisory(self) -> None:
@@ -116,7 +137,7 @@ class AdrNextCommandTests(TempGitRepository):
         self.assertTrue(destination.is_file())
         self.assertEqual(
             destination.read_text(encoding="utf-8"),
-            "---\nstatus: proposed\n---\n\n# A record is corrected in place\n",
+            "# A record is corrected in place\n",
         )
         self.assertEqual(finished.stdout.strip(), "docs/adr/0010-a-record-is-corrected-in-place.md")
         self.assertIn("2 worktrees enumerated", finished.stderr)
