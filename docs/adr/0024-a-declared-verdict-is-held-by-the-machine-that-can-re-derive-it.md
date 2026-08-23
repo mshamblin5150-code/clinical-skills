@@ -89,11 +89,12 @@ The two lines do **not** obey one mechanism, and saying they do would be false: 
 pass, the other holds a skip and a presence requirement. They obey one principle, and it now
 has a name.
 
-The stronger statement, and the one `## Scope` carries: **after this record, every line in
-that section is held by something.** `Read:` and `Not read:` are already refused when
-missing, the resolution line is held in both states, and #460's mark holds WATERMARK's pass.
-Nothing in `## Scope` is droppable for free any more, which is what ADR 0019's decision 3
-was really about.
+The stronger statement for the tree this record builds is: **every line currently present
+in `## Scope` is held by something.** `Read:` and `Not read:` are refused when missing, and
+the resolution line is held in both states. #460's accepted-distrust mark is a separate
+instance of the same principle, but its WATERMARK mechanism is not claimed by this build.
+Nothing this record adds to `## Scope` is droppable for free, which is what ADR 0019's
+decision 3 was really about.
 
 ## The finding that shaped the build
 
