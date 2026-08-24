@@ -17,7 +17,7 @@ Grilled on 2026-08-23. The clinician ruled every point below on the same day.
 7. **A second read's record names what it was briefed on**, and a span retired on a null carries a dated marker in the sheet itself. A span retired with no rows and no marker is refused.
 8. **The registry auditor checks the state against the artifact's page arithmetic, in both directions.** A `sheet` row whose artifact still lists an unread span is refused, and so is a non-`sheet` row whose artifact shows every page read.
 9. **A reference list may be retired by class, and nothing else may.** The exemption is written in the table with its reason, so a sheet that reached `sheet` with spans exempted says so on its face.
-10. **A reading ticket may retire spans that hold nothing before [#464](https://github.com/mshamblin5150-code/clinical-skills/issues/464) lands, and may not record a narrative row until it does.** The three exact-source sheets are sequenced behind that ticket for their positive half only. ADR 0009's order is unchanged.
+10. **A reading ticket may retire spans that hold nothing before [#464](https://github.com/mshamblin5150-code/clinical-skills/issues/464) lands, and may not record a narrative row until it does.** The three exact-source sheets are sequenced behind that ticket for their positive half only. ADR 0009's order is unchanged. **Point 10 is ruled by [ADR 0026](0026-a-threshold-row-s-rec-is-a-source-locator-and-narrative-is-a-reserved-kind.md), 2026-08-24, and is discharged when that record's build lands rather than when it was ratified.** The half-block stands until then.
 
 ## The premise #471 was filed on does not hold
 

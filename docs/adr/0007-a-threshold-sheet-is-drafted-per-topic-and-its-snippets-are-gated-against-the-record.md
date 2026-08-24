@@ -8,7 +8,7 @@ The clinician ruled, 2026-08-22:
 
 1. **A threshold sheet is drafted, not hand-transcribed.** `tools/threshold_draft.py` emits a skeleton with the machine-settleable cells filled and every judgment cell blank, on `guidelines_catalog.py --draft`'s arrangement. It prints to stdout.
 2. **The scaffolder is a separate module from the auditor.** `threshold_sheet.py` grades; it does not make.
-3. **A new `CITATION tier 0` gates every snippet against its own recommendation record** — refusing on an `exact` source, reporting `NOT RUN` on a `bound` one.
+3. **A new `CITATION tier 0` gates every snippet against its own recommendation record** — refusing on an `exact` source, reporting `NOT RUN` on a `bound` one. **Point 3 is narrowed rather than overruled — see [ADR 0026](0026-a-threshold-row-s-rec-is-a-source-locator-and-narrative-is-a-reserved-kind.md), 2026-08-24.** It reaches the rows that claim to come from the record; a row carrying a reserved `narrative` locator is graded by that record's mirror instead.
 4. **The sweep is not bounded by copyright.** Every PDF in the corpus was publicly available and unpaywalled; none is excluded.
 5. **The unit is the topic, not the document**, and only where the topic has decision points.
 
