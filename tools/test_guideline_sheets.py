@@ -362,7 +362,7 @@ class TheDriftMatrixCarriesRow24(unittest.TestCase):
         self.assertIn("a clean scan is not a walked row 24", self.text)
 
 
-class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
+class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
     """The half that is not a tautology: every cited example, re-derived."""
 
     @classmethod
@@ -409,6 +409,14 @@ class TheSkillsExamplesStillMatchTheSheets(unittest.TestCase):
         self.assertEqual(sheets, registered)
         self.assertIn("thresholds/coverage.md", self.text)
         self.assertIn("thresholds/coverage.md", self.agents)
+
+    def test_both_consumers_join_threshold_sheets_on_the_artifact_column(self):
+        rule = (
+            "A run joins a threshold sheet on the artifact column, "
+            "whatever the row's state"
+        )
+        self.assertProseIn(rule, self.text)
+        self.assertProseIn(rule, self.agents)
 
     def test_the_colorectal_example_is_a_real_uspstf_row(self):
         # One regex over the whole row, never a separate assertIn for the year --
@@ -588,7 +596,7 @@ class TheCoderGainsNoObligation(ProseBind, unittest.TestCase):
         # standing rule 4's mention-versus-use distinction and `spelling_scan`'s
         # rule, arriving in a test that was written the same week as both.
         self.assertProseNotIn("for the same reason: no guidelines ship here", self.text)
-        self.assertNotIn("and for the same reason: no guidelines", self.text)
+        self.assertProseNotIn("and for the same reason: no guidelines", self.text)
 
     def test_the_outpatient_rule_names_what_does_ship_and_why_it_misses(self):
         self.assertIn("CMS and NCHS document", self.text)

@@ -11,16 +11,20 @@ both halves of what that costs: the *trace*, which announces an accepted distrus
 on a channel no warnings filter reaches, and the *publication rule*, which refuses
 to let an untrusted read publish inside a git checkout. #406, and docs/adr/0010.
 
-What neither reaches is ``NOT_GUARDED``.
+For the two curated artifacts a person can carry a verdict into, this module also
+owns the accepted-distrust declaration grammar and the pass/retirement rule. #460,
+and docs/adr/0019. What none of those mechanisms reaches is ``NOT_GUARDED``.
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 import sys
 import warnings
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from repo_root import ensure_outside_checkout
@@ -39,6 +43,36 @@ FLAG = "--allow-untrusted-provenance"
 # asserts no parser spells it out as a bare literal.
 FLAG_HELP_EFFECT = "traces to stderr on every check and continues"
 FLAG_HELP_NO_PUBLISH = "and refuses publication inside a git checkout"
+
+CACHE_IDENTITY = {
+    "extraction": (
+        "tools/guidelines_extract.py",
+        "tools/guidelines_manifest.py",
+        "tools/artifact_provenance.py",
+    ),
+    "index": (
+        "tools/guidelines_index.py",
+        "tools/guidelines_index_artifact.py",
+        "tools/guidelines_manifest.py",
+        "tools/artifact_provenance.py",
+    ),
+}
+
+TRUST_FLOOR = {
+    "extraction": (
+        "tools/guidelines_extract.py",
+        "tools/guidelines_manifest.py",
+    ),
+    "index": (
+        "tools/guidelines_index.py",
+        "tools/guidelines_manifest.py",
+    ),
+}
+
+# Hand-kept by clinician ruling rather than inferred from flag-bearing commands.
+# A mechanical predicate cannot decide whether a command's durable output is a
+# human verdict; ADR 0019 rejected that guess explicitly.
+ACCEPTED_DISTRUST_COMMANDS = ("guidelines_catalog", "threshold_sheet")
 
 WHY_NO_PUBLISH = (
     f"{FLAG} exists for deliberate development work, and publishing a committed "
@@ -123,6 +157,140 @@ class ProvenanceCheck:
         return not self.reasons
 
 
+@dataclass(frozen=True)
+class AcceptedDistrust:
+    """The human-authored declaration that holds a verdict earned under distrust."""
+
+    corpus: str
+    date: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AcceptedDistrustVerdict:
+    """What a passing gate owes the declaration in the artifact it grades."""
+
+    failures: tuple[str, ...] = ()
+    not_graded: bool = False
+    expected: str | None = None
+
+
+_ACCEPTED_DISTRUST = re.compile(
+    r"^accepted distrust against (?P<corpus>.+) on "
+    r"(?P<date>\d{4}-\d{2}-\d{2}):$"
+)
+_ACCEPTED_DISTRUST_PREFIX = "accepted distrust against "
+
+
+def render_accepted_distrust(
+    corpus: Path | str,
+    reasons: tuple[str, ...],
+    *,
+    on: date | None = None,
+) -> str:
+    """Render the declaration without paraphrasing any provenance reason."""
+    today = on or date.today()
+    lines = [f"{_ACCEPTED_DISTRUST_PREFIX}{Path(corpus).resolve()} on {today.isoformat()}:"]
+    lines.extend(f"  - {reason}" for reason in reasons)
+    return "\n".join(lines)
+
+
+def parse_accepted_distrust(
+    text: str,
+) -> tuple[AcceptedDistrust | None, tuple[str, ...]]:
+    """Read the one accepted-distrust declaration in a curated Markdown region."""
+    lines = text.splitlines()
+    starts: list[int] = []
+    fence: tuple[str, int] | None = None
+    in_comment = False
+    for index, line in enumerate(lines):
+        visible = line
+        if in_comment:
+            if "-->" not in visible:
+                continue
+            visible = visible.split("-->", 1)[1]
+            in_comment = False
+        while "<!--" in visible:
+            before, after = visible.split("<!--", 1)
+            if "-->" in after:
+                visible = before + after.split("-->", 1)[1]
+            else:
+                visible = before
+                in_comment = True
+                break
+
+        if fence is not None:
+            character, width = fence
+            closing = re.fullmatch(
+                rf" {{0,3}}{re.escape(character)}{{{width},}}[ \t]*", visible
+            )
+            if closing:
+                fence = None
+            continue
+
+        opening = re.match(r"^ {0,3}(?P<fence>`{3,}|~{3,})", visible)
+        if opening:
+            marker = opening.group("fence")
+            fence = (marker[0], len(marker))
+            continue
+        if visible.startswith(_ACCEPTED_DISTRUST_PREFIX):
+            starts.append(index)
+    if not starts:
+        return None, ()
+    if len(starts) != 1:
+        return None, ("more than one accepted distrust declaration is present",)
+    index = starts[0]
+    match = _ACCEPTED_DISTRUST.fullmatch(lines[index])
+    if match is None:
+        return None, ("the accepted distrust declaration header is malformed",)
+    reasons: list[str] = []
+    for line in lines[index + 1 :]:
+        if line.startswith("  - "):
+            reasons.append(line.removeprefix("  - "))
+            continue
+        break
+    if not reasons:
+        return None, ("the accepted distrust declaration carries no provenance reasons",)
+    return (
+        AcceptedDistrust(match.group("corpus"), match.group("date"), tuple(reasons)),
+        (),
+    )
+
+
+def grade_accepted_distrust(
+    declaration: AcceptedDistrust | None,
+    corpus: Path | str,
+    provenance: ProvenanceCheck,
+    *,
+    passed: bool,
+    on: date | None = None,
+) -> AcceptedDistrustVerdict:
+    """Bind a genuine gate pass to its declaration, or retire a superseded one."""
+    if not passed:
+        return AcceptedDistrustVerdict()
+    expected = render_accepted_distrust(corpus, provenance.reasons, on=on)
+    if provenance.trusted:
+        if declaration is None:
+            return AcceptedDistrustVerdict()
+        return AcceptedDistrustVerdict(
+            failures=(
+                "a trusted passing run supersedes the accepted distrust declaration; "
+                "delete the accepted distrust declaration",
+            ),
+        )
+    if declaration is None:
+        return AcceptedDistrustVerdict(not_graded=True, expected=expected)
+    parsed_expected, _ = parse_accepted_distrust(expected)
+    if declaration != parsed_expected:
+        return AcceptedDistrustVerdict(
+            failures=(
+                "the accepted distrust declaration describes different distrust than "
+                "this run; replace it with:\n" + expected,
+            ),
+        )
+    return AcceptedDistrustVerdict()
+
+
 def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
     """Return the commit and dirty state of the checkout running a producer."""
     commit = subprocess.run(
@@ -144,6 +312,19 @@ def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
         ).stdout
     )
     return {"commit": commit, "dirty": dirty}
+
+
+def producer_file_identity(
+    paths: tuple[str, ...], repo_root: Path = REPO_ROOT
+) -> list[dict[str, str]]:
+    """Record the exact checkout bytes that determine an artifact's contents."""
+    return [
+        {
+            "path": Path(path).as_posix(),
+            "sha256": hashlib.sha256((repo_root / path).read_bytes()).hexdigest(),
+        }
+        for path in paths
+    ]
 
 
 def _is_checkout_ancestor(commit: str, repo_root: Path) -> bool:
@@ -227,6 +408,8 @@ def check_producer(
             reasons.append("has no producer commit")
         if not isinstance(dirty, bool):
             reasons.append("has no producer dirty-state flag")
+        if inputs_match is None and unchanged_paths:
+            reasons.append("records no producer-file identity")
         if inputs_match is False:
             reasons.append("producer inputs do not match the current checkout")
         unchanged_ancestor = (
@@ -245,14 +428,15 @@ def check_producer(
         ):
             reasons.append(f"was produced by a different commit ({commit}; current is {expected})")
         if (
-            isinstance(commit, str)
-            and commit == expected
-            and unchanged_paths
-            and not _paths_unchanged(commit, unchanged_paths, repo_root)
+            unchanged_paths
+            and not _paths_unchanged("HEAD", unchanged_paths, repo_root)
             and inputs_match is not True
         ):
-            reasons.append("producer code has changed since the artifact was built")
-        if dirty is True:
+            reasons.append(
+                "producer files have uncommitted changes in the working tree "
+                "since the artifact was built"
+            )
+        if dirty is True and inputs_match is not True:
             reasons.append("was produced by a dirty checkout")
         if isinstance(commit, str) and commit and isinstance(dirty, bool):
             normalized = {"commit": commit, "dirty": dirty}
@@ -284,13 +468,13 @@ def check_derived(
         provenance.get("producer"),
         artifact,
         allow_untrusted=allow_untrusted,
-        unchanged_paths=("tools/guidelines_index.py",),
+        unchanged_paths=TRUST_FLOOR["index"],
     )
     source_check = check_producer(
         provenance.get("source"),
         f"{artifact} source manifest",
         allow_untrusted=allow_untrusted,
-        unchanged_paths=("tools/guidelines_extract.py",),
+        unchanged_paths=TRUST_FLOOR["extraction"],
     )
     inherited = provenance.get("untrusted_reasons")
     reasons: list[str] = []

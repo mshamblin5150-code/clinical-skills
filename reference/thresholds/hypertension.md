@@ -1,6 +1,6 @@
 # Hypertension — threshold sheet
 
-<!-- schema: threshold-sheet/1 -->
+<!-- schema: threshold-sheet/2 -->
 
 Decision points only, distilled from the source below. **Not a substitute for the
 guideline** and not a clinical instruction: every row is a fact this repo restates,
@@ -36,9 +36,21 @@ guideline presents **25**. This line said `33` until it was re-derived, which is
 count of `Recommendations for` heading *occurrences* in the extracted text and so
 counts a header reprinted after a page break as another table.
 
-**Not read:** the narrative sections, the evidence tables, the appendices and the
-reference list. A number stated only in the prose around a recommendation is not
-here, so **absent from this sheet does not mean absent from the guideline.**
+The appendices (pp. 98-105) were read on 2026-08-23 and yielded no patient-care
+decision point. The reference list (pp. 75-97) is retired by class because a
+citation list contains no clinical prose.
+
+**Not read:** the front matter and methods, and the narrative sections and evidence
+tables. A number stated only in the prose around a recommendation is not here, so
+**absent from this sheet does not mean absent from the guideline.**
+
+| span | pages | read |
+| --- | --- | --- |
+| front matter and methods | 1-10 | no |
+| recommendation tables | 11-74 | yes |
+| narrative sections and evidence tables | 11-74 | no |
+| references | 75-97 | exempt: citation list contains no clinical prose |
+| appendices | 98-105 | read 2026-08-23 |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-16
 

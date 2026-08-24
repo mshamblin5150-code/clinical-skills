@@ -12,7 +12,7 @@ What earns the override is a measurement rather than an argument, taken 2026-08-
 
 - `prose_bind.GLUE` and `test_run_record_claim.GLUE` are **byte-identical**, and the two `normalized` functions produce **identical output over all 268 tracked `.md` and `.py` files — zero differences.** There is no divergence for the copy to permit. #253's test finds nothing to protect.
 - Moving every `squashed` site to `prose_bind` changes **no verdict**: 90 constant needles against 7 haystacks, 0 changes.
-- The two sites feeding *regexes* rather than assertions — `BLANKET_STANDING.finditer` and `NOT_IN_FORCE_FORMS` — carry no glue characters in their patterns, so they call `prose_bind.normalized` directly.
+- The two sites feeding *regexes* rather than assertions — `BLANKET_STANDING.finditer` and `NOT_IN_FORCE_FORMS` — carry no prose marks in their patterns, so they call `prose_bind.normalized` directly.
 
 `prose_bind` is `console_codec`'s class of module: infrastructure, not a tool another tool happens to need. That is the test #253 states and this passes it where `keyword_of` failed it.
 
@@ -31,25 +31,27 @@ Adopting `prose_bind` wholesale therefore tightens every absence bind and loosen
 
 **Split by assertion kind — absence normalized, presence raw.** Rejected: refuses the long hard-wrapped definitions `assertProseIn` was built for.
 
-**Declare the split that already exists.** Chosen. `test_ruling_cohort.py` already mixes them on purpose — plain `assertIn("**Ruling cohort**:", ...)` for the short formatted marker, `assertProseIn(...)` for the definition beneath it. Formatting-as-subject raw, formatting-as-glue normalized. Nothing declared that rule; it is declared now, and each raw site carries a reason. The two entries in `DECLARED_RAW_ASSERT_NOT_IN` reading *"the module owns squashed"* get real reasons, because that one dissolves the moment `squashed` does.
+**Declare the split that already exists.** Chosen. `test_ruling_cohort.py` already mixes them on purpose — plain `assertIn("**Ruling cohort**:", ...)` for the short formatted marker, `assertProseIn(...)` for the definition beneath it. Formatting-as-subject stays raw; formatting that is only a prose mark is normalized. Nothing declared that rule; it is declared now, and each raw site carries a reason. The two entries in `DECLARED_RAW_ASSERT_NOT_IN` reading *"the module owns squashed"* get real reasons, because that one dissolves the moment `squashed` does.
 
 ## The declared-raw walk keeps its population, and its floor is renamed
 
-`test_prose_bind.repository_survivors` refuses raw `assertNotIn` at a 40-character floor. That population is **exactly 2** across all 71 tracked test modules. Dropping the floor to catch short glue-carrying needles pulls in 26 sites, of which:
+`test_prose_bind.repository_survivors` refuses raw `assertNotIn` at a 40-character floor. That population is **exactly 2** across all 71 tracked test modules. Dropping the floor to catch short needles carrying prose marks pulls in 26 sites, of which:
 
 | | |
 | ---: | --- |
-| **19** | `test_docx.py` raw OOXML — `<w:jc w:val="center"/>`, `<w:i/>`, `w:val="28"`, where `<`, `>`, `"` and `*` are **XML syntax, not prose glue** |
+| **18** | `test_docx.py` raw OOXML — `<w:jc w:val="center"/>`, `<w:i/>`, `w:val="28"`, where `<`, `>`, `"`, `*` are **XML syntax, not prose marks** |
 | **2** | `test_case_study_scan.py` regex patterns — `#{1,4}`, `[-*+]` |
 | **1** | a run-key template — `<course>-<module>-<date>` |
-| **4** | genuinely prose |
+| **5** | genuinely prose |
 
-`prose_bind.normalized('<w:i/>')` returns `< w:i/`. The transform is meaningless on 22 of the 26, so the widening is refused on the measurement.
+`prose_bind.normalized('<w:i/>')` returns `< w:i/`. The transform is meaningless on 21 of the 26, so the widening is refused on the measurement.
 
-**The 40-character floor is not a length rule; it is a cheap stand-in for *the haystack is prose*, and it works today only because at that length the tree holds two sites and both are prose.** The walk does not move, and its docstring now says that rather than presenting a floor on length. Discriminating on the haystack instead — firing only where the second argument reads a tracked `.md` or `.py` — reaches all 4 real sites and excludes all 22, and is filed as its own ticket rather than folded in: it is a second instrument with its own ceiling, and one arriving inside a change whose subject is a claim that went stale is one nobody has driven a mutant through.
+**The 40-character floor is not a length rule; it is a cheap stand-in for *the haystack is prose*, and it works today only because at that length the tree holds two sites and both are prose.** The walk does not move, and its docstring now says that rather than presenting a floor on length. Haystack discrimination was filed as its own ticket rather than folded in: it is a second instrument with its own ceiling, and one arriving inside a change whose subject is a claim that went stale is one nobody has driven a mutant through. [ADR 0023](0023-a-prose-bind-is-graded-on-its-haystack-and-the-walk-declares-what-it-could-not-resolve.md) later falsified that ticket's proposed direct-read remedy and governs its replacement.
 
 ## Consequences
 
 `test_run_record_claim.GLUE` carries a comment recording that a backslash was in that set and came out, measured both ways over every tracked `.md` and `.py`. **That reasoning is about the shared object and moves with it**, or it is lost when the copy is deleted.
 
 `squashed`'s weakness stays latent rather than live. All three declared raw needles were driven through `prose_bind.normalized` against their real haystacks and **no verdict flipped**. #445's *"no defect is recorded"* survives the mutant; what changes is that the two can no longer drift.
+
+2026-08-23 — Corrected the short-site split from 19/4 and 22 non-prose to 18/5 and 21 non-prose after ADR 0023's scope-aware re-derivation on `d3e39e6`; the total of 26 and #445's ruling are unchanged. Replaced the falsified direct-read reach claim with the later ADR that governs it.

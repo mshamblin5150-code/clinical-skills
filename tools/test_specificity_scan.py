@@ -26,6 +26,7 @@ from pathlib import Path
 
 import specificity_scan as scan
 from grader_conformance import for_module
+from prose_bind import ProseBind
 
 GraderConformance = for_module(scan)
 from icd10_lookup import describe, normalize, notes_for, open_database
@@ -738,7 +739,7 @@ class TheAuditFiguresAreReDerivable(unittest.TestCase):
         self.assertIn("E11.9", self.codes)
 
 
-class TheSkillSaysWhatThisChecks(unittest.TestCase):
+class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     """The scanner may not hold a different answer than ``icd10-cpt`` does."""
 
     def setUp(self):
@@ -748,7 +749,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("SPECIFICITY: <complete — why nothing further applies", self.skill)
 
     def test_the_template_no_longer_permits_a_bare_complete(self):
-        self.assertNotIn("SPECIFICITY: <complete | needs:", self.skill)
+        self.assertProseNotIn("SPECIFICITY: <complete | needs:", self.skill)
 
     def test_the_skill_says_a_reason_can_discharge_the_unspecified_shape(self):
         self.assertIn(

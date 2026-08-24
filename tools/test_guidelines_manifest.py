@@ -88,8 +88,15 @@ class ManifestSerializationTests(unittest.TestCase):
                     producer={"commit": "f" * 40, "dirty": False},
                 )
 
+            inputs = manifest.artifact_provenance.producer_file_identity(
+                manifest.artifact_provenance.TRUST_FLOOR["extraction"]
+            )
             expected = {
-                "producer": {"commit": "f" * 40, "dirty": False},
+                "producer": {
+                    "commit": "f" * 40,
+                    "dirty": False,
+                    "inputs": inputs,
+                },
                 "source": str(Path("C:/outside/guidelines-src")),
                 "codec": "utf-8",
                 "engine": "engine-test",
@@ -101,6 +108,31 @@ class ManifestSerializationTests(unittest.TestCase):
             }
             expected_bytes = (json.dumps(expected, indent=2, ensure_ascii=False) + "\n").encode()
             self.assertEqual(path.read_bytes(), expected_bytes)
+
+    def test_the_extraction_writer_imports_the_shared_trust_floor(self):
+        floors = {
+            "extraction": ("tools/extraction-sentinel.py",),
+            "index": ("tools/index-sentinel.py",),
+        }
+        inputs = [{"path": floors["extraction"][0], "sha256": "a" * 64}]
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                mock.patch.object(extract.artifact_provenance, "TRUST_FLOOR", floors),
+                mock.patch.object(
+                    extract.artifact_provenance,
+                    "producer_file_identity",
+                    return_value=inputs,
+                ) as identity,
+                mock.patch.object(extract, "_engine_version", return_value="engine-test"),
+            ):
+                extract.write_manifest(
+                    Path(tmp),
+                    [manifest.Record(doc_id="USPSTF/screening")],
+                    Path("C:/outside/guidelines-src"),
+                    producer={"commit": "f" * 40, "dirty": False},
+                )
+
+        identity.assert_called_once_with(floors["extraction"])
 
 
 class ManifestOwnershipTests(unittest.TestCase):
@@ -195,6 +227,25 @@ class ManifestReadingTests(unittest.TestCase):
         self.assertEqual(set(result.documents), {"Society/one"})
         self.assertEqual(len(result.problems), 1)
         self.assertIn("title", result.problems[0].message)
+
+    def test_the_reader_uses_the_shared_extraction_trust_floor(self):
+        self.text()
+        self.write([self.entry()])
+        floors = {
+            "extraction": ("tools/extraction-sentinel.py",),
+            "index": ("tools/index-sentinel.py",),
+        }
+        with (
+            mock.patch.object(manifest.artifact_provenance, "TRUST_FLOOR", floors),
+            mock.patch.object(
+                manifest.artifact_provenance,
+                "check_producer",
+                return_value=mock.sentinel.provenance,
+            ) as check,
+        ):
+            manifest.read(self.root)
+
+        self.assertEqual(check.call_args.kwargs["unchanged_paths"], floors["extraction"])
 
     def test_read_checks_the_page_count_inside_the_handoff(self):
         self.text(body="page one\fpage two")

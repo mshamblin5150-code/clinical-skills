@@ -12,7 +12,9 @@ an invented Assessment heading.
 **Drift row 24's mechanical floor** reads every physical ``FILLED·proposed``
 opener, including an unnumbered one, and checks same-line guideline tails against
 the shipped USPSTF and threshold sheets wherever a direct join is mechanical. A
-known screening, counseling, immunization, vaccination, target, cutoff or threshold
+``recalled, no shipped sheet`` verdict is a finding when the subject joins a topic
+registered with an artifact; an undecidable join stays a candidate. A known
+screening, counseling, immunization, vaccination, target, cutoff or threshold
 subject without a tail is a finding. Any other absent tail is a candidate outside
 the exit status, because the scanner cannot decide whether that item rests on a
 population or threshold. It also cannot decide whether a correctly extracted
@@ -147,7 +149,7 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 **Exit status distinguishes not having scanned from having found nothing**, on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when every reached floor is clean, 1 on a violation, and **2 for every way of not having
-scanned** -- no argument, no directory, no notes in it, **no differential entry in
+scanned** -- invalid invocation, no directory, no notes in it, no differential entry in
 any note read, no numbered item in a labeled block, and any bare ``NOT CODED``
 mark.** The last three matter most: a run
 whose differential was written in some shape this parser does not read, or whose
@@ -218,6 +220,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+import threshold_coverage
 
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
 # extension -- which is what keeps ``97.3`` and ``4/10`` out.
@@ -327,6 +330,7 @@ THRESHOLD_SIGNAL = re.compile(
 REFERENCE_ROOT = Path(__file__).resolve().parent.parent / "reference"
 USPSTF_SHEET = REFERENCE_ROOT / "guidelines-uspstf.md"
 THRESHOLD_ROOT = REFERENCE_ROOT / "thresholds"
+THRESHOLD_COVERAGE = THRESHOLD_ROOT / "coverage.md"
 
 
 # **What this scanner's validation set does not reach**, declared rather than
@@ -367,7 +371,7 @@ NOT_VALIDATED_AGAINST = (
     ),
     (
         "the aggregate of the exit-2 limbs",
-        "Each of the four ways of not having scanned is separately correct and "
+        "Each way of not having scanned is separately correct and "
         "separately documented above, and none of them says what they come to "
         "together. **That total used to be *nothing committed is legible here at "
         "all*, and ``fixtures/slot-form-run`` ended it.** The residue is narrower "
@@ -756,10 +760,13 @@ def _topic_words(text: str) -> set[str]:
         "infection",
         "offered",
         "of",
+        "recheck",
         "review",
         "screening",
         "status",
         "the",
+        "week",
+        "weeks",
     }
     words = {
         word
@@ -778,20 +785,39 @@ def _topic_words(text: str) -> set[str]:
     return words
 
 
-def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
-    """High-confidence lexical joins only; synonym-shaped misses stay candidates."""
+def _lexical_subject_topic_names(item: str, topics: tuple[str, ...]) -> set[str]:
+    """Return topic names making the one high-confidence lexical join."""
     words = _topic_words(item)
-    decisive: list[tuple[str, str, str]] = []
-    for row in USPSTF_ROWS:
-        shared = words & _topic_words(row[0])
+    decisive: set[str] = set()
+    for topic in topics:
+        shared = words & _topic_words(topic)
         if not shared:
             continue
         # A one-token subject such as HIV is decisive. Longer subjects need most
         # of their informative words joined; ``blood pressure`` alone must not
         # join an adult screening item to the pediatric sheet row.
         if words <= shared or (len(shared) >= 2 and len(shared) / len(words) >= 0.67):
-            decisive.append(row)
+            decisive.add(topic)
     return decisive
+
+
+def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
+    """High-confidence lexical joins only; synonym-shaped misses stay candidates."""
+    topic_names = _lexical_subject_topic_names(item, tuple(row[0] for row in USPSTF_ROWS))
+    return [row for row in USPSTF_ROWS if row[0] in topic_names]
+
+
+def _threshold_artifact_topics() -> tuple[tuple[str, str], ...]:
+    """Registry topic and artifact pairs, whatever the row's sweep state."""
+    entries, problems = threshold_coverage.parse_registry(
+        THRESHOLD_COVERAGE.read_text(encoding="utf-8")
+    )
+    if problems:
+        raise RuntimeError("; ".join(problems))
+    return tuple((entry.topic, entry.artifact) for entry in entries if entry.artifact)
+
+
+THRESHOLD_ARTIFACT_TOPICS = _threshold_artifact_topics()
 
 
 def _uspstf_citation_matches(item: str, grade: str, year: str) -> bool | None:
@@ -918,6 +944,18 @@ def _guideline_floor(
             subject = (item.text[: match.start()] + item.text[match.end() :]).strip()
             lowered = tail.casefold()
             if lowered.startswith("recalled, no shipped sheet"):
+                checked += 1
+                topics = tuple(topic for topic, _artifact in THRESHOLD_ARTIFACT_TOPICS)
+                if _lexical_subject_topic_names(subject, topics):
+                    findings.append(
+                        GuidelineFinding(
+                            item.line,
+                            "recalled, no shipped sheet contradicts a shipped topic",
+                            item.text,
+                        )
+                    )
+                else:
+                    candidates.append(GuidelineCandidate(item.line, item.text))
                 continue
             if lowered.startswith("uspstf:"):
                 checked += 1
@@ -1282,13 +1320,33 @@ class Source:
     texts: tuple[str, ...]
 
 
+INVALID_INVOCATION = "invalid invocation"
+NO_DIRECTORY = "no directory"
+NO_NOTES = "no notes in it"
+NO_DIFFERENTIAL_ENTRY = "no differential entry in any note read"
+NO_NUMBERED_ITEM = "no numbered item in a labeled block"
+BARE_NOT_CODED = "any bare ``NOT CODED`` mark"
+EXIT_2_LIMBS = (
+    INVALID_INVOCATION,
+    NO_DIRECTORY,
+    NO_NOTES,
+    NO_DIFFERENTIAL_ENTRY,
+    NO_NUMBERED_ITEM,
+    BARE_NOT_CODED,
+)
+
+
 def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
-        raise run_grader.SourceError(f"no directory named {directory.name}")
+        raise run_grader.SourceError(
+            f"no directory named {directory.name}", exit_2_limb=NO_DIRECTORY
+        )
     texts = tuple(read_notes(directory))
     if not texts:
-        raise run_grader.SourceError(f"no notes found in {directory.name}")
+        raise run_grader.SourceError(
+            f"no notes found in {directory.name}", exit_2_limb=NO_NOTES
+        )
     return Source(directory, texts)
 
 
@@ -1301,6 +1359,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         or scan.guideline_findings
     )
     diagnostics: list[str] = []
+    coverage_limbs: list[str] = []
     if has_findings:
         messages = []
         if scan.findings:
@@ -1345,6 +1404,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             + " This is not a clean run."
         )
         coverage_failed = True
+        coverage_limbs.append(NO_DIFFERENTIAL_ENTRY)
     if scan.unwelded_marks and not has_findings:
         diagnostics.append(
             f"\n{scan.unwelded_marks} NOT CODED mark(s) in {source.directory.name} are not"
@@ -1353,6 +1413,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " The slot limb was not evaluated -- this is not a clean run."
         )
         coverage_failed = True
+        coverage_limbs.append(BARE_NOT_CODED)
     if not scan.numbered_items and scan.differential_entries:
         diagnostics.append(
             f"\nrow 13 floor was not run in {source.directory.name}: no numbered item"
@@ -1360,11 +1421,13 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " QA result; the wide Assessment count still needs a reader."
         )
         coverage_failed = True
+        coverage_limbs.append(NO_NUMBERED_ITEM)
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
         findings_failed=has_findings,
         coverage_failed=coverage_failed,
+        coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
     )
 
@@ -1375,6 +1438,8 @@ GRADER = run_grader.Grader(
     load=_load,
     grade=_grade,
     format_report=format_report,
+    exit_2_limbs=EXIT_2_LIMBS,
+    invalid_invocation_limb=INVALID_INVOCATION,
 )
 
 

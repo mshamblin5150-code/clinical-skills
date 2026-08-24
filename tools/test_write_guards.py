@@ -130,6 +130,9 @@ class Checkout:
         (self.text_dir / "IDSA-uti.txt").write_text("a page\n", encoding="utf-8")
         self.producer = artifact_provenance.current_producer()
         self.producer["dirty"] = False
+        self.producer["inputs"] = artifact_provenance.producer_file_identity(
+            artifact_provenance.TRUST_FLOOR["extraction"]
+        )
         (self.text_dir / "manifest.json").write_text(
             json.dumps(
                 {

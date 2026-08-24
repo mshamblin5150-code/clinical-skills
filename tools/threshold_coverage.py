@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import guidelines_catalog
+import threshold_sheet
 from console_codec import use_utf8
 
 
@@ -71,11 +72,16 @@ def render_draft(topics: list[str]) -> str:
 
 
 def audit(
-    topics: list[str], entries: list[Entry], sheet_root: Path
-) -> tuple[list[str], Counter[str]]:
+    topics: list[str], entries: list[Entry], sheet_root: Path,
+    page_counts: dict[str, int] | None = None,
+) -> tuple[list[str], Counter[str], Counter[str]]:
     failures: list[str] = []
     counts = Counter(entry.state for entry in entries if entry.state in STATES)
+    artifact_counts = Counter(
+        entry.state for entry in entries if entry.state in STATES and entry.artifact
+    )
     by_topic: dict[str, list[Entry]] = {}
+    page_counts = page_counts or {}
     for entry in entries:
         by_topic.setdefault(entry.topic.casefold(), []).append(entry)
         if entry.state not in STATES:
@@ -100,6 +106,53 @@ def audit(
                 failures.append(
                     f"coverage.md:{entry.line} artifact '{entry.artifact}' does not exist"
                 )
+            else:
+                artifact_path = sheet_root / artifact
+                sheet = threshold_sheet.parse(
+                    artifact_path.read_text(encoding="utf-8"), artifact_path
+                )
+                if not sheet.ok:
+                    failures.append(
+                        f"coverage.md:{entry.line} artifact '{entry.artifact}' is not "
+                        f"a usable threshold-sheet/2: {sheet.why_not}"
+                    )
+                    continue
+                schema_findings = threshold_sheet.gate_schema(sheet).findings
+                if schema_findings:
+                    failures.append(
+                        f"coverage.md:{entry.line} artifact '{entry.artifact}' fails "
+                        "threshold-sheet/2 schema: " + "; ".join(schema_findings)
+                    )
+                    continue
+                unread = [span for span in sheet.spans if span.is_unread]
+                if entry.state == "sheet" and unread:
+                    failures.append(
+                        f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' "
+                        f"but artifact '{entry.artifact}' still lists {len(unread)} unread span(s)"
+                    )
+                # An overlapping positive span may cover the same page range as an
+                # unread span. Completion requires both the page union and the
+                # named-span inventory, or neither registry state could be valid.
+                all_pages_read = bool(sheet.sources) and not unread
+                for source_key, source in sheet.sources.items():
+                    page_count = page_counts.get(source.get("document", ""))
+                    if page_count is None:
+                        all_pages_read = False
+                        break
+                    read_pages = {
+                        page
+                        for span in sheet.spans
+                        if span.source == source_key and not span.is_unread
+                        for page in range(span.first_page, span.last_page + 1)
+                    }
+                    if not set(range(1, page_count + 1)) <= read_pages:
+                        all_pages_read = False
+                        break
+                if entry.state != "sheet" and all_pages_read:
+                    failures.append(
+                        f"coverage.md:{entry.line} topic '{entry.topic}' state "
+                        f"'{entry.state}' but artifact '{entry.artifact}' shows every page read"
+                    )
 
     wanted = {topic.casefold(): topic for topic in topics}
     for key, display in wanted.items():
@@ -123,7 +176,7 @@ def audit(
             continue
         if path.name.casefold() not in registered:
             failures.append(f"sheet '{path.name}' has no registry artifact")
-    return failures, counts
+    return failures, counts, artifact_counts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -154,7 +207,9 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as error:
         print(error, file=sys.stderr)
         return 2
-    failures, counts = audit(topics, entries, args.sheet_root)
+    page_counts, catalog_page_problems = threshold_sheet.load_catalog_page_counts(args.catalog)
+    failures, counts, artifact_counts = audit(topics, entries, args.sheet_root, page_counts)
+    failures = catalog_page_problems + failures
     failures = parse_problems + failures
     if failures:
         for failure in failures:
@@ -162,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"topics     {len(topics)}")
     for state in STATES:
-        print(f"{state:<10} {counts[state]}")
+        print(f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}")
     return 0
 
 

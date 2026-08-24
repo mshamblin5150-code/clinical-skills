@@ -108,6 +108,7 @@ class Grade(Generic[TScan]):
     source: str
     findings_failed: bool = False
     coverage_failed: bool = False
+    coverage_limbs: tuple[str, ...] = ()
     diagnostics: tuple[str, ...] = ()
     reports: tuple[str, ...] = ()
 
@@ -119,10 +120,15 @@ class EarlyExit:
     status: int
     stdout: tuple[str, ...] = ()
     stderr: tuple[str, ...] = ()
+    exit_2_limb: str | None = None
 
 
 class SourceError(Exception):
     """A tier-1 failure: no run artifact was available to grade."""
+
+    def __init__(self, message: str, *, exit_2_limb: str | None = None):
+        super().__init__(message)
+        self.exit_2_limb = exit_2_limb
 
 
 class ParseError(SourceError):
@@ -142,6 +148,30 @@ class Grader(Generic[TSource, TScan]):
     validate: Callable[[Parsed], str | None] | None = None
     source_error_to_stdout: bool = False
     allow_extra_positionals: bool = True
+    exit_2_limbs: tuple[str, ...] = ()
+    invalid_invocation_limb: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.exit_2_limbs:
+            if self.invalid_invocation_limb is not None:
+                raise ValueError("invalid_invocation_limb needs an exit-2 vocabulary")
+            return
+        if any(not limb.strip() for limb in self.exit_2_limbs):
+            raise ValueError("exit-2 limbs must be nonempty")
+        if len(set(self.exit_2_limbs)) != len(self.exit_2_limbs):
+            raise ValueError("exit-2 limbs must be distinct")
+        if self.invalid_invocation_limb not in self.exit_2_limbs:
+            raise ValueError("the exit-2 vocabulary must name invalid invocation")
+
+
+def _require_declared_exit_2_limb(command: Grader[Any, Any], limb: str | None) -> None:
+    """Refuse an unclassified exit 2 where a grader declares exact coverage."""
+    if not command.exit_2_limbs:
+        return
+    if limb is None:
+        raise ValueError("an exit-2 path names no exit-2 limb")
+    if limb not in command.exit_2_limbs:
+        raise ValueError(f"undeclared exit-2 limb: {limb}")
 
 
 def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
@@ -203,22 +233,33 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
     try:
         parsed = parse(command, argv)
     except ParseError as failure:
+        _require_declared_exit_2_limb(command, command.invalid_invocation_limb)
         print(str(failure), file=sys.stderr)
         return 2
     try:
         source = command.load(parsed)
     except SourceError as failure:
+        _require_declared_exit_2_limb(command, failure.exit_2_limb)
         print(str(failure), file=sys.stdout if command.source_error_to_stdout else sys.stderr)
         return 2
 
     result = command.grade(source, parsed)
     if isinstance(result, EarlyExit):
+        if result.status == 2:
+            _require_declared_exit_2_limb(command, result.exit_2_limb)
         for chunk in result.stdout:
             print(chunk, end="" if chunk.endswith("\n") else "\n")
         for line in result.stderr:
             print(line, file=sys.stderr)
         return result.status
 
+    if result.coverage_failed:
+        if command.exit_2_limbs and not result.coverage_limbs:
+            raise ValueError("coverage failure names no exit-2 limb")
+        for limb in result.coverage_limbs:
+            _require_declared_exit_2_limb(command, limb)
+    elif result.coverage_limbs:
+        raise ValueError("coverage limbs require coverage_failed")
     print(command.format_report(result.scan, result.source, show=parsed.show))
     for report in result.reports:
         print(report)

@@ -1,6 +1,6 @@
 # Cervical cancer screening — threshold sheet
 
-<!-- schema: threshold-sheet/1 -->
+<!-- schema: threshold-sheet/2 -->
 
 Decision points only, distilled from the source below. **Not a substitute for the
 guideline** and not a clinical instruction: every row is a fact this repo restates,
@@ -22,6 +22,12 @@ ruled in [ADR 0009](../../docs/adr/0009-a-topic-is-swept-on-what-the-guideline-s
 **Read:** all five recommendation statements in the USPSTF recommendation table.
 
 **Not read:** the rationale, clinical considerations, evidence review, and references.
+
+| span | pages | read |
+| --- | --- | --- |
+| recommendation statements | 1 | yes |
+| rationale and clinical considerations | 1-11 | no |
+| references | 11-13 | exempt: citation list has no clinical prose |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-22
 
