@@ -106,7 +106,10 @@ refreshes the corpus pays for a review they did not cause.
 
 **6. `not stated` absorbs the four rows, and the header discloses the exclusion by name.**
 That sentinel now carries three distinct situations — the statement is silent, the statement
-is silent *in this sentence* (#435's subject), and the statement names a period that is a
+is silent *in this sentence* (#435's subject, ruled permanent in
+[ADR 0028](0028-the-uspstf-interval-derivation-reaches-one-sentence-and-that-reach-is-ruled-permanent.md)
+on 2026-08-24, which adds a fourth situation — the statement is silent and the document says
+elsewhere that no interval is established), and the statement names a period that is a
 dose. The header is the only place a consumer meets this column, so it says that a dose or
 supplement frequency is not a recurrence and is deliberately outside the column.
 
