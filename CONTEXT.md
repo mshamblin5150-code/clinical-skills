@@ -235,6 +235,13 @@ _Avoid_: quote, excerpt, evidence, text
 A quantity a guideline attaches a value to that changes what is done to a patient — a dose, a period, a cutoff, or a target. It is read from what the guideline states, never inferred from a catalog or recommendation index. A recommendation carrying no such quantity has none.
 _Avoid_: threshold, recommendation, criterion
 
+**Interval**:
+How often a recommended service recurs. A period where the recommendation names one, and a bare
+recurrence or a count where it does not — a recommendation may say a service repeats without saying
+how often, or that it happens once. The frequency of a dose is not one: a supplement taken daily
+recurs, and the service does not.
+_Avoid_: frequency, schedule, periodicity, cadence
+
 **Quantity key**:
 The stable name for what a threshold row measures. A method-dependent value names the method in this key, so the method is neither mistaken for a patient population nor reported as a conflict.
 _Avoid_: metric, field, variable
