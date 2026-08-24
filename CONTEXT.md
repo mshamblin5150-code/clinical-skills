@@ -236,11 +236,14 @@ A quantity a guideline attaches a value to that changes what is done to a patien
 _Avoid_: threshold, recommendation, criterion
 
 **Interval**:
-How often a recommended service recurs. A period where the recommendation names one, and a bare
-recurrence or a count where it does not — a recommendation may say a service repeats without saying
-how often, or that it happens once. The frequency of a dose is not one: a supplement taken daily
-recurs, and the service does not.
-_Avoid_: frequency, schedule, periodicity, cadence
+How often a recommended service recurs, which is the question the USPSTF recommendation table's
+`Interval` column answers. A period where the recommendation names one, and a bare recurrence or a
+count where it does not — a recommendation may say a service repeats without saying how often, or
+that it happens once. A dose frequency is not one there: a supplement taken daily recurs, and the
+service does not. Elsewhere a threshold sheet's quantity key names its own subject, so a dosing,
+titration or withholding period filed under an `-interval` key is a narrower claim rather than a
+contradiction of this.
+_Avoid_: schedule, periodicity, cadence
 
 **Quantity key**:
 The stable name for what a threshold row measures. A method-dependent value names the method in this key, so the method is neither mistaken for a patient population nor reported as a conflict.
