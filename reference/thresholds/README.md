@@ -49,11 +49,11 @@ rather than inheriting the first sheet's answer:
 
 | | |
 | --- | --- |
-| rows | **349** |
-| snippet cells, and distinct snippets among them | 349, of which **346** are distinct |
-| words across the distinct snippets, excluding the two `RENDERED:` markers | **3,267** |
-| longest / median / shortest quoted fragment, in words | 36 / 7 / 1 |
-| words in the `## Populations` table, 32 rows of verbatim scope wording | **197** |
+| rows | **357** |
+| snippet cells, and distinct snippets among them | 357, of which **354** are distinct |
+| words across the distinct snippets, excluding the 36 `RENDERED:` markers | **5,063** |
+| longest / median / shortest quoted fragment, in words | 55 / 12 / 1 |
+| words in the `## Populations` table, 125 rows of verbatim scope wording | **1,022** |
 | pages in the source guideline | **377** |
 
 **Every row in both tables above is re-derived by a test, and none of them is a figure
@@ -89,7 +89,7 @@ for the guideline, and it says so in its own opener. Nothing here blesses commit
 anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
 
 **No later sheet gets this for free.** Diabetes was re-asked against one 377-page ADA
-standard and answered with 3,267 quoted words across 346 distinct minimal snippets. A directory
+standard and answered with 5,063 quoted words across 354 distinct minimal snippets. A directory
 of twenty sheets quoting one society is still a different quantity question, and it is
 worth re-asking there rather than reading either ruling as settling the class.
 

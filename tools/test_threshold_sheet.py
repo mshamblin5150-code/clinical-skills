@@ -1748,21 +1748,21 @@ class TheDiabetesQuotingPostureFiguresAreReDerived(unittest.TestCase):
             "diabetes.md", strip_rendered=True
         )
 
-        self.assertEqual(len(snippets), 349)
-        self.assertEqual(len(distinct), 346)
-        self.assertEqual(sum(words), 3267)
-        self.assertEqual((max(words), words[len(words) // 2], min(words)), (36, 7, 1))
-        self.assertEqual(len(sheet_.populations), 32)
-        self.assertEqual(sum(len(value.split()) for value in sheet_.populations.values()), 197)
+        self.assertEqual(len(snippets), 357)
+        self.assertEqual(len(distinct), 354)
+        self.assertEqual(sum(words), 5063)
+        self.assertEqual((max(words), words[len(words) // 2], min(words)), (55, 12, 1))
+        self.assertEqual(len(sheet_.populations), 125)
+        self.assertEqual(sum(len(value.split()) for value in sheet_.populations.values()), 1022)
 
         readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
         for claim in (
-            "| rows | **349** |",
-            "**346** are distinct",
-            "**3,267**",
-            "36 / 7 / 1",
-            "32 rows",
-            "**197**",
+            "| rows | **357** |",
+            "**354** are distinct",
+            "**5,063**",
+            "55 / 12 / 1",
+            "125 rows",
+            "**1,022**",
             "**377**",
         ):
             self.assertIn(claim, readme)

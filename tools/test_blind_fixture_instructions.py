@@ -45,8 +45,9 @@ CONCRETE_FIXTURE_PATH = re.compile(
 )
 NUMBERED_CASE_OR_RUN = re.compile(r"(?i)\b(?:case|run)\s*-?\d+\b")
 # These strings are ordinary clinical notation as well as assertion identifiers.
-# Ignoring them avoids treating vitamin B12, heart sounds S1/S2, and O2 as leaks.
-CLINICAL_ROW_HOMONYMS = {"B12", "O2", "S1", "S2"}
+# Ignoring them avoids treating vitamin B12, heart sounds S1/S2, oxygen O2, and
+# fibrosis stages F3/F4 as leaks.
+CLINICAL_ROW_HOMONYMS = {"B12", "F3", "F4", "O2", "S1", "S2"}
 
 
 def concrete_fixture_names() -> list[str]:
