@@ -130,7 +130,11 @@ the wrong reason. One tree, one vocabulary, one artifact, per
 #435 is the first ticket to depend on #434 being built and stalls if it stalls; the fallback at
 that point is publishing both vocabularies' figures, not re-litigating ruling 1.
 
-**5. The reopening signal is a population pin against the committed artifact.** A test derives
+**5. The reopening signal is a row-count pin against the committed artifact.** *Population* here
+means the size of the row set this ruling was measured over, and never the artifact's
+`Population` column, which is
+[#502](https://github.com/mshamblin5150-code/clinical-skills/issues/502)'s subject and is
+untouched by anything here. A test derives
 row count, `not stated` count and the count of files carrying at least one from
 `reference/guidelines-uspstf.md` and asserts them, with the failure message naming the
 instrument and this record. Pinned at rows and files rather than at the whole derivation, so it
@@ -183,9 +187,24 @@ sentence carrying the real clinical fact is the sentence that injects `repeated`
 It gets its own ticket rather than a sentinel in this column.
 [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md)
 rules that decision-point presence is read off what the guideline **states** and never off an
-index derived from it, and `reference/guidelines-uspstf.md` is exactly such an index — so the
-threshold sheet is the likely home and this table is the wrong artifact by an existing ruling.
-ADR 0027 ruling 6 reached the same outcome for the four dose rows by a different argument.
+index derived from it, and `reference/guidelines-uspstf.md` is exactly such an index — so this
+table is the wrong artifact by an existing ruling. ADR 0027 ruling 6 reached the same outcome
+for the four dose rows by a different argument.
+
+**Where it goes instead is unsettled, and the tracker sweep of 2026-08-24 found that saying
+*the threshold sheet* is wrong.** A stated absence carries **no quantity**, so it is not a
+decision point under ADR 0009 point 1; [#429](https://github.com/mshamblin5150-code/clinical-skills/issues/429)
+rules that *a document with no quantity gets no sheet*; `tools/threshold_sheet.py` refuses a
+sheet carrying zero rows; and ADR 0026's `narrative` locator — which solved
+[#464](https://github.com/mshamblin5150-code/clinical-skills/issues/464)'s Practice
+Considerations gap — still requires a row with a value. The registry's `none` state is the one
+vocabulary that expresses *read and states no decision point*, and
+[#483](https://github.com/mshamblin5150-code/clinical-skills/issues/483) is open precisely
+because `none` has nowhere to put its evidence.
+
+So the stated-absence class currently has **no artifact anywhere in the tree**, and #505 is
+open on where it goes rather than on how it is written. That is recorded here because the
+first draft of this record asserted the routing as settled.
 
 ## Measured before ruling, at `9dd61fd`
 
