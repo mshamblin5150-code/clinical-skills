@@ -69,6 +69,17 @@ The build stays on #464 rather than moving to a new ticket, because ADR 0025 poi
 
 **The span floor asserts that somebody declared the page read, never that they read it.** It is the same thing ADR 0025 point 7's dated marker asserts, and that record already says the marker records that a read happened, never that it was careful.
 
+**The span floor's reach is a property of how a sheet drew its spans, not of the rule, and on one shipped sheet it is zero.** ADR 0025 point 3 permits overlap, so a `yes` span and a `no` span may cover the same pages — and where they do, every page of the unread span already satisfies rule 6. Measured 2026-08-24 against the committed sheets, counting pages of each `read: no` span that a `read: yes` span also covers:
+
+| sheet | blocked span | shadowed |
+| --- | --- | ---: |
+| `hypertension.md` | narrative sections and evidence tables, pp. 11-74 | **64 of 64** |
+| `hypertension.md` | front matter and methods, pp. 1-10 | 0 of 10 |
+| `cervical-cancer.md` | rationale and clinical considerations, pp. 1-11 | 1 of 11 |
+| `prediabetes-type-2-diabetes-screening.md` | four of its five blocked spans | 0 |
+
+`hypertension.md` draws `recommendation tables` and `narrative sections and evidence tables` over the identical range, so **rule 6 gives that sheet no protection at all on the span it exists to gate**, and rule 4 carries that half alone. This was found by a tracker sweep after the rule was ruled, and it is recorded rather than repaired because the repair is not in this rule: a sheet whose narrative span is fully shadowed should redraw its span table when that span is read, which belongs to the reading ticket. A rule keyed on span *names* would be guessing at which span a page's content came from.
+
 **The class bind checks a sentinel, not a grade.** It stops a narrative row carrying a fabricated grade and stops the sentinel muting a real one. It says nothing about whether a recommendation row's grade is the right grade — that remains `gate_coverage`'s existing check against the record.
 
 **A reserved word in two columns is a bet about the corpus.** No society in the corpus grades a recommendation with the literal word `narrative`, and the collision guard refuses the locator side loudly if one ever does. The class side is covered by the same guard rather than a second one.
