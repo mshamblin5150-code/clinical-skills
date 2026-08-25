@@ -215,6 +215,22 @@ _Avoid_: fixture, baseline, snapshot
 
 ### Guidelines
 
+**Corpus**:
+The society guideline PDFs every derived artifact here is built from. It lives outside every checkout and is not going into one, so nothing committed re-derives a figure counted against it and no runner ever sees it. It grows by a person putting a file into it, which is an event no artifact in the tree witnesses.
+_Avoid_: sources, library, guidelines, documents
+
+**Guideline catalog**:
+One curated row per corpus document — society, filename, title, topic, population, year, page count, class. Its mechanical columns are re-derived and audited; its judgment columns are read by a person. It is the denominator every downstream population is counted from, so a corpus document with no row is invisible to all of them.
+_Avoid_: index, manifest, inventory, document list
+
+**Audit ledger**:
+The committed record of the blind second read of the catalog, holding one row per corpus document with the SHA-256 of the bytes that were read. Its subject is file identity, which is what distinguishes it from the catalog, whose subject is metadata about documents. It is the only place the tree states which exact bytes a reading rests on.
+_Avoid_: audit file, digest file, hash list, checksums
+
+**Corpus drift**:
+The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened.
+_Avoid_: staleness, desync, corpus change, mismatch
+
 **Threshold sheet**:
 The distilled decision points of one clinical topic, drawn from every guideline in the corpus that addresses it. Curated Markdown that a tool audits, never a generated artifact.
 _Avoid_: summary, digest, extract, cheat sheet
