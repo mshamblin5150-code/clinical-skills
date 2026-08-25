@@ -297,6 +297,22 @@ _Avoid_: excluded, skipped, filtered, ignored
 Several words reaching the extracted text with no space between them, because the PDF positioned the glyphs and set no space glyph. The information is not lost — the geometry still carries the boundary — so a glued run is a reconstruction failure and never an absence.
 _Avoid_: run-on, mangled word, concatenation
 
+**Recommendation record**:
+One recommendation lifted out of a guideline by `tools/guidelines_recs.py`, carrying its identifier, page, text and the mode that says how it was counted. It is the unit a threshold row cites and the unit a citation gate resolves against, so a recommendation the reader never built is invisible to every check downstream of it.
+_Avoid_: rec, extraction, entry, hit
+
+**Reader limb**:
+One of the three paths a recommendation record is built through — curated verification, ruled table, or text marker. The limb is what decides which reader saw the page, and therefore what a gate over that record is able to see, so a limit stated about records in general is a limit stated about the wrong unit.
+_Avoid_: path, mode, branch, route
+
+**Shared-reader blindness**:
+A check whose two sides are produced by the same reader, so it cannot see a defect that reader introduces — the damaged text agrees with itself and the check passes. It is a property of the comparison rather than of either side, so it is not fixed by repairing one of them; it is fixed by a second reader, or it is declared.
+_Avoid_: tautology, circular check, self-comparison
+
+**Dropped recommendation**:
+A recommendation the source states and no record carries, because the reader damaged the marker that would have matched it. Distinct from a **glued run**, which is damage a reader of the record can see: this one leaves nothing behind, so no check over the output can reach it and the count it corrupts is a denominator.
+_Avoid_: missed rec, gap, omission, undercount
+
 **Digit-break**:
 A space the reconstruction inserted with a digit on at least one side of it. The class matters because a quantity broken apart is the one extraction defect this repo cannot afford, and it is graded by boundary class rather than in aggregate — a boundary between two digits is a different risk from one beside a decimal point.
 _Avoid_: number split, bad break
