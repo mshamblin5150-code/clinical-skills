@@ -231,6 +231,18 @@ _Avoid_: confidence, quality, extraction mode
 The shortest verbatim fragment of a guideline that carries a decision point, quoted in the row that cites it. Verbatim is what makes a fabricated citation detectable, so a paraphrase is not one.
 _Avoid_: quote, excerpt, evidence, text
 
+**Recommendation label**:
+The text a recommendation record carries to say which recommendation its identifier names. On a `bound` source it is a fixed-length window of the page around the marker, so it is an aid to a reader and never a quotation — a **snippet** on such a source is read off the page instead. On an `exact` source the same field is the ruled-table cell or curated statement itself and may be quoted.
+_Avoid_: snippet, quote, record text, excerpt
+
+**Marker anchor**:
+Which end of a recommendation a text marker sits on, and therefore which way its **recommendation label** reads. A marker naming the recommendation sits at the start and reads forward; a GRADE parenthetical sits at the end and reads backward. A marker with no anchor declared is a failure rather than a default.
+_Avoid_: direction, position, offset
+
+**Changelog record**:
+A marker hit on prose that names a recommendation rather than stating one, such as a front-matter summary of what changed since last year. It is a real marker hit and inside a `bound` count's over-report contract; it is censused on a floor and never filtered, because the editorial vocabulary is open and filtering would drop real recommendations.
+_Avoid_: false positive, spurious record, noise
+
 **Decision point**:
 A quantity a guideline attaches a value to that changes what is done to a patient — a dose, a period, a cutoff, or a target. It is read from what the guideline states, never inferred from a catalog or recommendation index. A recommendation carrying no such quantity has none.
 _Avoid_: threshold, recommendation, criterion
