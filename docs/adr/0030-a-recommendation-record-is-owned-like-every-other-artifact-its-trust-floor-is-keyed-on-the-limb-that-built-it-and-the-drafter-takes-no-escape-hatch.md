@@ -17,7 +17,9 @@ The clinician ruled on 2026-08-24.
 
 #438's decision 1 prices the enforcing half as *"it will refuse every record already on disk until they are rebuilt"*, and a sweep comment on [#436](https://github.com/mshamblin5150-code/clinical-skills/issues/436) put the rebuild at *"4,618 records"* and proposed co-scheduling three tickets around it.
 
-`C:/codeing/guidelines-index` holds **eight** `recs-*.json` files. 4,618 is a recommendation count summed across them, not a file count. Of the eight, one is a 179-element JSON **list** — a shape `guidelines_recs --json` cannot produce, already inert to both readers — three are orphans no committed sheet binds, and **four** are bound by a sheet on `main`. The enforcing half costs four commands over four PDFs, once.
+`C:/codeing/guidelines-index` holds **eight** `recs-*.json` files. 4,618 is a recommendation count summed across them, not a file count. Of the eight, one is a 179-element JSON **list** — a shape `guidelines_recs --json` cannot produce, already inert to both readers — two are orphans no committed sheet binds, and **five** are bound by a sheet on `main`. The enforcing half costs five commands over five PDFs, once.
+
+**That sentence read *three orphans and four bound* for one commit, and how it went wrong is worth more than the correction.** The population was derived with an `awk` range over each sheet's `## Sources` table, and `prediabetes-type-2-diabetes-screening.md` is the one sheet declaring **two** source keys — so the range stopped at its first row and `recs-uspstf-2022.json` was published as an orphan while a committed sheet binds it. Re-derived with `threshold_sheet.parse` itself, which is the only reader whose answer is the one the gate will use. A matcher never gets to turn a partial read into a clean whole, and this is that rule failing inside the record that invokes it — caught by a sweep subagent, whose own account named the wrong record and had the count right.
 
 That matters beyond arithmetic, because the inflated price was a stated ground for treating the cheap half as separable. It is not separable: writing a stamp nothing reads back satisfies "Done when" bullet 1 only by inference, which is the phrase that bullet rules out.
 
@@ -57,7 +59,7 @@ Every figure below was re-derived on `2b67a19` with the freshness gate reporting
 
 **Correct ADR 0018 in place.** Rejected. [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md) permits correcting a ratified record's *facts*; 0018's title is its ruling, not a fact.
 
-**Delete the orphaned records and the sweep file while rebuilding.** Rejected, and the reasons are measured rather than cautious. The three AHA orphans all name one PDF and **are** the evidence [#456](https://github.com/mshamblin5150-code/clinical-skills/issues/456) rests on — deleting them fixes that ticket by accident and removes what a reader would re-derive it from. `recs-sweep.json` is a 179-row artifact nothing in `tools/` can produce and is plausibly the last surviving re-derivation behind `reference/thresholds/README.md`'s corpus-wide mode figure. Both are already inert to both readers.
+**Delete the orphaned records and the sweep file while rebuilding.** Rejected, and the reasons are measured rather than cautious. The two AHA orphans name the same PDF as `hypertension.md`'s own bound `recs-aha-2025.json`, and the three together **are** the evidence [#456](https://github.com/mshamblin5150-code/clinical-skills/issues/456) rests on — deleting them fixes that ticket by accident and removes what a reader would re-derive it from. `recs-sweep.json` is a 179-row artifact nothing in `tools/` can produce and is plausibly the last surviving re-derivation behind `reference/thresholds/README.md`'s corpus-wide mode figure. Both are already inert to both readers.
 
 ## What this does not reach
 
@@ -70,6 +72,8 @@ Declared here so the builder does not have to discover it, and owned as rows in 
 
 ## Consequences
 
-The four bound records are rebuilt as part of landing, because `threshold_sheet --all` runs from the pre-commit hook when a sheet is staged and an unstamped bound record exits `2` — without the rebuild, the next edit to any of the four committed sheets is a refused commit.
+The five bound records are rebuilt as part of landing, because `threshold_sheet --all` runs from the pre-commit hook when a sheet is staged and an unstamped bound record exits `2` — without the rebuild, the next edit to any of the four committed sheets is a refused commit. **The rebuild set is derived from `threshold_sheet.parse` rather than counted**, for the reason the correction above records: one sheet declares two sources, so any instrument that assumes one row per sheet undercounts silently.
+
+`hypertension.md`'s bound record is the sharp case and is named here so the builder does not meet it as a surprise. `recs-aha-2025.json` carries **no `counted_from` key at all** — it predates #173 — so ruling 2 refuses it on the absent limb rather than merely on the absent stamp, and its floor cannot be selected until it is rebuilt.
 
 **#446 edits ruling 2's tuple.** Moving all three limbs onto `rebuild_text` puts `tools/guidelines_extract.py` in the floor for every record, invalidating everything stamped here. That is CPU rather than a merge — a `recs-<key>.json` is a build artifact outside every checkout — but the tuple is a plain literal in one place for that reason, not something derived from imports.
