@@ -181,8 +181,8 @@ Writing a build-derived artifact to a path inside a git checkout, as against wri
 _Avoid_: write, output, emit, save
 
 **Trust floor**:
-The code whose change makes a found artifact no longer believable — the files that decide what the artifact *contains*, never the ones that decide how it is stamped. Trust is settled by comparing what is recorded against what is on disk, so a reader can re-derive it; a producing commit only ever approximates it.
-_Avoid_: producer paths, unchanged paths, provenance list
+The inputs whose change makes a found artifact no longer believable — the files that decide what the artifact *contains*, never the ones that decide how it is stamped. Usually code, and not only code: committed data a producer lifts content from is in the floor on the same test. Trust is settled by comparing what is recorded against what is on disk, so a reader can re-derive it; a producing commit only ever approximates it.
+_Avoid_: producer code, producer paths, unchanged paths, provenance list
 
 **Cache identity**:
 Everything a content-addressed build hashes to decide whether it may reuse an earlier artifact instead of producing one again. Deliberately wider than the trust floor, because the price of a miss is a rebuild and the price of a wrong hit is a stale answer.

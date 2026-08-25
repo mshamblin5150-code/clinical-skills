@@ -1,0 +1,75 @@
+# A recommendation record is owned like every other artifact, its trust floor is keyed on the limb that built it, and the drafter takes no escape hatch
+
+[#438](https://github.com/mshamblin5150-code/clinical-skills/issues/438) recorded that `tools/guidelines_recs.py` is the one PDF-reading producer in `tools/` outside [#184](https://github.com/mshamblin5150-code/clinical-skills/issues/184)'s ownership system: no stamp written, and nothing checking one at either of the two sites that read a `recs-<key>.json`. Grilling it on 2026-08-24 found every claim in the ticket true, its cost estimate an order of magnitude too high, and five decisions the ticket did not know it had.
+
+The clinician ruled on 2026-08-24.
+
+1. **A trust floor is made of inputs, not of code.** [ADR 0018](0018-an-artifacts-trust-floor-is-the-code-that-changes-its-contents.md) rule 3's membership test — *files that change what the artifact contains* — is right and unchanged. Its title's noun is not: a committed data file a producer lifts content from is in the floor exactly as its code is.
+2. **A recommendation record's floor is keyed on `counted_from`.** A `curated-table` record records `reference/guidelines-uspstf.md` in its `inputs`; a `ruled-table` or `text-marker` record does not. The key lives in `guidelines_recs.py` beside the `SOURCE_*` constants it is keyed on, not in `artifact_provenance.TRUST_FLOOR`. An absent or unrecognized `counted_from` refuses rather than falling back to a floor nobody chose.
+3. **The record is stamped and both read sites validate.** It does not become a third stage of `guidelines_build`'s content-addressed cache; that needs a batch producer this repo does not have.
+4. **The stamp records the source PDF and verifies it where the corpus is reachable**, with a banner where it is not, on `CITATION` tier 2's arrangement.
+5. **An untrusted record is a did-not-scan, not a finding.** `threshold_sheet`'s COVERAGE gate prints `NOT RUN` with the reason and exits `2`; a real finding on a trusted source still wins at `1`.
+6. **`threshold_draft` refuses and takes no escape hatch**, declared in the module rather than left as an absence. `guidelines_recs` is a producer and takes none either; `threshold_sheet` reuses the flag it already declares.
+7. **One reader, in the producing module, imported by both sites.** Trust is checked on the record that is *selected*. The resolver's directory scan uses an untrusted peek that returns only a filename match.
+8. **The closure claim names its population.** `CLAUDE.md`'s sentence says which artifact classes are covered and points at a declared-limits object for what is not; the recs-specific rows live in `guidelines_recs.py`.
+
+## The premise the ticket held fixed, and why it does not hold
+
+#438's decision 1 prices the enforcing half as *"it will refuse every record already on disk until they are rebuilt"*, and a sweep comment on [#436](https://github.com/mshamblin5150-code/clinical-skills/issues/436) put the rebuild at *"4,618 records"* and proposed co-scheduling three tickets around it.
+
+`C:/codeing/guidelines-index` holds **eight** `recs-*.json` files. 4,618 is a recommendation count summed across them, not a file count. Of the eight, one is a 179-element JSON **list** — a shape `guidelines_recs --json` cannot produce, already inert to both readers — three are orphans no committed sheet binds, and **four** are bound by a sheet on `main`. The enforcing half costs four commands over four PDFs, once.
+
+That matters beyond arithmetic, because the inflated price was a stated ground for treating the cheap half as separable. It is not separable: writing a stamp nothing reads back satisfies "Done when" bullet 1 only by inference, which is the phrase that bullet rules out.
+
+## What was measured
+
+Every figure below was re-derived on `2b67a19` with the freshness gate reporting `FRESH`, before the ruling.
+
+**The ticket's headline re-derives exactly.** `grep -c "artifact_provenance\|allow_untrusted" tools/guidelines_recs.py` is `0`. The writer at `guidelines_recs.py:724` emits six keys — `doc_id`, `source`, `counted_from`, `mode`, `totals`, `recommendations` — and no stamp. `threshold_sheet.bind_recs` validates only `isinstance(loaded, dict)`; `threshold_draft._load_record` only that `recommendations` is a list.
+
+**The decision the ticket poses lands on neither command it names.** Five commands declare `--allow-untrusted-provenance` in argparse: `threshold_sheet`, `guidelines_catalog`, `uspstf_table`, `guidelines_search`, `guidelines_index`. `guidelines_manifest` takes the parameter and declares no flag; `guidelines_build` calls `current_producer()` and checks nothing. Decision 3 asks whether *`guidelines_recs`* takes the hatch and prices it as the seventh flag-bearing command — but a producer writes stamps rather than checking them, and `guidelines_extract` is the precedent, mentioning the flag twice and declaring none. `threshold_sheet` already has one. The question is `threshold_draft`'s alone, and it would be the sixth.
+
+**The curated limb puts a committed file in the floor, and it is not a corner case.** `guidelines_recs.extract` branches curated-first, and on that branch the record's recommendation text is lifted out of `reference/guidelines-uspstf.md` rather than out of the PDF. That table names **90 distinct PDF filenames** against a 179-document corpus. Both existing floors are code-only not on principle but because `guidelines_extract` and `guidelines_index` read no committed data — so *code* and *input* were indistinguishable, and the narrower word was written into a title, a glossary entry and a rule.
+
+**The ordinary development case needs no hatch here, which is not true of the five commands that have one.** `producer_file_identity` hashes working-tree bytes, and `check_producer` suppresses the dirty, commit-mismatch and working-tree reasons whenever `inputs_match is True`. A developer editing `guidelines_recs.py` — which #436 and [#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446) both will — writes a record carrying their dirty bytes' hashes and reads it back clean from that same tree. The five flag-bearing commands read whole-corpus artifacts a developer did not build in the same session.
+
+**The same mechanism is what makes the change survivable across worktrees.** `C:/codeing/guidelines-index` is written by eleven live worktrees. A commit-only stamp would fail every cross-worktree read; an `inputs` stamp passes wherever the producer's bytes agree.
+
+**A schema drift is already live and both readers consume it.** `recs-aha-2025`, `recs-aha-htn-2025` and `recs-hypertension` carry no `counted_from` — they predate [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173)'s tier split — and nothing reads that key at either site. Under this ruling that closes without a schema marker: a record written by an older `guidelines_recs.py` carries that file's older hash, so it fails. The index needed `SCHEMA_VERSION` *and* a producer stamp because its schema lives in SQLite and its producer was unrecorded; here the producer-file identity **is** the schema identity.
+
+**The document itself is in no floor and the existing machinery cannot put it there.** `extraction_identity` hashes source PDFs into the cache key while `TRUST_FLOOR["extraction"]` stays code-only, which is ADR 0018 rule 2 and is safe there because a changed PDF is a cache miss. Ruling 3 keeps recs out of the cache, so that half does not exist. And `_content_inputs` rejects an absolute path and anything not under `REPO_ROOT`, deliberately, while the corpus lives outside every checkout — so ruling 4's check belongs to `guidelines_recs`'s own reader rather than to `check_producer`. `CITATION` tier 2 partially covers the residue: a repaginated or replaced PDF fails a snippet check on the sheet. What it misses is a document whose recommendation text moved while the snippet still lands on its cited page, which leaves the identifiers COVERAGE grades against stale — the entire content of the artifact.
+
+## Considered options
+
+**Stamp only, leaving both read sites alone.** Rejected. #438 calls it the cheap half and it is cheap because it enforces nothing: the record becomes distinguishable by opening the file, which is the inference "Done when" bullet 1 excludes.
+
+**Make recs a third stage of the content-addressed cache.** Rejected here and probably right later. The cache is per-corpus with one build directory per stage; a recs record is per-document and hand-run, and no batch producer exists anywhere in `tools/`. Building one inside a provenance ticket turns a stamp change into a corpus sweep. Filed separately, and #429 will need it regardless of provenance, so it is not this ticket's dependency to carry.
+
+**File an untrusted record as a COVERAGE finding, exit `1`.** Rejected. COVERAGE's findings are claims about the *sheet* — an omitted recommendation, a scope reason that does not hold. An untrusted record says nothing about the sheet; it says the sheet could not be graded. `differential_scan.py`'s ordering already rules this: `2` for every way of not having scanned, `1` for a violation, `1` wins where both hold.
+
+**Give `threshold_draft` the hatch, uniform with the five.** Rejected. It prints a skeleton a person curates into a committed sheet, so untrust does not travel — it is consumed and the origin is gone, which is the laundering `artifact_provenance` already names. A hatch there is a switch whose only function is to permit that. The variant that keeps the hatch and marks the drafted output was preferred to the plain hatch and still rejected: the marker is a line in stdout the curating human deletes.
+
+**Each site calls `check_producer` itself, pinned by a walk asserting both do.** Rejected. Two implementations and a test claiming they agree is [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218) verbatim — that identity test passed while `reference_scan` and `docx_write` still disagreed about where a reference list ends, and the lesson written down was to share the object rather than test the agreement.
+
+**Trust-check the resolver's directory scan too.** Rejected. `threshold_draft._record_path` globs every `recs-*.json` and loads each to match on the `source` filename; a strict read there makes one stale neighbour in a shared directory a hard failure for every topic. The peek answers *which file is about this document*, and the answer to that from an untrusted record is still only ever a path.
+
+**Restore `CLAUDE.md`'s closure sentence to unqualified truth.** Rejected. That sentence stood unqualified and false for the whole life of the recs artifact and no test failed, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s and [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s subject. Making it true again restores the mechanism that produced this ticket.
+
+**Correct ADR 0018 in place.** Rejected. [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md) permits correcting a ratified record's *facts*; 0018's title is its ruling, not a fact.
+
+**Delete the orphaned records and the sweep file while rebuilding.** Rejected, and the reasons are measured rather than cautious. The three AHA orphans all name one PDF and **are** the evidence [#456](https://github.com/mshamblin5150-code/clinical-skills/issues/456) rests on — deleting them fixes that ticket by accident and removes what a reader would re-derive it from. `recs-sweep.json` is a 179-row artifact nothing in `tools/` can produce and is plausibly the last surviving re-derivation behind `reference/thresholds/README.md`'s corpus-wide mode figure. Both are already inert to both readers.
+
+## What this does not reach
+
+Declared here so the builder does not have to discover it, and owned as rows in `guidelines_recs.py`'s limits object rather than as prose:
+
+- **A read site built by indirection is invisible to the walk.** The check is keyed on the `recs-` filename literal, so a path assembled at run time passes unseen. It is a floor on the shapes in the tree, never *a third read site cannot arrive unguarded* — `test_write_guards.py`'s ceiling, inherited.
+- **A record whose PDF has left the corpus cannot be rebuilt and cannot be drafted from.** That is the price of ruling 6 having no override, and the remedy is to re-add the document or write the sheet by hand.
+- **Ruling 4 skips where the corpus is absent**, so on CI and on any machine without `guidelines-src` the document is unverified and the banner says so.
+- **A stamped, trusted record can still be wrong about the guideline.** Ownership answers *which code and which inputs built this*, never whether the extraction read the page correctly — which is [#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446)'s subject and stays there.
+
+## Consequences
+
+The four bound records are rebuilt as part of landing, because `threshold_sheet --all` runs from the pre-commit hook when a sheet is staged and an unstamped bound record exits `2` — without the rebuild, the next edit to any of the four committed sheets is a refused commit.
+
+**#446 edits ruling 2's tuple.** Moving all three limbs onto `rebuild_text` puts `tools/guidelines_extract.py` in the floor for every record, invalidating everything stamped here. That is CPU rather than a merge — a `recs-<key>.json` is a build artifact outside every checkout — but the tuple is a plain literal in one place for that reason, not something derived from imports.
