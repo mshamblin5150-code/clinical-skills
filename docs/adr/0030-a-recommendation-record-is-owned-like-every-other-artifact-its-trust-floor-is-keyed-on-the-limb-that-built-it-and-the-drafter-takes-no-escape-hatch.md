@@ -51,7 +51,7 @@ Every figure below was re-derived on `2b67a19` with the freshness gate reporting
 
 **Each site calls `check_producer` itself, pinned by a walk asserting both do.** Rejected. Two implementations and a test claiming they agree is [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218) verbatim — that identity test passed while `reference_scan` and `docx_write` still disagreed about where a reference list ends, and the lesson written down was to share the object rather than test the agreement.
 
-**Trust-check the resolver's directory scan too.** Rejected. `threshold_draft._record_path` globs every `recs-*.json` and loads each to match on the `source` filename; a strict read there makes one stale neighbour in a shared directory a hard failure for every topic. The peek answers *which file is about this document*, and the answer to that from an untrusted record is still only ever a path.
+**Trust-check the resolver's directory scan too.** Rejected. `threshold_draft._record_path` globs every `recs-*.json` and loads each to match on the `source` filename; a strict read there makes one stale neighbor in a shared directory a hard failure for every topic. The peek answers *which file is about this document*, and the answer to that from an untrusted record is still only ever a path.
 
 **Restore `CLAUDE.md`'s closure sentence to unqualified truth.** Rejected. That sentence stood unqualified and false for the whole life of the recs artifact and no test failed, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s and [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s subject. Making it true again restores the mechanism that produced this ticket.
 
