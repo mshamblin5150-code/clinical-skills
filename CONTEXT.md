@@ -243,6 +243,14 @@ _Avoid_: summary, digest, extract, cheat sheet
 The subject a threshold sheet is keyed to, such as hypertension. The unit a clinician cites; a guideline document is not one, and several documents may address the same topic.
 _Avoid_: condition, subject, area
 
+**Recommendation record**:
+The machine-readable extraction of one guideline document's recommendations, keyed to the document it was read from. Its filename is a claim about which document that was, not a fact — no producer enforces the naming convention its readers depend on — so a record is resolved by exact name and then checked against the document it says it came from.
+_Avoid_: recs file, extraction, recommendations JSON
+
+**Source key**:
+The name a threshold sheet binds a recommendation record by. It is sheet-local, so two sheets may pick one key for different guidelines, and it resolves a filename rather than identifying a document.
+_Avoid_: source id, record key, slug
+
 **Source mode**:
 How completely a guideline's recommendations could be read, and therefore how strongly a claim about them can be gated. `exact` where every recommendation was counted from a ruled table or the curated federal table; `bound` where they were matched by marker in running prose, which over-reports and can truncate.
 _Avoid_: confidence, quality, extraction mode
