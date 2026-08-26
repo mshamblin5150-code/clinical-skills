@@ -180,6 +180,10 @@ _Avoid_: writing example, submission, document
 The whole of what a clinician typed into an assistant, handed over as one container. Unlike a writing sample nothing in it was chosen, so its contents are unreviewed by the person supplying it and unknown to the person reading it.
 _Avoid_: chat history, archive, dump
 
+**Invoked source**:
+A domain the writer reaches outside the immediate subject for -- a mechanism, a discipline, a named authority -- whose real behavior is then spent as the argument. What makes one load-bearing is that the claim rides on what the domain actually does; a decorative one names nothing it is spending. The domain is open by construction, because the same domain can be invoked in one sentence and used literally in the next, so nothing keyed on a list of domains recognizes an instance.
+_Avoid_: metaphor, figure, imagery, amplification, craft metaphor
+
 **Publish**:
 Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
 _Avoid_: write, output, emit, save
