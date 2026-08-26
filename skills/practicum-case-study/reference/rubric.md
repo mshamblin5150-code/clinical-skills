@@ -5,6 +5,11 @@ primary-care-across-the-lifespan practicum. **Read this before drafting** —
 [SKILL.md](../SKILL.md) points here for the required components, the point weighting and the
 guideline roster.
 
+**The raw capture is `scratch/case-study-spec.md`**, taken from the live LMS topic on
+2026-08-10 and holding the rubric, the guideline roster and the findings against the
+submitted corpus. It is gitignored and never leaves the machine; this sheet is what was
+distilled from it.
+
 **Course numbers, module numbers and due dates are deliberately not in this file.** They change
 every term and they are per-account; they live in `scratch/medatrax-profile.md` with everything
 else about *which* clinician. What is here is the part that does not change.

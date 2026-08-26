@@ -49,6 +49,24 @@ The five canonical roles, kept at their default strings, plus a local `grilling`
 
 Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily by `/domain-modeling` rather than scaffolded upfront. See `docs/agents/domain.md`.
 
+### The scratch root
+
+Everything under `scratch/` is a patient record and none of it is recoverable. **A top-level entry
+there is accounted for iff some tracked file names it as `scratch/<name>`** — derived, never a
+hand-kept list — and a session's working material goes under `scratch/sessions/<key>/` rather than
+loose at the top. See `docs/agents/scratch.md` and
+[ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md).
+
+**The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
+unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
+itself carry PHI — so the swap hole in a bare count is declared rather than closed, and hashing was
+priced and refused. That is the whole subject of the ADR; do not re-propose the list.
+
+**A report is not a delete list, and no work list may schedule the `rm`.** [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417)'s
+ruling 10 caught two raw captures behind tracked reference sheets by *opening* them rather than by
+reading their filenames, two files away from being swept. Disposing of an unaccounted entry is the
+clinician's word, per file. The cheap remedy for one that deserves to stay is to **cite it**.
+
 ### ADR number allocation
 
 Claim a number by writing its record in the invoking checkout:

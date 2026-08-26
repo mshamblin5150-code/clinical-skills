@@ -46,7 +46,11 @@ _Avoid_: assignment, deliverable, submission
 
 **Sitting**:
 One occasion of working on a graded artifact. An artifact is usually written over several, days apart, and each produces its own submission. A sitting is provenance and never identity.
-_Avoid_: session, attempt, revision
+_Avoid_: session (in the agent sense — see **Session**), attempt, revision
+
+**Session**:
+One agent's working pass over this repo — the unit that opens a branch, sweeps the tracker, and writes residue into the scratch root. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
+_Avoid_: run, pass, sweep
 
 **Run key**:
 The identity of a graded artifact, as course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed. It names the directory holding that artifact's whole provenance record, and prefixes the filename of every submission made from it.
