@@ -398,3 +398,7 @@ _Avoid_: caveat, known issue, disclaimer
 **Underived count**:
 A figure stating the size of a population that is sitting in code and was never consulted. The remedy is to derive it or to drop it; the corrected number is as underived as the wrong one. Distinct from an **orphaned figure**, whose instrument no longer exists at all — that one is declared, this one is repaired.
 _Avoid_: stale count, off-by-one, magic number
+
+**Second route**:
+The access path or instrument a refuting pass used that the pass it is checking did not — a different rendering, a different access path, an independent corroborating source. It is written as two halves so the pair can be compared, and a check fires when they match, because an agent briefed as both passes has only one route to name. Distinct from a **declared limit**, which says what a mechanism does not reach: this is the thing one mechanism does reach, and independence is what it still does not establish.
+_Avoid_: verification, second opinion, double-check, independence

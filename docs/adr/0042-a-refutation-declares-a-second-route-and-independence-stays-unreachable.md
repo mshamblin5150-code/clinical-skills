@@ -7,6 +7,8 @@ read the numbers **visually**, wrote them into the `RESTATEMENT`, and then clear
 transcription** in the `REFUTATION`. `tools/research_ledger.py` returned exit 0, every `#231` row
 passed, and an independent reader caught it on a coincidence of phrasing.
 
+**Corrected in place 2026-08-26, after merging and before anything was built against it.** The tracker sweep that followed the merge found three gaps, all in the direction of a builder shipping a field that does nothing. Ruling 7 named `REQUIRED_WHEN_SOURCED` and `CITATION_FIELDS` and **never named the `FIELD` parse regex**, so a literal build adds the field to two tuples, `SECOND-ROUTE:` matches nothing, every record reports `MISSING_FIELD` for a field it carries, and the three new rows can never fire. The `paywalled` ground was cited at `skills/practicum-case-study/SKILL.md:582`; the stated ground is at **`:591-592`** and `:582` opens a paragraph that is still true. And no `CONTEXT.md` term was filed, which is the defect [#496](https://github.com/mshamblin5150-code/clinical-skills/issues/496)'s own sweep had already caught once. ADR 0038's correction header is the precedent.
+
 Grilled 2026-08-26 against `fdaa097`. **Ten decisions, ruled by the clinician on that date.**
 Nothing is built here; this is the record the build reads.
 
@@ -31,7 +33,7 @@ Nothing is built here; this is the record the build reads.
   states one in prose; `discussion-post` and `discussion-reply` return zero hits.
 - **`tools/test_discussion_post_skill.py:14-16` already opens all three SKILL.md files.**
 - **`paywalled` passes on a stated ground the environment contradicts.** The module docstring, a code
-  comment, and `skills/practicum-case-study/SKILL.md:582` all rest it on *failing them would refuse
+  comment, and `skills/practicum-case-study/SKILL.md:591-592` all rest it on *failing them would refuse
   every UpToDate record*. `skills/setup-clinical-skills/SKILL.md:75` already asks whether a browser
   tool reaching the clinician's real logged-in session is available, for portal steps, and it is
   wired to the research fan-out nowhere.
@@ -89,8 +91,12 @@ Nothing is built here; this is the record the build reads.
 ### The rows
 
 7. **Three new kinds, attributed `#500`: `unsplit-second-route`, `bare-second-route`,
-   `second-route-unchanged`.** `MISSING_FIELD` and `UNSOURCED_WITH_CITATION_FIELD` come free by
-   adding the field to `REQUIRED_WHEN_SOURCED` and `CITATION_FIELDS`. **An unparseable value is a
+   `second-route-unchanged`.** **The field must be added to the `FIELD` parse regex at
+   `tools/research_ledger.py:511-513` as well as to `REQUIRED_WHEN_SOURCED` and
+   `CITATION_FIELDS` — three edits, not two.** That alternation is what makes a line a field at
+   all, so the two-tuple build ships a field that parses as nothing and reports `MISSING_FIELD`
+   against records that carry it, with the three new rows unreachable. `MISSING_FIELD` and
+   `UNSOURCED_WITH_CITATION_FIELD` then come free from the two tuples. **An unparseable value is a
    finding and not exit 2**, on `UNKNOWN_STATUS`'s and `UNKNOWN_REFUTATION`'s stated reason — the
    field gates the row below it, and a clean report over a row that never ran is the silent pass this
    directory exists to refuse. **Separator is ASCII `->`, split on the first occurrence with the
@@ -161,3 +167,13 @@ was opened.
   for `paywalled` in the three places it is stated, which is `#231`'s ruling narrowed by a fact; and
   whether `RESOLVED` gains the same authenticated-route instruction on the research side, which is a
   different fan-out.
+- **`#498`'s `STATED-EXPIRY` claims the same ordinal slot.** Both specs call their field *an eighth
+  entry in `REQUIRED_WHEN_SOURCED`*, and both independently mandate the same derived-population bind
+  across the three publishing skills. Whichever builds first pushes the other to ninth and breaks
+  #498's *eight-field block against a nine-field parser* arithmetic; the second builder either
+  duplicates the bind or, reading it as done, ships nothing. **Neither ticket may build the bind
+  without checking the other.** [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s
+  byte-identical trap, visible before the merge rather than after it.
+- **`CONTEXT.md` gains `Second route` under `### Checks`**, filed against **Declared limit**, which is
+  the term it exists to be distinguished from: a declared limit says what a mechanism does not reach,
+  and a second route is the thing this one does.
