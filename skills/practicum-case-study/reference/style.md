@@ -3,7 +3,8 @@
 Derived from **ten graded and returned submissions**, all from one FNP practicum course. This is
 the authority [SKILL.md](../SKILL.md) points at for voice and for section shapes.
 
-**Scrubbed.** The working file this was distilled from is gitignored: it names the clinician, quotes
+**Scrubbed.** The working file this was distilled from is `scratch/case-study-style.md`,
+gitignored: it names the clinician, quotes
 his submitted work in full, and links his drive. What survives here is the *shape* — no name, no
 dates finer than a year, no links. Standing rule 1 in [AGENTS.md](../../../AGENTS.md).
 
