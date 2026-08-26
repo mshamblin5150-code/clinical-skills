@@ -65,9 +65,15 @@ The widened qualifier is genuinely two-sided, which is why it is tempting and wh
 
 The first is a real population the closed list misses and the widening reads correctly. The
 second is a methodological adjective fabricated into a population. **Both are filled cells**, so
-no presence check can tell them apart, and a filled cell is what `guidelines_recs.CuratedRow.population`
-consumes and what `skills/clinical-note/SKILL.md`'s `[uspstf: grade A, adults 50 to 75, 2021]`
-citation form puts in front of a preceptor.
+no presence check can tell them apart, and a filled cell is what
+`skills/clinical-note/SKILL.md`'s `[uspstf: grade A, adults 50 to 75, 2021]` citation form puts
+in front of a preceptor — read off the artifact by whoever writes the note, and required by that
+skill to carry **every condition in the cell** through into the tail.
+
+*(Corrected 2026-08-26: this sentence also named `guidelines_recs.CuratedRow.population` as a
+consumer. `CuratedRow` **carries** the field and `curated_records` never passes it into a
+`Recommendation`, so nothing in the record path consumes it. The severity argument stands on the
+citation form, which is a real consumer; the second mechanism was not one.)*
 
 The closed list fails only ever toward a **blank**, and a blank is exactly what ruling 3's pin
 catches. The widened rule fails toward a **wrong value**, and nothing anywhere catches that.
@@ -119,8 +125,42 @@ header asserts the column is not what 15 of its rows are. `interval` keeps the c
 `population` gains its own naming the fallback.
 
 **The figure belongs to this record**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
-terms: it is counted against a corpus outside the repo, nothing committed re-derives it, and it
-moves on the next refresh. **No figure goes in the header.**
+terms, and it moves on the next refresh. **No figure goes in the header.**
+
+**Corrected 2026-08-26 by the exhaustive sweep on this record.** This paragraph read *"it is
+counted against a corpus outside the repo, nothing committed re-derives it"*, and the second
+half is false. The **values** need the corpus; the **identity of the 15 rows** does not. Driving
+`derive_population(statement, "")` over the artifact's own `## Statements` table and diffing
+against the `Population` cells returns exactly those 15 rows across 13 files, with **zero other
+disagreements over 143** — from `reference/guidelines-uspstf.md` and `tools/uspstf_table.py` and
+nothing else. The condition is exact by construction: `derive_population` returns the fallback
+precisely when the statement rule finds no phrase. **Three sweep agents re-derived it
+independently and the parent re-derived it a fourth time.**
+
+**And the denominator is matcher-dependent, which is worth stating beside it rather than leaving
+for the next reader to trip on.** *Which route filled the cell* gives **15 rows across 13
+files**. *Which cells a reader cannot attribute* — the cell string equal to the declared field —
+gives **17 across 15**, the two extra being rows where the statement rule independently produced
+the field's own wording. This ruling is about provenance, so 15 is the figure; the other is named
+because two honest measurements of "the same" quantity differing by matcher is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137), and a reader who
+derived 17 would otherwise conclude one of us was wrong.
+
+**The clause has four copies and ruling 4 names one.** Besides the generated header, it is in
+this module's own docstring at `tools/uspstf_table.py:30`, and in
+`skills/clinical-note/SKILL.md:678` — a **consumer-facing skill** that restates it *and cites
+the header as its authority* — which `tools/test_guideline_sheets.py:219` pins. All four move
+together or the repair reinstates the defect one file over, which is
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) inside the ruling whose
+subject is a false clause.
+
+**Ruling 1 also falsifies a live sentence in that skill, and no test catches it.**
+`skills/clinical-note/SKILL.md:678` reads *"one row of the 143 has a population reading `not
+stated`"* and teaches the citation tail from it. After the fix, **zero rows do**, and the
+instruction loses its only live instance. `tools/test_guideline_sheets.py:220` asserts the string
+`population not stated` is present, so it stays **green** while the claim around it becomes
+false. That is this record's own subject — a check sensitive to the wrong thing — arriving on
+the ruling rather than on the column.
 
 **5. The declined widening is pinned by a test, as a floor and never a rate.** Both forms are
 implemented and run rather than described, on
@@ -145,11 +185,32 @@ That is the cost of ruling 3 and it is what ruling 3 buys.
 
 **This ticket blocks on [#434](https://github.com/mshamblin5150-code/clinical-skills/issues/434)
 and rides its rebuild.** [ADR 0030](0030-a-recommendation-record-is-owned-like-every-other-artifact-its-trust-floor-is-keyed-on-the-limb-that-built-it-and-the-drafter-takes-no-escape-hatch.md)
-ruling 1 puts `reference/guidelines-uspstf.md` in the trust floor of every `curated-table`
-recommendation record. Three of the five bound records are `curated-table`, so rebuilding the
-artifact refuses them and `threshold_sheet --all` exits `2` until they are re-produced. #434's
-deliverable 5 rebuilds the same file for its own reasons, so landing after it pays that bill
-once rather than twice. **#434 is `ready-for-agent` and can land without anyone reading this
+ruling **2** keys a record's floor on `counted_from` and puts
+`reference/guidelines-uspstf.md` in the `inputs` of every `curated-table` record. Three of the
+five bound records are `curated-table`, so rebuilding the artifact invalidates their stamps and
+`threshold_sheet --all` exits `2` until they are re-produced. #434's deliverable 5 rebuilds the
+same file for its own reasons, so landing after it pays that bill once rather than twice.
+
+**Corrected 2026-08-26 by the sweep, twice over, and the second correction is the one that
+matters.** This paragraph cited **ruling 1**, which is the general principle — *a trust floor is
+made of inputs, not of code* — where ruling 2 is what actually keys the floor. That imprecision
+was copied from ADR 0030's own Consequences, which says *ruling 1* twice; it is now wrong in two
+records rather than one, and is corrected here only.
+
+**More seriously, the consequence was written in the present tense and is not live.**
+`grep -c "artifact_provenance\|allow_untrusted" tools/guidelines_recs.py` returns **0** — nothing
+stamps or validates a `recs-<key>.json` today, so no rebuild can refuse anything on this ground
+until [#438](https://github.com/mshamblin5150-code/clinical-skills/issues/438) builds ADR 0030.
+The bill is real and it is **scheduled, not standing**. *(The absence of a `recs` key from
+`artifact_provenance.TRUST_FLOOR` is **not** evidence of this — ruling 2 says in as many words
+that the key lives in `guidelines_recs.py` beside the `SOURCE_*` constants and not in that
+table. A sweep agent offered it as evidence, which would have been a wrong reason for a right
+conclusion.)*
+
+**And when it does land it is stamp-only.** `curated_records` builds each `Recommendation` from
+`row.page`, `row.topic`, `row.grade` and `row.statement`; `population` and `interval` never leave
+`CuratedRow`. So a Population-only rebuild moves no record's **content** — a re-produced record
+is byte-identical apart from its stamp and its `inputs` hash. **#434 is `ready-for-agent` and can land without anyone reading this
 record**, which is why the dependency is recorded on that ticket as well as here.
 
 **The scope is this column on this artifact, deliberately.** The general argument — where two
@@ -160,11 +221,24 @@ from the files one pass happened to have open is
 [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s recorded shape.
 
 **What this does not rule, and it is filed rather than left implied.** Ruling 4 discloses the
-fallback in the header; it does not **mark** which rows came from it. A reader of the table still
-cannot tell a statement-derived cell from a document-derived one, so the corpus-free
-re-derivation the ticket promised remains impossible for 15 rows — now honestly, rather than
-falsely. Whether a fallback-sourced cell should carry a mark in the row is a change to the
-table's shape and to `guidelines_recs.parse_curated_table`, and it has its own ticket.
+fallback in the header; it does not **mark** which rows came from it. Whether a fallback-sourced
+cell should carry a mark in the row is a change to the table's shape and to
+`guidelines_recs.parse_curated_table`, and it has its own ticket —
+[#545](https://github.com/mshamblin5150-code/clinical-skills/issues/545).
+
+**Corrected 2026-08-26, and this is the sharpest thing the sweep found.** This paragraph read
+*"A reader of the table still cannot tell a statement-derived cell from a document-derived one,
+so the corpus-free re-derivation the ticket promised remains impossible for 15 rows."* **The
+first half is false**, by the measurement recorded under ruling 5 above: the 15 rows are
+identified exactly, corpus-free, from two committed files. It is a **fused clause with one true
+half and one false half** — you cannot recompute the *value* from the statement, and you can
+identify *which rows* — which is the identical defect ruling 4 exists to split, committed one
+section later in the record that splits it. Found by three sweep agents independently.
+
+**So what a mark buys is legibility, not possibility**, and #545 was filed on the stronger claim
+and has been corrected to the weaker one. The residual argument is that a derivation is not a
+record: identifying the rows re-runs *current* code against an artifact built by a possibly
+different version, so it drifts silently where a mark would not.
 
 **Nothing here reaches whether a population cell is correct.** The pin sees presence; the header
 sees provenance; neither reads a document. A green suite is not a checked population.
