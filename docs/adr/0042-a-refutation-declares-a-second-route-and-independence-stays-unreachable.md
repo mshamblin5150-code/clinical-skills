@@ -55,7 +55,7 @@ Nothing is built here; this is the record the build reads.
 2. **The route gets a named slot; it is not graded inside `REFUTATION`'s reason.** `BARE_REFUTATION`
    already requires that reason to have substance and the failing record passed it. Grading a route
    inside prose means hunting for route-shaped wording, which has no honest general text pattern —
-   `discussion_post_scan.NOT_REACHED` already declares that shape — and which is the neighbour of the
+   `discussion_post_scan.NOT_REACHED` already declares that shape — and which is the neighbor of the
    one thing `#500` forbids by name.
 
 3. **The slot holds a declared difference in two halves, and the row fires when they match.** Not one
