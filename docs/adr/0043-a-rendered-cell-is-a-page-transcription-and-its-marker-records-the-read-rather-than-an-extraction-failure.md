@@ -7,6 +7,14 @@ out of a gate they did not need. The ticket read that as a **denominator** defec
 many rows declared the marker, and a reader takes that figure for a measurement of how badly the
 corpus extracts.
 
+**Corrected in place 2026-08-26, after merging and before anything was built against it.** The
+exhaustive tracker sweep that followed the merge found four defects in this record, every one in
+the direction of a builder shipping something that does nothing. The counter cite was off by one;
+ruling 5's tripwire was described as reachable when no committed sheet can fire it; the build list
+missed the one place in code that states ruling 1's rejected reading; and ruling 2's `_Avoid_` line
+did not cover the prose collision ADR 0041 declares unreachable. ADR 0042's correction header is
+the precedent.
+
 Grilled 2026-08-26 against `e55e22f`, with the corpus and PyMuPDF present so every figure below was
 re-derived rather than inherited from the ticket's four sweep comments. **Six decisions, ruled by the
 clinician on that date.** Nothing is built here; this is the record the build reads.
@@ -45,7 +53,8 @@ this repo. **Nothing committed re-derives one.** They are stated here once and n
   36 would have been refused by gate 4, so every interleave refusal the marker is credited with
   skipping is one that would never have fired.
 - **The tier-0 skip note is unreachable on the only sheet that has markers.** `rendered` is
-  incremented at `tools/threshold_sheet.py:1171`, inside the per-source loop and past the `continue`
+  incremented at `tools/threshold_sheet.py:1172`, under the guard at `:1171`, inside the per-source
+  loop and past the `continue`
   at `:1152` that drops an ungraded source. `diabetes.md`'s only source is `bound`, so the counter
   stays `0` and that line has never printed on any committed sheet.
 - **`CONTEXT.md` has no entry for the marker at all**, and its **Snippet** entry at `:278` requires
@@ -88,7 +97,12 @@ The clause the build files, against **Snippet**, on [ADR 0041](0041-a-glossary-t
 > verbatim test applies to it, which is why the page check skips such a row rather than failing it.
 > The marker is the audit claim that a page was rendered and read, and that claim is what licenses
 > the cell.
-> _Avoid_: snippet, quote, paraphrase, reconstruction
+> _Avoid_: snippet, quote, paraphrase, reconstruction, transcription
+>
+> The bare noun is the collision: `transcription` is ordinary prose across this repo, including in
+> [ADR 0042](0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md) for a
+> different act. The term is the two words, never the second one alone. ADR 0041's *What no row
+> reaches* names this kind and declares it unreachable, so the `_Avoid_` line is the whole remedy.
 
 **This is the ruling the other four fall out of.** The reason the page check skips a marked row stops
 being an assertion and becomes a consequence of what the cell *is*; the reason a marked row passing
@@ -152,8 +166,17 @@ twice under two headings. The scope is right and the code does not change.
 ungraded source with markers on both, tier 0 prints a subset of the sheet's markers with nothing
 naming the remainder, three lines from the sheet-wide figures the other two gates print. Two numbers
 under one marker name, differing silently — the extractor-coverage rule's own shape, *a matcher never
-gets to turn a partial read into a clean whole*. `prediabetes-type-2-diabetes-screening.md` already
-carries two sources, so the case is reachable rather than hypothetical.
+gets to turn a partial read into a clean whole*.
+
+**The tripwire passes vacuously on every committed sheet, and the first draft of this ruling said
+otherwise.** It read *"`prediabetes-type-2-diabetes-screening.md` already carries two sources, so
+the case is reachable rather than hypothetical."* That sheet carries two sources and **both are
+`exact`**, and it carries no marker; `diabetes.md` is the only sheet with markers and its one source
+is `bound`. **No committed sheet mixes source modes at all.** So multi-source structure is real and
+the mixed-mode case is not, and the test can only be seen failing against a synthetic sheet — which
+is the positive-control problem this ruling's own rejected option names, arriving inside the ruling.
+The build writes that fixture; a tripwire nobody has watched fail is a promise, and ruling 5 exists
+because promises go stale in the direction nobody notices.
 
 So the scope is declared at the counter **and** a test asserts no committed sheet mixes a graded and
 an ungraded source while carrying markers, with the message telling whoever trips it to re-examine
@@ -212,7 +235,11 @@ Nothing in `diabetes.md` changes. No gate is built. No skip note changes.
 - `reference/thresholds/README.md:541` — name both routes; the prophylactic one is ordinary.
 - `reference/thresholds/README.md` — a marked row may extract cleanly, and that is not a defect.
 - `CLAUDE.md:1347` — drop *"nothing detecting that a row needed it"*; need was never the criterion.
-- `tools/threshold_sheet.py:1171` — declare the per-graded-source scope.
+- `tools/threshold_sheet.py:1171-1172` — declare the per-graded-source scope at the counter.
+- `tools/threshold_sheet.py:1302-1304` — the tier-2 skip's own comment justifies itself as avoiding
+  *"reporting a citation failure that is really an extraction failure"*, which is ruling 1's
+  rejected reading sitting in code. It states the rule the sheet's prose is being corrected for,
+  and the first draft of this list did not name it.
 - A tripwire for ruling 5's mixed-source case.
 - A `tools/test_ruling_cohort.py`-shaped test binding this record, both README paragraphs and the
   `CONTEXT.md` term, because every item above except the tripwire is prose and *a policy with no
