@@ -264,8 +264,12 @@ The subject a threshold sheet is keyed to, such as hypertension. The unit a clin
 _Avoid_: condition, subject, area
 
 **Recommendation record**:
-The machine-readable extraction of one guideline document's recommendations, keyed to the document it was read from. Its filename is a claim about which document that was, not a fact — no producer enforces the naming convention its readers depend on — so a record is resolved by exact name and then checked against the document it says it came from.
+The machine-readable extraction of one guideline document's recommendations, keyed to the document it was read from. Its filename is a claim about which document that was, not a fact — no producer enforces the naming convention its readers depend on — so a record is resolved by exact name and then checked against the document it says it came from. A record produced by a sweep is addressed by the document instead, the name having been ruled incapable of distinguishing one document from another across the whole corpus.
 _Avoid_: recs file, extraction, recommendations JSON
+
+**Recommendation sweep**:
+The production of one recommendation record for every document in the guideline corpus as a single verified build, rather than a document at a time. A document the sweep read and found no recommendation in still gets a record, and that record says so — which is a claim about what the reader matched, never a claim that the guideline states no recommendation.
+_Avoid_: batch run, corpus pass, recs build
 
 **Source key**:
 The name a threshold sheet binds a recommendation record by. It is sheet-local, so two sheets may pick one key for different guidelines, and it resolves a filename rather than identifying a document.
