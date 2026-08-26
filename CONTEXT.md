@@ -120,6 +120,10 @@ _Avoid_: draft, local copy
 The record of every new factual claim a graded document makes, one entry per claim, each naming what was searched, what was found, the page read and the date it was read on, and the result of an independent attempt to refute it. Written before the document that rests on it.
 _Avoid_: sources file, bibliography, notes
 
+**Stated expiry**:
+The date a source prints on itself as the day it ceases to have effect. Read off the document, never derived from how often its publisher reissues — a source with a known replacement schedule and no printed date has none, and a claim ledger records that it has none rather than leaving the question unasked.
+_Avoid_: expiration, sunset, shelf life, validity window
+
 **Citation key**:
 The pair of a normalized author phrase and a year that a citation and a reference entry must both produce before the citation counts as resolved. It is a name rather than an identity — one entry may yield several, and a yearless one resolves against any year.
 _Avoid_: reference id, source id, match key
