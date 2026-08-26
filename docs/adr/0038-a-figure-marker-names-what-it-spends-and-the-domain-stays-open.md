@@ -1,4 +1,8 @@
-# A figure marker names what it spends and the domain stays open
+# An invoked source names what it spends and the domain stays open
+
+**Corrected in place 2026-08-26, after merging and before anything was built against it.** Ruling 7 originally named the marker `FIGURE`. The tracker sweep that followed the merge found the collision: `figure` is this repository's word for **a published number** — 245 occurrences in `tools/`, a headed `CONTEXT.md` term in **Orphaned figure**, and the whole subject of [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). The clinician re-ruled it `INVOKED` the same day. `#526`'s *Correct ADR 0034's recs-root census in place* is the precedent, merged one commit before this record.
+
+**The filename keeps its allocated slug deliberately.** Links to this record were posted to four tickets and a pull request before the correction, and [#516](https://github.com/mshamblin5150-code/clinical-skills/issues/516) is open about ADR links that do not resolve. A renamed file would break every one of them to fix a word.
 
 A NUR_5144 M1 discussion reply was drafted, graded clean by both commands, shown to the clinician, approved, and posted. **After it was on the board** he returned two voice corrections and ruled the posted reply final. [#496](https://github.com/mshamblin5150-code/clinical-skills/issues/496) is the two defects that produced it.
 
@@ -47,15 +51,22 @@ The second is a rule gap. The first is not: `scratch/voice-model.md` carries no 
 
    **The cost is named rather than left to be found.** It is still one approval, so a quick read of the figure table reproduces this run. What changes is that the thing being skimmed is a named table with a blank in it rather than prose with nothing in it.
 
-7. **`AMPLIFICATION` is renamed `FIGURE`, and the retired keyword is still read.** Two of the reported words became false: the axis is function rather than magnitude, so *amplification* teaches the framing ruling 2 retires, and `(counted, never graded)` stops being true once ruling 6 lands.
+7. **`AMPLIFICATION` is renamed `INVOKED`, and the retired keyword is still read.** Two of the reported words became false: the axis is function rather than magnitude, so *amplification* teaches the framing ruling 2 retires, and `(counted, never graded)` stops being true once ruling 6 lands.
 
-   A `FIGURE`-only parser reads **zero** markers in the preserved run record, strips nothing from the word count, and reports a clean scan — this ticket's own defect, on this ticket's own evidence. So the retired keyword is parsed, stripped from the word count, and reported on its own line as a pre-#496 marker that is **not graded**: neither silently passed nor failed.
+   An `INVOKED`-only parser reads **zero** markers in the preserved run record, strips nothing from the word count, and reports a clean scan — this ticket's own defect, on this ticket's own evidence. So the retired keyword is parsed, stripped from the word count, and reported on its own line as a pre-#496 marker that is **not graded**: neither silently passed nor failed.
+
+   **`FIGURE` was ruled first and re-ruled the same day**, on the collision recorded at the head of this file. The replacement was chosen on a constraint ruling 3 creates and the first ruling missed: **the marker covers a craft metaphor and a named philosopher alike**, since a named principle is a domain whose rules he knows, spent on the claim, exactly as a mechanism's behavior is. `ANALOGY` and `IMAGERY` are clean of collisions and read wrongly over `Marcus Aurelius | the obstacle becomes the way`. `INVOKED` names the **act** rather than the object, which is the same move ruling 3 makes, and reads over both:
+
+   ```html
+   <!-- INVOKED: black hole | it pulls everything near it in, and nothing escapes -->
+   <!-- INVOKED: Marcus Aurelius | the obstacle becomes the way -->
+   ```
 
 8. **The form lands in both discussion skills; the refusal lands in `discussion-reply` only.** `skills/discussion-post/SKILL.md` step 3 permits no added figure — *"already present in the clinician's reasoning may stay; the skill is licensed to add none"* — so in a post every figure is the clinician's. An unfillable property field there means the run kept a figure of his and cannot say what it does, and **refusing that is a scanner overruling his own sentence.** `tools/discussion_post_scan.py` counts unfilled fields without failing, on `filled_vitals_census.py`'s counted-never-graded arrangement. The record still forces a run to demonstrate it understood a figure before keeping it.
 
 ### Durability
 
-9. **`skills/practicum-case-study/reference/voice.md` §4 gains an eighth item — the figure and what it spends.** §4 lists seven things a build records per sample and **none of them is imagery**; item 4, *the characteristic move*, is structural — how a paragraph opens, closes, concedes. So observation 4 exists because some build noticed it, not because the spec required it, and `setup-clinical-skills` step 8 may rebuild the model without it. The damping ruling's negative rule — do not strip his figures from graded prose — would then rest on nothing, and the failure is his voice being flattened rather than an error.
+9. **`skills/practicum-case-study/reference/voice.md` §4 gains an eighth item — the invoked source and what it spends.** §4 lists seven things a build records per sample and **none of them is imagery**; item 4, *the characteristic move*, is structural — how a paragraph opens, closes, concedes. So observation 4 exists because some build noticed it, not because the spec required it, and `setup-clinical-skills` step 8 may rebuild the model without it. The damping ruling's negative rule — do not strip his figures from graded prose — would then rest on nothing, and the failure is his voice being flattened rather than an error.
 
    It is added as its own item rather than folded into item 4, because burying the move inside a category about paragraph shape is how *martial or metallurgical* buried it the first time.
 
@@ -65,9 +76,9 @@ The second is a rule gap. The first is not: `scratch/voice-model.md` carries no 
 
 ### The model bind
 
-11. **A model shape grader is built: `tools/voice_model_scan.py`.** Counts only by default, `--show` output is private working material, exit 0 clean / 1 finding / 2 did-not-scan, on its siblings' arrangement. It grades **shape** — every register carrying its pairs, every observation carrying a quote, and the figure observation naming a domain and a property.
+11. **A model shape grader is built: `tools/voice_model_scan.py`.** Counts only by default, `--show` output is private working material, exit 0 clean / 1 finding / 2 did-not-scan, on its siblings' arrangement. It grades **shape** — every register carrying its pairs, every observation carrying a quote, and the invoked-source observation naming a domain and a property.
 
-    **It gates.** `skills/discussion-reply/SKILL.md` step 3 runs it before drafting with exit 0 required, which is `tools/research_ledger.py`'s arrangement four steps up in the same file, and `setup-clinical-skills` runs it as the acceptance check when it builds a model — so a rebuild that drops the figure observation fails where it is built rather than on the next reply. **This is what makes ruling 9 fail rather than merely be written down**, which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*.
+    **It gates.** `skills/discussion-reply/SKILL.md` step 3 runs it before drafting with exit 0 required, which is `tools/research_ledger.py`'s arrangement four steps up in the same file, and `setup-clinical-skills` runs it as the acceptance check when it builds a model — so a rebuild that drops the invoked-source observation fails where it is built rather than on the next reply. **This is what makes ruling 9 fail rather than merely be written down**, which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*.
 
     **The grilling published a claim that this was impossible and it was wrong.** The claim was that no test can reach a gitignored per-account model. `repo_root.scratch_root()` resolves from inside a worktree to the main checkout — measured from this branch's tree — and the repository already carries ten `skipTest` precedents for an absent external input. The honest limit is narrower and is stated in ruling 13.
 
@@ -85,7 +96,7 @@ The second is a rule gap. The first is not: `scratch/voice-model.md` carries no 
 
 - **A figure the drafter never marked.** The row grades the marked set. Rulings 1 and 4 narrow that and do not close it, and it is the exact hole this ticket came from.
 - **Whether a payoff sentence actually spends the property.** A reading, and the clinician's at the step-4 show.
-- **Whether a model's figure observation is *right* about him.** The grader reaches shape. A model can carry a well-formed observation that is wrong, and `voice.md` §9 already rules that a model cannot be verified by the run that built it.
+- **Whether a model's invoked-source observation is *right* about him.** The grader reaches shape. A model can carry a well-formed observation that is wrong, and `voice.md` §9 already rules that a model cannot be verified by the run that built it.
 - **The real model's content, in CI.** `scratch/` must never reach a runner, so the live class is permanently dark there and says so. The synthetic fixture grades the grader; it cannot grade his model.
 
 ## Provenance, and what is deliberately not published here
