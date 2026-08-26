@@ -260,7 +260,7 @@ The shortest verbatim fragment of a guideline that carries a decision point, quo
 _Avoid_: quote, excerpt, evidence, text
 
 **Recommendation label**:
-The text a recommendation record carries to say which recommendation its identifier names. On a `bound` source it is a fixed-length window of the page around the marker, so it is an aid to a reader and never a quotation — a **snippet** on such a source is read off the page instead. On an `exact` source the same field is the ruled-table cell or curated statement itself and may be quoted.
+The text a recommendation carries to say which recommendation its identifier names. On a `bound` source it is a fixed-length window of the page around the marker, so it is an aid to a reader and never a quotation — a **snippet** on such a source is read off the page instead. On an `exact` source the same field is the ruled-table cell or curated statement itself and may be quoted.
 _Avoid_: snippet, quote, record text, excerpt
 
 **Marker anchor**:
@@ -321,7 +321,7 @@ _Avoid_: excluded, skipped, filtered, ignored
 Several words reaching the extracted text with no space between them, because the PDF positioned the glyphs and set no space glyph. The information is not lost — the geometry still carries the boundary — so a glued run is a reconstruction failure and never an absence.
 _Avoid_: run-on, mangled word, concatenation
 
-**Recommendation record**:
+**Recommendation**:
 One recommendation lifted out of a guideline by `tools/guidelines_recs.py`, carrying its identifier, page, text and the mode that says how it was counted. It is the unit a threshold row cites and the unit a citation gate resolves against, so a recommendation the reader never built is invisible to every check downstream of it.
 _Avoid_: rec, extraction, entry, hit
 

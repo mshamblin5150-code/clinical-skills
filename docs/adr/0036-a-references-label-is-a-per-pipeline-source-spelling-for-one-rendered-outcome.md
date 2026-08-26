@@ -50,7 +50,9 @@ The layout follows the same line. `## References` centers the label and drops th
 
 `discussion_artifact.split_references` (`tools/discussion_artifact.py:61`) returns `(text, ())` when the pattern does not match, so a refused label is indistinguishable from a document with no references. In `discussion_reply_scan.survey`, **every row except `addressed-name` reads `reply.body` or `reply.references`** — `word-floor`, `reference-minimum`, `unresolved-citation`, `untraced-number` and `respent-source`. A refused label does not degrade one row; it makes five of six uncomputable while they keep printing numbers.
 
-That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s partial instrument arriving on a report rather than on a matcher, and it is the reachable-by-one-colon shape: `References:`, `REFERENCES` and `Reference` all reproduce it in full.
+That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s partial instrument arriving on a report rather than on a matcher, and it is the reachable-by-one-colon shape: `References:` and `Reference` both reproduce it in full.
+
+*(Corrected in place 2026-08-26, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-record-s-facts-may-be-corrected-in-place.md)'s terms. This sentence originally named `REFERENCES` as a third form. It is not one: the pattern carries `(?mi)`, so IGNORECASE is on and `REFERENCES` **matches** and is already accepted. The ruling is unaffected — the conclusion rests on the other two — but a builder writing ruling 2's recognizer tests would have driven `REFERENCES` expecting a refusal and got a match. Found by the tracker sweep the same day the record was ratified.)*
 
 ## Ruling 1 — a grader's accepted set is exactly the set that renders bold on its own pipeline
 
