@@ -120,6 +120,18 @@ _Avoid_: draft, local copy
 The record of every new factual claim a graded document makes, one entry per claim, each naming what was searched, what was found, the page read and the date it was read on, and the result of an independent attempt to refute it. Written before the document that rests on it.
 _Avoid_: sources file, bibliography, notes
 
+**Citation key**:
+The pair of a normalized author phrase and a year that a citation and a reference entry must both produce before the citation counts as resolved. It is a name rather than an identity — one entry may yield several, and a yearless one resolves against any year.
+_Avoid_: reference id, source id, match key
+
+**Legal reference entry**:
+A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
+_Avoid_: statute reference, citation entry, regulation cite
+
+**Legal citation**:
+An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
+_Avoid_: statute citation, section reference
+
 **Run directory**:
 The one place a graded artifact's provenance is kept — its bar, its board snapshots, its claim and check ledgers, and the evidence it was handed. Named by the run key, so it carries no date and outlives every sitting.
 _Avoid_: run folder, workspace, scratch dir
