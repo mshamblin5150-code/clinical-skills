@@ -1,6 +1,6 @@
 # A legal reference entry keys on both its name and its section, and a narrative citation is read against the reference set
 
-[#497](https://github.com/mshamblin5150-code/clinical-skills/issues/497) reports that an APA-correct federal-regulation reference entry cannot resolve against its own in-text citation, so APA form and a resolving citation are mutually exclusive. Grilled on 2026-08-26 against `4fd8070`, where `tools/discussion_artifact.py`, `tools/discussion_reply_scan.py` and `tools/discussion_post_scan.py` are each byte-identical to `origin/main`. The clinician ruled every point below on the same day. **Nothing is built here; this is the record the build reads.**
+[#497](https://github.com/mshamblin5150-code/clinical-skills/issues/497) reports that an APA-correct federal-regulation reference entry cannot resolve against its own in-text citation, so APA form and a resolving citation are mutually exclusive. Grilled on 2026-08-26. Every measurement below was taken at `4fd8070`, `main` advanced under the branch mid-session, and every one was re-derived unchanged at `19e182d` -- where `tools/discussion_artifact.py`, `tools/discussion_reply_scan.py`, `tools/discussion_post_scan.py` and `tools/test_discussion_post_scan.py` are each byte-identical to `origin/main`, and where the two commits `main` gained touched `CONTEXT.md` and ADR 0038 alone. The clinician ruled every point below on the same day. **Nothing is built here; this is the record the build reads.**
 
 ## The measurement moved the root of the tree above the ticket's own options
 
@@ -8,7 +8,7 @@ The ticket offers three directions, all of which take the in-text citation to be
 
 **APA 7 does not cite a federal regulation by its section.** The in-text form is the name of the regulation and the year: parenthetical `(Protection of Human Subjects, 2009)`, narrative `Protection of Human Subjects (2009)`. This is guide consensus across seven independent university library guides ([Widener](https://widener.libguides.com/APA_7th/legalworks), [Bradley](https://bradley.libguides.com/apa7th/legal), [CCCS](https://cccs.libguides.com/c.php?g=1465210&p=10899490), [NMU](https://nmu.libguides.com/c.php?g=1434311&p=10647807)) and **not a read of APA's own page** — `apastyle.apa.org` sits behind Imperva and returned an incident ID rather than a document on 2026-08-26. That caveat travels with the claim, on `skills/practicum-case-study/reference/apa7.md`'s terms.
 
-So the ticket's framing is one level too low. Driven in process at `4fd8070`, the reference entry keys as:
+So the ticket's framing is one level too low. Driven in process, the reference entry keys as:
 
 | entry | keys |
 | --- | --- |
@@ -36,7 +36,7 @@ and the body reads as:
 
 ### The tracked surface is one fixture, and it teaches the wrong shape
 
-`git grep -l` for the C.F.R. form over tracked files returns three paths, two of which are false hits: `reference/thresholds/diabetes.md` is unrelated and `tools/test_fixture_catalog.py:82` is `frozenset("ACFR")`. The whole real surface is `tools/test_discussion_post_scan.py`, whose ledger entry is `REFERENCE: 42 C.F.R. § 482.13 (2024).` — **a section with no regulation name**, which is not an APA legal reference — and which never appears in that fixture's own `## References` block.
+`git grep -l` for the dotted `C.F.R.` form over tracked files returns exactly one module — `tools/test_discussion_post_scan.py`, six occurrences — plus this record, which carries the form in order to describe it. The looser `CFR` spelling adds two files and **both are false hits**: `reference/thresholds/diabetes.md` writes `CFRD` for cystic fibrosis-related diabetes, and `tools/test_fixture_catalog.py:82` is `frozenset("ACFR")`, a character set. A re-derivation that reaches for the short spelling will find a surface three times the real one. That module's ledger entry is `REFERENCE: 42 C.F.R. § 482.13 (2024).` — **a section with no regulation name**, which is not an APA legal reference — and which never appears in that fixture's own `## References` block.
 
 ### The two graders resolve against different sources
 
