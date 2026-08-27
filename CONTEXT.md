@@ -297,7 +297,15 @@ _Avoid_: source id, record key, slug
 
 **Source mode**:
 How completely a guideline's recommendations could be read, and therefore how strongly a claim about them can be gated. `exact` where every recommendation was counted from a ruled table or the curated federal table; `bound` where they were matched by marker in running prose, which over-reports and can truncate.
-_Avoid_: confidence, quality, extraction mode
+_Avoid_: confidence, quality, extraction mode; also avoid source class, which answers a different question
+
+**Source class**:
+What form a corpus document takes — a guideline, a recommendation statement, a web capture, a draft, an errata, a scope of work. It says nothing about whether a guideline is current or superseded. A threshold sheet names it beside each source, because a number read out of a public review draft is not guidance in force and a year alone does not say so. A scope of work states what a future guideline will cover and holds no clinical quantity by design, which makes it a declared non-source rather than a source read and found empty.
+_Avoid_: status, standing, document type, source mode
+
+**Extraction identity**:
+Which build of the extracted corpus a claim was checked against — the producing commit, the extractor's own fingerprint, the reader engine and the boilerplate settings, as opposed to a corpus path and a date. A threshold sheet names it because a re-extraction moves every snippet's substrate at once, and without it a stale sheet is indistinguishable from a current one.
+_Avoid_: corpus version, build date, provenance
 
 **Snippet**:
 The shortest verbatim fragment of a guideline that carries a decision point, quoted in the row that cites it. Verbatim is what makes a fabricated citation detectable, so a paraphrase is not one.
@@ -329,16 +337,20 @@ titration or withholding period filed under an `-interval` key is a narrower cla
 contradiction of this.
 _Avoid_: schedule, periodicity, cadence
 
+**Population key**:
+The name a threshold sheet binds one of its source's stated patient populations by, declared in that sheet beside the guideline's own verbatim wording. It is sheet-local, like a source key: two sheets may spell the same patients differently or one spelling differently, and nothing binds one sheet's vocabulary to another's. The verbatim column is what a reader compares across sheets, because no machine does.
+_Avoid_: cohort, group, patient class
+
 **Quantity key**:
-The stable name for what a threshold row measures. A method-dependent value names the method in this key, so the method is neither mistaken for a patient population nor reported as a conflict.
-_Avoid_: metric, field, variable
+The name for what a threshold row measures, stable within its own sheet and never across the directory — the twin of a population key and declared on the same terms. A method-dependent value names the method in this key, so the method is neither mistaken for a patient population nor reported as a conflict.
+_Avoid_: metric, field, variable; also avoid reading "stable" as directory-wide
 
 **Coverage registry**:
 The one-row-per-topic record of the threshold-sheet sweep. Its topic population is derived from the guideline catalog, and each row names whether the topic has a sheet, was read and had no decision point, or remains unread.
 _Avoid_: checklist, index, inventory
 
 **Sweep state**:
-One of `sheet`, `none`, or `unread`. `none` means the guideline was read and states no decision point; `unread` establishes nothing. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question. What `sheet` asserts is that every page of the source sits in a read span — it is derived from the sheet's own span table rather than typed, and the registry refuses a disagreement in either direction.
+One of `sheet`, `none`, or `unread`. `none` means the topic's **named source documents** were read and state no decision point, which is a claim about those documents and never about the topic — a society that has not yet published on a subject cannot earn one, so a source that is not a guideline cannot produce it. `unread` establishes nothing. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question. What `sheet` asserts is that every page of the source sits in a read span — it is derived from the sheet's own span table rather than typed, and the registry refuses a disagreement in either direction.
 _Avoid_: status, result, disposition
 
 **Shipped artifact**:
