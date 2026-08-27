@@ -266,9 +266,7 @@ module. A ratified record is a dated statement of what was true when it was rule
 practice is to date a citation rather than rewrite it, so a no-copy bind on six would forbid the
 going-stale a record is entitled to do.
 
-**11.
-[ADR 0047](0047-a-corpus-document-s-stated-citation-is-read-off-its-own-page-and-a-link-is-not-one.md)'s
-two citations are converted from coordinates to names, in this change.**
+**11. [ADR 0047](0047-a-corpus-document-s-stated-citation-is-read-off-its-own-page-and-a-link-is-not-one.md)'s two citations are converted from coordinates to names, in this change.**
 
 That record's *why not `locator`* section refuses this repository's own word **because**
 `tools/research_ledger.py:537` carries a live tested definition, with
