@@ -96,7 +96,7 @@ Each gets its own named reason, and the reason rides beside ruling 2's root name
 
 **Refusal stays at the build layer, and that follows from ruling 3 rather than being a fresh call.** `threshold_sheet.py --all --quiet` runs inside `git commit`; refusing on **b** or **c** blocks a commit for machine state the commit never touched, and **c**'s only remedy is 56 minutes of CPU. `guidelines_build` already owns damage — it quarantines and re-hashes — and a read site that refuses on a damaged alias is a second, weaker copy of a check that already exists somewhere with the power to repair it.
 
-So **b** falls back to the recs root like the others, loudly and named — which is strictly better than today, because the fallback yields a **graded** sheet where the present behaviour yields `NOT RUN`.
+So **b** falls back to the recs root like the others, loudly and named — which is strictly better than today, because the fallback yields a **graded** sheet where the present behavior yields `NOT RUN`.
 
 ## Ruling 6 — the build splits, and the producer half lands first and independently
 
