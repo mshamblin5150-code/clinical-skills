@@ -7,8 +7,57 @@ the artifact and the board, and the artifact is a statement of **intent** that n
 The ticket offered three options — record the reread, enrich the capture, or declare the gap — and
 said they were not exclusive.
 
-Grilled 2026-08-27 against `d3c9f6a`. **Eleven decisions, ruled by the clinician on that date.**
+Grilled 2026-08-27 against `d3c9f6a`. **Thirteen decisions, ruled by the clinician on that date.**
 Nothing is built here; this is the record the build reads.
+
+**Corrected in place 2026-08-27, after merging and before anything was built against it.** The
+exhaustive tracker sweep that followed the merge found four defects, and every one is in the
+*evidence* rather than in a ruling. ADR 0038's and ADR 0042's correction headers are the precedent.
+
+1. **This line read *Eleven decisions* over thirteen contiguous numbered rulings.** Rulings 12 and 13
+   — the late reread of the four entries on disk, and the glossary term — sat outside the count the
+   record gave for itself, and both are cited elsewhere as work to be done. A reader checking a
+   citation to *ADR 0050 ruling 12* against the header would have concluded it did not exist, which
+   is [#510](https://github.com/mshamblin5150-code/clinical-skills/issues/510)'s defect inverted and
+   worse, because the record understates its own end rather than a citation overshooting it.
+
+2. **The longest-shared-run figures were an instrument artifact and are replaced.** They were taken
+   with `difflib.SequenceMatcher`, whose `autojunk` defaults to **`True`** and discards frequent
+   characters in any sequence over 200 long — so every match was truncated. Re-derived with
+   `autojunk=False`, the runs are **56**, **72** and **96** characters against responses of 1,827,
+   1,876 and 4,189, not the 14, 40 and 10 first published. **The error ran in the direction that
+   flattered the argument**, which is the direction this repository treats as most expensive. The
+   conclusion is unchanged and is now better supported than the figures suggested: inspected, all
+   three runs fall inside reference-list and citation text — a shared author-and-year string, a
+   shared sentence fragment — and none inside posted prose, so no board capture contains any posted
+   reply and ruling 1 stands.
+
+3. **Ruling 11's *`research_ledger`, which holds five prose limits* cites a figure its own source
+   disclaims.** `grep -c -i "\bfive\b" docs/adr/0042-*.md` returns **0** — ADR 0042 ruling 9 argues
+   from *these are the limits* and from #535 being unruled, and states no count anywhere. The five is
+   [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535)'s **title**, and that
+   ticket's body says of it: *"The five above are a starting list, not a measurement — derive the
+   population before trusting it, because a hand-list is the matcher that turns a partial read into a
+   clean whole."* So this record republished the exact figure #535 exists to stop, inside a ruling
+   that cites #535. **The direction of the argument survives** — if `research_ledger`'s prose limits
+   are more than five, ruling 9's objection is *stronger* there and transfers *less*, which is what
+   ruling 11 concluded — and ruling 11's second leg carries it without any count at all: ruling 6
+   puts `discussion_post_scan`, which already exports `NOT_REACHED`, into the same change, so
+   deferring is #220 verbatim regardless.
+
+4. **Ruling 11's *the object is populated with everything the module currently claims* was derived
+   from the module docstring alone, and that is the method #535 has already ruled insufficient.** Its
+   #500 comment reads: *"the derivation has to read the ADR's declared limits as well as the module's
+   docstring, because ADR 0042 put a limit in a ratified record without putting one in the code."*
+   Five ratified records name `discussion_reply_scan` — ADRs 0005, 0036, 0038, 0039 and this one —
+   and [ADR 0036](0036-a-references-label-is-a-per-pipeline-source-spelling-for-one-rendered-outcome.md)`:126`,
+   under *What none of this reaches*, already holds **this record's own new row**: *"A run that types
+   something other than the artifact. The reply is typed by hand; nothing checks that what reached
+   the board is what the artifact says."* **The build must sweep the ADR-held limits into
+   `NOT_REACHED` as well**, or the object ships as a two-row numerator over a four- or five-row
+   denominator on day one — #535's thesis reproduced inside the change that argued it did not apply.
+   Whether a limit stated in a ratified ADR counts toward a module's population is #535's to rule;
+   this record no longer assumes it does not.
 
 ## Measured before ruling, at `d3c9f6a`
 
@@ -19,9 +68,10 @@ Nothing is built here; this is the record the build reads.
   each; those are the capture-writer's own structure.
 - **No board capture in the tree contains any posted reply.** Each run holds exactly one
   `board-<date>.md` and it predates the posting. Longest shared character run between a board and a
-  reply artifact in the same run: **40**, **14** and **10** characters, against response lengths of
-  **1,876**, **1,827** and **4,189**. Option 2 as filed asks about the fidelity of an artifact that
-  does not cover the reply at any fidelity.
+  reply artifact in the same run: **72**, **56** and **96** characters, against response lengths of
+  **1,876**, **1,827** and **4,189** — measured with `difflib.SequenceMatcher(..., autojunk=False)`,
+  and every run falls inside reference-list or citation text rather than posted prose. Option 2 as
+  filed asks about the fidelity of an artifact that does not cover the reply at any fidelity.
 - **`post.md` is already the artifact this ticket wants, on the other path.** The clinician's own
   initial-post record carries `AUTHOR`, `REPLIES`, `POST-URL` and `POSTED`. The locator and the
   timestamp do not exist before submission, so the post path already goes back to the board and
@@ -37,8 +87,8 @@ Nothing is built here; this is the record the build reads.
   `<course>-<module>-discussion` and write into it, per [ADR 0005](0005-a-run-is-keyed-to-the-board.md).
   `board-<date>.md`, `claims.md` and `posts/` are written by both.
 - **A reply is a graded artifact with no submission.** `skills/discussion-reply/SKILL.md` mentions
-  `output/` exactly once, at `:23`, and it is a prohibition. `discussion-post` mentions it seven
-  times and writes two files there. The post path's `.docx` is a faithful record of what went into
+  `output/` exactly once, at `:23`, and it is a prohibition. `discussion-post` mentions it on seven
+  lines — nine occurrences — and writes two files there. The post path's `.docx` is a faithful record of what went into
   the paste box; the reply path has no counterpart, so nothing in the tree is the thing the course
   marks.
 - **The reread asymmetry between the siblings.** `discussion-post:262` names what its reread owns —
