@@ -332,20 +332,40 @@ result and names its own floor.
 
 ## Filed rather than carried
 
-Four findings surfaced in this session that are not this ticket's subject. Filing them is the work;
+Findings surfaced in this session that are not this ticket's subject. Filing them is the work;
 leaving them in a merged record is what makes the next session re-derive them.
 
-- **`checks_ledger.py` holds no declared-limits object.** Ruling 2's residue.
 - **An underived count at `tools/research_ledger.py:928`.** `Scan`'s docstring reads *"Nine of the
-  ten rows still grade; the window does not"*; `KINDS` holds far more than ten, and the sentence also
-  contradicts the module's own *two rows need that date*. It reads as a #231-scoped sentence that
-  drifted into a whole-module claim. `CONTEXT.md`'s **Underived count** applies: derive it or drop
-  it, and the corrected number is as underived as the wrong one.
-- **`DRAFT_ROWS` and `EVIDENCE_ROWS` carry the same #258 reasoning in five places with no shared
-  object.** A third gated row set arrives as a sixth copy with nothing failing.
-- **ADR 0042 ruling 8 ordered `skills/practicum-case-study/SKILL.md:727` corrected and the edit never
-  landed.** A ratified ruling with an unbuilt limb, and the sentence it names — *cannot see whether
-  the refutation came from a second agent at all* — is the one #500 is about to make wrong.
+  ten rows still grade; the window does not"*, and `Scan` is a whole-module object while the ten are
+  `#231`'s citation rows alone. It also contradicts the module's own *two rows need that date*,
+  because `STALE_UNEXCUSED` is not one of the ten. `CONTEXT.md`'s **Underived count** applies:
+  derive it or drop it, and the corrected number is as underived as the wrong one.
+- **`DRAFT_ROWS` and `EVIDENCE_ROWS` carry the same `#258` reasoning at four constant and field
+  sites plus `format_report`, with no shared object.** A third gated row set arrives as one more copy
+  with nothing failing.
+
+**`checks_ledger.py`'s missing object is ruling 2's residue and is already owned by
+[#565](https://github.com/mshamblin5150-code/clinical-skills/issues/565)**, filed before this
+session. It is named here rather than re-filed, which is what searching the tracker before filing is
+for.
+
+### Withdrawn before merge, 2026-08-27
+
+**A fourth item was drafted here and does not survive checking.** It read that *ADR 0042 ruling 8
+ordered `skills/practicum-case-study/SKILL.md:727` corrected and the edit never landed*, calling it
+a ratified ruling with an unbuilt limb.
+
+**ADR 0042 is [#500](https://github.com/mshamblin5150-code/clinical-skills/issues/500)'s record**,
+and #500 is open, `ready-for-agent` and unbuilt. So that edit is unlanded because the ticket it
+belongs to has not been built — which is not a finding, it is a ticket waiting its turn, and filing
+it would have been a duplicate of #500 wearing a defect's clothes.
+
+**The mechanism that produced it is worth more than the item.** It came from a subagent's report and
+was carried into a ratified record without the one check `CLAUDE.md` requires by name — *take a
+subagent's result as a claim, not a fact* — and it was caught only by reading ADR 0042's header
+while checking how to label the filing. The two items above were re-derived at the code before this
+paragraph was written, and the `checks_ledger` item was withdrawn as a filing by a tracker search
+that a first draft did not run.
 
 ## What must not come out of this
 
