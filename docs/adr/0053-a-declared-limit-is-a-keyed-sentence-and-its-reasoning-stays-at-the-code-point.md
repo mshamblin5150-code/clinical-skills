@@ -9,7 +9,7 @@ object, which is the arrangement
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) have already ruled
 insufficient.
 
-Grilled 2026-08-27. **Twelve decisions, ruled by the clinician on that date.** Nothing is built
+Grilled 2026-08-27. **Thirteen decisions, ruled by the clinician on that date.** Nothing is built
 here; this is the record the build reads.
 
 ## Measured before ruling, at `13ebd20`
@@ -417,3 +417,11 @@ it whole rather than a cost of it.
 **`skills/discussion-reply/SKILL.md` gains limit prose it does not currently carry** — a pointer and
 a headline — because ruling 10 binds all three publishing skills and that one states no limit at all
 today.
+
+*(Corrected in place 2026-08-27, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The header read
+**Twelve decisions**; this record holds **thirteen**, numbered 1 to 13. It was never twelve — at the
+merge commit a count keyed on the numbered-ruling shape returned 12 because ruling 11's header was
+malformed, and the header was fixed without the count being re-derived. The figure is corrected; no
+ruling is rewritten. Found by the exhaustive tracker sweep from #538's grilling, which also found
+[#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535)'s body header carrying the
+same figure from this line.)*
