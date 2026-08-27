@@ -148,7 +148,7 @@ This repo has ruled the general form already, on `filled_vitals_census`'s block 
 
 **11. The backward read stops at the nearest preceding sentence boundary, with the window as a cap.**
 
-Widening backward with no stop means a label opens with the **previous** recommendation's tail — the original defect rotated 180°, and the outcome a sweep would file within the week. ADR 0029's rejection of *ending a label at a sentence terminator* was measured on the forward **end**, where a terminator buys little over 160 and needs a second rule for the 13.8% that have none. Backward it is not deciding where the label ends; it is the only thing keeping the label from starting inside its neighbour. Same mechanism, different question — ruling 10's precedent again.
+Widening backward with no stop means a label opens with the **previous** recommendation's tail — the original defect rotated 180°, and the outcome a sweep would file within the week. ADR 0029's rejection of *ending a label at a sentence terminator* was measured on the forward **end**, where a terminator buys little over 160 and needs a second rule for the 13.8% that have none. Backward it is not deciding where the label ends; it is the only thing keeping the label from starting inside its neighbor. Same mechanism, different question — ruling 10's precedent again.
 
 **The rule is declared a floor, not asserted correct.** A terminator followed by whitespace and a capital rejects `1.73 m2` and `1.5 mg`; it does not reject `e.g. Streptococcus` or a citation marker. The build measures the false-stop rate against every trailing-marker document and declares it beside the constant. **A stop with no boundary found takes the cap**, which is the pre-existing behavior and is why the cap is still needed.
 
@@ -178,7 +178,7 @@ Widening backward with no stop means a label opens with the **previous** recomme
 - **A test-only anchor check.** The property is structural and a required argument has no floor to declare.
 - **An enumerated editorial-verb list.** It goes stale against an open vocabulary; a shape has nothing to enumerate.
 - **One window constant at 160 with the truncation declared.** Cheaper and honest, and it ships a label that omits what is being recommended.
-- **Taking the full backward window with no boundary stop.** The grade parenthetical still anchors *which* recommendation the label is for, so identification survives — but the label opens with a neighbour's text, which is this ticket's own subject.
+- **Taking the full backward window with no boundary stop.** The grade parenthetical still anchors *which* recommendation the label is for, so identification survives — but the label opens with a neighbor's text, which is this ticket's own subject.
 - **An addendum on ADR 0029.** Right where the original's reasoning stands and only its scope moves. Here its evidence base moves: a forward-only window measurement cannot support a rule that reads both ways.
 
 ## Declared limits
