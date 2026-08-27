@@ -426,3 +426,25 @@ _Avoid_: stale count, off-by-one, magic number
 **Second route**:
 The access path or instrument a refuting pass used that the pass it is checking did not — a different rendering, a different access path, an independent corroborating source. It is written as two halves so the pair can be compared, and a check fires when they match, because an agent briefed as both passes has only one route to name. Distinct from a **declared limit**, which says what a mechanism does not reach: this is the thing one mechanism does reach, and independence is what it still does not establish.
 _Avoid_: verification, second opinion, double-check, independence
+
+### Tracker
+
+**Binding**:
+A statement in a merged pull request's artifact text that the merge changes a named ticket's state — the whole ticket, or one numbered unit of it. A binding owns its line: it is the only thing that line says. Distinct from a **citation**, which names a ticket without claiming anything about its state, and the two are indistinguishable by any property other than owning the line.
+_Avoid_: reference, link, mention, tag
+
+**Citation**:
+A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything.
+_Avoid_: reference, mention, cross-reference
+
+**Merge receipt**:
+The immutable comment recording that one merge bound one ticket, anchored to the pull request, the full merge commit and the date. It preserves that bounded relation and makes no other claim on the ticket current.
+_Avoid_: notification, confirmation, comment, log
+
+**Empty plan**:
+A merge that was graded and yielded no binding. It is a finding rather than a result, because a merge whose binding failed to parse and one that never wrote a binding are otherwise the same output. Distinct from a **declared no-binding**, which is the same absence stated on purpose.
+_Avoid_: no receipts, zero, clean, nothing found
+
+**Declared no-binding**:
+A merge stating, with a reason, that it changes no ticket's state. It is what makes a legitimate absence a different row from an omission, which no count of bindings can distinguish on its own.
+_Avoid_: exemption, opt-out, skip, waiver
