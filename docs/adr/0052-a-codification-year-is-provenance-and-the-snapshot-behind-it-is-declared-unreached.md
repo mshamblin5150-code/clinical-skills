@@ -325,3 +325,97 @@ is that a rejected alternative recorded only in prose loses to fresh intuition. 
 **The declined option was to close #534 and move the prose limb to #498 outright.** Refused: this
 record is *why the cadence table is refused*, and a later session asking that question would find
 the expiry-field ticket instead of this one.
+
+## Second addendum, 2026-08-27 — ruling 7's ground expired the same day, and piece B's limit is a row
+
+**Ruled by the clinician on 2026-08-27**, during the exhaustive tracker sweep from
+[#538](https://github.com/mshamblin5150-code/clinical-skills/issues/538)'s grilling. **Ruling 7
+stands as ruled and is not rewritten.** What follows is what changed underneath it.
+
+### The finding is that one ground carried three refusals, and it is spent
+
+Piece B1 forbade `research_ledger.NOT_REACHED` on the stated ground that *three ratified records
+refuse a one-row object in this module by name*. That is true, and it is not what those records say.
+All three refuse the same narrower thing, in the same words:
+
+- [ADR 0040](0040-a-stated-expiry-is-read-off-the-document-and-a-publication-cadence-is-not-one.md)
+  ruling 9 — *"Introducing the object with one row **while five stay in prose** is ruling 7's
+  numerator-without-denominator one level up."*
+- [ADR 0042](0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md)
+  ruling 9 — *"introducing the object with one row **while the others stay in prose** reads as* these
+  are the limits *— a numerator with no denominator."*
+- [ADR 0050](0050-a-posted-reading-is-read-off-the-board-and-the-reply-path-has-no-submission-to-stand-in-for-it.md)
+  ruling 11 — *"the reason is specific to this module. It was made about `research_ledger`, **which
+  holds five prose limits**"* — and it then **built** the object for `discussion_reply_scan`, on the
+  ground that one row there is the whole population.
+
+**None of them refuses a row in a populated object.** ADR 0050 ruling 11 is the proof, because it
+went the other way on the same question for a different module. Ruling 7's own declined option
+inherits the identical ground — *binding one prose limit among the module's many is* these are the
+limits *in a different hat*.
+
+[ADR 0053](0053-a-declared-limit-is-a-keyed-sentence-and-its-reasoning-stays-at-the-code-point.md)
+ruling 1 builds `research_ledger.DECLARED_LIMITS` **whole**, over a population derived by reading the
+module end to end. After it, appending one row is not a numerator without a denominator, and the
+ground every one of these refusals rests on no longer describes the module.
+
+### What is ruled
+
+**1. Piece B's limit lands as a row in `research_ledger.DECLARED_LIMITS`, not as prose.**
+
+ADR 0053 ruling 1 had already ruled this and named the ticket — *"#498, #500 and **#534's piece B**
+each own a limit that is not true yet [...] each ticket appends its row when it lands [...] piece B
+stops being prose no test binds and becomes one row appended to a bound object, which is what ruling
+7 wanted and could not have. **#534 is told**."* **#534 was not told**; its B1 still said prose for
+the whole of that day, and this addendum is what tells it.
+
+**A one-row object is still refused.** The prohibition survives exactly as written and only its
+scope was ever in question: do not create the object *for this row*. Appending to one built for the
+module's whole population is the thing the three records were distinguishing all along.
+
+**2. The row is unconditional, and #534 gains `blocked_by #535`.**
+
+The declined option was to make it conditional — a row if
+[#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535) has landed, prose if not.
+Both #535 and #498 carry **zero** blockers and either can land first, so a conditional instruction
+makes the build outcome depend on merge order: **one specification, two different trees**, and the
+prose branch is what ADR 0053 ruling 1 calls *prose no test binds*. This repository has [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)
+for a result that depends on which branch merged first.
+
+**It deepens no chain and costs no waiting.** Piece B cannot start until #498 lands whatever
+happens; #535 is buildable today with nothing in front of it. The edge records an ordering that was
+already the likely one.
+
+**This does not reopen what ADR 0053 ruling 1 declined.** That ruling refused to block **#535** on
+the three tickets queuing rows, calling it *a deadlock dressed as thoroughness*. This is the
+opposite direction — #534 waiting on #535 — and closes no cycle.
+
+**3. The two-direction bind returns, and that is a consequence rather than a new requirement.**
+
+The `Done when` had required it, was rewritten hours earlier to drop it as the honest price of a
+prose limit, and gets it back because the row is in an object again. It is ADR 0053 ruling 10's
+point-at-and-copy-no-row bind, not a new mechanism. Under ADR 0053 ruling 8 the row is a `key`, a
+`limit` and an `evidence` disposition; under ruling 7 this one is a **declared reading**, because
+ruling 7 of *this* record already established the trigger cannot be re-derived by any test — the
+denominator is under `scratch/`, which never reaches CI — so no handler and no positive control is
+constructible for it, and the row says so.
+
+### What this does not reach
+
+**Whether ruling 7's blocking of piece B on #498 still holds.** It does, untouched: the limit's
+content names a field the module does not have, and that is unchanged by where the limit is stored.
+
+**Whether the other two queued rows — #498's and #500's — take the same correction.** Both are named
+by ADR 0053 ruling 1 in the same sentence as #534, so the same reasoning appears to reach them, and
+neither was examined here. Not asserted, and not filed as a finding, because a claim about two
+tickets nobody read is the shape this sweep spent the day removing.
+
+*(Superseded the same day. Both were read and both take it —
+[ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md),
+ruled 2026-08-27. This paragraph is left standing rather than deleted because what changed is that
+somebody read them, and the reason it was withheld is the reason it is worth keeping.)*
+
+*(Ruling 7 is not rewritten. This addendum records that its stated ground became false on the day it
+was written, and what the clinician ruled in its place. On
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms.)*
