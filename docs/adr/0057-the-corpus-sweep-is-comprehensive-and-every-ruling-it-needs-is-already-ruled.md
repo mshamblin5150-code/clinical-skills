@@ -8,8 +8,8 @@ every one added a dependency or falsified a claim in the body.** Grilled again o
 2026-08-27 against `origin/main` at `851d3d4`. Ten rulings, all the clinician's, all on
 the same day.
 
-The finding that shaped the session is that **#429 is not blocked on a decision anywhere.**
-It is blocked on the builds of decisions already ruled. Measured at `851d3d4`:
+The finding that shaped the session is that **#429 has no open decision of its own.**
+What blocks it is mostly the builds of decisions already ruled. Measured at `851d3d4`:
 
 ```
 grep -n "narrative"         tools/threshold_sheet.py  ->  0   (ADR 0026, ratified 2026-08-24)
@@ -21,15 +21,24 @@ grep -n "No decision point" tools/threshold_sheet.py  ->  0   (ADR 0035, ratifie
 1. **The sweep is comprehensive.** All 169 topics are disposed; `unread` is a defect to be
    burned down and not a resting state. The considered alternative was reading a topic on
    the day a paper needs it.
-2. **The six builds and two rulings land before the sweep starts.** No topic is swept while
-   the format cannot represent what a guideline states.
+2. **These eight land before the sweep starts.** No topic is swept while the format cannot
+   represent what a guideline states. Six are builds carrying `ready-for-agent` —
+   [#464](https://github.com/mshamblin5150-code/clinical-skills/issues/464), [#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446), [#456](https://github.com/mshamblin5150-code/clinical-skills/issues/456), [#438](https://github.com/mshamblin5150-code/clinical-skills/issues/438), [#510](https://github.com/mshamblin5150-code/clinical-skills/issues/510),
+   [#518](https://github.com/mshamblin5150-code/clinical-skills/issues/518) — and two carry `grilling` and need the clinician's word rather than an
+   agent's: [#551](https://github.com/mshamblin5150-code/clinical-skills/issues/551) and [#483](https://github.com/mshamblin5150-code/clinical-skills/issues/483). ADR 0049 ruling 6 orders four of the builds
+   as `#456 -> #438 -> #510 -> #518`'s reader half; #464, #446 and #518's producer half sit
+   outside that chain.
 3. **The reading order is re-keyed on the machinery that has never run**, beginning with
    `abdominal aortic aneurysm screening`. ADR 0009's order becomes the tail and its stated
    reason is retired.
 4. **#429 stays one ticket and acquires no children.**
    [`reference/thresholds/coverage.md`](../../reference/thresholds/coverage.md) is the work
    list; the reviewable unit is a pull request per batch; the ticket closes when
-   `python tools/threshold_coverage.py` reports `unread 0`.
+   `python tools/threshold_coverage.py` reports `unread 0`. That completion condition is not
+   reachable by this sweep alone — three shipped artifacts sit on `unread` rows as partial
+   work, and driving them to `sheet` belongs to
+   [#471](https://github.com/mshamblin5150-code/clinical-skills/issues/471)'s reading
+   children. See the correction below.
 5. **ADR 0009 point 5 is discharged for every `bound`-only topic**, not for `diabetes.md`
    alone. [#436](https://github.com/mshamblin5150-code/clinical-skills/issues/436) leaves
    #429's dependency list and keeps the recommendation accounting inside a sheet.
@@ -311,6 +320,57 @@ they become true rather than where they are built.
 `none` remains the registry's strongest claim and is now bounded on two sides: it is a claim
 about the **named source documents** and never about the topic, and a source that is not a
 guideline cannot produce one.
+
+## Corrected in place, 2026-08-27, by this record's own tracker sweep
+
+Two claims above were wider than what they measured. Both were found within the hour by
+sweep readers over the open tracker, and both are corrected here rather than in a comment,
+on [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-ruled-and-the-declared-limit-is-a-row.md)'s
+arrangement.
+
+**The headline said *#429 is not blocked on a decision anywhere*, and ruling 2 contradicts
+it two paragraphs later.** Ruling 2 names *"six builds and two rulings"*, and the two
+rulings are [#551](https://github.com/mshamblin5150-code/clinical-skills/issues/551) and
+[#483](https://github.com/mshamblin5150-code/clinical-skills/issues/483) — both carrying
+`grilling`, both holding decisions only the clinician can settle. So #429 is gated on open
+decisions, just not on any of **its own**. The distinction is what the sentence was reaching
+for and is not what it said, and it matters: the unqualified form invites the next reader to
+flip the ticket to `ready-for-agent` once the six builds land, with two rulings still owed.
+This is the *claim wider than its measurement* shape this repo keeps recording, arriving in
+the record that cites it.
+
+**Ruling 4's close condition needs a ticket ruling 4 does not name.** `unread 0` cannot be
+reached by the 169-topic sweep alone. Re-derived at `13ee8d2`:
+
+```
+grep -nE "\| unread \| [a-z]" reference/thresholds/coverage.md
+51:  | cervical cancer screening               | unread | cervical-cancer.md | partial artifact ... |
+101: | high blood pressure                     | unread | hypertension.md    | partial artifact ... |
+149: | prediabetes and type 2 diabetes screening | unread | prediabetes-type-2-diabetes-screening.md | ... |
+```
+
+Three topics already carry a shipped artifact under `unread`, and completing them is
+[#471](https://github.com/mshamblin5150-code/clinical-skills/issues/471)'s
+[#479](https://github.com/mshamblin5150-code/clinical-skills/issues/479),
+[#480](https://github.com/mshamblin5150-code/clinical-skills/issues/480) and
+[#481](https://github.com/mshamblin5150-code/clinical-skills/issues/481). Ruling 4 refuses to
+extend #471's one-ticket-per-sheet precedent to the other 166 topics, which stands — but it
+was read as though #429 owned all 169 rows, and it does not own those three. #429 is
+therefore gated on #471 as well, and the sweep's own denominator was the thing that showed
+it.
+
+**And ruling 2 was an underived count of its own — the defect this record spends four
+sections on.** It read *"the six builds and two rulings land before the sweep starts"* and
+named exactly one of the eight. `grep -oE "#(464|446|456|438|510|518)"` over this file
+returned `#464` four times and nothing else, so the set that gates the whole sweep was
+recoverable only from a ticket comment. **A gating ruling stated as a bare integer is the
+`Underived count` this repo's own glossary defines**, arriving in the ruling that gates
+everything else. It was found because four sweep readers were handed the enumeration in
+their brief and one of them checked it against the record instead of trusting it, which is
+the reason a subagent's finding is verified rather than relayed.
+
+**None of the three corrections moves a ruling.** The ten rulings stand as ratified; what moves is one
+overstated sentence, one unnamed dependency and one count that names its members now.
 
 ## Rejected
 
