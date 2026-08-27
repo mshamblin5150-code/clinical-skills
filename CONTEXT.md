@@ -136,6 +136,10 @@ _Avoid_: statute reference, citation entry, regulation cite
 An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
 _Avoid_: statute citation, section reference
 
+**Codification year**:
+The year in a legal citation, naming the edition of the code the writer consulted. **It is provenance and never currency** — accurate the day it was written and accurate a decade later, because it says which snapshot was read rather than that the snapshot still holds. What can go stale is the unstated claim beneath it, that the text quoted is still in force, and that is a different question with a different answer: the publisher's reissue schedule is not a stated expiry, and the snapshot behind the year is reached by nothing here.
+_Avoid_: edition year, currency date, as-of year, publication year
+
 **Run directory**:
 The one place a graded artifact's provenance is kept — its bar, its board snapshots, its claim and check ledgers, and the evidence it was handed. Named by the run key, so it carries no date and outlives every sitting.
 _Avoid_: run folder, workspace, scratch dir
