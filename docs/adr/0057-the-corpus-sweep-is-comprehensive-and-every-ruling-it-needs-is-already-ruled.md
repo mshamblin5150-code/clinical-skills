@@ -219,7 +219,7 @@ The KDIGO AKI public review draft is the **largest document in the corpus** and 
 most expensive item in the reading order. Under ruling 1 an agent reads all 499 pages and
 ships rows that `differential_scan` joins into a run and a case study cites. A public review
 draft is not in force, and the `## Sources` table carries `version` and `published` but no
-cell that says so. The numbers are worth having; they ship **labelled** rather than
+cell that says so. The numbers are worth having; they ship **labeled** rather than
 suppressed, because dropping them would pretend the document is not in the corpus.
 
 The scope-of-work is the opposite failure and the cheaper one. It states what a *future*
@@ -331,6 +331,6 @@ guideline cannot produce one.
 - **Retire the USPSTF table where a sheet exists.** Contradicts ADR 0009 and discards 143
   curated statements.
 - **Drop the draft and scope-of-work topics from the denominator.** 499 pages of KDIGO's
-  proposed AKI thresholds are worth having, labelled.
+  proposed AKI thresholds are worth having, labeled.
 - **Gate the extraction-identity mismatch as a refusal.** One irrelevant re-extraction
   refuses all 169 sheets and teaches people to bypass the hook.
