@@ -16,10 +16,11 @@ matcher over substantially the same tree. **The dead set has survived every pass
 denominator has.** So the figures below are dated and stamped, stated here once, and the build
 asserts none of them.
 
-**Under the scope ruled below: 105 graded files, 598 relative targets, 27 dead.** Four in
-`docs/adr/`, twenty-three in `fixtures/*/shorthand/README.md`, and **nothing dead anywhere else** —
-`skills/`, `reference/`, `docs/agents/`, `AGENTS.md`, `CLAUDE.md`, `README.md` and `CONTEXT.md` hold
-368 relative targets between them at zero dead.
+**Under the scope ruled below, 27 dead**: four in `docs/adr/`, twenty-three in
+`fixtures/*/shorthand/README.md`, and **nothing dead anywhere else**. The four are cited by
+`file:line` under *The repairs*; the twenty-three are one substitution in six files. **No denominator
+is stated here**, which is this record's own ruling 9 applied to this record — see the correction
+line at the foot.
 
 **The title is stale and the body's account of the cause is half of one.** It is four files and two
 causes: the ADR 0016 boilerplate typo at `0034:49`, `0036:55` and `0049:173`, and ADR 0045's
@@ -49,8 +50,8 @@ it is where the whole defect lives.
 **1. Every tracked Markdown file except `fixtures/`.**
 
 The body offered `docs/adr/` only or every tracked file, and the measurement collapsed the middle:
-everything outside `fixtures/` is already clean, so widening from `docs/adr/` adds 368 targets, zero
-repairs and no new rule. It is not a compromise between the two — it is **the widest scope that is
+everything outside `fixtures/` is already clean, so widening from `docs/adr/` costs **zero repairs
+and no new rule**. It is not a compromise between the two — it is **the widest scope that is
 clean today**, which means the instrument starts green over the whole consumer-facing tree and the
 only thing keeping it green is that nobody writes a dead link there.
 
@@ -283,3 +284,21 @@ No module is created, no hook changes, and no command ships.
 
 **The check is obligatory at the merge and advisory nowhere**, which is the posture ADR 0041 ruling
 4 set and this record does not spend.
+
+*(Corrected in place 2026-08-27, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. **The population figure published
+here did not re-derive, and it is the seventh on #538's thread to fail that way.** This section read
+*105 graded files, 598 relative targets, 27 dead*. Re-derived by one walk over the ruled scope the
+same day: **853** relative targets across 106 files. The 598 was never measured — it was assembled,
+by adding a `.md`-only subtotal to an **estimated** fixture-prose subtotal and a non-`.md` count,
+rather than by running the ruled scope once. So it is the same failure as the `56`, `92`, `74`,
+`124` and `139` before it: a figure and the matcher that produced it coming apart.
+
+**The dead set and every `file:line` cite re-derive exactly, and did through every pass.** That is
+ruling 9's own reasoning — *strike the figure, keep the cites* — arriving on the record that ruled
+it, which is why the denominator is dropped here rather than replaced. The build asserts no count of
+links, so nothing downstream moves.
+
+Ruling 1 carried the same defect one ruling over and is struck the same way: it read *adds 368
+targets*, which is a `.md`-only subtotal inside a record whose ruling 5 grades **every** relative
+target. The honest form of that sentence never needed a number — what makes the widening free is
+that it costs no repair and no rule, and both of those re-derive. No ruling is rewritten.)*
