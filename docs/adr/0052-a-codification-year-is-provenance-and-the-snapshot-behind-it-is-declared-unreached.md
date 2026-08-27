@@ -166,7 +166,13 @@ date is always at or before the day the agent read the page, so the comparison i
 day it is written and nothing ever re-reads it. A field that fires never is the R2 defect with
 extra steps. If this is ever built it is built with the join.
 
-**3. The limit lives in three places, and none of them is only prose.**
+**3. The limit lives in three places: one that fails, and two that are records.**
+
+*(This heading read "and none of them is only prose" until 2026-08-27. That was true of the
+version ordering a `NOT_REACHED` object and false the moment the correction above replaced it with
+prose — the fix honored ADR 0040 ruling 9 and dissolved the mechanism this ruling existed to
+create, leaving ruling 6's declined-row test as the only limb that fails. Restated on the re-grill;
+see the addendum.)*
 
 - **Prose beside the row it belongs to, and [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535)
   is told this row's text.** `research_ledger.py` holds its limits in prose and `#535` owns the
@@ -184,8 +190,10 @@ extra steps. If this is ever built it is built with the join.
 - **A rider on #498.** When `STATED-EXPIRY` lands, the agent filling it in on the C.F.R. record
   reaches `none stated` — correct under ADR 0040 ruling 1, and one inch from re-deriving this
   whole ticket as a fresh finding. The skill's field documentation names the C.F.R. case as *the
-  known instance where `none stated` is the right answer*. **#534 does not block on #498**; this
-  is a rider carried on that ticket, and the other two land alone.
+  known instance where `none stated` is the right answer*. ~~**#534 does not block on #498**; this
+  is a rider carried on that ticket, and the other two land alone.~~ **Reversed by ruling 7 on the
+  re-grill of 2026-08-27: the prose limb is unwritable until `STATED-EXPIRY` exists, so it and this
+  rider are one blocked piece. Ruling 6's test is the piece that lands alone. See the addendum.**
 
 **4. The trigger is the baseline and never an invented threshold.**
 
@@ -274,3 +282,46 @@ shape `STATED-EXPIRY` acquires under the corrected denominator and rules nothing
 [#541](https://github.com/mshamblin5150-code/clinical-skills/issues/541), whose subject is the
 authenticated-route asymmetry rather than the ledger's field budget. The field-count datum is
 #541's; the fill-rate question is not.
+
+## Addendum, 2026-08-27 — the re-grill after the correction
+
+The correction above was itself grilled, because replacing an object with prose is not a neutral
+edit: it changes what holds the limit. **Two decisions, ruled by the clinician on that date.**
+
+**7. The prose limb is blocked on [#498](https://github.com/mshamblin5150-code/clinical-skills/issues/498),
+and ruling 3's "does not block on #498" is reversed.**
+
+The limit's content is *`STATED-EXPIRY` does not carry a cadence-derived date*, and
+`grep -c "STATED-EXPIRY" tools/research_ledger.py` returns **0** — the field is unbuilt tree-wide.
+So limb 1 is not merely unenforced today, it is **unwritable** today: a prose limit about a field
+the module does not have cannot be read in context and cannot be checked in any context. The
+rider on #498 was always going to land there; the prose now lands with it, in one change rather
+than two.
+
+**Nothing is lost by waiting**, which is the whole reason this is cheap. #535 already carries the
+row's text and its measured trigger, delivered as part of this ticket's close under ruling 3, so
+the finding is on the tracker whether or not the prose ever lands.
+
+The declined option was to **bind the docstring without building the object** — a test asserting
+`research_ledger.__doc__` names this limit. It is refused: it is half of #535's mechanism arriving
+through a side door, and binding one prose limit among the module's many is *these are the limits*
+in a different hat, which is the objection ADR 0040 ruling 9 raised against the object itself.
+
+**8. It splits, and the test lands first.**
+
+- **A** — ruling 6's declined-cadence test. Depends on nothing #498 builds: no field, no ledger, no
+  corpus, only citations typed into `tools/test_research_ledger.py`. **Buildable now.**
+- **B** — the prose limb and the #498 rider. Blocked by ruling 7.
+
+**#534 does not close until B lands**, on
+[ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md)
+ruling 7's arrangement for the same shape.
+
+**A goes first because it has the shortest half-life.** Re-proposing the per-publisher cadence
+table costs nothing today and costs a failing test once A lands, and the whole argument of ruling 6
+is that a rejected alternative recorded only in prose loses to fresh intuition. Holding A until
+#498 ships would leave the table re-proposable for exactly as long as that takes.
+
+**The declined option was to close #534 and move the prose limb to #498 outright.** Refused: this
+record is *why the cadence table is refused*, and a later session asking that question would find
+the expiry-field ticket instead of this one.
