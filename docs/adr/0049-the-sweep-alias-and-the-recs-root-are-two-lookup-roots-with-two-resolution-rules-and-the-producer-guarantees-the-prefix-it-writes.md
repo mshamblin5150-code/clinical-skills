@@ -164,3 +164,74 @@ So **b** falls back to the recs root like the others, loudly and named — which
 **Three open tickets still collide at `bind_recs` and `_record_path`, and the tracker records it in one place only.** ADR 0034 ruling 6 claims *"both bodies carry the collision"*; #510's sweep comment measured that false — this body and #438 mention each other zero times. Ruling 6's chain is the resolution, and it is owed to #438 and #456 as much as to this ticket.
 
 **ADR 0045's *"until #518 lands the artifact is verified and unread"* is now split.** The producer half lands without making the stage reachable; the reader half is what discharges that sentence, and it is blocked on #510 rather than merely ordered after it.
+
+## Addendum, 2026-08-27 — what the exhaustive sweep changed, hours after ratification
+
+The sweep this record's own session ran — 47 open tickets, eight independent readers, every ticket
+getting a verdict rather than the ones whose titles looked related — found **six** things about this
+record and the change that carried it. Five are corrections in place on
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-record-s-facts-may-be-corrected-in-place.md)'s
+terms. None moves a ruling.
+
+**8. Ruling 4 is a fifth invalidator of the `recs` cache stage, and this record said the opposite
+shape of thing.** Ruling 6 argues the producer half *"touches `guidelines_recs.py`'s argument
+handling and nothing else, so it can neither collide with those three nor wait behind them."* That is
+true of the `bind_recs`/`_record_path` **seam** and silent about **cache identity**. ADR 0045 ruling 1
+puts `_code_inputs` over the producing modules into the stage key, and every existing
+`artifact_provenance.CACHE_IDENTITY` entry is a tuple of module paths — so a `recs` stage naming
+`tools/guidelines_recs.py` is invalidated by any edit to it, including this one. ADR 0045's own
+Consequences enumerates *"four open tickets each invalidate the whole stage once it exists, at roughly
+56 minutes apiece"* — #434, #436, #446, #502. **This ticket's producer half is a fifth, and neither
+record names it.** The ordering claim survives unchanged, because the two costs are different
+questions: seam contention is about a red merge, stage identity is about CPU. Landing ruling 4 before
+#510 costs nothing at all, since the stage does not exist yet to be invalidated — which is a further
+argument for ruling 6's split rather than against it.
+
+**9. The Consequences paragraph falsified the right claim with the wrong pair.** It reads *"ADR 0034
+ruling 6 claims 'both bodies carry the collision'; #510's sweep comment measured that false — this
+body and #438 mention each other zero times."* ADR 0034 is the record ruling [#456](https://github.com/mshamblin5150-code/clinical-skills/issues/456),
+so *both bodies* means **#456 and #438**, not #518 and #438. Re-derived at `d3b59bc`: #456's body
+matches `#438` **twice**, #438's body matches `#456` **zero** times. So the claim is false, and it is
+false for a reason the cited measurement does not establish — the correct evidence is #438's body
+being silent about **#456**. The inherited error came from #510's sweep comment, which measured its
+own pair. **The conclusion stands and the evidence is replaced.**
+
+**10. Ruling 6's chain is incomplete against [ADR 0032](0032-the-marker-limb-reads-the-repaired-text-the-other-two-limbs-declare-that-they-do-not-and-every-citation-gate-reads-one-reader.md)
+ruling 4, which this record does not cite.** That record fixes *"Order: **#446, then #438, then
+#436**"*. Ruling 6 fixes `#456 → #438 → #510 → #518's reader half` and names #446 once, in *What this
+does not reach*, on an unrelated point. **The two do not contradict** — both put a predecessor before
+#438 and they compose as `{#446, #456} → #438 → #510 → #518's reader half` — but a builder reading
+only this record lands #438 with #446 unbuilt, which is the outcome ADR 0032 ruling 4 exists to
+prevent. #446, #456 and #438 are all open and `ready-for-agent`, so the hazard is live. The chain as
+stated in ruling 6 should be read with #446 beside #456, and that is a correction to a **statement of
+somebody else's ordering** rather than to an ordering this record owns.
+
+**11. `CONTEXT.md`'s new **Lookup root** term forbade the name this record uses seventeen times.** Its
+`_Avoid_` line listed `recs root`, while this record uses *recs root* as the proper name of one of the
+two roots throughout. The `_Avoid_` was meant to forbid it as a name for the **concept** and read as
+forbidding it for the **root it genuinely names**. Narrowed. **Sweep alias**, this record's other
+proper name, had no glossary entry at all and now has one. That is the class ADR 0041's *What no row
+reaches* declares unreachable — *"nor does anything compare a definition to the ADR that contributed
+it"* — with a live instance produced in the commit that coined the term.
+
+## The record produced two instances of open tickets inside one hour
+
+**[#530](https://github.com/mshamblin5150-code/clinical-skills/issues/530) — the merge bound
+nothing.** PR #557 merged this record at `d3b59bc` with a body that says *"Ratifies the grilling of
+#518"* in prose and carries no `Part of #518` line, so `tracker_merge_receipt.REFERENCE` matches
+**zero** bindings across the body and every commit message, and **#518 carries no merge receipt for
+the record that rules it.** The omission shape, third consecutive ratification merge to do it, and the
+third time a sweep has produced its own instance. Recorded rather than repaired: the receipt job fires
+at merge and there is no second merge to attach one to.
+
+**[#554](https://github.com/mshamblin5150-code/clinical-skills/issues/554) — the glossary edit moved a
+cited coordinate.** Inserting **Lookup root** moved `CONTEXT.md`'s **Orphaned figure** from `:376` to
+`:380`, breaking that anchor in the newest comments on #496 and #529 — one of them written the same
+morning while flagging the previous `:364` as a #554 instance. `git show f758c0b:CONTEXT.md | grep -n
+"^\*\*Orphaned figure\*\*"` against the same command at `d3b59bc` re-derives it. **A line-number
+citation into a file the next commit appends to is not a stable coordinate**, and this is the cheapest
+demonstration of it the thread has: the drift was caused by adding a paragraph, not by editing one.
+
+*Addendum written 2026-08-27 on the branch that carries it. Rulings 1–7 and the sections above them
+are left exactly as ratified; rows 8–11 are corrections in place under ADR 0016 and say so where they
+sit.*

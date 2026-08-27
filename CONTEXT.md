@@ -273,7 +273,11 @@ _Avoid_: recs file, extraction, recommendations JSON
 
 **Lookup root**:
 One of the two places a reader looks for a recommendation record. A recommendation sweep publishes one of them, holding one record per document and answered first because a verified build is the stronger evidence; the other is fed a document at a time by hand and answers only where the first has nothing. Which one answered is named every time a record is read, because one sheet graded against the two is graded against different evidence, and a record named explicitly on the command line outranks both.
-_Avoid_: recs root, records directory, records folder
+_Avoid_: records directory, records folder, recs directory
+
+**Sweep alias**:
+The lookup root a recommendation sweep publishes for readers, holding one record per document and named from the document rather than from any sheet's key. It is a transport and not a claim: the copy carries no evidence that a verified build produced it, so what a reader checks is the trust each record carries in itself.
+_Avoid_: published records, recs mirror, alias directory
 
 **Recommendation sweep**:
 The production of one recommendation record for every document in the guideline corpus as a single verified build, rather than a document at a time. A document the sweep read and found no recommendation in still gets a record, and that record says so — which is a claim about what the reader matched, never a claim that the guideline states no recommendation.
