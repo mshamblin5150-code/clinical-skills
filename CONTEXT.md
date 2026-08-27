@@ -431,6 +431,10 @@ _Avoid_: stale count, off-by-one, magic number
 The access path or instrument a refuting pass used that the pass it is checking did not — a different rendering, a different access path, an independent corroborating source. It is written as two halves so the pair can be compared, and a check fires when they match, because an agent briefed as both passes has only one route to name. Distinct from a **declared limit**, which says what a mechanism does not reach: this is the thing one mechanism does reach, and independence is what it still does not establish.
 _Avoid_: verification, second opinion, double-check, independence
 
+**Authenticated route**:
+The clinician's own logged-in browser session, used as an access path by a fan-out agent. It is one particular path, not a property of a pass: it reaches subscription-gated sources this account pays for, and it is distinct from an anonymous fetch, which reaches a login wall and can return 200 from the form, and from the in-app browser pane, which is a separate unauthenticated surface. Distinct from a **second route**, which is a comparison between two passes' paths — an authenticated route is a thing one pass may take, and taking it establishes nothing about independence.
+_Avoid_: browser access, logged-in fetch, subscription access, real session
+
 ### Tracker
 
 **Binding**:
