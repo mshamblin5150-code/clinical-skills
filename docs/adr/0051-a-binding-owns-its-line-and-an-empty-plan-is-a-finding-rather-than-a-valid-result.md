@@ -21,25 +21,38 @@ pull request title is fetched by the workflow and read by nothing.
   Compliance has roughly doubled while omission remains the plurality shape.
 - **No merged pull request in this repository binds nothing on purpose.** Across **35** harvested
   merged pull requests, **0** carry no ticket reference of any kind. Every one of the 26 unbound
-  merges names between two and seven tickets somewhere in its body or commits.
+  merges names between two and eight tickets somewhere in its body or commits.
 - **So *contains a reference* is not a signal.** Those references are overwhelmingly *pattern
   citations* — #143, #137, #83, #320 — because this repo's prose names a defect shape by ticket
   number. A predicate keyed on them fires on 26 of 26 and cannot say which of PR #546's five tickets
   was meant. It is *the plan is empty* wearing a disguise.
 - **The third alternative has never bound anything.** Of **46** merge receipts posted across
-  **2,222** tracker comments: **31** whole-ticket, **15** partial, **0** of the third form. The
+  **2,222** tracker comments: **31** whole-ticket, **15** partial, **0** of the third form. *(This
+  record's own merge has since moved it to 47 / 31 / 16 / 0 across 2,227 comments — expected decay,
+  and the zero is the load-bearing half.)* The
   possessive-lead phrase appears in four comments in the repository's history and every one is
   documentation of the form rather than a use of it.
 - **The noun is the reason, not the punctuation.** The word `lead` followed by a number appears **0**
-  times across 47 open ticket bodies and 35 pull request bodies. What this project writes is
-  `decision N` (40 occurrences) and `option N` (9). Two authors reached for the form and were
-  silently dropped: PR #508 wrote a possessive `decisions 1-3` and PR #559 wrote a possessive
-  `option 1`.
+  times across 47 open ticket bodies and 35 pull request bodies. Over that same population this
+  project writes `decision N` **51** times and `option N` **12**. Two authors reached for the form
+  and were silently dropped: PR #508 wrote a possessive `decisions 1-3` and PR #559 wrote a
+  possessive `option 1`.
+
+  **Corrected in place 2026-08-27, and the error is worth more than the numbers.** This bullet
+  first read `decision N` (40) and `option N` (9) — the first counted open tickets only and the
+  second came from an earlier 20-merge window, so one sentence stating one population carried two
+  figures measured over two others. **Seven of the twelve `option N` instances are in PR #559 and
+  PR #560**, which are the merges decisions 4 and 5 rest on, so the record under-counted its own
+  evidence and did so at the base commit it names. Found by the sweep agent this session pointed
+  at its own work.
 - **A typographic apostrophe also fails**, in a repo whose own tooling carries a homoglyph map
   because this material arrives curly.
-- **Sixteen unparsed keyword lines across the harvested set**, separating by what would recover them:
-  trailing punctuation **5**, comma list **1**, line-opening with prose following **3**, mid-line
-  **2**, wrong noun **2**.
+- **Sixteen unparsed keyword lines across the harvested set.** Counted instead by the *pull request*
+  each relaxation would recover: trailing punctuation **5**, comma list **1**, line-opening with
+  prose following **3**, mid-line **2**, wrong noun **2**. **These are two different units and the
+  first draft set them adjacent as though they partitioned** — they do not sum to sixteen and are
+  not meant to; a line can be recoverable by more than one relaxation and several are recoverable by
+  none. Corrected in place 2026-08-27.
 
 ## The decisions
 
