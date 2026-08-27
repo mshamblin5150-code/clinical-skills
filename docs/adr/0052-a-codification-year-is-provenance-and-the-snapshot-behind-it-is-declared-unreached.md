@@ -9,6 +9,49 @@ nothing records, and `STATED-EXPIRY` is ruled not to carry it.
 Grilled 2026-08-27. **Six decisions, ruled by the clinician on that date.** Nothing is built
 here; this is the record the build reads.
 
+**Corrected in place 2026-08-27, hours after merging and before anything was built against it.**
+The exhaustive tracker sweep this record's own session ran found **six** defects in it, and one
+reverses a ratified ruling. ADR 0038's, ADR 0042's and ADR 0050's correction headers are the
+precedent. Ruling 1, 2, 4, 5 and 6 are untouched; **ruling 3's first limb is replaced.**
+
+- **Ruling 3 ordered `research_ledger.NOT_REACHED` built for one row, which three ratified
+  records refuse by name.**
+  [ADR 0040](0040-a-stated-expiry-is-read-off-the-document-and-a-publication-cadence-is-not-one.md)
+  ruling 9 *declined that object as its change and filed it* as
+  [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535);
+  [ADR 0042](0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md)
+  ruling 9 landed its own limit as prose and left `#535` the owner;
+  [ADR 0050](0050-a-posted-reading-is-read-off-the-board-and-the-reply-path-has-no-submission-to-stand-in-for-it.md)
+  ruling 11 built one for `discussion_reply_scan` **because that module holds one prose ceiling**
+  and said in as many words that for `research_ledger` *"an object with one row genuinely would
+  have been a numerator with no denominator."* This record cited ADR 0040 rulings 1, 2 and 3, never
+  ruling 9, and asserted in its correction header on that file that *every ruling below stands* —
+  reversing a ruling in the act of declaring it intact. Ruling 3's first limb now takes ADR 0042
+  ruling 9's arrangement instead.
+- **"The only ledger grader in `tools/` without a limits object" was false.** Re-derived at
+  `9e08a23`: `research_ledger.py`, `checks_ledger.py` and `discussion_reply_scan.py` all hold
+  none. Three, not one — and `#535`'s own population question is live, so the number is a floor.
+- **"The established arrangement" is a hybrid of two, and neither module writes it.**
+  `reference_scan.NOT_REACHED` *is* a `(key, sentence)` tuple; `case_study_scan.NOT_REACHED` is
+  **derived** from a `(text, disposition)` tuple. This record specified the first one's payload
+  with the second one's derivation and called it established. That is
+  [#550](https://github.com/mshamblin5150-code/clinical-skills/issues/550)'s subject, and the
+  shape is `#535`'s to rule.
+- **`SECOND-ROUTE (#542)` named a merged pull request.** The ticket is
+  [#500](https://github.com/mshamblin5150-code/clinical-skills/issues/500). No source supplied
+  `542`; it was invented, which is
+  [#554](https://github.com/mshamblin5150-code/clinical-skills/issues/554)'s class arriving in a
+  record written hours after this session corrected an instance of it on `#534`.
+- **"Whether a run will fill in a field it is given. #541's subject."** It is not.
+  [#541](https://github.com/mshamblin5150-code/clinical-skills/issues/541) is the
+  authenticated-route asymmetry between researcher and refuter; the phrase appears once in it,
+  inside *What must not come out of this*. Promoting one clause of a prohibition into a ticket's
+  subject would make `#541` the de-facto owner of the ledger's whole field budget, which nothing
+  has ruled. Corrected below.
+- **The sixth is in ADR 0040 rather than here** and is recorded on that file: ruling 10's
+  *"ADR 0039 ruling 6"* miscitation survived the in-place correction this session made to the
+  same file.
+
 ## Measured before ruling, at `f9a501c`
 
 Re-derived in this session by command, not carried from the ticket.
@@ -25,10 +68,16 @@ Re-derived in this session by command, not carried from the ticket.
 Counts only. The ledgers live under `scratch/` and no record text was read into this record
 beyond the one bibliographic citation the ticket is filed over.
 
-**`research_ledger.py` holds no declared-limits object.** Every sibling ledger grader does —
-`reference_scan.NOT_REACHED`, `case_study_scan.DECLARED_LIMITS`,
-`discussion_post_scan.NOT_REACHED`, `differential_scan.NOT_VALIDATED_AGAINST`. ADR 0040 measured
-this and it still holds.
+**`research_ledger.py` holds no declared-limits object**, which ADR 0040 measured and which still
+holds. ~~Every sibling ledger grader does.~~ **Corrected 2026-08-27: three ledger graders hold
+none** — `research_ledger.py`, `checks_ledger.py` and `discussion_reply_scan.py`, re-derived at
+`9e08a23`. Four other modules do carry one — `reference_scan.NOT_REACHED`,
+`case_study_scan.DECLARED_LIMITS`, `discussion_post_scan.NOT_REACHED`,
+`differential_scan.NOT_VALIDATED_AGAINST` — and they do not write one shape between them. **What
+counts as a limits object, and what shape one takes, are
+[#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535)'s and
+[#550](https://github.com/mshamblin5150-code/clinical-skills/issues/550)'s open questions, so
+every count here is a floor rather than a census.**
 
 `STATED-EXPIRY` and `SECOND-ROUTE` are both unbuilt tree-wide.
 
@@ -99,7 +148,7 @@ citations whose text actually moved. It is ADR 0040 ruling 2's accruing-rather-t
 property, on the half ruling 1 excluded.
 
 **It is refused on rate and on field contention, not on soundness.** It is a third new required
-field arriving into a slot `STATED-EXPIRY` (#498) and `SECOND-ROUTE` (#542) already contend for,
+field arriving into a slot `STATED-EXPIRY` (#498) and `SECOND-ROUTE` ([#500](https://github.com/mshamblin5150-code/clinical-skills/issues/500)) already contend for,
 and [#541](https://github.com/mshamblin5150-code/clinical-skills/issues/541) names field count as
 a cost nobody has priced against a run's willingness to fill fields in honestly. It buys a row
 that can fire on **one citation in twenty-two, from one publisher**.
@@ -119,12 +168,18 @@ extra steps. If this is ever built it is built with the join.
 
 **3. The limit lives in three places, and none of them is only prose.**
 
-- **A row in a new `research_ledger.NOT_REACHED`.** The module is the only ledger grader in
-  `tools/` without a limits object, and this is the row that pays for building one. It takes the
-  established arrangement: a tuple of `(key, sentence)` pairs, `NOT_REACHED` derived from it, and
-  a test binding this record and the module docstring to the object in both directions —
-  [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s repair adopted at
-  the outset rather than after two copies drift.
+- **Prose beside the row it belongs to, and [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535)
+  is told this row's text.** `research_ledger.py` holds its limits in prose and `#535` owns the
+  migration of all of them into one object; a row added here goes into that ticket, not into a
+  new object built for one row. This is
+  [ADR 0042](0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md)
+  ruling 9's arrangement taken whole — *"the narrowed limit lands as prose here; `#535` stays the
+  object's owner and is told the new text"* — and it is what
+  [ADR 0040](0040-a-stated-expiry-is-read-off-the-document-and-a-publication-cadence-is-not-one.md)
+  ruling 9 and
+  [ADR 0050](0050-a-posted-reading-is-read-off-the-board-and-the-reply-path-has-no-submission-to-stand-in-for-it.md)
+  ruling 11 both require. **A comment on `#535` carrying this row's text is part of this ticket's
+  close, not something that follows it.**
 - **A named re-open trigger inside that row** (ruling 4).
 - **A rider on #498.** When `STATED-EXPIRY` lands, the agent filling it in on the C.F.R. record
   reaches `none stated` — correct under ADR 0040 ruling 1, and one inch from re-deriving this
@@ -213,6 +268,9 @@ ruling 1 above explains why closing it would not have reached this ticket anyway
 **Any source class the corpus does not yet cite.** The measurement is 22 citations in 4 ledgers
 on one day. Ruling 4 is the whole of the arrangement for that.
 
-**Whether a run will fill in a field it is given.** #541's subject. Ruling 5 records the
-sentinel-dominant shape `STATED-EXPIRY` acquires under the corrected denominator and rules
-nothing about it.
+**Whether a run will fill in a field it is given.** Ruling 5 records the sentinel-dominant
+shape `STATED-EXPIRY` acquires under the corrected denominator and rules nothing about it.
+**It has no ticket**, and it is deliberately not filed under
+[#541](https://github.com/mshamblin5150-code/clinical-skills/issues/541), whose subject is the
+authenticated-route asymmetry rather than the ledger's field budget. The field-count datum is
+#541's; the fill-rate question is not.

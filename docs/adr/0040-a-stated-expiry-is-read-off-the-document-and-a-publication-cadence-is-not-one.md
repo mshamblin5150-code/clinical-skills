@@ -244,9 +244,17 @@ as a fresh finding — which is the shape #498's own third comment was written t
 real property of a real citation in a real run, and
 [#497](https://github.com/mshamblin5150-code/clinical-skills/issues/497)'s
 [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md)
-ruling 6 has independently declared that **a legal citation's year is checked against its
-entry's year by nothing, anywhere in the tree**, before or after that work — so the cadence case
-sits beside a second blind spot on the same citation.
+has independently declared, under `## What none of this reaches`, that **a legal citation's year
+is never checked against its entry's year** — so the cadence case sits beside a second blind spot
+on the same citation.
+
+*(Corrected 2026-08-27. This passage read "**ruling 6** has independently declared … **before or
+after that work**". Ruling 6 is a different ruling — the parenthesized-alternative span fix — and
+explicitly contrasts with the passage cited here; the tail "before or after that work" appears
+zero times in ADR 0039 and was carried over from #497's own body. The declared limit is real and
+this record's argument is untouched; the coordinate and the quotation were wrong, and #534's body
+inherited both from here. Corrected on the same day as the denominator above, having been missed
+by that pass.)*
 
 ## The two rejected contracts
 
