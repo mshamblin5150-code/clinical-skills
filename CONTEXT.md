@@ -268,8 +268,12 @@ The subject a threshold sheet is keyed to, such as hypertension. The unit a clin
 _Avoid_: condition, subject, area
 
 **Recommendation record**:
-The machine-readable extraction of one guideline document's recommendations, keyed to the document it was read from. Its filename is a claim about which document that was, not a fact — no producer enforces the naming convention its readers depend on — so a record is resolved by exact name and then checked against the document it says it came from. A record produced by a sweep is addressed by the document instead, the name having been ruled incapable of distinguishing one document from another across the whole corpus.
+The machine-readable extraction of one guideline document's recommendations, keyed to the document it was read from. Which lookup root holds it decides how it is found: where records are fed in one document at a time the filename is a claim rather than a fact, so a record is resolved by exact name and then checked against the document it says it came from; where a sweep published them it is addressed by the document, the name having been ruled incapable of distinguishing one document from another across the whole corpus. The producer guarantees that everything it writes makes the claim, never that everything making the claim came from it.
 _Avoid_: recs file, extraction, recommendations JSON
+
+**Lookup root**:
+One of the two places a reader looks for a recommendation record. A recommendation sweep publishes one of them, holding one record per document and answered first because a verified build is the stronger evidence; the other is fed a document at a time by hand and answers only where the first has nothing. Which one answered is named every time a record is read, because one sheet graded against the two is graded against different evidence, and a record named explicitly on the command line outranks both.
+_Avoid_: recs root, records directory, records folder
 
 **Recommendation sweep**:
 The production of one recommendation record for every document in the guideline corpus as a single verified build, rather than a document at a time. A document the sweep read and found no recommendation in still gets a record, and that record says so — which is a claim about what the reader matched, never a claim that the guideline states no recommendation.
