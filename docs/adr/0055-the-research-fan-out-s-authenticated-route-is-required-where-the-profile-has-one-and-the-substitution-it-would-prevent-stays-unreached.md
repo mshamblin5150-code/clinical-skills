@@ -100,7 +100,7 @@ with a zero base rate, which is the datum every ruling below turns on.
    Widening `refuted` to cover it is refused too, and it fails
    [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s line twice: it fires on
    a record that is **true**, and it asks the refuter to judge which page a sentence *was written
-   from*, which is a reading with no honest test behind it and the neighbour of the wording-keying
+   from*, which is a reading with no honest test behind it and the neighbor of the wording-keying
    ADR 0042 forbids outright. The residue is real and is declared below. **What shrinks it is ruling
    2's instruction, not a row** — a researcher that tried the session in the first place does not
    produce this record.
@@ -173,7 +173,7 @@ rebuilds #500's founding defect, and a future reader reaching for it will be rea
 cheapest-looking repair.
 
 **Do not read a skill that states the obligation as a run that met it.** Ruling 5's bind reaches the
-sentence and nothing reaches the behaviour.
+sentence and nothing reaches the behavior.
 
 ## Declared limits
 
@@ -190,19 +190,24 @@ covers it with an instruction precisely because no field can hold it.
 **A thin-but-true `RESTATEMENT` written off an abstract is not a finding.** Ruling 3 declares it
 rather than closing it.
 
-`tools/research_ledger.py` still has **no declared-limits object**;
-[#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535) is the filed fix and is
-itself unruled. On ADR 0042 ruling 9's precedent the text above lands as **prose in the module
-docstring**, and #535 stays the object's owner and is told this text in a comment as part of closing
-#541 rather than as work that follows it.
+**The limit above is a row in `research_ledger.DECLARED_LIMITS`, never prose.** See the correction
+at the foot of this record: ruling 5 was written against ADR 0042 ruling 9's prose arrangement, which
+[ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md)
+ended for every queued row on the same day this was grilled. The row's shape is ADR 0053 ruling 8's
+and is not this ticket's to invent -- a `key`, a `limit` sentence and an `evidence` disposition.
 
 ## Consequences
 
 - **#541 is blocked on #500.** It was not before; ruling 4 makes it so, and #540 was already ordered
   there. Nothing in this record can be written into a skill until #500's route paragraph exists.
-- **#541 ships no code in `tools/`.** Its whole deliverable is a sentence in three skills, a bind, a
-  prose limit and a glossary term. That is unusual for this directory and is ruling 2's measurement
-  rather than an omission.
+- **#541 splits into two pieces on ADR 0056 ruling 3's arrangement.** Piece A is the skill sentence,
+  the bind and the glossary term, and is unblocked by #535. Piece B is the `DECLARED_LIMITS` row and
+  is `blocked_by #535`. Recording no edge would leave a builder finishing piece A, finding no object
+  to append to, and closing the ticket without its declared limit -- the quiet failure #220 and #241
+  exist to prevent.
+- **#541 ships no code in `tools/` beyond that one row.** Its deliverable is a sentence in three
+  skills, a bind, a glossary term and a limits row. That is unusual for this directory and is
+  ruling 2's measurement rather than an omission.
 - **ADR 0042 ruling 5's asymmetry is closed in the direction the ticket did not expect.** The
   researcher's requirement is *broader* in trigger — any settling, not one word — and *narrower* in
   modality, being conditioned on the profile. Neither ticket predicted that split.
@@ -212,3 +217,26 @@ docstring**, and #535 stays the object's owner and is told this text in a commen
 - **The hand-list at `tools/test_discussion_post_skill.py:14-16` is named and not repaired here.**
   It is #500's bind's problem before it is this one's, and repairing it inside #541 would be the
   scope creep ruling 4 just refused.
+
+*(Corrected in place 2026-08-27, hours after ratification and before anything was built against it,
+on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms. Ruling 5's declared limit was ruled to land as **prose in the module docstring**, on
+ADR 0042 ruling 9's precedent, with #535 told the text. That arrangement was ended by
+[ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md)
+-- ratified the **same day this was grilled**, and on `main` while this branch was being written.
+Its ruling 1 puts every queued row in `research_ledger.DECLARED_LIMITS` and its ruling 2 makes that
+unconditional rather than contingent on whether the object exists at merge time, precisely so one
+specification cannot produce two different trees. ADR 0056's own *What this does not reach* names
+**whether a fourth queued row exists** as outside it, having read three; #541's is the fourth, filed
+hours later, and this correction is it being told.*
+
+*Nothing in rulings 1 through 4, 6 or 7 moves, and the limit's **text** is unchanged in both clauses
+-- only its **home**. The `#535` comment posted with the original ruling said the limit lands as
+prose in the meantime and is corrected by a follow-up comment rather than edited, so the record of
+what was believed stays legible.*
+
+*Found by the freshness gate refusing a push, which is the check working: the ruling was grilled,
+posted and committed against `3376292` while `2af8c26` was landing the record that falsified one of
+its seven decisions. Neither branch could have seen the other, and no suite would have gone red --
+[#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s* the merge is the unguarded
+moment*, arriving on a ruling rather than on an import.)*
