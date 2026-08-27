@@ -410,6 +410,11 @@ by ADR 0053 ruling 1 in the same sentence as #534, so the same reasoning appears
 neither was examined here. Not asserted, and not filed as a finding, because a claim about two
 tickets nobody read is the shape this sweep spent the day removing.
 
+*(Superseded the same day. Both were read and both take it —
+[ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md),
+ruled 2026-08-27. This paragraph is left standing rather than deleted because what changed is that
+somebody read them, and the reason it was withheld is the reason it is worth keeping.)*
+
 *(Ruling 7 is not rewritten. This addendum records that its stated ground became false on the day it
 was written, and what the clinician ruled in its place. On
 [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
