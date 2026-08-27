@@ -333,6 +333,10 @@ _Avoid_: section, chapter, part, region
 Reading one span for decision points. It leaves the rows that span holds and a narrowed unread list, and it is the unit of work — a sheet is completed one span at a time, never in a single promotion. A span leaves the unread list when it yields rows, when a blind independent read agrees it holds none, or when it is a reference list retired by class with that reason recorded.
 _Avoid_: sweep, pass, promotion, full read
 
+**Scope summary**:
+The two prose limbs above a sheet's span table, `Read:` and `Not read:`, in which a person states in their own words what the read covered. [ADR 0025](docs/adr/0025-a-section-read-is-the-unit-and-a-sheet-s-page-coverage-is-what-the-state-asserts.md) point 4 keeps it deliberately as the human summary of a machine-graded table, which makes it a second statement of one claim. Only one direction is graded against the table: a span that has left the unread list may not be named in the summary as unread. That the summary names every unread span is not graded and cannot be — the summary may compound and pluralize spans, and every sheet does.
+_Avoid_: unread list — that names the span table, which is the graded copy. Also avoid prose limb and human summary for the term itself; both describe it and neither says which copy is which.
+
 **Page coverage**:
 The requirement that the read and unread spans of a sheet together account for every page of its source, counted against the guideline catalog's own page count. It catches a span nobody listed; it does not catch a span whose page range is drawn wrong.
 _Avoid_: coverage — unqualified, that word names three different things here: the `## Coverage` section inside a sheet is which recommendation identifiers were accounted for, the coverage registry is the per-topic sweep record, and this is the per-page document read. Always say which.

@@ -55,9 +55,11 @@ No rows and no declaration stays refused, with today's message. No rows **and** 
 ```markdown
 ## Thresholds
 
-**No decision point.** Every span in `## Scope` was read and this source states no
-quantity that changes what is done to a patient.
+**No decision point.** Every span in `## Scope` has left the unread list and this
+source states no quantity that changes what is done to a patient.
 ```
+
+**That sentence read *was read* until 2026-08-26, and it was false of this record's own ruling 5.** A class exemption is not a read — ruling 5 says every span in a null sheet rests on *a marker or a class exemption*, and `CONTEXT.md`'s **Section read** has the exemption as the third and separate way a span leaves the unread list. Both USPSTF sheets in the directory exempt their references, so [#519](https://github.com/mshamblin5150-code/clinical-skills/issues/519)'s sheet was likely to be the first null sheet written and required by a ratified record to declare something false of its own span table. Corrected in place under [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md) and ruled on [ADR 0046](0046-the-scope-summary-is-graded-in-one-direction-and-the-unread-list-is-the-span-table.md): the mechanism is right and the word was wrong, which is the **second** time this record has taken that correction. Found by a grilling whose subject was the same defect one section over — a prose claim overstating the span table beside it.
 
 This preserves the dropped-column catch exactly: the mangled `diabetes.md` above still refuses, because nobody wrote the declaration. It is `CLAUDE.md`'s standing extractor-coverage rule — *a deliberately partial report may keep its ordinary status only when its contract names the bound beside the result; silence never means full coverage* — arriving at a zero-row report.
 
