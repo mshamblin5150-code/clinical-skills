@@ -54,3 +54,42 @@ Seven sessions wrote the defect in two days. The tell is uniform and it is not c
 **Not that the count stays at zero.** It was zero at `88c888e` on 2026-08-26 and false again within hours, with nothing in between having failed. It is zero again today. The class is governed after this, not extinguished.
 
 *Ruling 7's second form is written out here rather than only in `docs/agents/issue-tracker.md` because it does not exist yet; the sheet is where it becomes canonical.*
+
+## Addendum, 2026-08-27 — what the exhaustive sweep changed, hours after ratification
+
+The sweep this record's own grilling ran — 47 open tickets, six independent readers — found two things about this record: **the measurement re-derives, and ruling 9 was under-specified in a way that would have shipped the exact defect this check exists to refuse.** Ruling 16 was put to the clinician and ruled the same day; the rest is correction in place on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms.
+
+**The measurement first, because it is the half that held.** An independent reader re-ran the ruled predicate at `f758c0b` without seeing the figures above: **2,223 records, 281 occurrences, 1 dead path, 9 qualifier records** — against 2,203 / 277 / 1 / 9, with the movement fully explained by one new open issue and nineteen new comments. **The one dead path is the same one**, so ruling 15's disjointness claim survives a second, independent measurement. Ruling 6's *zero carry `in flight`* re-derives as zero of 47.
+
+16. **A path that does not resolve is a typo where a near-miss resolves, and the finding says so rather than asking for a qualifier.** Ruled by the clinician on 2026-08-27. `cites_an_unresolved_path` fires identically on an unmerged record and a misspelled one, and the remedies are opposite: for the first it is a dated qualifier, for the second it is fixing the slug. **Qualifying a typo writes a false sentence that permanently silences a real dead link**, because the slug never resolves so the qualifier never becomes historical — the one outcome worse than the defect, since what ships is a well-formed claim in a plausible place. So where the path does not resolve **but a file in the same directory shares its stem prefix** — `docs/adr/0016-` resolves to exactly one file — the finding reads *fix the slug*, not *add a qualifier*.
+
+    **This is not hypothetical and the corpus decides it.** The single dead path this ticket has ever measured, across three independent counts, is a typo — [#538](https://github.com/mshamblin5150-code/clinical-skills/issues/538)'s ADR 0016 slug on a #456 comment — **not an unmerged record.** The discriminator changes the *finding text* rather than the trigger, so no ruling above moves.
+
+    **The exact answer was priced and declined as unavailable rather than as expensive**: a path on some `refs/pull/*/head` but on no branch of `main` is unmerged and a path on no ref is a typo, and CI checks out `main` at depth 1 while `tracker_scan.py` documents the pull-head refspec as per-clone manual setup. Declared, not deferred.
+
+17. **Ruling 9 named the wrong early return, and building the spec literally shipped a silent pass.** Corrected in place. That ruling scoped `grade()`'s `"pull_request" in issue` return to the old trigger and said nothing else — but **that return is not what blocks the pull-request surface.** Driven at `f758c0b`:
+
+    ```
+    pull_request_target          -> 0  "event is outside issue text"
+    pull_request_review          -> 0  "event is outside issue text"
+    pull_request_review_comment  -> 0  "event is outside issue text"
+    ```
+
+    `tracker_branch_scope.py:45-46` fires **first**, on all three, **having read nothing**. Widening only the workflow `if:` therefore produces a step that runs on the ADR PR body — the case ruling 9 itself calls decisive — and passes it every time. The `:51-52` return governs a different surface, an `issue_comment` on a pull request. And a pull-request payload carries **no `issue` key at all**, so `:47-49` raises: the record lives under `pull_request`, `review` and `comment`, three extraction shapes this record named none of.
+
+    **What makes it worth an addendum rather than a spec edit is that the acceptance criteria could not have caught it.** [#516](https://github.com/mshamblin5150-code/clinical-skills/issues/516)'s *Done when* carried six bullets and not one drove a pull-request payload, so a build satisfying every one of them ships the silent pass undetected. **A clean result from a check that never opened the record** is this record's own subject arriving one level up, in the specification of the remedy. Three failing bullets were added.
+
+18. **Two declared limits belong in ruling 12's object that this record did not have.**
+
+    - **An undated negative assertion in prose is not reached.** The trigger fires on a citation to a path that does *not* resolve; a record citing a path that **does** resolve while carrying undated prose saying *"ADR 0046 is not on `main`"* passes and goes stale anyway, because the qualifier requirement never forbids additional undated prose. **Two live instances**, both about ADR 0046 and both false since [#549](https://github.com/mshamblin5150-code/clinical-skills/pull/549) merged. This is the residue of ruling 1's *dissolves direction two* — true of a record written under the convention, and silent about prose written beside a compliant citation.
+    - **The two qualifier forms cannot compose.** `BRANCH_SCOPE` is `\A`-anchored and ruling 2 makes satisfaction record-level, so a record on its own unmerged branch that also cites a foreign unmerged path can carry only one line at position zero, and either choice discharges the whole record while leaving the other citation undated. Ruling 7's accepted-proxy row grazes this and is not the same limit.
+
+## The record demonstrated itself in both directions inside one hour, which is the part worth keeping
+
+**Forward.** Three citations to this record were written while it sat on an unmerged branch and **not one was edited**; the branch merged and all three resolve. The seven-step cycle #516's 2026-08-26T19:14:48Z comment recorded — allocate, write, cite, 404, notice, rewrite, merge, rewrite back — ran as three: write dated, merge, done. That is ruling 1's entire claim, measured rather than argued, on the first records written under it.
+
+**Backward, and this is the finding.** **Four qualifiers the ruling session wrote were undated prose**, and all four went stale the moment this record merged. The `> **Branch state:**` line held, because it carries `as of \`2026-08-27\``. The bare `**not yet on \`main\`**` in three ticket bodies did not — including one asserting it was *"written in ruling 7's own form"* while lacking the date that form requires. **Ruling 7's second form justified its own existence in sixty minutes**, and #516's title shape collected for the third recorded time: the session that ruled the class committed it, with the rule on screen.
+
+The three body instances were dated to the historical form. The posted comment is left as written, on #497's ground and ruling 14's.
+
+*Addendum written 2026-08-27 on the branch that carries it, merged the same day. Rulings 1–15 and the sections above them are left exactly as ratified; ruling 17 is a correction in place under ADR 0016 and says so where it sits.*
