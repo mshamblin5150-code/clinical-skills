@@ -164,7 +164,7 @@ was opened.
 - `paywalled` narrows from *behind a subscription* to *walled even through the clinician's
   authenticated session*, which retires the objection that ruling 4 fails honest paywalled records.
 - Two things are **filed rather than folded in**, because neither is `#500`'s: the corrected grounding
-  for `paywalled` in the three places it is stated, which is `#231`'s ruling narrowed by a fact; and
+  for `paywalled` wherever it is stated, which is `#231`'s ruling narrowed by a fact; and
   whether `RESOLVED` gains the same authenticated-route instruction on the research side, which is a
   different fan-out.
 - **`#498`'s `STATED-EXPIRY` claims the same ordinal slot.** Both specs call their field *an eighth
@@ -177,3 +177,13 @@ was opened.
 - **`CONTEXT.md` gains `Second route` under `### Checks`**, filed against **Declared limit**, which is
   the term it exists to be distinguished from: a declared limit says what a mechanism does not reach,
   and a second route is the thing this one does.
+
+*(Corrected in place 2026-08-27, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The filed-rather-than-folded-in bullet
+read *the three places it is stated*; that figure was retracted by
+[#540](https://github.com/mshamblin5150-code/clinical-skills/issues/540) within hours of the ticket
+this record filed, which re-derived the `paywalled` grounding across three classes of site and far
+more than three of them. The number is dropped rather than restated, on
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms — #540 owns the
+population and this record does not re-publish it. A reader re-deriving from the old figure would
+have repaired three sites and read the work as done. No ruling is rewritten. Found by the exhaustive
+tracker sweep from #538's grilling.)*
