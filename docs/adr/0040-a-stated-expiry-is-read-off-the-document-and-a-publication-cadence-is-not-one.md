@@ -8,6 +8,31 @@ face when it stops being current.
 Grilled 2026-08-26. **Ten decisions, ruled by the clinician on that date.** Nothing is built
 here; this is the record the build reads.
 
+**Corrected in place 2026-08-27, after merging and before anything was built against it.** The
+grilling of [#534](https://github.com/mshamblin5150-code/clinical-skills/issues/534) — the ticket
+ruling 10 separated out — re-derived this record's denominator and found it wrong. The defect is
+in the *evidence* rather than in a ruling, and **every ruling below stands**; ADR 0038's, ADR
+0042's and ADR 0050's correction headers are the precedent.
+
+**This record measured two claim ledgers and reported four.** *"Every claim ledger in the tree"*
+named only the two `discussion` runs; `scratch/runs/nur5144-m1-case-study/claims-2026-08-19.md`
+and `claims-2026-08-20.md` hold 14 more records and 13 more citations, and both were last written
+**2026-08-20**, six days before this was ruled. A matcher scoped to one run type, reported as
+every ledger in the tree — [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s
+shape, on the figure ruling 10's successor turns on. The bullet below carries the re-derived
+counts and the original beside them.
+
+**It moves the rate this record wrote a paragraph about.** *"One of nine across the tree"* is
+**one of twenty-two**, less than half the corrected figure this record published. Ruling 3 was
+re-examined against it on 2026-08-27 and **survives on its argument rather than on its rate**: an
+optional field leaves the filed defect where it is at any rate, and at 1-in-22 an optional field
+is *more* likely to be skipped, not less. What follows is that **21 of 22 sourced records will
+write `none stated`** — a sentinel-dominant shape that is a real cost for
+[#541](https://github.com/mshamblin5150-code/clinical-skills/issues/541) to weigh, recorded here
+and not ruled on. See
+[ADR 0052](0052-a-codification-year-is-provenance-and-the-snapshot-behind-it-is-declared-unreached.md)
+ruling 5.
+
 ## The ticket's two instances are two different things, and its own prohibition says so
 
 The body's *What must not come out of this* opens **do not infer an expiry a source does not
@@ -26,14 +51,19 @@ prohibition refuses, and the second is transcription.
 
 **This moves the number the ticket was filed on.** *"Two of five records in one run, which is a
 higher rate than I would have guessed"* is the stated reason it was filed rather than shrugged
-at. Under this ruling it is one of five in that run and one of nine across the tree.
+at. Under this ruling it is one of five in that run and ~~one of nine~~ **one of twenty-two**
+across the tree — corrected 2026-08-27; see the correction header above.
 
 ## Measured before ruling, at `87526a5`
 
-- **Every claim ledger in the tree is 9 records across 2 runs** — `nur5042-m2-discussion` 5,
-  `nur5144-m1-discussion` 4. Legal-shaped references: 2, both in the first run; the second has
-  none. Counts only; the ledgers live under `scratch/` and no record text was read or is
-  restated here.
+- ~~**Every claim ledger in the tree is 9 records across 2 runs** — `nur5042-m2-discussion` 5,
+  `nur5144-m1-discussion` 4.~~ **Corrected 2026-08-27 at `f9a501c`: every claim ledger in the
+  tree is 23 records across 3 runs, carrying 22 citations** — `nur5042-m2-discussion` 5,
+  `nur5144-m1-discussion` 4, `nur5144-m1-case-study` 14 in two ledgers. The struck figure
+  measured the `discussion` runs only. Legal-shaped references: 2, both in
+  `nur5042-m2-discussion`; **one carries a printed expiry and one a publication cadence**, which
+  is ruling 1's split and is 1 and 1 against a denominator of 22 rather than of 9. Counts only;
+  the ledgers live under `scratch/` and no record text was read or is restated here.
 - `RECENCY_VALUES` holds exactly the four dispositions and `FIELD` names exactly eight fields,
   verbatim as the ticket describes.
 - **`TheSkillSaysWhatThisChecks` binds `research_ledger` to one skill file.**
