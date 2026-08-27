@@ -251,6 +251,10 @@ _Avoid_: index, manifest, inventory, document list
 The committed record of the blind second read of the catalog, holding one row per corpus document with the SHA-256 of the bytes that were read. Its subject is file identity, which is what distinguishes it from the catalog, whose subject is metadata about documents. It is the only place the tree states which exact bytes a reading rests on.
 _Avoid_: audit file, digest file, hash list, checksums
 
+**Stated citation**:
+The way a corpus document identifies itself on its own page, so that a person could obtain it again — a DOI, a URL the document prints, or a journal citation line. It is read off the page and never found by searching, so a document that prints no such thing has none rather than acquiring one. It says what this copy states, which is a fact about the copy: a co-published guideline prints one DOI and may be correctly cited by another, so a difference from the address a threshold sheet sends a reader to is not a defect. Nothing in the tree has opened one.
+_Avoid_: locator, url, doi, link, source
+
 **Corpus drift**:
 The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened.
 _Avoid_: staleness, desync, corpus change, mismatch
