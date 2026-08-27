@@ -144,6 +144,10 @@ _Avoid_: run folder, workspace, scratch dir
 The finished document handed to the course, and the only artifact here a course marks. One per sitting, named by its run key and the date it was written, living in the checkout a person looks in rather than in whichever tree a run stood in.
 _Avoid_: final, output, deliverable
 
+**Posted reading**:
+The record of a graded contribution as it stands on the board after submission — the board's own locator for it, the board's timestamp, and a verdict on whether what is on the board is what the artifact says. Read off the board and never off the artifact, so a run that did not go back has none rather than acquiring one. Distinct from a **Submission**, which is the document a course marks: a reply has no submission, so the posted reading is the only account of what will be marked.
+_Avoid_: reread, confirmation, post-check, board diff
+
 **Evidence dump**:
 The topics the clinician was handed wholesale, and the whole of what was read without going looking. A claim it does not cover is one nobody opened, which is why it belongs to the run that was handed it rather than to the account.
 _Avoid_: sources, corpus, articles
