@@ -8,7 +8,8 @@ ADR 0042's own consequences filed the other half rather than folding it in.
 [#541](https://github.com/mshamblin5150-code/clinical-skills/issues/541) is that half.
 
 Grilled 2026-08-27 against `3376292`. **Seven decisions, ruled by the clinician on that date.**
-Nothing is built here; this is the record the build reads.
+This is the record the build reads. **One deliverable ships with it** -- ruling 7's `CONTEXT.md` term,
+four lines in this record's own commit -- and the rest is unbuilt.
 
 ## Measured before ruling, at `3376292`
 
@@ -19,7 +20,7 @@ Re-derived in this session by command, not carried from the ticket.
 | `REQUIRED_WHEN_SOURCED` | 7 fields; the `FIELD` regex parses 8 names |
 | `SECOND-ROUTE`, ADR 0042's field | **unbuilt** — 0 hits in `tools/` |
 | `STATED-EXPIRY`, ADR 0040's field | **unbuilt** — 0 hits in `tools/` |
-| `RESOLVED` spec sites | 3, one per publishing skill, identical line |
+| `RESOLVED` template lines | **2**, identical -- `discussion-post:148`, `discussion-reply:115`; `practicum-case-study:541` is a worked example carrying a live DOI |
 | `mcp__claude-in-chrome` in `skills/` | **0** |
 
 **Dispositions across every claim ledger in the owning checkout** — 4 ledgers, 23 records, counts
@@ -160,7 +161,9 @@ with a zero base rate, which is the datum every ruling below turns on.
 
 ## What must not come out of this
 
-**Do not build a row.** Ruling 2 refused one on a measurement, and the measurement is 1 of 23 and
+**Do not build a grading row**, which is a different object from the `DECLARED_LIMITS` row the
+corrected ruling 5 requires: one is a check that fires, the other is a declared limit that does not.
+Ruling 2 refused the first on a measurement, and the measurement is 1 of 23 and
 0 of 23. A row here would be a cut point named at an edge with no distribution under it —
 `SPACE_ADVANCE_FRACTION`'s recorded failure and #97's objection at once.
 
@@ -240,3 +243,30 @@ posted and committed against `3376292` while `2af8c26` was landing the record th
 its seven decisions. Neither branch could have seen the other, and no suite would have gone red --
 [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s* the merge is the unguarded
 moment*, arriving on a ruling rather than on an import.)*
+
+*(Corrected a second time in place 2026-08-27, on the same ADR 0016 terms, by the exhaustive tracker
+sweep that followed the merge. Three defects, all in the evidence or the framing rather than in a
+ruling -- ADR 0050's correction header is the precedent for that distinction.*
+
+*1. **The `RESOLVED` row did not re-derive at this record's own stated commit**, under a header
+promising re-derivation by command. `git grep -c "RESOLVED: <URL or DOI> - read <ISO date>" -- skills/`
+returns **two** files, not three: `practicum-case-study:541` is a worked example carrying a live DOI
+and a real read date, so the set is either two identical lines or three non-identical ones and the
+conjunction was false under both readings. **The error ran in the direction that flattered the
+argument** -- that row is the evidence for ruling 5's* do not assert the three texts match *-- which
+is the direction this repository treats as most expensive, and it is ADR 0050 correction 2's finding
+arriving on the next record. The ruling is unchanged and is now better supported: at two identical
+lines and one that is not a template at all, binding three texts to match was never available.*
+
+*2. **"Nothing is built here" was false of this record's own commit.** `b8c7f8b` carries
+`CONTEXT.md | 4 +` beside the ADR -- ruling 7's `Authenticated route` term, one of the ticket's four
+deliverables, shipped and merged in PR #580. The boilerplate line was copied from records where it
+was true.*
+
+*3. **`Do not build a row` and `is a row` sat thirty lines apart in two different senses** and
+nothing said so. The first correction added the second sentence to* Declared limits *and left the
+prohibition's wording alone. Disambiguated above; #541's body carries the same repair.*
+
+*Found by the six-agent sweep over all 53 open tickets, not by review and not by any check. The
+follow-up comment correction 1 promised on `#535` was posted at 21:00 on the same day, before this
+correction was written.)*
