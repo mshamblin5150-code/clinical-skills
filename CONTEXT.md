@@ -323,6 +323,10 @@ _Avoid_: corpus version, build date, provenance
 The shortest verbatim fragment of a guideline that carries a decision point, quoted in the row that cites it. Verbatim is what makes a fabricated citation detectable, so a paraphrase is not one.
 _Avoid_: quote, excerpt, evidence, text
 
+**Page transcription**:
+What a reader saw on a rendered guideline page, reassembled into one cell — faithful to the page's layout and meaning rather than to its text stream, so a table's columns may be joined and a figure's branch named. It is what a cell marked `RENDERED:` holds, and it is not a **snippet**: no verbatim test applies to it, which is why the page check skips such a row rather than failing it. The marker is the audit claim that a page was rendered and read, and that claim is what licenses the cell.
+_Avoid_: snippet, quote, paraphrase, reconstruction, transcription
+
 **Recommendation label**:
 The text a recommendation carries to say which recommendation its identifier names. On a `bound` source it is a fixed-length window of the page around the marker, so it is an aid to a reader and never a quotation — a **snippet** on such a source is read off the page instead. On an `exact` source the same field is the ruled-table cell or curated statement itself and may be quoted.
 _Avoid_: snippet, quote, record text, excerpt

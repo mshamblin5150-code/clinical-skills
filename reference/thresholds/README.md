@@ -400,9 +400,10 @@ Eight columns: `quantity | population | value | snippet | source | page | rec | 
   classes are still checked against the named recommendation: a row carrying Class 1
   while its recommendation is Class 2a is refused, and that is the only check here
   that catches a row pinned to the *wrong* recommendation.
-- A snippet may begin `RENDERED:` to declare that the value was **read off the page as
-  typeset** because extraction garbles that table. Tier 2 then skips the row and the
-  run prints how many rows did this. It is the escape hatch #83 asks for, modeled on
+- A cell in the snippet column may begin `RENDERED:` to declare a page transcription
+  and record that its cited page was rendered and read, whatever prompted the read.
+  Tier 2 then skips the row and the run prints how many rows did this. A marked row
+  may also extract cleanly, and that is not a defect. It is the escape hatch #83 asks for, modeled on
   `phi-scan: synthetic` and narrowed the same way: the marker must *start* the cell, so
   a row that merely mentions the hatch cannot claim it. Tier 1 still grades the row —
   the hatch buys out of the page check, not out of the sheet being self-consistent.
@@ -563,16 +564,17 @@ not left to be discovered:
   holding hundreds. That is a true statement about markers and a poor description of
   the document; it is a bound, a bound may only warn, and no threshold on the number
   would be anything but invented.
-- **Gate 4 refuses until a working agent checks the rendered page.** The clinician
-  ruled the posture on
+- **A `RENDERED:` marker reaches the sheet by two legitimate routes.** The ordinary
+  route is prophylactic: a drafter reassembling a table or figure renders and reads
+  the page before recording the transcription. The reactive route follows a gate 4
+  refusal: a working agent renders the page and records the same read after confirming
+  that the label and value belong together. The clinician ruled that posture on
   [#296](https://github.com/mshamblin5150-code/clinical-skills/issues/296): routine
   visual confirmation belongs to a vision-capable agent rather than becoming a
-  clinician bottleneck. The agent renders the cited page and confirms that the row's
-  label and value belong together. If they do, the agent records the check with
-  `RENDERED:`; if they do not, or the page is ambiguous, the row remains refusing
-  until corrected. The marker also exempts the row from citation tier 2, so it is an
-  audit claim that the rendered page was actually inspected, not a way to silence the
-  gate without doing the read.
+  clinician bottleneck. If the row is incorrect or the page is ambiguous, it remains
+  refusing until corrected. The marker also exempts the row from citation tier 2, so
+  it is an audit claim that the rendered page was actually inspected, not a way to
+  silence the gate without doing the read.
 - **Gate 4, watermark interleave, is built on
   [#174](https://github.com/mshamblin5150-code/clinical-skills/issues/174), and what it
   cannot reach is the half the exposure figure is about.** It flags a row that

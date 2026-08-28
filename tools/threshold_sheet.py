@@ -1342,6 +1342,8 @@ def gate_citation_tier0(
             locator = source_locator(row.rec)
             is_rendered = row.snippet.startswith(RENDERED_MARKER)
             if is_rendered:
+                # Deliberately per graded (exact) source: bound and missing records
+                # continued above, so their rows are not in tier 0's denominator.
                 rendered += 1
             if locator is not None and locator.is_narrative:
                 transcription = (
@@ -1492,9 +1494,9 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     cache: dict[tuple[str, int], str] = {}
     for row in sheet.rows:
         if row.snippet.startswith(RENDERED_MARKER):
-            # Declared as read off the page as typeset. Tier 2 genuinely cannot check
-            # it, and saying so beats resolving a string the page does not contain and
-            # reporting a citation failure that is really an extraction failure.
+            # A page transcription is licensed by a declared render-and-read, not by
+            # verbatim identity with the text stream. Tier 2 therefore has no snippet
+            # claim to check even when the transcription happens to extract cleanly.
             rendered += 1
             continue
         source = sheet.sources.get(row.source)
