@@ -1,7 +1,8 @@
-"""Shared parsing primitives for initial posts and replies.
+"""Shared artifact parsing primitives for initial posts and replies.
 
-This module owns only syntax both graders consume. It knows
-nothing about a signed bar, a roster, or which findings either grader emits.
+The module owns syntax both graders consume and the reference-aware citation
+boundary they share. It knows nothing about a signed bar, a roster, or which
+findings either grader emits.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import re
 import sys
 import unicodedata
+from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 
 
@@ -42,9 +44,12 @@ NARRATIVE_CITATION = re.compile(
     r"\((?P<year>" + YEAR + r")"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
 )
+LEGAL_AUTHOR = r"(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*\d+(?:\.\d+)*"
 LEGAL_CITATION = re.compile(
-    r"(?P<author>(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*\d+(?:\.\d+)*)"
-    r"(?:\s*\((?P<year>" + YEAR + r")\))?",
+    r"(?:\(\s*(?P<parenthesized_author>" + LEGAL_AUTHOR + r")\s*,\s*"
+    r"(?P<parenthesized_year>" + YEAR + r")\s*\)"
+    r"|(?P<author>" + LEGAL_AUTHOR + r")"
+    r"(?:\s*\((?P<year>" + YEAR + r")\))?)",
     re.IGNORECASE,
 )
 REFERENCE_YEAR = re.compile(r"\((?P<year>" + YEAR + r")\)")
@@ -215,8 +220,9 @@ def read_reference_section(
 
 def author_key(value: str) -> str:
     value = unicodedata.normalize("NFC", value.strip())
-    personal = re.match(
-        r"^\s*(?P<surname>[^,]+),\s*[" + UPPER + r"](?:[.\-]|\s|$)",
+    personal = re.fullmatch(
+        r"\s*(?P<surname>[^,]+),\s*"
+        r"(?:[" + UPPER + r"](?:[.\-])?(?:\s+|$))+\s*",
         value,
     )
     if personal is not None:
@@ -279,7 +285,7 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
         if year is not None
         else reference.rstrip(". ")
     )
-    legal = LEGAL_CITATION.fullmatch(author_text)
+    legal = LEGAL_CITATION.search(author_text)
     if year is None and legal is None:
         return ()
     surnames = re.findall(
@@ -287,7 +293,14 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
         author_text,
     )
     keys: list[str]
-    if surnames:
+    if legal is not None:
+        legal_author = _legal_author(legal)
+        name_text = author_text[: legal.start()].rstrip("., ")
+        if not name_text and year is not None:
+            name_text = reference[year.end() :].strip(". ").split(".", 1)[0].strip()
+        keys = [author_key(name_text)] if name_text else []
+        keys.append(author_key(legal_author))
+    elif surnames:
         keys = [author_key(surnames[0])]
         if len(surnames) > 1:
             keys.insert(0, author_key(" and ".join(surnames)))
@@ -296,12 +309,26 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
     years = [year.group("year").casefold()] if year is not None else [""]
     if legal is not None and "" not in years:
         years.append("")
-    return tuple(
-        (key, year_value)
-        for key in dict.fromkeys(keys)
-        if key
-        for year_value in years
+    keyed: list[tuple[str, str]] = []
+    for key in dict.fromkeys(keys):
+        if not key:
+            continue
+        keyed.append((key, years[0]))
+        if legal is not None and key == author_key(_legal_author(legal)) and len(years) > 1:
+            keyed.append((key, ""))
+    return tuple(keyed)
+
+
+def legal_reference_lacks_name(reference: str) -> bool:
+    """Return whether a legal entry's author slot is only its section."""
+
+    year = REFERENCE_YEAR.search(reference)
+    author_text = (
+        reference[: year.start()].rstrip(". ")
+        if year is not None
+        else reference.rstrip(". ")
     )
+    return LEGAL_CITATION.fullmatch(author_text) is not None
 
 
 def reference_key(reference: str) -> tuple[str, str] | None:
@@ -309,16 +336,19 @@ def reference_key(reference: str) -> tuple[str, str] | None:
     return keys[0] if keys else None
 
 
-def read_citations(body: str) -> tuple[Citation, ...]:
-    """Read recognized APA parenthetical and narrative citation occurrences."""
+def read_citations(
+    body: str,
+    reference_key_set: Collection[tuple[str, str]] = (),
+) -> tuple[Citation, ...]:
+    """Read APA citations, including narrative names evidenced by references."""
 
     found: list[Citation] = []
     legal_citations = tuple(LEGAL_CITATION.finditer(body))
     legal_spans = tuple((match.start(), match.end()) for match in legal_citations)
     found.extend(
         Citation(
-            match.group("author"),
-            match.group("year").casefold() if match.group("year") else "",
+            _legal_author(match),
+            _legal_year(match),
             match.start(),
             match.end(),
         )
@@ -368,8 +398,61 @@ def read_citations(body: str) -> tuple[Citation, ...]:
                 match.end(),
             )
         )
+    if reference_key_set:
+        max_key_length = max(len(key) for key, _year in reference_key_set)
+        for year_match in REFERENCE_YEAR.finditer(body):
+            if any(
+                citation.start <= year_match.start()
+                and year_match.end() <= citation.end
+                for citation in found
+            ):
+                continue
+            prefix = body[: year_match.start()]
+            longest: Citation | None = None
+            year_value = year_match.group("year").casefold()
+            for word_start in _reverse_word_starts(prefix):
+                author = prefix[word_start:].strip()
+                key = author_key(author)
+                if len(key) > max_key_length:
+                    break
+                if (key, year_value) in reference_key_set or (key, "") in reference_key_set:
+                    longest = Citation(
+                        author,
+                        year_value,
+                        word_start,
+                        year_match.end(),
+                    )
+            if longest is not None:
+                found.append(longest)
     return tuple(sorted(found, key=lambda citation: citation.start))
 
 
 def _without_signal_word(author: str) -> str:
     return re.sub(r"^(?:As|In|By|See)\s+", "", author).strip()
+
+
+def _legal_author(match: re.Match[str]) -> str:
+    return match.group("parenthesized_author") or match.group("author")
+
+
+def _legal_year(match: re.Match[str]) -> str:
+    value = match.group("parenthesized_year") or match.group("year") or ""
+    return value.casefold()
+
+
+def _reverse_word_starts(value: str) -> Iterator[int]:
+    """Yield word starts from the end without tokenizing the whole prefix."""
+
+    cursor = len(value)
+    while cursor:
+        while cursor and not _author_word_character(value[cursor - 1]):
+            cursor -= 1
+        if not cursor:
+            return
+        while cursor and _author_word_character(value[cursor - 1]):
+            cursor -= 1
+        yield cursor
+
+
+def _author_word_character(character: str) -> bool:
+    return character.isalnum() or character == "_" or character in "'’&.-"

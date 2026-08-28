@@ -21,7 +21,11 @@ import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
 from grader_conformance import for_module
-from test_discussion_reply_scan import BODY as REPLY_BODY, Run as ReplyRun
+from test_discussion_reply_scan import (
+    BODY as REPLY_BODY,
+    CLAIMS as REPLY_CLAIMS,
+    Run as ReplyRun,
+)
 
 
 GraderConformance = for_module(scan)
@@ -70,7 +74,7 @@ REFUTATION: stands - the article addresses the cited proposition.
 ## CLAIM: The regulation supplies legal context.
 STATUS: sourced
 SOURCE: guideline in force
-REFERENCE: 42 C.F.R. § 482.13 (2024).
+REFERENCE: Patient rights, 42 C.F.R. § 482.13 (2024).
 RESTATEMENT: The cited regulation states the relevant legal context.
 RECENCY: guideline in force
 RESOLVED: https://example.org/regulation - read 2026-08-22
@@ -333,10 +337,264 @@ class ACompletePostPasses(unittest.TestCase):
 
     def test_yearless_legal_citation_matches_a_dated_regulation_record(self):
         citations = artifact.read_citations("42 C.F.R. § 482.13 supplies the legal context.")
-        reference = artifact.reference_keys("42 C.F.R. § 482.13 (2024).")
+        reference = artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024).")
 
         self.assertEqual(1, len(citations))
         self.assertTrue(set(artifact.citation_occurrence_keys(citations)[0]) & set(reference))
+
+    def test_a_legal_reference_keys_on_its_name_and_section(self):
+        self.assertEqual(
+            (
+                (artifact.author_key("Patient rights"), "2024"),
+                (artifact.author_key("42 C.F.R. § 482.13"), "2024"),
+                (artifact.author_key("42 C.F.R. § 482.13"), ""),
+            ),
+            artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024)."),
+        )
+
+    def test_a_parenthesized_legal_citation_owns_its_year_span(self):
+        body = "The rule applies (42 C.F.R. § 482.13, 2024) to this setting."
+
+        citations = artifact.read_citations(body)
+
+        self.assertEqual(1, len(citations))
+        self.assertEqual("2024", citations[0].year)
+        self.assertEqual("(42 C.F.R. § 482.13, 2024)", body[citations[0].start:citations[0].end])
+        self.assertEqual((), scan._numeric_values(body))
+
+    def test_a_section_only_legal_record_is_a_post_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Patient rights, 42 C.F.R. § 482.13 (2024).",
+                    "42 C.F.R. § 482.13 (2024). Patient rights.",
+                ),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout)
+
+    def test_a_section_only_legal_entry_is_a_reply_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = ReplyRun(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                REPLY_BODY.replace(
+                    "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                    "42 C.F.R. § 482.13 (2024). Patient rights.",
+                ),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()) as stdout, redirect_stderr(io.StringIO()):
+                status = reply_scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout.getvalue())
+
+    def test_every_legal_entry_and_in_text_form_has_a_ruled_resolution(self):
+        entries = {
+            "name-and-section": (
+                "Patient rights, 42 C.F.R. § 482.13 (2024).",
+                (True, True, True, True, True),
+            ),
+            "section-only": (
+                "42 C.F.R. § 482.13 (2024). Patient rights.",
+                (True, True, True, True, True),
+            ),
+        }
+        forms = (
+            "42 C.F.R. § 482.13 (2024)",
+            "(42 C.F.R. § 482.13, 2024)",
+            "42 C.F.R. § 482.13",
+            "Patient rights (2024)",
+            "(Patient rights, 2024)",
+        )
+        for entry_name, (entry, expected) in entries.items():
+            keys = frozenset(artifact.reference_keys(entry))
+            for form, should_resolve in zip(forms, expected):
+                with self.subTest(entry=entry_name, form=form):
+                    citations = artifact.read_citations(
+                        f"Under {form}, the rule applies.", keys
+                    )
+                    resolved = any(
+                        key in keys
+                        for occurrence in artifact.citation_occurrence_keys(citations)
+                        for key in occurrence
+                    )
+                    self.assertEqual(should_resolve, resolved)
+
+    def test_a_name_narrative_is_read_from_the_reference_key_set(self):
+        keys = frozenset(
+            artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024).")
+        )
+
+        citations = artifact.read_citations("Patient rights (2024) governs care.", keys)
+
+        self.assertEqual(1, len(citations))
+        self.assertEqual("Patient rights", citations[0].author)
+
+    def test_a_section_first_entry_still_evidences_its_trailing_name(self):
+        keys = artifact.reference_keys(
+            "42 C.F.R. § 482.13 (2024). Patient rights."
+        )
+
+        self.assertIn((artifact.author_key("Patient rights"), "2024"), keys)
+
+    def test_an_unmatched_year_is_not_reclassified_as_a_citation(self):
+        keys = frozenset({(artifact.author_key("Patient rights"), "2024")})
+        body = "The policy was finalized (2024)."
+
+        citations = artifact.read_citations(body, keys)
+
+        self.assertEqual((), citations)
+        self.assertEqual(("2024",), scan._numeric_values(body, citations))
+
+    def test_the_longest_matching_reference_name_wins(self):
+        keys = frozenset(
+            {
+                (artifact.author_key("Rights"), "2024"),
+                (artifact.author_key("Patient rights"), "2024"),
+            }
+        )
+
+        citations = artifact.read_citations("Patient rights (2024) governs care.", keys)
+
+        self.assertEqual("Patient rights", citations[0].author)
+
+    def test_an_organizational_comma_is_not_mistaken_for_a_personal_author(self):
+        reference = (
+            "Rights, A. Very long regulation name title, "
+            "42 C.F.R. § 482.13 (2024)."
+        )
+        keys = frozenset(artifact.reference_keys(reference))
+        expected_key = "rightsaverylongregulationnametitle"
+
+        citations = artifact.read_citations(
+            "Rights, A. Very long regulation name title (2024) governs care.",
+            keys,
+        )
+
+        self.assertIn((expected_key, "2024"), keys)
+        self.assertEqual(1, len(citations))
+        self.assertEqual("Rights, A. Very long regulation name title", citations[0].author)
+
+    def test_personal_author_initials_still_reduce_to_the_surname(self):
+        self.assertEqual("quill", artifact.author_key("Quill, R. J."))
+
+    def test_text_beyond_the_longest_key_bound_does_not_change_the_walk(self):
+        class CountedKeys(frozenset):
+            checks = 0
+
+            def __contains__(self, key):
+                self.checks += 1
+                return super().__contains__(key)
+
+        keys = CountedKeys(
+            {
+                (artifact.author_key("Patient rights"), "2024"),
+                (artifact.author_key("Rights"), "2024"),
+            }
+        )
+        with mock.patch.object(
+            artifact, "author_key", wraps=artifact.author_key
+        ) as normalizer:
+            short = artifact.read_citations(
+                "Patient rights (2024) governs care.", keys
+            )
+            short_normalizations = normalizer.call_count
+            short_checks = keys.checks
+            normalizer.reset_mock()
+            keys.checks = 0
+            long = artifact.read_citations(
+                "Rights, A. "
+                + ("unrelated " * 1_000)
+                + "Patient rights (2024) governs care.",
+                keys,
+            )
+            long_normalizations = normalizer.call_count
+
+        self.assertEqual(short[0].author, long[0].author)
+        self.assertEqual(short[0].year, long[0].year)
+        self.assertEqual(short_checks, keys.checks)
+        self.assertEqual(short_normalizations + 1, long_normalizations)
+
+    def test_a_yearless_section_only_record_is_a_post_finding(self):
+        claims = CLAIMS.replace(
+            "Patient rights, 42 C.F.R. § 482.13 (2024).",
+            "42 C.F.R. § 482.13",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(claims, encoding="utf-8")
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout)
+
+    def test_the_post_grader_reads_and_resolves_against_one_key_set_object(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace(
+                    "42 C.F.R. § 482.13 provides",
+                    "Patient rights (2024) provides",
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                scan, "read_citations", wraps=artifact.read_citations
+            ) as reader, mock.patch.object(
+                scan, "_citation_keys", wraps=scan._citation_keys
+            ) as key_reader, mock.patch.object(
+                scan.ClaimReferenceIndex,
+                "matching_record_indices",
+                autospec=True,
+                side_effect=scan.ClaimReferenceIndex.matching_record_indices,
+            ) as resolver:
+                status, _, _ = run.grade()
+
+        key_set = key_reader.call_args.args[1]
+        self.assertEqual(0, status)
+        self.assertIs(reader.call_args.args[1], key_set)
+        self.assertIs(resolver.call_args.args[0], key_set)
+
+    def test_the_reply_grader_reads_and_resolves_against_one_key_set_object(self):
+        personal = (
+            "Quill, R. (2024). Measuring usable access in community care. "
+            "Journal of Care, 4(2), 10-18."
+        )
+        legal = (
+            "Patient rights, 42 C.F.R. § 482.13 (2024). "
+            "https://example.org/regulation"
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = ReplyRun(Path(temp))
+            (run.root / "claims.md").write_text(
+                REPLY_CLAIMS.replace(personal, legal), encoding="utf-8"
+            )
+            response = run.root / "response-maren.md"
+            response.write_text(
+                REPLY_BODY.replace("(Quill, 2024)", "Patient rights (2024)").replace(
+                    personal, legal
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                reply_scan, "read_citations", wraps=artifact.read_citations
+            ) as reader, mock.patch.object(
+                reply_scan, "_citation_findings", wraps=reply_scan._citation_findings
+            ) as resolver, redirect_stdout(io.StringIO()), redirect_stderr(
+                io.StringIO()
+            ):
+                status = reply_scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIs(reader.call_args.args[1], resolver.call_args.args[2])
 
     def test_dated_legal_citation_is_one_citation_not_a_body_number(self):
         with tempfile.TemporaryDirectory() as temp:

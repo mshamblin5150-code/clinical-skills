@@ -22,6 +22,7 @@ import re
 import sys
 import zipfile
 from collections import Counter
+from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -31,6 +32,7 @@ from discussion_artifact import (
     AMPLIFICATION,
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
+    Citation,
     NUMBER,
     INVOKED,
     InvokedSource,
@@ -38,6 +40,7 @@ from discussion_artifact import (
     WORD,
     citation_occurrence_keys,
     invoked_source_has_substance,
+    legal_reference_lacks_name,
     read_citations,
     read_invoked_sources,
     read_reference_section,
@@ -55,12 +58,14 @@ REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
 BOLD_HEADINGS = "bold-headings"
+LEGAL_REFERENCE_NAME = "legal-reference-name"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
+    LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
 }
 KINDS = tuple(ROWS)
 
@@ -132,6 +137,37 @@ class ClaimRecord:
 
 
 @dataclass(frozen=True)
+class ClaimReferenceIndex(Collection[tuple[str, str]]):
+    records: tuple[ClaimRecord, ...]
+    keys: frozenset[tuple[str, str]]
+
+    @classmethod
+    def from_records(cls, records: tuple[ClaimRecord, ...]) -> ClaimReferenceIndex:
+        return cls(
+            records,
+            frozenset(key for record in records for key in record.references),
+        )
+
+    def __contains__(self, key: object) -> bool:
+        return key in self.keys
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self.keys)
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def matching_record_indices(
+        self, citation_keys: tuple[tuple[str, str], ...]
+    ) -> tuple[int, ...]:
+        return tuple(
+            index
+            for index, record in enumerate(self.records)
+            if any(key in record.references for key in citation_keys)
+        )
+
+
+@dataclass(frozen=True)
 class Scan:
     words: int | None
     word_floor: int
@@ -185,9 +221,11 @@ def _countable_body(body: str) -> str:
     return MARKDOWN_HEADING.sub("", strip_discussion_markers(body))
 
 
-def _numeric_values(body: str) -> tuple[str, ...]:
+def _numeric_values(
+    body: str, citations: tuple[Citation, ...] | None = None
+) -> tuple[str, ...]:
     cleaned = body
-    citations = read_citations(body)
+    citations = read_citations(body) if citations is None else citations
     for citation in reversed(citations):
         cleaned = cleaned[: citation.start] + cleaned[citation.end :]
     cleaned = PAGE_LOCATOR.sub("", cleaned)
@@ -199,8 +237,11 @@ def _claim_blocks(claims: str) -> tuple[str, ...]:
     return tuple(match.group("block") for match in CLAIM_BLOCK.finditer(claims))
 
 
-def _citation_keys(body: str) -> tuple[tuple[tuple[str, str], ...], ...]:
-    return citation_occurrence_keys(read_citations(body))
+def _citation_keys(
+    body: str, reference_key_set: ClaimReferenceIndex
+) -> tuple[tuple[Citation, ...], tuple[tuple[tuple[str, str], ...], ...]]:
+    body_citations = read_citations(body, reference_key_set)
+    return body_citations, citation_occurrence_keys(body_citations)
 
 
 def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
@@ -355,10 +396,23 @@ def survey(source: RunSource) -> Scan:
             findings=findings,
         )
     words = len(WORD.findall(_countable_body(source.body)))
-    numbers = _numeric_values(source.body)
-    citations = _citation_keys(source.body)
     records = _claim_records(source.claims)
+    reference_key_set = ClaimReferenceIndex.from_records(records)
+    body_citations, citations = _citation_keys(source.body, reference_key_set)
+    numbers = _numeric_values(source.body, body_citations)
     findings: list[Finding] = []
+    for block in _claim_blocks(source.claims):
+        reference = CLAIM_REFERENCE.search(block)
+        if reference is not None and legal_reference_lacks_name(
+            reference.group("value").replace("\n", " ")
+        ):
+            findings.append(
+                Finding(
+                    LEGAL_REFERENCE_NAME,
+                    source.draft.name,
+                    "legal claim record has a section but no regulation name",
+                )
+            )
     if words < source.bar.word_floor:
         findings.append(Finding(WORD_FLOOR, source.draft.name, f"{words} words"))
     if len(source.references) < source.bar.reference_minimum:
@@ -398,11 +452,7 @@ def survey(source: RunSource) -> Scan:
             (
                 UNTRACED_CITATION,
                 f"citation occurrence {occurrence} has no source-matched claim record",
-                tuple(
-                    index
-                    for index, record in enumerate(records)
-                    if any(key in record.references for key in keys)
-                ),
+                reference_key_set.matching_record_indices(keys),
             )
         )
     matched = _maximum_record_matching(
