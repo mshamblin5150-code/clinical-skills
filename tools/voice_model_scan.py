@@ -40,6 +40,7 @@ NOT_REACHED = {
     "model-truth": "whether the modeled observations and pairs are true of the clinician",
     "quotation-provenance": "whether quoted text came from the source the model names",
     "invoked-source-fit": "whether the named domain and property are accurate or load-bearing",
+    "register-candidate": "a malformed register heading that does not begin with a level-two Register label",
 }
 
 INVALID_INVOCATION = "invalid invocation"
@@ -73,9 +74,12 @@ REGISTER_NAMES = {
     "2": "spoken patient education",
     "3": "reflective and argumentative prose",
 }
-REGISTER_HEADING = re.compile(
-    r"^## Register (?P<number>\d+)\s+—\s+(?P<name>[^\n]+?)\s*$",
-    re.MULTILINE,
+REGISTER_CANDIDATE = re.compile(
+    r"^##[ \t]+Register\b(?P<rest>[^\n]*)$",
+    re.MULTILINE | re.IGNORECASE,
+)
+REGISTER_SHAPE = re.compile(
+    r"^[ \t]+(?P<number>[123])[ \t]+—[ \t]+(?P<name>[^\n]+?)[ \t]*$",
 )
 OBSERVATIONS = re.compile(
     r"^### Observations\s*$\n(?P<body>.*?)(?=^### Discriminating pairs\s*$|^## |\Z)",
@@ -101,23 +105,28 @@ DOMAIN = re.compile(r"^\s*Domain:\s*(?P<value>\S.*?)\s*$", re.MULTILINE | re.IGN
 PROPERTY = re.compile(r"^\s*Property:\s*(?P<value>\S.*?)\s*$", re.MULTILINE | re.IGNORECASE)
 
 
-def read_required_items(text: str) -> tuple[str, ...]:
-    """Read the numbered observation vocabulary published by ``voice.md``."""
+def read_required_item_records(text: str) -> tuple[tuple[str, str | None], ...]:
+    """Read ``(name, machine role)`` rows from section 4 once."""
     section = SECTION_FOUR.search(text)
     if section is None:
         return ()
-    return tuple(match.group("name") for match in NUMBERED_ITEM.finditer(section.group("body")))
+    return tuple(
+        (match.group("name"), match.group("role"))
+        for match in NUMBERED_ITEM.finditer(section.group("body"))
+    )
+
+
+def read_required_items(text: str) -> tuple[str, ...]:
+    """Read the numbered observation vocabulary published by ``voice.md``."""
+    return tuple(name for name, _role in read_required_item_records(text))
 
 
 def read_required_roles(text: str) -> dict[str, str]:
     """Read machine roles attached to section 4's numbered item vocabulary."""
-    section = SECTION_FOUR.search(text)
-    if section is None:
-        return {}
     return {
-        match.group("role"): match.group("name")
-        for match in NUMBERED_ITEM.finditer(section.group("body"))
-        if match.group("role")
+        role: name
+        for name, role in read_required_item_records(text)
+        if role is not None
     }
 
 
@@ -152,23 +161,29 @@ def _normalize(value: str) -> str:
 def survey(text: str, spec_text: str) -> Scan:
     """Read the model's three public register sections and their shape rows."""
     findings: list[Finding] = []
-    required_items = read_required_items(spec_text)
-    required_roles = read_required_roles(spec_text)
+    required_records = read_required_item_records(spec_text)
+    required_items = tuple(name for name, _role in required_records)
+    required_roles = {role: name for name, role in required_records if role is not None}
     invoked_item = required_roles.get("invoked-source")
     required_items_read = bool(required_items and invoked_item)
 
-    headings = list(REGISTER_HEADING.finditer(text))
+    headings = list(REGISTER_CANDIDATE.finditer(text))
     registers: list[tuple[str, str]] = []
     unread_registers = 0
     seen_registers: set[str] = set()
     for index, heading in enumerate(headings):
-        number = heading.group("number")
-        name = heading.group("name")
         end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
         seen_once = text.find("\n## Seen once", heading.end(), end)
         if seen_once >= 0:
             end = seen_once
         body = text[heading.end():end]
+        shape = REGISTER_SHAPE.fullmatch(heading.group("rest"))
+        if shape is None:
+            unread_registers += 1
+            findings.append(Finding("unread-register", f"unrecognized register heading at physical position {index + 1}"))
+            continue
+        number = shape.group("number")
+        name = shape.group("name")
         if REGISTER_NAMES.get(number) != name or number in seen_registers:
             unread_registers += 1
             detail = "duplicate" if number in seen_registers else "unrecognized"

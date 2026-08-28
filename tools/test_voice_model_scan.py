@@ -144,6 +144,23 @@ class ShapeFindingsRefuse(unittest.TestCase):
         self.assertIn("unread register headings: 1", stdout)
         self.assertIn("not completely scanned", stderr)
 
+    def test_near_miss_register_syntax_cannot_fall_outside_the_denominator(self):
+        for heading in (
+            "## Register four — invented register",
+            "## Register 4 - invented register",
+        ):
+            with self.subTest(heading=heading):
+                changed = self.source.replace(
+                    "## Seen once",
+                    heading + "\n### Observations\n\n## Seen once",
+                    1,
+                )
+                status, stdout, stderr = self.grade(changed)
+                self.assertEqual(1, status)
+                self.assertIn("register headings: 4", stdout)
+                self.assertIn("unread register headings: 1", stdout)
+                self.assertIn("not completely scanned", stderr)
+
     def test_a_duplicate_valid_register_cannot_satisfy_completeness_by_count(self):
         duplicate = (
             "## Register 1 — clinical argument\n"
