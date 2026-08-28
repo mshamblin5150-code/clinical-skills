@@ -24,7 +24,7 @@ Grilled 2026-08-27. The clinician ruled every point below on the same day. This 
 ```
 diabetes.md seeded against recs-ada-2026.json (bound, 126 records):
   332  threshold_draft.py:249  "not in its recommendation record"   -- every one a narrative locator
-   13  threshold_draft.py:252  "seeded snippet is not in its record"
+   13  threshold_draft.py:253  "seeded snippet is not in its record"
          p45/2.23  p62/3.17  p183/8.29 x2  p228/10.13  p256/11.3
          p261/11.8 x2  p261/11.9 x2  p284/13.3  p336/15.23 x2
   ---
@@ -71,7 +71,7 @@ Every one of the 79 is `was` followed by a participle. ADR 0029's probe caught *
 
 **The class check is not mode-guarded.** `tools/threshold_sheet.py:2268`'s `if mode == MODE_EXACT:` has exactly one statement in its body — the membership loop at `:2269`. The class check at `:2282` sits outside it and runs on a bound source; it can never fire because `guidelines_recs.py:354` writes `cor=None` on every marker record.
 
-**`tools/guidelines_recs.py` states six ceilings in prose and holds no object.** `grep -c "NOT_REACHED\|DECLARED_LIMITS"` returns **0**. The six: the bound count is an over-report (`:35`), the strength stays out of `cor` (`:96`), what the curated limb does not reach (`:99`), `Superseded by` is unread (`:102`), eleven IDSA documents come back at nothing (`:108`), a marker is a marker wherever it is written (`:112`).
+**`tools/guidelines_recs.py` states six ceilings in prose and holds no object.** `grep -c "NOT_REACHED\|DECLARED_LIMITS"` returns **0**. The six: the bound count is an over-report (`:34`), the strength stays out of `cor` (`:94`), what the curated limb does not reach (`:99`), `Superseded by` is unread (`:102`), eleven IDSA documents come back at nothing (`:108`), a marker is a marker wherever it is written (`:112`).
 
 **One bound record exists in the recs root**, `recs-ada-2026.json`; the other seven are `exact`, and a `recs-sweep.json` from another worktree's in-flight [#510](https://github.com/mshamblin5150-code/clinical-skills/issues/510) work sits beside them. #438's *"the five bound records"* is not re-derivable here, and the root is shared and unlocked, so **its contents are a fact about one machine at one hour.**
 
@@ -144,7 +144,7 @@ This repo has ruled the general form already, on `filled_vitals_census`'s block 
 
 **The build measures across every trailing-marker document and takes a value on a plateau, not at an edge** — `SPACE_ADVANCE_FRACTION`'s recorded failure is that #83 named a value at an edge and picked the one setting worse than not changing anything. Four documents establish only that the value is **materially above 160**; where the plateau sits is the build's to measure and the constant's own docstring to state.
 
-**This is not the widening ADR 0029 rejected, and #436 says so in as many words.** That rejection was of *widening the window so a record carries its numbers*, which edges toward a second prose-derived record family and is foreclosed by ADR 0026 rule 8. This widens one direction so a **label begins at its own recommendation**, which is ADR 0029 point 1's stated purpose for the text.
+**This is not the widening ADR 0029 rejected, and #436 says so in as many words.** That rejection was of *widening the window so a record carries its numbers*, which edges toward a second prose-derived record family and is foreclosed by ADR 0026 ruling 8. This widens one direction so a **label begins at its own recommendation**, which is ADR 0029 point 1's stated purpose for the text.
 
 **11. The backward read stops at the nearest preceding sentence boundary, with the window as a cap.**
 
@@ -192,3 +192,60 @@ Widening backward with no stop means a label opens with the **previous** recomme
 **Nothing here reaches whether a label identifies the right recommendation.** Ruling 10 makes it likelier by starting the label at its own sentence; no gate compares a label to the recommendation it names, and none is proposed. **A correctly anchored label is still not a checked one.**
 
 **The census counts a shape and can only ever be a floor.** A society whose changelog is written in a form outside `was` + participle arrives silently, exactly as ADA did.
+
+## Corrected in place, 2026-08-27, by this record's own tracker sweep
+
+Six agents swept all 59 open tickets the evening this record merged. Under
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md),
+facts are corrected above and **the deciding paragraphs are untouched** — so the two items below that
+would change a ruling are recorded here and left for the clinician rather than edited into the rulings.
+
+**Facts corrected above.** Ruling 5 and the evidence block cited the containment limb at
+`threshold_draft.py:252`; `:252` builds `record_text` and the **test** is `:253`. That anchor was
+inherited from #436's original body and carried into this record unchecked. The `## Measured` list
+cited the over-report ceiling at `:35` and the `cor` ceiling at `:96`; both are mid-sentence and the
+claims open at `:34` and `:94`. `ADR 0026 rule 8` is now `ruling 8`, matching this record's other
+citation of the same plainly-numbered record.
+
+**Ruling 7's claimant population is two and the tree holds four.** `guidelines_recs.DECLARED_LIMITS`
+is specified by [#436](https://github.com/mshamblin5150-code/clinical-skills/issues/436) item 1,
+[#438](https://github.com/mshamblin5150-code/clinical-skills/issues/438) done-when 6,
+[#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446) deliverable 2 —
+*"a named object in `tools/guidelines_recs.py` states which limbs skip the space reconstruction"* —
+and [#510](https://github.com/mshamblin5150-code/clinical-skills/issues/510) item 7. All four are
+open; #446 and #510 are `ready-for-agent` and neither is named by ruling 7. **A builder on either
+one, following its own body to the letter, ships the single-row object ruling 7 refuses while
+breaking no instruction it was given** — which is the failure ruling 7 exists to prevent, reproduced
+by ruling 7's own scope.
+
+**And #510 item 7 fixes a different row shape**, deliberately and with a stated reason: *"The shape
+is `case_study_scan.DECLARED_LIMITS`'s — a tuple of `(text, disposition)` pairs — and not
+`reference_scan.NOT_REACHED`'s `(name, prose)`."* Ruling 7 fixes ADR 0053 ruling 8's three-field
+`key` / `limit` / `evidence`. **Two ratified-or-specified shapes for one tuple is a decision rather
+than a fact**, so nothing here overrides #510; it is recorded and put to the clinician.
+
+**The sequencing conclusion is contradicted by a ratified record this session did not read.**
+[ADR 0032](0032-the-marker-limb-reads-the-repaired-text-the-other-two-limbs-declare-that-they-do-not-and-every-citation-gate-reads-one-reader.md)
+ruling 4 is titled *"this lands before #438 and #436"* and rules **Order: #446, then #438, then
+#436**, on measurement validity rather than merge cost: *"#436, whose headline figure — the 83.0%
+mid-word cut rate — was measured on damaged text. Grilling it after this lands measures the text that
+will exist rather than the text being replaced."* ADR 0032 is dated 2026-08-25 and ADR 0029 2026-08-24,
+so **ADR 0029 point 9 was already superseded when this record restated it**, and the supersession
+table's row — *"the conclusion survives on the three-functions ground and the ground does not"* — is
+wrong about the conclusion. This record cited ADR 0032 in that very row, as the record ruling #446,
+without reading the ruling that contradicts it.
+
+**Ruling 10 makes that ordering more necessary rather than less, which is the part ADR 0032 could not
+have weighed.** Its Consequences analysed #436's exposure and concluded *"#436's two measurements move
+in the helpful direction"* — true of the mid-word rate and the backoff, both of which are **declared
+figures**. Ruling 10 introduces a **committed constant**: a backward window taken on a plateau. #446
+moves character distances in **both** directions — a glued run gains spaces and grows, `dis cusses`
+and a soft hyphen collapse and shrink — so the plateau can move either way and a constant measured
+before #446 can land on the wrong side of it with nothing failing.
+
+**Not resolved here.** By recency and by
+[ADR 0037](0037-a-contested-glossary-term-goes-to-the-higher-adr-number.md)'s higher-number rule this
+record would govern; by substance ADR 0032 ruling 4 is right and this record restated a retired
+conclusion without knowing it existed. **A ruling made in ignorance of a contrary ratified ruling is
+not a considered reversal**, so the ordering goes back to the clinician rather than being decided by
+a tie-break neither record was written against.
