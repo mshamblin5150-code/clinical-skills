@@ -72,6 +72,7 @@ REREAD_FIELD = re.compile(
     r"(?mi)^(?P<name>POST-URL|POSTED|READ|VERDICT)\s*:\s*(?P<value>[^\n]*)$"
 )
 REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "VERDICT")
+POSTED_READING_VERDICTS = frozenset({"matches", "diverges"})
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,24 @@ class PostedReading:
     verdict: str
     verdict_detail: str
     missing_fields: tuple[str, ...]
+
+    @property
+    def missing_record_fields(self) -> tuple[str, ...]:
+        return tuple(
+            field for field in self.missing_fields if field in {"POSTED", "READ"}
+        )
+
+    @property
+    def verdict_is_known(self) -> bool:
+        return self.verdict in POSTED_READING_VERDICTS
+
+    @property
+    def verdict_has_substance(self) -> bool:
+        return self.verdict_is_known and bool(self.verdict_detail)
+
+    @property
+    def entry_id(self) -> str | None:
+        return discussion_entry_id(self.post_url)
 
 
 def read_posted_readings(text: str) -> tuple[PostedReading, ...]:

@@ -132,10 +132,6 @@ NOT_REACHED = (
         "whether the initial post has a posted reading",
         "This command grades response artifacts only; discussion_post_scan owns the initial post record in the shared reread file.",
     ),
-    (
-        "whether a late reading describes the board at posting time",
-        "A later board reading cannot distinguish a hand-typing divergence from a subsequent edit and does not reconstruct the entry's original submitted state.",
-    ),
 )
 
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
@@ -168,6 +164,7 @@ class RunSource:
     roster_urls: tuple[str, ...]
     posts_total: int
     readings: tuple[PostedReading, ...]
+    initial_post_url: str | None
 
 
 @dataclass(frozen=True)
@@ -407,6 +404,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         raise run_grader.SourceError("run contains no response-<name>.md files")
     post_paths = sorted(posts.glob("*.md"))
     reread_path = root / "reread.md"
+    initial_post_path = root / "post.md"
     try:
         replies = tuple(_split_reply(path) for path in response_paths)
         claims = claims_path.read_text(encoding="utf-8")
@@ -428,6 +426,11 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             if reread_path.is_file()
             else ()
         )
+        initial_post_match = (
+            POST_URL.search(initial_post_path.read_text(encoding="utf-8"))
+            if initial_post_path.is_file()
+            else None
+        )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the run: {failure}") from failure
     if len(roster) != len(post_paths):
@@ -445,14 +448,17 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         roster_urls=roster_urls,
         posts_total=len(post_paths),
         readings=readings,
+        initial_post_url=(
+            initial_post_match.group("url").strip()
+            if initial_post_match is not None
+            else None
+        ),
     )
 
 
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     by_artifact = {reading.artifact: reading for reading in source.readings}
-    reading_ids = tuple(
-        discussion_entry_id(reading.post_url) for reading in source.readings
-    )
+    reading_ids = tuple(reading.entry_id for reading in source.readings)
     id_counts = Counter(value for value in reading_ids if value is not None)
     roster_ids = {
         value
@@ -460,6 +466,11 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
         for value in (discussion_entry_id(url),)
         if value is not None
     }
+    initial_post_id = (
+        discussion_entry_id(source.initial_post_url) if source.initial_post_url else None
+    )
+    if initial_post_id is not None:
+        roster_ids.add(initial_post_id)
     findings: list[Finding] = []
     for reply in source.replies:
         reading = by_artifact.get(reply.path.name)
@@ -472,26 +483,23 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                 )
             )
             continue
-        missing_record_fields = tuple(
-            field for field in reading.missing_fields if field in {"POSTED", "READ"}
-        )
-        if missing_record_fields:
+        if reading.missing_record_fields:
             findings.append(
                 Finding(
                     MISSING_POSTED_READING,
                     reply.path.name,
-                    "missing " + ", ".join(missing_record_fields),
+                    "missing " + ", ".join(reading.missing_record_fields),
                 )
             )
-        if reading.verdict not in {"matches", "diverges"}:
+        if not reading.verdict_is_known:
             findings.append(
                 Finding(UNKNOWN_VERDICT, reply.path.name, "verdict is outside the vocabulary")
             )
-        elif not reading.verdict_detail:
+        elif not reading.verdict_has_substance:
             findings.append(
                 Finding(BARE_VERDICT, reply.path.name, "verdict carries no reading substance")
             )
-        entry_id = discussion_entry_id(reading.post_url)
+        entry_id = reading.entry_id
         if entry_id is None:
             findings.append(
                 Finding(UNLOCATED_READING, reply.path.name, "POST-URL has no entry_id")

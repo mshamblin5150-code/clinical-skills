@@ -202,6 +202,23 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("borrowed-locator: 1", stdout)
 
+    def test_the_initial_post_locator_cannot_stand_in_when_its_reading_is_absent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "post.md").write_text(
+                "POST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\n"
+                "POSTED: 2026-08-28T19:30:00-04:00\n",
+                encoding="utf-8",
+            )
+            (run.root / "reread.md").write_text(
+                REREAD.replace("entry_id=31", "entry_id=41"), encoding="utf-8"
+            )
+
+            status, stdout, _ = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertIn("borrowed-locator: 1", stdout)
+
     def test_an_nd_citation_resolves_to_its_reference(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -719,7 +736,6 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
         "whether a posted reading faithfully reports a careful comparison",
         "whether a unique entry id was fabricated",
         "whether the initial post has a posted reading",
-        "whether a late reading describes the board at posting time",
     }
 
     def test_the_declared_limits_are_complete_and_substantive(self):

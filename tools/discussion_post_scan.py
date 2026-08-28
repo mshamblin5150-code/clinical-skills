@@ -40,7 +40,6 @@ from discussion_artifact import (
     RESTATEMENT,
     WORD,
     citation_occurrence_keys,
-    discussion_entry_id,
     invoked_source_has_substance,
     legal_reference_lacks_name,
     read_citations,
@@ -420,7 +419,7 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
             ),
         )
     findings: list[Finding] = []
-    missing = list(field for field in reading.missing_fields if field in {"POSTED", "READ"})
+    missing = list(reading.missing_record_fields)
     if not source.post_url:
         missing.append("post.md POST-URL")
     if not source.post_posted:
@@ -433,15 +432,15 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                 "missing " + ", ".join(missing),
             )
         )
-    if reading.verdict not in {"matches", "diverges"}:
+    if not reading.verdict_is_known:
         findings.append(
             Finding(UNKNOWN_VERDICT, "post.md", "verdict is outside the vocabulary")
         )
-    elif not reading.verdict_detail:
+    elif not reading.verdict_has_substance:
         findings.append(
             Finding(BARE_VERDICT, "post.md", "verdict carries no reading substance")
         )
-    if discussion_entry_id(reading.post_url) is None:
+    if reading.entry_id is None:
         findings.append(
             Finding(UNLOCATED_READING, "post.md", "POST-URL has no entry_id")
         )
