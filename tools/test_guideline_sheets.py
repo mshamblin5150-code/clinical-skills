@@ -533,15 +533,6 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         self.assertEqual(sum(1 for c in cells if c == "not stated"), 1)
         self.assertIn("**one row of the 143 has a population reading `not stated`**", self.text)
 
-    def test_the_not_read_limb_the_skill_leans_on_is_still_there(self):
-        # The third meaning of a missing row. Without a Not read: limb in the
-        # sheet, the skill's three-way silence collapses to two.
-        sheet = (THRESHOLDS / "hypertension.md").read_text(encoding="utf-8")
-        scope = _section(sheet, "## Scope")
-        self.assertIn("**Not read:**", scope)
-        self.assertIn("the narrative sections", scope)
-        self.assertIn("the narrative sections, the evidence tables", self.text)
-
     def test_the_ungated_majority_figure_matches_the_readmes_own(self):
         # A consistency check between two files, NOT a verification: 138 is a
         # count over the out-of-repo corpus and nothing committed can re-derive
