@@ -403,7 +403,7 @@ class ACompletePostPasses(unittest.TestCase):
             ),
             "section-only": (
                 "42 C.F.R. § 482.13 (2024). Patient rights.",
-                (True, True, True, False, False),
+                (True, True, True, True, True),
             ),
         }
         forms = (
@@ -437,6 +437,13 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual(1, len(citations))
         self.assertEqual("Patient rights", citations[0].author)
 
+    def test_a_section_first_entry_still_evidences_its_trailing_name(self):
+        keys = artifact.reference_keys(
+            "42 C.F.R. § 482.13 (2024). Patient rights."
+        )
+
+        self.assertIn((artifact.author_key("Patient rights"), "2024"), keys)
+
     def test_an_unmatched_year_is_not_reclassified_as_a_citation(self):
         keys = frozenset({(artifact.author_key("Patient rights"), "2024")})
         body = "The policy was finalized (2024)."
@@ -462,12 +469,26 @@ class ACompletePostPasses(unittest.TestCase):
         keys = frozenset({(artifact.author_key("Patient rights"), "2024")})
         short = artifact.read_citations("Patient rights (2024) governs care.", keys)
         long = artifact.read_citations(
-            "Unrelated words beyond the reference key bound. Patient rights (2024) governs care.",
+            ("unrelated " * 1_000) + "Patient rights (2024) governs care.",
             keys,
         )
 
         self.assertEqual(short[0].author, long[0].author)
         self.assertEqual(short[0].year, long[0].year)
+
+    def test_a_yearless_section_only_record_is_a_post_finding(self):
+        claims = CLAIMS.replace(
+            "Patient rights, 42 C.F.R. § 482.13 (2024).",
+            "42 C.F.R. § 482.13",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(claims, encoding="utf-8")
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout)
 
     def test_the_post_grader_reads_and_resolves_against_one_key_set_object(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -488,7 +509,7 @@ class ACompletePostPasses(unittest.TestCase):
 
         key_set = key_reader.call_args.args[1]
         self.assertEqual(0, status)
-        self.assertTrue(all(call.args[1] is key_set for call in reader.call_args_list))
+        self.assertIs(reader.call_args.args[1], key_set)
 
     def test_the_reply_grader_reads_and_resolves_against_one_key_set_object(self):
         personal = (

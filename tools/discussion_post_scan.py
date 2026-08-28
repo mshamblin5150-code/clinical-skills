@@ -207,8 +207,9 @@ def _claim_blocks(claims: str) -> tuple[str, ...]:
 
 def _citation_keys(
     body: str, reference_key_set: frozenset[tuple[str, str]]
-) -> tuple[tuple[tuple[str, str], ...], ...]:
-    return citation_occurrence_keys(read_citations(body, reference_key_set))
+) -> tuple[tuple[Citation, ...], tuple[tuple[tuple[str, str], ...], ...]]:
+    body_citations = read_citations(body, reference_key_set)
+    return body_citations, citation_occurrence_keys(body_citations)
 
 
 def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
@@ -367,9 +368,8 @@ def survey(source: RunSource) -> Scan:
     reference_key_set = frozenset(
         key for record in records for key in record.references
     )
-    read = read_citations(source.body, reference_key_set)
-    numbers = _numeric_values(source.body, read)
-    citations = _citation_keys(source.body, reference_key_set)
+    body_citations, citations = _citation_keys(source.body, reference_key_set)
+    numbers = _numeric_values(source.body, body_citations)
     findings: list[Finding] = []
     for block in _claim_blocks(source.claims):
         reference = CLAIM_REFERENCE.search(block)
@@ -425,8 +425,7 @@ def survey(source: RunSource) -> Scan:
                 tuple(
                     index
                     for index, record in enumerate(records)
-                    if any(key in reference_key_set for key in keys)
-                    and any(key in record.references for key in keys)
+                    if any(key in record.references for key in keys)
                 ),
             )
         )

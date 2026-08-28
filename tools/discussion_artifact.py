@@ -295,6 +295,8 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
     if legal is not None:
         legal_author = _legal_author(legal)
         name_text = author_text[: legal.start()].rstrip("., ")
+        if not name_text and year is not None:
+            name_text = reference[year.end() :].strip(". ").split(".", 1)[0].strip()
         keys = [author_key(name_text)] if name_text else []
         keys.append(author_key(legal_author))
     elif surnames:
@@ -320,9 +322,11 @@ def legal_reference_lacks_name(reference: str) -> bool:
     """Return whether a dated legal entry's author slot is only its section."""
 
     year = REFERENCE_YEAR.search(reference)
-    if year is None:
-        return False
-    author_text = reference[: year.start()].rstrip(". ")
+    author_text = (
+        reference[: year.start()].rstrip(". ")
+        if year is not None
+        else reference.rstrip(". ")
+    )
     return LEGAL_CITATION.fullmatch(author_text) is not None
 
 
