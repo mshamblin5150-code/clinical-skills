@@ -51,10 +51,12 @@ A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit
 **The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for four shapes: the literal `@-`, an empty or whitespace-only body, a body that is one bare `@token` — what `--body @notes.md` writes — and [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s double-encoded body.
 
 ```bash
-gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > scratch/tracker-issues.json
-gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > scratch/tracker-comments.json
-gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > scratch/tracker-reviews.json
-python tools/tracker_bodies.py scratch/tracker-issues.json scratch/tracker-comments.json scratch/tracker-reviews.json
+H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+mkdir -p "$H"
+gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
+gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
+gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
+python tools/tracker_bodies.py "$H"/tracker-*.json
 ```
 
 **All three surfaces, which is `tools/tracker_scan.py`'s set.** The review-comment endpoint is the one easiest to leave out; a harvest that omits it reports that as a clean scan of it rather than as not having read it.
