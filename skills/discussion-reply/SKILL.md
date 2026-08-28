@@ -139,9 +139,9 @@ command.
 
 Read `scratch/voice-model.md`, especially the confirmed reflective and argumentative register. Use
 its discriminating pairs and confirmed constructions. Do not reproduce chat typos or lowercase
-message openings. Where the model says craft metaphors or named philosophers intensify in
-citation-bearing writing, preserve that option; it licenses adding none and never licenses adding
-a second instance because the first sounded good.
+message openings. Where the model says invoked sources intensify in citation-bearing writing,
+preserve that option; it licenses adding none and never licenses adding a second instance because
+the first sounded good.
 
 If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
@@ -155,16 +155,20 @@ substantive. Do not add a heading. End with the bold Markdown label `**Reference
 typed into the LMS without a renderer, so this source form is what preserves the clinician's bold
 label. Put each APA entry in its own paragraph separated by a blank line.
 
-Before the `References` label, mark each consciously added craft metaphor or named-philosopher move
-on its own invisible working line:
+Before the `References` label, mark every invoked source that is present, whether inherited,
+deliberate, or arrived at, on its own invisible working line:
 
 ```html
-<!-- AMPLIFICATION: craft metaphor -->
+<!-- INVOKED: <domain> | <property> -->
 ```
 
-Use one marker per instance and say which kind it is. These are working annotations: do not type
-them into the LMS. The grader strips them from the word count, prints their count, and never grades
-the count.
+Use one marker per instance. Name the domain the invoked source draws on and state the property as
+a predicate-bearing clause describing the real behavior the argument spends. A retained invoked source carries the argument, and its payoff sentence states
+what that behavior does; do not enlarge the noun or increase the rate. An invoked source with no
+property is decorative and must be cut. The domain stays open: do not create a list of permitted domains. These are working
+annotations and never reach the LMS. The grader strips them from the word count and refuses an
+empty property or one that merely restates the domain noun. It still strips and separately reports
+a retired `AMPLIFICATION` marker as a pre-#496 marker that is not graded.
 
 ## 4. Independently grade, show, and post reply one
 
@@ -189,15 +193,24 @@ Exit 0 means every scanned reply passes, 1 means a finding, and 2 means the run 
 scannable. Fix any finding through the original drafting context, preserve the first checker
 result, and have another fresh context grade the correction.
 
-Show the clean reply to the clinician. When `voice-status.md` exists, show its unmodeled-voice
-declaration alongside the reply. Only an explicit go-ahead for this reply authorizes posting.
+Walk `discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT` and
+`discussion_reply_scan.INVOKED_PROPERTY_LIMIT` after a clean scan. The property row mechanically
+refuses an empty field or a lexical restatement of the domain noun; it does not parse English or
+prove that the remaining words state the real behavior. A clean scan grades only the marked set
+and is not a checked voice. The clinician answers both substance questions from the table below.
+
+Show the clean reply and an invoked-source table to the clinician. For every retained invoked
+source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is
+right and whether each invoked source sounds like the clinician; this is one approval with two named
+questions, not two gates. When `voice-status.md` exists, show its unmodeled-voice declaration
+alongside the reply. Only an explicit go-ahead for this reply authorizes posting.
 In the browser, type the reply into the LMS rather than pasting it, preserving the authored line
-breaks and omitting the `AMPLIFICATION` comments. Submit it, then reread the posted board version.
+breaks and omitting the `INVOKED` comments. Submit it, then reread the posted board version.
 
 ## 5. Draft and post reply two sequentially
 
 Only after reply one is posted, draft reply two. Read the posted first reply and its reference list
-before writing. Do not reuse its source or figure. The clinician's review is the pacing; add no
+before writing. Do not reuse its source or invoked source. The clinician's review is the pacing; add no
 artificial delay.
 
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
@@ -207,7 +220,8 @@ one.
 
 ## Completion
 
-Report the two posted addressees, the two grader exits, and the amplification count for each reply.
+Report the two posted addressees, the two grader exits, the invoked-source count for each reply,
+and any pre-#496 marker count.
 Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, both replies, and
 `voice-status.md` when present together under the run key as the private provenance record. Remove
 every temporary per-agent path after the independent checks; if cleanup fails, report the exact

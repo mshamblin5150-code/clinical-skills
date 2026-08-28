@@ -48,24 +48,29 @@ row needed it.
     declares that limit beside the code.
 
 ``CITATION`` refuses, in three tiers
-    Tier 0 checks that every snippet from an exact source is a substring of its own
-    recommendation record; it reports ``NOT RUN`` on a bound source and never passes
-    one. Tier 1 runs everywhere: the number in a row's ``value`` must appear in that
-    row's ``snippet``. Tier 2 runs only where the PDFs are present: the snippet must
-    appear on the cited page. There is no machine on which citation checking drops
-    to zero. Its resolution declaration is required in both tier 2 states; a live
-    verdict also refuses when that declaration names a different corpus or a future
-    date, while a skipped verdict cannot check its content. Tier 0 is a provenance
-    floor, not a reading: it cannot decide whether the snippet is the right text for
-    the row.
+    Tier 0 checks that every recommendation snippet from an exact source is a
+    substring of its own recommendation record. For a narrative locator it runs in
+    reverse and refuses when the page transcription is already inside a
+    recommendation record on the same page. It reports ``NOT RUN`` on a bound source
+    and never passes one. Tier 1 runs everywhere: the number in a row's ``value`` must
+    appear in that row's ``snippet``. Tier 2 runs only where the PDFs are present: the
+    snippet must appear on the cited page. There is no machine on which citation
+    checking drops to zero. Its resolution declaration is required in both tier 2
+    states; a live verdict also refuses when that declaration names a different corpus
+    or a future date, while a skipped verdict cannot check its content. Tier 0 is a
+    provenance floor, not a reading: it cannot decide whether the snippet is the right
+    text for the row.
 
 ``COVERAGE`` refuses on an exact source, warns on a bound
     #83 gate 2, the omission check: *"everything else checks what was written, only
     this checks what was not."* Every recommendation identifier the source carries
-    is a row or is scoped out by ``rec_id``. On an exact source, a row identifier
-    absent from its record refuses too. Whether omission may refuse is decided by
-    ``guidelines_recs.py``'s mode and never by this module: an exact count can be
-    enforced, a marker bound over-reports and can only warn.
+    is a recommendation row or is scoped out by ``rec_id``. A narrative source
+    locator sits outside that index and cannot discharge an omission. On an exact
+    source, a recommendation identifier absent from its record refuses too. Whether
+    omission may refuse is decided by ``guidelines_recs.py``'s mode and never by this
+    module: an exact count can be enforced, a marker bound over-reports and can only
+    warn. Every run prints the narrative qualifier because the span table, rather than
+    any prose denominator, is what bounds those rows.
 
     **One recommendation record per SOURCE, not per sheet** --
     [#177](https://github.com/mshamblin5150-code/clinical-skills/issues/177). It took
@@ -140,9 +145,10 @@ row needed it.
 What no gate here reaches, stated the same day the gates were built
 --------------------------------------------------------------------
 
-- **Whether the row says what the recommendation says.** ``CITATION`` tier 0 proves
-  the recommendation record states the snippet and tier 2 proves the snippet is on
-  the page. Neither can prove the row's ``quantity`` is what that
+- **Whether the row says what its source passage says.** For a recommendation row,
+  ``CITATION`` tier 0 proves the recommendation record states the snippet; for a
+  narrative row, it proves only that same-page recommendation records do not. Tier 2
+  proves the snippet is on the page. Neither can prove the row's ``quantity`` is what that
   sentence was about, and a sheet whose numbers are all real and all filed under the
   wrong heading passes every *automatic* gate here. **``SECOND READ`` narrows this
   and does not close it**: it sets the row's heading beside an independent reader's
@@ -308,6 +314,10 @@ PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES = (
 # themselves merely by explaining the rule. Here the marker must START the snippet
 # cell, so a row discussing the hatch in its own text cannot claim it.
 RENDERED_MARKER = "RENDERED:"
+NARRATIVE_KIND = "narrative"
+_SOURCE_LOCATOR = re.compile(
+    r"^p(?P<page>\d+)/(?P<kind>[^/\s]+)/(?P<identifier>[^/\s]+)$"
+)
 
 # The section headings are part of the sheet format's production interface. The
 # draft scaffolder imports these names so it cannot emit a section the auditor does
@@ -515,6 +525,32 @@ class Row:
     rec: str
     klass: str
     line: int
+
+
+@dataclass(frozen=True)
+class SourceLocator:
+    """The page, kind, and identifier carried by one threshold-row locator."""
+
+    page: int
+    kind: str
+    identifier: str
+
+    @property
+    def is_narrative(self) -> bool:
+        return self.kind == NARRATIVE_KIND
+
+
+def source_locator(value: str) -> SourceLocator | None:
+    """Parse ``p<digits>/<kind>/<id>`` without inferring an unknown kind."""
+
+    match = _SOURCE_LOCATOR.fullmatch(value)
+    if match is None:
+        return None
+    return SourceLocator(
+        page=int(match.group("page")),
+        kind=match.group("kind"),
+        identifier=match.group("identifier"),
+    )
 
 
 @dataclass(frozen=True)
@@ -964,6 +1000,28 @@ def gate_schema(sheet: Sheet) -> GateResult:
             failures.append(f"{where}  source key '{row.source}' is not declared under '## Sources'")
         if row.page is None:
             failures.append(f"{where}  no page number")
+        locator = source_locator(row.rec)
+        if locator is None:
+            failures.append(
+                f"{where}  rec '{row.rec}' is not a source locator shaped "
+                "p<digits>/<kind>/<id>"
+            )
+        elif row.page is not None and row.page != locator.page:
+            failures.append(
+                f"{where}  source locator page p{locator.page} does not match "
+                f"page column p{row.page}"
+            )
+        if row.page is not None and not any(
+            span.source == row.source
+            and span.read.casefold() == "yes"
+            and span.first_page <= row.page <= span.last_page
+            for span in sheet.spans
+        ):
+            failures.append(
+                f"{where}  page p{row.page} is not covered by any '## Scope' span "
+                "whose read cell is read: yes; a dated null marker or exemption cannot "
+                "support a cited row"
+            )
         if not row.snippet:
             failures.append(f"{where}  no snippet, so tier 1 citation cannot run on this row")
         for character, why in FORBIDDEN_IN_VALUE.items():
@@ -1207,11 +1265,12 @@ def gate_citation_tier0(
     records: dict[str, dict | None],
     why_not: dict[str, str],
 ) -> GateResult:
-    """Every snippet from an exact source occurs in its named recommendation.
+    """Grade recommendation snippets and narrative transcriptions on exact sources.
 
-    This is a provenance floor, not a clinical reading. It proves only that the
-    source states the snippet somewhere in the recommendation record; it cannot
-    prove that the snippet answers the row's quantity or applies to its population.
+    This is a provenance floor, not a clinical reading. A recommendation row proves
+    only that its record states the snippet. A narrative row proves only that no
+    recommendation record on the same page states its transcription. Neither can
+    prove that the passage answers the row's quantity or applies to its population.
 
     ``bound`` recommendation records are deliberately not graded. Their running-text
     windows can truncate before the value a row cites, so a mismatch is evidence
@@ -1236,25 +1295,73 @@ def gate_citation_tier0(
             ungraded_sources.append(f"{source_key} ({reason})")
             continue
 
-        recommendations: dict[str, list[dict]] = {}
-        for item in record.get("recommendations", []):
-            if isinstance(item, dict) and item.get("rec_id"):
-                recommendations.setdefault(str(item["rec_id"]), []).append(item)
         source_rows = [candidate for candidate in sheet.rows if candidate.source == source_key]
+        narrative_rows = [
+            row
+            for row in source_rows
+            if (locator := source_locator(row.rec)) is not None and locator.is_narrative
+        ]
+        recommendations: dict[str, list[dict]] = {}
+        recommendation_texts_by_page: dict[int, list[str]] = {}
+        incomplete_narrative_population = 0
+        for item in record.get("recommendations", []):
+            if not isinstance(item, dict):
+                incomplete_narrative_population += 1
+                continue
+            if item.get("rec_id"):
+                recommendations.setdefault(str(item["rec_id"]), []).append(item)
+            page = item.get("page")
+            text = str(item.get("text") or "")
+            if isinstance(page, int) and text.strip():
+                recommendation_texts_by_page.setdefault(page, []).append(text)
+            else:
+                incomplete_narrative_population += 1
+
+        ungraded_reasons: list[str] = []
+        if narrative_rows and incomplete_narrative_population:
+            ungraded_reasons.append(
+                "narrative negative check could not read page and text for "
+                f"{incomplete_narrative_population} recommendation record item(s)"
+            )
         present_rows = [row for row in source_rows if row.rec in recommendations]
-        if present_rows and all(
+        all_present_text_absent = bool(present_rows) and all(
             all(not str(item.get("text") or "").strip() for item in recommendations[row.rec])
             for row in present_rows
-        ):
-            ungraded_sources.append(
-                f"{source_key} (recommendation text is absent for "
-                f"{len({row.rec for row in present_rows})} cited rec(s))"
+        )
+        if all_present_text_absent:
+            ungraded_reasons.append(
+                "recommendation text is absent for "
+                f"{len({row.rec for row in present_rows})} cited rec(s)"
             )
-            continue
+        if ungraded_reasons:
+            ungraded_sources.append(
+                f"{source_key} ({'; '.join(ungraded_reasons)})"
+            )
 
         for row in source_rows:
-            if row.snippet.startswith(RENDERED_MARKER):
+            locator = source_locator(row.rec)
+            is_rendered = row.snippet.startswith(RENDERED_MARKER)
+            if is_rendered:
                 rendered += 1
+            if locator is not None and locator.is_narrative:
+                transcription = (
+                    row.snippet.removeprefix(RENDERED_MARKER).strip()
+                    if is_rendered
+                    else row.snippet
+                )
+                if any(
+                    _normalize(transcription) in _normalize(record_text)
+                    for record_text in recommendation_texts_by_page.get(row.page or -1, ())
+                ):
+                    failures.append(
+                        f"{sheet.path.name}:{row.line}  narrative page transcription "
+                        f"is already a verbatim run in a recommendation record on p{row.page}; "
+                        "use that recommendation locator instead"
+                    )
+                continue
+            if is_rendered:
+                continue
+            if all_present_text_absent and row.rec in recommendations:
                 continue
             occurrences = recommendations.get(row.rec)
             if occurrences is None:
@@ -1293,7 +1400,8 @@ def gate_citation_tier0(
     if rendered:
         report.append(
             f"                  {rendered} row(s) declared {RENDERED_MARKER} "
-            "and were read off the rendered page, so tier 0 skipped them"
+            "and were read off the rendered page; recommendation rows skipped tier 0 "
+            "and narrative rows ran its same-page negative check"
         )
 
     return GateResult(
@@ -2282,6 +2390,30 @@ def gate_coverage(
     warnings: list[str] = []
     ungraded: list[str] = []
 
+    narrative_rows = [
+        row
+        for row in sheet.rows
+        if (locator := source_locator(row.rec)) is not None and locator.is_narrative
+    ]
+    rendered_narrative_rows = [
+        row for row in narrative_rows if row.snippet.startswith(RENDERED_MARKER)
+    ]
+    for row in sheet.rows:
+        locator = source_locator(row.rec)
+        if locator is None:
+            continue
+        class_is_narrative = row.klass.strip().casefold() == NARRATIVE_KIND
+        if locator.is_narrative and not class_is_narrative:
+            refusals.append(
+                f"{sheet.path.name}:{row.line}  a narrative source locator must carry "
+                "class 'narrative'"
+            )
+        elif not locator.is_narrative and class_is_narrative:
+            refusals.append(
+                f"{sheet.path.name}:{row.line}  class 'narrative' is reserved for a "
+                "narrative source locator"
+            )
+
     for key in sorted(sheet.sources):
         recs = records.get(key)
         if recs is None:
@@ -2292,6 +2424,18 @@ def gate_coverage(
         known = {record["rec_id"] for record in recs.get("recommendations", ())}
         rows = [row for row in sheet.rows if row.source == key]
         unaccounted = sorted(known - {row.rec for row in rows} - set(sheet.scoped_out))
+
+        narrative_collisions = sorted(
+            rec_id
+            for rec_id in known
+            if (locator := source_locator(str(rec_id))) is not None
+            and locator.is_narrative
+        )
+        for rec_id in narrative_collisions:
+            refusals.append(
+                f"{sheet.path.name}  source '{key}' recommendation record collision: "
+                f"'{rec_id}' uses the reserved narrative kind"
+            )
 
         # **Structural findings, and they refuse whatever the mode is.** The
         # refuse-or-warn split exists because a marker COUNT over-reports; it says
@@ -2326,6 +2470,9 @@ def gate_coverage(
 
         if mode == MODE_EXACT:
             for row in rows:
+                locator = source_locator(row.rec)
+                if locator is not None and locator.is_narrative:
+                    continue
                 if row.rec not in known:
                     refusals.append(
                         f"{sheet.path.name}:{row.line}  source '{key}' cites {row.rec}, "
@@ -2428,12 +2575,20 @@ def gate_coverage(
             )
         )
 
+    narrative_qualifier = (
+        f"                  {len(narrative_rows)} narrative row(s) sit outside the "
+        "recommendation index; "
+        f"{len(rendered_narrative_rows)} page transcription(s) declare "
+        f"{RENDERED_MARKER}. The ## Scope span table is the only bound on which "
+        "prose was read."
+    )
+
     return GateResult(
         "COVERAGE",
         refusals,
         warnings,
         ungraded_sources=ungraded,
-        report=(report,),
+        report=(report, narrative_qualifier),
         diagnostics=tuple(diagnostics),
         not_graded=bool(blocking_ungraded or recs_errors or not sheet.sources),
     )

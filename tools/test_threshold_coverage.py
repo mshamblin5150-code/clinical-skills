@@ -32,6 +32,7 @@ def registry(*rows: str) -> str:
 
 
 def artifact(read: str) -> str:
+    remaining_read = "read 2026-08-23" if read == "yes" else read
     return f"""# Cervical cancer
 
 <!-- schema: threshold-sheet/2 -->
@@ -50,7 +51,8 @@ def artifact(read: str) -> str:
 
 | span | pages | read |
 | --- | --- | --- |
-| whole document | 1-10 | {read} |
+| recommendation statement | 1 | yes |
+| remaining document | 2-10 | {remaining_read} |
 
 ## Populations
 
@@ -222,8 +224,8 @@ class ThresholdCoverageCli(unittest.TestCase):
 
     def test_registry_state_is_not_bound_to_an_artifact_that_fails_schema(self):
         malformed = artifact("yes").replace(
-            "| whole document | 1-10 | yes |",
-            "| whole document | 1-10 | banana |",
+            "| remaining document | 2-10 | read 2026-08-23 |",
+            "| remaining document | 2-10 | banana |",
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -263,8 +265,8 @@ class ThresholdCoverageCli(unittest.TestCase):
 
     def test_an_overlapping_unread_span_keeps_the_artifact_partial(self):
         overlapping = artifact("yes").replace(
-            "| whole document | 1-10 | yes |",
-            "| recommendation statement | 1-10 | yes |\n"
+            "| remaining document | 2-10 | read 2026-08-23 |",
+            "| remaining document | 2-10 | read 2026-08-23 |\n"
             "| rationale | 1-10 | no |",
         )
         with tempfile.TemporaryDirectory() as directory:

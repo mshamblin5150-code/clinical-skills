@@ -394,7 +394,169 @@ class ASourceIsSpentOnlyOncePerRun(unittest.TestCase):
 
 
 class AdvisoryAndCoverageBehavior(unittest.TestCase):
-    def test_amplification_is_counted_without_changing_the_verdict_or_word_count(self):
+    def test_an_invoked_source_is_counted_without_changing_the_word_count(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace(
+                    "Maren,",
+                    "<!-- INVOKED: black hole | it pulls everything near it in -->\nMaren,",
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("words: 147", stdout.getvalue())
+        self.assertIn("invoked sources: 1", stdout.getvalue())
+
+    def test_an_invoked_marker_without_a_property_separator_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("Maren,", "<!-- INVOKED: hole -->\nMaren,"),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_an_empty_invoked_domain_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace(
+                    "Maren,", "<!-- INVOKED: | it pulls everything in -->\nMaren,"
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_an_empty_invoked_property_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("Maren,", "<!-- INVOKED: black hole | -->\nMaren,"),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_an_invoked_property_that_restates_the_domain_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace(
+                    "Maren,", "<!-- INVOKED: black hole | black hole -->\nMaren,"
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_repetition_does_not_turn_a_domain_into_a_property(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("Maren,", "<!-- INVOKED: hole | a hole hole -->\nMaren,"),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_a_generic_noun_does_not_turn_a_domain_into_a_property(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace(
+                    "Maren,", "<!-- INVOKED: black hole | black hole thing -->\nMaren,"
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_pluralized_and_placeholder_domain_phrases_are_not_properties(self):
+        for property_value in (
+            "black holes",
+            "black hole effect",
+            "black hole action",
+            "it can",
+            "can black hole",
+        ):
+            with self.subTest(property=property_value), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                response = run.root / "response-maren.md"
+                response.write_text(
+                    BODY.replace(
+                        "Maren,",
+                        f"<!-- INVOKED: black hole | {property_value} -->\nMaren,",
+                    ),
+                    encoding="utf-8",
+                )
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+
+            self.assertEqual(1, status)
+            self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_substantive_behavior_clauses_are_not_over_refused(self):
+        for property_value in (
+            "it is pulling everything in",
+            "a black hole pulls everything in",
+        ):
+            with self.subTest(property=property_value), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                response = run.root / "response-maren.md"
+                response.write_text(
+                    BODY.replace(
+                        "Maren,",
+                        f"<!-- INVOKED: black hole | {property_value} -->\nMaren,",
+                    ),
+                    encoding="utf-8",
+                )
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+
+            self.assertEqual(0, status)
+            self.assertIn("invoked-property: 0", stdout.getvalue())
+
+    def test_a_pre_496_marker_is_reported_without_changing_the_verdict_or_word_count(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
@@ -408,7 +570,8 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("words: 147", stdout.getvalue())
-        self.assertIn("amplifications: 1 (counted, never graded)", stdout.getvalue())
+        self.assertIn("pre-#496 markers: 1 (counted, not graded)", stdout.getvalue())
+        self.assertNotIn("amplifications:", stdout.getvalue())
 
     def test_a_missing_claim_ledger_is_not_reported_as_a_clean_scan(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -436,6 +599,15 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
         self.assertEqual("", stdout.getvalue())
         self.assertIn("roster read 1 of 2", stderr.getvalue())
         self.assertIn("unread remainder 1", stderr.getvalue())
+
+
+class TheUnmarkedInvokedSourceLimitIsDeclared(unittest.TestCase):
+    def test_the_declared_limits_name_the_unmarked_set(self):
+        self.assertEqual(
+            "whether every invoked source was marked",
+            scan.UNMARKED_INVOKED_SOURCE_LIMIT[0],
+        )
+        self.assertGreater(len(scan.UNMARKED_INVOKED_SOURCE_LIMIT[1].split()), 8)
 
 
 if __name__ == "__main__":

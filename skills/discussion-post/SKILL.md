@@ -113,21 +113,28 @@ inventory of what that command cannot decide.
 
 Read `scratch/voice-model.md` and use register 3 throughout. Preserve confirmed sentence shapes,
 hedges attached to facts, and the clinician's argumentative posture. Do not copy chat typos or
-lowercase message openings. A craft metaphor or named philosopher already present in the
-clinician's reasoning may stay; the skill is licensed to add none.
+lowercase message openings. An invoked source already present in the clinician's reasoning may
+stay; the skill is licensed to add none.
 
 If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<course>-<module>-discussion/voice-status.md`. Keep `voice-status.md` in the private
 run record; do not copy it into the finished post or the LMS.
 
-Mark every consciously retained craft metaphor or named-philosopher move on its own working line:
+Mark every retained invoked source on its own working line:
 
 ```html
-<!-- AMPLIFICATION: craft metaphor -->
+<!-- INVOKED: <domain> | <property> -->
 ```
 
-The comments are counted and never graded. They never reach the LMS.
+Name the domain the invoked source draws on and state the property as a predicate-bearing clause
+describing the real behavior the argument spends. A retained
+invoked source carries the argument, and its payoff sentence states what that behavior does; do not enlarge the
+noun or increase the rate. The domain stays open: do not create a list of permitted domains. The
+scanner counts an empty property or a lexical restatement of the domain noun for clinician review
+without failing; it does not parse English or prove that other words state the real behavior, because
+every retained invoked source here is the clinician's. It still strips and separately reports a retired
+`AMPLIFICATION` marker as a pre-#496 marker that is not graded. The comments never reach the LMS.
 
 Write the prompt-shaped working draft to `post.md`, including its in-text citations and reference
 list. This is not the finished artifact. Now derive the required claim set from the document
@@ -211,7 +218,7 @@ walk. A new factual sentence is researched and independently refuted on the same
 ## 6. Write and independently grade the finished Markdown
 
 Copy the approved working text to `output/discussions/<course>-<module>-discussion-<date>.md`. Keep the
-`AMPLIFICATION` comments in the Markdown working artifact so the count remains auditable; omit them
+`INVOKED` comments in the Markdown working artifact so the count remains auditable; omit them
 from the LMS. End with the Markdown heading `## References`. This is the form the post grader and
 reference scanner both read, and `docx_write.py --bold-headings` renders it as direct bold formatting
 without a named heading style before the document is pasted into the LMS.
@@ -228,7 +235,7 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 `reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
 `discussion_post_scan.py` grades the signed word floor and reference minimum, then requires every
 body-number occurrence and every in-text citation occurrence to have its own claim record. It
-counts the word ceiling and amplification comments without grading them. Its default output is
+counts the word ceiling, invoked sources, and unfilled invoked properties without grading them. Its default output is
 counts only; `--show` includes private finding detail and must not be pasted.
 The `bold-headings` row reports `not graded` at this stage because the document does not exist yet;
 step 7 renders it and reruns this grader with `--docx`.
@@ -262,7 +269,7 @@ properties remain in the document because the visual check above still needs a p
 ## 8. Approve, paste, and reread
 
 Show the final post and the clean-check summary to the clinician. Wait for an explicit go-ahead.
-Paste from Word into the LMS, omit every `AMPLIFICATION` comment, and inspect the paste box before
+Paste from Word into the LMS, omit every `INVOKED` comment, and inspect the paste box before
 submitting. Submit only after that inspection, then reread the posted
 board version.
 
@@ -274,7 +281,8 @@ introduced by paste.
 
 Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
-count, amplification count, paywalled-claim count, rendered-page verdict, and the posted reread.
+count, invoked-source count, unfilled-property count, pre-#496 marker count, paywalled-claim count,
+rendered-page verdict, and the posted reread.
 Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`, and
 `voice-status.md` when present together under the board-keyed run. Remove every temporary per-agent
 path after the independent checks; if cleanup fails, report the exact remaining path.
