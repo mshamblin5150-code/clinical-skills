@@ -126,7 +126,8 @@ class ClosingKeywordSurfacesAreCovered(unittest.TestCase):
         text = workflow_text()
         self.assertIn("gh pr view", text)
         self.assertIn("--json title,body,commits", text)
-        self.assertIn("closing_keyword_scan.py --github-json -", text)
+        self.assertIn("pull-request.json", text)
+        self.assertIn("closing_keyword_scan.py --github-json $pr", text)
         self.assertRegex(text, r"(?m)^\s*pull-requests:\s*read\s*$")
 
     def test_an_edited_pull_request_is_rescanned(self):

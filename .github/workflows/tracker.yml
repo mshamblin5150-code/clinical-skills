@@ -99,9 +99,10 @@ jobs:
           gh pr view $env:PR_NUMBER --json number,url,title,body,baseRefName,mergedAt,mergeCommit,commits |
             python tools/tracker_merge_receipt.py - |
             Out-File -FilePath $plan -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $status = $LASTEXITCODE
           Get-Content -LiteralPath $plan | ForEach-Object {
             $receipt = $_ | ConvertFrom-Json
             gh issue comment $receipt.ticket --body $receipt.body
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+          if ($status -ne 0) { exit $status }

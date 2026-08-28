@@ -14,8 +14,10 @@ Usage::
     gh pr view 401 --json number,url,title,body,baseRefName,mergedAt,mergeCommit,commits |
         python tools/tracker_merge_receipt.py -
 
-Exit 0 means the merged pull request was graded, including a valid empty plan.
-Exit 2 means the input could not establish a completed merge into ``main``.
+Exit 0 means the plan contains a binding or a reasoned no-ticket declaration.
+Exit 1 means the plan is empty or a reference-shaped line was declined. Exit 2
+means the input could not establish a completed merge into ``main``. Use
+``--check-plan`` before merge to grade bindings without requiring merge data.
 The command opens no socket and mutates nothing; its JSON-lines output is the
 bounded plan consumed by ``.github/workflows/tracker.yml``.
 """
@@ -32,13 +34,82 @@ from typing import Any, NamedTuple
 from console_codec import use_utf8
 
 
+class ReferenceAlternative(NamedTuple):
+    name: str
+    pattern: str
+    example: str
+
+
+# Historical measurement on 2026-08-27 at cea7963 (ADR 0051): across 47 open
+# ticket bodies and 35 pull-request bodies, decision + number appeared 51
+# times, option + number 12 times, and lead + number 0 times.
+UNIT_NOUNS = ("decision", "decisions", "option", "options", "lead", "leads")
+TERMINAL_PUNCTUATION = ".;:!?"
+LINE_DECORATION = (
+    r"[ \t]*(?:>[ \t]*)?(?:(?:[-+*]|[0-9]+[.)])[ \t]+)?"
+)
+EMPHASIS_DECORATION = r"(?:\*{1,3}|_{1,3})"
+
+
+def _owned_line(
+    body: str,
+    trailer: str,
+    emphasis_group: str,
+    terminal_punctuation: str = "",
+) -> str:
+    prefix = (
+        rf"(?im)^{LINE_DECORATION}"
+        rf"(?P<{emphasis_group}>{EMPHASIS_DECORATION})?"
+        rf"(?:{body}){trailer}"
+    )
+    if not terminal_punctuation:
+        ending = rf"(?({emphasis_group})(?P={emphasis_group}))"
+    else:
+        punctuation = f"[{re.escape(terminal_punctuation)}]"
+        ending = (
+            rf"(?({emphasis_group})"
+            rf"(?:{punctuation}?(?P={emphasis_group})|"
+            rf"(?P={emphasis_group}){punctuation})"
+            rf"|{punctuation}?)"
+        )
+    return prefix + ending + r"[ \t\r]*$"
+
+
+REFERENCE_ALTERNATIVES = (
+    ReferenceAlternative("closes", r"Closes[ \t]+#(?P<closes>[0-9]+)", "Closes #530"),
+    ReferenceAlternative("part", r"Part[ \t]+of[ \t]+#(?P<part>[0-9]+)", "Part of #530"),
+    ReferenceAlternative(
+        "implements",
+        r"Implements[ \t]+#(?P<implements>[0-9]+)['’]s[ \t]+"
+        rf"(?P<unit>{'|'.join(UNIT_NOUNS)})[ \t]+"
+        r"(?P<unit_numbers>[0-9]+(?:[ \t]*(?:-|,)[ \t]*[0-9]+)*)",
+        "Implements #530's decision 1",
+    ),
+)
 REFERENCE = re.compile(
-    r"(?im)^[ \t]*(?:"
-    r"Closes[ \t]+#(?P<closes>[0-9]+)|"
-    r"Part[ \t]+of[ \t]+#(?P<part>[0-9]+)|"
-    r"Implements[ \t]+#(?P<implements>[0-9]+)'s[ \t]+lead[ \t]+"
-    r"(?P<lead>[0-9]+)"
-    r")[ \t\r]*$"
+    _owned_line(
+        "|".join(alternative.pattern for alternative in REFERENCE_ALTERNATIVES),
+        r"(?P<extra_references>(?:[ \t]*,[ \t]*#[0-9]+)*)"
+        r"[ \t]*",
+        "reference_emphasis",
+        TERMINAL_PUNCTUATION,
+    )
+)
+NO_BINDING = re.compile(
+    _owned_line(
+        r"Binds[ \t]+no[ \t]+ticket:[ \t]*(?P<reason>\S(?:.*?\S)?)",
+        "",
+        "declaration_emphasis",
+    )
+)
+REFERENCE_SHAPE = re.compile(
+    r"(?i)(?:"
+    r"Closes[ \t]+#[0-9]+(?:[ \t]*,[ \t]*#[0-9]+)*|"
+    r"Part[ \t]+of[ \t]+#[0-9]+(?:[ \t]*,[ \t]*#[0-9]+)*|"
+    r"Implements[ \t]+#[0-9]+['’]s(?:[ \t]+[A-Za-z]+)?"
+    r"(?:[ \t]+[0-9]+(?:[ \t]*(?:-|,)[ \t]*[0-9]+)*)?|"
+    r"Binds[ \t]+no[ \t]+ticket(?::[ \t]*[^\r\n]+)?"
+    r")"
 )
 FULL_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
 ISO_DAY = re.compile(r"^(?P<day>[0-9]{4}-[0-9]{2}-[0-9]{2})T")
@@ -63,6 +134,31 @@ class Binding(NamedTuple):
     claim: str
 
 
+class ArtifactText(NamedTuple):
+    name: str
+    text: str
+
+
+class PlanLine(NamedTuple):
+    source: str
+    number: int
+    text: str
+
+
+class PlanAssessment(NamedTuple):
+    bindings: list[Binding]
+    declarations: list[PlanLine]
+    declined: list[PlanLine]
+
+    @property
+    def status(self) -> int:
+        if self.declined or (self.bindings and self.declarations):
+            return 1
+        if self.bindings or self.declarations:
+            return 0
+        return 1
+
+
 def _text(record: dict[str, Any], field: str, source: str) -> str:
     value = record.get(field, "")
     if value is not None and not isinstance(value, str):
@@ -70,8 +166,8 @@ def _text(record: dict[str, Any], field: str, source: str) -> str:
     return value or ""
 
 
-def _artifact_texts(document: dict[str, Any]) -> list[str]:
-    texts = [_text(document, "body", "body")]
+def _artifact_sources(document: dict[str, Any]) -> list[ArtifactText]:
+    sources = [ArtifactText("body", _text(document, "body", "body"))]
     commits = document.get("commits", [])
     if commits is None:
         commits = []
@@ -80,28 +176,97 @@ def _artifact_texts(document: dict[str, Any]) -> list[str]:
     for index, commit in enumerate(commits):
         if not isinstance(commit, dict):
             raise ValueError(f"GitHub JSON commits[{index}] must be an object")
-        texts.append(
-            _text(commit, "messageHeadline", f"commits[{index}].messageHeadline")
+        sources.append(
+            ArtifactText(
+                f"commits[{index}].messageHeadline",
+                _text(commit, "messageHeadline", f"commits[{index}].messageHeadline"),
+            )
         )
-        texts.append(_text(commit, "messageBody", f"commits[{index}].messageBody"))
-    return texts
+        sources.append(
+            ArtifactText(
+                f"commits[{index}].messageBody",
+                _text(commit, "messageBody", f"commits[{index}].messageBody"),
+            )
+        )
+    return sources
+
+
+def _artifact_texts(document: dict[str, Any]) -> list[str]:
+    return [source.text for source in _artifact_sources(document)]
+
+
+def _match_bindings(match: re.Match[str]) -> list[Binding]:
+    extras = [
+        int(value[1:])
+        for value in re.findall(r"#[0-9]+", match.group("extra_references"))
+    ]
+    if match.group("closes"):
+        tickets = [int(match.group("closes")), *extras]
+        return [Binding(ticket, f"Closes #{ticket}") for ticket in tickets]
+    if match.group("part"):
+        tickets = [int(match.group("part")), *extras]
+        return [Binding(ticket, f"Part of #{ticket}") for ticket in tickets]
+
+    tickets = [int(match.group("implements")), *extras]
+    noun = match.group("unit")
+    numbers = re.sub(r"[ \t]+", " ", match.group("unit_numbers"))
+    return [
+        Binding(ticket, f"Implements #{ticket}'s {noun} {numbers}")
+        for ticket in tickets
+    ]
 
 
 def _bindings(document: dict[str, Any]) -> list[Binding]:
     found = set()
     for text in _artifact_texts(document):
         for match in REFERENCE.finditer(text):
-            if match.group("closes"):
-                ticket = int(match.group("closes"))
-                claim = f"Closes #{ticket}"
-            elif match.group("part"):
-                ticket = int(match.group("part"))
-                claim = f"Part of #{ticket}"
-            else:
-                ticket = int(match.group("implements"))
-                claim = f"Implements #{ticket}'s lead {int(match.group('lead'))}"
-            found.add(Binding(ticket, claim))
+            found.update(_match_bindings(match))
     return sorted(found)
+
+
+def assess_plan(document: Any) -> PlanAssessment:
+    if not isinstance(document, dict):
+        raise ValueError("GitHub JSON must be an object")
+
+    bindings = _bindings(document)
+    declarations = []
+    declined = []
+    for source in _artifact_sources(document):
+        for number, line in enumerate(source.text.splitlines(), start=1):
+            if declaration := NO_BINDING.fullmatch(line):
+                declarations.append(
+                    PlanLine(source.name, number, declaration.group("reason"))
+                )
+                continue
+            if REFERENCE.fullmatch(line):
+                continue
+            if near_match := REFERENCE_SHAPE.search(line):
+                declined.append(
+                    PlanLine(source.name, number, near_match.group(0).strip())
+                )
+    return PlanAssessment(bindings, declarations, declined)
+
+
+def report_assessment(assessment: PlanAssessment) -> None:
+    for declaration in assessment.declarations:
+        print(
+            f"tracker-merge-receipt: {declaration.source} line "
+            f"{declaration.number}: Binds no ticket: {declaration.text}",
+            file=sys.stderr,
+        )
+    if not assessment.bindings and not assessment.declarations:
+        print("tracker-merge-receipt: finding: receipt plan is empty", file=sys.stderr)
+    if assessment.bindings and assessment.declarations:
+        print(
+            "tracker-merge-receipt: finding: bindings conflict with a no-ticket declaration",
+            file=sys.stderr,
+        )
+    for line in assessment.declined:
+        print(
+            f"tracker-merge-receipt: finding: declined {line.source} line "
+            f"{line.number}: {line.text}",
+            file=sys.stderr,
+        )
 
 
 def render_receipt(number: int, url: str, sha: str, day: str, binding: Binding) -> str:
@@ -121,16 +286,10 @@ def parse_merge_receipt(body: str) -> Binding | None:
     claim_match = REFERENCE.fullmatch(match.group("claim"))
     if claim_match is None:
         return None
-    if claim_match.group("closes"):
-        ticket = int(claim_match.group("closes"))
-        claim = f"Closes #{ticket}"
-    elif claim_match.group("part"):
-        ticket = int(claim_match.group("part"))
-        claim = f"Part of #{ticket}"
-    else:
-        ticket = int(claim_match.group("implements"))
-        claim = f"Implements #{ticket}'s lead {int(claim_match.group('lead'))}"
-    binding = Binding(ticket, claim)
+    bindings = _match_bindings(claim_match)
+    if len(bindings) != 1:
+        return None
+    binding = bindings[0]
     canonical = render_receipt(
         int(match.group("number")),
         match.group("url"),
@@ -188,18 +347,26 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Plan ticket receipts for a pull request merged into main."
     )
+    parser.add_argument(
+        "--check-plan",
+        action="store_true",
+        help="grade bindings before merge without requiring merge metadata",
+    )
     parser.add_argument("path", help="gh pr view JSON, or - for stdin")
     args = parser.parse_args(argv)
 
     try:
-        rows = plan_receipts(_read(args.path))
+        document = _read(args.path)
+        assessment = assess_plan(document)
+        rows = [] if args.check_plan else plan_receipts(document)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         print(f"tracker-merge-receipt: could not grade input: {exc}", file=sys.stderr)
         return 2
 
     for row in rows:
         print(json.dumps(row._asdict(), ensure_ascii=False))
-    return 0
+    report_assessment(assessment)
+    return assessment.status
 
 
 if __name__ == "__main__":

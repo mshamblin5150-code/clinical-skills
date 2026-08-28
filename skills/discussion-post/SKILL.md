@@ -37,6 +37,7 @@ scratch/runs/<course>-<module>-discussion/
     claims.md
     post.md
     differentiation.md
+    voice-status.md
 ```
 
 Each sitting writes a new `board-<date>.md`; never overwrite an earlier snapshot. `posts/` holds
@@ -51,8 +52,8 @@ output/discussions/<course>-<module>-discussion-<date>.docx
 Parallel readers and researchers each receive a new run-unique private path that no sibling reads
 or writes. They return findings to the orchestrating context and never append to the canonical run
 files. The orchestrator is the sole writer of `board-<date>.md`, `bar.md`, `claims.md`, `post.md`,
-and `differentiation.md`. Apply standing rule 6's independent-checker and cleanup sequence to every
-temporary path.
+`differentiation.md`, and `voice-status.md`. Apply standing rule 6's independent-checker and
+cleanup sequence to every temporary path.
 
 ## 1. Route from the prompt, then snapshot the nonpatient board
 
@@ -114,6 +115,11 @@ Read `scratch/voice-model.md` and use register 3 throughout. Preserve confirmed 
 hedges attached to facts, and the clinician's argumentative posture. Do not copy chat typos or
 lowercase message openings. A craft metaphor or named philosopher already present in the
 clinician's reasoning may stay; the skill is licensed to add none.
+
+If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
+§8's no-model rule in full. Write the declaration it requires to
+`scratch/runs/<course>-<module>-discussion/voice-status.md`. Keep `voice-status.md` in the private
+run record; do not copy it into the finished post or the LMS.
 
 Mark every consciously retained craft metaphor or named-philosopher move on its own working line:
 
@@ -267,6 +273,6 @@ introduced by paste.
 Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, amplification count, paywalled-claim count, rendered-page verdict, and the posted reread.
-Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, and `differentiation.md` together
-under the board-keyed run. Remove every temporary per-agent path after the independent checks; if
-cleanup fails, report the exact remaining path.
+Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`, and
+`voice-status.md` when present together under the board-keyed run. Remove every temporary per-agent
+path after the independent checks; if cleanup fails, report the exact remaining path.

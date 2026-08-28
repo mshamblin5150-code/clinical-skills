@@ -33,6 +33,9 @@ two-set ruling cohort.
 
 **Nothing here reads a note.** It reads committed Markdown only, so it needs no
 fixtures, touches no run directory and can print anything it finds.
+
+``tools/test_glossary_terms.py`` makes this module's first-occurrence read
+(``text.index``) sound.
 """
 
 from __future__ import annotations

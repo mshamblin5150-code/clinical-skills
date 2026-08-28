@@ -35,6 +35,7 @@ scratch/runs/<course>-<module>-discussion/
     claims.md
     post.md
     response-<name>.md
+    voice-status.md
 ```
 
 `board-<date>.md` is the complete snapshot as read on this sitting; never overwrite an earlier
@@ -55,9 +56,10 @@ detection layer, count, or report. They remain gitignored working material.
 
 Parallel readers or researchers each receive a new run-unique private path. They return findings
 to the orchestrating context and never append to `board-<date>.md`, `claims.md`, or a reply file.
-The orchestrator is the sole writer of those artifacts. The canonical `scratch/runs/<run-key>/`
-directory is the orchestrator-owned provenance record, not a writer's private path. Apply standing
-rule 6's independent-checker and cleanup sequence to the temporary per-agent paths.
+The orchestrator is the sole writer of those artifacts, including `voice-status.md`. The canonical
+`scratch/runs/<run-key>/` directory is the orchestrator-owned provenance record, not a writer's
+private path. Apply standing rule 6's independent-checker and cleanup sequence to the temporary
+per-agent paths.
 
 ## 1. Read and rank the whole board
 
@@ -141,6 +143,11 @@ message openings. Where the model says craft metaphors or named philosophers int
 citation-bearing writing, preserve that option; it licenses adding none and never licenses adding
 a second instance because the first sounded good.
 
+If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
+§8's no-model rule in full. Write the declaration it requires to
+`scratch/runs/<run-key>/voice-status.md`. Keep `voice-status.md` in the private run record; it is
+not part of the reply typed into the LMS.
+
 Open with the selected classmate's exact roster first name and a comma. Concede what is right in
 full, then add or refuse on a genuinely different axis when the argument calls for it. A hedge
 attaches to a fact; it does not suspend the reply's commitment. Keep the reply conversational and
@@ -181,7 +188,8 @@ Exit 0 means every scanned reply passes, 1 means a finding, and 2 means the run 
 scannable. Fix any finding through the original drafting context, preserve the first checker
 result, and have another fresh context grade the correction.
 
-Show the clean reply to the clinician. Only an explicit go-ahead for this reply authorizes posting.
+Show the clean reply to the clinician. When `voice-status.md` exists, show its unmodeled-voice
+declaration alongside the reply. Only an explicit go-ahead for this reply authorizes posting.
 In the browser, type the reply into the LMS rather than pasting it, preserving the authored line
 breaks and omitting the `AMPLIFICATION` comments. Submit it, then reread the posted board version.
 
@@ -199,6 +207,7 @@ one.
 ## Completion
 
 Report the two posted addressees, the two grader exits, and the amplification count for each reply.
-Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, and both replies
-together under the run key as the private provenance record. Remove every temporary per-agent path
-after the independent checks; if cleanup fails, report the exact remaining path.
+Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, both replies, and
+`voice-status.md` when present together under the run key as the private provenance record. Remove
+every temporary per-agent path after the independent checks; if cleanup fails, report the exact
+remaining path.

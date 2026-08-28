@@ -27,6 +27,51 @@ def merged_pr(body: str, **changes):
 
 
 class ExplicitTicketReferencesBecomeReceipts(unittest.TestCase):
+    def test_every_declared_reference_form_owns_its_decorated_line(self):
+        for alternative in receipt.REFERENCE_ALTERNATIVES:
+            reference = alternative.example
+            with self.subTest(form=alternative.name, shape="period"):
+                self.assertIsNotNone(receipt.REFERENCE.fullmatch(f"{reference}."))
+            with self.subTest(form=alternative.name, shape="bold-list"):
+                self.assertIsNotNone(
+                    receipt.REFERENCE.fullmatch(f"- **{reference}.**")
+                )
+            with self.subTest(form=alternative.name, shape="punctuation-after-bold"):
+                self.assertIsNotNone(
+                    receipt.REFERENCE.fullmatch(f"- **{reference}**.")
+                )
+            with self.subTest(form=alternative.name, shape="ordered-blockquote"):
+                self.assertIsNotNone(
+                    receipt.REFERENCE.fullmatch(f"> 1. _{reference}._")
+                )
+            with self.subTest(form=alternative.name, shape="comma-list"):
+                self.assertIsNotNone(
+                    receipt.REFERENCE.fullmatch(f"{reference}, #531, #532.")
+                )
+            for shared_line in (
+                f"{reference}. More work remains.",
+                f"Ruling only. {reference}.",
+            ):
+                with self.subTest(form=alternative.name, shape="shared-line"):
+                    self.assertIsNone(receipt.REFERENCE.search(shared_line))
+            with self.subTest(form=alternative.name, shape="mismatched-emphasis"):
+                self.assertIsNone(receipt.REFERENCE.fullmatch(f"**{reference}_"))
+
+    def test_recorded_530_instances_stay_on_their_ruled_side_of_the_line(self):
+        instances = {
+            "1956c7d": ("Part of #530.", True),
+            "5b0a465": ("Part of #530, #531, #532.", True),
+            "da4fee2 / PR #522": ("Nothing built. Part of #530.", False),
+            "PR #508": ("Implements #530's decisions 1-3. Sweep follows.", False),
+            "PR #543": ("Ruling only. Part of #530", False),
+            "PR #559": ("Implements #530's option 1, and option 3.", False),
+            "PR #560": ("Part of #530; the build is still to come.", False),
+        }
+
+        for instance, (line, expected) in instances.items():
+            with self.subTest(instance=instance):
+                self.assertEqual(receipt.REFERENCE.fullmatch(line) is not None, expected)
+
     def test_whole_and_partial_ticket_forms_each_get_one_receipt(self):
         document = merged_pr(
             "Closes #290\n\nPart of #298\n\nImplements #300's lead 2\n"
@@ -52,6 +97,20 @@ class ExplicitTicketReferencesBecomeReceipts(unittest.TestCase):
         self.assertEqual([row.ticket for row in rows], [300, 300])
         self.assertIn("`Implements #300's lead 1`", rows[0].body)
         self.assertIn("`Implements #300's lead 2`", rows[1].body)
+
+    def test_comma_list_binds_each_ticket_and_preserves_the_authors_unit_noun(self):
+        rows = receipt.plan_receipts(
+            merged_pr("Implements #530's options 1-3, #531.\n")
+        )
+
+        self.assertEqual([row.ticket for row in rows], [530, 531])
+        self.assertIn("`Implements #530's options 1-3`", rows[0].body)
+        self.assertIn("`Implements #531's options 1-3`", rows[1].body)
+        for row in rows:
+            self.assertEqual(
+                receipt.parse_merge_receipt(row.body).claim,
+                row.body.partition("Merge claim: `")[2].partition("`")[0],
+            )
 
     def test_duplicate_references_across_pr_and_commit_text_are_one_receipt(self):
         document = merged_pr("Part of #290\n")
@@ -137,6 +196,75 @@ class CommandLineOutputIsMachineReadable(unittest.TestCase):
                 status = receipt.main([str(path)])
 
         self.assertEqual(status, 2)
+
+    def test_an_empty_plan_is_a_reported_finding(self):
+        report = io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(merged_pr("No binding.\n")))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 1)
+        self.assertIn("plan is empty", report.getvalue())
+
+    def test_a_declined_line_is_named_without_destroying_valid_receipts(self):
+        output = io.StringIO()
+        report = io.StringIO()
+        document = merged_pr("Part of #530\nPart of #531 once tests pass\n")
+        with (
+            contextlib.redirect_stdout(output),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 1)
+        self.assertEqual(json.loads(output.getvalue())["ticket"], 530)
+        self.assertIn("body line 2", report.getvalue())
+        self.assertIn("Part of #531", report.getvalue())
+
+    def test_pre_merge_entry_point_accepts_a_declared_no_ticket_reason(self):
+        report = io.StringIO()
+        document = merged_pr(
+            "Binds no ticket: documentation-only housekeeping.\n",
+            mergedAt=None,
+            mergeCommit=None,
+        )
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["--check-plan", "-"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("Binds no ticket", report.getvalue())
+        self.assertIn("documentation-only housekeeping", report.getvalue())
+
+    def test_pre_merge_entry_point_reports_an_open_prs_empty_plan(self):
+        document = merged_pr("No binding.\n", mergedAt=None, mergeCommit=None)
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["--check-plan", "-"])
+
+        self.assertEqual(status, 1)
+
+    def test_a_bare_no_ticket_marker_does_not_count(self):
+        report = io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(merged_pr("Binds no ticket:\n")))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 1)
+        self.assertIn("Binds no ticket", report.getvalue())
 
 if __name__ == "__main__":
     unittest.main()
