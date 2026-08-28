@@ -394,3 +394,5 @@ overstated sentence, one unnamed dependency and one count that names its members
   proposed AKI thresholds are worth having, labeled.
 - **Gate the extraction-identity mismatch as a refusal.** One irrelevant re-extraction
   refuses all 169 sheets and teaches people to bypass the hook.
+
+*(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0055 link in the correction section named a remembered title rather than that record's tracked filename; its target now matches the index. No ruling changed.)*

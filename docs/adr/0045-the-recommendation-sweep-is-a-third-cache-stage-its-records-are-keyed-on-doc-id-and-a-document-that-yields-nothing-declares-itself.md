@@ -131,3 +131,5 @@ A cold build goes from roughly 9 minutes to roughly 65. Warm builds are unchange
 - **#502 and #505 each price a curated-table edit as invalidating three records**, which is exactly right today: three of the eight records on disk are `curated-table`. Ruling 4 makes it 179. Whichever lands first sets the cost for the other.
 - **#505's ninth column becomes more expensive than its own ticket states.** A ninth column in the curated table makes `parse_curated_table` raise `DidNotScan` (`tools/guidelines_recs.py:433`), and under ruling 3 that refuses the **whole** 179-document build rather than two sheets.
 - **Three open tickets now touch `bind_recs` and `_record_path`**: #438's shared trust reader, #518's naming, and ruling 2's resolve-by-document. Two green branches there produce a red merge.
+
+*(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0044 link named a remembered title rather than that record's tracked filename; its target now matches the index. No ruling changed.)*

@@ -126,3 +126,5 @@ It is editing evidence to satisfy a rule made after it, and it is worse here tha
 **A run that types something other than the artifact.** The reply is typed by hand; nothing checks that what reached the board is what the artifact says.
 
 **Whether a bolded label is what the rubric rewards.** The house style is the clinician's stated preference and is taken as given here.
+
+*(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The link in the 2026-08-26 correction named an ADR 0016 filename absent from the index; its target now uses the record's tracked filename. No ruling changed.)*

@@ -180,9 +180,9 @@ STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
 #: unread by the very check written to find it.
 STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
 
-#: Inline Markdown links. Link labels are deliberately opaque: only the target
-#: participates in relative-path resolution.
-RELATIVE_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+#: A reference-style Markdown destination. Link labels are deliberately opaque:
+#: only the destination participates in relative-path resolution.
+REFERENCE_DESTINATION = re.compile(r"(?m)^[ \t]{0,3}\[[^\]\r\n]+\]:[ \t]*")
 ABSOLUTE_TARGET = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
 
 #: Under ``fixtures/``, these two names are prose about a run and everything
@@ -323,6 +323,144 @@ def _markdown_prose(text: str) -> str:
     return "".join(visible)
 
 
+class MarkdownTarget(NamedTuple):
+    """One Markdown link destination and its source offset."""
+
+    offset: int
+    target: str
+
+
+def _angle_destination(text: str, start: int) -> tuple[str, int] | None:
+    """An angle-bracket destination beginning at ``start``."""
+    target = []
+    cursor = start + 1
+    while cursor < len(text):
+        if text[cursor] == "\\" and cursor + 1 < len(text):
+            target.append(text[cursor + 1])
+            cursor += 2
+            continue
+        if text[cursor] == ">":
+            return "".join(target), cursor + 1
+        if text[cursor] in "\r\n":
+            return None
+        target.append(text[cursor])
+        cursor += 1
+    return None
+
+
+def _raw_destination(
+    text: str,
+    start: int,
+    *,
+    inline: bool,
+) -> tuple[str, int] | None:
+    """A whitespace-free destination, retaining balanced parentheses."""
+    target = []
+    depth = 0
+    cursor = start
+    while cursor < len(text):
+        char = text[cursor]
+        if char == "\\" and cursor + 1 < len(text):
+            target.append(text[cursor + 1])
+            cursor += 2
+            continue
+        if char == "(":
+            depth += 1
+            target.append(char)
+            cursor += 1
+            continue
+        if char == ")":
+            if inline and depth == 0:
+                break
+            if depth == 0:
+                return None
+            depth -= 1
+            target.append(char)
+            cursor += 1
+            continue
+        if char.isspace() and depth == 0:
+            break
+        target.append(char)
+        cursor += 1
+    if depth or (not target and not inline):
+        return None
+    return "".join(target), cursor
+
+
+def _closing_inline_link(text: str, start: int) -> int | None:
+    """The offset after an inline link's optional title and closing parenthesis."""
+    cursor = start
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    if cursor < len(text) and text[cursor] == ")":
+        return cursor + 1
+    if cursor >= len(text) or text[cursor] not in "\"'(":
+        return None
+    opener = text[cursor]
+    closer = ")" if opener == "(" else opener
+    cursor += 1
+    while cursor < len(text):
+        if text[cursor] == "\\" and cursor + 1 < len(text):
+            cursor += 2
+            continue
+        if text[cursor] == closer:
+            cursor += 1
+            break
+        cursor += 1
+    else:
+        return None
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    return cursor + 1 if cursor < len(text) and text[cursor] == ")" else None
+
+
+def _inline_destination(text: str, start: int) -> tuple[str, int] | None:
+    """The destination and end offset for ``](...)`` beginning after ``(``."""
+    cursor = start
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    if cursor < len(text) and text[cursor] == "<":
+        parsed = _angle_destination(text, cursor)
+    else:
+        parsed = _raw_destination(text, cursor, inline=True)
+    if parsed is None:
+        return None
+    target, cursor = parsed
+    end = _closing_inline_link(text, cursor)
+    return (target, end) if end is not None else None
+
+
+def markdown_targets(text: str) -> Iterator[MarkdownTarget]:
+    """Inline and reference-style Markdown destinations outside code."""
+    prose = _markdown_prose(text)
+    for found in REFERENCE_DESTINATION.finditer(prose):
+        cursor = found.end()
+        if cursor < len(prose) and prose[cursor] == "<":
+            parsed = _angle_destination(prose, cursor)
+        else:
+            parsed = _raw_destination(prose, cursor, inline=False)
+        if parsed is not None:
+            yield MarkdownTarget(found.start(), parsed[0])
+
+    cursor = 0
+    while cursor < len(prose):
+        label = prose.find("[", cursor)
+        if label < 0:
+            return
+        close = prose.find("]", label + 1)
+        if close < 0:
+            return
+        if close + 1 >= len(prose) or prose[close + 1] != "(":
+            cursor = close + 1
+            continue
+        parsed = _inline_destination(prose, close + 2)
+        if parsed is None:
+            cursor = close + 1
+            continue
+        target, cursor = parsed
+        yield MarkdownTarget(label, target)
+
+
 def dead_links(
     text: str,
     owner: Path,
@@ -331,15 +469,16 @@ def dead_links(
     """Relative Markdown targets in ``text`` that ``exists`` cannot find."""
     dead = []
     parent = owner.parent.as_posix()
-    prose = _markdown_prose(text)
-    for found in RELATIVE_LINK.finditer(prose):
-        target = found.group(1)
+    for found in markdown_targets(text):
+        target = found.target
         if ABSOLUTE_TARGET.match(target) or target.startswith(("/", "//")):
             continue
         path_target = target.split("#", 1)[0]
-        resolved = Path(posixpath.normpath(posixpath.join(parent, path_target)))
+        resolved = owner if not path_target else Path(
+            posixpath.normpath(posixpath.join(parent, path_target))
+        )
         if not exists(resolved):
-            dead.append((text.count("\n", 0, found.start()) + 1, target))
+            dead.append((text.count("\n", 0, found.offset) + 1, target))
     return dead
 
 
@@ -1432,14 +1571,31 @@ class TheDeadLinkResolverIsLive(unittest.TestCase):
 
     def test_a_plausible_wrong_slug_fails(self) -> None:
         existing = {Path("docs/adr/0016-real-record.md")}
-        self.assertEqual(
-            dead_links(
+        cases = (
+            (
                 "[ADR 0016](0016-plausible-record.md)",
-                self.OWNER,
-                existing.__contains__,
+                [(1, "0016-plausible-record.md")],
             ),
-            [(1, "0016-plausible-record.md")],
+            (
+                '[ADR 0016](0016-plausible-record.md "title")',
+                [(1, "0016-plausible-record.md")],
+            ),
+            (
+                "[ADR 0016](<0016 plausible record.md>)",
+                [(1, "0016 plausible record.md")],
+            ),
+            (
+                "[ADR 0016](0016-plausible(record).md)",
+                [(1, "0016-plausible(record).md")],
+            ),
+            (
+                "[ADR 0016][plausible]\n\n[plausible]: 0016-plausible-record.md",
+                [(3, "0016-plausible-record.md")],
+            ),
         )
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(dead_links(text, self.OWNER, existing.__contains__), expected)
 
     def test_an_anchor_is_dropped_without_hiding_a_missing_file(self) -> None:
         existing = {Path("docs/adr/0016-real-record.md")}

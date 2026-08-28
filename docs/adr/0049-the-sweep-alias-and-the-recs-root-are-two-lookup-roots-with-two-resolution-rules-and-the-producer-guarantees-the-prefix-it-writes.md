@@ -235,3 +235,5 @@ demonstration of it the thread has: the drift was caused by adding a paragraph, 
 *Addendum written 2026-08-27 on the branch that carries it. Rulings 1–7 and the sections above them
 are left exactly as ratified; rows 8–11 are corrections in place under ADR 0016 and say so where they
 sit.*
+
+*(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0016 link before correction row 8 named a filename absent from the index; its target now uses the record's tracked filename. No ruling changed.)*
