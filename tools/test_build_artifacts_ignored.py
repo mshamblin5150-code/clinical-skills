@@ -11,10 +11,10 @@ what re-priced #176's *"Not urgent"*.
 **This is the second net and not a replacement for the guards.** A guard refuses
 the write; this only stops the result being committed if one is missed.
 
-All three artifact names are **derived from their producing tools** rather than
-typed here, on ``test_ci_workflow.py``'s reasoning: a list of names copied into a
-test goes stale the first time a default or convention moves, and reads as
-coverage while it does. The recommendation dump was the weak one until #518:
+Artifact names are **derived from their producing tools** rather than typed here,
+on ``test_ci_workflow.py``'s reasoning: a list of names copied into a test goes
+stale the first time a default or convention moves, and reads as coverage while
+it does. The recommendation record was the weak one until #518:
 #177 renamed ``recs-<sheet stem>.json`` to ``recs-<source key>.json`` with this
 file left green throughout because the test had restated the prefix by hand.
 
@@ -210,15 +210,15 @@ class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
         self.assertEqual(database.parent.name, "guidelines-index")
         self.assertTrue(
             _check_ignore(f"{database.parent.name}/{database.name}"),
-            "guidelines-index/ holds the index and the recs dumps, and .gitignore misses it",
+            "guidelines-index/ holds the index and recommendation records, and .gitignore misses it",
         )
 
-    def test_a_recommendation_dump(self) -> None:
+    def test_a_recommendation_record(self) -> None:
         """The producer guarantees the ``recs-`` prefix on every JSON it writes."""
         name = f"{guidelines_recs.RECS_PREFIX}some-guideline.json"
         self.assertTrue(
             _check_ignore(name),
-            "a recs dump holds the society's recommendation text in full and is not ignored",
+            "a recommendation record holds the society's text in full and is not ignored",
         )
         self.assertTrue(
             _check_ignore(f"reference/{name}"),
