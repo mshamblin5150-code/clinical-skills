@@ -312,6 +312,14 @@ class BothBuildBoundariesRunTheGate(unittest.TestCase):
                 self.assertIn("exit 0", section.casefold())
                 self.assertIn("required", section)
 
+    def test_only_the_explicit_absent_model_banner_opens_the_reply_door(self):
+        reply = self.sections()["discussion-reply gate"]
+
+        self.assertIn("voice model: NOT RUN -- no", reply)
+        self.assertIn("Only that absent-model limb opens the door", reply)
+        self.assertIn("Any other exit 2", reply)
+        self.assertIn("must be repaired", reply)
+
     def test_a_model_without_the_invoked_observation_fails_the_shared_gate(self):
         source = SYNTHETIC.read_text(encoding="utf-8")
         start = source.index("1. **The invoked source and what it spends.**")

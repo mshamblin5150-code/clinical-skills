@@ -152,10 +152,13 @@ python tools/voice_model_scan.py
 ```
 
 Exit 0 is required to draft against the model. Exit 1 refuses the draft until the model's shape is
-repaired. Exit 2 takes the absent-model door below explicitly: preserve the command's `voice
-unmodeled` banner in `scratch/runs/<run-key>/voice-status.md`, then follow §8 rather than treating an
-unscanned model as clean. The default report is counts only. `--show` is private working material
-and must not be pasted. A clean scan grades shape, not whether the model is true of the clinician.
+repaired. Exit 2 refuses drafting unless the banner explicitly says `voice model: NOT RUN -- no
+model at ...; voice unmodeled`. Only that absent-model limb opens the door below: preserve its
+banner in `scratch/runs/<run-key>/voice-status.md`, then follow §8. Any other exit 2 — invalid
+invocation, unreadable specification, or unreadable or incomplete model shape — must be repaired
+and rerun rather than treated as unmodeled. The default report is counts only. `--show` is private
+working material and must not be pasted. A clean scan grades shape, not whether the model is true
+of the clinician.
 
 If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
