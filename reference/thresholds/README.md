@@ -28,7 +28,7 @@ After [#429](https://github.com/mshamblin5150-code/clinical-skills/issues/429), 
 posture for every non-USPSTF work rests on **short, attributed quotation**, not on the
 work being public domain. Public availability does not change copyright status. What
 matters here is that each minimal snippet is tied to its society, document, page and
-recommendation identifier and is used to make a fabricated clinical citation
+source locator and is used to make a fabricated clinical citation
 detectable; USPSTF's separate public-domain status is not a premise for the other
 sources.
 
@@ -70,17 +70,19 @@ python -m unittest test_threshold_sheet -k Quoting   # run from tools/
 
 **Why verbatim and not paraphrase, which is the part that is not a taste call.** The
 snippet is the sheet's honesty mechanism rather than its prose. `threshold_sheet.py`'s
-tier 0 requires the snippet from an exact source to occur in its own recommendation
-record, tier 1 requires the number in a row's `value` to appear in that snippet, and
-tier 2 requires the snippet to be found on the cited page of the source PDF.
+tier 0 requires a recommendation snippet from an exact source to occur in its own
+recommendation record and runs the opposite check on same-page narrative text. The
+tier 1 gate requires the number in a row's `value` to appear in that snippet, and tier 2 requires
+the snippet to be found on the cited page of the source PDF.
 **Paraphrase the snippet and those provenance gates stop working** — a restatement cannot be located on a page, so a
 fabricated citation stops being detectable. The verbatim string is doing evidentiary work
 that no paraphrase does, which is the fair-use factor that actually bites here.
 
 **And the attribution is per row, not per file.** Every row carries the society, the
-document, its source URL, the page, the recommendation identifier and the class of
-recommendation. A reader who doubts a row jumps to the page in one move; that jump is the
-whole reason `page` is a column.
+document, its source URL, the page, a source locator and a class. A recommendation
+locator names its recommendation identifier; a narrative locator says explicitly that
+the row is outside the recommendation index. A reader who doubts a row jumps to the
+page in one move; that jump is the whole reason `page` is a column.
 
 **What this does not license.** The sheet is a set of decision points, not a substitute
 for the guideline, and it says so in its own opener. Nothing here blesses committing a
@@ -220,12 +222,14 @@ be counted *exactly* or only *bounded* by matching a marker in running text. An 
 source has its omissions **refused**; a bound source has them **warned**. See #83
 decision 1.
 
-**Identifier membership follows the same evidentiary split.** A row citing an
-identifier absent from its source's `exact` record is refused. The same absence in a
-`bound` record is not graded: the marker reader can under-report a recommendation the
-sheet author read directly. A source-free `## Coverage` identifier absent from every
-record refuses only when every declared source has a loaded `exact` record; otherwise
-the gate cannot know which incomplete or absent record should have carried it.
+**Recommendation-identifier membership follows the same evidentiary split.** A row
+using a recommendation locator absent from its source's `exact` record is refused. A
+narrative locator is outside that record by definition. The same recommendation
+absence in a `bound` record is not graded: the marker reader can under-report a
+recommendation the sheet author read directly. A source-free `## Coverage` identifier
+absent from every record refuses only when every declared source has a loaded `exact`
+record; otherwise the gate cannot know which incomplete or absent record should have
+carried it.
 
 **This is identifier-level accounting, not occurrence-level accounting.** A real
 record can repeat one `rec_id` for more than one recommendation occurrence, so a set
@@ -329,9 +333,12 @@ including `none`.
 The `read` cell is `no`, `yes` where the span contains a threshold row, or
 `read YYYY-MM-DD` when a completed read found no row. A `references` span alone may
 instead use `exempt: <reason>`. A positive span with neither a row cited inside its
-range nor a dated marker is refused. The marker records that a read happened; it never establishes that
-the read was careful. Page coverage likewise catches an omitted span, not a boundary
-drawn on the wrong page.
+range nor a dated marker is refused. Separately, every threshold row's page must fall
+inside at least one span whose `read` cell is exactly `yes`. A dated null marker and an
+exemption retire a span but cannot support a cited row. Overlap remains valid: one
+covering `yes` span is enough even when another covering span is unread. The marker
+records that a read happened; it never establishes that the read was careful. Page
+coverage likewise catches an omitted span, not a boundary drawn on the wrong page.
 
 ### `## Populations`
 
@@ -382,12 +389,17 @@ Eight columns: `quantity | population | value | snippet | source | page | rec | 
 - `snippet` is a short **verbatim** run from the source containing the value's number.
   It is not decoration; it is what makes the citation checkable on a machine that does
   not have the PDFs.
-- `rec` is the `rec_id` from `guidelines_recs.py`, which is what ties a row to the
-  recommendation it came from and lets the omission gate work. **The `class` column is
-  checked against it**: a row carrying Class 1 while its recommendation is Class 2a is
-  refused, and that is the only check here that catches a row pinned to the *wrong*
-  recommendation — every other gate passes such a row, because its number is real and
-  its snippet is on the page it names.
+- `rec` is a source locator shaped `p<digits>/<kind>/<id>`. Its page prefix must match
+  the row's `page` column. Every kind except the reserved kind `narrative` asserts the
+  exact `rec_id` carried by `guidelines_recs.py`; that recommendation identifier keeps
+  its existing membership, omission, tier-0, and class checks. A `narrative` locator
+  states that the row came from document prose outside the recommendation index. A
+  recommendation record carrying that reserved kind is a collision and refuses.
+- `class` reserves `narrative` in both directions. A narrative locator must carry
+  class `narrative`, and a recommendation locator must not. Other recommendation
+  classes are still checked against the named recommendation: a row carrying Class 1
+  while its recommendation is Class 2a is refused, and that is the only check here
+  that catches a row pinned to the *wrong* recommendation.
 - A snippet may begin `RENDERED:` to declare that the value was **read off the page as
   typeset** because extraction garbles that table. Tier 2 then skips the row and the
   run prints how many rows did this. It is the escape hatch #83 asks for, modeled on
@@ -414,6 +426,15 @@ that resolves it.
 Every recommendation in an exact source is either cited by a row or listed here as
 `` - `<rec_id>` - <reason> ``. **Omission is the failure no other gate can see**:
 everything else checks what was written, only this checks what was not.
+
+A narrative row is outside the recommendation index and therefore cannot discharge an
+exact recommendation's omission. On an exact source, reverse tier 0 also refuses a
+narrative row whose snippet — or the page transcription after a leading `RENDERED:`
+marker — is a verbatim run inside a recommendation record on the same page. The check
+is deliberately page-scoped. `COVERAGE` prints its narrative qualifier on every run,
+including when there are zero narrative rows, because the `## Scope` span table is the
+only bound on how much prose was read; nothing enumerates a document's prose decision
+points.
 
 ## Coverage of the topic sweep
 
@@ -448,7 +469,7 @@ and in CI it has nothing to resolve. So the gate is **three tiers**:
 
 | tier | needs | checks | runs |
 | --- | --- | --- | --- |
-| 0 | `recs-<key>.json` | the snippet is in its own recommendation record | exact sources; `NOT RUN` on bound sources |
+| 0 | `recs-<key>.json` | a recommendation snippet is in its own record; a narrative page transcription is absent from same-page recommendation records | exact sources; `NOT RUN` on bound sources |
 | 1 | nothing | the value's number is in the row's own snippet | everywhere |
 | 2 | the PDFs | the snippet is on the page it cites | where the corpus is |
 
@@ -464,9 +485,10 @@ A machine gate does not fail, it goes silent. The risk is that the ungated major
 starts reading as covered because the gated part is green, so these are named here and
 not left to be discovered:
 
-- **No gate here checks that a row says what its recommendation says.** Tier 0 proves
-  an exact recommendation record states the snippet, and tier 2 proves the snippet is
-  on the page. Nothing proves the row's `quantity` is what that sentence
+- **No gate here checks that a row says what its source passage says.** For a
+  recommendation row, tier 0 proves an exact recommendation record states the snippet;
+  for a narrative row, it proves only that same-page recommendation records do not.
+  Tier 2 proves the snippet is on the page. Nothing proves the row's `quantity` is what that sentence
   was about, and **a sheet whose numbers are all real and all filed under the wrong
   heading passes every gate in this directory.**
 - **The population key is a judgment.** The grader checks it is declared, never that it

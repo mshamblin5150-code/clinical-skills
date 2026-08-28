@@ -394,8 +394,12 @@ Several words reaching the extracted text with no space between them, because th
 _Avoid_: run-on, mangled word, concatenation
 
 **Recommendation**:
-One recommendation lifted out of a guideline by `tools/guidelines_recs.py`, carrying its identifier, page, text and the mode that says how it was counted. It is the unit a threshold row cites and the unit a citation gate resolves against, so a recommendation the reader never built is invisible to every check downstream of it.
+One recommendation lifted out of a guideline by `tools/guidelines_recs.py`, carrying its identifier, page, text and the mode that says how it was counted. A threshold row with a recommendation source locator cites this unit and a citation gate resolves it against the recommendation index. A narrative source locator deliberately sits outside that index, so it cannot make a recommendation the reader never built visible to a downstream check.
 _Avoid_: rec, extraction, entry, hit
+
+**Source locator**:
+The threshold-row value shaped `p<digits>/<kind>/<id>` that pins its source passage to the row's page. Every kind except the reserved `narrative` kind names a recommendation in the source's recommendation index. The `narrative` kind names prose outside that index and is bounded by the sheet's read spans instead.
+_Avoid_: recommendation identifier — that excludes narrative prose; rec — that hides which kind the locator names
 
 **Reader limb**:
 One of the three paths a recommendation record is built through — curated verification, ruled table, or text marker. The limb is what decides which reader saw the page, and therefore what a gate over that record is able to see, so a limit stated about records in general is a limit stated about the wrong unit.
