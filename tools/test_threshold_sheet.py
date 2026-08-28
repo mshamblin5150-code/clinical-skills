@@ -17,6 +17,7 @@ came from outside the corpus.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -1445,6 +1446,157 @@ class TheScopeSectionIsGraded(unittest.TestCase):
             '"an SBP goal of <130 mm Hg"', '"read the label; not read elsewhere"')
         findings = self.schema_findings(text)
         self.assertTrue(any("scope" in f.lower() for f in findings), findings)
+
+
+class ScopeSummaryTracksTheUnreadList(unittest.TestCase):
+    """ADR 0046's conservative direction at the public SCHEMA seam."""
+
+    def corrected_cervical_sheet(self) -> tuple[Path, str]:
+        path = gate.SHEET_ROOT / "cervical-cancer.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(
+            "**Read:** all five recommendation statements in the USPSTF recommendation table. "
+            "The reference list is retired by class because it is a citation list with no "
+            "clinical prose.",
+            " ".join(text.split()),
+        )
+        self.assertIn("**Not read:** the rationale, clinical considerations, and evidence review.", text)
+        return path, text
+
+    def test_a_retired_span_named_as_unread_is_refused(self):
+        path, text = self.corrected_cervical_sheet()
+        planted = text.replace(
+            "clinical considerations, and evidence review.",
+            "clinical considerations, evidence review, and references.",
+        )
+        self.assertIn("evidence review, and references.", planted)
+
+        findings = gate.gate_schema(gate.parse(planted, path)).findings
+
+        self.assertTrue(
+            any("references" in finding and "Not read" in finding for finding in findings),
+            findings,
+        )
+
+    def test_index_does_not_match_prose_after_the_unread_lists_first_sentence(self):
+        path = gate.SHEET_ROOT / "diabetes.md"
+        parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+
+        findings = gate.gate_schema(parsed).findings
+
+        self.assertFalse(any("span 'index'" in finding for finding in findings), findings)
+
+    def test_a_hard_wrapped_retired_span_label_is_still_refused(self):
+        path, text = self.corrected_cervical_sheet()
+        planted = text.replace(
+            "and evidence review.",
+            "evidence review, and recommendation\nstatements.",
+        )
+        self.assertIn("recommendation\nstatements", planted)
+
+        findings = gate.gate_schema(gate.parse(planted, path)).findings
+
+        self.assertTrue(
+            any("recommendation statements" in finding for finding in findings),
+            findings,
+        )
+
+    def test_a_span_label_inside_a_longer_list_item_does_not_match(self):
+        path, text = self.corrected_cervical_sheet()
+        planted = text.replace(
+            "and evidence review.",
+            "evidence review, and a references appendix.",
+        )
+        self.assertIn("a references appendix", planted)
+
+        findings = gate.gate_schema(gate.parse(planted, path)).findings
+
+        self.assertFalse(any("span 'references'" in finding for finding in findings), findings)
+
+    def test_every_current_sheet_passes_the_scope_summary_gate(self):
+        paths = sorted(
+            path
+            for path in gate.SHEET_ROOT.glob("*.md")
+            if path.name.casefold() not in {"readme.md", "coverage.md"}
+        )
+        self.assertTrue(paths)
+        for path in paths:
+            with self.subTest(sheet=path.name):
+                parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+                self.assertEqual(gate.gate_schema(parsed).findings, [])
+
+
+class ScopeSummaryDeclaredLimits(unittest.TestCase):
+    """ADR 0046's single object and its no-copy README pointer."""
+
+    OBJECT = "SCOPE_SUMMARY_NOT_REACHED"
+
+    def assignment(self) -> ast.Assign:
+        tree = ast.parse(Path(gate.__file__).read_text(encoding="utf-8"))
+        return next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == self.OBJECT
+                    for target in node.targets)
+        )
+
+    def ast_rows(self) -> list[tuple[str, str]]:
+        value = self.assignment().value
+        self.assertIsInstance(value, ast.Tuple)
+        rows = []
+        for node in value.elts:
+            self.assertIsInstance(node, ast.Tuple)
+            self.assertEqual(len(node.elts), 2)
+            key = ast.literal_eval(node.elts[0])
+            reason_node = node.elts[1]
+            reason = (
+                getattr(gate, reason_node.id)
+                if isinstance(reason_node, ast.Name)
+                else ast.literal_eval(reason_node)
+            )
+            rows.append((key, reason))
+        return rows
+
+    def test_the_object_carries_every_ruled_limit_once(self):
+        expected = {
+            "unread spans omitted from Not read",
+            "compound span labels",
+            "sentences after the first",
+            "unread spans named under Read",
+            "class-retirement placement",
+            "items that are not span labels",
+            "null-sheet wording",
+            "misdrawn span boundaries",
+        }
+        rows = self.ast_rows()
+        self.assertEqual({key for key, _ in rows}, expected)
+        self.assertEqual(len(rows), len(expected))
+        for key, reason in rows:
+            self.assertTrue(key.strip())
+            self.assertGreater(len(reason.split()), 8, key)
+
+    def test_the_boundary_row_points_at_the_existing_constant(self):
+        assignment = self.assignment()
+        boundary = next(
+            row
+            for row in assignment.value.elts
+            if ast.literal_eval(row.elts[0]) == "misdrawn span boundaries"
+        )
+        self.assertIsInstance(boundary.elts[1], ast.Name)
+        self.assertEqual(
+            boundary.elts[1].id,
+            "PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES",
+        )
+
+    def test_the_readme_points_to_the_object_and_copies_no_row(self):
+        readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
+        pointer = f"threshold_sheet.{self.OBJECT}"
+        self.assertEqual(readme.count(pointer), 1)
+        for key, reason in self.ast_rows():
+            with self.subTest(key=key):
+                self.assertNotIn(key, readme)
+                self.assertNotIn(reason, readme)
 
 
 class ScopeSpanTable(unittest.TestCase):

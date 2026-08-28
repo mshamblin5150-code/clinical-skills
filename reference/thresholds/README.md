@@ -290,12 +290,16 @@ paths. After an explicit live run, updating the line makes the maintainer's next
 refuse in the mirror direction. That one-edit ping-pong is a declared limit and a re-ruling
 trigger, not a silent pass and not a request for date arithmetic.
 
-Every line currently present in `## Scope` is held by something. SCHEMA refuses a missing
-`Read:` or `Not read:` limb, and CITATION tier 2 holds the resolution declaration in both its
-live and skipped states. ADR 0019's accepted-distrust declaration is another instance of the
-same **Held declaration** principle, but its WATERMARK mechanism belongs to #460 and is not
-claimed by this build: the resolution declaration holds a skip and presence, while that
-separate declaration holds a pass.
+The presence of every current declaration in `## Scope` is held by something. SCHEMA
+refuses a missing `Read:` or `Not read:` limb and refuses when a span that has left the
+unread list is still named under `Not read:`. The directions and matcher shapes it does
+not grade live in `threshold_sheet.SCOPE_SUMMARY_NOT_REACHED`; this file points there and
+copies no row. A clean run therefore does not make the scope summary trustworthy.
+CITATION tier 2 holds the resolution declaration in both its live and skipped states.
+ADR 0019's accepted-distrust declaration is another instance of the same **Held
+declaration** principle, but its WATERMARK mechanism belongs to #460 and is not claimed
+by this build: the resolution declaration holds a skip and presence, while that separate
+declaration holds a pass.
 
 When WATERMARK passes only because `--allow-untrusted-provenance` admitted the
 extracted corpus, this section also carries the exact block the command prints:

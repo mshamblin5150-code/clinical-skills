@@ -970,6 +970,20 @@ def gate_schema(sheet: Sheet) -> GateResult:
             if character in row.value:
                 failures.append(f"{where}  value contains {character!r}: {why}")
 
+    not_read_items = _not_read_scope_items(sheet.scope)
+    if not_read_items is not None:
+        for span in sheet.spans:
+            left_unread_list = (
+                span.read.casefold() == "yes"
+                or span.has_dated_marker
+                or span.exemption_reason is not None
+            )
+            if left_unread_list and span.name.casefold() in not_read_items:
+                failures.append(
+                    f"{sheet.path.name}:{span.line} span '{span.name}' has left the unread "
+                    "list but is still named under 'Not read:'"
+                )
+
     # The conflict rule. Keyed on quantity AND population together, because two rows
     # measuring the same thing in different patients are not a disagreement -- KDIGO
     # targets SBP <120 in CKD and AHA/ACC targets <130/80 in general adults, and
@@ -1000,6 +1014,77 @@ def gate_schema(sheet: Sheet) -> GateResult:
         failures,
         report=(f"  SCHEMA          {len(failures)}",),
     )
+
+
+def _not_read_scope_items(scope: str) -> set[str] | None:
+    """Return normalized items from the first ``Not read:`` sentence."""
+    prose = "\n".join(
+        line for line in scope.splitlines() if not line.lstrip().startswith("|")
+    )
+    match = re.search(
+        r"\*\*not read:\*\*\s*(?P<limb>.*?(?:\.(?=\s|$)|$))",
+        prose,
+        flags=re.I | re.S,
+    )
+    if match is None:
+        return None
+    sentence = " ".join(match.group("limb").split()).rstrip(".")
+    return {
+        item.strip().casefold()
+        for item in re.split(
+            r"\s*(?:,|;)\s*(?:and\s+)?|\s+and\s+",
+            sentence,
+            flags=re.I,
+        )
+        if item.strip()
+    }
+
+
+# What ADR 0046's scope-summary refusal does not reach. Kept as one object beside
+# the mechanism because prose elsewhere points here and copies no row. This is the
+# conservative direction only: it catches a retired span still described as unread,
+# not an unread span missing from the scope summary.
+SCOPE_SUMMARY_NOT_REACHED = (
+    (
+        "unread spans omitted from Not read",
+        "Nothing checks that the summary names every unread span; this is the "
+        "direction in which a wrong summary misleads a clinician.",
+    ),
+    (
+        "compound span labels",
+        "A compound span label such as X and Y is split at and, so the complete "
+        "label is never compared as one item.",
+    ),
+    (
+        "sentences after the first",
+        "Only the first sentence after Not read is parsed as the list; later "
+        "sentences are outside the comparison.",
+    ),
+    (
+        "unread spans named under Read",
+        "An unread span named under Read is not graded, and no committed sheet "
+        "provides an instance on which to key that mirror rule.",
+    ),
+    (
+        "class-retirement placement",
+        "Putting class-retired material under Read is a convention only; correct "
+        "sheets may describe a reference list without repeating its span label.",
+    ),
+    (
+        "items that are not span labels",
+        "A scope-summary item that is not a span label is compared in neither "
+        "direction and remains a reading.",
+    ),
+    (
+        "null-sheet wording",
+        "The ruled null-sheet wording names no span, so the check is vacuous unless "
+        "that wording changes to name one.",
+    ),
+    (
+        "misdrawn span boundaries",
+        PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES,
+    ),
+)
 
 
 def _page_runs(pages: set[int]) -> str:
