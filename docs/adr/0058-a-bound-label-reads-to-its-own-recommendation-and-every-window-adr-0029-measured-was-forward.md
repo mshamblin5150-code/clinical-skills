@@ -249,3 +249,68 @@ record would govern; by substance ADR 0032 ruling 4 is right and this record res
 conclusion without knowing it existed. **A ruling made in ignorance of a contrary ratified ruling is
 not a considered reversal**, so the ordering goes back to the clinician rather than being decided by
 a tie-break neither record was written against.
+
+## Addendum, 2026-08-28 — the ordering, ruled by the clinician
+
+**Order: #446, then #438, then #436.** [ADR 0032](0032-the-marker-limb-reads-the-repaired-text-the-other-two-limbs-declare-that-they-do-not-and-every-citation-gate-reads-one-reader.md)
+ruling 4 stands and this record's restatement of ADR 0029 point 9 is **retired**. The corrections
+section above put the question to the clinician rather than resolving it by the higher-number
+tie-break; this is the answer, and it goes here rather than into ruling 10 or the supersession table,
+which stay as they were written under
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md).
+
+**What it costs this record is one deliverable's timing and nothing else.** Rulings 1 through 9 and 11
+are unaffected — the label direction, the word backoff, the sentence-boundary stop, the drafter's
+mode seam, the registry string, the census shape and the tier-0 line are all independent of what the
+extractor feeds the marker limb. **Ruling 10 is the one that moves**: the backward window's plateau is
+measured **after #446 lands**, against the text that will exist, and the constant committed from that
+measurement. Measuring it earlier is the defect ADR 0032 ruling 4 named — a figure taken against the
+text being replaced — with the aggravation this record added, that ruling 10 commits a constant where
+ADR 0032 weighed only declared figures.
+
+**And it makes the row-shape question urgent rather than academic.** Ruling 7 says the object is built
+whole by whichever ticket lands first. Under this ordering that is determinate: **#446 builds
+`guidelines_recs.DECLARED_LIMITS`**, and #438, #436 and #510 append. But #446 deliverable 2 names
+`reference_scan.NOT_REACHED` as its precedent, which is **#510's `(name, prose)` side of the split and
+not ruling 7's ADR 0053 ruling 8 three-field row**. So the ticket that now builds the object is
+specified with the shape ruling 7 did not choose, and the disagreement is the first thing its builder
+meets rather than a late reconciliation. Still the clinician's, and still not decided here.
+
+## Second addendum, 2026-08-28 — the row shape and the registry's owner, ruled by the clinician
+
+**1. The row is three-field.** `guidelines_recs.DECLARED_LIMITS` takes
+[ADR 0053](0053-a-declared-limit-is-a-keyed-sentence-and-its-reasoning-stays-at-the-code-point.md)
+ruling 8's `key` / `limit` / `evidence` shape, so ruling 7 stands unqualified and the two tickets
+specified against it are corrected rather than accommodated:
+[#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446) deliverable 2, which names
+`reference_scan.NOT_REACHED` as its precedent, and
+[#510](https://github.com/mshamblin5150-code/clinical-skills/issues/510) item 7, which names
+`case_study_scan.DECLARED_LIMITS`'s `(text, disposition)` pairs.
+
+**#510 item 7's stated reason is answered rather than overridden.** It chose its shape *"because the
+tree holds both and #535 is open on which counts as one"* — a deliberate move to stop the item being
+a reasonable-choice fork. That reason was sound when written and is now spent: the fork is closed by
+a ruling rather than by a ticket's guess, which is what item 7 wanted. **The `NOT_REACHED` name may
+still be exported as a derived view** — ADR 0053 ruling 8 governs the row, not what a module exposes
+beside it, and `case_study_scan` already publishes both.
+
+**Under the first addendum's ordering this is not academic.** #446 lands first and therefore builds
+the object whole, so the shape is the first thing its builder meets. Correcting deliverable 2 is what
+makes the ordering safe rather than merely settled.
+
+**2. The 46 registry cells are [#582](https://github.com/mshamblin5150-code/clinical-skills/issues/582)'s.**
+Ruling 1 fixed the *string* and said nothing about the owner; #436's own 2026-08-27 sweep comment had
+ruled #582 and its respec kept item 4 without recording a reason, leaving two open tickets specifying
+one 46-line edit. **Item 4 and its `Done when` bullet are struck in favor of #582**, and ruling 1's
+string is unchanged.
+
+**The ordering is what makes the ownership matter.** #436 is now third of three, so an edit left there
+keeps 46 topics telling the next agent they are blocked on a block discharged 2026-08-23 through two
+further builds — while #582 is 46 lines of Markdown with no code, no rebuild and no recs-root
+dependency.
+
+**What #582 carries that ruling 1 did not reach**, and which is why it is the better home rather than
+merely the earlier one: `tools/threshold_coverage.py:91` grades that cell for non-emptiness only,
+which is *why nothing caught it*; and `coverage.md:78` — the `diabetes mellitus` **`sheet`** row — is
+the 47th `#436` reference and must not be swept, because it is not a blocker claim, it stays true
+after the build, and *full-document read pending* would be false of a `sheet` row.
