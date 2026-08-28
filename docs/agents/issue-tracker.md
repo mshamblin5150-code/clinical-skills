@@ -130,15 +130,25 @@ bounded fallback for a missed `in flight` label, not a claim that the checker ca
 infer assertions from arbitrary prose. It catches the fresh premature closure
 recorded on #283 while leaving historical discussion outside its vocabulary.
 
-Every pull request body names each ticket whose state it changes on a line by
-itself: `Closes #N` for the whole ticket, `Part of #N`, or `Implements #N's lead
-1` for a partial. When that pull request merges into `main`, `tracker.yml` runs
+Every pull request body names each ticket whose state it changes with a binding
+that owns its line: `Closes #N` for the whole ticket, `Part of #N`, or
+`Implements #N's decision 1` for a partial. The partial-unit noun vocabulary is
+`decision`, `decisions`, `option`, `options`, `lead`, and `leads`; a number,
+range, or list follows it. Terminal punctuation, matched Markdown emphasis,
+ordered or unordered list decoration, blockquote decoration, and a
+comma-separated list of further references do not stop a binding from owning
+the line. Prose before or after it does. A pull request body or commit message
+that intentionally binds nothing writes `Binds no ticket: <reason>` on its own
+line.
+When that pull request merges into `main`, `tracker.yml` runs
 `tools/tracker_merge_receipt.py` over the PR body and commit messages and posts
 one merge receipt for each explicitly named whole ticket or partial lead. The
 receipt preserves that bounded relation, plus the PR, full merge SHA and date,
 so two branches settling two leads on one ticket do not collapse into one state.
 It does not pretend a symbol kept its name or that every other claim on the
-ticket is current.
+ticket is current. The pre-merge receipt-plan check is advisory and reports an
+empty plan or declined reference-shaped line; a clean result does not establish
+that the binding names the right ticket.
 
 **Do not rewrite or delete the dated branch-state record after merge.** A
 comment is evidence of what was true when written. The later merge receipt is

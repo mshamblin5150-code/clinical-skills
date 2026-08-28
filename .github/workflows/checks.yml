@@ -78,14 +78,23 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
             gh pr view $env:PR_NUMBER --json title,body,commits |
-              python tools/closing_keyword_scan.py --github-json -
+              Out-File -FilePath $pr -Encoding utf8
+            python tools/closing_keyword_scan.py --github-json $pr
           } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
             git log --format=%B "$env:BEFORE_SHA..$env:GITHUB_SHA" |
               python tools/closing_keyword_scan.py -
           } else {
             git log -1 --format=%B | python tools/closing_keyword_scan.py -
           }
+
+      - name: Receipt plan scan, advisory
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
+          python tools/tracker_merge_receipt.py --check-plan $pr
 
       # Before the suite, so it is on the page even when the suite dies. The
       # report is computed by the scanner from its own inputs rather than

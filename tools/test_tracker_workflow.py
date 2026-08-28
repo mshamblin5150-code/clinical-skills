@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import phi_scan
+import tracker_merge_receipt
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -140,6 +141,47 @@ class ACompletedMergePublishesAnImmutableTicketReceipt(unittest.TestCase):
         self.assertIn("Part of #", text)
         self.assertIn("merge receipt", text.lower())
         self.assertIn("do not rewrite", text.lower())
+
+    def test_receipts_are_published_before_the_planners_status_is_enforced(self):
+        step = workflow_text().partition(
+            "Publish one immutable receipt per explicitly referenced ticket"
+        )[2].partition("\n      #")[0]
+        status = step.index("$status = $LASTEXITCODE")
+        publication = step.index("gh issue comment", status)
+        enforcement = step.index("exit $status", publication)
+
+        self.assertLess(status, publication)
+        self.assertLess(publication, enforcement)
+
+
+class PullRequestsGradeTheReceiptPlanBeforeMerge(unittest.TestCase):
+    def test_the_advisory_step_uses_the_open_pr_entry_point(self):
+        checks = (REPO_ROOT / ".github" / "workflows" / "checks.yml").read_text(
+            encoding="utf-8"
+        )
+        step = checks.partition("Receipt plan scan, advisory")[2].partition("\n      - name:")[0]
+
+        self.assertIn("continue-on-error: true", step)
+        self.assertGreaterEqual(checks.count("pull-request.json"), 2)
+        self.assertIn("tracker_merge_receipt.py --check-plan", step)
+        self.assertIn("if: github.event_name == 'pull_request'", step)
+
+    def test_documented_nouns_and_own_line_rule_come_from_module_constants(self):
+        texts = [
+            ISSUE_TRACKER.read_text(encoding="utf-8"),
+            CLAUDE_MD.read_text(encoding="utf-8"),
+        ]
+        for noun in tracker_merge_receipt.UNIT_NOUNS:
+            for text in texts:
+                with self.subTest(noun=noun):
+                    self.assertIn(noun, text)
+        for alternative in tracker_merge_receipt.REFERENCE_ALTERNATIVES:
+            documented_form = alternative.example.partition("#")[0].strip()
+            for text in texts:
+                with self.subTest(form=alternative.name):
+                    self.assertIn(documented_form, text)
+        for text in texts:
+            self.assertIn("owns its line", text)
 
 
 if __name__ == "__main__":
