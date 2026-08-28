@@ -146,6 +146,24 @@ def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
     )
 
 
+def _mixed_tier0_marker_sources(sheet_: gate.Sheet) -> tuple[set[str], set[str]]:
+    """Return marked exact and non-exact sources when both classes are present."""
+    marked_sources = {
+        item.source
+        for item in sheet_.rows
+        if item.snippet.startswith(gate.RENDERED_MARKER)
+    }
+    marked_exact = {
+        key
+        for key in marked_sources
+        if sheet_.sources.get(key, {}).get("mode") == gate.MODE_EXACT
+    }
+    marked_non_exact = marked_sources - marked_exact
+    if marked_exact and marked_non_exact:
+        return marked_exact, marked_non_exact
+    return set(), set()
+
+
 def conflicting_rows(second_value: str = "<120 mm Hg") -> str:
     return row(value="<130 mm Hg") + row(
         value=second_value, page="p50", rec="p50/goal/1"
@@ -981,6 +999,47 @@ class CitationTier0(unittest.TestCase):
             gate.gate_citation_tier0(parsed, {"src": recs}, {}).findings, []
         )
         self.assertEqual(gate.gate_coverage(parsed, {"src": recs}).findings, [])
+
+
+class TierZeroRenderedCounterScope(unittest.TestCase):
+    """ADR 0043 ruling 5's mixed-source tripwire and positive control."""
+
+    def test_the_tripwire_detects_a_synthetic_mixed_mode_sheet_with_markers(self):
+        mixed_header = TWO_SOURCE_HEADER.replace(
+            "| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | exact |",
+            "| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | bound |",
+        )
+        parsed = two_source_sheet(
+            row(source="aha", snippet="RENDERED: exact-source transcription")
+            + row(
+                source="kdigo",
+                snippet="RENDERED: bound-source transcription",
+                page="p42",
+                rec="p42/goal/2",
+            ),
+            header_text=mixed_header,
+        )
+
+        self.assertEqual(_mixed_tier0_marker_sources(parsed), ({"aha"}, {"kdigo"}))
+
+    def test_no_committed_sheet_silently_mixes_the_tier_zero_marker_denominator(self):
+        paths = sorted(
+            path
+            for path in gate.SHEET_ROOT.glob("*.md")
+            if path.name.casefold() not in {"readme.md", "coverage.md"}
+        )
+        self.assertTrue(paths)
+        for path in paths:
+            with self.subTest(sheet=path.name):
+                parsed = gate.parse(path.read_text(encoding="utf-8"), path)
+                exact, non_exact = _mixed_tier0_marker_sources(parsed)
+                self.assertFalse(
+                    exact or non_exact,
+                    "A sheet now carries RENDERED: rows on both exact and non-exact "
+                    "sources. Re-examine gate_citation_tier0's per-graded-source "
+                    "rendered counter before accepting its printed denominator: "
+                    f"exact={sorted(exact)}, non-exact={sorted(non_exact)}",
+                )
 
 
 class EveryGateReturnsOneNamedShape(unittest.TestCase):
