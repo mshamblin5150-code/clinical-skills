@@ -238,6 +238,7 @@ from guidelines_recs import MODE_BOUND, MODE_EXACT, record_built_from_another_do
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
+DEFAULT_PDF_ROOT = Path("C:/codeing/guidelines-src")
 
 # Where `recs-<key>.json` is looked for when `--recs-root` is not given. A module
 # constant rather than an inline default so the literal can be graded: an env var
@@ -474,6 +475,11 @@ _ROW_PIPE = re.compile(r"^\s*\|(?P<body>.+)\|\s*$")
 _CONFLICT = re.compile(r"^\s*\*{0,2}CONFLICT\*{0,2}:\s*(?P<quantity>[a-z0-9-]+)\b(?P<rest>.*)$", re.IGNORECASE)
 _OUT_LINE = re.compile(r"^\s*-\s*`(?P<rec_id>[^`]+)`\s*[-\u2014:]\s*(?P<reason>.+?)\s*$")
 _RESOLVED = re.compile(r"citations resolved against\s+(?P<corpus>\S+)\s+on\s+(?P<date>\d{4}-\d{2}-\d{2})", re.IGNORECASE)
+_EXTRACTION_IDENTITY = re.compile(
+    r"^extraction identity:\s*producer\s+(?P<commit>[0-9a-f]{40});\s*"
+    r"tools/guidelines_extract\.py\s+sha256\s+(?P<sha256>[0-9a-f]{64})\s*$",
+    re.IGNORECASE,
+)
 _SPAN_SOURCE = re.compile(
     r"^\s*\*{0,2}Source:\s*`?(?P<source>[a-z0-9-]+)`?\*{0,2}\s*$",
     re.IGNORECASE,
@@ -583,6 +589,54 @@ class Span:
         return match.group("reason") if match else None
 
 
+@dataclass(frozen=True)
+class ExtractionIdentity:
+    """The two manifest fields a sheet binds its extracted-text reading to."""
+
+    producer_commit: str
+    extractor_sha256: str
+
+
+def extraction_identity_from_manifest(
+    root: Path,
+) -> tuple[ExtractionIdentity | None, list[str]]:
+    """Read the sheet identity fields from an extracted-corpus manifest."""
+
+    path = root / guidelines_manifest.MANIFEST_NAME
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        return None, [f"{path} could not supply an extraction identity: {error}"]
+    producer = loaded.get("producer") if isinstance(loaded, dict) else None
+    if not isinstance(producer, dict):
+        return None, [f"{path} has no producer record"]
+    commit = producer.get("commit")
+    inputs = producer.get("inputs")
+    extractor = next(
+        (
+            item.get("sha256")
+            for item in inputs
+            if isinstance(item, dict)
+            and item.get("path") == "tools/guidelines_extract.py"
+        ),
+        None,
+    ) if isinstance(inputs, list) else None
+    if not isinstance(commit, str) or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        return None, [f"{path} producer has no 40-character commit"]
+    if not isinstance(extractor, str) or re.fullmatch(r"[0-9a-f]{64}", extractor) is None:
+        return None, [f"{path} producer has no extractor SHA-256"]
+    return ExtractionIdentity(commit, extractor), []
+
+
+def render_extraction_identity(identity: ExtractionIdentity) -> str:
+    """Render the declaration shared by the draft producer and sheet parser."""
+
+    return (
+        f"extraction identity: producer {identity.producer_commit}; "
+        f"tools/guidelines_extract.py sha256 {identity.extractor_sha256}"
+    )
+
+
 @dataclass
 class Sheet:
     """A parsed sheet. ``ok`` is false when it could not be read as one at all."""
@@ -604,6 +658,7 @@ class Sheet:
     has_scope_section: bool = False
     resolved_corpus: str | None = None
     resolved_date: str | None = None
+    extraction_identity: ExtractionIdentity | None = None
     accepted_distrust: artifact_provenance.AcceptedDistrust | None = None
     accepted_distrust_problems: tuple[str, ...] = ()
     ok: bool = True
@@ -800,6 +855,12 @@ def parse(text: str, path: Path) -> Sheet:
             if resolved:
                 sheet.resolved_corpus = resolved.group("corpus")
                 sheet.resolved_date = resolved.group("date")
+            extraction_identity = _EXTRACTION_IDENTITY.fullmatch(line.strip())
+            if extraction_identity:
+                sheet.extraction_identity = ExtractionIdentity(
+                    extraction_identity.group("commit").lower(),
+                    extraction_identity.group("sha256").lower(),
+                )
 
         if section == CONFLICTS_HEADING.removeprefix("## ").lower():
             conflict = _CONFLICT.match(line)
@@ -1071,6 +1132,29 @@ def gate_schema(sheet: Sheet) -> GateResult:
         "SCHEMA",
         failures,
         report=(f"  SCHEMA          {len(failures)}",),
+    )
+
+
+def gate_extraction_identity(
+    sheet: Sheet,
+    current: ExtractionIdentity | None,
+) -> GateResult:
+    """Warn when the sheet and current extracted corpus name different builds."""
+
+    warnings: list[str] = []
+    if current is not None and sheet.extraction_identity is None:
+        warnings.append(
+            f"{sheet.path.name}  has no extraction identity in ## Scope"
+        )
+    elif current is not None and sheet.extraction_identity != current:
+        warnings.append(
+            f"{sheet.path.name}  was read against a different extraction than the "
+            "current manifest"
+        )
+    return GateResult(
+        "EXTRACTION IDENTITY",
+        warnings=warnings,
+        report=(f"  EXTRACTION IDENTITY {len(warnings)} warning",),
     )
 
 
@@ -2686,6 +2770,12 @@ def survey(
     )
 
     schema = gate_schema(sheet)
+    current_extraction, _identity_problems = (
+        extraction_identity_from_manifest(text_root)
+        if text_root is not None
+        else (None, [])
+    )
+    extraction_identity = gate_extraction_identity(sheet, current_extraction)
     catalog_problems: list[str] = []
     if page_counts is None:
         page_counts, catalog_problems = load_catalog_page_counts()
@@ -2735,6 +2825,7 @@ def survey(
 
     results = (
         schema,
+        extraction_identity,
         page_coverage,
         tier0,
         tier1,
@@ -2747,6 +2838,7 @@ def survey(
 
     refusals = (
         schema.findings
+        + extraction_identity.findings
         + page_coverage.findings
         + tier0.findings
         + tier1.findings
@@ -2761,7 +2853,11 @@ def survey(
     diagnostics.extend(f"  FAIL  {message}" for message in refusals)
     diagnostics.extend(
         f"  WARN  {message}"
-        for message in coverage.warnings + second_read_result.warnings
+        for message in (
+            extraction_identity.warnings
+            + coverage.warnings
+            + second_read_result.warnings
+        )
     )
     diagnostics.extend(
         f"  NOT DIFFED  {message}"
@@ -2852,7 +2948,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pdf-root",
         type=Path,
-        default=Path("C:/codeing/guidelines-src"),
+        default=DEFAULT_PDF_ROOT,
         help="corpus root for citation tier 2 (absent is reported, never passed)",
     )
     parser.add_argument(
@@ -2974,21 +3070,31 @@ def main(argv: list[str]) -> int:
             print(f"no sheet under {SHEET_ROOT}", file=sys.stderr)
             return 2
         worst = 0
+        affected_extractions: list[str] = []
         for path in sheets:
+            scan = survey(
+                path,
+                [],
+                args.pdf_root,
+                args.recs_root,
+                text_root,
+                None,
+                args.allow_untrusted_provenance,
+            )
             worst = max(
                 worst,
-                _emit_scan(
-                    survey(
-                        path,
-                        [],
-                        args.pdf_root,
-                        args.recs_root,
-                        text_root,
-                        None,
-                        args.allow_untrusted_provenance,
-                    ),
-                    quiet=args.quiet,
-                ),
+                _emit_scan(scan, quiet=args.quiet),
+            )
+            if any(
+                result.gate == "EXTRACTION IDENTITY" and result.warnings
+                for result in scan.results
+            ):
+                affected_extractions.append(path.name)
+        if affected_extractions:
+            print(
+                f"  WARN  EXTRACTION IDENTITY {len(affected_extractions)} affected "
+                f"sheet(s): {', '.join(affected_extractions)}",
+                file=sys.stderr,
             )
         return worst
 

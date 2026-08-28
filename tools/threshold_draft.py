@@ -19,12 +19,15 @@ from pathlib import Path
 from urllib.parse import quote
 
 import guidelines_catalog
+import guidelines_extract
 from console_codec import use_utf8
 from guidelines_recs import RECS_PREFIX, record_built_from_another_document
 from threshold_sheet import (
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
+    DEFAULT_PDF_ROOT,
     DEFAULT_RECS_ROOT,
+    ExtractionIdentity,
     POPULATIONS_HEADING,
     QUANTITIES_HEADING,
     ROW_COLUMNS,
@@ -35,7 +38,9 @@ from threshold_sheet import (
     SOURCES_HEADING,
     THRESHOLDS_HEADING,
     _normalize,
+    extraction_identity_from_manifest,
     parse,
+    render_extraction_identity,
 )
 
 
@@ -313,6 +318,7 @@ def render(
     rows: list[DraftRow],
     scoped_out: dict[str, str],
     rejected: list[str],
+    extraction_identity: ExtractionIdentity,
 ) -> str:
     known = _recommendations(sources)
     cited = {row.rec for row in rows}
@@ -355,7 +361,9 @@ def render(
         + _table(
             ("candidate recommendations", "cited recommendations", "rejected recommendations"),
             [[str(len(known)), str(len(cited)), str(len(scoped_out))]],
-        ),
+        )
+        + "\n\n"
+        + render_extraction_identity(extraction_identity),
         POPULATIONS_HEADING + "\n\n" + _table(("key", "verbatim"), []),
         QUANTITIES_HEADING + "\n\n" + _table(("key", "verbatim"), []),
         THRESHOLDS_HEADING + "\n\n" + _table(ROW_COLUMNS, threshold_rows),
@@ -378,6 +386,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
     )
     parser.add_argument("--sheet-root", type=Path, default=DEFAULT_SHEET_ROOT)
+    parser.add_argument(
+        "--text-root",
+        type=Path,
+        default=(
+            Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
+            if os.environ.get("CLINICAL_GUIDELINES_TEXT")
+            else guidelines_extract.default_output(DEFAULT_PDF_ROOT)
+        ),
+        help="extracted corpus whose manifest supplies the draft's identity",
+    )
     return parser
 
 
@@ -403,7 +421,22 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     rows, scoped_out, row_rejections = select_rows(sources, seeded_sheet)
     rejected = source_rejections + source_errors + row_rejections
-    print(render(args.topic, sources, rows, scoped_out, rejected), end="")
+    extraction_identity, identity_problems = extraction_identity_from_manifest(args.text_root)
+    if extraction_identity is None:
+        for problem in identity_problems:
+            print(problem, file=sys.stderr)
+        return 2
+    print(
+        render(
+            args.topic,
+            sources,
+            rows,
+            scoped_out,
+            rejected,
+            extraction_identity,
+        ),
+        end="",
+    )
     if source_errors or row_rejections:
         for reason in source_errors + row_rejections:
             print(f"REJECTED: {reason}", file=sys.stderr)

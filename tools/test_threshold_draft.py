@@ -99,9 +99,27 @@ class ThresholdDraftCli(unittest.TestCase):
         catalog = root / "catalog.md"
         recs = root / "recs"
         sheets = root / "sheets"
+        text_root = root / "text"
         catalog.write_text(catalog_row(), encoding="utf-8")
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
+        text_root.mkdir()
+        (text_root / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "producer": {
+                        "commit": "a" * 40,
+                        "inputs": [
+                            {
+                                "path": "tools/guidelines_extract.py",
+                                "sha256": "b" * 64,
+                            }
+                        ],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         (recs / record_name).write_text(
             json.dumps(record_payload or recommendation_record()), encoding="utf-8"
         )
@@ -122,6 +140,8 @@ class ThresholdDraftCli(unittest.TestCase):
                 str(recs),
                 "--sheet-root",
                 str(sheets),
+                "--text-root",
+                str(text_root),
                 *extra,
             ],
             cwd=ROOT,
@@ -242,6 +262,11 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("Read:", scope)
         self.assertNotIn("Not read:", scope)
         self.assertIn("| 2 | 2 | 0 |", scope)
+        self.assertIn(
+            f"extraction identity: producer {'a' * 40}; "
+            f"tools/guidelines_extract.py sha256 {'b' * 64}",
+            scope,
+        )
 
     def test_an_existing_curated_sheet_selects_rows_without_copying_judgment_cells(self):
         with tempfile.TemporaryDirectory() as directory:

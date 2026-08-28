@@ -280,12 +280,20 @@ document as a whole, so a threshold row whose snippet happens to quote *"not rea
 cannot discharge the rule. That is `block_scan.py`'s mention-versus-use distinction,
 which applies wherever a keyword decides a verdict.
 
-It also carries `citations resolved against <corpus> on <date>`. That is a **held
-declaration**, not a courteous footer. CITATION tier 2 refuses its absence whether the
-live PDF gate ran or skipped. When the gate ran, it also refuses a corpus path that does
-not resolve to the run's `--pdf-root` and a date in the future; an older date is not a
-finding. When the gate skipped, the line's content cannot be checked and is the only
+It carries two declarations. `citations resolved against <corpus> on <date>` is a
+**held declaration**, not a courteous footer. CITATION tier 2 refuses its absence whether
+the live PDF gate ran or skipped. When the gate ran, it also refuses a corpus path that
+does not resolve to the run's `--pdf-root` and a date in the future; an older date is not
+a finding. When the gate skipped, the line's content cannot be checked and is the only
 artifact-level distinction between *checked once against real PDFs* and *never checked*.
+
+`extraction identity: producer <commit>; tools/guidelines_extract.py sha256 <digest>`
+binds the tier 0 and tier 1 reading to the exact extracted-text build it used. The values
+come from `manifest.json`; `threshold_draft.py` reads and renders them, so a reader does
+not type either value. `threshold_sheet.py` compares that declaration with the manifest
+under `--text-root`. A missing or different declaration warns without refusing, and
+`--all` names the affected sheets and their count. The PDF-reading tier 2 does not rest on
+this identity and remains governed by the resolution declaration above.
 
 The corpus token deliberately remains a machine-local path. A second machine reaches a
 disagreement only when its owner explicitly supplies a live `--pdf-root`; the ordinary hook
