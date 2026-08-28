@@ -1,7 +1,7 @@
 """Pin the cross-file agreements [#90](https://github.com/mshamblin5150-code/clinical-skills/issues/90) settled.
 
-**Every defect this file guards is one document contradicting another**, which is
-the shape #90 turned out to be twice over. ``batch-shift``'s ``description`` said
+**Every defect this file guards is one document contradicting another or naming
+one that is not there**, which is the shape #90 turned out to be twice over. ``batch-shift``'s ``description`` said
 the input was a pasted shift while the first third of the same file opened a PDF;
 and ``setup-clinical-skills`` kept the unmapped-preceptor sentence
 [#91](https://github.com/mshamblin5150-code/clinical-skills/pull/91) had already
@@ -44,11 +44,12 @@ either end.
 
 from __future__ import annotations
 
+import posixpath
 import re
 import subprocess
 import unittest
 from pathlib import Path
-from typing import Iterator, NamedTuple
+from typing import Callable, Iterator, NamedTuple
 
 from prose_bind import ProseBind, normalized
 
@@ -179,6 +180,11 @@ STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
 #: unread by the very check written to find it.
 STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
 
+#: A reference-style Markdown destination. Link labels are deliberately opaque:
+#: only the destination participates in relative-path resolution.
+REFERENCE_DESTINATION = re.compile(r"(?m)^[ \t]{0,3}\[[^\]\r\n]+\]:[ \t]*")
+ABSOLUTE_TARGET = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
+
 #: Under ``fixtures/``, these two names are prose about a run and everything
 #: else is the run. See ``graded_files``.
 FIXTURE_PROSE = {"README.md", "assertions.md"}
@@ -272,6 +278,208 @@ def paragraphs(text: str) -> Iterator[tuple[int, str]]:
             block = []
     if block:
         yield start, "\n".join(block)
+
+
+def _markdown_prose(text: str) -> str:
+    """Mask fenced and inline code while preserving offsets and line breaks."""
+    visible = list(text)
+    offset = 0
+    fence: tuple[str, int] | None = None
+    for line in text.splitlines(keepends=True):
+        content = line.rstrip("\r\n")
+        stripped = content.lstrip()
+        marker = re.match(r"(`{3,}|~{3,})", stripped)
+        if fence is not None:
+            for index in range(offset, offset + len(content)):
+                visible[index] = " "
+            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= fence[1]:
+                fence = None
+            offset += len(line)
+            continue
+        if marker:
+            fence = (marker.group(1)[0], len(marker.group(1)))
+            for index in range(offset, offset + len(content)):
+                visible[index] = " "
+            offset += len(line)
+            continue
+
+        index = 0
+        while index < len(content):
+            if content[index] != "`":
+                index += 1
+                continue
+            end = index
+            while end < len(content) and content[end] == "`":
+                end += 1
+            delimiter = content[index:end]
+            close = content.find(delimiter, end)
+            if close < 0:
+                index = end
+                continue
+            for masked in range(offset + index, offset + close + len(delimiter)):
+                visible[masked] = " "
+            index = close + len(delimiter)
+        offset += len(line)
+    return "".join(visible)
+
+
+class MarkdownTarget(NamedTuple):
+    """One Markdown link destination and its source offset."""
+
+    offset: int
+    target: str
+
+
+def _angle_destination(text: str, start: int) -> tuple[str, int] | None:
+    """An angle-bracket destination beginning at ``start``."""
+    target = []
+    cursor = start + 1
+    while cursor < len(text):
+        if text[cursor] == "\\" and cursor + 1 < len(text):
+            target.append(text[cursor + 1])
+            cursor += 2
+            continue
+        if text[cursor] == ">":
+            return "".join(target), cursor + 1
+        if text[cursor] in "\r\n":
+            return None
+        target.append(text[cursor])
+        cursor += 1
+    return None
+
+
+def _raw_destination(
+    text: str,
+    start: int,
+    *,
+    inline: bool,
+) -> tuple[str, int] | None:
+    """A whitespace-free destination, retaining balanced parentheses."""
+    target = []
+    depth = 0
+    cursor = start
+    while cursor < len(text):
+        char = text[cursor]
+        if char == "\\" and cursor + 1 < len(text):
+            target.append(text[cursor + 1])
+            cursor += 2
+            continue
+        if char == "(":
+            depth += 1
+            target.append(char)
+            cursor += 1
+            continue
+        if char == ")":
+            if inline and depth == 0:
+                break
+            if depth == 0:
+                return None
+            depth -= 1
+            target.append(char)
+            cursor += 1
+            continue
+        if char.isspace() and depth == 0:
+            break
+        target.append(char)
+        cursor += 1
+    if depth or (not target and not inline):
+        return None
+    return "".join(target), cursor
+
+
+def _closing_inline_link(text: str, start: int) -> int | None:
+    """The offset after an inline link's optional title and closing parenthesis."""
+    cursor = start
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    if cursor < len(text) and text[cursor] == ")":
+        return cursor + 1
+    if cursor >= len(text) or text[cursor] not in "\"'(":
+        return None
+    opener = text[cursor]
+    closer = ")" if opener == "(" else opener
+    cursor += 1
+    while cursor < len(text):
+        if text[cursor] == "\\" and cursor + 1 < len(text):
+            cursor += 2
+            continue
+        if text[cursor] == closer:
+            cursor += 1
+            break
+        cursor += 1
+    else:
+        return None
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    return cursor + 1 if cursor < len(text) and text[cursor] == ")" else None
+
+
+def _inline_destination(text: str, start: int) -> tuple[str, int] | None:
+    """The destination and end offset for ``](...)`` beginning after ``(``."""
+    cursor = start
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    if cursor < len(text) and text[cursor] == "<":
+        parsed = _angle_destination(text, cursor)
+    else:
+        parsed = _raw_destination(text, cursor, inline=True)
+    if parsed is None:
+        return None
+    target, cursor = parsed
+    end = _closing_inline_link(text, cursor)
+    return (target, end) if end is not None else None
+
+
+def markdown_targets(text: str) -> Iterator[MarkdownTarget]:
+    """Inline and reference-style Markdown destinations outside code."""
+    prose = _markdown_prose(text)
+    for found in REFERENCE_DESTINATION.finditer(prose):
+        cursor = found.end()
+        if cursor < len(prose) and prose[cursor] == "<":
+            parsed = _angle_destination(prose, cursor)
+        else:
+            parsed = _raw_destination(prose, cursor, inline=False)
+        if parsed is not None:
+            yield MarkdownTarget(found.start(), parsed[0])
+
+    cursor = 0
+    while cursor < len(prose):
+        label = prose.find("[", cursor)
+        if label < 0:
+            return
+        close = prose.find("]", label + 1)
+        if close < 0:
+            return
+        if close + 1 >= len(prose) or prose[close + 1] != "(":
+            cursor = close + 1
+            continue
+        parsed = _inline_destination(prose, close + 2)
+        if parsed is None:
+            cursor = close + 1
+            continue
+        target, cursor = parsed
+        yield MarkdownTarget(label, target)
+
+
+def dead_links(
+    text: str,
+    owner: Path,
+    exists: Callable[[Path], bool],
+) -> list[tuple[int, str]]:
+    """Relative Markdown targets in ``text`` that ``exists`` cannot find."""
+    dead = []
+    parent = owner.parent.as_posix()
+    for found in markdown_targets(text):
+        target = found.target
+        if ABSOLUTE_TARGET.match(target) or target.startswith(("/", "//")):
+            continue
+        path_target = target.split("#", 1)[0]
+        resolved = owner if not path_target else Path(
+            posixpath.normpath(posixpath.join(parent, path_target))
+        )
+        if not exists(resolved):
+            dead.append((text.count("\n", 0, found.offset) + 1, target))
+    return dead
 
 
 class Exemption(NamedTuple):
@@ -1347,6 +1555,116 @@ class TheStepResolverIsLive(unittest.TestCase):
         self.assertEqual([c.number for c in self.resolve("if steps 1 and 2 move", "batch-shift")], [1])
 
 
+class TheDeadLinkResolverIsLive(unittest.TestCase):
+    """#538's relative-link resolver is driven against synthetic text."""
+
+    OWNER = Path("docs/adr/0054-relative-links.md")
+
+    def test_a_good_slug_passes(self) -> None:
+        existing = {Path("docs/adr/0016-real-record.md")}
+        exists = existing.__contains__
+
+        self.assertEqual(
+            dead_links("[ADR 0016](0016-real-record.md)", self.OWNER, exists),
+            [],
+        )
+
+    def test_a_plausible_wrong_slug_fails(self) -> None:
+        existing = {Path("docs/adr/0016-real-record.md")}
+        cases = (
+            (
+                "[ADR 0016](0016-plausible-record.md)",
+                [(1, "0016-plausible-record.md")],
+            ),
+            (
+                '[ADR 0016](0016-plausible-record.md "title")',
+                [(1, "0016-plausible-record.md")],
+            ),
+            (
+                "[ADR 0016](<0016 plausible record.md>)",
+                [(1, "0016 plausible record.md")],
+            ),
+            (
+                "[ADR 0016](0016-plausible(record).md)",
+                [(1, "0016-plausible(record).md")],
+            ),
+            (
+                "[ADR 0016][plausible]\n\n[plausible]: 0016-plausible-record.md",
+                [(3, "0016-plausible-record.md")],
+            ),
+        )
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(dead_links(text, self.OWNER, existing.__contains__), expected)
+
+    def test_an_anchor_is_dropped_without_hiding_a_missing_file(self) -> None:
+        existing = {Path("docs/adr/0016-real-record.md")}
+        exists = existing.__contains__
+
+        self.assertEqual(
+            dead_links("[section](0016-real-record.md#ruling)", self.OWNER, exists),
+            [],
+        )
+        self.assertEqual(
+            dead_links("[section](0016-missing.md#ruling)", self.OWNER, exists),
+            [(1, "0016-missing.md#ruling")],
+        )
+
+    def test_an_absolute_url_is_skipped_without_hiding_a_relative_target(self) -> None:
+        exists = set().__contains__
+
+        self.assertEqual(
+            dead_links("[ticket](https://github.com/example/repo/issues/1)", self.OWNER, exists),
+            [],
+        )
+        self.assertEqual(
+            dead_links("[record](missing.md)", self.OWNER, exists),
+            [(1, "missing.md")],
+        )
+
+    def test_code_targets_are_skipped_without_shifting_line_numbers(self) -> None:
+        text = (
+            "Inline example: `[record](missing.md)`\n"
+            "```markdown\n"
+            "[record](missing.md)\n"
+            "```\n"
+            "[record](missing.md)\n"
+        )
+
+        self.assertEqual(
+            dead_links(text, self.OWNER, set().__contains__),
+            [(5, "missing.md")],
+        )
+
+    def test_a_code_target_is_reported_when_unquoted(self) -> None:
+        self.assertEqual(
+            dead_links("[record](missing.md)", self.OWNER, set().__contains__),
+            [(1, "missing.md")],
+        )
+
+    def test_graded_files_returns_a_nontrivial_population(self) -> None:
+        files = graded_files()
+        self.assertGreater(len(files), 50)
+        self.assertIn(REPO_ROOT / "fixtures" / "day-a" / "shorthand" / "README.md", files)
+
+    def test_resolution_uses_the_linking_files_directory(self) -> None:
+        asked: list[Path] = []
+
+        def record(path: Path) -> bool:
+            asked.append(path)
+            return True
+
+        self.assertEqual(
+            dead_links(
+                "[fixture set](../README.md)",
+                Path("fixtures/day-a/shorthand/README.md"),
+                record,
+            ),
+            [],
+        )
+        self.assertEqual(asked, [Path("fixtures/day-a/README.md")])
+
+
 class TheTwoRootDocumentsAreNotOneKind(unittest.TestCase):
     """The evidence ``ROOT_DOCUMENTS``' split rests on, pinned rather than stated.
 
@@ -1495,6 +1813,69 @@ class TheExemptionMarkerIsNarrow(unittest.TestCase):
             self.complain("<!-- unresolved-step-citations: 0 -->", "a bare step 4"),
             ["1: a marker declaring nothing exempts nothing", "3: step 4 names no skill"],
         )
+
+
+class EveryRelativeLinkResolvesToAnIndexedPath(unittest.TestCase):
+    """#538: every relative link in ``graded_files()`` resolves in the index.
+
+    Five limits are declared here. Absolute URLs are outside this tracked-file
+    check. Targets inside fences or code spans are examples rather than links.
+    Anchor fragments are dropped, so headings are not verified. A resolving
+    target is not read to establish that it is the right target. A directory
+    target establishes only that the directory has an indexed descendant.
+
+    The untracked-file window and the preserved-run-record exclusion are the
+    inherited limits declared at ``graded_files()`` and are not repeated here.
+    """
+
+    def indexed_paths(self) -> set[str]:
+        """Exact-case tracked files and the directories derived from them.
+
+        A clean result covers only those tracked paths; see ``graded_files()``
+        for the untracked-file window.
+        """
+        finished = subprocess.run(
+            ["git", "ls-files", "--cached"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+        )
+        indexed = {line for line in finished.stdout.splitlines() if line.strip()}
+        for path in tuple(indexed):
+            parent = posixpath.dirname(path)
+            while parent:
+                indexed.add(parent)
+                parent = posixpath.dirname(parent)
+        return indexed
+
+    def test_index_membership_is_exact_case(self) -> None:
+        indexed = self.indexed_paths()
+        self.assertIn("CONTEXT.md", indexed)
+        self.assertNotIn("context.md", indexed)
+
+    def test_every_relative_link_resolves(self) -> None:
+        files = [path for path in graded_files() if path.suffix == ".md"]
+        self.assertGreater(len(files), 50, "graded_files returned too little to be a checkout")
+
+        indexed = self.indexed_paths()
+
+        resolved: list[Path] = []
+
+        def exists(path: Path) -> bool:
+            resolved.append(path)
+            return path.as_posix() in indexed
+
+        dead = [
+            f"{path.relative_to(REPO_ROOT).as_posix()}:{line}: {target}"
+            for path in files
+            for line, target in dead_links(
+                read(path), path.relative_to(REPO_ROOT), exists
+            )
+        ]
+        self.assertGreater(len(resolved), 50, "the relative-link matcher read too little")
+        self.assertEqual(dead, [], "dead relative links:\n" + "\n".join(dead))
 
 
 class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):

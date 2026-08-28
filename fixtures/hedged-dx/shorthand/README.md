@@ -2,11 +2,11 @@
 
 Three encounters, one file each, transcribed from the day-file text. These are the **inputs** half of the set: feed one to `clinical-note` on the SOAP branch and check the output against [assertions.md](../assertions.md).
 
-Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../README.md).
+Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../../README.md).
 
 ## What the set is for
 
-[Drift row 13](../../skills/clinical-note/SKILL.md) has two halves. The first — *every differential entry carries an ICD-10-CM code* — fires on every note ever generated, and `day-b`'s C1 has held it since [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19). The second half is this set:
+[Drift row 13](../../../skills/clinical-note/SKILL.md) has two halves. The first — *every differential entry carries an ICD-10-CM code* — fires on every note ever generated, and `day-b`'s C1 has held it since [#19](https://github.com/mshamblin5150-code/clinical-skills/issues/19). The second half is this set:
 
 > **no diagnosis the encounter did not establish** — differential entry, favored entry or final — carries a code whose descriptor names a confirmed organism or disease
 
@@ -20,16 +20,16 @@ So the cases are renumbered `01`–`03` and the `Note <n>` line inside each file
 
 ## It is a pick, not a population, and that is stated rather than hidden
 
-`obesity-bmi` spans three day files too, and clears [fixtures/README](../README.md)'s recomputability bar by being the **whole** of a shape the corpus contains four times. **This set cannot do that.** Measured 2026-08-15 across 551 encounters with `tools/corpus_census.py`:
+`obesity-bmi` spans three day files too, and clears [fixtures/README](../../README.md)'s recomputability bar by being the **whole** of a shape the corpus contains four times. **This set cannot do that.** Measured 2026-08-15 across 551 encounters with `tools/corpus_census.py`:
 
 | | n | share |
 | --- | --- | --- |
 | hedge token anywhere in the shorthand | 33 | 6% |
 | **beside an organism- or disease-specific term** | **17** | **3%** |
 
-Three of those seventeen are here. **They were selected to make the rule fire**, by reading the seventeen and choosing the ones where a code would over-claim hardest — which is exactly the curation [fixtures/README](../README.md) warns can make a set look chosen to pass. Saying so is the defense, not a disclaimer on one.
+Three of those seventeen are here. **They were selected to make the rule fire**, by reading the seventeen and choosing the ones where a code would over-claim hardest — which is exactly the curation [fixtures/README](../../README.md) warns can make a set look chosen to pass. Saying so is the defense, not a disclaimer on one.
 
-**What is recomputable is the pool, not the pick.** `tools/corpus_census.py` prints both rows above, so anyone can re-derive the seventeen and ask why these three. Taking all seventeen was the alternative and it would have killed the set: [fixtures/README](../README.md) already records that this repo writes rows faster than it runs them — `day-b` holds forty-one rows and has scored twenty-four, re-derived 2026-08-19 by counting the row identifiers in that set's own tables against [fixtures/README](../../README.md)'s `Sets` cell, and it read *thirty-one* here until then, which is [#202](https://github.com/mshamblin5150-code/clinical-skills/issues/202) in a file neither of that ticket's gates reads — and a seventeen-case set would never be run at all. **A tighter filter engineered to return exactly these three was considered and refused**: it would read as recomputable and prove nothing, which is worse than an honest pick.
+**What is recomputable is the pool, not the pick.** `tools/corpus_census.py` prints both rows above, so anyone can re-derive the seventeen and ask why these three. Taking all seventeen was the alternative and it would have killed the set: [fixtures/README](../../README.md) already records that this repo writes rows faster than it runs them — `day-b` holds forty-one rows and has scored twenty-four, re-derived 2026-08-19 by counting the row identifiers in that set's own tables against [fixtures/README](../../README.md)'s `Sets` cell, and it read *thirty-one* here until then, which is [#202](https://github.com/mshamblin5150-code/clinical-skills/issues/202) in a file neither of that ticket's gates reads — and a seventeen-case set would never be run at all. **A tighter filter engineered to return exactly these three was considered and refused**: it would read as recomputable and prove nothing, which is worse than an honest pick.
 
 ## The three, and what each one is for
 
@@ -53,7 +53,7 @@ Ruled 2026-08-15, in conversation, and recorded here because it changes how the 
 
 ## Two things the inputs leave out, and this is the one set that can say so
 
-[fixtures/README](../README.md) records that a **reference** note may be missing things and that nobody can ever know what — *"and they could be, I don't know."* That is stated about the portal notes and it is equally true of the day file. **Here it is not unknowable**, because the clinician is available and was asked. Both were volunteered on 2026-08-15:
+[fixtures/README](../../README.md) records that a **reference** note may be missing things and that nobody can ever know what — *"and they could be, I don't know."* That is stated about the portal notes and it is equally true of the day file. **Here it is not unknowable**, because the clinician is available and was asked. Both were volunteered on 2026-08-15:
 
 - **Case 1's chest film is not written down and it happened.** The shorthand runs `decreased air movment in lungs. dx CAP likely mycoplasma. plan zithromax` with no imaging token anywhere. A pneumonia cannot be diagnosed by auscultation, so the diagnosis **presupposes** a film the record omits.
 - **Case 2 was offered admission and declined it.** The shorthand records only the outcome — `will follow in clinic on thursday` — and not the deliberation. The patient was willing to do follow-up instead of an admission.
@@ -74,7 +74,7 @@ Everything else is verbatim, typos included. `sistiser`, `2 weeeks`, `movment`, 
 | `[SITE]` | Case 2's named outside facility, a two-month admission for the same wound in 2023. The year stays; a year alone identifies nobody. |
 | `[DATE]` | Case 2's prior visit, four days earlier, written twice — `was seen on [DATE]` and `c/s from [DATE]`. **Both tokens are the same date in the source**, and the culture is from that visit. A visit date finer than a year is the identifier that matters here. |
 | `[HOLIDAY]` | Case 3's `sicnce [HOLIDAY]`. A fixed calendar day plus `sick for 3 weeks` reconstructs the visit to within days, which is the visit date arriving by the back door. Same reasoning as `peds-bp`'s. The interval survives; only the anchor goes. |
-| `3 yo` | Case 3's source gives a **date of birth and no age**. [fixtures/README](../README.md) requires the age be derived before the date is stripped, or the case silently becomes a missing-age test. Derived against the day file's own date: 3 years 4 months. |
+| `3 yo` | Case 3's source gives a **date of birth and no age**. [fixtures/README](../../README.md) requires the age be derived before the date is stripped, or the case silently becomes a missing-age test. Derived against the day file's own date: 3 years 4 months. |
 
 **Case 3's sex is not stated in the source and is not supplied here.** The record gives a name and no sex marker — no `M`, no `F`, no pronoun in the exam line, which reads `well appearing child`. Inferring one from the name would be inventing a given, and the name is exactly what standing rule 1 removes. A run that needs a sex will have to fill one, and nothing in this set scores it.
 
@@ -86,7 +86,7 @@ Line wrapping was removed. The source files wrap mid-sentence at the width they 
 
 **A fourth case was read and rejected on the coding, not the clinical picture.** A 4-year-old whose shorthand carries `cxr - mycoplasma cap vs viral pna. dx: flu a+, mycoplasma CAP` — the same contrast as case 2, in one diagnosis line, with the film actually written down. It would have been the best-documented case in the set.
 
-**`J18.9` carries `codeFirst: if applicable, associated influenza (J09.X1, J10.0-, J11.0-)`**, verified against `reference/icd10cm-2026.sqlite`. So a positive influenza beside a pneumonia is a coding decision — whether the pneumonia belongs to the flu — and a row over it stops being *is `J15.7` present, yes or no* and becomes a judgment about which pneumonia code is right. [fixtures/README](../README.md) is firm that a row turning on judgment cannot be binary, so the case went out and case 2 carries the contrast instead: a wound culture and a leg film do not collapse into one code.
+**`J18.9` carries `codeFirst: if applicable, associated influenza (J09.X1, J10.0-, J11.0-)`**, verified against `reference/icd10cm-2026.sqlite`. So a positive influenza beside a pneumonia is a coding decision — whether the pneumonia belongs to the flu — and a row over it stops being *is `J15.7` present, yes or no* and becomes a judgment about which pneumonia code is right. [fixtures/README](../../README.md) is firm that a row turning on judgment cannot be binary, so the case went out and case 2 carries the contrast instead: a wound culture and a leg film do not collapse into one code.
 
 It is named here rather than silently dropped, on `peds-bp`'s terms: a set scoped to part of what it could have covered says what it left out.
 

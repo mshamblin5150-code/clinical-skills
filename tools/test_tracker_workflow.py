@@ -128,11 +128,11 @@ class ACompletedMergePublishesAnImmutableTicketReceipt(unittest.TestCase):
         self.assertIn("issues: write", text)
         self.assertIn("github.event.repository.default_branch", text)
 
-    def test_in_flight_issue_text_is_scoped_at_the_publication_event(self):
+    def test_tracker_citations_are_scoped_at_the_publication_event(self):
         text = workflow_text()
         self.assertIn("--github-event", text)
         self.assertIn("--event-name", text)
-        self.assertIn("Branch scope for in-flight issue text", text)
+        self.assertIn("Dated main-branch scope for tracker citations", text)
 
     def test_the_maintainer_rule_names_both_sides_of_the_state_change(self):
         text = ISSUE_TRACKER.read_text(encoding="utf-8")

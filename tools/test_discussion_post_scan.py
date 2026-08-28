@@ -21,6 +21,7 @@ import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
 from grader_conformance import for_module
+from test_discussion_reply_scan import BODY as REPLY_BODY, Run as ReplyRun
 
 
 GraderConformance = for_module(scan)
@@ -367,6 +368,90 @@ class ACompletePostPasses(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIs(getattr(artifact, name), getattr(reply_scan, name))
                 self.assertIs(getattr(artifact, name), getattr(scan, name))
+
+
+class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
+    def test_every_recognizable_label_form_has_both_ruled_grader_verdicts(self):
+        forms = {
+            "References": (2, 2),
+            "**References**": (0, 2),
+            "## References": (2, 0),
+            "*References*": (2, 2),
+            "References:": (2, 2),
+            "Reference": (2, 2),
+        }
+        for label, expected in forms.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as reply_temp:
+                reply = ReplyRun(Path(reply_temp))
+                response = reply.root / "response-maren.md"
+                response.write_text(
+                    REPLY_BODY.replace("**References**", label),
+                    encoding="utf-8",
+                )
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    reply_status = reply_scan.main([reply_temp])
+            with tempfile.TemporaryDirectory() as post_temp:
+                post = Run(Path(post_temp))
+                post.draft.write_text(
+                    BODY.replace("## References", label),
+                    encoding="utf-8",
+                )
+                post_status, _, _ = post.grade()
+
+            self.assertEqual(expected, (reply_status, post_status))
+
+    def test_the_shared_recognizer_is_a_superset_of_both_accepted_patterns(self):
+        forms = {
+            "References": (False, False),
+            "**References**": (True, False),
+            "## References": (False, True),
+            "*References*": (False, False),
+            "References:": (False, False),
+            "Reference": (False, False),
+        }
+        for label, accepted in forms.items():
+            with self.subTest(label=label):
+                recognized = artifact.REFERENCE_LABEL_RECOGNIZER.search(label) is not None
+                reply_accepted = reply_scan.REFERENCE_LABEL.search(label) is not None
+                post_accepted = scan.REFERENCE_HEADING.search(label) is not None
+                self.assertTrue(recognized)
+                self.assertEqual(accepted, (reply_accepted, post_accepted))
+                self.assertFalse((reply_accepted or post_accepted) and not recognized)
+
+    def test_a_bold_references_label_names_the_line_and_ungrades_dependent_rows(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace("## References", "**References**"),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("**References**", stderr)
+        for row in (
+            "word-floor",
+            "reference-minimum",
+            "untraced-number",
+            "untraced-citation",
+        ):
+            with self.subTest(row=row):
+                self.assertIn(f"{row}: not graded", stdout)
+        self.assertIn("bold-headings: not graded", stdout)
+
+    def test_a_refused_label_keeps_exit_two_when_the_docx_row_also_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace("## References", "**References**"),
+                encoding="utf-8",
+            )
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(2, status)
+        self.assertIn("bold-headings: 1", stdout)
 
 
 class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 Five encounters, one file each, transcribed from the day-file text. These are the **inputs** half of the set: feed one to `clinical-note` on the SOAP branch and check the output against [assertions.md](../assertions.md).
 
-Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../README.md).
+Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../../README.md).
 
 ## The numbering has gaps, and that is the point
 
@@ -28,7 +28,7 @@ Everything else is verbatim, typos included — `intollaerance`, `surgiccal`, `a
 | `[PT]` | Patient name. Standing rule 1. |
 | `[HOLIDAY]` | A named holiday case 5 gives as the symptom onset. On its own it is clinical content, but this set states its year, and a fixed annual date plus `cough x 1 month` reconstructs the visit to within a week or two — which is the visit date arriving by the back door. The duration survives; only the anchor goes. |
 
-**The visit date and the site are removed**, per [fixtures/README](../README.md) — the source day file carries both, and the site name also appears once inside the shift as a stray line between encounters. Neither is clinical.
+**The visit date and the site are removed**, per [fixtures/README](../../README.md) — the source day file carries both, and the site name also appears once inside the shift as a stray line between encounters. Neither is clinical.
 
 **A holiday is a date.** Case 5's onset anchor was kept in the first draft of this set on the grounds that it is patient-reported content rather than the visit date. That reasoning is circular: `cough x 1 month` is the multiplier and the holiday is the anchor it was missing, and *Status* below states the year. Together they land the visit inside a fortnight. It is redacted for the same reason the visit date is.
 
