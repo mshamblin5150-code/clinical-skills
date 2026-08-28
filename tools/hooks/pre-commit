@@ -66,6 +66,11 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/threshold_coverage.py" >&2 || status=1
         fi
 
+        # **The fourth refusing check.** It cannot run in CI because scratch roots
+        # are gitignored patient records. The ordinary command stays at two Git
+        # subprocesses; the slower removability measurement is opt-in.
+        "$python" "$repo_root/tools/scratch_census.py" >&2 || status=1
+
         # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
         # and nothing above can suppress it -- the status is OR-ed, never replaced.
         #
