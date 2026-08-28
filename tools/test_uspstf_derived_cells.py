@@ -50,6 +50,10 @@ SUB_YEARLY_ADVERB = (
 )
 SUB_YEARLY_PERIOD = re.compile(
     rf"\b(?:every (?:(?:other|{COUNT_RANGE}) )?{SUB_YEARLY_UNIT}"
+    rf"|(?:each|alternate) {SUB_YEARLY_UNIT}"
+    rf"|(?:at )?{COUNT_RANGE}\s*-?\s*{SUB_YEARLY_UNIT} intervals?"
+    rf"|in {COUNT_RANGE} {SUB_YEARLY_UNIT}"
+    rf"|{COUNT} {SUB_YEARLY_UNIT} per {SUB_YEARLY_UNIT}"
     rf"|(?:once|twice|{COUNT} times?) "
     rf"(?:{SUB_YEARLY_ADVERB}|(?:a|per) {SUB_YEARLY_UNIT})"
     rf"|(?:twice|{COUNT} times?) (?:yearly|(?:a|per) year)"
@@ -121,7 +125,8 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
             "twice weekly; every other day; every 12 hours; hourly; "
             "three times a week; once per month; every six hours; "
             "every 30 minutes; twice yearly; three times a year; every quarter; "
-            "every 2-3 weeks; semi-annually"
+            "every 2-3 weeks; semi-annually; each month; alternate days; "
+            "at 3-month intervals; in 6 months; two days per week"
         )
         self.assertEqual(
             [match.group(0) for match in SUB_YEARLY_PERIOD.finditer(statement)],
@@ -144,6 +149,11 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
                 "every quarter",
                 "every 2-3 weeks",
                 "semi-annually",
+                "each month",
+                "alternate days",
+                "at 3-month intervals",
+                "in 6 months",
+                "two days per week",
             ],
         )
 
