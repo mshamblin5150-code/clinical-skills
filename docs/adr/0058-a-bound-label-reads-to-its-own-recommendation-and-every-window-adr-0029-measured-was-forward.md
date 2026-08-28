@@ -249,3 +249,29 @@ record would govern; by substance ADR 0032 ruling 4 is right and this record res
 conclusion without knowing it existed. **A ruling made in ignorance of a contrary ratified ruling is
 not a considered reversal**, so the ordering goes back to the clinician rather than being decided by
 a tie-break neither record was written against.
+
+## Addendum, 2026-08-28 — the ordering, ruled by the clinician
+
+**Order: #446, then #438, then #436.** [ADR 0032](0032-the-marker-limb-reads-the-repaired-text-the-other-two-limbs-declare-that-they-do-not-and-every-citation-gate-reads-one-reader.md)
+ruling 4 stands and this record's restatement of ADR 0029 point 9 is **retired**. The corrections
+section above put the question to the clinician rather than resolving it by the higher-number
+tie-break; this is the answer, and it goes here rather than into ruling 10 or the supersession table,
+which stay as they were written under
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md).
+
+**What it costs this record is one deliverable's timing and nothing else.** Rulings 1 through 9 and 11
+are unaffected — the label direction, the word backoff, the sentence-boundary stop, the drafter's
+mode seam, the registry string, the census shape and the tier-0 line are all independent of what the
+extractor feeds the marker limb. **Ruling 10 is the one that moves**: the backward window's plateau is
+measured **after #446 lands**, against the text that will exist, and the constant committed from that
+measurement. Measuring it earlier is the defect ADR 0032 ruling 4 named — a figure taken against the
+text being replaced — with the aggravation this record added, that ruling 10 commits a constant where
+ADR 0032 weighed only declared figures.
+
+**And it makes the row-shape question urgent rather than academic.** Ruling 7 says the object is built
+whole by whichever ticket lands first. Under this ordering that is determinate: **#446 builds
+`guidelines_recs.DECLARED_LIMITS`**, and #438, #436 and #510 append. But #446 deliverable 2 names
+`reference_scan.NOT_REACHED` as its precedent, which is **#510's `(name, prose)` side of the split and
+not ruling 7's ADR 0053 ruling 8 three-field row**. So the ticket that now builds the object is
+specified with the shape ruling 7 did not choose, and the disagreement is the first thing its builder
+meets rather than a late reconciliation. Still the clinician's, and still not decided here.
