@@ -27,7 +27,7 @@ from discussion_artifact import (
     author_key,
     citation_occurrence_keys,
     read_citations,
-    recognized_reference_label,
+    read_reference_section,
     reference_key,
     reference_keys,
     split_references,
@@ -90,20 +90,19 @@ class Scan:
     citations: int | None
     numeric_claims: int | None
     amplifications: int | None
-    boundary_graded: bool
+    reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
 
 
 def _split_reply(path: Path) -> Reply:
     text = path.read_text(encoding="utf-8")
-    body, references = split_references(text, REFERENCE_LABEL)
-    refused_label = None if REFERENCE_LABEL.search(text) else recognized_reference_label(text)
+    section = read_reference_section(text, REFERENCE_LABEL)
     return Reply(
         path=path,
         text=text,
-        body=body,
-        references=references,
-        refused_label=refused_label,
+        body=section.body,
+        references=section.references,
+        refused_label=section.refused_label,
     )
 
 
@@ -314,8 +313,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
 
 
 def survey(source: RunSource) -> Scan:
-    boundary_graded = not any(reply.refused_label for reply in source.replies)
-    if not boundary_graded:
+    reference_boundary_graded = not any(reply.refused_label for reply in source.replies)
+    if not reference_boundary_graded:
         address_findings = tuple(
             finding
             for reply in source.replies
@@ -331,7 +330,7 @@ def survey(source: RunSource) -> Scan:
             citations=None,
             numeric_claims=None,
             amplifications=None,
-            boundary_graded=False,
+            reference_boundary_graded=False,
             findings=address_findings,
         )
     citations = tuple(read_citations(reply.body) for reply in source.replies)
@@ -368,7 +367,7 @@ def survey(source: RunSource) -> Scan:
             for reply, reply_citations in zip(source.replies, citations)
         ),
         amplifications=sum(len(AMPLIFICATION.findall(reply.body)) for reply in source.replies),
-        boundary_graded=True,
+        reference_boundary_graded=True,
         findings=findings,
     )
 
@@ -378,19 +377,19 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"discussion replies in {source}",
         f"responses: {scan.responses}",
         f"roster posts read: {scan.posts_read} of {scan.posts_total}",
-        f"words: {scan.words if scan.boundary_graded else 'not graded'}",
-        f"references: {scan.references if scan.boundary_graded else 'not graded'}",
-        f"citations: {scan.citations if scan.boundary_graded else 'not graded'}",
-        f"numeric claims: {scan.numeric_claims if scan.boundary_graded else 'not graded'}",
+        f"words: {scan.words if scan.reference_boundary_graded else 'not graded'}",
+        f"references: {scan.references if scan.reference_boundary_graded else 'not graded'}",
+        f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
+        f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
         (
             f"amplifications: {scan.amplifications} (counted, never graded)"
-            if scan.boundary_graded
+            if scan.reference_boundary_graded
             else "amplifications: not graded"
         ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind != ADDRESSED_NAME and not scan.boundary_graded:
+        if kind != ADDRESSED_NAME and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
         else:
             lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
@@ -412,8 +411,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings) and scanned.boundary_graded,
-        coverage_failed=not scanned.boundary_graded,
+        findings_failed=bool(scanned.findings) and scanned.reference_boundary_graded,
+        coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=refused,
     )
 

@@ -121,28 +121,6 @@ class ACompleteRunPasses(unittest.TestCase):
 
 
 class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
-    def test_every_recognizable_label_form_has_the_ruled_reply_verdict(self):
-        forms = {
-            "References": 2,
-            "**References**": 0,
-            "## References": 2,
-            "*References*": 2,
-            "References:": 2,
-            "Reference": 2,
-        }
-        for label, expected in forms.items():
-            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
-                run = Run(Path(temp))
-                response = run.root / "response-maren.md"
-                response.write_text(
-                    BODY.replace("**References**", label),
-                    encoding="utf-8",
-                )
-                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                    status = scan.main([temp])
-
-            self.assertEqual(expected, status)
-
     def test_a_plain_references_label_names_the_line_and_ungrades_dependent_rows(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

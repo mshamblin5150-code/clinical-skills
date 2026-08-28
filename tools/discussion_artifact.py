@@ -63,6 +63,13 @@ class Citation:
     end: int
 
 
+@dataclass(frozen=True)
+class ReferenceSection:
+    body: str
+    references: tuple[str, ...]
+    refused_label: str | None
+
+
 def split_references(text: str, heading: re.Pattern[str]) -> tuple[str, tuple[str, ...]]:
     """Split one artifact at its declared reference heading."""
 
@@ -82,6 +89,18 @@ def recognized_reference_label(text: str) -> str | None:
 
     match = REFERENCE_LABEL_RECOGNIZER.search(text)
     return match.group("label") if match else None
+
+
+def read_reference_section(
+    text: str, accepted_label: re.Pattern[str]
+) -> ReferenceSection:
+    """Split a reference section and retain a recognizable refused label."""
+
+    body, references = split_references(text, accepted_label)
+    refused_label = (
+        None if accepted_label.search(text) else recognized_reference_label(text)
+    )
+    return ReferenceSection(body, references, refused_label)
 
 
 def author_key(value: str) -> str:

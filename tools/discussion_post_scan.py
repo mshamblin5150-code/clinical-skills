@@ -36,7 +36,7 @@ from discussion_artifact import (
     WORD,
     citation_occurrence_keys,
     read_citations,
-    recognized_reference_label,
+    read_reference_section,
     reference_key,
     reference_keys,
     split_references,
@@ -137,7 +137,7 @@ class Scan:
     citations: int | None
     amplifications: int | None
     docx_graded: bool
-    boundary_graded: bool
+    reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
 
 
@@ -302,25 +302,20 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         bar = _read_bar(bar_path.read_text(encoding="utf-8"))
         claims = claims_path.read_text(encoding="utf-8")
         draft_text = draft.read_text(encoding="utf-8")
-        body, references = split_references(draft_text, REFERENCE_HEADING)
-        refused_label = (
-            None
-            if REFERENCE_HEADING.search(draft_text)
-            else recognized_reference_label(draft_text)
-        )
+        section = read_reference_section(draft_text, REFERENCE_HEADING)
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
     named_heading_styles = _docx_heading_styles(docx) if docx is not None else ()
     return RunSource(
         root,
         draft,
-        body,
-        references,
+        section.body,
+        section.references,
         claims,
         bar,
         docx,
         named_heading_styles,
-        refused_label,
+        section.refused_label,
     )
 
 
@@ -347,7 +342,7 @@ def survey(source: RunSource) -> Scan:
             citations=None,
             amplifications=None,
             docx_graded=source.docx is not None,
-            boundary_graded=False,
+            reference_boundary_graded=False,
             findings=findings,
         )
     words = len(WORD.findall(_countable_body(source.body)))
@@ -424,14 +419,14 @@ def survey(source: RunSource) -> Scan:
         citations=len(citations),
         amplifications=len(AMPLIFICATION.findall(source.body)),
         docx_graded=source.docx is not None,
-        boundary_graded=True,
+        reference_boundary_graded=True,
         findings=tuple(findings),
     )
 
 
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     exceeded = (
-        scan.boundary_graded
+        scan.reference_boundary_graded
         and scan.word_ceiling is not None
         and scan.words is not None
         and scan.words > scan.word_ceiling
@@ -440,31 +435,31 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"initial post in {source}",
         (
             f"words: {scan.words} (floor {scan.word_floor})"
-            if scan.boundary_graded
+            if scan.reference_boundary_graded
             else "words: not graded"
         ),
         f"word ceiling: {scan.word_ceiling if scan.word_ceiling is not None else 'none'}",
         (
             f"word ceiling exceeded: {'yes' if exceeded else 'no'} (counted, never graded)"
-            if scan.boundary_graded
+            if scan.reference_boundary_graded
             else "word ceiling exceeded: not graded"
         ),
         (
             f"references: {scan.references} (minimum {scan.reference_minimum})"
-            if scan.boundary_graded
+            if scan.reference_boundary_graded
             else "references: not graded"
         ),
-        f"numeric claims: {scan.numeric_claims if scan.boundary_graded else 'not graded'}",
-        f"citations: {scan.citations if scan.boundary_graded else 'not graded'}",
+        f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
+        f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
         (
             f"amplifications: {scan.amplifications} (counted, never graded)"
-            if scan.boundary_graded
+            if scan.reference_boundary_graded
             else "amplifications: not graded"
         ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind != BOLD_HEADINGS and not scan.boundary_graded:
+        if kind != BOLD_HEADINGS and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
         elif kind == BOLD_HEADINGS and not scan.docx_graded:
             lines.append(f"{kind}: not graded")
@@ -485,8 +480,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings) and scanned.boundary_graded,
-        coverage_failed=not scanned.boundary_graded,
+        findings_failed=bool(scanned.findings) and scanned.reference_boundary_graded,
+        coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=(
             (f"refused reference label in {source.draft.name}: {source.refused_label}",)
             if source.refused_label is not None

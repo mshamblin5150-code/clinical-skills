@@ -21,6 +21,7 @@ import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
 from grader_conformance import for_module
+from test_discussion_reply_scan import BODY as REPLY_BODY, Run as ReplyRun
 
 
 GraderConformance = for_module(scan)
@@ -370,25 +371,34 @@ class ACompletePostPasses(unittest.TestCase):
 
 
 class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
-    def test_every_recognizable_label_form_has_the_ruled_post_verdict(self):
+    def test_every_recognizable_label_form_has_both_ruled_grader_verdicts(self):
         forms = {
-            "References": 2,
-            "**References**": 2,
-            "## References": 0,
-            "*References*": 2,
-            "References:": 2,
-            "Reference": 2,
+            "References": (2, 2),
+            "**References**": (0, 2),
+            "## References": (2, 0),
+            "*References*": (2, 2),
+            "References:": (2, 2),
+            "Reference": (2, 2),
         }
         for label, expected in forms.items():
-            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
-                run = Run(Path(temp))
-                run.draft.write_text(
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as reply_temp:
+                reply = ReplyRun(Path(reply_temp))
+                response = reply.root / "response-maren.md"
+                response.write_text(
+                    REPLY_BODY.replace("**References**", label),
+                    encoding="utf-8",
+                )
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    reply_status = reply_scan.main([reply_temp])
+            with tempfile.TemporaryDirectory() as post_temp:
+                post = Run(Path(post_temp))
+                post.draft.write_text(
                     BODY.replace("## References", label),
                     encoding="utf-8",
                 )
-                status, _, _ = run.grade()
+                post_status, _, _ = post.grade()
 
-            self.assertEqual(expected, status)
+            self.assertEqual(expected, (reply_status, post_status))
 
     def test_the_shared_recognizer_is_a_superset_of_both_accepted_patterns(self):
         forms = {
