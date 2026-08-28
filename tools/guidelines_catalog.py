@@ -4,6 +4,7 @@ index of the guideline corpus.
     python tools/guidelines_catalog.py                         # check catalog and audit
     python tools/guidelines_catalog.py --draft <text-dir>      # emit a catalog scaffold
     python tools/guidelines_catalog.py --audit-draft <pdf-dir> # emit a blind audit
+    python tools/guidelines_catalog.py --check-corpus-size     # advisory drift report
 
 The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
 repo** and stays there: most of it society-copyrighted, and no consumer
@@ -73,10 +74,10 @@ DEFAULT_PDF_SRC = Path("C:/codeing/guidelines-src")
 # ADR 0031's cheap check reports directory identity rather than verifying PDF
 # contents. Keep both residues beside the mechanism instead of letting a clean
 # filename-and-size comparison acquire a stronger meaning in prose.
-CORPUS_SIZE_CHECK_LIMITS = (
-    "a same-name same-size rewrite is outside its reach",
-    "the check reports a corpus; it does not verify PDF contents",
-)
+CORPUS_SIZE_CHECK_LIMITS = {
+    "same-name-same-size-rewrite": "a same-name same-size rewrite is outside its reach",
+    "report-not-verification": "the check reports a corpus; it does not verify PDF contents",
+}
 
 COLUMNS = (
     "society",
@@ -835,9 +836,12 @@ def check_audit_sizes(
 
 
 def _print_size_check_limits() -> None:
-    print(f"  {CORPUS_SIZE_CHECK_LIMITS[1]}", file=sys.stderr)
     print(
-        f"  {CORPUS_SIZE_CHECK_LIMITS[0]}; "
+        f"  {CORPUS_SIZE_CHECK_LIMITS['report-not-verification']}",
+        file=sys.stderr,
+    )
+    print(
+        f"  {CORPUS_SIZE_CHECK_LIMITS['same-name-same-size-rewrite']}; "
         "python tools/guidelines_catalog.py catches one",
         file=sys.stderr,
     )
