@@ -167,15 +167,41 @@ class ScratchCensusCommandTests(ScratchRepository):
 
     def test_a_cited_name_may_contain_unicode_and_spaces(self) -> None:
         (self.root / "README.md").write_text(
-            "Account artifacts live at `scratch/café notes/`.\n", encoding="utf-8"
+            "Account artifacts live at scratch/café notes/.\n"
+            "Another lives at scratch/name,comma/.\n",
+            encoding="utf-8",
         )
         git(self.root, "add", "README.md")
         git(self.root, "commit", "-m", "name a spaced artifact")
+        (self.root / "scratch" / "café notes").mkdir()
+        (self.root / "scratch" / "name,comma").mkdir()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 0, finished.stdout + finished.stderr)
+
+    def test_a_quoted_python_path_may_name_a_spaced_leaf(self) -> None:
+        source = self.root / "paths.py"
+        source.write_text('TARGET = "scratch/café notes"\n', encoding="utf-8")
+        git(self.root, "add", "paths.py")
+        git(self.root, "commit", "-m", "name a quoted artifact")
         (self.root / "scratch" / "café notes").mkdir()
 
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 0, finished.stdout + finished.stderr)
+
+    def test_a_complete_spaced_path_does_not_account_for_its_prefix(self) -> None:
+        (self.root / "README.md").write_text(
+            "Account artifacts live at scratch/café notes/.\n", encoding="utf-8"
+        )
+        git(self.root, "add", "README.md")
+        git(self.root, "commit", "-m", "name only the complete artifact")
+        (self.root / "scratch" / "café").mkdir()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 1, finished.stdout + finished.stderr)
 
     def test_a_near_prefix_does_not_account_for_a_name(self) -> None:
         (self.root / "README.md").write_text(

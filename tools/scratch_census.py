@@ -48,10 +48,14 @@ DECLARED_LIMITS = (
     "a separate clone has its own worktree registry and is invisible",
 )
 
-CODE_SCRATCH_NAME = re.compile(r"`scratch/([^/`\r\n]+)")
-PLAIN_SCRATCH_NAME = re.compile(
-    r"(?<![\w.-])scratch/([^\s/`\"'<>()[\]{},;:!?]+)"
+DELIMITED_SCRATCH_NAMES = (
+    re.compile(r"`scratch/([^/`\r\n]+)"),
+    re.compile(r'"scratch/([^/"\r\n]+)'),
+    re.compile(r"'scratch/([^/'\r\n]+)"),
+    re.compile(r"<scratch/([^/><\r\n]+)"),
 )
+EXPLICIT_DIRECTORY_NAME = re.compile(r"(?<![\w.-])scratch/([^/\r\n]+?)/")
+PLAIN_SCRATCH_NAME = re.compile(r"(?<![\w.-])scratch/([^\s/]+)")
 
 
 class CensusNotRun(Exception):
@@ -96,9 +100,21 @@ def accounted_names(checkout: Path) -> frozenset[str]:
     finished = run_git(checkout, "grep", "-h", "-I", "-e", "scratch/", "--", ".")
     if finished.returncode not in (0, 1):
         raise CensusNotRun(finished.stderr.strip() or "git grep failed")
-    code_names = CODE_SCRATCH_NAME.findall(finished.stdout)
-    plain_names = PLAIN_SCRATCH_NAME.findall(finished.stdout)
-    return frozenset((*code_names, *plain_names))
+    return scratch_names(finished.stdout)
+
+
+def scratch_names(text: str) -> frozenset[str]:
+    names: set[str] = set()
+    complete_spans: list[tuple[int, int]] = []
+    for pattern in (*DELIMITED_SCRATCH_NAMES, EXPLICIT_DIRECTORY_NAME):
+        for match in pattern.finditer(text):
+            names.add(match.group(1))
+            complete_spans.append(match.span())
+    for match in PLAIN_SCRATCH_NAME.finditer(text):
+        if any(start <= match.start() < end for start, end in complete_spans):
+            continue
+        names.add(match.group(1))
+    return frozenset(names)
 
 
 def count_files(root: Path) -> int:
