@@ -726,10 +726,12 @@ Covered by `tools/test_voice_corpus.py`, which builds synthetic exports in that 
 Every tool above reads a file somebody can point at. This one reads **what a public flip publishes that a file scanner does not**, and it is [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s remaining surface made runnable. `phi_scan --all` walks `git ls-files`, which is the tip and nothing else; #212's ruling comment was blocked on issue and pull-request text, pull-request diffs, and commit messages, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records the last of those as scanned by nothing.
 
 ```bash
-gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > scratch/tracker-issues.json
-gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > scratch/tracker-comments.json
-gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > scratch/tracker-reviews.json
-python tools/tracker_scan.py --harvest scratch/tracker-*.json
+H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+mkdir -p "$H"
+gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
+gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
+gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
+python tools/tracker_scan.py --harvest "$H"/tracker-*.json
 
 git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
 git fetch origin
@@ -786,10 +788,12 @@ Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files an
 The tracker scan reads the tracker's PHI shapes. This one reads **whether a body landed intact**, and it covers [#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130)'s lost bodies plus [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s two encoding mechanisms. **How many there are is what the command prints**, and is deliberately stated nowhere in prose: nothing committed re-derives it, the harvest it is counted from is gitignored, and the next one to arrive moves it. That the #130 count *was* eight on 2026-08-19 is stated once below, because the finding beside it needs the denominator.
 
 ```bash
-gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > scratch/tracker-issues.json
-gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > scratch/tracker-comments.json
-gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > scratch/tracker-reviews.json
-python tools/tracker_bodies.py scratch/tracker-issues.json scratch/tracker-comments.json scratch/tracker-reviews.json
+H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+mkdir -p "$H"
+gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
+gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
+gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
+python tools/tracker_bodies.py "$H"/tracker-*.json
 ```
 
 **It opens no socket and writes into `scratch/`**, both on `tracker_scan.py`'s terms and for its reasons: the fetch is a documented `gh` command whose output is a file, and that file is the tracker's entire text.

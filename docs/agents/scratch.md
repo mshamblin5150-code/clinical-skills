@@ -56,23 +56,57 @@ declined alternative is recorded in ADR 0033 because it will be re-proposed: req
 *equal* the derived set forbids exactly the divergence the floor exists to permit, and would go red
 the day a legitimate tenth artifact lands.
 
-## The check ratchets on a count
+## The check ratchets on a count, and it walks every checkout
 
-`tools/scratch_census.py` walks the top of the scratch root, derives the accounted-for set in **one**
-`git grep` pass over tracked files, and reports the remainder.
+**A worktree can own a scratch root of its own, and most of the material lives in them.** That is
+[ADR 0059](../adr/0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md),
+ruled by the clinician on 2026-08-27, and it supersedes ADR 0033's ruling 3. `scratch_root()`
+resolves through the checkout that owns the tree — **which is resolution and not coverage**: a
+worktree that has a `scratch/` of its own is a root that resolution points away from.
 
-- **0** clean, **1** when the unaccounted count has risen above the recorded baseline, **2** for
-  every way of not having scanned — including an absent scratch root, which is `phi_scan --layers`'
-  arrangement and its reason. A clone with no scratch root says *did not scan*, never *clean*.
-- **The recorded baseline is an integer and nothing else.** Not a list, not hashes.
+`tools/scratch_census.py` enumerates every registered checkout with
+`git worktree list --porcelain`, walks the top of each scratch root it finds, derives the
+accounted-for set in **one** `git grep` pass over tracked files, and reports the remainder.
+
+- **0** clean, **1** when the owning checkout's unaccounted count has risen above the recorded
+  baseline **or any other checkout's is not zero**, **2** for every way of not having scanned —
+  including an absent scratch root, which is `phi_scan --layers`' arrangement and its reason. A
+  clone with no scratch root says *did not scan*, never *clean*. **Where a finding and a
+  not-scanned limb both hold, 1 wins**, on `differential_scan.py`'s ordering.
+- **Two halves, graded differently.** The **owning checkout** keeps a grandfathered integer
+  baseline, because its residue predates the rule and clearing it needs the clinician's word.
+  **Every other checkout is held at zero unaccounted, from day one** — a worktree is created after
+  the rule, so it has no residue predating it and nothing about it needs a person's word.
+- **The baseline is the module's to state and appears in no prose, including here.** Not a list,
+  not hashes, and not a digit in this document or in either ADR. `EXEMPT_CEILING` is the precedent:
+  a figure restated in prose goes stale one short of the ceiling, which is the one window where
+  nothing fires — and that is exactly what three sweeps reported against ADR 0033's recorded copy.
+  The worktree half carries no constant at all, a hard zero being a rule rather than a baseline.
 - **Counts only, and there is no `--show`.** A path is printed only where a tracked file already
   names it. Everything else is a bare number, because an entry the walk cannot account for is
   precisely the one that might carry a patient's name.
+- **It reports the worktree-root hazard on every run and grades it never.** How many checkouts own
+  a scratch root and how many files sit beneath them prints beside every verdict, on
+  [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling: a reader who
+  learns to read a qualifier reads its absence as the stronger claim. It is not graded because the
+  only available threshold fires on worktrees holding nothing but `sessions/`, which is the rule
+  being obeyed. `--worktrees` adds the merged-clean-and-ahead breakdown, and it is behind a flag on
+  a measurement — that determination costs six to twelve times the whole check, and ADR 0033's own
+  respec warns that subprocess count per commit is how a check gets disabled.
 
 **It runs on the hook and never in CI.** `.github/workflows/checks.yml` — the scratch root is
-gitignored PHI and must never reach a runner — so this check is permanently dead there. It does run
-correctly from a worktree: [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)'s
-`scratch_root()` resolves through the checkout that owns the tree.
+gitignored PHI and must never reach a runner — so this check is permanently dead there.
+
+### The remedy for a failing worktree is a drain
+
+**Move the entries to the owning checkout's scratch root.** Not into that worktree's own
+`sessions/`, which buries them inside a directory this document calls disposable as one unit — the
+two captures [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417) ruling 10
+rescued, put straight back in the bin. Not by citing them, for the reason below. A drain reads
+nothing, classifies nothing, publishes nothing and deletes nothing, and it moves material out of a
+root that vanishes on `git worktree remove` into the one that does not. **The owning checkout's
+baseline is then re-recorded in a diff** by however many arrived — a visible loosening, argued for
+in a diff rather than typed.
 
 ### Why the baseline is a count, and the reply to the obvious improvement
 
@@ -103,6 +137,19 @@ were two files away from being swept, and they are the recorded instance of why 
 question rather than a delete list.
 
 The cheap remedy for an entry that deserves to stay is not an exemption: **cite it.** A tracked file
-naming `scratch/<name>` accounts for it by the rule above, needs no PHI judgment, and is usually
-correct on its own merits — a reference sheet that does not name its own derivation input is a
-citation gap whether or not the file is litter.
+naming `scratch/<name>` accounts for it by the rule above, and is usually correct on its own merits
+— a reference sheet that does not name its own derivation input is a citation gap whether or not the
+file is litter.
+
+**But citation is only available where the name is safe to publish, and that qualifier is
+load-bearing rather than cautious.** Citing writes the filename into a tracked file in a **public**
+repository. ADR 0033's central argument is that a filename under the scratch root may itself carry
+PHI — which is the whole reason the baseline could not be a set — so for exactly that class the
+recommended remedy is standing rule 1 broken by the remedy, and
+[#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s pre-edit revisions mean a
+later redaction would not retract it. `scratch/case-study-spec.md` is the worked instance of a name
+that is safe and a citation that was correct. **A name that is not safe has no cheap remedy, and
+that is the honest position**: it stays on disk, unaccounted, inside the baseline, until the
+clinician rules on it per file. This sentence read *"needs no PHI judgment"* unqualified until
+[ADR 0059](../adr/0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md)
+ruling 8; nothing had caught it because nothing had ever had to remedy an entry.

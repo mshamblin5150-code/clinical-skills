@@ -123,11 +123,22 @@ Disposing of the residue is the clinician's, per file, and is deliberately outsi
 
 **It cannot run in CI, permanently.** `.github/workflows/checks.yml:126` — *"`scratch/` is
 gitignored PHI and must never reach a runner."* So the check inherits `phi_scan`'s corpus-layer
-obligation: from a clone with no scratch root it says *did not scan*, never *clean*. It does run
+obligation: from a clone with no scratch root it says *did not scan*, never *clean*. It resolves
 correctly from a worktree, because
 [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)'s `scratch_root()` already
-resolves through the checkout that owns the tree.
+resolves through the checkout that owns the tree — but resolving is not covering, and a worktree
+that owns a scratch root of its own is outside the walk entirely. See
+[ADR 0059](0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md).
 
 **Its report is bounded by what it can name.** A path is printed only where a tracked file already
 names it; everything else is a bare integer, because an entry the walk cannot account for is exactly
 the one that might carry a patient's name. Counts only, no `--show`.
+
+Correction, 2026-08-27: the sentence at the end of *What this does not do* formerly read
+"It does run correctly from a worktree, because #93's `scratch_root()` already resolves through
+the checkout that owns the tree." True about resolution and false about coverage — measured at
+`19cc19f`, eight of nineteen worktrees owned a scratch root, holding more files between them than
+the walked root did, and one of them carried a double-digit unaccounted top level the check would
+never have opened. [#466]. **Ruling 3 is superseded by ADR 0059 and is left as written**, being the
+dated record of what was decided on 2026-08-25; the figure it states is not the live baseline and
+ADR 0059 rules that no prose states one. Every other ruling here is unchanged.

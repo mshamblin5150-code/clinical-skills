@@ -29,13 +29,15 @@ sequences, so a report can be compared across both mechanisms.
 
 Harvest first, then scan::
 
+    H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+    mkdir -p "$H"
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
-        > scratch/tracker-issues.json
+        > "$H/tracker-issues.json"
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\
-        > scratch/tracker-comments.json
+        > "$H/tracker-comments.json"
     gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" \\
-        > scratch/tracker-reviews.json
-    python tools/tracker_bodies.py scratch/tracker-*.json
+        > "$H/tracker-reviews.json"
+    python tools/tracker_bodies.py "$H"/tracker-*.json
 
 **Three surfaces, which is `tracker_scan.py`'s set and not a subset of it.** The
 review-comment endpoint is the one easiest to leave out, and it carries bodies
