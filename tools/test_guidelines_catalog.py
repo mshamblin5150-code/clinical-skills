@@ -682,7 +682,12 @@ class CheckingCheapCorpusDrift(unittest.TestCase):
                 "raise SystemExit(1)\n",
                 encoding="utf-8",
             )
-            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+            for name in (
+                "skills_mirror.py",
+                "spelling_scan.py",
+                "scratch_census.py",
+                "phi_scan.py",
+            ):
                 (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
             subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
             environment = {**os.environ, "GUIDELINE_CHECK_MARKER": str(marker)}
