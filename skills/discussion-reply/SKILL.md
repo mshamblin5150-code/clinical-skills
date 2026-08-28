@@ -35,6 +35,7 @@ scratch/runs/<course>-<module>-discussion/
     claims.md
     post.md
     response-<name>.md
+    reread.md
     voice-status.md
 ```
 
@@ -55,8 +56,9 @@ name, or full name when first names collide: `response-maren.md` or
 detection layer, count, or report. They remain gitignored working material.
 
 Parallel readers or researchers each receive a new run-unique private path. They return findings
-to the orchestrating context and never append to `board-<date>.md`, `claims.md`, or a reply file.
-The orchestrator is the sole writer of those artifacts, including `voice-status.md`. The canonical
+to the orchestrating context and never append to `board-<date>.md`, `claims.md`, `reread.md`, or a
+reply file. The orchestrator is the sole writer of those artifacts, including `voice-status.md`.
+The canonical
 `scratch/runs/<run-key>/` directory is the orchestrator-owned provenance record, not a writer's
 private path. Apply standing rule 6's independent-checker and cleanup sequence to the temporary
 per-agent paths.
@@ -189,15 +191,15 @@ numeric-claim walk. Reference entries must be separated by blank lines and copie
 `REFERENCE` field. `--show` prints names and finding detail, so its output is private working
 material and must not be pasted.
 
-Exit 0 means every scanned reply passes, 1 means a finding, and 2 means the run was not completely
-scannable. Fix any finding through the original drafting context, preserve the first checker
-result, and have another fresh context grade the correction.
+Exit 0 means every scanned reply and posted reading passes, 1 means a finding, and 2 means the run
+was not completely scannable. Before a new reply is submitted, its one expected finding is
+`missing-posted-reading`; every other row must be clean. Fix any other finding through the original
+drafting context, preserve the first checker result, and have another fresh context grade the
+correction. After submission, the board-side record below must clear that final finding.
 
-Walk `discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT` and
-`discussion_reply_scan.INVOKED_PROPERTY_LIMIT` after a clean scan. The property row mechanically
-refuses an empty field or a lexical restatement of the domain noun; it does not parse English or
-prove that the remaining words state the real behavior. A clean scan grades only the marked set
-and is not a checked voice. The clinician answers both substance questions from the table below.
+Walk `discussion_reply_scan.NOT_REACHED` after a clean scan; it is the single inventory of what the
+command cannot decide. A clean scan grades only the mechanically visible set and is not a checked
+voice or a checked board. The clinician answers the substance questions from the table below.
 
 Show the clean reply and an invoked-source table to the clinician. For every retained invoked
 source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is
@@ -205,7 +207,23 @@ right and whether each invoked source sounds like the clinician; this is one app
 questions, not two gates. When `voice-status.md` exists, show its unmodeled-voice declaration
 alongside the reply. Only an explicit go-ahead for this reply authorizes posting.
 In the browser, type the reply into the LMS rather than pasting it, preserving the authored line
-breaks and omitting the `INVOKED` comments. Submit it, then reread the posted board version.
+breaks and omitting the `INVOKED` comments. Submit it, then reread the posted board version. Use the
+entry's Copy Link control to read its own `?entry_id=` deep link; do not copy a classmate's locator
+from `posts/`. Append this record to the run's one `reread.md`:
+
+```text
+## REREAD: response-<name>.md
+POST-URL: <the posted reply's own deep link>
+POSTED: <the board's posted timestamp>
+READ: <ISO date of this reading>
+VERDICT: matches - <what the reading found>
+```
+
+Replace `matches` with `diverges` when the board and artifact differ. Both verdicts require
+substantive text after the keyword. Record a divergence without changing
+the already graded response artifact. A board repair is available only when the clinician directs
+that live coursework edit; no repair is automatic. Do not capture or diff the board against the
+artifact. Rerun `discussion_reply_scan.py` after writing the record; its exit must now be 0.
 
 ## 5. Draft and post reply two sequentially
 
@@ -215,14 +233,15 @@ artificial delay.
 
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
 compares every response file, so a repeated source now fails. Show reply two and wait for a new,
-explicit posting go-ahead. Then type, submit, and reread it on the board on the same terms as reply
-one.
+explicit posting go-ahead. Then type, submit, record, and grade its posted reading on the same terms
+as reply one.
 
 ## Completion
 
-Report the two posted addressees, the two grader exits, the invoked-source count for each reply,
-and any pre-#496 marker count.
+Report the two posted addressees, the pre-post and post-reading grader exits, each posted-reading
+verdict, the invoked-source count for each reply, and any pre-#496 marker count.
 Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, both replies, and
-`voice-status.md` when present together under the run key as the private provenance record. Remove
+`reread.md`, plus `voice-status.md` when present, together under the run key as the private
+provenance record. Remove
 every temporary per-agent path after the independent checks; if cleanup fails, report the exact
 remaining path.

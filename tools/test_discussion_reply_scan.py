@@ -18,6 +18,8 @@ from grader_conformance import for_module
 
 
 GraderConformance = for_module(scan)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DISCUSSION_REPLY_SKILL = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 
 
 BODY = """\
@@ -53,6 +55,14 @@ PAGE-YEAR: 2024 - stated on the article masthead.
 REFUTATION: stands - the article reports the measure in its results table.
 """
 
+REREAD = """\
+## REREAD: response-maren.md
+POST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=31
+POSTED: 2026-08-28T20:10:00-04:00
+READ: 2026-08-28
+VERDICT: matches - The paragraphs, references, and bold label are present.
+"""
+
 
 class Run:
     def __init__(self, root: Path):
@@ -62,11 +72,14 @@ class Run:
             "COURSE: NUR 0000\nMODULE: 2\n", encoding="utf-8"
         )
         (root / "posts" / "maren-quill.md").write_text(
-            "AUTHOR: Maren Quill\nREPLIES: 0\n\nA synthetic classmate post.\n",
+            "AUTHOR: Maren Quill\nREPLIES: 0\n"
+            "POST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=21\n\n"
+            "A synthetic classmate post.\n",
             encoding="utf-8",
         )
         (root / "claims.md").write_text(CLAIMS, encoding="utf-8")
         (root / "response-maren.md").write_text(BODY, encoding="utf-8")
+        (root / "reread.md").write_text(REREAD, encoding="utf-8")
 
 
 class ACompleteRunPasses(unittest.TestCase):
@@ -98,6 +111,113 @@ class ACompleteRunPasses(unittest.TestCase):
         self.assertIn("numeric claims: 1", report)
         self.assertIn("findings: 0", report)
         self.assertNotIn("Maren", report)
+
+
+class EveryPostedReplyHasALocatedReading(unittest.TestCase):
+    def grade(self, run: Run) -> tuple[int, str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = scan.main([str(run.root)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_an_absent_reread_file_is_a_finding_and_other_rows_still_run(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "reread.md").unlink()
+            (run.root / "response-maren.md").write_text(
+                BODY.replace("12%", "17%", 1), encoding="utf-8"
+            )
+
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("missing-posted-reading: 1", stdout)
+        self.assertIn("untraced-number: 1", stdout)
+
+    def test_an_unreadable_reread_file_is_did_not_scan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "reread.md").write_text(
+                "VERDICT: matches - trust me\n", encoding="utf-8"
+            )
+
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout)
+        self.assertIn("reread.md", stderr)
+
+    def test_a_third_verdict_is_a_finding_not_a_source_error(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "reread.md").write_text(
+                REREAD.replace("matches -", "uncertain -"), encoding="utf-8"
+            )
+
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("unknown-verdict: 1", stdout)
+
+    def test_each_declared_verdict_needs_substance(self):
+        for verdict in ("matches", "diverges"):
+            with self.subTest(verdict=verdict), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                (run.root / "reread.md").write_text(
+                    REREAD.replace(
+                        "matches - The paragraphs, references, and bold label are present.",
+                        verdict,
+                    ),
+                    encoding="utf-8",
+                )
+
+                status, stdout, _ = self.grade(run)
+
+            self.assertEqual(1, status)
+            self.assertIn("bare-verdict: 1", stdout)
+
+    def test_a_reply_reading_needs_an_entry_id(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "reread.md").write_text(
+                REREAD.replace("?entry_id=31", ""), encoding="utf-8"
+            )
+
+            status, stdout, _ = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertIn("unlocated-reading: 1", stdout)
+
+    def test_a_classmate_locator_cannot_stand_in_for_the_reply(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "reread.md").write_text(
+                REREAD.replace("entry_id=31", "entry_id=21"), encoding="utf-8"
+            )
+
+            status, stdout, _ = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertIn("borrowed-locator: 1", stdout)
+
+    def test_the_initial_post_locator_cannot_stand_in_when_its_reading_is_absent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "post.md").write_text(
+                "POST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\n"
+                "POSTED: 2026-08-28T19:30:00-04:00\n",
+                encoding="utf-8",
+            )
+            (run.root / "reread.md").write_text(
+                REREAD.replace("entry_id=31", "entry_id=41"), encoding="utf-8"
+            )
+
+            status, stdout, _ = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertIn("borrowed-locator: 1", stdout)
 
     def test_an_nd_citation_resolves_to_its_reference(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -601,13 +721,38 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
         self.assertIn("unread remainder 1", stderr.getvalue())
 
 
-class TheUnmarkedInvokedSourceLimitIsDeclared(unittest.TestCase):
-    def test_the_declared_limits_name_the_unmarked_set(self):
-        self.assertEqual(
-            "whether every invoked source was marked",
-            scan.UNMARKED_INVOKED_SOURCE_LIMIT[0],
+class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
+    SUBJECTS = {
+        "whether every roster post was readable",
+        "whether a reply source was already spent by the initial post",
+        "whether the reference label was bold on the board",
+        "whether the posted reply matches the graded artifact",
+        "whether a bold reference label is rewarded by the rubric",
+        "whether every invoked source was marked",
+        "whether an invoked property is a grammatical behavior clause",
+        "whether a legal citation year matches its reference entry",
+        "whether a cited legal section supports the reply's claim",
+        "whether faculty require the canonical in-text legal spelling",
+        "whether a posted reading faithfully reports a careful comparison",
+        "whether a unique entry id was fabricated",
+        "whether the initial post has a posted reading",
+    }
+
+    def test_the_declared_limits_are_complete_and_substantive(self):
+        self.assertEqual(self.SUBJECTS, {key for key, _reason in scan.NOT_REACHED})
+        self.assertTrue(all(len(reason.split()) > 8 for _key, reason in scan.NOT_REACHED))
+        self.assertIn(scan.UNMARKED_INVOKED_SOURCE_LIMIT, scan.NOT_REACHED)
+        self.assertIn(scan.INVOKED_PROPERTY_LIMIT, scan.NOT_REACHED)
+
+    def test_the_skill_and_module_point_to_the_inventory_without_copying_rows(self):
+        skill = DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8")
+
+        self.assertIn("discussion_reply_scan.NOT_REACHED", skill)
+        self.assertNotIn(
+            "discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT",
+            DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8"),
         )
-        self.assertGreater(len(scan.UNMARKED_INVOKED_SOURCE_LIMIT[1].split()), 8)
+        self.assertIn("``NOT_REACHED``", scan.__doc__ or "")
 
 
 if __name__ == "__main__":

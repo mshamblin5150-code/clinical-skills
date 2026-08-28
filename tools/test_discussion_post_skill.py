@@ -111,6 +111,12 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, post)
 
+    def test_reply_walks_the_complete_limit_inventory_not_retired_partial_names(self):
+        reply = read(REPLY)
+
+        self.assertIn("discussion_reply_scan.NOT_REACHED", reply)
+        self.assertNotIn("discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT", reply)
+
     def test_step_seven_renders_one_bold_heading_document_and_grades_it(self):
         post = read(POST)
         self.assertRegex(post, r"docx_write\.py[^\n]+--bold-headings")

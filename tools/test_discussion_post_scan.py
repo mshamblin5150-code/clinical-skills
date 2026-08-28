@@ -137,6 +137,7 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("bold-headings: not graded", stdout)
 
+
     def test_a_named_heading_style_fails_the_docx_row(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -629,6 +630,101 @@ class ACompletePostPasses(unittest.TestCase):
                 self.assertIs(getattr(artifact, name), getattr(scan, name))
 
 
+class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
+    POST_URL = "https://example.org/courses/1/discussion_topics/2?entry_id=41"
+
+    def posted_run(self, root: Path) -> Run:
+        run = Run(root)
+        (root / "post.md").write_text(
+            f"POST-URL: {self.POST_URL}\n"
+            "POSTED: 2026-08-28T19:30:00-04:00\n\n"
+            + BODY,
+            encoding="utf-8",
+        )
+        (root / "reread.md").write_text(
+            "## REREAD: post.md\n"
+            f"POST-URL: {self.POST_URL}\n"
+            "POSTED: 2026-08-28T19:30:00-04:00\n"
+            "READ: 2026-08-28\n"
+            "VERDICT: matches - The headings, paragraphs, and references are present.\n",
+            encoding="utf-8",
+        )
+        return run
+
+    def test_a_complete_initial_post_reading_passes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, stderr = self.posted_run(Path(temp)).grade()
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("missing-posted-reading: 0", stdout)
+
+    def test_a_reply_record_does_not_cover_the_initial_post(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace(
+                    "## REREAD: post.md", "## REREAD: response-maren.md"
+                ),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("missing-posted-reading: 1", stdout)
+
+    def test_the_reading_locator_must_equal_post_md(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace("entry_id=41", "entry_id=99"),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("borrowed-locator: 1", stdout)
+
+    def test_the_initial_post_reading_needs_an_entry_id(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace("?entry_id=41", "", 1),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("unlocated-reading: 1", stdout)
+
+    def test_unknown_and_bare_verdicts_are_post_findings(self):
+        for replacement, kind in (
+            ("uncertain - The board was opened.", "unknown-verdict"),
+            ("diverges", "bare-verdict"),
+        ):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temp:
+                run = self.posted_run(Path(temp))
+                reread = run.root / "reread.md"
+                reread.write_text(
+                    reread.read_text(encoding="utf-8").replace(
+                        "matches - The headings, paragraphs, and references are present.",
+                        replacement,
+                    ),
+                    encoding="utf-8",
+                )
+
+                status, stdout, _ = run.grade()
+
+            self.assertEqual(1, status)
+            self.assertIn(f"{kind}: 1", stdout)
+
+
 class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
     def test_every_recognizable_label_form_has_both_ruled_grader_verdicts(self):
         forms = {
@@ -1118,6 +1214,7 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
                 "whether a prose bar element is satisfied",
                 "whether a reference actually supports the required proposition",
                 "whether a claim record describes the cited sentence",
+                "whether posted replies have posted readings",
             },
             {key for key, _reason in scan.NOT_REACHED},
         )

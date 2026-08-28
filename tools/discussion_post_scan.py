@@ -36,6 +36,7 @@ from discussion_artifact import (
     NUMBER,
     INVOKED,
     InvokedSource,
+    PostedReading,
     RESTATEMENT,
     WORD,
     citation_occurrence_keys,
@@ -43,6 +44,7 @@ from discussion_artifact import (
     legal_reference_lacks_name,
     read_citations,
     read_invoked_sources,
+    read_posted_readings,
     read_reference_section,
     reference_key,
     reference_keys,
@@ -59,6 +61,11 @@ UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
 BOLD_HEADINGS = "bold-headings"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
+MISSING_POSTED_READING = "missing-posted-reading"
+UNKNOWN_VERDICT = "unknown-verdict"
+BARE_VERDICT = "bare-verdict"
+UNLOCATED_READING = "unlocated-reading"
+BORROWED_LOCATOR = "borrowed-locator"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
@@ -66,6 +73,11 @@ ROWS = {
     UNTRACED_CITATION: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
+    MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
+    UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
+    BARE_VERDICT: "the posted reading says what it found",
+    UNLOCATED_READING: "the posted reading carries its board entry id",
+    BORROWED_LOCATOR: "the posted reading locator belongs to the initial post",
 }
 KINDS = tuple(ROWS)
 
@@ -89,6 +101,10 @@ NOT_REACHED = (
     (
         "whether a claim record describes the cited sentence",
         "A source-and-year join establishes record presence but cannot decide whether the claim heading faithfully describes that sentence.",
+    ),
+    (
+        "whether posted replies have posted readings",
+        "This command grades only the initial post record; discussion_reply_scan owns every response artifact in the shared reread file.",
     ),
 )
 
@@ -128,6 +144,9 @@ class RunSource:
     docx: Path | None
     named_heading_styles: tuple[str, ...]
     refused_label: str | None
+    post_url: str | None
+    post_posted: str | None
+    readings: tuple[PostedReading, ...]
 
 
 @dataclass(frozen=True)
@@ -319,6 +338,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         raise run_grader.SourceError(f"no run directory at {root}")
     bar_path = root / "bar.md"
     claims_path = root / "claims.md"
+    post_path = root / "post.md"
+    reread_path = root / "reread.md"
     draft_value = parsed.value("--draft")
     if draft_value is None:
         raise run_grader.SourceError("--draft needs a Markdown file")
@@ -351,7 +372,20 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         claims = claims_path.read_text(encoding="utf-8")
         draft_text = draft.read_text(encoding="utf-8")
         section = read_reference_section(draft_text, REFERENCE_HEADING)
-    except (OSError, UnicodeError) as failure:
+        post_fields = (
+            {
+                match.group("name"): match.group("value").strip()
+                for match in FIELD.finditer(post_path.read_text(encoding="utf-8"))
+            }
+            if post_path.is_file()
+            else {}
+        )
+        readings = (
+            read_posted_readings(reread_path.read_text(encoding="utf-8"))
+            if reread_path.is_file()
+            else ()
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
     named_heading_styles = _docx_heading_styles(docx) if docx is not None else ()
     return RunSource(
@@ -364,7 +398,57 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         docx,
         named_heading_styles,
         section.refused_label,
+        post_fields.get("POST-URL"),
+        post_fields.get("POSTED"),
+        readings,
     )
+
+
+def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
+    if source.post_url is None and source.post_posted is None:
+        return ()
+    reading = next(
+        (item for item in source.readings if item.artifact == "post.md"), None
+    )
+    if reading is None:
+        return (
+            Finding(
+                MISSING_POSTED_READING,
+                "post.md",
+                "no REREAD record for the posted initial entry",
+            ),
+        )
+    findings: list[Finding] = []
+    missing = list(reading.missing_record_fields)
+    if not source.post_url:
+        missing.append("post.md POST-URL")
+    if not source.post_posted:
+        missing.append("post.md POSTED")
+    if missing:
+        findings.append(
+            Finding(
+                MISSING_POSTED_READING,
+                "post.md",
+                "missing " + ", ".join(missing),
+            )
+        )
+    if not reading.verdict_is_known:
+        findings.append(
+            Finding(UNKNOWN_VERDICT, "post.md", "verdict is outside the vocabulary")
+        )
+    elif not reading.verdict_has_substance:
+        findings.append(
+            Finding(BARE_VERDICT, "post.md", "verdict carries no reading substance")
+        )
+    if reading.entry_id is None:
+        findings.append(
+            Finding(UNLOCATED_READING, "post.md", "POST-URL has no entry_id")
+        )
+    elif reading.post_url != source.post_url:
+        findings.append(
+            Finding(BORROWED_LOCATOR, "post.md", "POST-URL does not match post.md")
+        )
+    return tuple(findings)
 
 
 def survey(source: RunSource) -> Scan:
@@ -393,14 +477,14 @@ def survey(source: RunSource) -> Scan:
             pre_496_markers=None,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
-            findings=findings,
+        findings=findings + _posted_reading_findings(source),
         )
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
     reference_key_set = ClaimReferenceIndex.from_records(records)
     body_citations, citations = _citation_keys(source.body, reference_key_set)
     numbers = _numeric_values(source.body, body_citations)
-    findings: list[Finding] = []
+    findings: list[Finding] = list(_posted_reading_findings(source))
     for block in _claim_blocks(source.claims):
         reference = CLAIM_REFERENCE.search(block)
         if reference is not None and legal_reference_lacks_name(
@@ -534,7 +618,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind != BOLD_HEADINGS and not scan.reference_boundary_graded:
+        if kind not in {
+            BOLD_HEADINGS,
+            MISSING_POSTED_READING,
+            UNKNOWN_VERDICT,
+            BARE_VERDICT,
+            UNLOCATED_READING,
+            BORROWED_LOCATOR,
+        } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
         elif kind == BOLD_HEADINGS and not scan.docx_graded:
             lines.append(f"{kind}: not graded")
