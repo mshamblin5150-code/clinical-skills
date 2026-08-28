@@ -465,6 +465,21 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual("Patient rights", citations[0].author)
 
+    def test_the_bound_does_not_hide_a_key_shortened_by_author_normalization(self):
+        reference = (
+            "Rights, A very long regulation name title, "
+            "42 C.F.R. § 482.13 (2024)."
+        )
+        keys = frozenset(artifact.reference_keys(reference))
+
+        citations = artifact.read_citations(
+            "Rights, A very long regulation name title (2024) governs care.",
+            keys,
+        )
+
+        self.assertEqual(1, len(citations))
+        self.assertEqual("Rights, A very long regulation name title", citations[0].author)
+
     def test_text_beyond_the_longest_key_bound_does_not_change_the_walk(self):
         class CountedKeys(frozenset):
             checks = 0
@@ -514,12 +529,18 @@ class ACompletePostPasses(unittest.TestCase):
                 scan, "read_citations", wraps=artifact.read_citations
             ) as reader, mock.patch.object(
                 scan, "_citation_keys", wraps=scan._citation_keys
-            ) as key_reader:
+            ) as key_reader, mock.patch.object(
+                scan.ClaimReferenceIndex,
+                "matching_record_indices",
+                autospec=True,
+                side_effect=scan.ClaimReferenceIndex.matching_record_indices,
+            ) as resolver:
                 status, _, _ = run.grade()
 
         key_set = key_reader.call_args.args[1]
         self.assertEqual(0, status)
         self.assertIs(reader.call_args.args[1], key_set)
+        self.assertIs(resolver.call_args.args[0], key_set)
 
     def test_the_reply_grader_reads_and_resolves_against_one_key_set_object(self):
         personal = (

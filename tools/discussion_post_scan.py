@@ -22,6 +22,7 @@ import re
 import sys
 import zipfile
 from collections import Counter
+from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -136,6 +137,37 @@ class ClaimRecord:
 
 
 @dataclass(frozen=True)
+class ClaimReferenceIndex(Collection[tuple[str, str]]):
+    records: tuple[ClaimRecord, ...]
+    keys: frozenset[tuple[str, str]]
+
+    @classmethod
+    def from_records(cls, records: tuple[ClaimRecord, ...]) -> ClaimReferenceIndex:
+        return cls(
+            records,
+            frozenset(key for record in records for key in record.references),
+        )
+
+    def __contains__(self, key: object) -> bool:
+        return key in self.keys
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self.keys)
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def matching_record_indices(
+        self, citation_keys: tuple[tuple[str, str], ...]
+    ) -> tuple[int, ...]:
+        return tuple(
+            index
+            for index, record in enumerate(self.records)
+            if any(key in record.references for key in citation_keys)
+        )
+
+
+@dataclass(frozen=True)
 class Scan:
     words: int | None
     word_floor: int
@@ -206,7 +238,7 @@ def _claim_blocks(claims: str) -> tuple[str, ...]:
 
 
 def _citation_keys(
-    body: str, reference_key_set: frozenset[tuple[str, str]]
+    body: str, reference_key_set: ClaimReferenceIndex
 ) -> tuple[tuple[Citation, ...], tuple[tuple[tuple[str, str], ...], ...]]:
     body_citations = read_citations(body, reference_key_set)
     return body_citations, citation_occurrence_keys(body_citations)
@@ -365,9 +397,7 @@ def survey(source: RunSource) -> Scan:
         )
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
-    reference_key_set = frozenset(
-        key for record in records for key in record.references
-    )
+    reference_key_set = ClaimReferenceIndex.from_records(records)
     body_citations, citations = _citation_keys(source.body, reference_key_set)
     numbers = _numeric_values(source.body, body_citations)
     findings: list[Finding] = []
@@ -422,11 +452,7 @@ def survey(source: RunSource) -> Scan:
             (
                 UNTRACED_CITATION,
                 f"citation occurrence {occurrence} has no source-matched claim record",
-                tuple(
-                    index
-                    for index, record in enumerate(records)
-                    if any(key in record.references for key in keys)
-                ),
+                reference_key_set.matching_record_indices(keys),
             )
         )
     matched = _maximum_record_matching(

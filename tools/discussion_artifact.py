@@ -412,7 +412,9 @@ def read_citations(
             for word_start in _reverse_word_starts(prefix):
                 author = prefix[word_start:].strip()
                 key = author_key(author)
-                if len(key) > max_key_length:
+                if len(key) > max_key_length and not _personal_key_possible_to_left(
+                    prefix, word_start
+                ):
                     break
                 if (key, year_value) in reference_key_set or (key, "") in reference_key_set:
                     longest = Citation(
@@ -455,3 +457,15 @@ def _reverse_word_starts(value: str) -> Iterator[int]:
 
 def _author_word_character(character: str) -> bool:
     return character.isalnum() or character == "_" or character in "'’&.-"
+
+
+def _personal_key_possible_to_left(value: str, candidate_start: int) -> bool:
+    """Return whether extending left can still trigger author_key's comma rule."""
+
+    earlier = value[:candidate_start]
+    sentence_start = max(
+        earlier.rfind(". "),
+        earlier.rfind("! "),
+        earlier.rfind("? "),
+    )
+    return "," in earlier[sentence_start + 2 :]
