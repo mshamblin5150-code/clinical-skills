@@ -1829,7 +1829,11 @@ class EveryRelativeLinkResolvesToAnIndexedPath(unittest.TestCase):
     """
 
     def indexed_paths(self) -> set[str]:
-        """Exact-case indexed files and the directories derived from them."""
+        """Exact-case tracked files and the directories derived from them.
+
+        A clean result covers only those tracked paths; see ``graded_files()``
+        for the untracked-file window.
+        """
         finished = subprocess.run(
             ["git", "ls-files", "--cached"],
             cwd=REPO_ROOT,
