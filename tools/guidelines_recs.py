@@ -148,6 +148,11 @@ from repo_root import InsideCheckout, ensure_outside_checkout
 MODE_EXACT = "exact"
 MODE_BOUND = "bound"
 
+# Everything this producer writes wears this prefix. The reverse remains false:
+# a prefixed file need not have come from this producer, and ``recs-sweep.json``
+# is the standing counter-example.
+RECS_PREFIX = "recs-"
+
 # Where a count came from, printed beside the mode and written into the JSON. The
 # mode says what a gate may do with the number; this says what earned it, and #173
 # is why the two are separate -- an ``exact`` count now arrives two ways.
@@ -667,6 +672,10 @@ def main(argv: list[str]) -> int:
     # line against its three siblings without a PDF or a PDF library.
     json_target = None
     if args.json:
+        if not args.json.stem.startswith(RECS_PREFIX):
+            raise SystemExit(
+                f"--json target filename must start with '{RECS_PREFIX}': {args.json.name}"
+            )
         try:
             json_target = ensure_outside_checkout(args.json, detail=WHY_OUTSIDE)
         except InsideCheckout as refused:

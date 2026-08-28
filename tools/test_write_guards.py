@@ -406,6 +406,30 @@ class TheRefusalWinsOverTheInputCheck(unittest.TestCase):
                 )
         self.assertIn("git checkout", str(stop.exception))
 
+    def test_a_nonconforming_json_stem_beats_an_absent_pdf(self):
+        with self.assertRaises(SystemExit) as stop:
+            guidelines_recs.main(
+                [
+                    str(self.tree.root / "absent.pdf"),
+                    "--json",
+                    str(self.tree.root / "verify-recs.json"),
+                ]
+            )
+        self.assertIn("must start with 'recs-'", str(stop.exception))
+
+    def test_a_conforming_json_stem_reaches_the_existing_input_check(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            status = guidelines_recs.main(
+                [
+                    str(self.tree.root / "absent.pdf"),
+                    "--json",
+                    str(self.tree.root / f"{guidelines_recs.RECS_PREFIX}x.json"),
+                ]
+            )
+        self.assertEqual(status, 2)
+        self.assertIn("not a file", stderr.getvalue())
+
     def test_an_absent_pdf_alone_is_still_two(self):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):

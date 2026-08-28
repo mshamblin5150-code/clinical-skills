@@ -11,14 +11,12 @@ what re-priced #176's *"Not urgent"*.
 **This is the second net and not a replacement for the guards.** A guard refuses
 the write; this only stops the result being committed if one is missed.
 
-Two of the three artifact names are **derived from the tools' own defaults**
-rather than typed here, on ``test_ci_workflow.py``'s reasoning: a list of names
-copied into a test goes stale the first time a default moves, and reads as
-coverage while it does. **The third is typed, and it is the weak one** --
-``guidelines_recs.py`` has no default ``--json`` path to derive from, so
-``recs-<source key>.json`` is read off ``threshold_sheet.py``'s COVERAGE lookup by
-a human and restated below. A rename there would leave this passing -- and #177
-renamed it, from ``recs-<sheet stem>.json``, with this file left green throughout.
+All three artifact names are **derived from their producing tools** rather than
+typed here, on ``test_ci_workflow.py``'s reasoning: a list of names copied into a
+test goes stale the first time a default or convention moves, and reads as
+coverage while it does. The recommendation dump was the weak one until #518:
+#177 renamed ``recs-<sheet stem>.json`` to ``recs-<source key>.json`` with this
+file left green throughout because the test had restated the prefix by hand.
 
 **Every query is a file path and never a directory with a trailing slash**, and
 ``TheInstrumentIsLive`` is why. Asked about ``tools/``, ``git check-ignore``
@@ -44,6 +42,7 @@ from pathlib import Path
 
 import guidelines_extract
 import guidelines_index
+import guidelines_recs
 import docx_write
 from repo_root import main_repo_root
 
@@ -215,20 +214,14 @@ class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
         )
 
     def test_a_recommendation_dump(self) -> None:
-        """``threshold_sheet.py`` looks for ``recs-<source key>.json``, so that is the
-        shape.
-
-        ``guidelines_recs.py`` has no default ``--json`` path -- the naming
-        convention lives on the reading side, in ``threshold_sheet.bind_recs``. It
-        used to say *tier 2* here, which was wrong about which gate reads the file:
-        tier 2 opens the PDFs, COVERAGE opens this.
-        """
+        """The producer guarantees the ``recs-`` prefix on every JSON it writes."""
+        name = f"{guidelines_recs.RECS_PREFIX}some-guideline.json"
         self.assertTrue(
-            _check_ignore("recs-some-guideline.json"),
+            _check_ignore(name),
             "a recs dump holds the society's recommendation text in full and is not ignored",
         )
         self.assertTrue(
-            _check_ignore("reference/recs-some-guideline.json"),
+            _check_ignore(f"reference/{name}"),
             "the pattern must reach a subdirectory, which is where a mis-typed --json lands",
         )
 
