@@ -244,13 +244,16 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
 
         self.assertFalse(scope.cites_an_unresolved_path(adr))
 
-    def test_default_branch_paths_are_read_from_main_not_feature_head(self):
+    def test_default_branch_paths_are_read_from_remote_main_not_feature_head(self):
         completed = mock.Mock(stdout="tools/tracker_branch_scope.py\n")
         with mock.patch("subprocess.run", return_value=completed) as run:
             paths = scope._default_branch_paths()
 
         self.assertIn("tools/tracker_branch_scope.py", paths)
-        self.assertIn("main", run.call_args.args[0])
+        self.assertEqual(
+            ["git", "ls-tree", "-r", "--name-only", "origin/main"],
+            run.call_args.args[0],
+        )
 
 
 class ExistingBranchScopeTriggersRemainIntact(unittest.TestCase):
