@@ -36,7 +36,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact_lock  # noqa: E402
 import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
-from guidelines_manifest_test_support import ReadingManifestConformance  # noqa: E402
+from guidelines_manifest_test_support import (  # noqa: E402
+    ReadingManifestConformance,
+    trusted_extraction_producer,
+)
 import threshold_sheet as gate  # noqa: E402
 
 
@@ -207,6 +210,7 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 | narrative sections and appendices | 51-60 | no |
 
 citations resolved against {TEST_PDF_ROOT} on 2026-08-16
+extraction identity: producer {'a' * 40}; tools/guidelines_extract.py sha256 {'b' * 64}
 
 ## Populations
 
@@ -1086,24 +1090,23 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
 
 class ExtractionIdentityGate(unittest.TestCase):
     @staticmethod
-    def write_manifest(root: Path, commit: str = "c", sha256: str = "d") -> None:
+    def write_manifest(root: Path) -> gate.ExtractionIdentity:
+        producer = trusted_extraction_producer()
         (root / "manifest.json").write_text(
             json.dumps(
                 {
-                    "producer": {
-                        "commit": commit * 40,
-                        "inputs": [
-                            {
-                                "path": "tools/guidelines_extract.py",
-                                "sha256": sha256 * 64,
-                            },
-                        ],
-                    },
+                    "producer": producer,
                     "documents": [],
                 }
             ),
             encoding="utf-8",
         )
+        extractor = next(
+            row["sha256"]
+            for row in producer["inputs"]
+            if row["path"] == "tools/guidelines_extract.py"
+        )
+        return gate.ExtractionIdentity(str(producer["commit"]), extractor)
 
     def test_the_declaration_is_parsed_from_scope(self):
         parsed = sheet(row())
@@ -1116,31 +1119,12 @@ class ExtractionIdentityGate(unittest.TestCase):
     def test_the_current_identity_is_read_from_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "manifest.json").write_text(
-                json.dumps(
-                    {
-                        "producer": {
-                            "commit": "c" * 40,
-                            "inputs": [
-                                {
-                                    "path": "tools/guidelines_extract.py",
-                                    "sha256": "d" * 64,
-                                },
-                                {
-                                    "path": "tools/guidelines_manifest.py",
-                                    "sha256": "e" * 64,
-                                },
-                            ],
-                        }
-                    }
-                ),
-                encoding="utf-8",
-            )
+            expected = self.write_manifest(root)
 
             identity, problems = gate.extraction_identity_from_manifest(root)
 
         self.assertEqual(problems, [])
-        self.assertEqual(identity, gate.ExtractionIdentity("c" * 40, "d" * 64))
+        self.assertEqual(identity, expected)
 
     def test_a_different_extraction_warns_without_refusing(self):
         parsed = sheet(row())
@@ -1167,18 +1151,27 @@ class ExtractionIdentityGate(unittest.TestCase):
         self.assertEqual(result.findings, [])
         self.assertEqual(result.warnings, [])
 
-    def test_a_sheet_without_a_declaration_is_affected(self):
+    def test_a_sheet_without_a_declaration_fails_the_format_schema(self):
         parsed = sheet(row())
         parsed.extraction_identity = None
 
-        result = gate.gate_extraction_identity(
-            parsed,
-            gate.ExtractionIdentity("a" * 40, "b" * 64),
+        result = gate.gate_schema(parsed)
+
+        self.assertTrue(
+            any("has no extraction identity" in finding for finding in result.findings)
         )
 
-        self.assertEqual(result.findings, [])
-        self.assertEqual(len(result.warnings), 1)
-        self.assertIn("has no extraction identity", result.warnings[0])
+    def test_an_unavailable_manifest_says_the_comparison_did_not_run(self):
+        result = gate.gate_extraction_identity(
+            sheet(row()),
+            None,
+            ["manifest is unavailable"],
+        )
+
+        self.assertEqual(result.warnings, [])
+        self.assertEqual(result.skip_reason, "manifest is unavailable")
+        self.assertIn("NOT RUN", result.report[0])
+        self.assertIn("NOT RUN", result.diagnostics[0])
 
     def test_survey_compares_the_sheet_with_its_text_root_manifest(self):
         with tempfile.TemporaryDirectory() as directory:

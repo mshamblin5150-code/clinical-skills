@@ -599,17 +599,20 @@ class ExtractionIdentity:
 
 def extraction_identity_from_manifest(
     root: Path,
+    *,
+    allow_untrusted_provenance: bool = False,
 ) -> tuple[ExtractionIdentity | None, list[str]]:
-    """Read the sheet identity fields from an extracted-corpus manifest."""
+    """Read identity through the extracted corpus's validated manifest owner."""
 
-    path = root / guidelines_manifest.MANIFEST_NAME
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        return None, [f"{path} could not supply an extraction identity: {error}"]
-    producer = loaded.get("producer") if isinstance(loaded, dict) else None
+    handoff = guidelines_manifest.read(
+        root,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+    )
+    path = handoff.root / guidelines_manifest.MANIFEST_NAME
+    producer = handoff.provenance.producer if handoff.provenance else None
     if not isinstance(producer, dict):
-        return None, [f"{path} has no producer record"]
+        problems = [problem.message for problem in handoff.problems]
+        return None, problems or [f"{path} has no validated producer record"]
     commit = producer.get("commit")
     inputs = producer.get("inputs")
     extractor = next(
@@ -624,7 +627,7 @@ def extraction_identity_from_manifest(
     if not isinstance(commit, str) or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         return None, [f"{path} producer has no 40-character commit"]
     if not isinstance(extractor, str) or re.fullmatch(r"[0-9a-f]{64}", extractor) is None:
-        return None, [f"{path} producer has no extractor SHA-256"]
+        return None, [f"{path} validated producer has no extractor SHA-256"]
     return ExtractionIdentity(commit, extractor), []
 
 
@@ -1008,6 +1011,11 @@ def gate_schema(sheet: Sheet) -> GateResult:
                 f"{sheet.path.name}  '## Scope' never says what was NOT read, so an absent "
                 "number cannot be told from an unread section"
             )
+        if sheet.extraction_identity is None:
+            failures.append(
+                f"{sheet.path.name}  '## Scope' has no extraction identity, so tier 0 "
+                "and tier 1 cannot be tied to the extracted text they read"
+            )
 
     failures.extend(sheet.span_problems)
     if not sheet.spans:
@@ -1138,15 +1146,21 @@ def gate_schema(sheet: Sheet) -> GateResult:
 def gate_extraction_identity(
     sheet: Sheet,
     current: ExtractionIdentity | None,
+    problems: list[str] | tuple[str, ...] = (),
 ) -> GateResult:
     """Warn when the sheet and current extracted corpus name different builds."""
 
-    warnings: list[str] = []
-    if current is not None and sheet.extraction_identity is None:
-        warnings.append(
-            f"{sheet.path.name}  has no extraction identity in ## Scope"
+    if current is None:
+        reason = "; ".join(problems) or "no extracted-corpus identity was available"
+        message = f"EXTRACTION IDENTITY NOT RUN -- {reason}"
+        return GateResult(
+            "EXTRACTION IDENTITY",
+            skip_reason=reason,
+            report=(f"  {message}",),
+            diagnostics=(f"  {message}",),
         )
-    elif current is not None and sheet.extraction_identity != current:
+    warnings: list[str] = []
+    if sheet.extraction_identity is not None and sheet.extraction_identity != current:
         warnings.append(
             f"{sheet.path.name}  was read against a different extraction than the "
             "current manifest"
@@ -2770,12 +2784,19 @@ def survey(
     )
 
     schema = gate_schema(sheet)
-    current_extraction, _identity_problems = (
-        extraction_identity_from_manifest(text_root)
+    current_extraction, identity_problems = (
+        extraction_identity_from_manifest(
+            text_root,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+        )
         if text_root is not None
-        else (None, [])
+        else (None, ["no --text-root was available"])
     )
-    extraction_identity = gate_extraction_identity(sheet, current_extraction)
+    extraction_identity = gate_extraction_identity(
+        sheet,
+        current_extraction,
+        identity_problems,
+    )
     catalog_problems: list[str] = []
     if page_counts is None:
         page_counts, catalog_problems = load_catalog_page_counts()
@@ -2849,6 +2870,7 @@ def survey(
         + second_read_result.findings
     )
     diagnostics = list(page_coverage.diagnostics)
+    diagnostics.extend(extraction_identity.diagnostics)
     diagnostics.extend(watermark.diagnostics[:1])
     diagnostics.extend(f"  FAIL  {message}" for message in refusals)
     diagnostics.extend(

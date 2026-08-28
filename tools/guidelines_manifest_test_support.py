@@ -6,6 +6,17 @@ import tempfile
 from pathlib import Path
 
 import artifact_lock
+import artifact_provenance
+
+
+def trusted_extraction_producer() -> dict[str, object]:
+    """A producer stamp accepted by the current checkout's extraction trust floor."""
+
+    producer = dict(artifact_provenance.current_producer())
+    producer["inputs"] = artifact_provenance.producer_file_identity(
+        artifact_provenance.TRUST_FLOOR["extraction"]
+    )
+    return producer
 
 
 class ReadingManifestConformance:

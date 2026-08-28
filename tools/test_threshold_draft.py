@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet  # noqa: E402
+from guidelines_manifest_test_support import trusted_extraction_producer  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -95,6 +96,7 @@ class ThresholdDraftCli(unittest.TestCase):
         record_name: str = "recs-aha-2025.json",
         record_payload: object | None = None,
         other_files: dict[str, object] | None = None,
+        manifest_producer: object | None = None,
     ) -> subprocess.CompletedProcess[str]:
         catalog = root / "catalog.md"
         recs = root / "recs"
@@ -104,18 +106,12 @@ class ThresholdDraftCli(unittest.TestCase):
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
         text_root.mkdir()
+        producer = manifest_producer or trusted_extraction_producer()
         (text_root / "manifest.json").write_text(
             json.dumps(
                 {
-                    "producer": {
-                        "commit": "a" * 40,
-                        "inputs": [
-                            {
-                                "path": "tools/guidelines_extract.py",
-                                "sha256": "b" * 64,
-                            }
-                        ],
-                    }
+                    "producer": producer,
+                    "documents": [],
                 }
             ),
             encoding="utf-8",
@@ -262,11 +258,28 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("Read:", scope)
         self.assertNotIn("Not read:", scope)
         self.assertIn("| 2 | 2 | 0 |", scope)
+        producer = trusted_extraction_producer()
+        extractor = next(
+            row["sha256"]
+            for row in producer["inputs"]
+            if row["path"] == "tools/guidelines_extract.py"
+        )
         self.assertIn(
-            f"extraction identity: producer {'a' * 40}; "
-            f"tools/guidelines_extract.py sha256 {'b' * 64}",
+            f"extraction identity: producer {producer['commit']}; "
+            f"tools/guidelines_extract.py sha256 {extractor}",
             scope,
         )
+
+    def test_an_untrusted_manifest_cannot_supply_a_draft_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                manifest_producer={"commit": "f" * 40, "dirty": False},
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("untrusted artifact", result.stderr)
+        self.assertNotIn("extraction identity:", result.stdout)
 
     def test_an_existing_curated_sheet_selects_rows_without_copying_judgment_cells(self):
         with tempfile.TemporaryDirectory() as directory:
