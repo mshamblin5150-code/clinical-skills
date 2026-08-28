@@ -27,6 +27,9 @@ import json
 import contextlib
 import dataclasses
 import io
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -263,6 +266,7 @@ def audit_document() -> gc.AuditDocument:
         society="USPSTF",
         filename="copd-screening.pdf",
         sha256="a" * 64,
+        bytes="10",
         audited="2026-08-20",
     )
 
@@ -271,9 +275,9 @@ AUDIT = """# Independent audit
 
 ## Documents
 
-| society | filename | sha256 | audited |
-| --- | --- | --- | --- |
-| USPSTF | copd-screening.pdf | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | 2026-08-20 |
+| society | filename | sha256 | bytes | audited |
+| --- | --- | --- | --- | --- |
+| USPSTF | copd-screening.pdf | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | 10 | 2026-08-20 |
 
 ## Independent readings
 
@@ -513,12 +517,13 @@ class CheckTheIndependentAudit(unittest.TestCase):
 
     def test_document_identity_and_completion_fields_are_validated(self):
         document = dataclasses.replace(
-            audit_document(), society="IDSA", sha256="not-a-digest", audited="?"
+            audit_document(), society="IDSA", sha256="not-a-digest", bytes="ten", audited="?"
         )
         failures = gc.check_audit([row()], [document], self.complete_readings(), [])
 
         self.assertTrue(any("document society" in f for f in failures))
         self.assertTrue(any("SHA-256 is not" in f for f in failures))
+        self.assertTrue(any("byte count" in f for f in failures))
         self.assertTrue(any("audit date" in f for f in failures))
 
     def test_reading_locator_and_evidence_are_required(self):
@@ -550,6 +555,7 @@ class ParsingTheIndependentAudit(unittest.TestCase):
 
         self.assertEqual(problems, [])
         self.assertEqual(documents[0].filename, "copd-screening.pdf")
+        self.assertEqual(documents[0].bytes, "10")
         self.assertEqual([item.column for item in readings], list(gc.AUDITED_COLUMNS))
         self.assertEqual(rulings, [])
 
@@ -560,6 +566,7 @@ class DraftingTheIndependentAudit(unittest.TestCase):
 
         self.assertIn("copd-screening.pdf", text)
         self.assertIn("a" * 64, text)
+        self.assertIn("| 10 |", text)
         self.assertNotIn(row().title, text)
         self.assertNotIn(row().year, text)
         self.assertEqual(text.count("| ? | ? | ? |"), len(gc.AUDITED_COLUMNS))
@@ -577,6 +584,122 @@ class DraftingTheIndependentAudit(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertIn("opaque.pdf", stdout.getvalue())
+        self.assertIn("| 10 |", stdout.getvalue())
+
+
+class CheckingCheapCorpusDrift(unittest.TestCase):
+    def _write_inputs(self, root: Path, documents: list[gc.AuditDocument]) -> tuple[Path, Path]:
+        catalog = root / "catalog.md"
+        audit = root / "audit.md"
+        rows = [
+            row(society=document.society, filename=document.filename)
+            for document in documents
+        ]
+        catalog.write_text(
+            "# Catalog\n\n" + gc.render_table(rows) + "\n\n## Unsettled cells\n",
+            encoding="utf-8",
+        )
+        audit.write_text(gc.render_audit_draft(documents), encoding="utf-8")
+        return catalog, audit
+
+    def _run(self, root: Path, documents: list[gc.AuditDocument]) -> tuple[int, str, str]:
+        catalog, audit = self._write_inputs(root, documents)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = gc.main(
+                [
+                    "--check-corpus-size",
+                    "--catalog", str(catalog),
+                    "--audit", str(audit),
+                    "--pdf-src", str(root / "corpus"),
+                ]
+            )
+        return status, out.getvalue(), err.getvalue()
+
+    def test_matching_names_and_sizes_are_silent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pdf = root / "corpus" / "USPSTF" / "copd-screening.pdf"
+            pdf.parent.mkdir(parents=True)
+            pdf.write_bytes(b"0123456789")
+            status, out, err = self._run(root, [audit_document()])
+
+        self.assertEqual(status, 0)
+        self.assertEqual((out, err), ("", ""))
+
+    def test_arrivals_removals_and_size_disagreements_name_the_full_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            society = root / "corpus" / "USPSTF"
+            society.mkdir(parents=True)
+            (society / "copd-screening.pdf").write_bytes(b"changed size")
+            (society / "arrived.pdf").write_bytes(b"new")
+            missing = dataclasses.replace(
+                audit_document(), filename="removed.pdf", bytes="7"
+            )
+            status, out, err = self._run(root, [audit_document(), missing])
+
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertIn("arrived.pdf: in the corpus, missing from the audit ledger", err)
+        self.assertIn("removed.pdf: in the audit ledger, missing from the corpus", err)
+        self.assertIn("copd-screening.pdf: byte size", err)
+        self.assertIn("same-name same-size rewrite", err)
+        self.assertIn("python tools/guidelines_catalog.py", err)
+
+    def test_an_absent_corpus_prints_a_runtime_derived_shopping_list(self):
+        second = dataclasses.replace(
+            audit_document(), society="IDSA", filename="idsa.pdf", bytes="4"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            status, out, err = self._run(root, [audit_document(), second])
+
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "")
+        self.assertIn(
+            f"guideline corpus: NOT CHECKED -- nothing at {(root / 'corpus').as_posix()}",
+            err,
+        )
+        self.assertIn("the tree expects 2 documents: USPSTF 1, IDSA 1", err)
+        self.assertIn("reference/guidelines-catalog.md", err)
+        self.assertIn("reference/guidelines-catalog-audit.md", err)
+
+    def test_the_pre_commit_command_runs_the_check_unconditionally_and_advisory(self):
+        shell = shutil.which("sh")
+        git = shutil.which("git")
+        if not shell or not git:
+            self.skipTest("the hook contract needs sh and git")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tools = root / "tools"
+            (tools / "hooks").mkdir(parents=True)
+            shutil.copy2(gc.REPO_ROOT / "tools" / "hooks" / "pre-commit", tools / "hooks" / "pre-commit")
+            marker = root / "guideline-check-args"
+            (tools / "guidelines_catalog.py").write_text(
+                "import os, pathlib, sys\n"
+                "pathlib.Path(os.environ['GUIDELINE_CHECK_MARKER']).write_text(' '.join(sys.argv[1:]))\n"
+                "raise SystemExit(1)\n",
+                encoding="utf-8",
+            )
+            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+                (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
+            subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
+            environment = {**os.environ, "GUIDELINE_CHECK_MARKER": str(marker)}
+            result = subprocess.run(
+                [shell, str(tools / "hooks" / "pre-commit")],
+                cwd=root,
+                env=environment,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+            marker_text = marker.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(marker_text, "--check-corpus-size")
 
 
 class CheckingTheAuditFromTheCli(unittest.TestCase):

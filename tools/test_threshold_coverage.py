@@ -125,7 +125,7 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout,
-            "topics     2\n"
+            "topics     2 from 3 catalog rows\n"
             "sheet      0   artifacts   0\n"
             "none       1   artifacts   0\n"
             "unread     1   artifacts   0\n",
@@ -294,7 +294,7 @@ class ThresholdCoverageCli(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertRegex(result.stdout, r"(?m)^topics\s+169$")
+        self.assertRegex(result.stdout, r"(?m)^topics\s+169 from 179 catalog rows$")
 
 
 if __name__ == "__main__":
