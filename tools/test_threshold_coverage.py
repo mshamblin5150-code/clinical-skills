@@ -45,6 +45,8 @@ def artifact(read: str) -> str:
 
 ## Scope
 
+extraction identity: producer 0000000000000000000000000000000000000000; tools/guidelines_extract.py sha256 0000000000000000000000000000000000000000000000000000000000000000
+
 **Read:** recommendation statement.
 
 **Not read:** as declared below.

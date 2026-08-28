@@ -8,6 +8,7 @@ from pathlib import Path
 
 import artifact_lock
 import artifact_provenance
+import guidelines_manifest
 
 
 def trusted_extraction_producer() -> dict[str, object]:
@@ -27,7 +28,7 @@ def write_trusted_extraction_manifest(
     """Write the one minimal manifest fixture shared by threshold consumers."""
 
     selected = producer if producer is not None else trusted_extraction_producer()
-    (root / "manifest.json").write_text(
+    (root / guidelines_manifest.MANIFEST_NAME).write_text(
         json.dumps({"producer": selected, "documents": []}),
         encoding="utf-8",
     )
