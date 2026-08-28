@@ -19,6 +19,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -748,6 +749,35 @@ class DeclaredLimitsAndCensus(unittest.TestCase):
         self.assertIn("reader changed   yes", out.getvalue())
         self.assertIn("raw records      0", out.getvalue())
         self.assertIn("repaired records 1", out.getvalue())
+
+    def test_reader_comparison_preserves_repeated_marker_references(self):
+        def marker(text: str) -> recs.Recommendation:
+            return recs.Recommendation(
+                rec_id="p1/recommendation/3.3",
+                doc_id="idsa",
+                page=1,
+                table="recommendation",
+                number=1,
+                cor=None,
+                loe=None,
+                text=text,
+                mode=recs.MODE_BOUND,
+            )
+
+        repaired = [marker("repaired first quotation"), marker("same last quotation")]
+        raw = [marker("raw first quotation"), marker("same last quotation")]
+        with mock.patch.object(
+            recs,
+            "extract",
+            side_effect=[
+                (repaired, recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER),
+                (raw, recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER),
+            ],
+        ):
+            raw_count, repaired_count, changed = recs.compare_marker_readers(
+                Path("idsa.pdf"), "idsa"
+            )
+        self.assertEqual((raw_count, repaired_count, changed), (2, 2, 1))
 
     def test_the_corpus_comparison_command_derives_the_changed_document_count(self):
         welded = "Recommendation3.3Yearly influenza vaccination is recommended."
