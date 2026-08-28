@@ -145,6 +145,18 @@ message openings. Where the model says invoked sources intensify in citation-bea
 preserve that option; it licenses adding none and never licenses adding a second instance because
 the first sounded good.
 
+Before drafting, run:
+
+```bash
+python tools/voice_model_scan.py
+```
+
+Exit 0 is required to draft against the model. Exit 1 refuses the draft until the model's shape is
+repaired. Exit 2 takes the absent-model door below explicitly: preserve the command's `voice
+unmodeled` banner in `scratch/runs/<run-key>/voice-status.md`, then follow §8 rather than treating an
+unscanned model as clean. The default report is counts only. `--show` is private working material
+and must not be pasted. A clean scan grades shape, not whether the model is true of the clinician.
+
 If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<run-key>/voice-status.md`. Keep `voice-status.md` in the private run record; it is
