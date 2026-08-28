@@ -572,7 +572,7 @@ def parse_curated_table(markdown: str) -> dict[str, list[CuratedRow]]:
     and every pair must agree on grade, file and page, and a disagreement raises
     rather than producing a best effort.
     """
-    recommendations = _markdown_rows(markdown, "Recommendations", 8)
+    recommendations = _markdown_rows(markdown, "Recommendations", 9)
     statements = _markdown_rows(markdown, "Statements", 4)
     if not recommendations:
         raise DidNotScan(f"no '## Recommendations' table in {CURATED_TABLE.name}")
@@ -585,7 +585,17 @@ def parse_curated_table(markdown: str) -> dict[str, list[CuratedRow]]:
 
     grouped: dict[str, list[CuratedRow]] = {}
     for index, (rec, statement) in enumerate(zip(recommendations, statements), start=1):
-        topic, population, grade, interval, year, _superseded, filename, page = rec
+        (
+            topic,
+            population,
+            grade,
+            interval,
+            year,
+            _superseded,
+            _threshold_sheet,
+            filename,
+            page,
+        ) = rec
         statement_grade, sentence, statement_file, statement_page = statement
         filename = filename.strip("`").strip()
         if (grade, filename, page) != (

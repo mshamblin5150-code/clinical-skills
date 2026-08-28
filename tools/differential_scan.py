@@ -739,7 +739,7 @@ def _uspstf_index() -> tuple[tuple[str, str, str], ...]:
     rows: list[tuple[str, str, str]] = []
     for line in USPSTF_SHEET.read_text(encoding="utf-8").splitlines():
         cells = _pipe_cells(line) if line.startswith("|") else []
-        if len(cells) != 8 or cells[2] not in {"A", "B", "C", "D", "I"}:
+        if len(cells) != 9 or cells[2] not in {"A", "B", "C", "D", "I"}:
             continue
         if not re.fullmatch(r"\d{4}", cells[4]):
             continue
