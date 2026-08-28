@@ -4,6 +4,7 @@ index of the guideline corpus.
     python tools/guidelines_catalog.py                         # check catalog and audit
     python tools/guidelines_catalog.py --draft <text-dir>      # emit a catalog scaffold
     python tools/guidelines_catalog.py --audit-draft <pdf-dir> # emit a blind audit
+    python tools/guidelines_catalog.py --check-corpus-size     # advisory drift report
 
 The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
 repo** and stays there: most of it society-copyrighted, and no consumer
@@ -50,8 +51,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import sys
+import textwrap
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,6 +70,14 @@ CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 AUDIT = REPO_ROOT / "reference" / "guidelines-catalog-audit.md"
 DEFAULT_TEXT_SRC = Path("C:/codeing/guidelines-text")
 DEFAULT_PDF_SRC = Path("C:/codeing/guidelines-src")
+
+# ADR 0031's cheap check reports directory identity rather than verifying PDF
+# contents. Keep both residues beside the mechanism instead of letting a clean
+# filename-and-size comparison acquire a stronger meaning in prose.
+CORPUS_SIZE_CHECK_LIMITS = {
+    "same-name-same-size-rewrite": "a same-name same-size rewrite is outside its reach",
+    "report-not-verification": "the check reports a corpus; it does not verify PDF contents",
+}
 
 COLUMNS = (
     "society",
@@ -191,6 +203,7 @@ class AuditDocument:
     society: str
     filename: str
     sha256: str
+    bytes: str
     audited: str
 
 
@@ -207,7 +220,7 @@ class AuditRuling:
 
 
 AUDIT_TABLES = {
-    "## Documents": ("society", "filename", "sha256", "audited"),
+    "## Documents": ("society", "filename", "sha256", "bytes", "audited"),
     "## Independent readings": (
         "society",
         "filename",
@@ -669,6 +682,8 @@ def check_audit(
             )
         if not re.fullmatch(r"[0-9a-f]{64}", document.sha256):
             failures.append(f"{document.filename}: SHA-256 is not 64 lowercase hex digits")
+        if not document.bytes.isdigit():
+            failures.append(f"{document.filename}: byte count is not a nonnegative integer")
         if not valid_date(document.audited):
             failures.append(f"{document.filename}: audit date is not a valid YYYY-MM-DD")
 
@@ -780,6 +795,111 @@ def check_audit_digests(
     return failures
 
 
+def scan_corpus_sizes(src: Path) -> dict[tuple[str, str], int]:
+    """Walk one-level-deep PDF names and sizes without opening file contents."""
+    return {
+        (society_dir.name, pdf.name): pdf.stat().st_size
+        for society_dir in sorted(path for path in src.iterdir() if path.is_dir())
+        for pdf in sorted(society_dir.glob("*.pdf"))
+    }
+
+
+def check_audit_sizes(
+    documents: list[AuditDocument],
+    sizes: dict[tuple[str, str], int],
+    *,
+    report_membership: bool = True,
+) -> list[str]:
+    """Report arrivals, removals, and size drift against the audit ledger."""
+    failures: list[str] = []
+    audited = {(document.society, document.filename): document for document in documents}
+    for key, document in audited.items():
+        if key not in sizes:
+            if report_membership:
+                failures.append(
+                    f"{document.filename}: in the audit ledger, missing from the corpus"
+                )
+            continue
+        if document.bytes.isdigit() and sizes[key] != int(document.bytes):
+            failures.append(
+                f"{document.filename}: byte size {sizes[key]} disagrees with "
+                f"audited {document.bytes}"
+            )
+        elif not document.bytes.isdigit():
+            failures.append(
+                f"{document.filename}: audit-ledger byte count is not a nonnegative integer"
+            )
+    if report_membership:
+        for _, filename in sorted(set(sizes) - set(audited)):
+            failures.append(f"{filename}: in the corpus, missing from the audit ledger")
+    return failures
+
+
+def _print_size_check_limits() -> None:
+    print(
+        f"  {CORPUS_SIZE_CHECK_LIMITS['report-not-verification']}",
+        file=sys.stderr,
+    )
+    print(
+        f"  {CORPUS_SIZE_CHECK_LIMITS['same-name-same-size-rewrite']}; "
+        "python tools/guidelines_catalog.py catches one",
+        file=sys.stderr,
+    )
+
+
+def check_corpus_size_command(
+    rows: list[Row], documents: list[AuditDocument], pdf_src: Path
+) -> int:
+    """Run ADR 0031's advisory, filename-and-size-only corpus check."""
+    if not pdf_src.is_dir():
+        societies = Counter(row.society for row in rows)
+        split = ", ".join(
+            f"{society} {count}" for society, count in societies.most_common()
+        )
+        print(
+            f"guideline corpus: NOT CHECKED -- nothing at {pdf_src.as_posix()}",
+            file=sys.stderr,
+        )
+        print(
+            textwrap.fill(
+                f"the tree expects {len(rows)} documents: {split}",
+                width=78,
+                initial_indent="  ",
+                subsequent_indent="  ",
+            ),
+            file=sys.stderr,
+        )
+        print(
+            "  download them from those societies; reference/guidelines-catalog.md",
+            file=sys.stderr,
+        )
+        print(
+            "  lists each document's stated citation where available, and",
+            file=sys.stderr,
+        )
+        print(
+            "  reference/guidelines-catalog-audit.md lists every filename with a",
+            file=sys.stderr,
+        )
+        print("  SHA-256 to check each download against", file=sys.stderr)
+        _print_size_check_limits()
+        return 2
+
+    try:
+        sizes = scan_corpus_sizes(pdf_src)
+    except OSError as error:
+        print(f"guideline corpus: NOT CHECKED -- {error}", file=sys.stderr)
+        return 2
+    failures = check_audit_sizes(documents, sizes)
+    if not failures:
+        return 0
+    print("guideline corpus: filename-and-size drift", file=sys.stderr)
+    for failure in failures:
+        print(f"  {failure}", file=sys.stderr)
+    _print_size_check_limits()
+    return 1
+
+
 # --------------------------------------------------------------------------
 # Drafting
 # --------------------------------------------------------------------------
@@ -815,6 +935,7 @@ def scan_audit_documents(src: Path) -> list[AuditDocument]:
         for pdf in sorted(society_dir.glob("*.pdf")):
             digest = hashlib.sha256()
             with pdf.open("rb") as stream:
+                byte_count = os.fstat(stream.fileno()).st_size
                 for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                     digest.update(chunk)
             documents.append(
@@ -822,6 +943,7 @@ def scan_audit_documents(src: Path) -> list[AuditDocument]:
                     society=society_dir.name,
                     filename=pdf.name,
                     sha256=digest.hexdigest(),
+                    bytes=str(byte_count),
                     audited=UNSETTLED,
                 )
             )
@@ -831,7 +953,7 @@ def scan_audit_documents(src: Path) -> list[AuditDocument]:
 def render_audit_draft(docs: list[AuditDocument]) -> str:
     """Emit a blind worksheet containing identity and no judgment values."""
     document_rows = [
-        [d.society, d.filename, d.sha256, d.audited]
+        [d.society, d.filename, d.sha256, d.bytes, d.audited]
         for d in docs
     ]
     reading_rows = [
@@ -885,6 +1007,11 @@ def main(argv: list[str] | None = None) -> int:
         "--audit-draft",
         metavar="SRC",
         help="emit a blind independent-audit worksheet from corpus file identity",
+    )
+    parser.add_argument(
+        "--check-corpus-size",
+        action="store_true",
+        help="advisory filename-and-size comparison of the PDF corpus to the audit ledger",
     )
     parser.add_argument(
         "--src",
@@ -943,11 +1070,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     text = catalog_path.read_text(encoding="utf-8")
     rows, unsettled_index, problems = parse_catalog(text)
-    problems = problems + check_legend(text)
-    accepted_distrust, distrust_problems = (
-        artifact_provenance.parse_accepted_distrust(text)
-    )
-    problems = problems + list(distrust_problems)
 
     audit_path = Path(args.audit)
     if not audit_path.exists():
@@ -956,6 +1078,19 @@ def main(argv: list[str] | None = None) -> int:
     audit_text = audit_path.read_text(encoding="utf-8")
     audit_documents, readings, rulings, audit_problems = parse_audit(audit_text)
     problems = problems + audit_problems
+
+    if args.check_corpus_size:
+        if problems:
+            for problem in problems:
+                print(f"guideline corpus: NOT CHECKED -- {problem}", file=sys.stderr)
+            return 2
+        return check_corpus_size_command(rows, audit_documents, Path(args.pdf_src))
+
+    problems = problems + check_legend(text)
+    accepted_distrust, distrust_problems = (
+        artifact_provenance.parse_accepted_distrust(text)
+    )
+    problems = problems + list(distrust_problems)
     audit_failures = check_audit(rows, audit_documents, readings, rulings)
 
     text_src = Path(args.src)
@@ -1001,7 +1136,14 @@ def main(argv: list[str] | None = None) -> int:
             (document.society, document.filename): document.sha256
             for document in corpus_audits
         }
+        sizes = {
+            (document.society, document.filename): int(document.bytes)
+            for document in corpus_audits
+        }
         digest_failures = check_audit_digests(audit_documents, digests)
+        digest_failures += check_audit_sizes(
+            audit_documents, sizes, report_membership=False
+        )
         digest_status = f"verified {len(audit_documents)} document digest(s)"
     else:
         digest_failures = []

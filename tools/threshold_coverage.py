@@ -31,10 +31,10 @@ class Entry:
     line: int
 
 
-def catalog_topics(path: Path) -> tuple[list[str], list[str]]:
+def catalog_topics(path: Path) -> tuple[list[str], int, list[str]]:
     rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
     topics = sorted({" ".join(row.topic.split()) for row in rows}, key=str.casefold)
-    return topics, problems
+    return topics, len(rows), problems
 
 
 def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
@@ -191,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        topics, problems = catalog_topics(args.catalog)
+        topics, catalog_rows, problems = catalog_topics(args.catalog)
     except OSError as error:
         print(error, file=sys.stderr)
         return 2
@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         for failure in failures:
             print(f"REFUSING: {failure}", file=sys.stderr)
         return 1
-    print(f"topics     {len(topics)}")
+    print(f"topics     {len(topics)} from {catalog_rows} catalog rows")
     for state in STATES:
         print(f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}")
     return 0

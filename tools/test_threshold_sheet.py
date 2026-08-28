@@ -2353,7 +2353,12 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             )
             marker = root / "threshold-ran"
             coverage_marker = root / "coverage-ran"
-            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+            for name in (
+                "skills_mirror.py",
+                "spelling_scan.py",
+                "guidelines_catalog.py",
+                "phi_scan.py",
+            ):
                 (root / "tools" / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
             (root / "tools" / "threshold_sheet.py").write_text(
                 "import os, pathlib\n"
