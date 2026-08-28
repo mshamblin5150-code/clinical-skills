@@ -467,18 +467,18 @@ class ACompletePostPasses(unittest.TestCase):
 
     def test_the_bound_does_not_hide_a_key_shortened_by_author_normalization(self):
         reference = (
-            "Rights, A very long regulation name title, "
+            "Rights, A. Very long regulation name title, "
             "42 C.F.R. § 482.13 (2024)."
         )
         keys = frozenset(artifact.reference_keys(reference))
 
         citations = artifact.read_citations(
-            "Rights, A very long regulation name title (2024) governs care.",
+            "Rights, A. Very long regulation name title (2024) governs care.",
             keys,
         )
 
         self.assertEqual(1, len(citations))
-        self.assertEqual("Rights, A very long regulation name title", citations[0].author)
+        self.assertEqual("Rights, A. Very long regulation name title", citations[0].author)
 
     def test_text_beyond_the_longest_key_bound_does_not_change_the_walk(self):
         class CountedKeys(frozenset):
@@ -493,7 +493,9 @@ class ACompletePostPasses(unittest.TestCase):
         short_checks = keys.checks
         keys.checks = 0
         long = artifact.read_citations(
-            ("unrelated " * 1_000) + "Patient rights (2024) governs care.",
+            "Earlier, "
+            + ("unrelated " * 1_000)
+            + "Patient rights (2024) governs care.",
             keys,
         )
 
