@@ -91,11 +91,11 @@ PAIRS = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 OBSERVATION_CANDIDATE = re.compile(
-    r"^(?P<number>\d+)[.)][ \t]+(?P<rest>[^\n]*)$",
+    r"^(?P<number>\d+)[.)](?P<rest>[^\n]*)$",
     re.MULTILINE,
 )
 OBSERVATION_SHAPE = re.compile(
-    r"^\*\*(?P<title>.+?)\*\*(?P<body>.*)$",
+    r"^[ \t]+\*\*(?P<title>.+?)\*\*(?P<body>.*)$",
     re.DOTALL,
 )
 PAIR = re.compile(

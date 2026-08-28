@@ -100,6 +100,22 @@ class ShapeFindingsRefuse(unittest.TestCase):
         self.assertIn("unread observation rows: 1", stdout)
         self.assertIn("not completely scanned", stderr)
 
+    def test_a_zero_space_observation_near_miss_stays_in_the_denominator(self):
+        changed = self.source.replace(
+            "2. **The claim closes the paragraph.**\n"
+            '   > "The constraint is not an inconvenience. It is the shape of the answer."\n',
+            "2.**The claim closes the paragraph.**\n",
+            1,
+        )
+
+        status, stdout, stderr = self.grade(changed)
+
+        self.assertEqual(1, status)
+        self.assertIn("observation rows: 4", stdout)
+        self.assertIn("observations: 3", stdout)
+        self.assertIn("unread observation rows: 1", stdout)
+        self.assertIn("not completely scanned", stderr)
+
     def test_a_register_without_two_complete_pairs_is_a_finding(self):
         changed = self.source.replace(
             '- *His*: "The first mark gives the second one something honest to beat."',
