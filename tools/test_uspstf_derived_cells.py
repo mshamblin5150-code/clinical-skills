@@ -41,10 +41,12 @@ INTERVAL_PHRASE = re.compile(
     re.I,
 )
 SUB_YEARLY_PERIOD = re.compile(
-    r"\b(?:every \d+(?: to \d+)? (?:months?|weeks?|days?)"
-    r"|every other day"
-    r"|(?:once|twice|\d+ times?) (?:daily|weekly|monthly)"
-    r"|daily|weekly|monthly)\b",
+    r"\b(?:every \d+(?: to \d+)? (?:hours?|days?|weeks?|months?)"
+    r"|every other (?:hour|day|week|month)"
+    r"|(?:once|twice|(?:three|four|five|six|seven|eight|nine|ten|\d+) times?) "
+    r"(?:(?:hourly|daily|weekly|monthly)|(?:a|per) (?:hour|day|week|month))"
+    r"|hourly|daily|weekly|fortnightly|monthly|quarterly"
+    r"|biweekly|bimonthly|semiannual(?:ly)?|biannual(?:ly)?)\b",
     re.I,
 )
 
@@ -109,7 +111,8 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
     def test_the_sub_yearly_tripwire_is_independent_of_the_interval_vocabulary(self) -> None:
         statement = (
             "every 2 weeks; every 3 months; weekly; monthly; twice daily; "
-            "twice weekly; every other day"
+            "twice weekly; every other day; every 12 hours; hourly; "
+            "three times a week; once per month"
         )
         self.assertEqual(
             [match.group(0) for match in SUB_YEARLY_PERIOD.finditer(statement)],
@@ -121,6 +124,10 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
                 "twice daily",
                 "twice weekly",
                 "every other day",
+                "every 12 hours",
+                "hourly",
+                "three times a week",
+                "once per month",
             ],
         )
 
