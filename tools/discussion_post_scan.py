@@ -32,14 +32,19 @@ from discussion_artifact import (
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
     NUMBER,
+    INVOKED,
+    InvokedSource,
     RESTATEMENT,
     WORD,
     citation_occurrence_keys,
+    invoked_source_has_substance,
     read_citations,
+    read_invoked_sources,
     read_reference_section,
     reference_key,
     reference_keys,
     split_references,
+    strip_discussion_markers,
 )
 import run_grader
 import coursework_run
@@ -135,7 +140,9 @@ class Scan:
     reference_minimum: int
     numeric_claims: int | None
     citations: int | None
-    amplifications: int | None
+    invoked_sources: tuple[InvokedSource, ...] | None
+    unfilled_invoked_properties: int | None
+    pre_496_markers: int | None
     docx_graded: bool
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
@@ -175,7 +182,7 @@ def _read_bar(text: str) -> Bar:
 
 
 def _countable_body(body: str) -> str:
-    return MARKDOWN_HEADING.sub("", AMPLIFICATION.sub("", body))
+    return MARKDOWN_HEADING.sub("", strip_discussion_markers(body))
 
 
 def _numeric_values(body: str) -> tuple[str, ...]:
@@ -185,7 +192,7 @@ def _numeric_values(body: str) -> tuple[str, ...]:
         cleaned = cleaned[: citation.start] + cleaned[citation.end :]
     cleaned = PAGE_LOCATOR.sub("", cleaned)
     cleaned = STATUTE.sub("", cleaned)
-    return tuple(NUMBER.findall(AMPLIFICATION.sub("", cleaned)))
+    return tuple(NUMBER.findall(strip_discussion_markers(cleaned)))
 
 
 def _claim_blocks(claims: str) -> tuple[str, ...]:
@@ -340,7 +347,9 @@ def survey(source: RunSource) -> Scan:
             reference_minimum=source.bar.reference_minimum,
             numeric_claims=None,
             citations=None,
-            amplifications=None,
+            invoked_sources=None,
+            unfilled_invoked_properties=None,
+            pre_496_markers=None,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
             findings=findings,
@@ -417,7 +426,12 @@ def survey(source: RunSource) -> Scan:
         reference_minimum=source.bar.reference_minimum,
         numeric_claims=len(numbers),
         citations=len(citations),
-        amplifications=len(AMPLIFICATION.findall(source.body)),
+        invoked_sources=read_invoked_sources(source.body),
+        unfilled_invoked_properties=sum(
+            not invoked_source_has_substance(invoked_source)
+            for invoked_source in read_invoked_sources(source.body)
+        ),
+        pre_496_markers=len(AMPLIFICATION.findall(source.body)),
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         findings=tuple(findings),
@@ -452,9 +466,20 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
         f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
         (
-            f"amplifications: {scan.amplifications} (counted, never graded)"
+            f"invoked sources: {len(scan.invoked_sources or ())}"
             if scan.reference_boundary_graded
-            else "amplifications: not graded"
+            else "invoked sources: not graded"
+        ),
+        (
+            "unfilled invoked properties: "
+            f"{scan.unfilled_invoked_properties} (counted, not graded)"
+            if scan.reference_boundary_graded
+            else "unfilled invoked properties: not graded"
+        ),
+        (
+            f"pre-#496 markers: {scan.pre_496_markers} (counted, not graded)"
+            if scan.reference_boundary_graded
+            else "pre-#496 markers: not graded"
         ),
         f"findings: {len(scan.findings)}",
     ]
@@ -468,6 +493,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
                 f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}"
             )
     if show:
+        lines.extend(
+            f"invoked source: {invoked_source.domain} | {invoked_source.property}"
+            for invoked_source in scan.invoked_sources or ()
+        )
         lines.extend(
             f"{finding.kind}: {finding.artifact}: {finding.detail}"
             for finding in scan.findings

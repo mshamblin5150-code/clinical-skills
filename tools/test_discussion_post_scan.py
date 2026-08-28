@@ -359,6 +359,7 @@ class ACompletePostPasses(unittest.TestCase):
             "WORD",
             "NUMBER",
             "AMPLIFICATION",
+            "INVOKED",
             "CLAIM_BLOCK",
             "RESTATEMENT",
             "read_citations",
@@ -760,7 +761,76 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
 
 
 class CountedPreferencesNeverBecomeFindings(unittest.TestCase):
-    def test_the_word_ceiling_and_amplification_are_reported_without_failing(self):
+    def test_an_invoked_source_with_a_substantive_property_is_counted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace(
+                    "# Access Is More Than Availability",
+                    "# Access Is More Than Availability\n\n"
+                    "<!-- INVOKED: black hole | it pulls everything near it in -->",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("invoked sources: 1", stdout)
+        self.assertIn("unfilled invoked properties: 0 (counted, not graded)", stdout)
+
+    def test_a_named_principle_with_a_predicate_is_substantive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace(
+                    "# Access Is More Than Availability",
+                    "# Access Is More Than Availability\n\n"
+                    "<!-- INVOKED: Marcus Aurelius | the obstacle becomes the way -->",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("unfilled invoked properties: 0 (counted, not graded)", stdout)
+
+    def test_incomplete_and_self_restating_markers_are_counted_without_failing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace(
+                    "# Access Is More Than Availability",
+                    "# Access Is More Than Availability\n\n"
+                    "<!-- INVOKED: black hole | -->\n"
+                    "<!-- INVOKED: hole | hole -->\n"
+                    "<!-- INVOKED: | it pulls everything in -->\n"
+                    "<!-- INVOKED: hole -->",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("invoked sources: 4", stdout)
+        self.assertIn("unfilled invoked properties: 4 (counted, not graded)", stdout)
+
+    def test_show_retains_each_invoked_source_domain_and_property(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace(
+                    "# Access Is More Than Availability",
+                    "# Access Is More Than Availability\n\n"
+                    "<!-- INVOKED: black hole | nothing escapes -->",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(0, status)
+        self.assertIn("invoked source: black hole | nothing escapes", stdout)
+
+    def test_the_word_ceiling_and_pre_496_marker_are_reported_without_failing(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             run.draft.write_text(
@@ -777,7 +847,8 @@ class CountedPreferencesNeverBecomeFindings(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("word ceiling exceeded: yes (counted, never graded)", stdout)
-        self.assertIn("amplifications: 1 (counted, never graded)", stdout)
+        self.assertIn("pre-#496 markers: 1 (counted, not graded)", stdout)
+        self.assertNotIn("amplifications:", stdout)
 
 
 class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
