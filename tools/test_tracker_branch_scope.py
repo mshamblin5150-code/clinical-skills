@@ -191,6 +191,23 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
 
         self.assertEqual(result.status, 0)
 
+    def test_blob_and_raw_directory_urls_do_not_resolve(self):
+        urls = (
+            "https://github.com/example/repo/blob/main/docs/adr",
+            "https://github.com/example/repo/raw/main/docs/adr",
+            "https://raw.githubusercontent.com/example/repo/main/docs/adr",
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                result = scope.grade(
+                    comment_event(url, labels=("bug",)),
+                    "issue_comment",
+                )
+
+                self.assertEqual(result.status, 1)
+                self.assertIn("unresolved path", result.report)
+
     def test_the_path_specific_qualifier_names_the_unresolved_path(self):
         wrong_marker = (
             "> **Cited record state:** `docs/adr/9998-somewhere-else.md` is not "

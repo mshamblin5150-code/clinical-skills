@@ -38,7 +38,7 @@ CITED_RECORD_SCOPE = re.compile(
     r"as[ \t]+of[ \t]+`[0-9]{4}-[0-9]{2}-[0-9]{2}`\.[ \t]*\r?\n"
 )
 GITHUB_MAIN_PATH = re.compile(
-    r"https://github\.com/[^\s/]+/[^\s/]+/(?:blob|tree|raw)/main/"
+    r"https://github\.com/[^\s/]+/[^\s/]+/(?P<kind>blob|tree|raw)/main/"
     r"(?P<path>[^\s)>'\"`?#]+)(?:[?#][^\s)>'\"`]*)?"
 )
 RAW_GITHUB_MAIN_PATH = re.compile(
@@ -110,15 +110,25 @@ class Result(NamedTuple):
     report: str
 
 
+class CitedPath(NamedTuple):
+    kind: str
+    path: str
+
+
 def _citation_prose(body: str) -> str:
     return CODE_SPAN.sub(" ", FENCED_CODE.sub(" ", body))
 
 
-def _cited_main_paths(body: str) -> tuple[str, ...]:
+def _cited_main_paths(body: str) -> tuple[CitedPath, ...]:
     prose = _citation_prose(body)
-    paths = []
-    for pattern in (GITHUB_MAIN_PATH, RAW_GITHUB_MAIN_PATH):
-        paths.extend(match.group("path").rstrip(".,;:!") for match in pattern.finditer(prose))
+    paths = [
+        CitedPath(match.group("kind"), match.group("path").rstrip(".,;:!"))
+        for match in GITHUB_MAIN_PATH.finditer(prose)
+    ]
+    paths.extend(
+        CitedPath("raw", match.group("path").rstrip(".,;:!"))
+        for match in RAW_GITHUB_MAIN_PATH.finditer(prose)
+    )
     return tuple(paths)
 
 
@@ -135,21 +145,24 @@ def _default_branch_paths() -> frozenset[str]:
         cwd=Path(__file__).resolve().parent.parent,
         encoding="utf-8",
     )
-    files = completed.stdout.splitlines()
-    paths = set(files)
-    for entry in files:
-        paths.update(
-            parent.as_posix()
-            for parent in PurePosixPath(entry).parents
-            if parent.as_posix() != "."
-        )
-    return frozenset(paths)
+    return frozenset(completed.stdout.splitlines())
 
 
 def _unresolved_main_paths(
-    cited: tuple[str, ...], tracked: frozenset[str]
+    cited: tuple[CitedPath, ...], tracked: frozenset[str]
 ) -> tuple[str, ...]:
-    return tuple(path for path in cited if path not in tracked)
+    directories = {
+        parent.as_posix()
+        for entry in tracked
+        for parent in PurePosixPath(entry).parents
+        if parent.as_posix() != "."
+    }
+    return tuple(
+        citation.path
+        for citation in cited
+        if citation.path not in tracked
+        and not (citation.kind == "tree" and citation.path in directories)
+    )
 
 
 def cites_an_unresolved_path(body: str) -> bool:
@@ -157,7 +170,7 @@ def cites_an_unresolved_path(body: str) -> bool:
     if not cited:
         return False
     tracked = _default_branch_paths()
-    return any(path not in tracked for path in cited)
+    return bool(_unresolved_main_paths(cited, tracked))
 
 
 def _has_near_miss(path: str, tracked: frozenset[str]) -> bool:
