@@ -456,4 +456,3 @@ def _reverse_word_starts(value: str) -> Iterator[int]:
 
 def _author_word_character(character: str) -> bool:
     return character.isalnum() or character == "_" or character in "'’&.-"
-
