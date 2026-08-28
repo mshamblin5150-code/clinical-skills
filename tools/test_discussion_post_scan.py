@@ -499,19 +499,28 @@ class ACompletePostPasses(unittest.TestCase):
                 (artifact.author_key("Rights"), "2024"),
             }
         )
-        short = artifact.read_citations("Patient rights (2024) governs care.", keys)
-        short_checks = keys.checks
-        keys.checks = 0
-        long = artifact.read_citations(
-            "Rights, A. "
-            + ("unrelated " * 1_000)
-            + "Patient rights (2024) governs care.",
-            keys,
-        )
+        with mock.patch.object(
+            artifact, "author_key", wraps=artifact.author_key
+        ) as normalizer:
+            short = artifact.read_citations(
+                "Patient rights (2024) governs care.", keys
+            )
+            short_normalizations = normalizer.call_count
+            short_checks = keys.checks
+            normalizer.reset_mock()
+            keys.checks = 0
+            long = artifact.read_citations(
+                "Rights, A. "
+                + ("unrelated " * 1_000)
+                + "Patient rights (2024) governs care.",
+                keys,
+            )
+            long_normalizations = normalizer.call_count
 
         self.assertEqual(short[0].author, long[0].author)
         self.assertEqual(short[0].year, long[0].year)
         self.assertEqual(short_checks, keys.checks)
+        self.assertEqual(short_normalizations + 1, long_normalizations)
 
     def test_a_yearless_section_only_record_is_a_post_finding(self):
         claims = CLAIMS.replace(
