@@ -779,6 +779,37 @@ class DeclaredLimitsAndCensus(unittest.TestCase):
             )
         self.assertEqual((raw_count, repaired_count, changed), (2, 2, 1))
 
+    def test_reader_comparison_counts_an_inserted_duplicate_once(self):
+        def marker(text: str) -> recs.Recommendation:
+            return recs.Recommendation(
+                rec_id="p1/recommendation/3.3",
+                doc_id="idsa",
+                page=1,
+                table="recommendation",
+                number=1,
+                cor=None,
+                loe=None,
+                text=text,
+                mode=recs.MODE_BOUND,
+            )
+
+        raw = [marker("first quotation"), marker("last quotation")]
+        for repaired in (
+            [marker("inserted quotation"), *raw],
+            [raw[0], marker("inserted quotation"), raw[1]],
+        ):
+            with self.subTest(repaired=[record.text for record in repaired]):
+                with mock.patch.object(
+                    recs,
+                    "extract",
+                    side_effect=[
+                        (repaired, recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER),
+                        (raw, recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER),
+                    ],
+                ):
+                    counts = recs.compare_marker_readers(Path("idsa.pdf"), "idsa")
+                self.assertEqual(counts, (2, 3, 1))
+
     def test_the_corpus_comparison_command_derives_the_changed_document_count(self):
         welded = "Recommendation3.3Yearly influenza vaccination is recommended."
         raw = _rawline(welded, gap_after={13: 4.0, 16: 4.0})

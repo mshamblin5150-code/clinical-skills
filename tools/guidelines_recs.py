@@ -142,9 +142,9 @@ import json
 import re
 import sys
 import unicodedata
+from collections import Counter
 from dataclasses import asdict, dataclass
 from enum import Enum
-from itertools import zip_longest
 from pathlib import Path
 
 import guidelines_extract
@@ -776,16 +776,13 @@ def compare_marker_readers(path: Path, doc_id: str) -> tuple[int, int, int]:
     for record in repaired:
         repaired_by_id.setdefault(record.rec_id, []).append(record.text)
     keys = set(raw_by_id) | set(repaired_by_id)
-    missing = object()
-    changed = sum(
-        raw_text != repaired_text
-        for key in keys
-        for raw_text, repaired_text in zip_longest(
-            raw_by_id.get(key, []),
-            repaired_by_id.get(key, []),
-            fillvalue=missing,
-        )
-    )
+    changed = 0
+    for key in keys:
+        raw_texts = Counter(raw_by_id.get(key, []))
+        repaired_texts = Counter(repaired_by_id.get(key, []))
+        unmatched_raw = sum((raw_texts - repaired_texts).values())
+        unmatched_repaired = sum((repaired_texts - raw_texts).values())
+        changed += max(unmatched_raw, unmatched_repaired)
     return len(raw), len(repaired), changed
 
 
