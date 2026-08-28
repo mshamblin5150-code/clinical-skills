@@ -709,7 +709,83 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(rows[0].topic, "Screening for Breast Cancer")
 
 
+class ThresholdSheetJoinTests(unittest.TestCase):
+    def test_catalog_filename_joins_to_the_coverage_artifact_through_catalog_topic(self):
+        catalog = """| society | filename | title | topic | population | year | page_count | class |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| USPSTF | cervical.pdf | Cervical title | cervical cancer screening | adult | 2018 | 13 | recommendation-statement |
+| USPSTF | breast.pdf | Breast title | breast cancer screening | adult | 2024 | 12 | recommendation-statement |
+"""
+        coverage = """# Threshold-sheet coverage
+
+<!-- schema: threshold-coverage/2 -->
+
+| topic | state | artifact | record |
+| --- | --- | --- | --- |
+| breast cancer screening | unread |  | full-document read pending |
+| cervical cancer screening | unread | cervical-cancer.md | partial artifact |
+"""
+
+        self.assertEqual(
+            ut.threshold_sheets_by_filename(catalog, coverage),
+            {"cervical.pdf": "cervical-cancer.md"},
+        )
+
+
 class RenderingTests(unittest.TestCase):
+    def test_threshold_sheet_column_joins_on_filename_and_leaves_no_match_empty(self):
+        with_sheet = ut.DocumentResult(
+            "cervical-cancer-final-rec-statement.pdf",
+            rows=[
+                ut.Row(
+                    "Screening for Cervical Cancer",
+                    "women aged 21 to 29 years",
+                    "A",
+                    "every 3 years",
+                    "2018",
+                    "cervical-cancer-final-rec-statement.pdf",
+                    1,
+                )
+            ],
+        )
+        without_sheet = ut.DocumentResult(
+            "breast-cancer-screening-final-recommendation.pdf",
+            rows=[
+                ut.Row(
+                    "Screening for Breast Cancer",
+                    "women aged 40 to 74 years",
+                    "B",
+                    "biennial",
+                    "2024",
+                    "breast-cancer-screening-final-recommendation.pdf",
+                    1,
+                )
+            ],
+        )
+
+        markdown = ut.render_markdown(
+            [with_sheet, without_sheet],
+            threshold_sheets={
+                "cervical-cancer-final-rec-statement.pdf": "cervical-cancer.md"
+            },
+        )
+
+        self.assertIn("| Threshold sheet | File | Page |", markdown)
+        self.assertIn(
+            "| [cervical-cancer.md](thresholds/cervical-cancer.md) | "
+            "`cervical-cancer-final-rec-statement.pdf` | 1 |",
+            markdown,
+        )
+        self.assertIn(
+            "|  | `breast-cancer-screening-final-recommendation.pdf` | 1 |",
+            markdown,
+        )
+        self.assertIn(
+            "`Threshold sheet` points to a sheet about the same source document; "
+            "it does not claim that the two artifacts agree.",
+            markdown,
+        )
+
     def test_the_header_explains_the_interval_rules_reach_and_alternatives(self):
         markdown = ut.render_markdown(
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
@@ -760,7 +836,7 @@ class RenderingTests(unittest.TestCase):
         markdown = ut.render_markdown([old, new])
         self.assertNotIn("**None.** The check ran", markdown)
         self.assertIn("1 row comes from a file", markdown)
-        self.assertIn("| new.pdf | `old.pdf` | 1 |", markdown)
+        self.assertIn("| new.pdf |  | `old.pdf` | 1 |", markdown)
 
     def test_the_table_carries_a_row_per_recommendation(self):
         results = [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]

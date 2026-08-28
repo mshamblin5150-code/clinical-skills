@@ -47,12 +47,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import artifact_provenance
+import guidelines_catalog
+import threshold_coverage
 from console_codec import use_utf8
 from guidelines_manifest import read_or_raise
 from repo_root import InsideCheckout
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
+DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
+DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 
 # The five USPSTF grades. Nothing else is a grade, and a sixth letter is a parse bug
 # rather than a new category, so it raises instead of reaching the table.
@@ -768,6 +772,27 @@ def mark_superseded(rows: list[Row]) -> tuple[list[Row], list[str]]:
 # --------------------------------------------------------------------------------------
 
 
+def threshold_sheets_by_filename(catalog: str, coverage: str) -> dict[str, str]:
+    """USPSTF source filename to threshold artifact, joined through catalog topic."""
+    catalog_rows, _, catalog_problems = guidelines_catalog.parse_catalog(catalog)
+    coverage_rows, coverage_problems = threshold_coverage.parse_registry(coverage)
+    problems = catalog_problems + coverage_problems
+    if problems:
+        raise ValueError("; ".join(problems))
+
+    artifacts_by_topic = {
+        entry.topic.casefold(): entry.artifact
+        for entry in coverage_rows
+        if entry.artifact
+    }
+    return {
+        Path(row.filename).name: artifact
+        for row in catalog_rows
+        if row.society == "USPSTF"
+        and (artifact := artifacts_by_topic.get(row.topic.casefold()))
+    }
+
+
 def escape_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").strip()
 
@@ -780,7 +805,10 @@ def plural(count: int, noun: str) -> str:
     return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
-def render_markdown(results: list[DocumentResult]) -> str:
+def render_markdown(
+    results: list[DocumentResult], *, threshold_sheets: dict[str, str] | None = None
+) -> str:
+    threshold_sheets = threshold_sheets or {}
     rows, unresolved = mark_superseded([row for r in results for row in r.rows])
     rows.sort(key=lambda r: (r.topic.lower(), GRADES.index(r.grade), r.population.lower()))
     skipped = [r for r in results if not r.rows]
@@ -818,6 +846,13 @@ def render_markdown(results: list[DocumentResult]) -> str:
         "**USPSTF recommendation statements are federal work and public domain**, which is "
         "why this half of the corpus ships as a table of its own content while the society "
         "documents do not. The source PDFs stay outside this repo and are not redistributed."
+    )
+    out.append("")
+    out.append(
+        "`Threshold sheet` points to a sheet about the same source document; it does not "
+        "claim that the two artifacts agree. The pointer is derived from `filename` through "
+        "the guideline catalog and threshold coverage registry, never from either artifact's "
+        "topic wording."
     )
     out.append("")
     out.append("## Grades")
@@ -867,9 +902,13 @@ def render_markdown(results: list[DocumentResult]) -> str:
         out.append("")
     out.append("## Recommendations")
     out.append("")
-    out.append("| Topic | Population | Grade | Interval | Year | Superseded by | File | Page |")
-    out.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    out.append(
+        "| Topic | Population | Grade | Interval | Year | Superseded by | "
+        "Threshold sheet | File | Page |"
+    )
+    out.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for row in rows:
+        sheet = threshold_sheets.get(row.filename, "")
         out.append(
             render_row(
                 row.topic,
@@ -878,6 +917,7 @@ def render_markdown(results: list[DocumentResult]) -> str:
                 row.interval,
                 row.year,
                 row.superseded_by,
+                f"[{sheet}](thresholds/{sheet})" if sheet else "",
                 f"`{row.filename}`",
                 str(row.page),
             )
@@ -951,6 +991,8 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_OUT,
         help=f"Markdown table to write (default: {DEFAULT_OUT.relative_to(REPO_ROOT)})",
     )
+    parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
+    parser.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE)
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
@@ -975,17 +1017,25 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
+        threshold_sheets = threshold_sheets_by_filename(
+            args.catalog.read_text(encoding="utf-8"),
+            args.coverage.read_text(encoding="utf-8"),
+        )
         results = build(
             args.source,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
-    except ValueError as unusable:
+    except (OSError, ValueError) as unusable:
         print(str(unusable), file=sys.stderr)
         return 2
     if not results:
         parser.error(f"no USPSTF documents found in {args.source}")
 
-    args.out.write_text(render_markdown(results), encoding="utf-8", newline="\n")
+    args.out.write_text(
+        render_markdown(results, threshold_sheets=threshold_sheets),
+        encoding="utf-8",
+        newline="\n",
+    )
 
     rows = sum(len(r.rows) for r in results)
     skipped = [r for r in results if not r.rows]

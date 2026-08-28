@@ -262,11 +262,11 @@ CURATED = """# USPSTF recommendation statements
 
 ## Recommendations
 
-| Topic | Population | Grade | Interval | Year | Superseded by | File | Page |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Skin Cancer | fair-skinned young adults | B | not stated | 2018 |  | `skin.pdf` | 1 |
-| Skin Cancer | adults older than 24 | C | not stated | 2018 |  | `skin.pdf` | 1 |
-| Thyroid Dysfunction | nonpregnant adults | I | not stated | 2015 |  | `thyroid.pdf` | 2 |
+| Topic | Population | Grade | Interval | Year | Superseded by | Threshold sheet | File | Page |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Skin Cancer | fair-skinned young adults | B | not stated | 2018 |  |  | `skin.pdf` | 1 |
+| Skin Cancer | adults older than 24 | C | not stated | 2018 |  |  | `skin.pdf` | 1 |
+| Thyroid Dysfunction | nonpregnant adults | I | not stated | 2015 |  |  | `thyroid.pdf` | 2 |
 
 ## Statements
 
