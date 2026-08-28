@@ -147,7 +147,9 @@ def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
 
 
 def conflicting_rows(second_value: str = "<120 mm Hg") -> str:
-    return row(value="<130 mm Hg") + row(value=second_value, rec="p50/goal/1")
+    return row(value="<130 mm Hg") + row(
+        value=second_value, page="p50", rec="p50/goal/1"
+    )
 
 
 # A two-source sheet, which is what #177 is about: until that ticket the grader took
@@ -287,6 +289,18 @@ class SchemaGate(unittest.TestCase):
                 for message in gate.gate_schema(parsed).findings
             )
         )
+
+    def test_a_source_locator_must_have_page_kind_and_identifier_segments(self):
+        findings = gate.gate_schema(sheet(row(rec="recommendation-1"))).findings
+
+        self.assertTrue(any("source locator" in finding for finding in findings), findings)
+
+    def test_a_source_locator_page_must_match_the_page_column(self):
+        findings = gate.gate_schema(
+            sheet(row(page="p41", rec="p42/recommendation/1"))
+        ).findings
+
+        self.assertTrue(any("page column" in finding for finding in findings), findings)
 
     def test_a_symbol_font_pound_sign_in_a_value_fails(self):
         """A less-or-equal sign that lost its encoding. A sheet holds the fact and
@@ -446,14 +460,20 @@ class ConflictRule(unittest.TestCase):
         """
         rows = (
             row(quantity="bp-goal", population="adults", value="<130 mm Hg")
-            + row(quantity="bp-goal", population="adults-ckd", value="<120 mm Hg", rec="p50/goal/1")
+            + row(
+                quantity="bp-goal",
+                population="adults-ckd",
+                value="<120 mm Hg",
+                page="p50",
+                rec="p50/goal/1",
+            )
         )
         self.assertEqual(gate.gate_schema(sheet(rows)).findings, [])
 
     def test_the_same_value_stated_twice_is_not_a_conflict(self):
         """A guideline restates its own targets in several sections, so a sheet
         legitimately carries the same number from several recommendations."""
-        rows = row(rec="p41/goal/1") + row(rec="p48/goal/1")
+        rows = row(rec="p41/goal/1") + row(page="p48", rec="p48/goal/1")
         self.assertEqual(gate.gate_schema(sheet(rows)).findings, [])
 
 
@@ -810,6 +830,158 @@ class CitationTier0(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
 
+    def test_a_narrative_locator_is_outside_the_recommendation_index(self):
+        result = gate.gate_citation_tier0(
+            sheet(row(rec="p41/narrative/1", klass="narrative")),
+            {"src": self.recs("different recommendation text")},
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+
+    def test_a_narrative_page_transcription_inside_a_same_page_record_refuses(self):
+        recs = {
+            "mode": "exact",
+            "recommendations": [
+                {
+                    "rec_id": "p41/goal/1",
+                    "page": 41,
+                    "text": "an SBP goal of <130 mm Hg is recommended",
+                }
+            ],
+        }
+        result = gate.gate_citation_tier0(
+            sheet(
+                row(
+                    rec="p41/narrative/1",
+                    klass="narrative",
+                    snippet="RENDERED: an SBP goal of <130 mm Hg",
+                )
+            ),
+            {"src": recs},
+            {},
+        )
+
+        self.assertTrue(any("page transcription" in finding for finding in result.findings))
+
+    def test_plain_narrative_text_inside_a_same_page_record_refuses(self):
+        recs = {
+            "mode": "exact",
+            "recommendations": [
+                {
+                    "rec_id": "p41/goal/1",
+                    "page": 41,
+                    "text": "an SBP goal of <130 mm Hg is recommended",
+                }
+            ],
+        }
+        result = gate.gate_citation_tier0(
+            sheet(row(rec="p41/narrative/1", klass="narrative")),
+            {"src": recs},
+            {},
+        )
+
+        self.assertTrue(any("page transcription" in finding for finding in result.findings))
+
+    def test_the_narrative_negative_check_is_page_scoped(self):
+        recs = {
+            "mode": "exact",
+            "recommendations": [
+                {
+                    "rec_id": "p42/goal/1",
+                    "page": 42,
+                    "text": "an SBP goal of <130 mm Hg is recommended",
+                }
+            ],
+        }
+        result = gate.gate_citation_tier0(
+            sheet(row(rec="p41/narrative/1", klass="narrative")),
+            {"src": recs},
+            {},
+        )
+
+        self.assertEqual(result.findings, [])
+
+    def test_a_textless_cited_recommendation_does_not_hide_a_narrative_collision(self):
+        parsed = sheet(
+            row(rec="p41/goal/1", snippet="unavailable recommendation text")
+            + row(
+                rec="p41/narrative/1",
+                klass="narrative",
+                snippet="an SBP goal of <130 mm Hg",
+            )
+        )
+        recs = {
+            "mode": "exact",
+            "recommendations": [
+                {"rec_id": "p41/goal/1", "page": 41, "text": ""},
+                {
+                    "rec_id": "p41/goal/2",
+                    "page": 41,
+                    "text": "an SBP goal of <130 mm Hg is recommended",
+                },
+            ],
+        }
+
+        result = gate.gate_citation_tier0(parsed, {"src": recs}, {})
+
+        self.assertTrue(any("page transcription" in item for item in result.findings))
+        self.assertTrue(result.not_graded)
+
+    def test_an_incomplete_record_population_cannot_clean_pass_the_narrative_check(self):
+        for incomplete_item in (
+            {"rec_id": "p41/goal/1", "text": "different text"},
+            {"rec_id": "p41/goal/1", "page": 41, "text": ""},
+        ):
+            with self.subTest(incomplete_item=incomplete_item):
+                result = gate.gate_citation_tier0(
+                    sheet(row(rec="p41/narrative/1", klass="narrative")),
+                    {"src": {"mode": "exact", "recommendations": [incomplete_item]}},
+                    {},
+                )
+
+                self.assertEqual(result.findings, [])
+                self.assertTrue(result.not_graded)
+                self.assertIn("narrative negative check", result.report[0])
+
+    def test_the_aaa_ever_smoker_definition_needs_no_fabricated_recommendation_id(self):
+        recommendation_rows = "".join(
+            row(
+                value="65 years",
+                snippet=f"screening arm {number} begins at 65 years",
+                page="p1",
+                rec=f"p1/aaa/{number}",
+                klass="B",
+            )
+            for number in range(1, 5)
+        )
+        narrative_row = row(
+            value="100 cigarettes",
+            snippet="ever smoking is commonly defined as 100 cigarettes",
+            page="p3",
+            rec="p3/narrative/1",
+            klass="narrative",
+        )
+        parsed = sheet(recommendation_rows + narrative_row)
+        recs = {
+            "doc_id": "USPSTF/abdominal-aortic-aneurysm-screening",
+            "mode": "exact",
+            "recommendations": [
+                {
+                    "rec_id": f"p1/aaa/{number}",
+                    "page": 1,
+                    "cor": "B",
+                    "text": f"screening arm {number} begins at 65 years",
+                }
+                for number in range(1, 5)
+            ],
+        }
+
+        self.assertEqual(
+            gate.gate_citation_tier0(parsed, {"src": recs}, {}).findings, []
+        )
+        self.assertEqual(gate.gate_coverage(parsed, {"src": recs}).findings, [])
+
 
 class EveryGateReturnsOneNamedShape(unittest.TestCase):
     def test_every_gate_returns_a_gate_result_that_names_its_gate(self):
@@ -1013,6 +1185,68 @@ class CoverageGate(unittest.TestCase):
         result = gate.gate_coverage(sheet(row(rec="p41/goal/1"), mode="bound"), {"src": recs})
         refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
         self.assertEqual(refusals, [])
+
+    def test_a_narrative_locator_requires_the_narrative_class(self):
+        parsed = sheet(
+            row(rec="p41/narrative/1", klass="1"),
+            coverage="".join(
+                f"- `p41/goal/{number}` - no threshold stated\n" for number in (1, 2, 3)
+            ),
+        )
+        result = gate.gate_coverage(parsed, {"src": self.RECS})
+
+        self.assertTrue(any("class 'narrative'" in item for item in result.findings))
+
+    def test_a_recommendation_locator_cannot_use_the_narrative_class(self):
+        recs = {
+            **self.RECS,
+            "recommendations": [{"rec_id": "p41/goal/1", "cor": "1"}],
+        }
+        result = gate.gate_coverage(
+            sheet(row(rec="p41/goal/1", klass="narrative")), {"src": recs}
+        )
+
+        self.assertTrue(any("reserved" in item for item in result.findings))
+
+    def test_a_record_cannot_claim_the_reserved_narrative_kind(self):
+        recs = {
+            **self.RECS,
+            "recommendations": [{"rec_id": "p41/narrative/1", "cor": "narrative"}],
+        }
+        result = gate.gate_coverage(
+            sheet(row(rec="p41/narrative/1", klass="narrative")), {"src": recs}
+        )
+
+        self.assertTrue(any("collision" in item for item in result.findings))
+
+    def test_a_narrative_row_does_not_discharge_exact_recommendation_coverage(self):
+        parsed = sheet(row(rec="p41/narrative/1", klass="narrative"))
+        result = gate.gate_coverage(parsed, {"src": self.RECS})
+
+        self.assertTrue(any("3 of 3" in item for item in result.findings))
+        self.assertFalse(any("does not carry" in item for item in result.findings))
+
+    def test_every_coverage_run_declares_the_narrative_floor(self):
+        result = gate.gate_coverage(sheet(row()), {"src": self.RECS})
+
+        qualifier = "\n".join(result.report)
+        self.assertIn("narrative row", qualifier)
+        self.assertIn("outside the recommendation index", qualifier)
+        self.assertIn("Scope", qualifier)
+
+    def test_the_coverage_qualifier_counts_rendered_narrative_rows(self):
+        result = gate.gate_coverage(
+            sheet(
+                row(
+                    rec="p41/narrative/1",
+                    klass="narrative",
+                    snippet="RENDERED: an SBP goal of <130 mm Hg",
+                )
+            ),
+            {"src": self.RECS},
+        )
+
+        self.assertIn("1 page transcription", "\n".join(result.report))
 
     def test_it_fires_on_one_unread_item_not_only_on_total_absence(self):
         """#153's lesson, from this ticket's own comment: fire on ANY unread item.
@@ -1705,6 +1939,29 @@ class ScopeSpanTable(unittest.TestCase):
         )
         self.assertEqual(self.findings(text), [])
 
+    def test_a_row_cannot_cite_a_page_covered_only_by_a_dated_null_marker(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | read 2026-08-23 |",
+        )
+        findings = self.findings(text + "\n## Thresholds\n\n" + row(
+            page="p55", rec="p55/narrative/1", klass="narrative"
+        ))
+
+        self.assertTrue(any("read: yes" in item for item in findings), findings)
+
+    def test_one_read_yes_span_is_enough_when_spans_overlap(self):
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | no |\n"
+            "| supplemental narrative read | 51-60 | yes |",
+        )
+        rows = row() + row(
+            page="p55", rec="p55/narrative/1", klass="narrative"
+        )
+
+        self.assertEqual(self.findings(text + "\n## Thresholds\n\n" + rows), [])
+
     def test_an_impossible_null_marker_date_is_refused(self):
         text = HEADER.replace(
             "| narrative sections and appendices | 51-60 | no |",
@@ -2382,8 +2639,8 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         + "\n## Thresholds\n\n"
         + "| quantity | population | value | snippet | source | page | rec | class |\n"
         + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        + row(rec="p1/aha/1", source="aha")
-        + row(rec="p9/kdigo/1", source="kdigo")
+        + row(page="p1", rec="p1/aha/1", source="aha")
+        + row(page="p9", rec="p9/kdigo/1", source="kdigo")
     )
 
     def run_grade(self, arguments, recs_root=None):
@@ -3650,6 +3907,21 @@ class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
 
     def test_the_readme_still_says_the_marker_is_what_a_suspect_row_declares(self):
         self.assertIn(gate.RENDERED_MARKER, self.readme())
+
+    def test_the_readme_defines_the_source_locator_contract(self):
+        readme = self.readme()
+
+        self.assertIn("p<digits>/<kind>/<id>", readme)
+        self.assertIn("page prefix", readme)
+        self.assertIn("reserved kind", readme)
+        self.assertIn("class `narrative`", readme)
+
+    def test_the_readme_states_the_strict_narrative_provenance_floor(self):
+        readme = self.readme()
+
+        self.assertIn("read` cell is exactly `yes`", readme)
+        self.assertIn("outside the recommendation index", readme)
+        self.assertIn("same page", readme)
 
 
 class TheNotProbedNoticeSurvivesQuiet(unittest.TestCase):
