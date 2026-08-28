@@ -325,7 +325,7 @@ guideline cannot produce one.
 
 Two claims above were wider than what they measured. Both were found within the hour by
 sweep readers over the open tracker, and both are corrected here rather than in a comment,
-on [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-ruled-and-the-declared-limit-is-a-row.md)'s
+on [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-required-where-the-profile-has-one-and-the-substitution-it-would-prevent-stays-unreached.md)'s
 arrangement.
 
 **The headline said *#429 is not blocked on a decision anywhere*, and ruling 2 contradicts
@@ -394,3 +394,5 @@ overstated sentence, one unnamed dependency and one count that names its members
   proposed AKI thresholds are worth having, labeled.
 - **Gate the extraction-identity mismatch as a refusal.** One irrelevant re-extraction
   refuses all 169 sheets and teaches people to bypass the hook.
+
+*(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0055 link in the correction section named a remembered title rather than that record's tracked filename; its target now matches the index. No ruling changed.)*

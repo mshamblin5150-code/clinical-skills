@@ -52,7 +52,7 @@ The layout follows the same line. `## References` centers the label and drops th
 
 That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s partial instrument arriving on a report rather than on a matcher, and it is the reachable-by-one-colon shape: `References:` and `Reference` both reproduce it in full.
 
-*(Corrected in place 2026-08-26, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-record-s-facts-may-be-corrected-in-place.md)'s terms. This sentence originally named `REFERENCES` as a third form. It is not one: the pattern carries `(?mi)`, so IGNORECASE is on and `REFERENCES` **matches** and is already accepted. The ruling is unaffected — the conclusion rests on the other two — but a builder writing ruling 2's recognizer tests would have driven `REFERENCES` expecting a refusal and got a match. Found by the tracker sweep the same day the record was ratified.)*
+*(Corrected in place 2026-08-26, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. This sentence originally named `REFERENCES` as a third form. It is not one: the pattern carries `(?mi)`, so IGNORECASE is on and `REFERENCES` **matches** and is already accepted. The ruling is unaffected — the conclusion rests on the other two — but a builder writing ruling 2's recognizer tests would have driven `REFERENCES` expecting a refusal and got a match. Found by the tracker sweep the same day the record was ratified.)*
 
 ## Ruling 1 — a grader's accepted set is exactly the set that renders bold on its own pipeline
 
@@ -126,3 +126,5 @@ It is editing evidence to satisfy a rule made after it, and it is worse here tha
 **A run that types something other than the artifact.** The reply is typed by hand; nothing checks that what reached the board is what the artifact says.
 
 **Whether a bolded label is what the rubric rewards.** The house style is the clinician's stated preference and is taken as given here.
+
+*(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The link in the 2026-08-26 correction named an ADR 0016 filename absent from the index; its target now uses the record's tracked filename. No ruling changed.)*
