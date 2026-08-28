@@ -168,6 +168,10 @@ _Avoid_: sources, corpus, articles
 A regression set derived from a working file with the visit date and site removed, committed so a skill's behavior can be checked after an edit.
 _Avoid_: test data, sample, example
 
+**Preserved run record**:
+The immutable evidence of what one run produced, retained byte for byte apart from its declared redactions. It is not edited to repair a stale reference, because that would falsify the run rather than fix it.
+_Avoid_: fixture, sample output, test result
+
 **Assertion**:
 A claim in the clinician's own words about what a correct run must contain.
 _Avoid_: expectation, check, test case
@@ -446,6 +450,10 @@ _Avoid_: verification, second opinion, double-check, independence
 **Authenticated route**:
 The clinician's own logged-in browser session, used as an access path by a fan-out agent. It is one particular path, not a property of a pass: it reaches subscription-gated sources this account pays for, and it is distinct from an anonymous fetch, which reaches a login wall and can return 200 from the form, and from the in-app browser pane, which is a separate unauthenticated surface. Distinct from a **second route**, which is a comparison between two passes' paths — an authenticated route is a thing one pass may take, and taking it establishes nothing about independence.
 _Avoid_: browser access, logged-in fetch, subscription access, real session
+
+**Relative link**:
+A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
+_Avoid_: citation, URL, cross-reference
 
 ### Tracker
 

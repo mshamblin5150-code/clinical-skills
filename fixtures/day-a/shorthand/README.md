@@ -2,7 +2,7 @@
 
 Ten encounters, one file each, transcribed from the day-file scan. These are the **inputs** half of the set: feed one to `clinical-note` on the SOAP branch and check the output against [assertions.md](../assertions.md).
 
-Read from the scan, never from a prior run's output. That is the whole point — see [fixtures/README](../README.md).
+Read from the scan, never from a prior run's output. That is the whole point — see [fixtures/README](../../README.md).
 
 ## What was changed on the way across
 
@@ -12,7 +12,7 @@ Everything else is verbatim, typos included. The shorthand is typo-ridden by nat
 | --- | --- |
 | `[PT]` | Patient name. Standing rule 1. |
 | `[SCHOOL]` | A named elementary school in cases 7 and 9. School plus age plus county narrows a child sharply — the same reasoning that removes the site name. Nothing clinical is lost; what mattered was school attendance and second-hand smoke exposure, and both survive. |
-| `[7 days before visit]`, `[day of visit]`, `[11 days before visit]` | Absolute dates in cases 5, 8 and 2. The visit date is removed per [fixtures/README](../README.md), but an LMP is clinical content — case 8's LMP is the day of the visit, which matters. Replacing the token with its offset keeps the content and drops the identifier. |
+| `[7 days before visit]`, `[day of visit]`, `[11 days before visit]` | Absolute dates in cases 5, 8 and 2. The visit date is removed per [fixtures/README](../../README.md), but an LMP is clinical content — case 8's LMP is the day of the visit, which matters. Replacing the token with its offset keeps the content and drops the identifier. |
 
 Case 2's substitution keeps an inconsistency rather than resolving it: the shorthand dates the flu shot 11 days back and then calls it "1 week ago". Both are in the file. The skill should notice, not the transcription.
 

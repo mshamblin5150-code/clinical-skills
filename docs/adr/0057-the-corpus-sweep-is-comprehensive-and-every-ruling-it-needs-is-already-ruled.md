@@ -325,7 +325,7 @@ guideline cannot produce one.
 
 Two claims above were wider than what they measured. Both were found within the hour by
 sweep readers over the open tracker, and both are corrected here rather than in a comment,
-on [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-ruled-and-the-declared-limit-is-a-row.md)'s
+on [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-required-where-the-profile-has-one-and-the-substitution-it-would-prevent-stays-unreached.md)'s
 arrangement.
 
 **The headline said *#429 is not blocked on a decision anywhere*, and ruling 2 contradicts

@@ -2,11 +2,11 @@
 
 Three encounters, one file each, transcribed from the day-file text. These are the **inputs** half of the set: feed one to `clinical-note` on the SOAP branch and check the output against [assertions.md](../assertions.md).
 
-Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../README.md).
+Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../../README.md).
 
 ## What the set is for
 
-[Drift row 16](../../skills/clinical-note/SKILL.md) — *a duration belongs to what it is written next to* — has two limbs, and only one of them was ever fixtured.
+[Drift row 16](../../../skills/clinical-note/SKILL.md) — *a duration belongs to what it is written next to* — has two limbs, and only one of them was ever fixtured.
 
 The **attribution** limb is `day-b`'s B10 and B11: a duration hangs off a multi-symptom chief complaint and a later onset statement dates a *different* symptom, so there is no contradiction and nothing to resolve. The second limb is this set:
 
@@ -22,7 +22,7 @@ So the cases are renumbered `01`–`03` and the `Note <n>` line inside each file
 
 ## It is a pick, not a population, and that is stated rather than hidden
 
-`obesity-bmi` clears [fixtures/README](../README.md)'s recomputability bar by being the **whole** of a shape a machine finds four times. **This set cannot do that, and the reason is the rule itself.** Row 16 turns on whether two durations are about the *same symptom*, and deciding that is reading rather than matching — the second statement may name its symptom, may use a pronoun, and may or may not carry the new-or-worse marker that redirects the pronoun to a newer complaint. No regex makes that call, so no filter can return the population.
+`obesity-bmi` clears [fixtures/README](../../README.md)'s recomputability bar by being the **whole** of a shape a machine finds four times. **This set cannot do that, and the reason is the rule itself.** Row 16 turns on whether two durations are about the *same symptom*, and deciding that is reading rather than matching — the second statement may name its symptom, may use a pronoun, and may or may not carry the new-or-worse marker that redirects the pronoun to a newer complaint. No regex makes that call, so no filter can return the population.
 
 `hedged-dx` is the precedent, and the arrangement is its: publish the pool, and say the pick was a judgment. Measured 2026-08-15 across 551 encounters with `tools/corpus_census.py`:
 
@@ -40,7 +40,7 @@ Three of those forty-three are here, chosen by reading all forty-three. **What i
 | a treatment sig sitting beside the symptom it treats | 1 |
 | **picked** | **3** |
 
-**The pool over-counts, and its two worked over-counts are pinned as tests rather than described.** `day-b`'s cases 8 and 9 are in it — they are the attribution limb, the thing this set exists *not* to be about — and a treatment sig lands inside the window of the symptom it treats, so a zithromax course beside a cough counts. **Neither is filtered out.** A filter tuned until it returned exactly these three would read as recomputable and prove nothing, which [fixtures/README](../README.md) refuses by name.
+**The pool over-counts, and its two worked over-counts are pinned as tests rather than described.** `day-b`'s cases 8 and 9 are in it — they are the attribution limb, the thing this set exists *not* to be about — and a treatment sig lands inside the window of the symptom it treats, so a zithromax course beside a cough counts. **Neither is filtered out.** A filter tuned until it returned exactly these three would read as recomputable and prove nothing, which [fixtures/README](../../README.md) refuses by name.
 
 **One exclusion is luck rather than design, and it is worth knowing before trusting the 43.** A restatement that *agrees* is excluded by its value — `day-b`'s case 4 writes `x 5 days` three times — but `day-b`'s case 12 writes `started saturday` and then `started saturdy`, which are two different strings. It is out only because no symptom sits within the window of the typo. The filter cannot spell-normalize, and normalizing would be guessing which spelling was meant. `tools/test_corpus_census.py` pins both cases and both reasons.
 
@@ -67,7 +67,7 @@ Everything else is verbatim, typos included. `soar throat`, `guifenisen`, `phene
 | --- | --- |
 | `[PT]` | Patient name. Standing rule 1. |
 | `[DATE]` | The last menstrual period, written as a calendar date on all three. A date finer than a year is the identifier that matters here, and with the visit date gone the interval it encodes cannot be recovered anyway. Nothing in this set turns on it. |
-| `2025` | Case 1's `last pap 7-2025`, with the month dropped. [fixtures/README](../README.md) removes dates finer than a year and says a year alone identifies nobody; `hedged-dx` keeps a bare year on the same rule. That a pap was recent survives. |
+| `2025` | Case 1's `last pap 7-2025`, with the month dropped. [fixtures/README](../../README.md) removes dates finer than a year and says a year alone identifies nobody; `hedged-dx` keeps a bare year on the same rule. That a pap was recent survives. |
 
 **A cataloging annotation was removed from cases 2 and 3, and it is not shorthand.** Both source encounters end with a bracketed `[NOTE: …]` paragraph written into the day file long afterwards — one naming an unrelated drift candidate, one reasoning about which patients share a surname. Neither is anything the clinician wrote in the room, and the second is a list of names. **They are removed as commentary, not redacted as PHI**, and the distinction matters: a fixture is derived from what the working file recorded of the encounter, and an annotation is a later reader's opinion about it. Nothing clinical is lost.
 
@@ -87,13 +87,13 @@ An input whose chief complaint has been tidied to agree with its exam line canno
 
 **Nine are genuine same-symptom conflicts and were rejected one at a time.** They are the interesting rejections, and each names what a row over it would have had to rest on.
 
-**Five cannot have their spans computed once the visit date is gone.** Each dates a symptom once as an interval and once as a **weekday or a holiday** — a rash given as `x 3 days` and then `it started sunday`, a cough given as `x 1 month` and then `since` a named holiday, an illness given as `x 4 days` and then `this started monday`. Every one resolves only against the day the patient was seen, which [fixtures/README](../README.md) removes on the way across. `peds-bp`'s R2 is the same collision from the other side: that set redacts a holiday anchor and then has to score the note for not writing one. A row here would be asking a run to span two values, one of which the input no longer contains.
+**Five cannot have their spans computed once the visit date is gone.** Each dates a symptom once as an interval and once as a **weekday or a holiday** — a rash given as `x 3 days` and then `it started sunday`, a cough given as `x 1 month` and then `since` a named holiday, an illness given as `x 4 days` and then `this started monday`. Every one resolves only against the day the patient was seen, which [fixtures/README](../../README.md) removes on the way across. `peds-bp`'s R2 is the same collision from the other side: that set redacts a holiday anchor and then has to score the note for not writing one. A row here would be asking a run to span two values, one of which the input no longer contains.
 
-**One was rejected on a vague endpoint.** It dates joint pain to `3 weeks` in one clause and `severl months` in another. A span needs two values to hold, and *several months* is not one — scoring it would need someone to decide what number it meant, which is the judgment [fixtures/README](../README.md) says a binary row may not rest on.
+**One was rejected on a vague endpoint.** It dates joint pain to `3 weeks` in one clause and `severl months` in another. A span needs two values to hold, and *several months* is not one — scoring it would need someone to decide what number it meant, which is the judgment [fixtures/README](../../README.md) says a binary row may not rest on.
 
 **One was rejected because the conflict is probably a typo.** `x 3 days` in the chief complaint against `gotten worse over the past 33 days` in the exam. A span of 3 to 33 days is arithmetically available and clinically absurd, and a fixture resting on it would be testing what a run does with a slipped keystroke rather than with two timelines. That is a real question — `hedged-dx` keeps an impossible `hr 1238` for it — and it is not this set's.
 
-**One was rejected because its second statement dates a change rather than an onset.** A leg pain given as `x 3 months` in the chief complaint, and an exam line reading `for about 2 weeks she has noticed consistant pain`. Whether that is a second onset for one symptom or the point at which an old one turned constant is a reader's call, and a binary row resting on it would need the goodwill [fixtures/README](../README.md) says a binary row may not need.
+**One was rejected because its second statement dates a change rather than an onset.** A leg pain given as `x 3 months` in the chief complaint, and an exam line reading `for about 2 weeks she has noticed consistant pain`. Whether that is a second onset for one symptom or the point at which an old one turned constant is a reader's call, and a binary row resting on it would need the goodwill [fixtures/README](../../README.md) says a binary row may not need.
 
 **One was rejected although it is the strongest evidence for the span's *form*.** Its chief complaint reads `cough x 2 days` and its exam `she has had a dry cough [for the] past 2 - 3 days` — a conflict, and one where **the clinician writes a span himself**. It is left out because the second value is already a range, so a run that copied the exam line verbatim would produce a passing answer without ever spanning anything, and the row could not tell the two apart. `clinical-note` cites his `11-12 yrs ago` and `worsening in the past 3-4 days` for the same corroboration, and those are already pinned by a test.
 

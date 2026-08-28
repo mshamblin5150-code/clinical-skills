@@ -2,7 +2,7 @@
 
 Four encounters, one file each, transcribed from the day-file text. These are the **inputs** half of the set: feed one to `clinical-note` on the SOAP branch and check the output against [assertions.md](../assertions.md).
 
-Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../README.md).
+Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../../README.md).
 
 ## This set is not a shift, and the numbering says so
 
@@ -42,7 +42,7 @@ Everything else is verbatim, typos included. `shere roprts`, `utrasounds`, `esta
 | `[DR]` | A named physician case 1 says has retired. Named provider plus age plus a small county narrows the population the way the site name does. What mattered clinically — that prior care was with someone no longer reachable — survives. |
 | `[SITE]` | Named outside facilities: four in case 1, one in case 2, one in case 4. Case 1's four are **four separate tokens on purpose** — that her records are scattered across that many places is the entire reason for the visit's plan. |
 | `[DATE]` | Case 4's scheduled procedure date. A fixed calendar day plus `rtc 1 week prior` reconstructs the visit to within a week, which is the visit date arriving by the back door — the same reasoning behind `peds-bp`'s `[HOLIDAY]`. The interval survives; only the anchor goes. |
-| `62 f` | Case 2's source gives a date of birth and no age. [fixtures/README](../README.md) requires the age be **derived before** the date is stripped, or the case silently becomes a missing-age test. See the caveat below. |
+| `62 f` | Case 2's source gives a date of birth and no age. [fixtures/README](../../README.md) requires the age be **derived before** the date is stripped, or the case silently becomes a missing-age test. See the caveat below. |
 
 No visit date is removed from cases 1, 3 and 4, because none is written down. Every remaining date-shaped token is a pain score (`9/10`), heart sounds (`2/2`), a dose (`150 mg`) or a duration (`3 weeks later`).
 

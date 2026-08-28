@@ -2,7 +2,7 @@
 
 Twelve encounters, one file each, transcribed from the day-file text. These are the **inputs** half of the set: feed one to `clinical-note` on the SOAP branch and check the output against [assertions.md](../assertions.md).
 
-Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../README.md).
+Read from the day file, never from a prior run's output. That is the whole point — see [fixtures/README](../../README.md).
 
 ## What was changed on the way across
 

@@ -170,7 +170,7 @@ So **b** falls back to the recs root like the others, loudly and named — which
 The sweep this record's own session ran — 47 open tickets, eight independent readers, every ticket
 getting a verdict rather than the ones whose titles looked related — found **six** things about this
 record and the change that carried it. Five are corrections in place on
-[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-record-s-facts-may-be-corrected-in-place.md)'s
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
 terms. None moves a ruling.
 
 **8. Ruling 4 is a fifth invalidator of the `recs` cache stage, and this record said the opposite
