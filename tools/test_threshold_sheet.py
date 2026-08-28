@@ -2413,6 +2413,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "skills_mirror.py",
                 "spelling_scan.py",
                 "guidelines_catalog.py",
+                "scratch_census.py",
                 "phi_scan.py",
             ):
                 (root / "tools" / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
@@ -2480,7 +2481,12 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 gate.REPO_ROOT / "tools" / "hooks" / "pre-commit",
                 tools / "hooks" / "pre-commit",
             )
-            for name in ("skills_mirror.py", "spelling_scan.py", "phi_scan.py"):
+            for name in (
+                "skills_mirror.py",
+                "spelling_scan.py",
+                "scratch_census.py",
+                "phi_scan.py",
+            ):
                 (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
             (tools / "threshold_coverage.py").write_text(
                 "raise SystemExit(0)\n", encoding="utf-8"
