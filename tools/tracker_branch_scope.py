@@ -18,7 +18,7 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 
 from console_codec import use_utf8
@@ -34,7 +34,7 @@ BRANCH_SCOPE = re.compile(
 )
 CITED_RECORD_SCOPE = re.compile(
     r"\A>[ \t]+\*\*Cited record state:\*\*[ \t]+"
-    r"`[^`\r\n]+`[ \t]+is[ \t]+not[ \t]+on[ \t]+`main`[ \t]+"
+    r"`(?P<path>[^`\r\n]+)`[ \t]+is[ \t]+not[ \t]+on[ \t]+`main`[ \t]+"
     r"as[ \t]+of[ \t]+`[0-9]{4}-[0-9]{2}-[0-9]{2}`\.[ \t]*\r?\n"
 )
 GITHUB_MAIN_PATH = re.compile(
@@ -47,7 +47,7 @@ RAW_GITHUB_MAIN_PATH = re.compile(
 )
 REPO_RELATIVE_MARKDOWN_PATH = re.compile(
     r"\[[^\]\r\n]*\]\("
-    r"(?P<path>(?![A-Za-z][A-Za-z0-9+.-]*:|/|#)[^\s)]+/[^\s)]+)"
+    r"(?P<path>(?![A-Za-z][A-Za-z0-9+.-]*:|/|#)[^\s)]+)"
     r"(?:[ \t]+[\"'][^\r\n]*[\"'])?\)"
 )
 DECLARES_COMPLETION = re.compile(
@@ -98,6 +98,12 @@ NOT_REACHED = (
     ),
 )
 
+PULL_REQUEST_RECORD_KEY = {
+    "pull_request_target": "pull_request",
+    "pull_request_review": "review",
+    "pull_request_review_comment": "comment",
+}
+
 
 class Result(NamedTuple):
     status: int
@@ -123,13 +129,21 @@ def _repo_relative_markdown_paths(body: str) -> tuple[str, ...]:
 
 def _default_branch_paths() -> frozenset[str]:
     completed = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+        ["git", "ls-tree", "-r", "--name-only", "main"],
         check=True,
         capture_output=True,
         cwd=Path(__file__).resolve().parent.parent,
         encoding="utf-8",
     )
-    return frozenset(completed.stdout.splitlines())
+    files = completed.stdout.splitlines()
+    paths = set(files)
+    for entry in files:
+        paths.update(
+            parent.as_posix()
+            for parent in PurePosixPath(entry).parents
+            if parent.as_posix() != "."
+        )
+    return frozenset(paths)
 
 
 def _unresolved_main_paths(
@@ -159,37 +173,29 @@ def grade(document: Any, event_name: str) -> Result:
     if not isinstance(document, dict):
         raise ValueError("GitHub event JSON must be an object")
     if event_name in ("issues", "issue_comment"):
-        issue = document.get("issue")
-        if not isinstance(issue, dict):
+        container = document.get("issue")
+        if not isinstance(container, dict):
             raise ValueError("GitHub event has no issue object")
-        pull_request_discussion = "pull_request" in issue
+        pull_request_discussion = "pull_request" in container
         if event_name == "issues":
-            record = issue
+            record = container
         else:
             record = document.get("comment")
             if not isinstance(record, dict):
                 raise ValueError("GitHub issue_comment event has no comment object")
-    elif event_name in (
-        "pull_request_target",
-        "pull_request_review",
-        "pull_request_review_comment",
-    ):
-        issue = document.get("pull_request")
-        if not isinstance(issue, dict):
+    elif event_name in PULL_REQUEST_RECORD_KEY:
+        container = document.get("pull_request")
+        if not isinstance(container, dict):
             raise ValueError("GitHub pull request event has no pull_request object")
         pull_request_discussion = False
-        key = {
-            "pull_request_target": "pull_request",
-            "pull_request_review": "review",
-            "pull_request_review_comment": "comment",
-        }[event_name]
+        key = PULL_REQUEST_RECORD_KEY[event_name]
         record = document.get(key)
         if not isinstance(record, dict):
             raise ValueError(f"GitHub {event_name} event has no {key} object")
     else:
         return Result(0, "tracker-branch-scope: event is outside issue text")
     body = record.get("body")
-    url = record.get("html_url") or issue.get("html_url") or "unknown record"
+    url = record.get("html_url") or container.get("html_url") or "unknown record"
     if not isinstance(body, str):
         body = ""
 
@@ -215,7 +221,7 @@ def grade(document: Any, event_name: str) -> Result:
     if pull_request_discussion and not unresolved_path:
         return Result(0, "tracker-branch-scope: pull request discussion is outside scope")
 
-    labels = issue.get("labels", [])
+    labels = container.get("labels", [])
     if not isinstance(labels, list) or any(not isinstance(row, dict) for row in labels):
         raise ValueError("GitHub issue labels must be objects")
     in_flight = (
@@ -232,9 +238,19 @@ def grade(document: Any, event_name: str) -> Result:
         return Result(0, "tracker-branch-scope: record has no branch-state trigger")
     receipt = parse_merge_receipt(body)
     receipt_matches_issue = (
-        receipt is not None and receipt.ticket == issue.get("number")
+        receipt is not None and receipt.ticket == container.get("number")
     )
-    if BRANCH_SCOPE.match(body) or CITED_RECORD_SCOPE.match(body) or receipt_matches_issue:
+    branch_scope = BRANCH_SCOPE.match(body)
+    cited_record_scope = CITED_RECORD_SCOPE.match(body)
+    cited_record_scope_matches = (
+        cited_record_scope is not None
+        and (
+            not unresolved_path
+            or cited_record_scope.group("path") in unresolved_paths
+        )
+    )
+    explicit_scope = branch_scope is not None or cited_record_scope_matches
+    if explicit_scope or (not unresolved_path and receipt_matches_issue):
         return Result(0, f"tracker-branch-scope: {url}: explicit branch state present")
 
     if unresolved_path:

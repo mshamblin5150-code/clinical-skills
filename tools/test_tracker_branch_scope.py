@@ -118,6 +118,30 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
         self.assertIn("repo-relative Markdown link", result.report)
         self.assertNotIn("missing Branch state", result.report)
 
+    def test_a_root_level_relative_markdown_destination_is_a_finding(self):
+        result = scope.grade(
+            comment_event("See [the README](README.md).", labels=("bug",)),
+            "issue_comment",
+        )
+
+        self.assertEqual(result.status, 1)
+        self.assertIn("repo-relative Markdown link", result.report)
+
+    def test_a_relative_destination_inside_code_is_only_a_mention(self):
+        bodies = (
+            "Try `[the README](README.md)`.",
+            "```markdown\n[the README](README.md)\n```",
+        )
+
+        for body in bodies:
+            with self.subTest(body=body):
+                result = scope.grade(
+                    comment_event(body, labels=("bug",)),
+                    "issue_comment",
+                )
+
+                self.assertEqual(result.status, 0)
+
     def test_the_live_adr_0016_slug_typo_says_to_fix_the_slug(self):
         typo = (
             "docs/adr/0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-"
@@ -160,6 +184,25 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
 
                 self.assertEqual(result.status, 1)
 
+    def test_a_live_tree_directory_resolves(self):
+        url = "https://github.com/example/repo/tree/main/docs/adr"
+
+        result = scope.grade(comment_event(url, labels=("bug",)), "issue_comment")
+
+        self.assertEqual(result.status, 0)
+
+    def test_the_path_specific_qualifier_names_the_unresolved_path(self):
+        wrong_marker = (
+            "> **Cited record state:** `docs/adr/9998-somewhere-else.md` is not "
+            "on `main` as of `2026-08-27`.\n\n"
+        )
+        body = wrong_marker + main_url("docs/adr/9999-not-on-main.md")
+
+        result = scope.grade(comment_event(body, labels=("bug",)), "issue_comment")
+
+        self.assertEqual(result.status, 1)
+        self.assertIn("missing Branch state", result.report)
+
     def test_qualifiers_do_not_create_a_trigger_around_a_live_path(self):
         live = main_url("tools/tracker_branch_scope.py")
 
@@ -183,6 +226,14 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertFalse(scope.cites_an_unresolved_path(adr))
+
+    def test_default_branch_paths_are_read_from_main_not_feature_head(self):
+        completed = mock.Mock(stdout="tools/tracker_branch_scope.py\n")
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            paths = scope._default_branch_paths()
+
+        self.assertIn("tools/tracker_branch_scope.py", paths)
+        self.assertIn("main", run.call_args.args[0])
 
 
 class ExistingBranchScopeTriggersRemainIntact(unittest.TestCase):
@@ -232,6 +283,27 @@ class ExistingBranchScopeTriggersRemainIntact(unittest.TestCase):
         )
 
         self.assertEqual(result.status, 0)
+
+    def test_a_merge_receipt_does_not_satisfy_an_unresolved_path_trigger(self):
+        document = {
+            "number": 376,
+            "url": "https://github.com/example/repo/pull/376",
+            "body": "Closes #290",
+            "baseRefName": "main",
+            "mergedAt": "2026-08-20T12:00:00Z",
+            "mergeCommit": {"oid": "abcdef0123456789abcdef0123456789abcdef01"},
+            "commits": [],
+        }
+        body = receipt.plan_receipts(document)[0].body
+        body += "\n\n" + main_url("docs/adr/9999-not-on-main.md")
+
+        result = scope.grade(
+            comment_event(body, labels=("bug", "in flight")),
+            "issue_comment",
+        )
+
+        self.assertEqual(result.status, 1)
+        self.assertIn("unresolved path", result.report)
 
     def test_a_canonical_receipt_for_another_ticket_is_not_accepted(self):
         document = {
