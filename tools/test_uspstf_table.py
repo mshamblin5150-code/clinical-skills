@@ -515,6 +515,31 @@ class IntervalTests(unittest.TestCase):
             ut.derive_interval("The USPSTF recommends 1-time screening for AAA."), "1-time"
         )
 
+    def test_imprecise_and_count_recurrences_stay_in_the_service_interval_vocabulary(self):
+        examples = {
+            "repeated": "The USPSTF recommends repeated screening.",
+            "periodic": "The USPSTF recommends periodic screening.",
+            "1-time": "The USPSTF recommends 1-time screening.",
+            "at least once": "The USPSTF recommends screening at least once.",
+        }
+        for expected, statement in examples.items():
+            with self.subTest(expected=expected):
+                self.assertEqual(ut.derive_interval(statement), expected)
+
+    def test_each_declared_interval_exclusion_is_outside_the_vocabulary(self):
+        for phrase, reason in ut.INTERVAL_EXCLUSIONS:
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(ut.INTERVAL_PHRASE.search(phrase))
+                self.assertTrue(reason)
+
+    def test_daily_dose_frequency_is_not_a_service_interval(self):
+        self.assertEqual(
+            ut.derive_interval(
+                "The USPSTF recommends a daily supplement containing 0.4 to 0.8 mg."
+            ),
+            ut.NOT_STATED,
+        )
+
     def test_most_statements_name_none_and_say_so(self):
         self.assertEqual(
             ut.derive_interval(
@@ -695,9 +720,11 @@ class RenderingTests(unittest.TestCase):
             markdown,
         )
         self.assertIn(
-            "Where a recommendation offers alternatives, `interval` names every period its "
-            f"statement names, joined with `{ut.INTERVAL_ALTERNATIVE_JOIN.strip()}`; the "
-            "modality that distinguishes them is in `## Statements` and not in the cell.",
+            "Where a recommendation offers alternatives, `interval` names every recurrence "
+            "of a recommended service that its statement names, joined with "
+            f"`{ut.INTERVAL_ALTERNATIVE_JOIN.strip()}`; the modality that distinguishes them "
+            "is in `## Statements` and not in the cell. A dose or supplement frequency is "
+            "not a recurrence and is deliberately outside the column.",
             markdown,
         )
 
