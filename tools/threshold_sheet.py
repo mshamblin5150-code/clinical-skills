@@ -227,7 +227,7 @@ import guidelines_manifest
 import guidelines_catalog
 import artifact_provenance
 from console_codec import use_utf8
-from guidelines_recs import MODE_BOUND, MODE_EXACT
+from guidelines_recs import MODE_BOUND, MODE_EXACT, record_built_from_another_document
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
@@ -2255,37 +2255,6 @@ def bind_recs(
     return records, why_not, errors, missing_records
 
 
-def _record_built_from_another_document(recs: dict, source: dict[str, str]) -> str:
-    """The PDF the record came from, when that is not the one this source names.
-
-    Empty where they agree and where either side is silent -- so this refuses only a
-    knowable disagreement, which is the mode cross-check's own rule.
-
-    **The hazard is one #177's own fix introduces.** The record lookup is keyed on a
-    source key that is *sheet-local*, so two sheets using ``aha`` for different
-    guidelines resolve the same ``recs-aha.json`` and each is graded against the
-    other's document -- silently, because a ``rec_id`` absent from the record is never
-    counted as omitted and every other gate reads the sheet alone.
-
-    **It reads the record's ``source`` and deliberately NOT its ``doc_id``, and that
-    is the one thing to know before "fixing" this.** ``doc_id`` is whatever
-    ``guidelines_recs.py --doc-id`` was given and is free text: the record behind the
-    committed hypertension sheet carries ``AHA ACC/jones-et-al-2025`` while the sheet's
-    ``document`` cell carries the full stem, and comparing those would refuse the one
-    correct sheet in the repo. ``source`` is the PDF path, which is the same file the
-    ``document`` cell names -- tier 2 opens ``pdf_root / f"{document}.pdf"``, so the
-    suffix convention is the sheet format's already and not invented here.
-
-    Compared on the FILENAME alone: where the corpus was mounted when the record was
-    built is not a finding.
-    """
-    built_from = Path(str(recs.get("source") or "").replace("\\", "/")).name
-    document = Path(source.get("document", "").strip().replace("\\", "/")).name
-    if not built_from or not document:
-        return ""
-    return "" if built_from.lower() == f"{document.lower()}.pdf" else built_from
-
-
 def gate_coverage(
     sheet: Sheet,
     records: dict[str, dict | None],
@@ -2336,7 +2305,9 @@ def gate_coverage(
         # about; a sheet declaring `exact` over a `bound` record would make that
         # sentence false while every gate passed. Neither value is trusted over the
         # other because only the disagreement is knowable -- what produced it is not.
-        built_from = _record_built_from_another_document(recs, sheet.sources[key])
+        built_from = record_built_from_another_document(
+            recs, sheet.sources[key].get("document", "")
+        )
         if built_from:
             refusals.append(
                 f"{sheet.path.name}  source '{key}' names document "

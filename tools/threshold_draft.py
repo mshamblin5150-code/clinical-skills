@@ -20,6 +20,7 @@ from urllib.parse import quote
 
 import guidelines_catalog
 from console_codec import use_utf8
+from guidelines_recs import RECS_PREFIX, record_built_from_another_document
 from threshold_sheet import (
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
@@ -97,38 +98,60 @@ def _document(row: guidelines_catalog.Row) -> str:
     return f"{row.society}/{Path(row.filename).stem}"
 
 
+def _load_json(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _is_recommendation_record(loaded: object) -> bool:
+    return isinstance(loaded, dict) and isinstance(loaded.get("recommendations"), list)
+
+
 def _load_record(path: Path) -> dict:
-    loaded = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict) or not isinstance(loaded.get("recommendations"), list):
+    loaded = _load_json(path)
+    if not _is_recommendation_record(loaded):
         raise ValueError(f"{path} is not a recommendation record")
+    assert isinstance(loaded, dict)
     return loaded
 
 
-def _record_path(recs_root: Path, key: str, catalog_row: guidelines_catalog.Row) -> Path:
-    expected = recs_root / f"recs-{key}.json"
-    if expected.is_file():
-        try:
-            record = _load_record(expected)
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
-        else:
-            built_from = Path(str(record.get("source") or "").replace("\\", "/")).name
-            if built_from.casefold() == catalog_row.filename.casefold():
-                return expected
+def _record_path(recs_root: Path, key: str) -> Path:
+    return recs_root / f"{RECS_PREFIX}{key}.json"
 
-    filename = catalog_row.filename.casefold()
-    matches: list[Path] = []
-    for candidate in sorted(recs_root.glob("recs-*.json")):
+
+def _record_hint_errors(recs_root: Path, key: str, document: str) -> list[str]:
+    """Describe the lookup root after exact-name resolution has refused."""
+    candidates = sorted(recs_root.glob("*.json"))
+    record_count = 0
+    messages: list[str] = []
+    for candidate in candidates:
         try:
-            record = _load_record(candidate)
-        except (OSError, ValueError, json.JSONDecodeError):
+            loaded = _load_json(candidate)
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            if candidate.name.startswith(RECS_PREFIX):
+                messages.append(f"{candidate}: would not parse: {error}")
             continue
-        built_from = Path(str(record.get("source") or "").replace("\\", "/")).name
-        if built_from.casefold() == filename:
-            matches.append(candidate)
-    if matches:
-        return matches[0]
-    return expected
+        if not _is_recommendation_record(loaded):
+            if candidate.name.startswith(RECS_PREFIX):
+                messages.append(
+                    f"{candidate}: parsed and is not a recommendation record"
+                )
+            continue
+        assert isinstance(loaded, dict)
+        record_count += 1
+        source = loaded.get("source")
+        built_from = (
+            Path(source.replace("\\", "/")).name if isinstance(source, str) else ""
+        )
+        if built_from and not record_built_from_another_document(loaded, document):
+            messages.append(
+                f"{candidate}: built from {built_from}; rename this to "
+                f"{RECS_PREFIX}{key}.json"
+            )
+    messages.append(
+        f"scanned {len(candidates)}, {record_count} recommendation records, "
+        f"{len(candidates) - record_count} not"
+    )
+    return messages
 
 
 def _record_locator(record: dict) -> str:
@@ -181,14 +204,24 @@ def resolve_sources(
             None,
         )
         key = seeded[0] if seeded else source_keys[row]
-        record_path = _record_path(recs_root, key, row)
+        record_path = _record_path(recs_root, key)
         if not record_path.is_file():
             errors.append(f"{row.society}/{row.filename}: no recommendation record at {record_path}")
+            errors.extend(_record_hint_errors(recs_root, key, row.filename))
             continue
         try:
             record = _load_record(record_path)
         except (OSError, ValueError, json.JSONDecodeError) as error:
             errors.append(f"{row.society}/{row.filename}: {error}")
+            errors.extend(_record_hint_errors(recs_root, key, row.filename))
+            continue
+        built_from = record_built_from_another_document(record, row.filename)
+        if built_from:
+            errors.append(
+                f"{row.society}/{row.filename}: recommendation record {record_path} "
+                f"was built from {built_from}"
+            )
+            errors.extend(_record_hint_errors(recs_root, key, row.filename))
             continue
         metadata = seeded[1] if seeded else {}
         url = metadata.get("url") or _record_locator(record)

@@ -16,6 +16,7 @@ import threshold_sheet  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 COMMAND = ROOT / "tools" / "threshold_draft.py"
+COMMITTED_RECS = ROOT / "fixtures" / "threshold-draft-records"
 
 
 def catalog_row(topic: str = "hypertension") -> str:
@@ -87,16 +88,29 @@ def seeded_sheet() -> str:
 
 
 class ThresholdDraftCli(unittest.TestCase):
-    def run_cli(self, root: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+    def run_cli(
+        self,
+        root: Path,
+        *extra: str,
+        record_name: str = "recs-aha-2025.json",
+        record_payload: object | None = None,
+        other_files: dict[str, object] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         catalog = root / "catalog.md"
         recs = root / "recs"
         sheets = root / "sheets"
         catalog.write_text(catalog_row(), encoding="utf-8")
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
-        (recs / "recs-aha-2025.json").write_text(
-            json.dumps(recommendation_record()), encoding="utf-8"
+        (recs / record_name).write_text(
+            json.dumps(record_payload or recommendation_record()), encoding="utf-8"
         )
+        for name, payload in (other_files or {}).items():
+            if isinstance(payload, bytes):
+                (recs / name).write_bytes(payload)
+                continue
+            text = payload if isinstance(payload, str) else json.dumps(payload)
+            (recs / name).write_text(text, encoding="utf-8")
         return subprocess.run(
             [
                 sys.executable,
@@ -117,6 +131,96 @@ class ThresholdDraftCli(unittest.TestCase):
             capture_output=True,
             check=False,
         )
+
+    def test_an_alternate_name_is_only_a_hint_and_never_the_selected_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory), record_name="verify-recs-hypertension.json"
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no recommendation record at", result.stderr)
+        self.assertIn("verify-recs-hypertension.json", result.stderr)
+        self.assertIn("rename this to recs-aha-2025.json", result.stderr)
+        self.assertIn("scanned 1, 1 recommendation records, 0 not", result.stderr)
+        self.assertNotIn("Adults should have an SBP goal", result.stdout)
+
+    def test_the_refusal_scan_reads_a_committed_recommendation_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            sheets = root / "sheets"
+            catalog.write_text(catalog_row(), encoding="utf-8")
+            sheets.mkdir()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMMAND),
+                    "hypertension",
+                    "--catalog",
+                    str(catalog),
+                    "--recs-root",
+                    str(COMMITTED_RECS),
+                    "--sheet-root",
+                    str(sheets),
+                ],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("verify-recs-guideline.json", result.stderr)
+        self.assertIn("rename this to recs-aha-2025.json", result.stderr)
+        self.assertIn("scanned 1, 1 recommendation records, 0 not", result.stderr)
+
+    def test_the_refusal_scan_classifies_every_json_but_names_only_claimed_nonrecords(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                record_name="verify-recs-hypertension.json",
+                other_files={
+                    "recs-broken.json": "{not json",
+                    "recs-binary.json": b"\xff",
+                    "recs-sweep.json": [["document", "none", 0]],
+                    "mode-tally.json": [["document", "none", 0]],
+                },
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("recs-broken.json: would not parse", result.stderr)
+        self.assertIn("recs-binary.json: would not parse", result.stderr)
+        self.assertIn(
+            "recs-sweep.json: parsed and is not a recommendation record",
+            result.stderr,
+        )
+        self.assertNotIn("mode-tally.json:", result.stderr)
+        self.assertIn("scanned 5, 1 recommendation records, 4 not", result.stderr)
+
+    def test_an_exact_name_built_from_another_document_is_refused(self):
+        wrong = recommendation_record()
+        wrong["source"] = "C:/corpus/ADA/standards-of-care.pdf"
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(Path(directory), record_payload=wrong)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("was built from standards-of-care.pdf", result.stderr)
+        self.assertIn("scanned 1, 1 recommendation records, 0 not", result.stderr)
+        self.assertNotIn("Adults should have an SBP goal", result.stdout)
+
+    def test_a_resolved_exact_record_does_not_scan_the_lookup_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                other_files={"recs-broken.json": "{not json"},
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("scanned", result.stderr)
+        self.assertNotIn("recs-broken.json", result.stderr)
 
     def test_a_new_topic_prints_a_skeleton_with_only_machine_cells_filled(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -175,6 +279,10 @@ class ThresholdDraftCli(unittest.TestCase):
                 "| USPSTF | children.pdf | Child oral health | oral health | pediatric | 2023 | 11 | recommendation-statement |\n",
                 encoding="utf-8",
             )
+            source_names = {
+                "adults": "uspstf-2023-adults-d94f77",
+                "children": "uspstf-2023-children-751b2d",
+            }
             for name, page in (("adults", 2), ("children", 4)):
                 payload = {
                     "source": f"C:/corpus/USPSTF/{name}.pdf",
@@ -188,7 +296,7 @@ class ThresholdDraftCli(unittest.TestCase):
                         }
                     ],
                 }
-                (recs / f"recs-{name}.json").write_text(
+                (recs / f"recs-{source_names[name]}.json").write_text(
                     json.dumps(payload), encoding="utf-8"
                 )
 
