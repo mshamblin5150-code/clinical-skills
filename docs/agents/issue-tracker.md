@@ -113,14 +113,28 @@ which direction the merge ran, and the label scopes a ticket rather than an
 individual claim. Keep the label as a useful queue signal; do not use it as the
 claim's provenance.
 
-This is mechanically checked at the publication event. `tracker.yml` runs the
-`tools/tracker_branch_scope.py` when an issue is opened,
-edited, or labeled and whenever an issue comment is created or edited. Adding
-`in flight` therefore grades the issue body already present; later records are
-graded as they are published. Pull request discussion is excluded because its
-state is the PR's own visible state. The check is prospective: it does not
-reinterpret historical comments when a label is added, and says so rather than
-claiming a semantic backfill.
+Cite a repository file from tracker text with an absolute `blob/main` URL.
+Relative Markdown destinations resolve against the issue URL and are broken;
+they are not a weaker repository citation. When the cited path is not yet on
+`main`, start the record with either the Branch state line above or this
+path-specific form:
+
+> **Cited record state:** `<path>` is not on `main` as of `YYYY-MM-DD`.
+
+The date makes the statement remain true after the path lands. Do not rewrite
+or delete it on merge. A bare `ADR NNNN` is under-specified; prefer the link,
+though bare numbers are deliberately not graded. The check's blind spots have
+one owner in `tracker_branch_scope.NOT_REACHED`; this document copies none of
+those rows.
+
+This is mechanically checked at the publication event. `tracker.yml` runs
+`tools/tracker_branch_scope.py` for issue bodies, issue comments, pull request
+bodies, reviews, and review comments. Adding `in flight` therefore grades the
+issue body already present; later records are graded as they are published.
+An issue comment on a pull request remains outside the older in-flight trigger,
+but every surface is checked for unresolved or relative path citations. The
+check is prospective: it does not reinterpret historical comments when a label
+is added, and says so rather than claiming a semantic backfill.
 
 The label is not the only trigger. A newly published comment whose opening
 sentence says `Ruled and built`, `Implemented locally`, `Built on`, or `Landed
