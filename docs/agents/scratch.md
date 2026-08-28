@@ -64,9 +64,20 @@ ruled by the clinician on 2026-08-27, and it supersedes ADR 0033's ruling 3. `sc
 resolves through the checkout that owns the tree — **which is resolution and not coverage**: a
 worktree that has a `scratch/` of its own is a root that resolution points away from.
 
-`tools/scratch_census.py` enumerates every registered checkout with
-`git worktree list --porcelain`, walks the top of each scratch root it finds, derives the
-accounted-for set in **one** `git grep` pass over tracked files, and reports the remainder.
+> **`tools/scratch_census.py` DOES NOT EXIST YET. Everything in this section is the specification
+> it will be built to, not a description of a check that runs.** Nothing on the hook or in CI
+> enforces any of it today; the rule above is prose and the ratchet is unbuilt. This notice is
+> removed by the commit that adds the module and its hook line, and not before.
+>
+> Ruled 2026-08-25 (ADR 0033) and 2026-08-27 (ADR 0059); unbuilt as of 2026-08-27. Five separate
+> tracker sweeps recorded the earlier version of this paragraph describing the tool in the **present
+> tense**, and the ADR 0059 rewrite carried that defect forward into the paragraph it was rewriting
+> — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a
+> written instruction cannot do is fail* landing on the sentence that claims a grader.
+
+`tools/scratch_census.py` **will** enumerate every registered checkout with
+`git worktree list --porcelain`, walk the top of each scratch root it finds, derive the
+accounted-for set in **one** `git grep` pass over tracked files, and report the remainder.
 
 - **0** clean, **1** when the owning checkout's unaccounted count has risen above the recorded
   baseline **or any other checkout's is not zero**, **2** for every way of not having scanned —
