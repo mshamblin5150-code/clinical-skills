@@ -465,20 +465,25 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual("Patient rights", citations[0].author)
 
-    def test_the_bound_does_not_hide_a_key_shortened_by_author_normalization(self):
+    def test_an_organizational_comma_is_not_mistaken_for_a_personal_author(self):
         reference = (
             "Rights, A. Very long regulation name title, "
             "42 C.F.R. § 482.13 (2024)."
         )
         keys = frozenset(artifact.reference_keys(reference))
+        expected_key = "rightsaverylongregulationnametitle"
 
         citations = artifact.read_citations(
             "Rights, A. Very long regulation name title (2024) governs care.",
             keys,
         )
 
+        self.assertIn((expected_key, "2024"), keys)
         self.assertEqual(1, len(citations))
         self.assertEqual("Rights, A. Very long regulation name title", citations[0].author)
+
+    def test_personal_author_initials_still_reduce_to_the_surname(self):
+        self.assertEqual("quill", artifact.author_key("Quill, R. J."))
 
     def test_text_beyond_the_longest_key_bound_does_not_change_the_walk(self):
         class CountedKeys(frozenset):
@@ -488,12 +493,17 @@ class ACompletePostPasses(unittest.TestCase):
                 self.checks += 1
                 return super().__contains__(key)
 
-        keys = CountedKeys({(artifact.author_key("Patient rights"), "2024")})
+        keys = CountedKeys(
+            {
+                (artifact.author_key("Patient rights"), "2024"),
+                (artifact.author_key("Rights"), "2024"),
+            }
+        )
         short = artifact.read_citations("Patient rights (2024) governs care.", keys)
         short_checks = keys.checks
         keys.checks = 0
         long = artifact.read_citations(
-            "Earlier, "
+            "Rights, A. "
             + ("unrelated " * 1_000)
             + "Patient rights (2024) governs care.",
             keys,

@@ -220,8 +220,9 @@ def read_reference_section(
 
 def author_key(value: str) -> str:
     value = unicodedata.normalize("NFC", value.strip())
-    personal = re.match(
-        r"^\s*(?P<surname>[^,]+),\s*[" + UPPER + r"](?:[.\-]|\s|$)",
+    personal = re.fullmatch(
+        r"\s*(?P<surname>[^,]+),\s*"
+        r"(?:[" + UPPER + r"](?:[.\-])?(?:\s+|$))+\s*",
         value,
     )
     if personal is not None:
@@ -399,7 +400,6 @@ def read_citations(
         )
     if reference_key_set:
         max_key_length = max(len(key) for key, _year in reference_key_set)
-        reference_names = frozenset(key for key, _year in reference_key_set)
         for year_match in REFERENCE_YEAR.finditer(body):
             if any(
                 citation.start <= year_match.start()
@@ -413,12 +413,7 @@ def read_citations(
             for word_start in _reverse_word_starts(prefix):
                 author = prefix[word_start:].strip()
                 key = author_key(author)
-                if len(key) > max_key_length and not _personal_key_possible_to_left(
-                    prefix,
-                    word_start,
-                    max_key_length,
-                    reference_names,
-                ):
+                if len(key) > max_key_length:
                     break
                 if (key, year_value) in reference_key_set or (key, "") in reference_key_set:
                     longest = Citation(
@@ -462,43 +457,3 @@ def _reverse_word_starts(value: str) -> Iterator[int]:
 def _author_word_character(character: str) -> bool:
     return character.isalnum() or character == "_" or character in "'’&.-"
 
-
-def _personal_key_possible_to_left(
-    value: str,
-    candidate_start: int,
-    max_key_length: int,
-    reference_names: frozenset[str],
-) -> bool:
-    """Return whether extending left can still trigger author_key's comma rule."""
-
-    sentence_start = _last_sentence_start(value)
-    sentence = value[sentence_start:]
-    relative_candidate_start = candidate_start - sentence_start
-    for comma in re.finditer(",", sentence):
-        if comma.start() >= relative_candidate_start:
-            continue
-        after = sentence[comma.end() :].lstrip()
-        if not after or not after[0].isupper():
-            continue
-        if len(after) > 1 and after[1] not in ".- ":
-            continue
-        before = sentence[: comma.start()]
-        for word_start in _reverse_word_starts(before):
-            key = author_key(before[word_start:].strip())
-            if len(key) > max_key_length:
-                break
-            if key in reference_names:
-                return True
-    return False
-
-
-def _last_sentence_start(value: str) -> int:
-    boundaries = tuple(re.finditer(r"[.!?]\s+", value))
-    for boundary in reversed(boundaries):
-        if boundary.group()[0] == "." and re.search(
-            r",\s*(?:[" + UPPER + r"]\.\s*)*[" + UPPER + r"]\.$",
-            value[: boundary.start() + 1],
-        ):
-            continue
-        return boundary.end()
-    return 0
