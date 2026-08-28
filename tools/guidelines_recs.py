@@ -22,6 +22,9 @@ that goes stale unwatched, which is #143 and is how this one crossed two files a
 a review before anyone re-derived it.
 
 **Two modes, and the whole honesty of this module is in telling them apart.**
+The coverage ceilings behind those modes are inventoried in ``DECLARED_LIMITS``;
+this prose keeps the reasoning at the mechanism and does not stand in for that
+registry.
 
 ``EXACT``
     Every row is one recommendation, the class is a cell rather than a guess, and
@@ -140,8 +143,10 @@ import re
 import sys
 import unicodedata
 from dataclasses import asdict, dataclass
+from enum import Enum
 from pathlib import Path
 
+import guidelines_extract
 from console_codec import use_utf8
 from repo_root import InsideCheckout, ensure_outside_checkout
 
@@ -154,6 +159,87 @@ MODE_BOUND = "bound"
 # whole ``DECLARED_LIMITS`` object before the other appenders; until it lands,
 # this limit stays here rather than creating that object's partial predecessor.
 RECS_PREFIX = "recs-"
+
+
+class EvidenceDisposition(Enum):
+    """How a declared coverage limit can be checked."""
+
+    BEHAVIOR = "behavior"
+    DECLARED_READING = "declared-reading"
+
+
+@dataclass(frozen=True)
+class DeclaredLimit:
+    """One stable name, coverage sentence, and evidence disposition."""
+
+    key: str
+    limit: str
+    evidence: EvidenceDisposition
+
+
+# The module docstring explains why these mechanisms exist and points here instead
+# of maintaining a second inventory. The population is deliberately a floor: #589
+# owns the end-to-end read of this module and its ADRs. Each later mechanism appends
+# its own row rather than creating another declared-limits object.
+DECLARED_LIMITS = (
+    DeclaredLimit(
+        "bound-count-over-reports",
+        "A text-marker result can over-report incidental markers and under-report unsupported or damaged markers, so it is not an exact count.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "marker-strength-unclassified",
+        "GRADE strength and certainty captured by a text marker are not assigned to the recommendation class field.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "curated-selection-floor",
+        "Curated verification cannot recover a graded statement that the committed curated table omitted.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "curated-supersession-unread",
+        "Curated verification does not interpret the source table's supersession metadata.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "unsupported-marker-vocabulary",
+        "A document using none of the declared marker forms can return no records without establishing that it has no recommendations.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "marker-matches-anywhere",
+        "Text markers match wherever they occur, including contents, cross-references, and quoted recommendations.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "unrepaired-nonmarker-limbs",
+        "Curated verification and ruled-table extraction skip glyph-space reconstruction; comparison folding protects the curated limb, while ruled-table text can retain spacing damage.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "glued-run-census-floor",
+        "The glued-run census sees only alphabetic runs at or above its declared length floor, so shorter welds are invisible and genuine long words are counted.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "citation-tier-zero-reader-floor",
+        "Citation tier 0 cannot expose shared reconstruction errors, and it does not run at all for bound sources, which rely on tier 2 for page-text agreement.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "registry-population-floor",
+        "This registry covers the previously identified docstring ceilings and the mechanisms added with the repaired marker reader; its end-to-end module and ADR derivation remains outstanding.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+)
+NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
+
+# A length floor is intentionally a reporting instrument, never a gate. The limit
+# it carries is the ``glued-run-census-floor`` row above, so a clean count is not a
+# claim that the records contain no welded words.
+GLUED_RUN_MIN_LETTERS = 26
+GLUED_RUN = re.compile(rf"[A-Za-z]{{{GLUED_RUN_MIN_LETTERS},}}")
 
 # Where a count came from, printed beside the mode and written into the JSON. The
 # mode says what a gate may do with the number; this says what earned it, and #173
@@ -365,6 +451,20 @@ def read_marker_recommendations(page_number: int, text: str, doc_id: str) -> lis
                 )
             )
     return found
+
+
+def glued_run_census(records: list[Recommendation]) -> int:
+    """Alphabetic runs at the declared floor across one document's final records."""
+
+    return sum(len(GLUED_RUN.findall(record.text)) for record in records)
+
+
+def rebuilt_page_text(page) -> str:
+    """Read one page through the extraction pipeline's spacing and operator repair."""
+
+    raw = page.get_text("rawdict")
+    operators = guidelines_extract.rendered_operator_map_for_page(page, raw)
+    return guidelines_extract.rebuild_text(raw, operators)
 
 
 @dataclass(frozen=True)
@@ -597,7 +697,12 @@ def curated_rows_for(filename: str) -> list[CuratedRow]:
     return _CURATED_CACHE[matched[0]] if matched else []
 
 
-def extract(path: Path, doc_id: str) -> tuple[list[Recommendation], str, str]:
+def extract(
+    path: Path,
+    doc_id: str,
+    *,
+    marker_reader=rebuilt_page_text,
+) -> tuple[list[Recommendation], str, str]:
     """Every recommendation in one PDF, the mode the count carries, and what earned it.
 
     **The curated table first, then ruled tables, then markers.** A document the
@@ -618,7 +723,6 @@ def extract(path: Path, doc_id: str) -> tuple[list[Recommendation], str, str]:
     curated = curated_rows_for(path.name)
     document = pymupdf.open(str(path))
     table_hits: list[Recommendation] = []
-    marker_hits: list[Recommendation] = []
     try:
         if curated:
             pages = [page.get_text("text") for page in document]
@@ -627,19 +731,68 @@ def extract(path: Path, doc_id: str) -> tuple[list[Recommendation], str, str]:
                 MODE_EXACT,
                 SOURCE_CURATED_TABLE,
             )
+        # Table documents stop here. Reconstruction costs substantially more than a
+        # plain read, so marker pages are read in a second pass only when no ruled
+        # table answered the document. #446 permits this cheaper three-limb shape.
         for index, page in enumerate(document, start=1):
             try:
                 tables = [table.extract() for table in page.find_tables().tables]
             except Exception:  # noqa: BLE001 - a page whose tables will not parse is not a failed document
                 tables = []
             table_hits.extend(read_table_recommendations(index, tables, doc_id))
-            marker_hits.extend(read_marker_recommendations(index, page.get_text("text"), doc_id))
+        if table_hits:
+            return table_hits, MODE_EXACT, SOURCE_RULED_TABLE
+
+        marker_hits: list[Recommendation] = []
+        for index, page in enumerate(document, start=1):
+            marker_hits.extend(read_marker_recommendations(index, marker_reader(page), doc_id))
+        return marker_hits, MODE_BOUND, SOURCE_TEXT_MARKER
     finally:
         document.close()
 
-    if table_hits:
-        return table_hits, MODE_EXACT, SOURCE_RULED_TABLE
-    return marker_hits, MODE_BOUND, SOURCE_TEXT_MARKER
+
+def compare_marker_readers(path: Path, doc_id: str) -> tuple[int, int, int]:
+    """Return raw count, repaired count, and changed-record count for one document.
+
+    This is the command seam that makes #446's exposed document set re-derivable.
+    It deliberately pays for two complete reads and is not used by normal builds.
+    """
+
+    repaired, _, repaired_source = extract(path, doc_id)
+    if repaired_source != SOURCE_TEXT_MARKER:
+        return len(repaired), len(repaired), 0
+    raw, _, raw_source = extract(
+        path,
+        doc_id,
+        marker_reader=lambda page: page.get_text("text"),
+    )
+    if raw_source != SOURCE_TEXT_MARKER:
+        return len(raw), len(repaired), 0
+    raw_by_id = {record.rec_id: record.text for record in raw}
+    repaired_by_id = {record.rec_id: record.text for record in repaired}
+    keys = set(raw_by_id) | set(repaired_by_id)
+    changed = sum(raw_by_id.get(key) != repaired_by_id.get(key) for key in keys)
+    return len(raw), len(repaired), changed
+
+
+def compare_reader_corpus(root: Path) -> tuple[int, int, int]:
+    """Print changed documents and return document, changed, and record totals."""
+
+    paths = sorted(root.rglob("*.pdf"), key=lambda path: path.relative_to(root).as_posix())
+    changed_documents = 0
+    changed_records = 0
+    for path in paths:
+        doc_id = path.relative_to(root).with_suffix("").as_posix()
+        raw_count, repaired_count, changed = compare_marker_readers(path, doc_id)
+        if not changed:
+            continue
+        changed_documents += 1
+        changed_records += changed
+        print(
+            f"  {doc_id}  raw {raw_count}  repaired {repaired_count}  "
+            f"changed {changed}"
+        )
+    return len(paths), changed_documents, changed_records
 
 
 # Why *this* artifact stays out, which is not why the other two do: the JSON
@@ -653,7 +806,11 @@ WHY_OUTSIDE = "This file holds the society's recommendation text in full. #87."
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("pdf", type=Path, help="the guideline PDF to read")
+    parser.add_argument(
+        "pdf",
+        type=Path,
+        help="guideline PDF, or a corpus directory with --compare-readers",
+    )
     parser.add_argument(
         "--doc-id",
         default=None,
@@ -665,7 +822,16 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="print recommendation text -- the society's expression, not for pasting",
     )
+    parser.add_argument(
+        "--compare-readers",
+        action="store_true",
+        help="report whether the raw and repaired marker readers differ for this document",
+    )
     args = parser.parse_args(argv)
+    if args.compare_readers and args.json:
+        parser.error("--compare-readers does not write --json")
+    if args.compare_readers and args.show:
+        parser.error("--compare-readers reports counts and does not take --show")
 
     # Before the PDF is opened, not after the records are printed. Where the
     # JSON lands is a question about the arguments alone, and a run that reads
@@ -683,6 +849,19 @@ def main(argv: list[str]) -> int:
         except InsideCheckout as refused:
             raise SystemExit(str(refused)) from refused
 
+    if args.compare_readers and args.pdf.is_dir():
+        if args.doc_id:
+            parser.error("--doc-id cannot be used with a corpus directory")
+        documents, changed_documents, changed_records = compare_reader_corpus(args.pdf)
+        if not documents:
+            print(f"no PDFs under {args.pdf}", file=sys.stderr)
+            return 2
+        print("SUMMARY")
+        print(f"  documents         {documents}")
+        print(f"  changed documents {changed_documents}")
+        print(f"  changed records   {changed_records}")
+        return 0
+
     if not args.pdf.is_file():
         # 2 rather than 1, on `guidelines_search.py`'s arrangement: not having read
         # a document must never be reported in the same way as having read one and
@@ -691,6 +870,20 @@ def main(argv: list[str]) -> int:
         return 2
 
     doc_id = args.doc_id or args.pdf.stem
+    if args.compare_readers:
+        try:
+            raw_count, repaired_count, changed = compare_marker_readers(args.pdf, doc_id)
+        except DidNotScan as reason:
+            print(f"did not scan {args.pdf.name}", file=sys.stderr)
+            print(f"  {reason}", file=sys.stderr)
+            return 2
+        print(f"== {doc_id}")
+        print(f"  raw records      {raw_count}")
+        print(f"  repaired records {repaired_count}")
+        print(f"  changed records  {changed}")
+        print(f"  reader changed   {'yes' if changed else 'no'}")
+        return 0
+
     try:
         records, mode, source = extract(args.pdf, doc_id)
     except DidNotScan as reason:
@@ -708,11 +901,16 @@ def main(argv: list[str]) -> int:
         return 2
 
     tables = sorted({record.table for record in records})
+    glued_runs = glued_run_census(records)
     print(f"== {doc_id}")
     print(f"  mode            {mode}")
     print(f"  source          {source}")
     print(f"  recommendations {len(records)}")
     print(f"  tables          {len(tables)}")
+    print(
+        f"  glued runs      {glued_runs} "
+        f"(alphabetic runs of at least {GLUED_RUN_MIN_LETTERS}; reports only)"
+    )
     if source == SOURCE_CURATED_TABLE:
         print()
         print(f"  claim: read out of {CURATED_TABLE.name}, not out of this PDF's own")
@@ -744,7 +942,11 @@ def main(argv: list[str]) -> int:
                     "source": str(args.pdf),
                     "counted_from": source,
                     "mode": mode,
-                    "totals": {"recommendations": len(records), "tables": len(tables)},
+                    "totals": {
+                        "recommendations": len(records),
+                        "tables": len(tables),
+                        "glued_runs": glued_runs,
+                    },
                     "recommendations": [asdict(record) for record in records],
                 },
                 indent=2,

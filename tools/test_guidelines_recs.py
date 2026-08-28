@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -470,13 +471,39 @@ class _StubTables:
         self.tables = [_StubTable(rows) for rows in tables]
 
 
+def _rawline(text: str, *, gap_after: dict[int, float] | None = None) -> dict:
+    """A minimal rawdict line; selected gaps model positioned word boundaries."""
+
+    gaps = gap_after or {}
+    chars: list[dict] = []
+    cursor = 0.0
+    for index, glyph in enumerate(text):
+        chars.append(
+            {
+                "c": glyph,
+                "origin": (cursor, 10.0),
+                "bbox": (cursor, 0.0, cursor + 5.0, 10.0),
+            }
+        )
+        cursor += 5.0 + gaps.get(index, 0.0)
+    return {
+        "blocks": [
+            {"type": 0, "lines": [{"spans": [{"size": 10.0, "chars": chars}]}]}
+        ]
+    }
+
+
 class _StubPage:
-    def __init__(self, text, tables=()):
+    def __init__(self, text, tables=(), raw=None, *, fail_raw=False):
         self._text = text
         self._tables = tables
+        self._raw = raw if raw is not None else _rawline(text)
+        self._fail_raw = fail_raw
 
-    def get_text(self, _kind="text"):
-        return self._text
+    def get_text(self, kind="text"):
+        if kind == "rawdict" and self._fail_raw:
+            raise AssertionError("rawdict reader ran")
+        return self._raw if kind == "rawdict" else self._text
 
     def find_tables(self):
         return _StubTables(self._tables)
@@ -560,11 +587,31 @@ class Precedence(unittest.TestCase):
         self.assertNotIn("grade-spelled-out", {record.table for record in records})
 
     def test_a_ruled_table_beats_a_marker(self):
-        page = _StubPage("Recommendation 3.1.1 We suggest screening.", tables=[COR_TABLE])
+        page = _StubPage(
+            "Recommendation 3.1.1 We suggest screening.",
+            tables=[COR_TABLE],
+            fail_raw=True,
+        )
         with stub_reader([page]):
             records, mode, source = recs.extract(Path("kdigo.pdf"), "KDIGO/x")
         self.assertEqual((mode, source), (recs.MODE_EXACT, recs.SOURCE_RULED_TABLE))
         self.assertEqual(len(records), 1)
+
+    def test_the_marker_limb_recovers_a_welded_number_and_text(self):
+        welded = "Recommendation3.3Yearly influenza vaccination is recommended."
+        raw = _rawline(welded, gap_after={13: 4.0, 16: 4.0})
+        page = _StubPage(welded, raw=raw)
+        with stub_reader([page]):
+            repaired, mode, source = recs.extract(Path("idsa.pdf"), "IDSA/x")
+            raw_records, _, _ = recs.extract(
+                Path("idsa.pdf"),
+                "IDSA/x",
+                marker_reader=lambda candidate: candidate.get_text("text"),
+            )
+        self.assertEqual((mode, source), (recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER))
+        self.assertEqual(raw_records, [])
+        self.assertEqual(len(repaired), 1)
+        self.assertIn("Recommendation 3.3 Yearly", repaired[0].text)
 
     def test_a_marker_answers_a_document_with_no_table_of_either_kind(self):
         page = _StubPage("Give fluids (strong, moderate).")
@@ -620,6 +667,105 @@ class Precedence(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn(recs.SOURCE_CURATED_TABLE, out.getvalue())
         self.assertIn(recs.CURATED_TABLE.name, out.getvalue())
+
+
+class DeclaredLimitsAndCensus(unittest.TestCase):
+    def test_the_registry_rows_are_named_three_field_records(self):
+        self.assertEqual(len(recs.DECLARED_LIMITS), len(recs.NOT_REACHED))
+        keys = [row.key for row in recs.DECLARED_LIMITS]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(
+            {row.evidence for row in recs.DECLARED_LIMITS},
+            set(recs.EvidenceDisposition),
+        )
+        self.assertEqual(
+            recs.NOT_REACHED,
+            tuple(row.limit for row in recs.DECLARED_LIMITS),
+        )
+
+    def test_the_length_floor_counts_a_weld_and_its_known_false_positive(self):
+        records = [
+            recs.Recommendation(
+                rec_id="p1/x/1",
+                doc_id="x",
+                page=1,
+                table="x",
+                number=1,
+                cor=None,
+                loe=None,
+                text=(
+                    "Recommendation3.3Yearlyinfluenzavaccination and "
+                    "esophagogastroduodenoscopy are both reported."
+                ),
+                mode=recs.MODE_BOUND,
+            )
+        ]
+        self.assertEqual(recs.glued_run_census(records), 2)
+
+    def test_a_short_weld_is_outside_the_census(self):
+        records = [
+            recs.Recommendation(
+                rec_id="p1/x/1",
+                doc_id="x",
+                page=1,
+                table="x",
+                number=1,
+                cor=None,
+                loe=None,
+                text="shortweld stays below the declared floor",
+                mode=recs.MODE_BOUND,
+            )
+        ]
+        self.assertEqual(recs.glued_run_census(records), 0)
+
+    def test_json_and_every_successful_summary_carry_the_census(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "idsa.pdf"
+            pdf.write_bytes(b"stub")
+            target = root / "recs-idsa.json"
+            out = io.StringIO()
+            with stub_reader([_StubPage("Give fluids (strong, moderate).")]):
+                with contextlib.redirect_stdout(out):
+                    status = recs.main([str(pdf), "--json", str(target)])
+            payload = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(status, 0)
+        self.assertIn("glued runs", out.getvalue())
+        self.assertIn("reports only", out.getvalue())
+        self.assertEqual(payload["totals"]["glued_runs"], 0)
+
+    def test_the_comparison_command_reports_the_repaired_difference(self):
+        welded = "Recommendation3.3Yearly influenza vaccination is recommended."
+        raw = _rawline(welded, gap_after={13: 4.0, 16: 4.0})
+        with tempfile.TemporaryDirectory() as directory:
+            pdf = Path(directory) / "idsa.pdf"
+            pdf.write_bytes(b"stub")
+            out = io.StringIO()
+            with stub_reader([_StubPage(welded, raw=raw)]):
+                with contextlib.redirect_stdout(out):
+                    status = recs.main([str(pdf), "--compare-readers"])
+        self.assertEqual(status, 0)
+        self.assertIn("reader changed   yes", out.getvalue())
+        self.assertIn("raw records      0", out.getvalue())
+        self.assertIn("repaired records 1", out.getvalue())
+
+    def test_the_corpus_comparison_command_derives_the_changed_document_count(self):
+        welded = "Recommendation3.3Yearly influenza vaccination is recommended."
+        raw = _rawline(welded, gap_after={13: 4.0, 16: 4.0})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "one.pdf").write_bytes(b"stub")
+            nested = root / "Society"
+            nested.mkdir()
+            (nested / "two.pdf").write_bytes(b"stub")
+            out = io.StringIO()
+            with stub_reader([_StubPage(welded, raw=raw)]):
+                with contextlib.redirect_stdout(out):
+                    status = recs.main([str(root), "--compare-readers"])
+        self.assertEqual(status, 0)
+        self.assertIn("documents         2", out.getvalue())
+        self.assertIn("changed documents 2", out.getvalue())
+        self.assertIn("changed records   2", out.getvalue())
 
 
 class TheCommittedTableIsWhatTheCommandReads(unittest.TestCase):

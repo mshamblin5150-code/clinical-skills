@@ -1317,7 +1317,10 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
                 continue
             document = pymupdf.open(str(path))
             try:
-                cache[key] = _normalize(document[row.page - 1].get_text("text"))
+                page = document[row.page - 1]
+                raw = page.get_text("rawdict")
+                operators = guidelines_extract.rendered_operator_map_for_page(page, raw)
+                cache[key] = _normalize(guidelines_extract.rebuild_text(raw, operators))
             except Exception as error:  # noqa: BLE001
                 failures.append(f"{sheet.path.name}:{row.line}  page {row.page} unreadable: {error}")
                 cache[key] = ""

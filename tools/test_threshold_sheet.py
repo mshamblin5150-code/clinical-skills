@@ -652,6 +652,62 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
             result.findings,
         )
 
+    def test_the_page_gate_uses_the_same_repaired_reader_as_marker_records(self):
+        words = ("an", "SBP", "goal", "of", "<130", "mm", "Hg")
+        glyph_text = "".join(words)
+        boundaries: set[int] = set()
+        offset = 0
+        for word in words[:-1]:
+            offset += len(word)
+            boundaries.add(offset - 1)
+        chars: list[dict] = []
+        cursor = 0.0
+        for index, glyph in enumerate(glyph_text):
+            chars.append(
+                {
+                    "c": glyph,
+                    "origin": (cursor, 10.0),
+                    "bbox": (cursor, 0.0, cursor + 5.0, 10.0),
+                }
+            )
+            cursor += 5.0 + (4.0 if index in boundaries else 0.0)
+        raw = {
+            "blocks": [
+                {
+                    "type": 0,
+                    "lines": [{"spans": [{"size": 10.0, "chars": chars}]}],
+                }
+            ]
+        }
+
+        class FakePage:
+            def get_text(self, kind="text"):
+                return raw if kind == "rawdict" else glyph_text
+
+        class FakeDocument:
+            def __getitem__(self, _index):
+                return FakePage()
+
+            def close(self):
+                pass
+
+        class FakePyMuPDF:
+            @staticmethod
+            def open(_path):
+                return FakeDocument()
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "Society" / "doc.pdf"
+            path.parent.mkdir()
+            path.write_bytes(b"stubbed PDF boundary")
+            sheet_text = HEADER.replace(TEST_PDF_ROOT, root.as_posix())
+            parsed = self.parsed(sheet_text)
+            with mock.patch.dict(sys.modules, {"pymupdf": FakePyMuPDF()}):
+                result = gate.gate_citation_tier2(parsed, root)
+
+        self.assertEqual(result.findings, [])
+
 
 class CitationTier0(unittest.TestCase):
     def recs(self, text: str, *, mode: str = "exact") -> dict:

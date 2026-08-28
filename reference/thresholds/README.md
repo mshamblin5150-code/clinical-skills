@@ -499,14 +499,19 @@ not left to be discovered:
 - **Most of the corpus can be gated now, and the number is measured.**
   `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-19, after
   [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173) added the
-  two readings it was filed for:
+  two readings it was filed for. The bound limb was re-derived on 2026-08-28 after
+  #446 moved its marker pages onto the repaired reader:
 
   | mode | `counted_from` | docs | recommendations | what a gate can do |
   | --- | --- | ---: | ---: | --- |
   | `exact` | `ruled-table` | **22** | 2,969 | omissions **refused**; 22 of 23 AHA/ACC files |
   | `exact` | `curated-table` | **90** | 143 | omissions **refused**; every USPSTF document |
-  | `bound` | `text-marker` | 48 | 4,618 | omissions **warned**; 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
+  | `bound` | `text-marker` | 48 | 4,619 | omissions **warned**; 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
   | nothing found | — | **19** | 0 | nothing counted, so nothing gated |
+
+  `python tools/guidelines_recs.py <corpus-root> --compare-readers` reports each
+  document whose raw and repaired marker records differ, then derives the exposed
+  document count. The set is not copied into this file.
 
   **It read 22 / 19 / 138 on 2026-08-16 and that is what #173 was filed over.** The
   138 was 90 USPSTF plus 39 IDSA plus 9 others — two house styles, not a scatter —
