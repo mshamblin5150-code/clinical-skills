@@ -514,10 +514,8 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
             "black holes",
             "black hole effect",
             "black hole action",
-            "cosmic objects",
-            "dangerous things",
-            "buses",
-            "analyses",
+            "it can",
+            "can black hole",
         ):
             with self.subTest(property=property_value), tempfile.TemporaryDirectory() as temp:
                 run = Run(Path(temp))
@@ -535,6 +533,28 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
 
             self.assertEqual(1, status)
             self.assertIn("invoked-property: 1", stdout.getvalue())
+
+    def test_substantive_behavior_clauses_are_not_over_refused(self):
+        for property_value in (
+            "it is pulling everything in",
+            "a black hole pulls everything in",
+        ):
+            with self.subTest(property=property_value), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                response = run.root / "response-maren.md"
+                response.write_text(
+                    BODY.replace(
+                        "Maren,",
+                        f"<!-- INVOKED: black hole | {property_value} -->\nMaren,",
+                    ),
+                    encoding="utf-8",
+                )
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+
+            self.assertEqual(0, status)
+            self.assertIn("invoked-property: 0", stdout.getvalue())
 
     def test_a_pre_496_marker_is_reported_without_changing_the_verdict_or_word_count(self):
         with tempfile.TemporaryDirectory() as temp:

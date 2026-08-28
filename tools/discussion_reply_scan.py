@@ -7,8 +7,9 @@ Exit 0 means the scanned replies pass, 1 means at least one finding, and 2 means
 the run could not be completely scanned. The roster coverage ceiling is every
 ``posts/*.md`` file carrying one ``AUTHOR:`` line; other post layouts are unread.
 
-What a clean run does not establish is ``UNMARKED_INVOKED_SOURCE_LIMIT``. The
-module owns that declared limit; this docstring copies no part of it.
+What a clean run does not establish is declared by
+``UNMARKED_INVOKED_SOURCE_LIMIT`` and ``INVOKED_PROPERTY_LIMIT``. The module
+owns those limits; this docstring copies no part of either.
 """
 
 from __future__ import annotations
@@ -63,6 +64,10 @@ KINDS = tuple(ROWS)
 UNMARKED_INVOKED_SOURCE_LIMIT = (
     "whether every invoked source was marked",
     "The command can grade only INVOKED markers that exist and cannot see an invoked source the drafter never marked.",
+)
+INVOKED_PROPERTY_LIMIT = (
+    "whether an invoked property is a grammatical behavior clause",
+    "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
 )
 
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")

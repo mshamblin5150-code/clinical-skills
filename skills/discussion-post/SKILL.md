@@ -131,7 +131,8 @@ Name the domain the invoked source draws on and state the property as a predicat
 describing the real behavior the argument spends. A retained
 invoked source carries the argument, and its payoff sentence states what that behavior does; do not enlarge the
 noun or increase the rate. The domain stays open: do not create a list of permitted domains. The
-scanner counts an empty or self-restating property for clinician review without failing, because
+scanner counts an empty property or a lexical restatement of the domain noun for clinician review
+without failing; it does not parse English or prove that other words state the real behavior, because
 every retained invoked source here is the clinician's. It still strips and separately reports a retired
 `AMPLIFICATION` marker as a pre-#496 marker that is not graded. The comments never reach the LMS.
 

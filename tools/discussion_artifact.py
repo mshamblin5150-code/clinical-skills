@@ -85,23 +85,12 @@ def strip_discussion_markers(text: str) -> str:
 
 
 def invoked_source_has_substance(source: InvokedSource) -> bool:
-    """Return whether both fields exist and the property states behavior."""
+    """Return whether the property has lexical content beyond the domain noun."""
 
-    grammar_only = {"a", "an", "the", "it", "its", "is", "this", "that"}
-    generic_only = {
-        "action",
-        "anything",
-        "behavior",
-        "domain",
-        "effect",
-        "everything",
-        "nothing",
-        "property",
-        "something",
-        "thing",
-    }
-    predicate_words = {
+    grammar_only = {
+        "a",
         "am",
+        "an",
         "are",
         "be",
         "been",
@@ -114,31 +103,40 @@ def invoked_source_has_substance(source: InvokedSource) -> bool:
         "had",
         "has",
         "have",
+        "he",
+        "i",
+        "is",
+        "it",
+        "its",
         "may",
         "might",
         "must",
         "shall",
+        "she",
         "should",
+        "that",
+        "the",
+        "they",
+        "this",
         "was",
+        "we",
         "were",
         "will",
         "would",
-    }
-    subject_words = {
-        "everything",
-        "he",
-        "i",
-        "it",
-        "nothing",
-        "she",
-        "something",
-        "that",
-        "they",
-        "this",
-        "we",
         "you",
     }
-
+    generic_only = {
+        "action",
+        "anything",
+        "behavior",
+        "domain",
+        "effect",
+        "everything",
+        "nothing",
+        "property",
+        "something",
+        "thing",
+    }
     def terms(value: str) -> tuple[str, ...]:
         return tuple(
             token
@@ -147,6 +145,9 @@ def invoked_source_has_substance(source: InvokedSource) -> bool:
         )
 
     def singular(token: str) -> str:
+        irregular = {"analyses": "analysis", "buses": "bus"}
+        if token in irregular:
+            return irregular[token]
         if len(token) > 4 and token.endswith("ies"):
             return token[:-3] + "y"
         if len(token) > 4 and token.endswith(("ches", "shes", "sses", "xes", "zes")):
@@ -156,31 +157,12 @@ def invoked_source_has_substance(source: InvokedSource) -> bool:
         return token
 
     domain_terms = {singular(token) for token in terms(source.domain)}
-    property_terms = tuple(re.findall(r"[a-z0-9]+", source.property.casefold()))
-    added_positions = {
-        index
-        for index, token in enumerate(property_terms)
-        if token not in grammar_only
-        and singular(token) not in domain_terms
-        and singular(token) not in generic_only
-    }
-    has_predicate = any(token in predicate_words for token in property_terms) or any(
-        index in added_positions
-        and index > 0
-        and (
-            token.endswith(("ed", "ing"))
-            or (
-                len(token) > 3
-                and token.endswith("s")
-                and (
-                    index < len(property_terms) - 1
-                    or property_terms[index - 1] in subject_words
-                )
-            )
-        )
-        for index, token in enumerate(property_terms)
+    added_terms = tuple(
+        token
+        for token in terms(source.property)
+        if singular(token) not in domain_terms and singular(token) not in generic_only
     )
-    return bool(domain_terms) and has_predicate
+    return bool(domain_terms) and bool(added_terms)
 
 
 @dataclass(frozen=True)

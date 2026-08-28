@@ -193,8 +193,11 @@ Exit 0 means every scanned reply passes, 1 means a finding, and 2 means the run 
 scannable. Fix any finding through the original drafting context, preserve the first checker
 result, and have another fresh context grade the correction.
 
-Walk `discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT` after a clean scan. A clean scan grades
-only the marked set and is not a checked voice.
+Walk `discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT` and
+`discussion_reply_scan.INVOKED_PROPERTY_LIMIT` after a clean scan. The property row mechanically
+refuses an empty field or a lexical restatement of the domain noun; it does not parse English or
+prove that the remaining words state the real behavior. A clean scan grades only the marked set
+and is not a checked voice. The clinician answers both substance questions from the table below.
 
 Show the clean reply and an invoked-source table to the clinician. For every retained invoked
 source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is

@@ -28,7 +28,7 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 
 **`discussion-reply` depends on `tools/discussion_reply_scan.py`.** The CLI is the deterministic
 grader for the roster name, word floor, reference minimum, citation resolution, numeric-claim
-trace, source reuse, invoked-property refusal, and the invoked-source and pre-#496 marker counts.
+trace, source reuse, empty-or-self-restating invoked-property refusal, and the invoked-source and pre-#496 marker counts.
 A consumer that cannot run it can walk the
 same checks from [discussion-reply](skills/discussion-reply/SKILL.md) step 4, but cannot call the
 run mechanically verified. Its claim records use `tools/research_ledger.py` on the same full written contract as
