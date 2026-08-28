@@ -56,7 +56,7 @@ from repo_root import InsideCheckout
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "guidelines-uspstf.md"
 DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
-DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
+DEFAULT_COVERAGE_REGISTRY = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 
 # The five USPSTF grades. Nothing else is a grade, and a sixth letter is a parse bug
 # rather than a new category, so it raises instead of reaching the table.
@@ -772,17 +772,17 @@ def mark_superseded(rows: list[Row]) -> tuple[list[Row], list[str]]:
 # --------------------------------------------------------------------------------------
 
 
-def threshold_sheets_by_filename(catalog: str, coverage: str) -> dict[str, str]:
+def threshold_sheets_by_filename(catalog: str, coverage_registry: str) -> dict[str, str]:
     """USPSTF source filename to threshold artifact, joined through catalog topic."""
     catalog_rows, _, catalog_problems = guidelines_catalog.parse_catalog(catalog)
-    coverage_rows, coverage_problems = threshold_coverage.parse_registry(coverage)
-    problems = catalog_problems + coverage_problems
+    registry_rows, registry_problems = threshold_coverage.parse_registry(coverage_registry)
+    problems = catalog_problems + registry_problems
     if problems:
         raise ValueError("; ".join(problems))
 
     artifacts_by_topic = {
         entry.topic.casefold(): entry.artifact
-        for entry in coverage_rows
+        for entry in registry_rows
         if entry.artifact
     }
     return {
@@ -992,7 +992,9 @@ def main(argv: list[str] | None = None) -> int:
         help=f"Markdown table to write (default: {DEFAULT_OUT.relative_to(REPO_ROOT)})",
     )
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
-    parser.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE)
+    parser.add_argument(
+        "--coverage-registry", type=Path, default=DEFAULT_COVERAGE_REGISTRY
+    )
     parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
@@ -1019,7 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         threshold_sheets = threshold_sheets_by_filename(
             args.catalog.read_text(encoding="utf-8"),
-            args.coverage.read_text(encoding="utf-8"),
+            args.coverage_registry.read_text(encoding="utf-8"),
         )
         results = build(
             args.source,

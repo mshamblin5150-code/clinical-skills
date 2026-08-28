@@ -769,6 +769,7 @@ class RenderingTests(unittest.TestCase):
                 "cervical-cancer-final-rec-statement.pdf": "cervical-cancer.md"
             },
         )
+        without_pointer = ut.render_markdown([with_sheet, without_sheet])
 
         self.assertIn("| Threshold sheet | File | Page |", markdown)
         self.assertIn(
@@ -784,6 +785,13 @@ class RenderingTests(unittest.TestCase):
             "`Threshold sheet` points to a sheet about the same source document; "
             "it does not claim that the two artifacts agree.",
             markdown,
+        )
+        self.assertEqual(
+            markdown.replace(
+                "[cervical-cancer.md](thresholds/cervical-cancer.md)", ""
+            ),
+            without_pointer,
+            "the derived pointer must be the only byte changed by a filename match",
         )
 
     def test_the_header_explains_the_interval_rules_reach_and_alternatives(self):
