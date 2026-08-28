@@ -291,9 +291,11 @@ artifact-level distinction between *checked once against real PDFs* and *never c
 binds the tier 0 and tier 1 reading to the exact extracted-text build it used. The values
 come from `manifest.json`; `threshold_draft.py` reads and renders them, so a reader does
 not type either value. `threshold_sheet.py` compares that declaration with the manifest
-under `--text-root`. A missing or different declaration warns without refusing, and
-`--all` names the affected sheets and their count. The PDF-reading tier 2 does not rest on
-this identity and remains governed by the resolution declaration above.
+under `--text-root`. A missing declaration refuses as an incomplete
+`threshold-sheet/2` schema; a declaration that differs from the current manifest warns
+without refusing, and `--all` names the affected sheets and their count. The PDF-reading
+tier 2 does not rest on this identity and remains governed by the resolution declaration
+above.
 
 The corpus token deliberately remains a machine-local path. A second machine reaches a
 disagreement only when its owner explicitly supplies a live `--pdf-root`; the ordinary hook

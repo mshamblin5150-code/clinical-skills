@@ -38,7 +38,7 @@ import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
 from guidelines_manifest_test_support import (  # noqa: E402
     ReadingManifestConformance,
-    trusted_extraction_producer,
+    write_trusted_extraction_manifest,
 )
 import threshold_sheet as gate  # noqa: E402
 
@@ -1091,16 +1091,8 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
 class ExtractionIdentityGate(unittest.TestCase):
     @staticmethod
     def write_manifest(root: Path) -> gate.ExtractionIdentity:
-        producer = trusted_extraction_producer()
-        (root / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "producer": producer,
-                    "documents": [],
-                }
-            ),
-            encoding="utf-8",
-        )
+        producer = write_trusted_extraction_manifest(root)
+        assert isinstance(producer, dict)
         extractor = next(
             row["sha256"]
             for row in producer["inputs"]

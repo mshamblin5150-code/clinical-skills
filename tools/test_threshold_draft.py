@@ -12,7 +12,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet  # noqa: E402
-from guidelines_manifest_test_support import trusted_extraction_producer  # noqa: E402
+from guidelines_manifest_test_support import (  # noqa: E402
+    trusted_extraction_producer,
+    write_trusted_extraction_manifest,
+)
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -106,16 +109,7 @@ class ThresholdDraftCli(unittest.TestCase):
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
         text_root.mkdir()
-        producer = manifest_producer or trusted_extraction_producer()
-        (text_root / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "producer": producer,
-                    "documents": [],
-                }
-            ),
-            encoding="utf-8",
-        )
+        write_trusted_extraction_manifest(text_root, manifest_producer)
         (recs / record_name).write_text(
             json.dumps(record_payload or recommendation_record()), encoding="utf-8"
         )
