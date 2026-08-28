@@ -212,7 +212,9 @@ walk. A new factual sentence is researched and independently refuted on the same
 
 Copy the approved working text to `output/discussions/<course>-<module>-discussion-<date>.md`. Keep the
 `AMPLIFICATION` comments in the Markdown working artifact so the count remains auditable; omit them
-from the LMS.
+from the LMS. End with the Markdown heading `## References`. This is the form the post grader and
+reference scanner both read, and `docx_write.py --bold-headings` renders it as direct bold formatting
+without a named heading style before the document is pasted into the LMS.
 
 Fresh, non-authoring contexts run each artifact grader. One context never grades an artifact it
 authored, and a repair is checked by another fresh context:

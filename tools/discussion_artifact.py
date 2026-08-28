@@ -48,6 +48,11 @@ RESTATEMENT = re.compile(r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.
 CLAIM_REFERENCE = re.compile(
     r"(?mi)^REFERENCE\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
 )
+REFERENCE_LABEL_RECOGNIZER = re.compile(
+    r"(?mi)^(?P<label>[ \t]*(?:#{1,6}[ \t]+)?"
+    r"(?:\*\*References?\*\*|__References?__|\*References?\*|_References?_|References?)"
+    r"\s*:?[ \t]*)$"
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,13 @@ class Citation:
     year: str
     start: int
     end: int
+
+
+@dataclass(frozen=True)
+class ReferenceSection:
+    body: str
+    references: tuple[str, ...]
+    refused_label: str | None
 
 
 def split_references(text: str, heading: re.Pattern[str]) -> tuple[str, tuple[str, ...]]:
@@ -70,6 +82,25 @@ def split_references(text: str, heading: re.Pattern[str]) -> tuple[str, tuple[st
         if block.strip()
     )
     return body, references
+
+
+def recognized_reference_label(text: str) -> str | None:
+    """Return a plainly recognizable reference-label line, without accepting it."""
+
+    match = REFERENCE_LABEL_RECOGNIZER.search(text)
+    return match.group("label") if match else None
+
+
+def read_reference_section(
+    text: str, accepted_label: re.Pattern[str]
+) -> ReferenceSection:
+    """Split a reference section and retain a recognizable refused label."""
+
+    body, references = split_references(text, accepted_label)
+    refused_label = (
+        None if accepted_label.search(text) else recognized_reference_label(text)
+    )
+    return ReferenceSection(body, references, refused_label)
 
 
 def author_key(value: str) -> str:
