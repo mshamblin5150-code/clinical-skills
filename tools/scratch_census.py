@@ -105,14 +105,20 @@ def accounted_names(checkout: Path) -> frozenset[str]:
 
 def scratch_names(text: str) -> frozenset[str]:
     names: set[str] = set()
-    complete_spans: list[tuple[int, int]] = []
-    for pattern in (*DELIMITED_SCRATCH_NAMES, EXPLICIT_DIRECTORY_NAME):
+    masked = list(text)
+
+    def blank(start: int, end: int) -> None:
+        masked[start:end] = " " * (end - start)
+
+    for pattern in DELIMITED_SCRATCH_NAMES:
         for match in pattern.finditer(text):
             names.add(match.group(1))
-            complete_spans.append(match.span())
-    for match in PLAIN_SCRATCH_NAME.finditer(text):
-        if any(start <= match.start() < end for start, end in complete_spans):
-            continue
+            blank(*match.span())
+    masked_text = "".join(masked)
+    for match in EXPLICIT_DIRECTORY_NAME.finditer(masked_text):
+        names.add(match.group(1))
+        blank(*match.span())
+    for match in PLAIN_SCRATCH_NAME.finditer("".join(masked)):
         names.add(match.group(1))
     return frozenset(names)
 

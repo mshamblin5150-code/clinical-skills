@@ -225,6 +225,18 @@ class AccountedSetTests(unittest.TestCase):
         self.assertTrue(census.STANDING_ARTIFACTS <= derived)
         self.assertNotEqual(census.STANDING_ARTIFACTS, derived)
 
+    def test_one_delimited_reference_cannot_swallow_the_next_path(self) -> None:
+        self.assertEqual(
+            census.scratch_names("`scratch/alpha` and scratch/café notes/"),
+            {"alpha", "café notes"},
+        )
+        self.assertEqual(
+            census.scratch_names(
+                'TARGET = "scratch/alpha"; docs: scratch/name,comma/'
+            ),
+            {"alpha", "name,comma"},
+        )
+
     def test_the_census_refuses_from_the_hook_and_is_not_advisory(self) -> None:
         hook = PRE_COMMIT.read_text(encoding="utf-8")
 
