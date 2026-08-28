@@ -235,10 +235,8 @@ def _legal_reference_name_findings(reply: Reply) -> tuple[Finding, ...]:
 def _citation_findings(
     reply: Reply,
     citations: tuple[Citation, ...],
-    references: set[tuple[str, str]] | None = None,
+    references: set[tuple[str, str]],
 ) -> tuple[Finding, ...]:
-    if references is None:
-        references = _reference_keys(reply)
     return tuple(
         Finding(
             UNRESOLVED_CITATION,

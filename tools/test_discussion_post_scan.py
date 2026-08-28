@@ -466,8 +466,17 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual("Patient rights", citations[0].author)
 
     def test_text_beyond_the_longest_key_bound_does_not_change_the_walk(self):
-        keys = frozenset({(artifact.author_key("Patient rights"), "2024")})
+        class CountedKeys(frozenset):
+            checks = 0
+
+            def __contains__(self, key):
+                self.checks += 1
+                return super().__contains__(key)
+
+        keys = CountedKeys({(artifact.author_key("Patient rights"), "2024")})
         short = artifact.read_citations("Patient rights (2024) governs care.", keys)
+        short_checks = keys.checks
+        keys.checks = 0
         long = artifact.read_citations(
             ("unrelated " * 1_000) + "Patient rights (2024) governs care.",
             keys,
@@ -475,6 +484,7 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual(short[0].author, long[0].author)
         self.assertEqual(short[0].year, long[0].year)
+        self.assertEqual(short_checks, keys.checks)
 
     def test_a_yearless_section_only_record_is_a_post_finding(self):
         claims = CLAIMS.replace(

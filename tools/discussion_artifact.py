@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import sys
 import unicodedata
-from collections.abc import Collection
+from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 
 
@@ -319,7 +319,7 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
 
 
 def legal_reference_lacks_name(reference: str) -> bool:
-    """Return whether a dated legal entry's author slot is only its section."""
+    """Return whether a legal entry's author slot is only its section."""
 
     year = REFERENCE_YEAR.search(reference)
     author_text = (
@@ -407,11 +407,10 @@ def read_citations(
             ):
                 continue
             prefix = body[: year_match.start()]
-            words = tuple(re.finditer(r"[\w'’&.-]+", prefix, re.UNICODE))
             longest: Citation | None = None
             year_value = year_match.group("year").casefold()
-            for word in reversed(words):
-                author = prefix[word.start() :].strip()
+            for word_start in _reverse_word_starts(prefix):
+                author = prefix[word_start:].strip()
                 key = author_key(author)
                 if len(key) > max_key_length:
                     break
@@ -419,7 +418,7 @@ def read_citations(
                     longest = Citation(
                         author,
                         year_value,
-                        word.start(),
+                        word_start,
                         year_match.end(),
                     )
             if longest is not None:
@@ -438,3 +437,21 @@ def _legal_author(match: re.Match[str]) -> str:
 def _legal_year(match: re.Match[str]) -> str:
     value = match.group("parenthesized_year") or match.group("year") or ""
     return value.casefold()
+
+
+def _reverse_word_starts(value: str) -> Iterator[int]:
+    """Yield word starts from the end without tokenizing the whole prefix."""
+
+    cursor = len(value)
+    while cursor:
+        while cursor and not _author_word_character(value[cursor - 1]):
+            cursor -= 1
+        if not cursor:
+            return
+        while cursor and _author_word_character(value[cursor - 1]):
+            cursor -= 1
+        yield cursor
+
+
+def _author_word_character(character: str) -> bool:
+    return character.isalnum() or character == "_" or character in "'’&.-"
