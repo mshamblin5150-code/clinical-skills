@@ -41,6 +41,7 @@ NOT_REACHED = {
     "quotation-provenance": "whether quoted text came from the source the model names",
     "invoked-source-fit": "whether the named domain and property are accurate or load-bearing",
     "register-candidate": "a malformed register heading that does not begin with a level-two Register label",
+    "observation-candidate": "a malformed observation row that does not begin with a number and a period or parenthesis",
 }
 
 INVALID_INVOCATION = "invalid invocation"
@@ -89,10 +90,13 @@ PAIRS = re.compile(
     r"^### Discriminating pairs\s*$\n(?P<body>.*?)(?=^### Coverage\s*$|^## |\Z)",
     re.MULTILINE | re.DOTALL,
 )
-OBSERVATION = re.compile(
-    r"^(?P<number>\d+)\. \*\*(?P<title>.+?)\*\*[^\n]*\n"
-    r"(?P<body>.*?)(?=^\d+\. \*\*|\Z)",
-    re.MULTILINE | re.DOTALL,
+OBSERVATION_CANDIDATE = re.compile(
+    r"^(?P<number>\d+)[.)][ \t]+(?P<rest>[^\n]*)$",
+    re.MULTILINE,
+)
+OBSERVATION_SHAPE = re.compile(
+    r"^\*\*(?P<title>.+?)\*\*(?P<body>.*)$",
+    re.DOTALL,
 )
 PAIR = re.compile(
     r"^\*\*(?P<name>[^*\n]+)\.\*\*[^\n]*\n(?P<body>.*?)(?=^\*\*[^*\n]+\.\*\*|\Z)",
@@ -140,7 +144,9 @@ class Scan:
     register_headings: int
     registers: int
     unread_registers: int
+    observation_rows: int
     observations: int
+    unread_observations: int
     pairs: int
     invoked_observations: int
     required_items_read: bool
@@ -198,6 +204,8 @@ def survey(text: str, spec_text: str) -> Scan:
                 findings.append(Finding("missing-register", f"register {number} is absent"))
 
     observation_count = 0
+    observation_rows = 0
+    unread_observations = 0
     pair_count = 0
     invoked_count = 0
     invoked_name = _normalize(invoked_item or "")
@@ -206,13 +214,27 @@ def survey(text: str, spec_text: str) -> Scan:
         if observations_match is None:
             findings.append(Finding("missing-observations", f"register {number} has no Observations section"))
         else:
-            observations = list(OBSERVATION.finditer(observations_match.group("body")))
-            observation_count += len(observations)
-            if not observations:
+            observations_body = observations_match.group("body")
+            candidates = list(OBSERVATION_CANDIDATE.finditer(observations_body))
+            observation_rows += len(candidates)
+            if not candidates:
                 findings.append(Finding("missing-observations", f"register {number} carries no observations"))
-            for observation in observations:
-                title = observation.group("title")
-                observation_body = observation.group("body")
+            for index, observation in enumerate(candidates):
+                end = candidates[index + 1].start() if index + 1 < len(candidates) else len(observations_body)
+                row = observations_body[observation.start("rest"):end]
+                shape = OBSERVATION_SHAPE.fullmatch(row)
+                if shape is None or not observation.group(0).startswith(observation.group("number") + "."):
+                    unread_observations += 1
+                    findings.append(
+                        Finding(
+                            "unread-observation",
+                            f"register {number} observation row {index + 1} has an unrecognized shape",
+                        )
+                    )
+                    continue
+                observation_count += 1
+                title = shape.group("title")
+                observation_body = shape.group("body")
                 if QUOTE.search(observation_body) is None:
                     findings.append(
                         Finding(
@@ -248,7 +270,9 @@ def survey(text: str, spec_text: str) -> Scan:
         register_headings=len(headings),
         registers=len(registers),
         unread_registers=unread_registers,
+        observation_rows=observation_rows,
         observations=observation_count,
+        unread_observations=unread_observations,
         pairs=pair_count,
         invoked_observations=invoked_count,
         required_items_read=required_items_read,
@@ -263,7 +287,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"register headings: {scan.register_headings}",
         f"registers: {scan.registers}",
         f"unread register headings: {scan.unread_registers}",
+        f"observation rows: {scan.observation_rows}",
         f"observations: {scan.observations}",
+        f"unread observation rows: {scan.unread_observations}",
         f"discriminating pairs: {scan.pairs}",
         f"invoked-source observations: {scan.invoked_observations}",
         f"findings: {len(scan.findings)}",
@@ -302,7 +328,9 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     scan = survey(source.text, source.spec_text)
     no_registers = scan.register_headings == 0
     incomplete = scan.register_headings > 0 and (
-        scan.registers != len(REGISTER_NAMES) or scan.unread_registers > 0
+        scan.registers != len(REGISTER_NAMES)
+        or scan.unread_registers > 0
+        or scan.unread_observations > 0
     )
     required_items_unreadable = not scan.required_items_read
     limbs = tuple(

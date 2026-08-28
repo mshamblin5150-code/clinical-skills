@@ -33,7 +33,9 @@ class TheSyntheticModelGradesTheGrader(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("voice model: ACTIVE", stdout)
         self.assertIn("registers: 3", stdout)
+        self.assertIn("observation rows: 4", stdout)
         self.assertIn("observations: 4", stdout)
+        self.assertIn("unread observation rows: 0", stdout)
         self.assertIn("discriminating pairs: 6", stdout)
         self.assertIn("findings: 0", stdout)
         self.assertNotIn("orbital mechanics", stdout)
@@ -81,6 +83,22 @@ class ShapeFindingsRefuse(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn("findings: 1", stdout)
+
+    def test_a_malformed_observation_row_cannot_be_absorbed_by_the_previous_quote(self):
+        changed = self.source.replace(
+            "2. **The claim closes the paragraph.**\n"
+            '   > "The constraint is not an inconvenience. It is the shape of the answer."\n',
+            "2) **The claim closes the paragraph.**\n",
+            1,
+        )
+
+        status, stdout, stderr = self.grade(changed)
+
+        self.assertEqual(1, status)
+        self.assertIn("observation rows: 4", stdout)
+        self.assertIn("observations: 3", stdout)
+        self.assertIn("unread observation rows: 1", stdout)
+        self.assertIn("not completely scanned", stderr)
 
     def test_a_register_without_two_complete_pairs_is_a_finding(self):
         changed = self.source.replace(
