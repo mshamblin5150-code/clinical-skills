@@ -180,7 +180,7 @@ An observation with no quote is a guess about the writing rather than a reading 
 7. **What he never does.** The absences, and they are frequently more diagnostic than anything
    present. No exclamation points, no rhetorical questions, never opens on a definition, never
    closes on a summary — whichever of those the samples actually show.
-8. **The invoked source and what it spends.** Per invoked source, record the domain it draws on and
+8. **The invoked source and what it spends.** <!-- voice-model-scan: invoked-source --> Per invoked source, record the domain it draws on and
    the property that carries the claim. The domain is whatever the writer has lived, so it stays
    open rather than being selected from an enumeration.
 

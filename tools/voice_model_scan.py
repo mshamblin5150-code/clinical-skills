@@ -13,11 +13,9 @@ coverage, so a malformed tail cannot hide a defect already established in a
 register the command could read.
 
 The command grades shape, never whether the model sounds like its clinician.
-In particular, it cannot establish that a quotation came from the named sample,
-that a discriminating pair captures a real distinction, that the invoked domain
-or property is accurate, or that the property actually carries an argument.
-The clinician confirmation required by ``voice.md`` section 9 remains the only
-verification of the model's truth.
+``NOT_REACHED`` is the single inventory of those declared limits. The clinician
+confirmation required by ``voice.md`` section 9 remains the verification of the
+model's truth.
 """
 
 from __future__ import annotations
@@ -38,17 +36,6 @@ VOICE_SPEC = (
     / "reference"
     / "voice.md"
 )
-REQUIRED_ITEMS = (
-    "Sentence rhythm",
-    "Where the weight falls",
-    "Lexicon that is his",
-    "The characteristic move",
-    "How uncertainty is carried",
-    "How humor is built, and where it sits",
-    "What he never does",
-    "The invoked source and what it spends",
-)
-
 NOT_REACHED = {
     "model-truth": "whether the modeled observations and pairs are true of the clinician",
     "quotation-provenance": "whether quoted text came from the source the model names",
@@ -57,11 +44,15 @@ NOT_REACHED = {
 
 INVALID_INVOCATION = "invalid invocation"
 MODEL_ABSENT = "voice model absent"
+SPEC_UNAVAILABLE = "voice model specification unavailable"
+REQUIRED_ITEMS_UNREADABLE = "required item vocabulary unreadable"
 NO_REGISTER_SHAPE = "no register shape read"
 INCOMPLETE_REGISTER_SHAPE = "not every register could be read"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     MODEL_ABSENT,
+    SPEC_UNAVAILABLE,
+    REQUIRED_ITEMS_UNREADABLE,
     NO_REGISTER_SHAPE,
     INCOMPLETE_REGISTER_SHAPE,
 )
@@ -72,17 +63,19 @@ SECTION_FOUR = re.compile(
     r"^### The two-sample rule\s*$",
     re.MULTILINE | re.DOTALL,
 )
-NUMBERED_ITEM = re.compile(r"^\d+\. \*\*(?P<name>.+?)\.\*\*", re.MULTILINE)
+NUMBERED_ITEM = re.compile(
+    r"^\d+\. \*\*(?P<name>.+?)\.\*\*"
+    r"(?: <!-- voice-model-scan: (?P<role>[a-z-]+) -->)?",
+    re.MULTILINE,
+)
 REGISTER_NAMES = {
     "1": "clinical argument",
     "2": "spoken patient education",
     "3": "reflective and argumentative prose",
 }
-REGISTER = re.compile(
-    r"^## Register (?P<number>[123]) — "
-    r"(?:clinical argument|spoken patient education|reflective and argumentative prose)\s*$\n"
-    r"(?P<body>.*?)(?=^## Register [123]\b|^## Seen once\b|\Z)",
-    re.MULTILINE | re.DOTALL,
+REGISTER_HEADING = re.compile(
+    r"^## Register (?P<number>\d+)\s+—\s+(?P<name>[^\n]+?)\s*$",
+    re.MULTILINE,
 )
 OBSERVATIONS = re.compile(
     r"^### Observations\s*$\n(?P<body>.*?)(?=^### Discriminating pairs\s*$|^## |\Z)",
@@ -116,6 +109,18 @@ def read_required_items(text: str) -> tuple[str, ...]:
     return tuple(match.group("name") for match in NUMBERED_ITEM.finditer(section.group("body")))
 
 
+def read_required_roles(text: str) -> dict[str, str]:
+    """Read machine roles attached to section 4's numbered item vocabulary."""
+    section = SECTION_FOUR.search(text)
+    if section is None:
+        return {}
+    return {
+        match.group("role"): match.group("name")
+        for match in NUMBERED_ITEM.finditer(section.group("body"))
+        if match.group("role")
+    }
+
+
 @dataclass(frozen=True)
 class Finding(run_grader.Finding):
     detail: str
@@ -123,10 +128,13 @@ class Finding(run_grader.Finding):
 
 @dataclass(frozen=True)
 class Scan:
+    register_headings: int
     registers: int
+    unread_registers: int
     observations: int
     pairs: int
     invoked_observations: int
+    required_items_read: bool
     findings: tuple[Finding, ...]
 
 
@@ -134,6 +142,7 @@ class Scan:
 class Source:
     path: Path
     text: str
+    spec_text: str
 
 
 def _normalize(value: str) -> str:
@@ -143,18 +152,32 @@ def _normalize(value: str) -> str:
 def survey(text: str, spec_text: str) -> Scan:
     """Read the model's three public register sections and their shape rows."""
     findings: list[Finding] = []
-    published = read_required_items(spec_text)
-    if published != REQUIRED_ITEMS:
-        findings.append(
-            Finding(
-                "required-items",
-                "voice.md section 4 and the grader's required item vocabulary differ",
-            )
-        )
+    required_items = read_required_items(spec_text)
+    required_roles = read_required_roles(spec_text)
+    invoked_item = required_roles.get("invoked-source")
+    required_items_read = bool(required_items and invoked_item)
 
-    registers = list(REGISTER.finditer(text))
-    seen_registers = {match.group("number") for match in registers}
-    if registers:
+    headings = list(REGISTER_HEADING.finditer(text))
+    registers: list[tuple[str, str]] = []
+    unread_registers = 0
+    seen_registers: set[str] = set()
+    for index, heading in enumerate(headings):
+        number = heading.group("number")
+        name = heading.group("name")
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        seen_once = text.find("\n## Seen once", heading.end(), end)
+        if seen_once >= 0:
+            end = seen_once
+        body = text[heading.end():end]
+        if REGISTER_NAMES.get(number) != name or number in seen_registers:
+            unread_registers += 1
+            detail = "duplicate" if number in seen_registers else "unrecognized"
+            findings.append(Finding("unread-register", f"{detail} register heading at physical position {index + 1}"))
+            continue
+        seen_registers.add(number)
+        registers.append((number, body))
+
+    if headings:
         for number in ("1", "2", "3"):
             if number not in seen_registers:
                 findings.append(Finding("missing-register", f"register {number} is absent"))
@@ -162,14 +185,8 @@ def survey(text: str, spec_text: str) -> Scan:
     observation_count = 0
     pair_count = 0
     invoked_count = 0
-    invoked_name = _normalize(REQUIRED_ITEMS[-1])
-    for register in registers:
-        number = register.group("number")
-        body = register.group("body")
-        opening = register.group(0).splitlines()[0]
-        expected_opening = f"## Register {number} — {REGISTER_NAMES[number]}"
-        if opening != expected_opening:
-            findings.append(Finding("register-name", f"register {number} does not carry its fixed heading"))
+    invoked_name = _normalize(invoked_item or "")
+    for number, body in registers:
         observations_match = OBSERVATIONS.search(body)
         if observations_match is None:
             findings.append(Finding("missing-observations", f"register {number} has no Observations section"))
@@ -188,7 +205,7 @@ def survey(text: str, spec_text: str) -> Scan:
                             f"register {number} observation {observation.group('number')} carries no quote",
                         )
                     )
-                if _normalize(title) == invoked_name:
+                if invoked_name and _normalize(title) == invoked_name:
                     invoked_count += 1
                     if DOMAIN.search(observation_body) is None:
                         findings.append(Finding("invoked-domain", f"register {number} invoked-source observation has no domain"))
@@ -209,14 +226,17 @@ def survey(text: str, spec_text: str) -> Scan:
             if HIS.search(pair.group("body")) is None:
                 findings.append(Finding("pair-his", f"register {number} pair {pair.group('name')} has no His half"))
 
-    if registers and invoked_count == 0:
+    if registers and required_items_read and invoked_count == 0:
         findings.append(Finding("invoked-observation", "no invoked-source observation names what it spends"))
 
     return Scan(
+        register_headings=len(headings),
         registers=len(registers),
+        unread_registers=unread_registers,
         observations=observation_count,
         pairs=pair_count,
         invoked_observations=invoked_count,
+        required_items_read=required_items_read,
         findings=tuple(findings),
     )
 
@@ -225,7 +245,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = [
         "voice model: ACTIVE",
         f"source: {source}",
+        f"register headings: {scan.register_headings}",
         f"registers: {scan.registers}",
+        f"unread register headings: {scan.unread_registers}",
         f"observations: {scan.observations}",
         f"discriminating pairs: {scan.pairs}",
         f"invoked-source observations: {scan.invoked_observations}",
@@ -251,16 +273,27 @@ def _load(parsed: run_grader.Parsed) -> Source:
             f"voice model: NOT RUN -- could not read {path}: {failure}; voice unmodeled",
             exit_2_limb=MODEL_ABSENT,
         ) from failure
-    return Source(path, text)
+    try:
+        spec_text = VOICE_SPEC.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(
+            f"voice model: NOT RUN -- could not read the tracked voice specification: {failure}",
+            exit_2_limb=SPEC_UNAVAILABLE,
+        ) from failure
+    return Source(path, text, spec_text)
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
-    scan = survey(source.text, VOICE_SPEC.read_text(encoding="utf-8"))
-    no_registers = scan.registers == 0
-    incomplete = 0 < scan.registers < 3
+    scan = survey(source.text, source.spec_text)
+    no_registers = scan.register_headings == 0
+    incomplete = scan.register_headings > 0 and (
+        scan.registers != len(REGISTER_NAMES) or scan.unread_registers > 0
+    )
+    required_items_unreadable = not scan.required_items_read
     limbs = tuple(
         limb
         for condition, limb in (
+            (required_items_unreadable, REQUIRED_ITEMS_UNREADABLE),
             (no_registers, NO_REGISTER_SHAPE),
             (incomplete, INCOMPLETE_REGISTER_SHAPE),
         )

@@ -41,21 +41,23 @@ class TheSyntheticModelGradesTheGrader(unittest.TestCase):
         self.assertEqual("", stderr)
 
     def test_the_required_item_vocabulary_is_read_from_the_tracked_spec(self):
-        items = scan.read_required_items(VOICE_SPEC.read_text(encoding="utf-8"))
+        spec = VOICE_SPEC.read_text(encoding="utf-8")
+        items = scan.read_required_items(spec)
+        roles = scan.read_required_roles(spec)
 
         self.assertIn("The invoked source and what it spends", items)
-        self.assertEqual(items, scan.REQUIRED_ITEMS)
+        self.assertEqual("The invoked source and what it spends", roles["invoked-source"])
 
     def test_the_command_finds_drift_in_the_tracked_item_vocabulary_at_runtime(self):
         spec = VOICE_SPEC.read_text(encoding="utf-8").replace(
-            "8. **The invoked source and what it spends.**",
-            "8. **Imagery category.**",
+            "<!-- voice-model-scan: invoked-source -->",
+            "",
             1,
         )
 
         result = scan.survey(SYNTHETIC.read_text(encoding="utf-8"), spec)
 
-        self.assertIn("required-items", {finding.kind for finding in result.findings})
+        self.assertFalse(result.required_items_read)
 
 
 class ShapeFindingsRefuse(unittest.TestCase):
@@ -128,6 +130,36 @@ class ShapeFindingsRefuse(unittest.TestCase):
         self.assertGreaterEqual(int(stdout.split("findings: ", 1)[1].splitlines()[0]), 1)
         self.assertIn("not completely scanned", stderr)
 
+    def test_an_extra_mistitled_register_is_counted_as_unread_and_refuses(self):
+        changed = self.source.replace(
+            "## Seen once",
+            "## Register 4 — invented register\n### Observations\n\n## Seen once",
+            1,
+        )
+
+        status, stdout, stderr = self.grade(changed)
+
+        self.assertEqual(1, status)
+        self.assertIn("register headings: 4", stdout)
+        self.assertIn("unread register headings: 1", stdout)
+        self.assertIn("not completely scanned", stderr)
+
+    def test_a_duplicate_valid_register_cannot_satisfy_completeness_by_count(self):
+        duplicate = (
+            "## Register 1 — clinical argument\n"
+            "### Observations\n\n"
+            "### Discriminating pairs\n\n"
+            "### Coverage\n\n"
+        )
+        changed = self.source.replace("## Seen once", duplicate + "## Seen once", 1)
+
+        status, stdout, stderr = self.grade(changed)
+
+        self.assertEqual(1, status)
+        self.assertIn("register headings: 4", stdout)
+        self.assertIn("unread register headings: 1", stdout)
+        self.assertIn("not completely scanned", stderr)
+
 
 class TheAbsentModelIsADeclaredDoor(unittest.TestCase):
     def test_default_and_show_both_print_the_unmodeled_banner(self):
@@ -164,6 +196,17 @@ class TheAbsentModelIsADeclaredDoor(unittest.TestCase):
         self.assertEqual("", stdout)
         self.assertIn("unrecognized option", stderr)
 
+    def test_an_unreadable_tracked_spec_is_a_declared_exit_two(self):
+        with tempfile.TemporaryDirectory() as directory:
+            absent_spec = Path(directory) / "voice.md"
+            with mock.patch.object(scan, "VOICE_SPEC", absent_spec):
+                status, stdout, stderr = run(str(SYNTHETIC))
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout)
+        self.assertIn("NOT RUN", stderr)
+        self.assertIn("voice specification", stderr)
+
 
 def require_live_model(scratch: Path) -> Path:
     model = scratch / "voice-model.md"
@@ -186,8 +229,16 @@ class TheLiveClassSkipsAsAWhole(unittest.TestCase):
     def test_an_absent_scratch_root_names_the_gap(self):
         with tempfile.TemporaryDirectory() as directory:
             absent = Path(directory) / "scratch"
-            with self.assertRaisesRegex(unittest.SkipTest, "voice unmodeled"):
-                require_live_model(absent)
+            suite = unittest.defaultTestLoader.loadTestsFromTestCase(TheLiveAccountModel)
+            result = unittest.TestResult()
+            with mock.patch.object(scan.repo_root, "scratch_root", return_value=absent):
+                suite.run(result)
+
+        self.assertEqual(0, result.testsRun)
+        self.assertEqual([], result.failures)
+        self.assertEqual([], result.errors)
+        self.assertEqual(1, len(result.skipped))
+        self.assertIn("voice unmodeled", result.skipped[0][1])
 
 
 class BothBuildBoundariesRunTheGate(unittest.TestCase):
