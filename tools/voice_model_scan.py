@@ -107,6 +107,9 @@ HIS = re.compile(r'^\s*- \*His(?:\s*\([^)]*\))?\*:\s*["“]\S', re.MULTILINE | r
 QUOTE = re.compile(r"^\s*>\s*\S", re.MULTILINE)
 DOMAIN = re.compile(r"^\s*Domain:\s*(?P<value>\S.*?)\s*$", re.MULTILINE | re.IGNORECASE)
 PROPERTY = re.compile(r"^\s*Property:\s*(?P<value>\S.*?)\s*$", re.MULTILINE | re.IGNORECASE)
+ABSENT_MODEL_BANNER = re.compile(
+    r"voice model: NOT RUN -- no model at .+; voice unmodeled"
+)
 
 
 def read_required_item_records(text: str) -> tuple[tuple[str, str | None], ...]:
@@ -162,6 +165,16 @@ class Source:
 
 def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().rstrip(".")).casefold()
+
+
+def absent_model_banner(path: Path) -> str:
+    """The one exit-2 banner that authorizes the unmodeled-voice door."""
+    return f"voice model: NOT RUN -- no model at {path}; voice unmodeled"
+
+
+def is_absent_model_banner(output: str) -> bool:
+    """Whether one command output is exactly the declared absent-model door."""
+    return ABSENT_MODEL_BANNER.fullmatch(output.strip()) is not None
 
 
 def survey(text: str, spec_text: str) -> Scan:
@@ -304,7 +317,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
     path = Path(parsed.source)
     if not path.is_file():
         raise run_grader.SourceError(
-            f"voice model: NOT RUN -- no model at {path}; voice unmodeled",
+            absent_model_banner(path),
             exit_2_limb=MODEL_ABSENT,
         )
     try:

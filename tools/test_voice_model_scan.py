@@ -320,6 +320,31 @@ class BothBuildBoundariesRunTheGate(unittest.TestCase):
         self.assertIn("Any other exit 2", reply)
         self.assertIn("must be repaired", reply)
 
+    def test_real_exit_two_outputs_open_only_the_absent_model_door(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            absent = root / "absent.md"
+            _status, absent_stdout, absent_stderr = run(str(absent))
+
+            _status, invalid_stdout, invalid_stderr = run(str(SYNTHETIC), "--unknown")
+
+            absent_spec = root / "voice.md"
+            with mock.patch.object(scan, "VOICE_SPEC", absent_spec):
+                _status, spec_stdout, spec_stderr = run(str(SYNTHETIC))
+
+            incomplete = root / "incomplete.md"
+            incomplete.write_text("# Voice model\n", encoding="utf-8")
+            _status, incomplete_stdout, incomplete_stderr = run(str(incomplete))
+
+        self.assertTrue(scan.is_absent_model_banner(absent_stdout + absent_stderr))
+        for name, output in (
+            ("invalid invocation", invalid_stdout + invalid_stderr),
+            ("unreadable specification", spec_stdout + spec_stderr),
+            ("incomplete shape", incomplete_stdout + incomplete_stderr),
+        ):
+            with self.subTest(exit_two=name):
+                self.assertFalse(scan.is_absent_model_banner(output))
+
     def test_a_model_without_the_invoked_observation_fails_the_shared_gate(self):
         source = SYNTHETIC.read_text(encoding="utf-8")
         start = source.index("1. **The invoked source and what it spends.**")
