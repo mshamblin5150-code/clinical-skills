@@ -68,6 +68,8 @@ BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 CASE_STUDY = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 CASE_STUDY_STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
 CASE_STUDY_VOICE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice.md"
+DISCUSSION_POST = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
+DISCUSSION_REPLY = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 VOICE_CORPUS_REFERENCE = (
     REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice-corpus.md"
 )
@@ -847,6 +849,24 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(ProseBind, unittest.TestCase):
         # claiming a register it was never given.
         for path in (CASE_STUDY, CASE_STUDY_VOICE):
             self.assertIn("the voice is unmodeled", read(path))
+
+    def test_each_discussion_skill_points_at_section_eights_no_model_rule(self):
+        voice = read(CASE_STUDY_VOICE)
+        section_eight = voice.split("## 8. What the built model looks like", 1)[1]
+        section_eight = section_eight.split("\n## 9.", 1)[0]
+        self.assertIn("Where there is no model.", section_eight)
+
+        pointer = "[voice.md](../practicum-case-study/reference/voice.md) §8"
+        for path in (DISCUSSION_POST, DISCUSSION_REPLY):
+            with self.subTest(skill=path.parent.name):
+                step_three = read(path).split("## 3.", 1)[1]
+                step_three = step_three.split("\n## 4.", 1)[0]
+                self.assertProseIn(
+                    pointer,
+                    step_three,
+                    f"{path.relative_to(REPO_ROOT)} does not inherit voice.md "
+                    "section 8's no-model rule in step 3",
+                )
 
     def test_the_declaration_is_per_register(self):
         # ``voice.md`` §7. A whole-document declaration reads as complete
