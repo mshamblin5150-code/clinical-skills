@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import io
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-import shutil
-import io
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -51,9 +51,12 @@ class ScratchRepository(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def add_worktree(self, name: str = "other") -> Path:
+    def add_worktree(self, name: str = "other", ref: str | None = None) -> Path:
         worktree = self.root.parent / name
-        git(self.root, "worktree", "add", "--detach", str(worktree))
+        arguments = ["worktree", "add", "--detach", str(worktree)]
+        if ref is not None:
+            arguments.append(ref)
+        git(self.root, *arguments)
         return worktree
 
     def run_census(self, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -140,7 +143,13 @@ class ScratchCensusCommandTests(ScratchRepository):
         self.assertIn("NOT SCANNED", finished.stdout)
 
     def test_worktree_state_is_measured_only_when_requested(self) -> None:
-        other = self.add_worktree()
+        (self.root / "README.md").write_text(
+            "Account artifacts live at `scratch/sessions/`.\n\nLater commit.\n",
+            encoding="utf-8",
+        )
+        git(self.root, "add", "README.md")
+        git(self.root, "commit", "-m", "move owning checkout forward")
+        other = self.add_worktree(ref="HEAD~1")
         (other / "scratch" / "sessions").mkdir(parents=True)
 
         ordinary = self.run_census()
@@ -155,6 +164,30 @@ class ScratchCensusCommandTests(ScratchRepository):
             "worktree state: 1 merged; 1 clean; 0 ahead",
             measured.stdout,
         )
+
+    def test_a_cited_name_may_contain_unicode_and_spaces(self) -> None:
+        (self.root / "README.md").write_text(
+            "Account artifacts live at `scratch/café notes/`.\n", encoding="utf-8"
+        )
+        git(self.root, "add", "README.md")
+        git(self.root, "commit", "-m", "name a spaced artifact")
+        (self.root / "scratch" / "café notes").mkdir()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 0, finished.stdout + finished.stderr)
+
+    def test_a_near_prefix_does_not_account_for_a_name(self) -> None:
+        (self.root / "README.md").write_text(
+            "This is not a path: not-scratch/private-name.\n", encoding="utf-8"
+        )
+        git(self.root, "add", "README.md")
+        git(self.root, "commit", "-m", "near miss")
+        (self.root / "scratch" / "private-name").touch()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 1, finished.stdout + finished.stderr)
 
 
 class AccountedSetTests(unittest.TestCase):
@@ -203,6 +236,49 @@ class AccountedSetTests(unittest.TestCase):
             run.call_args_list[1].args[1:],
             ("grep", "-h", "-I", "-e", "scratch/", "--", "."),
         )
+
+    def test_a_process_launch_failure_is_not_scanned_without_a_traceback(self) -> None:
+        output = io.StringIO()
+        error = io.StringIO()
+        with (
+            mock.patch.object(
+                census.subprocess, "run", side_effect=OSError("git is unavailable")
+            ),
+            redirect_stdout(output),
+            redirect_stderr(error),
+        ):
+            status = census.main([])
+
+        self.assertEqual(status, 2)
+        self.assertIn("NOT SCANNED", error.getvalue())
+        self.assertNotIn("Traceback", output.getvalue() + error.getvalue())
+
+    def test_a_grep_failure_preserves_the_enumerated_population(self) -> None:
+        root = Path.cwd().resolve()
+        responses = [
+            subprocess.CompletedProcess(
+                ["git", "worktree"],
+                0,
+                stdout=f"worktree {root}\nHEAD abc\nbranch refs/heads/main\n",
+                stderr="",
+            ),
+            subprocess.CompletedProcess(
+                ["git", "grep"], 2, stdout="", stderr="forced grep failure"
+            ),
+        ]
+        output = io.StringIO()
+        error = io.StringIO()
+        with (
+            mock.patch.object(census, "run_git", side_effect=responses),
+            redirect_stdout(output),
+            redirect_stderr(error),
+        ):
+            status = census.main([])
+
+        self.assertEqual(status, 2)
+        self.assertIn("1 worktrees enumerated", output.getvalue())
+        self.assertIn("scratch roots:", output.getvalue())
+        self.assertIn("forced grep failure", error.getvalue())
 
 
 if __name__ == "__main__":

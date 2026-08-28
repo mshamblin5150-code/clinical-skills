@@ -85,6 +85,10 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
 - **Counts only, and there is no `--show`.** A path is printed only where a tracked file already
   names it. Everything else is a bare number, because an entry the walk cannot account for is
   precisely the one that might carry a patient's name.
+- **An unreadable registered checkout root is named.** `git worktree list --porcelain` already
+  supplies that root, and ADR 0059 requires the report to identify every enumerated checkout it
+  could not read. This is coverage of the Git registry, not disclosure of a scratch-entry path;
+  the count-only rule above still governs every entry under the root.
 - **It reports the worktree-root hazard on every run and grades it never.** How many checkouts own
   a scratch root and how many files sit beneath them prints beside every verdict, on
   [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling: a reader who

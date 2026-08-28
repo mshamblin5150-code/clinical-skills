@@ -48,7 +48,10 @@ DECLARED_LIMITS = (
     "a separate clone has its own worktree registry and is invisible",
 )
 
-SCRATCH_NAME = re.compile(r"scratch/([A-Za-z0-9][A-Za-z0-9._-]*)")
+CODE_SCRATCH_NAME = re.compile(r"`scratch/([^/`\r\n]+)")
+PLAIN_SCRATCH_NAME = re.compile(
+    r"(?<![\w.-])scratch/([^\s/`\"'<>()[\]{},;:!?]+)"
+)
 
 
 class CensusNotRun(Exception):
@@ -63,13 +66,16 @@ class RootCount:
 
 
 def run_git(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *arguments],
-        cwd=cwd,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    try:
+        return subprocess.run(
+            ["git", *arguments],
+            cwd=cwd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as error:
+        raise CensusNotRun(str(error)) from None
 
 
 def worktree_roots(checkout: Path) -> tuple[Path, ...]:
@@ -90,7 +96,9 @@ def accounted_names(checkout: Path) -> frozenset[str]:
     finished = run_git(checkout, "grep", "-h", "-I", "-e", "scratch/", "--", ".")
     if finished.returncode not in (0, 1):
         raise CensusNotRun(finished.stderr.strip() or "git grep failed")
-    return frozenset(SCRATCH_NAME.findall(finished.stdout))
+    code_names = CODE_SCRATCH_NAME.findall(finished.stdout)
+    plain_names = PLAIN_SCRATCH_NAME.findall(finished.stdout)
+    return frozenset((*code_names, *plain_names))
 
 
 def count_files(root: Path) -> int:
@@ -123,19 +131,13 @@ def worktree_breakdown(
 ) -> tuple[int, int, int]:
     if not worktrees:
         return 0, 0, 0
-    merged_result = run_git(owning, "branch", "--format=%(refname)", "--merged")
-    if merged_result.returncode != 0:
-        raise CensusNotRun(
-            merged_result.stderr.strip() or "could not measure merged worktrees"
-        )
-    merged_refs = set(merged_result.stdout.splitlines())
     owning_result = run_git(owning, "rev-parse", "HEAD")
     if owning_result.returncode != 0:
         raise CensusNotRun(
             owning_result.stderr.strip() or "could not measure the owning checkout"
         )
     owning_oid = owning_result.stdout.strip()
-    statuses: list[tuple[str, str, bool]] = []
+    statuses: list[tuple[str, bool]] = []
     for root in worktrees:
         finished = run_git(root, "status", "--porcelain=v2", "--branch")
         if finished.returncode != 0:
@@ -147,22 +149,18 @@ def worktree_breakdown(
             (line.removeprefix("# branch.oid ") for line in lines if line.startswith("# branch.oid ")),
             "",
         )
-        head = next(
-            (line.removeprefix("# branch.head ") for line in lines if line.startswith("# branch.head ")),
-            "",
-        )
         clean = not any(not line.startswith("# ") for line in lines)
-        statuses.append((oid, head, clean))
+        statuses.append((oid, clean))
 
-    merged = sum(
-        oid == owning_oid or f"refs/heads/{head}" in merged_refs
-        for oid, head, _ in statuses
-    )
-    clean = sum(item[2] for item in statuses)
-    ahead = sum(
-        oid != owning_oid and f"refs/heads/{head}" not in merged_refs
-        for oid, head, _ in statuses
-    )
+    history_result = run_git(owning, "rev-list", owning_oid)
+    if history_result.returncode != 0:
+        raise CensusNotRun(
+            history_result.stderr.strip() or "could not measure merged worktrees"
+        )
+    merged_oids = set(history_result.stdout.splitlines())
+    merged = sum(oid in merged_oids for oid, _ in statuses)
+    clean = sum(item[1] for item in statuses)
+    ahead = len(statuses) - merged
     return merged, clean, ahead
 
 
@@ -174,11 +172,17 @@ def main(argv: list[str]) -> int:
     checkout = Path.cwd().resolve()
     try:
         roots = worktree_roots(checkout)
-        accounted = accounted_names(checkout)
     except CensusNotRun as error:
         print("coverage: 0 worktrees enumerated; 0 unreadable")
         print(f"NOT SCANNED: {error}", file=sys.stderr)
         return 2
+
+    accounted_error: CensusNotRun | None = None
+    try:
+        accounted = accounted_names(checkout)
+    except CensusNotRun as error:
+        accounted = frozenset()
+        accounted_error = error
 
     counts: list[RootCount] = []
     unreadable: list[Path] = []
@@ -199,6 +203,11 @@ def main(argv: list[str]) -> int:
         f"scratch roots: {len(counts)} checkouts own a scratch root; "
         f"{sum(item.files for item in counts)} files beneath"
     )
+    if accounted_error is not None:
+        print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
+        if unreadable:
+            print("NOT SCANNED: one or more required roots could not be read")
+        return 2
     owning = roots[0]
     state_not_scanned = False
     if argv == ["--worktrees"]:
