@@ -54,8 +54,17 @@ Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily
 Everything under `scratch/` is a patient record and none of it is recoverable. **A top-level entry
 there is accounted for iff some tracked file names it as `scratch/<name>`** — derived, never a
 hand-kept list — and a session's working material goes under `scratch/sessions/<key>/` rather than
-loose at the top. See `docs/agents/scratch.md` and
-[ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md).
+loose at the top. See `docs/agents/scratch.md`,
+[ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
+and [ADR 0059](docs/adr/0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md),
+**which supersedes ADR 0033's ruling 3.**
+
+**There is one scratch root per checkout that has one, not one per repository**, and that is ADR
+0059 ruling 1 — a worktree can own its own, and most of this repository's scratch material has
+lived in worktree roots rather than in the one `repo_root.scratch_root()` resolves to. So the rule
+above is applied **per root, in every registered checkout**: the owning checkout keeps a
+grandfathered integer baseline, and **every other checkout is held at zero unaccounted, from day
+one**. A failing worktree is **drained** to the owning checkout — a move, never a delete.
 
 **The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
 unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
@@ -65,7 +74,14 @@ priced and refused. That is the whole subject of the ADR; do not re-propose the 
 **A report is not a delete list, and no work list may schedule the `rm`.** [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417)'s
 ruling 10 caught two raw captures behind tracked reference sheets by *opening* them rather than by
 reading their filenames, two files away from being swept. Disposing of an unaccounted entry is the
-clinician's word, per file. The cheap remedy for one that deserves to stay is to **cite it**.
+clinician's word, per file. The cheap remedy for one that deserves to stay is to **cite it** — **but
+only where the name is safe to publish**, which is ADR 0059 ruling 8 and is not a caution. Citation
+writes the filename into a tracked file in a **public** repo, and the paragraph above is that a
+filename there may itself carry PHI, so for exactly that class the remedy is standing rule 1 broken
+by the remedy. A name that is not safe has no cheap remedy and stays in the baseline until the
+clinician rules on it. `docs/agents/scratch.md` carries the full qualifier; this sentence used to
+carry none, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s two
+copies of one rule found by the sweep of the very branch that ruled it.
 
 ### ADR number allocation
 
