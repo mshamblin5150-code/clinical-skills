@@ -14,6 +14,7 @@ from xml.etree import ElementTree
 
 import discussion_post_scan
 import discussion_reply_scan
+import discussion_artifact
 import docx_write
 import reference_scan
 from prose_bind import ProseBind
@@ -137,6 +138,40 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
 
         self.assertIn("does not see the classmate posts", post)
         self.assertIn("differentiation", post)
+
+
+class EachDiscussionSkillStatesTheInvokedSourceForm(ProseBind, unittest.TestCase):
+    def test_both_skills_state_the_shared_marker_form(self):
+        for path in (POST, REPLY):
+            with self.subTest(skill=path.parent.name):
+                self.assertProseIn(discussion_artifact.INVOKED_FORM, read(path))
+
+    def test_the_marker_rule_keys_on_presence_not_conscious_intent(self):
+        reply = read(REPLY)
+
+        self.assertNotIn("consciously", reply)
+        self.assertRegex(reply, r"(?i)mark every (?:retained )?invoked source")
+
+    def test_reply_approval_names_the_invoked_source_table_and_two_questions(self):
+        reply = read(REPLY)
+
+        self.assertProseIn("the invoked source, its domain, and the property it spends", reply)
+        self.assertProseIn("whether the substance is right", reply)
+        self.assertProseIn("whether each invoked source sounds like the clinician", reply)
+        self.assertProseIn("one approval with two named questions", reply)
+
+    def test_neither_skill_teaches_magnitude_or_a_domain_taxonomy(self):
+        for path in (POST, REPLY):
+            text = read(path)
+            with self.subTest(skill=path.parent.name):
+                self.assertProseIn("do not enlarge the noun or increase the rate", text)
+                self.assertProseIn("do not create a list of permitted domains", text)
+                self.assertProseIn("state the property as a predicate-bearing clause", text)
+
+    def test_current_skill_prose_uses_the_domain_term(self):
+        for path in (POST, REPLY):
+            with self.subTest(skill=path.parent.name):
+                self.assertNotRegex(read(path), r"(?i)\bfigure(?:s)?\b")
 
 
 class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):

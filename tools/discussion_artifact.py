@@ -14,6 +14,11 @@ from dataclasses import dataclass
 
 WORD = re.compile(r"\b[\w'-]+\b", re.UNICODE)
 NUMBER = re.compile(r"(?<![\w])\d+(?:[.,]\d+)*(?:%|st|nd|rd|th)?(?![\w])", re.IGNORECASE)
+INVOKED_FORM = "<!-- INVOKED: <domain> | <property> -->"
+INVOKED = re.compile(
+    r"(?mi)^\s*<!--\s*INVOKED\s*:\s*(?P<domain>[^\n|>]*)"
+    r"(?:\|\s*(?P<property>[^\n>]*))?-->\s*$"
+)
 AMPLIFICATION = re.compile(r"(?mi)^\s*<!--\s*AMPLIFICATION\s*:[^>]+-->\s*$")
 PAREN_BLOCK = re.compile(r"\((?P<inside>[^()]+)\)")
 YEAR = r"(?:(?:19|20)\d{2}[a-z]?|(?i:n\.d\.(?:-[a-z])?))"
@@ -53,6 +58,111 @@ REFERENCE_LABEL_RECOGNIZER = re.compile(
     r"(?:\*\*References?\*\*|__References?__|\*References?\*|_References?_|References?)"
     r"\s*:?[ \t]*)$"
 )
+
+
+@dataclass(frozen=True)
+class InvokedSource:
+    domain: str
+    property: str
+
+
+def read_invoked_sources(text: str) -> tuple[InvokedSource, ...]:
+    """Read every current marker, including incomplete markers the graders reject."""
+
+    return tuple(
+        InvokedSource(
+            marker.group("domain").strip(),
+            (marker.group("property") or "").strip(),
+        )
+        for marker in INVOKED.finditer(text)
+    )
+
+
+def strip_discussion_markers(text: str) -> str:
+    """Remove current and retired invisible working annotations."""
+
+    return INVOKED.sub("", AMPLIFICATION.sub("", text))
+
+
+def invoked_source_has_substance(source: InvokedSource) -> bool:
+    """Return whether the property has lexical content beyond the domain noun."""
+
+    grammar_only = {
+        "a",
+        "am",
+        "an",
+        "are",
+        "be",
+        "been",
+        "being",
+        "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "had",
+        "has",
+        "have",
+        "he",
+        "i",
+        "is",
+        "it",
+        "its",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "she",
+        "should",
+        "that",
+        "the",
+        "they",
+        "this",
+        "was",
+        "we",
+        "were",
+        "will",
+        "would",
+        "you",
+    }
+    generic_only = {
+        "action",
+        "anything",
+        "behavior",
+        "domain",
+        "effect",
+        "everything",
+        "nothing",
+        "property",
+        "something",
+        "thing",
+    }
+    def terms(value: str) -> tuple[str, ...]:
+        return tuple(
+            token
+            for token in re.findall(r"[a-z0-9]+", value.casefold())
+            if token not in grammar_only
+        )
+
+    def singular(token: str) -> str:
+        irregular = {"analyses": "analysis", "buses": "bus"}
+        if token in irregular:
+            return irregular[token]
+        if len(token) > 4 and token.endswith("ies"):
+            return token[:-3] + "y"
+        if len(token) > 4 and token.endswith(("ches", "shes", "sses", "xes", "zes")):
+            return token[:-2]
+        if len(token) > 3 and token.endswith("s") and not token.endswith(("ics", "is", "ss", "us")):
+            return token[:-1]
+        return token
+
+    domain_terms = {singular(token) for token in terms(source.domain)}
+    added_terms = tuple(
+        token
+        for token in terms(source.property)
+        if singular(token) not in domain_terms and singular(token) not in generic_only
+    )
+    return bool(domain_terms) and bool(added_terms)
 
 
 @dataclass(frozen=True)

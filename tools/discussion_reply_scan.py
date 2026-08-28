@@ -6,6 +6,10 @@ classmates, so its output is private working material and must not be pasted.
 Exit 0 means the scanned replies pass, 1 means at least one finding, and 2 means
 the run could not be completely scanned. The roster coverage ceiling is every
 ``posts/*.md`` file carrying one ``AUTHOR:`` line; other post layouts are unread.
+
+What a clean run does not establish is declared by
+``UNMARKED_INVOKED_SOURCE_LIMIT`` and ``INVOKED_PROPERTY_LIMIT``. The module
+owns those limits; this docstring copies no part of either.
 """
 
 from __future__ import annotations
@@ -20,17 +24,21 @@ from discussion_artifact import (
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
     NUMBER,
+    INVOKED,
     REFERENCE_YEAR,
     RESTATEMENT,
     WORD,
     Citation,
     author_key,
     citation_occurrence_keys,
+    invoked_source_has_substance,
     read_citations,
+    read_invoked_sources,
     read_reference_section,
     reference_key,
     reference_keys,
     split_references,
+    strip_discussion_markers,
 )
 import run_grader
 
@@ -41,6 +49,7 @@ REFERENCE_MINIMUM = "reference-minimum"
 UNRESOLVED_CITATION = "unresolved-citation"
 UNTRACED_NUMBER = "untraced-number"
 RESPENT_SOURCE = "respent-source"
+INVOKED_PROPERTY = "invoked-property"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: "the reply contains at least 100 words",
@@ -48,8 +57,18 @@ ROWS = {
     UNRESOLVED_CITATION: "every in-text citation resolves within the reply",
     UNTRACED_NUMBER: "every body number traces to claims.md",
     RESPENT_SOURCE: "a later reply does not spend an earlier reply's source",
+    INVOKED_PROPERTY: "every invoked source names a property beyond its domain noun",
 }
 KINDS = tuple(ROWS)
+
+UNMARKED_INVOKED_SOURCE_LIMIT = (
+    "whether every invoked source was marked",
+    "The command can grade only INVOKED markers that exist and cannot see an invoked source the drafter never marked.",
+)
+INVOKED_PROPERTY_LIMIT = (
+    "whether an invoked property is a grammatical behavior clause",
+    "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
+)
 
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
 AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")
@@ -89,7 +108,8 @@ class Scan:
     references: int | None
     citations: int | None
     numeric_claims: int | None
-    amplifications: int | None
+    invoked_sources: int | None
+    pre_496_markers: int | None
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
 
@@ -135,7 +155,7 @@ def _address_finding(reply: Reply, roster: tuple[str, ...]) -> Finding | None:
 
 
 def _word_finding(reply: Reply) -> Finding | None:
-    count = len(WORD.findall(AMPLIFICATION.sub("", reply.body)))
+    count = len(WORD.findall(strip_discussion_markers(reply.body)))
     if count < 100:
         return Finding(WORD_FLOOR, reply.path.name, f"{count} words")
     return None
@@ -212,7 +232,7 @@ def _citation_findings(reply: Reply, citations: tuple[Citation, ...]) -> tuple[F
 
 def _numeric_values(reply: Reply, citations: tuple[Citation, ...]) -> tuple[str, ...]:
     body = _without_citation_years(reply.body, citations)
-    return tuple(NUMBER.findall(AMPLIFICATION.sub("", body)))
+    return tuple(NUMBER.findall(strip_discussion_markers(body)))
 
 
 def _number_findings(
@@ -259,6 +279,21 @@ def _reuse_findings(replies: tuple[Reply, ...]) -> tuple[Finding, ...]:
                 )
             else:
                 seen[key] = reply.path.name
+    return tuple(findings)
+
+
+def _invoked_findings(reply: Reply) -> tuple[Finding, ...]:
+    findings: list[Finding] = []
+    for source in read_invoked_sources(reply.body):
+        if not source.domain:
+            detail = "invoked source has an empty domain"
+        elif not source.property:
+            detail = "invoked source has an empty property"
+        elif not invoked_source_has_substance(source):
+            detail = "invoked property only restates the domain"
+        else:
+            continue
+        findings.append(Finding(INVOKED_PROPERTY, reply.path.name, detail))
     return tuple(findings)
 
 
@@ -329,7 +364,8 @@ def survey(source: RunSource) -> Scan:
             references=None,
             citations=None,
             numeric_claims=None,
-            amplifications=None,
+            invoked_sources=None,
+            pre_496_markers=None,
             reference_boundary_graded=False,
             findings=address_findings,
         )
@@ -352,12 +388,19 @@ def survey(source: RunSource) -> Scan:
         finding
         for reply, reply_citations in zip(source.replies, citations)
         for finding in _number_findings(reply, reply_citations, source.claims)
-    ) + _reuse_findings(source.replies)
+    ) + _reuse_findings(source.replies) + tuple(
+        finding
+        for reply in source.replies
+        for finding in _invoked_findings(reply)
+    )
     return Scan(
         responses=len(source.replies),
         posts_read=len(source.roster),
         posts_total=source.posts_total,
-        words=sum(len(WORD.findall(AMPLIFICATION.sub("", reply.body))) for reply in source.replies),
+        words=sum(
+            len(WORD.findall(strip_discussion_markers(reply.body)))
+            for reply in source.replies
+        ),
         references=sum(
             len(_claimed_references(reply, source.claims)) for reply in source.replies
         ),
@@ -366,7 +409,12 @@ def survey(source: RunSource) -> Scan:
             len(_numeric_values(reply, reply_citations))
             for reply, reply_citations in zip(source.replies, citations)
         ),
-        amplifications=sum(len(AMPLIFICATION.findall(reply.body)) for reply in source.replies),
+        invoked_sources=sum(
+            len(read_invoked_sources(reply.body)) for reply in source.replies
+        ),
+        pre_496_markers=sum(
+            len(AMPLIFICATION.findall(reply.body)) for reply in source.replies
+        ),
         reference_boundary_graded=True,
         findings=findings,
     )
@@ -382,9 +430,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
         f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
         (
-            f"amplifications: {scan.amplifications} (counted, never graded)"
+            f"invoked sources: {scan.invoked_sources}"
             if scan.reference_boundary_graded
-            else "amplifications: not graded"
+            else "invoked sources: not graded"
+        ),
+        (
+            f"pre-#496 markers: {scan.pre_496_markers} (counted, not graded)"
+            if scan.reference_boundary_graded
+            else "pre-#496 markers: not graded"
         ),
         f"findings: {len(scan.findings)}",
     ]

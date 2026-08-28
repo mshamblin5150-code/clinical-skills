@@ -28,15 +28,17 @@ A set of agent-agnostic skills for converting ER-style clinical shorthand into d
 
 **`discussion-reply` depends on `tools/discussion_reply_scan.py`.** The CLI is the deterministic
 grader for the roster name, word floor, reference minimum, citation resolution, numeric-claim
-trace, source reuse, and ungraded amplification count. A consumer that cannot run it can walk the
+trace, source reuse, empty-or-self-restating invoked-property refusal, and the invoked-source and pre-#496 marker counts.
+A consumer that cannot run it can walk the
 same checks from [discussion-reply](skills/discussion-reply/SKILL.md) step 4, but cannot call the
 run mechanically verified. Its claim records use `tools/research_ledger.py` on the same full written contract as
 `practicum-case-study` step 3.
 
 **`discussion-post` depends on committed graders.** It uses `tools/research_ledger.py` and
 `tools/reference_scan.py` unchanged, then `tools/discussion_post_scan.py` grades the signed word
-floor, reference minimum, body-number trace and citation-to-record trace while counting the ceiling
-and amplification markers without grading them. A consumer that cannot run the new command can walk the same rows
+floor, reference minimum, body-number trace and citation-to-record trace while counting the ceiling,
+invoked sources, unfilled invoked properties, and pre-#496 markers without grading them. A consumer
+that cannot run the new command can walk the same rows
 from [discussion-post](skills/discussion-post/SKILL.md) step 6, but cannot call the run mechanically
 verified. Its declared limits remain reader-owned and live in
 `discussion_post_scan.NOT_REACHED` rather than in a second prose copy.
