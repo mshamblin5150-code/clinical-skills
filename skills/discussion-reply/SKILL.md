@@ -151,8 +151,9 @@ not part of the reply typed into the LMS.
 Open with the selected classmate's exact roster first name and a comma. Concede what is right in
 full, then add or refuse on a genuinely different axis when the argument calls for it. A hedge
 attaches to a fact; it does not suspend the reply's commitment. Keep the reply conversational and
-substantive. Do not add a heading. End with a plain `References` label, not a Markdown heading, and
-put each APA entry in its own paragraph separated by a blank line.
+substantive. Do not add a heading. End with the bold Markdown label `**References**`; the reply is
+typed into the LMS without a renderer, so this source form is what preserves the clinician's bold
+label. Put each APA entry in its own paragraph separated by a blank line.
 
 Before the `References` label, mark each consciously added craft metaphor or named-philosopher move
 on its own invisible working line:

@@ -27,6 +27,7 @@ from discussion_artifact import (
     author_key,
     citation_occurrence_keys,
     read_citations,
+    recognized_reference_label,
     reference_key,
     reference_keys,
     split_references,
@@ -50,7 +51,7 @@ ROWS = {
 }
 KINDS = tuple(ROWS)
 
-REFERENCE_LABEL = re.compile(r"(?mi)^References\s*$")
+REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
 AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")
 CLAIM_TARGET = re.compile(r"^\[REPLY:\s*(?P<target>[^\]]+)\]\s*(?P<claim>.*)$", re.IGNORECASE)
 
@@ -67,6 +68,7 @@ class Reply:
     text: str
     body: str
     references: tuple[str, ...]
+    refused_label: str | None
 
 
 @dataclass(frozen=True)
@@ -83,18 +85,26 @@ class Scan:
     responses: int
     posts_read: int
     posts_total: int
-    words: int
-    references: int
-    citations: int
-    numeric_claims: int
-    amplifications: int
+    words: int | None
+    references: int | None
+    citations: int | None
+    numeric_claims: int | None
+    amplifications: int | None
+    boundary_graded: bool
     findings: tuple[Finding, ...] = ()
 
 
 def _split_reply(path: Path) -> Reply:
     text = path.read_text(encoding="utf-8")
     body, references = split_references(text, REFERENCE_LABEL)
-    return Reply(path=path, text=text, body=body, references=references)
+    refused_label = None if REFERENCE_LABEL.search(text) else recognized_reference_label(text)
+    return Reply(
+        path=path,
+        text=text,
+        body=body,
+        references=references,
+        refused_label=refused_label,
+    )
 
 
 def _slug(value: str) -> str:
@@ -304,6 +314,26 @@ def load(parsed: run_grader.Parsed) -> RunSource:
 
 
 def survey(source: RunSource) -> Scan:
+    boundary_graded = not any(reply.refused_label for reply in source.replies)
+    if not boundary_graded:
+        address_findings = tuple(
+            finding
+            for reply in source.replies
+            for finding in (_address_finding(reply, source.roster),)
+            if finding is not None
+        )
+        return Scan(
+            responses=len(source.replies),
+            posts_read=len(source.roster),
+            posts_total=source.posts_total,
+            words=None,
+            references=None,
+            citations=None,
+            numeric_claims=None,
+            amplifications=None,
+            boundary_graded=False,
+            findings=address_findings,
+        )
     citations = tuple(read_citations(reply.body) for reply in source.replies)
     base_findings = tuple(
         finding
@@ -338,6 +368,7 @@ def survey(source: RunSource) -> Scan:
             for reply, reply_citations in zip(source.replies, citations)
         ),
         amplifications=sum(len(AMPLIFICATION.findall(reply.body)) for reply in source.replies),
+        boundary_graded=True,
         findings=findings,
     )
 
@@ -347,15 +378,22 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"discussion replies in {source}",
         f"responses: {scan.responses}",
         f"roster posts read: {scan.posts_read} of {scan.posts_total}",
-        f"words: {scan.words}",
-        f"references: {scan.references}",
-        f"citations: {scan.citations}",
-        f"numeric claims: {scan.numeric_claims}",
-        f"amplifications: {scan.amplifications} (counted, never graded)",
+        f"words: {scan.words if scan.boundary_graded else 'not graded'}",
+        f"references: {scan.references if scan.boundary_graded else 'not graded'}",
+        f"citations: {scan.citations if scan.boundary_graded else 'not graded'}",
+        f"numeric claims: {scan.numeric_claims if scan.boundary_graded else 'not graded'}",
+        (
+            f"amplifications: {scan.amplifications} (counted, never graded)"
+            if scan.boundary_graded
+            else "amplifications: not graded"
+        ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
+        if kind != ADDRESSED_NAME and not scan.boundary_graded:
+            lines.append(f"{kind}: not graded")
+        else:
+            lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
     if show:
         lines.extend(
             f"{finding.kind}: {finding.response}: {finding.detail}"
@@ -366,10 +404,17 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
+    refused = tuple(
+        f"refused reference label in {reply.path.name}: {reply.refused_label}"
+        for reply in source.replies
+        if reply.refused_label is not None
+    )
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings),
+        findings_failed=bool(scanned.findings) and scanned.boundary_graded,
+        coverage_failed=not scanned.boundary_graded,
+        diagnostics=refused,
     )
 
 

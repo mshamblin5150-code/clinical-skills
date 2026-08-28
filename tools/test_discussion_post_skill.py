@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import json
+import io
 import re
+import tempfile
 import unittest
+import zipfile
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from xml.etree import ElementTree
 
+import discussion_post_scan
+import discussion_reply_scan
+import docx_write
+import reference_scan
 from prose_bind import ProseBind
+from test_discussion_post_scan import BODY as POST_BODY, Run as PostRun
+from test_discussion_reply_scan import BODY as REPLY_BODY, Run as ReplyRun
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -126,6 +137,78 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
 
         self.assertIn("does not see the classmate posts", post)
         self.assertIn("differentiation", post)
+
+
+class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+    def stated_label(self, path: Path, phrase: str) -> str:
+        match = re.search(phrase + r" `(?P<label>[^`]+)`", read(path))
+        self.assertIsNotNone(match, f"{path} does not state its pipeline label")
+        return match.group("label")
+
+    def test_the_reply_label_runs_clean_through_the_reply_command(self):
+        label = self.stated_label(REPLY, r"End with the bold Markdown label")
+        with tempfile.TemporaryDirectory() as temp:
+            run = ReplyRun(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                REPLY_BODY.replace("**References**", label),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                status = discussion_reply_scan.main([temp])
+
+        self.assertEqual(0, status)
+
+    def test_the_post_label_runs_clean_through_every_post_command_and_renders_bold(self):
+        label = self.stated_label(POST, r"End with the Markdown heading")
+        with tempfile.TemporaryDirectory() as temp:
+            run = PostRun(Path(temp))
+            run.draft.write_text(
+                POST_BODY.replace("## References", label),
+                encoding="utf-8",
+            )
+            document = run.root / "post.docx"
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                post_status = discussion_post_scan.main(
+                    [str(run.root), "--draft", str(run.draft)]
+                )
+                reference_status = reference_scan.main(
+                    [str(run.draft), "--as-of", "2026-08-22"]
+                )
+                render_status = docx_write.main(
+                    [str(run.draft), str(document), "--bold-headings"]
+                )
+                rendered_post_status = discussion_post_scan.main(
+                    [
+                        str(run.root),
+                        "--draft",
+                        str(run.draft),
+                        "--docx",
+                        str(document),
+                    ]
+                )
+            with zipfile.ZipFile(document) as archive:
+                xml = ElementTree.fromstring(archive.read("word/document.xml"))
+
+        self.assertEqual((0, 0, 0, 0), (
+            post_status,
+            reference_status,
+            render_status,
+            rendered_post_status,
+        ))
+        paragraph = next(
+            node
+            for node in xml.iter(self.W + "p")
+            if "".join(text.text or "" for text in node.iter(self.W + "t")) == "References"
+        )
+        self.assertIsNone(paragraph.find("./" + self.W + "pPr/" + self.W + "pStyle"))
+        runs = paragraph.findall("./" + self.W + "r")
+        self.assertTrue(runs)
+        self.assertTrue(
+            all(run.find("./" + self.W + "rPr/" + self.W + "b") is not None for run in runs)
+        )
 
 
 class TheCanvasPasteMeasurement(unittest.TestCase):

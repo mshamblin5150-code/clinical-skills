@@ -36,6 +36,7 @@ from discussion_artifact import (
     WORD,
     citation_occurrence_keys,
     read_citations,
+    recognized_reference_label,
     reference_key,
     reference_keys,
     split_references,
@@ -116,6 +117,7 @@ class RunSource:
     bar: Bar
     docx: Path | None
     named_heading_styles: tuple[str, ...]
+    refused_label: str | None
 
 
 @dataclass(frozen=True)
@@ -126,15 +128,16 @@ class ClaimRecord:
 
 @dataclass(frozen=True)
 class Scan:
-    words: int
+    words: int | None
     word_floor: int
     word_ceiling: int | None
-    references: int
+    references: int | None
     reference_minimum: int
-    numeric_claims: int
-    citations: int
-    amplifications: int
+    numeric_claims: int | None
+    citations: int | None
+    amplifications: int | None
     docx_graded: bool
+    boundary_graded: bool
     findings: tuple[Finding, ...] = ()
 
 
@@ -298,8 +301,12 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     try:
         bar = _read_bar(bar_path.read_text(encoding="utf-8"))
         claims = claims_path.read_text(encoding="utf-8")
-        body, references = split_references(
-            draft.read_text(encoding="utf-8"), REFERENCE_HEADING
+        draft_text = draft.read_text(encoding="utf-8")
+        body, references = split_references(draft_text, REFERENCE_HEADING)
+        refused_label = (
+            None
+            if REFERENCE_HEADING.search(draft_text)
+            else recognized_reference_label(draft_text)
         )
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
@@ -313,10 +320,36 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         bar,
         docx,
         named_heading_styles,
+        refused_label,
     )
 
 
 def survey(source: RunSource) -> Scan:
+    if source.refused_label is not None:
+        findings = (
+            (
+                Finding(
+                    BOLD_HEADINGS,
+                    source.docx.name,
+                    "named heading styles: " + ", ".join(source.named_heading_styles),
+                ),
+            )
+            if source.named_heading_styles
+            else ()
+        )
+        return Scan(
+            words=None,
+            word_floor=source.bar.word_floor,
+            word_ceiling=source.bar.word_ceiling,
+            references=None,
+            reference_minimum=source.bar.reference_minimum,
+            numeric_claims=None,
+            citations=None,
+            amplifications=None,
+            docx_graded=source.docx is not None,
+            boundary_graded=False,
+            findings=findings,
+        )
     words = len(WORD.findall(_countable_body(source.body)))
     numbers = _numeric_values(source.body)
     citations = _citation_keys(source.body)
@@ -391,25 +424,49 @@ def survey(source: RunSource) -> Scan:
         citations=len(citations),
         amplifications=len(AMPLIFICATION.findall(source.body)),
         docx_graded=source.docx is not None,
+        boundary_graded=True,
         findings=tuple(findings),
     )
 
 
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
-    exceeded = scan.word_ceiling is not None and scan.words > scan.word_ceiling
+    exceeded = (
+        scan.boundary_graded
+        and scan.word_ceiling is not None
+        and scan.words is not None
+        and scan.words > scan.word_ceiling
+    )
     lines = [
         f"initial post in {source}",
-        f"words: {scan.words} (floor {scan.word_floor})",
+        (
+            f"words: {scan.words} (floor {scan.word_floor})"
+            if scan.boundary_graded
+            else "words: not graded"
+        ),
         f"word ceiling: {scan.word_ceiling if scan.word_ceiling is not None else 'none'}",
-        f"word ceiling exceeded: {'yes' if exceeded else 'no'} (counted, never graded)",
-        f"references: {scan.references} (minimum {scan.reference_minimum})",
-        f"numeric claims: {scan.numeric_claims}",
-        f"citations: {scan.citations}",
-        f"amplifications: {scan.amplifications} (counted, never graded)",
+        (
+            f"word ceiling exceeded: {'yes' if exceeded else 'no'} (counted, never graded)"
+            if scan.boundary_graded
+            else "word ceiling exceeded: not graded"
+        ),
+        (
+            f"references: {scan.references} (minimum {scan.reference_minimum})"
+            if scan.boundary_graded
+            else "references: not graded"
+        ),
+        f"numeric claims: {scan.numeric_claims if scan.boundary_graded else 'not graded'}",
+        f"citations: {scan.citations if scan.boundary_graded else 'not graded'}",
+        (
+            f"amplifications: {scan.amplifications} (counted, never graded)"
+            if scan.boundary_graded
+            else "amplifications: not graded"
+        ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind == BOLD_HEADINGS and not scan.docx_graded:
+        if kind != BOLD_HEADINGS and not scan.boundary_graded:
+            lines.append(f"{kind}: not graded")
+        elif kind == BOLD_HEADINGS and not scan.docx_graded:
             lines.append(f"{kind}: not graded")
         else:
             lines.append(
@@ -428,7 +485,13 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings),
+        findings_failed=bool(scanned.findings) and scanned.boundary_graded,
+        coverage_failed=not scanned.boundary_graded,
+        diagnostics=(
+            (f"refused reference label in {source.draft.name}: {source.refused_label}",)
+            if source.refused_label is not None
+            else ()
+        ),
     )
 
 

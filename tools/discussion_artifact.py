@@ -48,6 +48,11 @@ RESTATEMENT = re.compile(r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.
 CLAIM_REFERENCE = re.compile(
     r"(?mi)^REFERENCE\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
 )
+REFERENCE_LABEL_RECOGNIZER = re.compile(
+    r"(?mi)^(?P<label>[ \t]*(?:#{1,6}[ \t]+)?"
+    r"(?:\*\*References?\*\*|__References?__|\*References?\*|_References?_|References?)"
+    r"\s*:?[ \t]*)$"
+)
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,13 @@ def split_references(text: str, heading: re.Pattern[str]) -> tuple[str, tuple[st
         if block.strip()
     )
     return body, references
+
+
+def recognized_reference_label(text: str) -> str | None:
+    """Return a plainly recognizable reference-label line, without accepting it."""
+
+    match = REFERENCE_LABEL_RECOGNIZER.search(text)
+    return match.group("label") if match else None
 
 
 def author_key(value: str) -> str:

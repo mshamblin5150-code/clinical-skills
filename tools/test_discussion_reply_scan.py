@@ -34,7 +34,7 @@ post opens the right door by treating availability as necessary while refusing
 to treat it as sufficient. I would carry that distinction into the evaluation
 plan and measure completed visits rather than scheduled appointments.
 
-References
+**References**
 
 Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.
 """
@@ -70,6 +70,19 @@ class Run:
 
 
 class ACompleteRunPasses(unittest.TestCase):
+    def test_the_bold_references_label_is_accepted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY,
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+
     def test_cli_reports_counts_without_exposing_the_addressed_name(self):
         with tempfile.TemporaryDirectory() as temp:
             Run(Path(temp))
@@ -107,6 +120,70 @@ class ACompleteRunPasses(unittest.TestCase):
         self.assertIn("unresolved-citation: 0", stdout.getvalue())
 
 
+class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
+    def test_every_recognizable_label_form_has_the_ruled_reply_verdict(self):
+        forms = {
+            "References": 2,
+            "**References**": 0,
+            "## References": 2,
+            "*References*": 2,
+            "References:": 2,
+            "Reference": 2,
+        }
+        for label, expected in forms.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                response = run.root / "response-maren.md"
+                response.write_text(
+                    BODY.replace("**References**", label),
+                    encoding="utf-8",
+                )
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+
+            self.assertEqual(expected, status)
+
+    def test_a_plain_references_label_names_the_line_and_ungrades_dependent_rows(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("**References**", "References"),
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([temp])
+
+        self.assertEqual(2, status)
+        self.assertIn("References", stderr.getvalue())
+        self.assertIn("addressed-name: 0", stdout.getvalue())
+        for row in (
+            "word-floor",
+            "reference-minimum",
+            "unresolved-citation",
+            "untraced-number",
+            "respent-source",
+        ):
+            with self.subTest(row=row):
+                self.assertIn(f"{row}: not graded", stdout.getvalue())
+
+    def test_a_refused_label_keeps_exit_two_when_the_addressed_name_also_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("Maren,", "Karen,").replace("**References**", "References"),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(2, status)
+        self.assertIn("addressed-name: 1", stdout.getvalue())
+
+
 class AddressedNameIsCheckedAgainstTheRoster(unittest.TestCase):
     def test_one_letter_wrong_name_fails_without_leaking_it_by_default(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -129,7 +206,7 @@ class TheCliniciansWordFloorIsEnforced(unittest.TestCase):
             run = Run(Path(temp))
             words = ["Maren,"] + ["word"] * 98
             (run.root / "response-maren.md").write_text(
-                " ".join(words) + "\n\nReferences\n\nQuill, R. (2024). Title. Journal.\n",
+                " ".join(words) + "\n\n**References**\n\nQuill, R. (2024). Title. Journal.\n",
                 encoding="utf-8",
             )
             stdout = io.StringIO()
@@ -145,7 +222,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
-            response.write_text(BODY.split("\nReferences\n", 1)[0], encoding="utf-8")
+            response.write_text(BODY.split("\n**References**\n", 1)[0], encoding="utf-8")
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -158,7 +235,8 @@ class EachReplyCarriesEvidence(unittest.TestCase):
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
             response.write_text(
-                BODY.split("\nReferences\n", 1)[0] + "\nReferences\n\nplaceholder\n",
+                BODY.split("\n**References**\n", 1)[0]
+                + "\n**References**\n\nplaceholder\n",
                 encoding="utf-8",
             )
             stdout = io.StringIO()
@@ -174,8 +252,8 @@ class EachReplyCarriesEvidence(unittest.TestCase):
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
             response.write_text(
-                BODY.split("\nReferences\n", 1)[0]
-                + "\nReferences\n\nPlaceholder, P. (2024). Placeholder source. Journal.\n",
+                BODY.split("\n**References**\n", 1)[0]
+                + "\n**References**\n\nPlaceholder, P. (2024). Placeholder source. Journal.\n",
                 encoding="utf-8",
             )
             stdout = io.StringIO()
