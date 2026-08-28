@@ -12,6 +12,9 @@ added outside that tuple is invisible here, even when its prose contains a
 vocabulary. The list is explicit by ruling: a predicate over backticked lowercase
 words also selects file extensions, command choices, and other values that are not
 domain vocabularies.
+
+``tools/test_glossary_terms.py`` makes this module's first-occurrence read
+(``text.index``) sound.
 """
 
 from __future__ import annotations
