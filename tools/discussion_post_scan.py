@@ -31,6 +31,7 @@ from discussion_artifact import (
     AMPLIFICATION,
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
+    Citation,
     NUMBER,
     INVOKED,
     InvokedSource,
@@ -188,9 +189,11 @@ def _countable_body(body: str) -> str:
     return MARKDOWN_HEADING.sub("", strip_discussion_markers(body))
 
 
-def _numeric_values(body: str) -> tuple[str, ...]:
+def _numeric_values(
+    body: str, citations: tuple[Citation, ...] | None = None
+) -> tuple[str, ...]:
     cleaned = body
-    citations = read_citations(body)
+    citations = read_citations(body) if citations is None else citations
     for citation in reversed(citations):
         cleaned = cleaned[: citation.start] + cleaned[citation.end :]
     cleaned = PAGE_LOCATOR.sub("", cleaned)
@@ -202,8 +205,10 @@ def _claim_blocks(claims: str) -> tuple[str, ...]:
     return tuple(match.group("block") for match in CLAIM_BLOCK.finditer(claims))
 
 
-def _citation_keys(body: str) -> tuple[tuple[tuple[str, str], ...], ...]:
-    return citation_occurrence_keys(read_citations(body))
+def _citation_keys(
+    body: str, reference_key_set: frozenset[tuple[str, str]]
+) -> tuple[tuple[tuple[str, str], ...], ...]:
+    return citation_occurrence_keys(read_citations(body, reference_key_set))
 
 
 def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
@@ -358,9 +363,13 @@ def survey(source: RunSource) -> Scan:
             findings=findings,
         )
     words = len(WORD.findall(_countable_body(source.body)))
-    numbers = _numeric_values(source.body)
-    citations = _citation_keys(source.body)
     records = _claim_records(source.claims)
+    reference_key_set = frozenset(
+        key for record in records for key in record.references
+    )
+    read = read_citations(source.body, reference_key_set)
+    numbers = _numeric_values(source.body, read)
+    citations = _citation_keys(source.body, reference_key_set)
     findings: list[Finding] = []
     for block in _claim_blocks(source.claims):
         reference = CLAIM_REFERENCE.search(block)
@@ -416,7 +425,8 @@ def survey(source: RunSource) -> Scan:
                 tuple(
                     index
                     for index, record in enumerate(records)
-                    if any(key in record.references for key in keys)
+                    if any(key in reference_key_set for key in keys)
+                    and any(key in record.references for key in keys)
                 ),
             )
         )

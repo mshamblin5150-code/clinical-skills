@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import sys
 import unicodedata
+from collections.abc import Collection
 from dataclasses import dataclass
 
 
@@ -330,8 +331,11 @@ def reference_key(reference: str) -> tuple[str, str] | None:
     return keys[0] if keys else None
 
 
-def read_citations(body: str) -> tuple[Citation, ...]:
-    """Read recognized APA parenthetical and narrative citation occurrences."""
+def read_citations(
+    body: str,
+    reference_key_set: Collection[tuple[str, str]] = (),
+) -> tuple[Citation, ...]:
+    """Read APA citations, including narrative names evidenced by references."""
 
     found: list[Citation] = []
     legal_citations = tuple(LEGAL_CITATION.finditer(body))
@@ -389,6 +393,33 @@ def read_citations(body: str) -> tuple[Citation, ...]:
                 match.end(),
             )
         )
+    if reference_key_set:
+        max_key_length = max(len(key) for key, _year in reference_key_set)
+        for year_match in REFERENCE_YEAR.finditer(body):
+            if any(
+                citation.start <= year_match.start()
+                and year_match.end() <= citation.end
+                for citation in found
+            ):
+                continue
+            prefix = body[: year_match.start()]
+            words = tuple(re.finditer(r"[\w'’&.-]+", prefix, re.UNICODE))
+            longest: Citation | None = None
+            year_value = year_match.group("year").casefold()
+            for word in reversed(words):
+                author = prefix[word.start() :].strip()
+                key = author_key(author)
+                if len(key) > max_key_length:
+                    break
+                if (key, year_value) in reference_key_set or (key, "") in reference_key_set:
+                    longest = Citation(
+                        author,
+                        year_value,
+                        word.start(),
+                        year_match.end(),
+                    )
+            if longest is not None:
+                found.append(longest)
     return tuple(sorted(found, key=lambda citation: citation.start))
 
 

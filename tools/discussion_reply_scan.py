@@ -232,8 +232,13 @@ def _legal_reference_name_findings(reply: Reply) -> tuple[Finding, ...]:
     )
 
 
-def _citation_findings(reply: Reply, citations: tuple[Citation, ...]) -> tuple[Finding, ...]:
-    references = _reference_keys(reply)
+def _citation_findings(
+    reply: Reply,
+    citations: tuple[Citation, ...],
+    references: set[tuple[str, str]] | None = None,
+) -> tuple[Finding, ...]:
+    if references is None:
+        references = _reference_keys(reply)
     return tuple(
         Finding(
             UNRESOLVED_CITATION,
@@ -384,7 +389,11 @@ def survey(source: RunSource) -> Scan:
             reference_boundary_graded=False,
             findings=address_findings,
         )
-    citations = tuple(read_citations(reply.body) for reply in source.replies)
+    reference_key_sets = tuple(_reference_keys(reply) for reply in source.replies)
+    citations = tuple(
+        read_citations(reply.body, references)
+        for reply, references in zip(source.replies, reference_key_sets)
+    )
     base_findings = tuple(
         finding
         for reply in source.replies
@@ -401,8 +410,10 @@ def survey(source: RunSource) -> Scan:
         for finding in _legal_reference_name_findings(reply)
     ) + tuple(
         finding
-        for reply, reply_citations in zip(source.replies, citations)
-        for finding in _citation_findings(reply, reply_citations)
+        for reply, reply_citations, references in zip(
+            source.replies, citations, reference_key_sets
+        )
+        for finding in _citation_findings(reply, reply_citations, references)
     ) + tuple(
         finding
         for reply, reply_citations in zip(source.replies, citations)
