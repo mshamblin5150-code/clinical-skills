@@ -29,6 +29,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "checks.yml"
+TRACKER_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 #: The one command CLAUDE.md tells a maintainer to run. If CI runs a different
@@ -45,6 +46,34 @@ def workflow_text():
     return WORKFLOW.read_text(encoding="utf-8")
 
 
+def tracker_workflow_text():
+    return TRACKER_WORKFLOW.read_text(encoding="utf-8")
+
+
+TRACKER_EVENTS = {
+    "issues",
+    "issue_comment",
+    "pull_request_target",
+    "pull_request_review",
+    "pull_request_review_comment",
+}
+
+
+def tracker_branch_scope_step(text):
+    lines = text.splitlines()
+    command = next(i for i, line in enumerate(lines) if "tracker_branch_scope.py" in line)
+    start = max(i for i, line in enumerate(lines[: command + 1]) if re.match(r"^\s*- name:", line))
+    end = next(
+        (
+            i
+            for i, line in enumerate(lines[command + 1 :], command + 1)
+            if re.match(r"^(?:      - |  [A-Za-z0-9_-]+:)", line)
+        ),
+        len(lines),
+    )
+    return "\n".join(lines[start:end])
+
+
 class TheWorkflowExists(unittest.TestCase):
     def test_the_file_is_where_github_looks_for_it(self):
         self.assertTrue(WORKFLOW.is_file(), f"no workflow at {WORKFLOW}")
@@ -56,6 +85,21 @@ class TheWorkflowExists(unittest.TestCase):
         text = workflow_text()
         offenders = [n for n, line in enumerate(text.splitlines(), 1) if "\t" in line]
         self.assertEqual(offenders, [], f"tab characters on lines {offenders}")
+
+
+class TrackerBranchScopeCoversEveryPublicationEvent(unittest.TestCase):
+    def test_the_text_floor_pins_all_five_events(self):
+        step = tracker_branch_scope_step(tracker_workflow_text())
+
+        for event in TRACKER_EVENTS:
+            with self.subTest(event=event):
+                self.assertIn(f"github.event_name == '{event}'", step)
+
+    def test_the_text_floor_pins_the_step_summary(self):
+        step = tracker_branch_scope_step(tracker_workflow_text())
+
+        self.assertIn("GITHUB_STEP_SUMMARY", step)
+        self.assertNotIn("merge-receipts", step)
 
 
 class TheJobRunsWhatTheDocsRun(unittest.TestCase):
@@ -360,6 +404,23 @@ class TheFileIsValidYaml(unittest.TestCase):
             step["with"]["python-version"] for step in steps if "python-version" in step.get("with", {})
         ]
         self.assertEqual(versions, [PYTHON_VERSION])
+
+    def test_the_tracker_if_survives_with_all_five_events(self):
+        try:
+            import yaml
+        except ImportError:  # pragma: no cover - depends on the machine
+            self.skipTest("PyYAML absent; the text tests above are the floor")
+        document = yaml.safe_load(tracker_workflow_text())
+        step = next(
+            row
+            for row in document["jobs"]["changed-record"]["steps"]
+            if "tracker_branch_scope.py" in row.get("run", "")
+        )
+
+        for event in TRACKER_EVENTS:
+            with self.subTest(event=event):
+                self.assertIn(f"github.event_name == '{event}'", step["if"])
+        self.assertIn("GITHUB_STEP_SUMMARY", step["run"])
 
 
 class TheWorkflowIsAdvisory(unittest.TestCase):
