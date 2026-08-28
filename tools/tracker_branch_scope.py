@@ -139,7 +139,7 @@ def _repo_relative_markdown_paths(body: str) -> tuple[str, ...]:
 
 def _default_branch_paths() -> frozenset[str]:
     completed = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", "main"],
+        ["git", "ls-tree", "-r", "--name-only", "origin/main"],
         check=True,
         capture_output=True,
         cwd=Path(__file__).resolve().parent.parent,
