@@ -40,13 +40,20 @@ INTERVAL_PHRASE = re.compile(
     r"|\bperiodic(?:ally)?\b|\bat each visit\b|\brepeated\b",
     re.I,
 )
+COUNT_WORD = r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+COUNT = rf"(?:\d+|{COUNT_WORD})"
+COUNT_RANGE = rf"{COUNT}(?:\s*(?:-|to)\s*{COUNT})?"
+SUB_YEARLY_UNIT = r"(?:minutes?|hours?|days?|weeks?|months?|quarters?)"
+SUB_YEARLY_ADVERB = (
+    r"(?:hourly|daily|weekly|fortnightly|monthly|quarterly|biweekly|bimonthly"
+    r"|semi-?annual(?:ly)?|biannual(?:ly)?)"
+)
 SUB_YEARLY_PERIOD = re.compile(
-    r"\b(?:every \d+(?: to \d+)? (?:hours?|days?|weeks?|months?)"
-    r"|every other (?:hour|day|week|month)"
-    r"|(?:once|twice|(?:three|four|five|six|seven|eight|nine|ten|\d+) times?) "
-    r"(?:(?:hourly|daily|weekly|monthly)|(?:a|per) (?:hour|day|week|month))"
-    r"|hourly|daily|weekly|fortnightly|monthly|quarterly"
-    r"|biweekly|bimonthly|semiannual(?:ly)?|biannual(?:ly)?)\b",
+    rf"\b(?:every (?:(?:other|{COUNT_RANGE}) )?{SUB_YEARLY_UNIT}"
+    rf"|(?:once|twice|{COUNT} times?) "
+    rf"(?:{SUB_YEARLY_ADVERB}|(?:a|per) {SUB_YEARLY_UNIT})"
+    rf"|(?:twice|{COUNT} times?) (?:yearly|(?:a|per) year)"
+    rf"|{SUB_YEARLY_ADVERB})\b",
     re.I,
 )
 
@@ -112,7 +119,9 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
         statement = (
             "every 2 weeks; every 3 months; weekly; monthly; twice daily; "
             "twice weekly; every other day; every 12 hours; hourly; "
-            "three times a week; once per month"
+            "three times a week; once per month; every six hours; "
+            "every 30 minutes; twice yearly; three times a year; every quarter; "
+            "every 2-3 weeks; semi-annually"
         )
         self.assertEqual(
             [match.group(0) for match in SUB_YEARLY_PERIOD.finditer(statement)],
@@ -128,6 +137,13 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
                 "hourly",
                 "three times a week",
                 "once per month",
+                "every six hours",
+                "every 30 minutes",
+                "twice yearly",
+                "three times a year",
+                "every quarter",
+                "every 2-3 weeks",
+                "semi-annually",
             ],
         )
 
