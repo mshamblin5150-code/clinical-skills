@@ -12,6 +12,7 @@ import sys
 import unicodedata
 from collections.abc import Collection, Iterator
 from dataclasses import dataclass
+from urllib.parse import parse_qs, urlparse
 
 
 WORD = re.compile(r"\b[\w'-]+\b", re.UNICODE)
@@ -63,12 +64,87 @@ REFERENCE_LABEL_RECOGNIZER = re.compile(
     r"(?:\*\*References?\*\*|__References?__|\*References?\*|_References?_|References?)"
     r"\s*:?[ \t]*)$"
 )
+REREAD_BLOCK = re.compile(
+    r"(?ms)^## REREAD:\s*(?P<artifact>[^\n]+?)\s*$"
+    r"(?P<body>.*?)(?=^## REREAD:|\Z)"
+)
+REREAD_FIELD = re.compile(
+    r"(?mi)^(?P<name>POST-URL|POSTED|READ|VERDICT)\s*:\s*(?P<value>[^\n]*)$"
+)
+REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "VERDICT")
 
 
 @dataclass(frozen=True)
 class InvokedSource:
     domain: str
     property: str
+
+
+@dataclass(frozen=True)
+class PostedReading:
+    artifact: str
+    post_url: str
+    posted: str
+    read: str
+    verdict: str
+    verdict_detail: str
+    missing_fields: tuple[str, ...]
+
+
+def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
+    """Read run-level ``## REREAD: <artifact>`` records shared by both graders."""
+
+    if not text.strip():
+        return ()
+    blocks = tuple(REREAD_BLOCK.finditer(text))
+    if not blocks:
+        raise ValueError("reread.md contains no readable REREAD records")
+    if text[: blocks[0].start()].strip():
+        raise ValueError("reread.md has unreadable content before its first REREAD record")
+    artifacts: set[str] = set()
+    records: list[PostedReading] = []
+    for block in blocks:
+        artifact = block.group("artifact").strip()
+        if artifact in artifacts:
+            raise ValueError(f"reread.md has a duplicate REREAD record for {artifact}")
+        artifacts.add(artifact)
+        matches = tuple(REREAD_FIELD.finditer(block.group("body")))
+        if REREAD_FIELD.sub("", block.group("body")).strip():
+            raise ValueError(f"reread.md has unreadable content in {artifact}")
+        fields: dict[str, str] = {}
+        for match in matches:
+            name = match.group("name").upper()
+            if name in fields:
+                raise ValueError(f"reread.md has a duplicate {name} field for {artifact}")
+            fields[name] = match.group("value").strip()
+        verdict_text = fields.get("VERDICT", "")
+        verdict_match = re.match(
+            r"(?P<keyword>[^\s:—-]+)(?:\s*(?:-|—|:)\s*(?P<detail>.*))?$",
+            verdict_text,
+        )
+        verdict = verdict_match.group("keyword").casefold() if verdict_match else ""
+        detail = (verdict_match.group("detail") or "").strip() if verdict_match else ""
+        records.append(
+            PostedReading(
+                artifact=artifact,
+                post_url=fields.get("POST-URL", ""),
+                posted=fields.get("POSTED", ""),
+                read=fields.get("READ", ""),
+                verdict=verdict,
+                verdict_detail=detail,
+                missing_fields=tuple(
+                    name for name in REREAD_FIELDS if not fields.get(name, "")
+                ),
+            )
+        )
+    return tuple(records)
+
+
+def discussion_entry_id(url: str) -> str | None:
+    """Return one Canvas discussion entry id, or ``None`` for an unlocated URL."""
+
+    values = parse_qs(urlparse(url).query).get("entry_id", ())
+    return values[0] if len(values) == 1 and values[0] else None
 
 
 def read_invoked_sources(text: str) -> tuple[InvokedSource, ...]:

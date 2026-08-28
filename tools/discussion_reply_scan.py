@@ -7,15 +7,15 @@ Exit 0 means the scanned replies pass, 1 means at least one finding, and 2 means
 the run could not be completely scanned. The roster coverage ceiling is every
 ``posts/*.md`` file carrying one ``AUTHOR:`` line; other post layouts are unread.
 
-What a clean run does not establish is declared by
-``UNMARKED_INVOKED_SOURCE_LIMIT`` and ``INVOKED_PROPERTY_LIMIT``. The module
-owns those limits; this docstring copies no part of either.
+What a clean run does not establish is declared by ``NOT_REACHED``. The module
+owns that complete inventory; this docstring copies no row from it.
 """
 
 from __future__ import annotations
 
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,12 +29,15 @@ from discussion_artifact import (
     RESTATEMENT,
     WORD,
     Citation,
+    PostedReading,
     author_key,
     citation_occurrence_keys,
+    discussion_entry_id,
     invoked_source_has_substance,
     legal_reference_lacks_name,
     read_citations,
     read_invoked_sources,
+    read_posted_readings,
     read_reference_section,
     reference_key,
     reference_keys,
@@ -52,6 +55,11 @@ UNTRACED_NUMBER = "untraced-number"
 RESPENT_SOURCE = "respent-source"
 INVOKED_PROPERTY = "invoked-property"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
+MISSING_POSTED_READING = "missing-posted-reading"
+UNKNOWN_VERDICT = "unknown-verdict"
+BARE_VERDICT = "bare-verdict"
+UNLOCATED_READING = "unlocated-reading"
+BORROWED_LOCATOR = "borrowed-locator"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: "the reply contains at least 100 words",
@@ -61,6 +69,11 @@ ROWS = {
     RESPENT_SOURCE: "a later reply does not spend an earlier reply's source",
     INVOKED_PROPERTY: "every invoked source names a property beyond its domain noun",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
+    MISSING_POSTED_READING: "every posted reply has a complete posted reading",
+    UNKNOWN_VERDICT: "every posted reading uses a declared verdict",
+    BARE_VERDICT: "every posted reading says what it found",
+    UNLOCATED_READING: "every posted reply reading carries its board entry id",
+    BORROWED_LOCATOR: "every posted reply reading carries its own locator",
 }
 KINDS = tuple(ROWS)
 
@@ -72,9 +85,62 @@ INVOKED_PROPERTY_LIMIT = (
     "whether an invoked property is a grammatical behavior clause",
     "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
 )
+NOT_REACHED = (
+    (
+        "whether every roster post was readable",
+        "The command refuses a known unread file but cannot establish that the captured posts directory is the complete live board roster.",
+    ),
+    (
+        "whether a reply source was already spent by the initial post",
+        "The respent-source row compares response artifacts with one another and deliberately does not make the initial post's source unavailable.",
+    ),
+    (
+        "whether the reference label was bold on the board",
+        "The artifact states the intended bold source form, while the available board capture flattens formatting and cannot corroborate the posted rendering.",
+    ),
+    (
+        "whether the posted reply matches the graded artifact",
+        "The reply is typed by hand, and no row compares the submitted board text with the response artifact that the command graded.",
+    ),
+    (
+        "whether a bold reference label is rewarded by the rubric",
+        "The accepted label follows the clinician's house style; the command does not read faculty grading preferences from the live rubric.",
+    ),
+    UNMARKED_INVOKED_SOURCE_LIMIT,
+    INVOKED_PROPERTY_LIMIT,
+    (
+        "whether a legal citation year matches its reference entry",
+        "A legal section intentionally receives an empty-year resolution key, so a citation can resolve without proving that its year agrees with the entry.",
+    ),
+    (
+        "whether a cited legal section supports the reply's claim",
+        "Reference-key resolution establishes that an entry exists; it never reads the regulation or decides whether the section supports the prose.",
+    ),
+    (
+        "whether faculty require the canonical in-text legal spelling",
+        "The command accepts resolving name and section forms because no evidence establishes which in-text legal spelling faculty will mark.",
+    ),
+    (
+        "whether a posted reading faithfully reports a careful comparison",
+        "The record proves that a located reading was written, not that the reader compared carefully or that the board says what the verdict claims.",
+    ),
+    (
+        "whether a unique entry id was fabricated",
+        "Collision checks refuse locators already on disk, but a plausible invented identifier that collides with nothing remains indistinguishable from a board-read value.",
+    ),
+    (
+        "whether the initial post has a posted reading",
+        "This command grades response artifacts only; discussion_post_scan owns the initial post record in the shared reread file.",
+    ),
+    (
+        "whether a late reading describes the board at posting time",
+        "A later board reading cannot distinguish a hand-typing divergence from a subsequent edit and does not reconstruct the entry's original submitted state.",
+    ),
+)
 
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
 AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")
+POST_URL = re.compile(r"(?mi)^POST-URL\s*:\s*(?P<url>[^\n]+?)\s*$")
 CLAIM_TARGET = re.compile(r"^\[REPLY:\s*(?P<target>[^\]]+)\]\s*(?P<claim>.*)$", re.IGNORECASE)
 
 
@@ -99,7 +165,9 @@ class RunSource:
     replies: tuple[Reply, ...]
     claims: str
     roster: tuple[str, ...]
+    roster_urls: tuple[str, ...]
     posts_total: int
+    readings: tuple[PostedReading, ...]
 
 
 @dataclass(frozen=True)
@@ -338,16 +406,29 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     if not response_paths:
         raise run_grader.SourceError("run contains no response-<name>.md files")
     post_paths = sorted(posts.glob("*.md"))
+    reread_path = root / "reread.md"
     try:
         replies = tuple(_split_reply(path) for path in response_paths)
         claims = claims_path.read_text(encoding="utf-8")
+        post_texts = tuple(path.read_text(encoding="utf-8") for path in post_paths)
         roster = tuple(
             match.group("name").strip()
-            for path in post_paths
-            for match in [AUTHOR.search(path.read_text(encoding="utf-8"))]
+            for text in post_texts
+            for match in [AUTHOR.search(text)]
             if match
         )
-    except (OSError, UnicodeError) as failure:
+        roster_urls = tuple(
+            match.group("url").strip()
+            for text in post_texts
+            for match in [POST_URL.search(text)]
+            if match
+        )
+        readings = (
+            read_posted_readings(reread_path.read_text(encoding="utf-8"))
+            if reread_path.is_file()
+            else ()
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the run: {failure}") from failure
     if len(roster) != len(post_paths):
         raise run_grader.SourceError(
@@ -361,8 +442,69 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         replies=replies,
         claims=claims,
         roster=roster,
+        roster_urls=roster_urls,
         posts_total=len(post_paths),
+        readings=readings,
     )
+
+
+def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
+    by_artifact = {reading.artifact: reading for reading in source.readings}
+    reading_ids = tuple(
+        discussion_entry_id(reading.post_url) for reading in source.readings
+    )
+    id_counts = Counter(value for value in reading_ids if value is not None)
+    roster_ids = {
+        value
+        for url in source.roster_urls
+        for value in (discussion_entry_id(url),)
+        if value is not None
+    }
+    findings: list[Finding] = []
+    for reply in source.replies:
+        reading = by_artifact.get(reply.path.name)
+        if reading is None:
+            findings.append(
+                Finding(
+                    MISSING_POSTED_READING,
+                    reply.path.name,
+                    "no REREAD record for this posted reply",
+                )
+            )
+            continue
+        missing_record_fields = tuple(
+            field for field in reading.missing_fields if field in {"POSTED", "READ"}
+        )
+        if missing_record_fields:
+            findings.append(
+                Finding(
+                    MISSING_POSTED_READING,
+                    reply.path.name,
+                    "missing " + ", ".join(missing_record_fields),
+                )
+            )
+        if reading.verdict not in {"matches", "diverges"}:
+            findings.append(
+                Finding(UNKNOWN_VERDICT, reply.path.name, "verdict is outside the vocabulary")
+            )
+        elif not reading.verdict_detail:
+            findings.append(
+                Finding(BARE_VERDICT, reply.path.name, "verdict carries no reading substance")
+            )
+        entry_id = discussion_entry_id(reading.post_url)
+        if entry_id is None:
+            findings.append(
+                Finding(UNLOCATED_READING, reply.path.name, "POST-URL has no entry_id")
+            )
+        elif entry_id in roster_ids or id_counts[entry_id] > 1:
+            findings.append(
+                Finding(
+                    BORROWED_LOCATOR,
+                    reply.path.name,
+                    "entry_id belongs to a roster post or another reading",
+                )
+            )
+    return tuple(findings)
 
 
 def survey(source: RunSource) -> Scan:
@@ -385,7 +527,7 @@ def survey(source: RunSource) -> Scan:
             invoked_sources=None,
             pre_496_markers=None,
             reference_boundary_graded=False,
-            findings=address_findings,
+        findings=address_findings + _posted_reading_findings(source),
         )
     reference_key_sets = tuple(_reference_keys(reply) for reply in source.replies)
     citations = tuple(
@@ -420,7 +562,7 @@ def survey(source: RunSource) -> Scan:
         finding
         for reply in source.replies
         for finding in _invoked_findings(reply)
-    )
+    ) + _posted_reading_findings(source)
     return Scan(
         responses=len(source.replies),
         posts_read=len(source.roster),
@@ -470,7 +612,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind != ADDRESSED_NAME and not scan.reference_boundary_graded:
+        if kind not in {
+            ADDRESSED_NAME,
+            MISSING_POSTED_READING,
+            UNKNOWN_VERDICT,
+            BARE_VERDICT,
+            UNLOCATED_READING,
+            BORROWED_LOCATOR,
+        } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
         else:
             lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")

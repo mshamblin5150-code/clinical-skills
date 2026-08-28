@@ -37,6 +37,7 @@ scratch/runs/<course>-<module>-discussion/
     claims.md
     post.md
     differentiation.md
+    reread.md
     voice-status.md
 ```
 
@@ -52,7 +53,7 @@ output/discussions/<course>-<module>-discussion-<date>.docx
 Parallel readers and researchers each receive a new run-unique private path that no sibling reads
 or writes. They return findings to the orchestrating context and never append to the canonical run
 files. The orchestrator is the sole writer of `board-<date>.md`, `bar.md`, `claims.md`, `post.md`,
-`differentiation.md`, and `voice-status.md`. Apply standing rule 6's independent-checker and
+`differentiation.md`, `reread.md`, and `voice-status.md`. Apply standing rule 6's independent-checker and
 cleanup sequence to every temporary path.
 
 ## 1. Route from the prompt, then snapshot the nonpatient board
@@ -273,16 +274,37 @@ Paste from Word into the LMS, omit every `INVOKED` comment, and inspect the past
 submitting. Submit only after that inspection, then reread the posted
 board version.
 
-The graders read the Markdown and ledger, not the LMS editor. A clean scan is not a checked post
-in the box. The reread owns lost headings, broken paragraphs, missing references, and any change
-introduced by paste.
+The graders read the Markdown and ledger, not the LMS editor. A clean pre-post scan is not a
+checked post in the box. The reread owns lost headings, broken paragraphs, missing references, and
+any change introduced by paste.
+
+After submission, read the initial entry's Copy Link and the board's posted timestamp. Add
+`POST-URL:` and `POSTED:` fields to the private `post.md`; this working record is not the graded
+output artifact. Append this record to the run's one `reread.md`, preserving any reply records:
+
+```text
+## REREAD: post.md
+POST-URL: <the initial post's own deep link>
+POSTED: <the board's posted timestamp>
+READ: <ISO date of this reading>
+VERDICT: matches - <what the reading found>
+```
+
+Replace `matches` with `diverges` when the board and artifact differ. Both verdicts require
+substantive text after the keyword. Record a divergence without changing
+the already graded output artifact. A board repair is available only when the clinician directs
+that live coursework edit; no repair is automatic. Do not capture or diff the board against the
+artifact. Rerun `discussion_post_scan.py` with the same `--draft` and `--docx`; its exit must be 0.
+Then walk `discussion_post_scan.NOT_REACHED`, whose posted-reading row declares that reply records
+belong to the sibling grader.
 
 ## Completion
 
 Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, invoked-source count, unfilled-property count, pre-#496 marker count, paywalled-claim count,
-rendered-page verdict, and the posted reread.
+rendered-page verdict, and the recorded posted-reading verdict.
 Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`, and
-`voice-status.md` when present together under the board-keyed run. Remove every temporary per-agent
+`reread.md`, plus `voice-status.md` when present, together under the board-keyed run. Remove every
+temporary per-agent
 path after the independent checks; if cleanup fails, report the exact remaining path.
