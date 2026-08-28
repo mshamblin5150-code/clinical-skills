@@ -32,6 +32,7 @@ from discussion_artifact import (
     author_key,
     citation_occurrence_keys,
     invoked_source_has_substance,
+    legal_reference_lacks_name,
     read_citations,
     read_invoked_sources,
     read_reference_section,
@@ -50,6 +51,7 @@ UNRESOLVED_CITATION = "unresolved-citation"
 UNTRACED_NUMBER = "untraced-number"
 RESPENT_SOURCE = "respent-source"
 INVOKED_PROPERTY = "invoked-property"
+LEGAL_REFERENCE_NAME = "legal-reference-name"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: "the reply contains at least 100 words",
@@ -58,6 +60,7 @@ ROWS = {
     UNTRACED_NUMBER: "every body number traces to claims.md",
     RESPENT_SOURCE: "a later reply does not spend an earlier reply's source",
     INVOKED_PROPERTY: "every invoked source names a property beyond its domain noun",
+    LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
 }
 KINDS = tuple(ROWS)
 
@@ -215,6 +218,18 @@ def _reference_keys(reply: Reply) -> set[tuple[str, str]]:
     for entry in _valid_references(reply):
         keys.update(reference_keys(entry))
     return keys
+
+
+def _legal_reference_name_findings(reply: Reply) -> tuple[Finding, ...]:
+    return tuple(
+        Finding(
+            LEGAL_REFERENCE_NAME,
+            reply.path.name,
+            "legal reference has a section but no regulation name",
+        )
+        for entry in _valid_references(reply)
+        if legal_reference_lacks_name(entry)
+    )
 
 
 def _citation_findings(reply: Reply, citations: tuple[Citation, ...]) -> tuple[Finding, ...]:
@@ -381,6 +396,10 @@ def survey(source: RunSource) -> Scan:
         if finding is not None
     )
     findings = base_findings + tuple(
+        finding
+        for reply in source.replies
+        for finding in _legal_reference_name_findings(reply)
+    ) + tuple(
         finding
         for reply, reply_citations in zip(source.replies, citations)
         for finding in _citation_findings(reply, reply_citations)

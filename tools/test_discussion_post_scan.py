@@ -70,7 +70,7 @@ REFUTATION: stands - the article addresses the cited proposition.
 ## CLAIM: The regulation supplies legal context.
 STATUS: sourced
 SOURCE: guideline in force
-REFERENCE: 42 C.F.R. § 482.13 (2024).
+REFERENCE: Patient rights, 42 C.F.R. § 482.13 (2024).
 RESTATEMENT: The cited regulation states the relevant legal context.
 RECENCY: guideline in force
 RESOLVED: https://example.org/regulation - read 2026-08-22
@@ -333,10 +333,63 @@ class ACompletePostPasses(unittest.TestCase):
 
     def test_yearless_legal_citation_matches_a_dated_regulation_record(self):
         citations = artifact.read_citations("42 C.F.R. § 482.13 supplies the legal context.")
-        reference = artifact.reference_keys("42 C.F.R. § 482.13 (2024).")
+        reference = artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024).")
 
         self.assertEqual(1, len(citations))
         self.assertTrue(set(artifact.citation_occurrence_keys(citations)[0]) & set(reference))
+
+    def test_a_legal_reference_keys_on_its_name_and_section(self):
+        self.assertEqual(
+            (
+                (artifact.author_key("Patient rights"), "2024"),
+                (artifact.author_key("42 C.F.R. § 482.13"), "2024"),
+                (artifact.author_key("42 C.F.R. § 482.13"), ""),
+            ),
+            artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024)."),
+        )
+
+    def test_a_parenthesized_legal_citation_owns_its_year_span(self):
+        body = "The rule applies (42 C.F.R. § 482.13, 2024) to this setting."
+
+        citations = artifact.read_citations(body)
+
+        self.assertEqual(1, len(citations))
+        self.assertEqual("2024", citations[0].year)
+        self.assertEqual("(42 C.F.R. § 482.13, 2024)", body[citations[0].start:citations[0].end])
+        self.assertEqual((), scan._numeric_values(body))
+
+    def test_a_section_only_legal_record_is_a_post_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Patient rights, 42 C.F.R. § 482.13 (2024).",
+                    "42 C.F.R. § 482.13 (2024). Patient rights.",
+                ),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout)
+
+    def test_a_section_only_legal_entry_is_a_reply_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = ReplyRun(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                REPLY_BODY.replace(
+                    "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                    "42 C.F.R. § 482.13 (2024). Patient rights.",
+                ),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()) as stdout, redirect_stderr(io.StringIO()):
+                status = reply_scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout.getvalue())
 
     def test_dated_legal_citation_is_one_citation_not_a_body_number(self):
         with tempfile.TemporaryDirectory() as temp:

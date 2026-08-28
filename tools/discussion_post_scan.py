@@ -38,6 +38,7 @@ from discussion_artifact import (
     WORD,
     citation_occurrence_keys,
     invoked_source_has_substance,
+    legal_reference_lacks_name,
     read_citations,
     read_invoked_sources,
     read_reference_section,
@@ -55,12 +56,14 @@ REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
 BOLD_HEADINGS = "bold-headings"
+LEGAL_REFERENCE_NAME = "legal-reference-name"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
+    LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
 }
 KINDS = tuple(ROWS)
 
@@ -359,6 +362,18 @@ def survey(source: RunSource) -> Scan:
     citations = _citation_keys(source.body)
     records = _claim_records(source.claims)
     findings: list[Finding] = []
+    for block in _claim_blocks(source.claims):
+        reference = CLAIM_REFERENCE.search(block)
+        if reference is not None and legal_reference_lacks_name(
+            reference.group("value").replace("\n", " ")
+        ):
+            findings.append(
+                Finding(
+                    LEGAL_REFERENCE_NAME,
+                    source.draft.name,
+                    "legal claim record has a section but no regulation name",
+                )
+            )
     if words < source.bar.word_floor:
         findings.append(Finding(WORD_FLOOR, source.draft.name, f"{words} words"))
     if len(source.references) < source.bar.reference_minimum:

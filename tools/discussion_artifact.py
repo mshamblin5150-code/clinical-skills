@@ -1,7 +1,8 @@
-"""Shared parsing primitives for initial posts and replies.
+"""Shared artifact parsing primitives for initial posts and replies.
 
-This module owns only syntax both graders consume. It knows
-nothing about a signed bar, a roster, or which findings either grader emits.
+The module owns syntax both graders consume and the reference-aware citation
+boundary they share. It knows nothing about a signed bar, a roster, or which
+findings either grader emits.
 """
 
 from __future__ import annotations
@@ -42,9 +43,12 @@ NARRATIVE_CITATION = re.compile(
     r"\((?P<year>" + YEAR + r")"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
 )
+LEGAL_AUTHOR = r"(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*\d+(?:\.\d+)*"
 LEGAL_CITATION = re.compile(
-    r"(?P<author>(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*\d+(?:\.\d+)*)"
-    r"(?:\s*\((?P<year>" + YEAR + r")\))?",
+    r"(?:\(\s*(?P<parenthesized_author>" + LEGAL_AUTHOR + r")\s*,\s*"
+    r"(?P<parenthesized_year>" + YEAR + r")\s*\)"
+    r"|(?P<author>" + LEGAL_AUTHOR + r")"
+    r"(?:\s*\((?P<year>" + YEAR + r")\))?)",
     re.IGNORECASE,
 )
 REFERENCE_YEAR = re.compile(r"\((?P<year>" + YEAR + r")\)")
@@ -279,7 +283,7 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
         if year is not None
         else reference.rstrip(". ")
     )
-    legal = LEGAL_CITATION.fullmatch(author_text)
+    legal = LEGAL_CITATION.search(author_text)
     if year is None and legal is None:
         return ()
     surnames = re.findall(
@@ -287,7 +291,12 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
         author_text,
     )
     keys: list[str]
-    if surnames:
+    if legal is not None:
+        legal_author = _legal_author(legal)
+        name_text = author_text[: legal.start()].rstrip("., ")
+        keys = [author_key(name_text)] if name_text else []
+        keys.append(author_key(legal_author))
+    elif surnames:
         keys = [author_key(surnames[0])]
         if len(surnames) > 1:
             keys.insert(0, author_key(" and ".join(surnames)))
@@ -296,12 +305,24 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
     years = [year.group("year").casefold()] if year is not None else [""]
     if legal is not None and "" not in years:
         years.append("")
-    return tuple(
-        (key, year_value)
-        for key in dict.fromkeys(keys)
-        if key
-        for year_value in years
-    )
+    keyed: list[tuple[str, str]] = []
+    for key in dict.fromkeys(keys):
+        if not key:
+            continue
+        keyed.append((key, years[0]))
+        if legal is not None and key == author_key(_legal_author(legal)) and len(years) > 1:
+            keyed.append((key, ""))
+    return tuple(keyed)
+
+
+def legal_reference_lacks_name(reference: str) -> bool:
+    """Return whether a dated legal entry's author slot is only its section."""
+
+    year = REFERENCE_YEAR.search(reference)
+    if year is None:
+        return False
+    author_text = reference[: year.start()].rstrip(". ")
+    return LEGAL_CITATION.fullmatch(author_text) is not None
 
 
 def reference_key(reference: str) -> tuple[str, str] | None:
@@ -317,8 +338,8 @@ def read_citations(body: str) -> tuple[Citation, ...]:
     legal_spans = tuple((match.start(), match.end()) for match in legal_citations)
     found.extend(
         Citation(
-            match.group("author"),
-            match.group("year").casefold() if match.group("year") else "",
+            _legal_author(match),
+            _legal_year(match),
             match.start(),
             match.end(),
         )
@@ -373,3 +394,12 @@ def read_citations(body: str) -> tuple[Citation, ...]:
 
 def _without_signal_word(author: str) -> str:
     return re.sub(r"^(?:As|In|By|See)\s+", "", author).strip()
+
+
+def _legal_author(match: re.Match[str]) -> str:
+    return match.group("parenthesized_author") or match.group("author")
+
+
+def _legal_year(match: re.Match[str]) -> str:
+    value = match.group("parenthesized_year") or match.group("year") or ""
+    return value.casefold()
