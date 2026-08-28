@@ -684,6 +684,22 @@ class DeclaredLimitsAndCensus(unittest.TestCase):
             tuple(row.limit for row in recs.DECLARED_LIMITS),
         )
 
+    def test_record_resolution_limits_are_part_of_the_shared_registry(self):
+        keys = {row.key for row in recs.DECLARED_LIMITS}
+        self.assertTrue(
+            {
+                "record-source-unreadable",
+                "literal-read-site-floor",
+                "record-prefix-does-not-bind-source-key",
+            }.issubset(keys)
+        )
+
+    def test_a_nontext_record_source_matches_no_document(self):
+        record = {"source": {"path": "other.pdf"}}
+        self.assertEqual(
+            recs.record_built_from_another_document(record, "expected.pdf"), ""
+        )
+
     def test_the_length_floor_counts_a_weld_and_its_known_false_positive(self):
         records = [
             recs.Recommendation(

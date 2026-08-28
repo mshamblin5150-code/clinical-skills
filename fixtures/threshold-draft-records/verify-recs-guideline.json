@@ -1,0 +1,10 @@
+{
+  "doc_id": "AHA ACC/guideline",
+  "source": "C:/corpus/AHA ACC/guideline.pdf",
+  "mode": "exact",
+  "totals": {
+    "recommendations": 0,
+    "tables": 0
+  },
+  "recommendations": []
+}

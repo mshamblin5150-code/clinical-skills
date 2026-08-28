@@ -162,6 +162,28 @@ MODE_BOUND = "bound"
 RECS_PREFIX = "recs-"
 
 
+def record_built_from_another_document(record: dict, document: str) -> str:
+    """Return the record's PDF filename when it disagrees with ``document``.
+
+    Empty means either agreement or that one side names no document, so callers
+    refuse only a knowable disagreement. This deliberately reads ``source``, not
+    ``doc_id``: the latter is caller-supplied free text, while ``source`` is the PDF
+    path the record was built from. The comparison is on the filename because the
+    corpus mount is machine-local. A threshold sheet stores a document stem while a
+    catalog row stores the PDF filename, so the missing suffix is normalized here.
+    """
+    source = record.get("source")
+    if not isinstance(source, str):
+        return ""
+    built_from = Path(source.replace("\\", "/")).name
+    expected = Path(document.strip().replace("\\", "/")).name
+    if expected and Path(expected).suffix.casefold() != ".pdf":
+        expected += ".pdf"
+    if not built_from or not expected:
+        return ""
+    return "" if built_from.casefold() == expected.casefold() else built_from
+
+
 class EvidenceDisposition(Enum):
     """How a declared coverage limit can be checked."""
 
@@ -226,6 +248,21 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "citation-tier-zero-reader-floor",
         "Citation tier 0 cannot expose shared reconstruction errors, and it does not run at all for bound sources, which rely on tier 2 for page-text agreement.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "record-source-unreadable",
+        "A recommendation record whose source is absent or unparseable matches no PDF, so a reader can neither offer it as a same-document hint nor refuse it as another document's record.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "literal-read-site-floor",
+        "A read site built by indirection is invisible to a source walk keyed on the recs- filename literal.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "record-prefix-does-not-bind-source-key",
+        "The producer enforces the recs- prefix, but it does not bind the remaining filename stem to a source key or document.",
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
