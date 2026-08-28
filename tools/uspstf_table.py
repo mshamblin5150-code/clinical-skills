@@ -513,19 +513,26 @@ def _names_people(noun: str, rest: str) -> bool:
 INTERVAL_PHRASE = re.compile(
     r"\bevery \d+(?: to \d+)? (?:years?|months?|weeks?)\b"
     r"|\bbiennial(?:ly)?\b|\bannual(?:ly)?\b|\bevery year\b"
-    r"|\b1-time\b|\bone-time\b|\bat least once\b|\bdaily\b"
+    r"|\b1-time\b|\bone-time\b|\bat least once\b"
     r"|\bperiodic(?:ally)?\b|\bat each visit\b|\brepeated\b",
     re.I,
+)
+INTERVAL_EXCLUSIONS = (
+    (
+        "daily",
+        "A dose or supplement frequency is not a recurrence of a recommended service.",
+    ),
 )
 INTERVAL_ALTERNATIVE_JOIN = " or "
 
 
 def derive_interval(statement: str) -> str:
-    """The distinct screening periods in the statement, in source order.
+    """Phrases naming the recurrence of a recommended service, in source order.
 
-    Most USPSTF recommendations name no interval at all -- an I statement has nothing to
-    space out, and a counseling recommendation is not periodic -- so ``not stated`` is the
-    common and correct answer here, not a gap.
+    The vocabulary deliberately does not collect every period a statement names. Most
+    USPSTF recommendations name no service recurrence at all -- an I statement has nothing
+    to space out, and a counseling recommendation is not periodic -- so ``not stated`` is
+    the common and correct answer here, not a gap.
     """
     periods = list(
         dict.fromkeys(match.group(0).lower() for match in INTERVAL_PHRASE.finditer(statement))
@@ -801,9 +808,10 @@ def render_markdown(results: list[DocumentResult]) -> str:
         "so a period the document states elsewhere is outside the rule's reach rather than "
         "missed by it. `not stated` means the rule found nothing there, which for `interval` "
         "is the ordinary case rather than a gap. Where a recommendation offers alternatives, "
-        "`interval` names every period its statement names, joined with "
-        f"`{INTERVAL_ALTERNATIVE_JOIN.strip()}`; the modality that distinguishes them is in "
-        "`## Statements` and not in the cell."
+        "`interval` names every recurrence of a recommended service that its statement "
+        f"names, joined with `{INTERVAL_ALTERNATIVE_JOIN.strip()}`; the modality that "
+        "distinguishes them is in `## Statements` and not in the cell. A dose or supplement "
+        "frequency is not a recurrence and is deliberately outside the column."
     )
     out.append("")
     out.append(
