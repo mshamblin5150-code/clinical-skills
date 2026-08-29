@@ -319,18 +319,7 @@ def select_rows(
             and locator.is_narrative
             and row.klass.strip().casefold() == NARRATIVE_KIND
         )
-        if modes.get(row.source) == "bound":
-            rows.append(
-                DraftRow(
-                    snippet=row.snippet,
-                    source=row.source,
-                    page=f"p{row.page or ''}",
-                    rec=row.rec,
-                    klass=row.klass,
-                )
-            )
-            continue
-        if is_narrative:
+        if modes.get(row.source) == "bound" or is_narrative:
             rows.append(
                 DraftRow(
                     snippet=row.snippet,

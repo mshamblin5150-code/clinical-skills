@@ -42,8 +42,8 @@ The appendices (pp. 98-105) were read on 2026-08-23 and yielded no patient-care
 decision point. The reference list (pp. 75-97) is retired by class because a
 citation list contains no clinical prose.
 
-The front matter, methods, recommendation tables, narrative sections, figures, and
-clinical tables on pp. 1-74 were read in full on 2026-08-29. Numeric study results
+The front matter and methods on pp. 1-10 and every recommendation-table, narrative,
+figure, and clinical-table span on pp. 11-74 were read on 2026-08-29. Numeric study results
 that do not direct patient care remain outside this decision-point sheet.
 
 **Not read:** none of the clinical-content spans. References remain exempt as a
@@ -76,6 +76,10 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | adults-overweight | adults with overweight or obesity |
 | adults-women | adult women who consume alcohol |
 | adults-men | adult men who consume alcohol |
+| adults-nonpregnant | nonpregnant adults |
+| adults-osa-men | adult men being evaluated for obstructive sleep apnea |
+| adults-osa-women | adult women being evaluated for obstructive sleep apnea |
+| adults-women-contraceptives | adult women using estrogen-containing contraceptives |
 | adults-ich | adults with acute spontaneous intracerebral hemorrhage |
 | adults-htn-emergency | adults with hypertensive emergency |
 | adults-htn-emergency-compelling | adults with hypertensive emergency and a compelling condition |
@@ -179,7 +183,7 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | osa-neck-size-men | neck size >17 inches for men |
 | osa-neck-size-women | neck size >16 inches for women |
 | primary-aldo-confirmatory-mra-withdrawal | withdrawal of MRA for 4-6 weeks |
-| primary-aldo-oral-loading-duration | 24-hour urine aldosterone |
+| primary-aldo-urine-collection-duration | 24-hour urine aldosterone collection |
 | primary-aldo-iv-infusion-duration | aldosterone at 4 hours of infusion |
 | cushing-dexamethasone-dose | overnight 1-mg dexamethasone suppression test |
 | acromegaly-gh-threshold | growth hormone ≥1 ng/mL during oral glucose load |
@@ -385,7 +389,7 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | quantity | population | value | snippet | source | page | rec | class |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | initial-combination-agent-count | adults-htn | 2 agents of different classes | "RENDERED: 2 first-line agents of different classes" | aha-2025 | p3 | p3/narrative/30 | narrative |
-| severe-hypertension-threshold | adults | >180/120 mm Hg | "Severe hypertension in nonpregnant individuals, defined as blood pressure >180/120 mm Hg" | aha-2025 | p3 | p3/narrative/31 | narrative |
+| severe-hypertension-threshold | adults-nonpregnant | >180/120 mm Hg | "Severe hypertension in nonpregnant individuals, defined as blood pressure >180/120 mm Hg" | aha-2025 | p3 | p3/narrative/31 | narrative |
 | prevent-highrisk-treatment-threshold | adults-htn-highrisk | PREVENT >=7.5% and BP >=130/80 mm Hg | "RENDERED: 10-year CVD risk ≥7.5% based on PREVENT, average systolic blood pressure ≥130 mm Hg, and average diastolic blood pressure ≥80 mm Hg" | aha-2025 | p4 | p4/narrative/1 | narrative |
 | ckd-albuminuria-raasi-threshold | adults-ckd | eGFR <60 mL/min/1.73 m2 or albuminuria >=30 mg/g | "RENDERED: eGFR <60 mL/min/1.73 m2 or albuminuria ≥30 mg/g" | aha-2025 | p4 | p4/narrative/2 | narrative |
 | diabetes-mild-albuminuria-threshold | adults-dm | <30 mg/g | "RENDERED: mild albuminuria <30 mg/g" | aha-2025 | p4 | p4/narrative/3 | narrative |
@@ -560,10 +564,10 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | nighttime-abpm-threshold-office-160 | adults | 140/85 mm Hg | "160/100 145/90 145/90 140/85 145/90" | aha-2025 | p17 | p17/narrative/17 | narrative |
 | full-day-abpm-threshold-office-160 | adults | 145/90 mm Hg | "160/100 145/90 145/90 140/85 145/90" | aha-2025 | p17 | p17/narrative/18 | narrative |
 | secondary-htn-screening-age | adults-htn | <30 years | "early-onset hypertension (age <30 years)" | aha-2025 | p20 | p20/narrative/1 | narrative |
-| osa-neck-size-men | adults-men | >17 inches | "neck size (eg, >17 inches [men]" | aha-2025 | p21 | p21/narrative/1 | narrative |
-| osa-neck-size-women | adults-women | >16 inches | ">16 inches [women]" | aha-2025 | p21 | p21/narrative/2 | narrative |
+| osa-neck-size-men | adults-osa-men | >17 inches | "neck size (eg, >17 inches [men]" | aha-2025 | p21 | p21/narrative/1 | narrative |
+| osa-neck-size-women | adults-osa-women | >16 inches | ">16 inches [women]" | aha-2025 | p21 | p21/narrative/2 | narrative |
 | primary-aldo-confirmatory-mra-withdrawal | adults-aldosteronism-screening | 4-6 weeks | "withdrawal of MRA for 4-6 wks" | aha-2025 | p21 | p21/narrative/3 | narrative |
-| primary-aldo-oral-loading-duration | adults-aldosteronism-screening | 24 hours | "Oral sodium loading test (with 24-h urine aldosterone)" | aha-2025 | p21 | p21/narrative/4 | narrative |
+| primary-aldo-urine-collection-duration | adults-aldosteronism-screening | 24 hours | "Oral sodium loading test (with 24-h urine aldosterone)" | aha-2025 | p21 | p21/narrative/4 | narrative |
 | primary-aldo-iv-infusion-duration | adults-aldosteronism-screening | 4 hours | "plasma aldosterone at 4 h of infusion" | aha-2025 | p21 | p21/narrative/5 | narrative |
 | cushing-dexamethasone-dose | adults-htn | 1 mg | "RENDERED: Overnight 1-mg dexamethasone suppression test" | aha-2025 | p22 | p22/narrative/1 | narrative |
 | acromegaly-gh-threshold | adults-htn | >=1 ng/mL | "RENDERED: Serum growth hormone ≥1 ng/mL during oral glucose load" | aha-2025 | p22 | p22/narrative/2 | narrative |
@@ -571,7 +575,7 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | alcohol-limit | adults-men | <=2 drinks/d | "≤2 drinks daily for men" | aha-2025 | p24 | p24/narrative/2 | narrative |
 | caffeine-limit | adults | <300 mg/d | "Limit caffeine intake to <300 mg/d" | aha-2025 | p24 | p24/narrative/3 | narrative |
 | acetaminophen-limit | adults | <4 g/d | "Limit acetaminophen to less than 4 g/d" | aha-2025 | p24 | p24/narrative/4 | narrative |
-| contraceptive-ethinyl-estradiol-dose | adults-women | 20-30 mcg | "low-dose (eg, 20-30 mcg ethinyl estradiol) agents" | aha-2025 | p24 | p24/narrative/5 | narrative |
+| contraceptive-ethinyl-estradiol-dose | adults-women-contraceptives | 20-30 mcg | "low-dose (eg, 20-30 mcg ethinyl estradiol) agents" | aha-2025 | p24 | p24/narrative/5 | narrative |
 | primary-aldo-renin-threshold | adults-aldosteronism-screening | <1 ng/mL/h | "RENDERED: suppressed renin activity (<1 ng/mL/h)" | aha-2025 | p25 | p25/narrative/1 | narrative |
 | primary-aldo-aldosterone-threshold | adults-aldosteronism-screening | >=10 ng/dL | "RENDERED: plasma aldosterone concentration should be at least 10 ng/dL" | aha-2025 | p25 | p25/narrative/2 | narrative |
 | primary-aldo-ratio-threshold | adults-aldosteronism-screening | 30 | "cutoff value for the aldosterone to renin activity ratio is 30" | aha-2025 | p25 | p25/narrative/3 | narrative |
