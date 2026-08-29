@@ -155,6 +155,7 @@ from repo_root import InsideCheckout, ensure_outside_checkout
 
 MODE_EXACT = "exact"
 MODE_BOUND = "bound"
+SOURCE_NOTHING_FOUND = "nothing-found"
 
 # Everything this producer writes wears this prefix. The reverse remains false:
 # a prefixed file need not have come from this producer, and ``recs-sweep.json``
@@ -293,6 +294,11 @@ DECLARED_LIMITS = (
         "This registry covers the previously identified docstring ceilings and the mechanisms added with the repaired marker reader; its end-to-end module and ADR derivation remains outstanding.",
         EvidenceDisposition.DECLARED_READING,
     ),
+    DeclaredLimit(
+        "doc-id-records-escape-prefix-walk",
+        "A recommendation record keyed on doc_id is invisible to a source walk keyed on the recs- filename prefix.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -327,6 +333,11 @@ RECORD_TRUST_FLOOR = {
     SOURCE_TEXT_MARKER: (
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
+    ),
+    SOURCE_NOTHING_FOUND: (
+        "tools/guidelines_recs.py",
+        "tools/guidelines_extract.py",
+        "reference/guidelines-uspstf.md",
     ),
 }
 

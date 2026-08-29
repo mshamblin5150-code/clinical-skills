@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 import guidelines_build
+import guidelines_recs
 import artifact_lock
 import artifact_provenance
 
@@ -32,6 +33,7 @@ class BuildCommandCase(unittest.TestCase):
         self.catalog_root = self.root / "builds"
         self.text_alias = self.root / "guidelines-text"
         self.index_alias = self.root / "guidelines-index" / "guidelines.sqlite"
+        self.recs_alias = self.root / "guidelines-recs"
         self.launches: list[str] = []
         self.stdout = io.StringIO()
         self.producer = {"commit": "a" * 40, "dirty": False}
@@ -46,6 +48,8 @@ class BuildCommandCase(unittest.TestCase):
             str(self.text_alias),
             "--index-alias",
             str(self.index_alias),
+            "--recs-alias",
+            str(self.recs_alias),
         ]
 
     def produce(self, command: list[str], **_: object) -> mock.Mock:
@@ -112,13 +116,21 @@ class BuildCommandCase(unittest.TestCase):
                 "guidelines_build.artifact_provenance.current_producer",
                 return_value=producer or self.producer,
             ),
+            mock.patch(
+                "guidelines_build.guidelines_recs.extract",
+                return_value=(
+                    [],
+                    guidelines_recs.MODE_BOUND,
+                    guidelines_recs.SOURCE_TEXT_MARKER,
+                ),
+            ),
             contextlib.redirect_stdout(self.stdout),
         ):
             return guidelines_build.main(self.arguments)
 
 
 class ReusingAnIdenticalBuild(BuildCommandCase):
-    def test_the_second_cli_run_does_not_launch_either_producer(self):
+    def test_the_second_cli_run_reuses_all_three_stages(self):
         self.assertEqual(self.run_command(), 0)
         self.assertEqual(self.run_command(), 0)
 
@@ -129,9 +141,198 @@ class ReusingAnIdenticalBuild(BuildCommandCase):
         self.assertIn("extraction  REUSED", self.stdout.getvalue())
         self.assertIn("index       BUILT", self.stdout.getvalue())
         self.assertIn("index       REUSED", self.stdout.getvalue())
+        self.assertIn("recs        BUILT", self.stdout.getvalue())
+        self.assertIn("recs        REUSED", self.stdout.getvalue())
+        self.assertEqual(
+            self.stdout.getvalue().count(
+                "recs coverage  documents read 1; records written 1; yielded nothing 1"
+            ),
+            2,
+        )
+
+        record = json.loads(
+            (self.recs_alias / "one.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(record["outcome"], guidelines_build.NOTHING_FOUND)
+        self.assertEqual(record["recommendations"], [])
+        self.assertNotIn("totals", record)
+        manifest = json.loads(
+            (self.recs_alias / guidelines_build.RECS_MANIFEST).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            manifest["documents"],
+            [
+                {
+                    "doc_id": "one",
+                    "outcome": guidelines_build.NOTHING_FOUND,
+                    "record": "one.json",
+                    "source": "one.pdf",
+                }
+            ],
+        )
+
+    def test_no_recs_is_an_explicit_skip_and_publishes_no_alias(self):
+        with mock.patch.object(
+            self.__class__,
+            "arguments",
+            new_callable=mock.PropertyMock,
+            return_value=[*BuildCommandCase.arguments.fget(self), "--no-recs"],
+        ):
+            self.assertEqual(self.run_command(), 0)
+
+        catalog = json.loads(
+            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(catalog["artifacts"]["recs"], {})
+        self.assertFalse(self.recs_alias.exists())
+        self.assertIn("recs        SKIPPED (--no-recs)", self.stdout.getvalue())
+
+    def test_a_matching_document_keeps_the_full_record_contract(self):
+        recommendation = guidelines_recs.Recommendation(
+            rec_id="one-p1-t1-r1",
+            doc_id="one",
+            page=1,
+            table="Synthetic table",
+            number=1,
+            cor="1",
+            loe="A",
+            text="Use the synthetic intervention.",
+            mode=guidelines_recs.MODE_EXACT,
+        )
+        with (
+            mock.patch("guidelines_build.subprocess.run", side_effect=self.produce),
+            mock.patch(
+                "guidelines_build.artifact_provenance.current_producer",
+                return_value=self.producer,
+            ),
+            mock.patch(
+                "guidelines_build.guidelines_recs.extract",
+                return_value=(
+                    [recommendation],
+                    guidelines_recs.MODE_EXACT,
+                    guidelines_recs.SOURCE_RULED_TABLE,
+                ),
+            ),
+            contextlib.redirect_stdout(self.stdout),
+        ):
+            self.assertEqual(guidelines_build.main(self.arguments), 0)
+
+        record = json.loads(
+            (self.recs_alias / "one.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(record["outcome"], guidelines_build.RECOMMENDATIONS_FOUND)
+        self.assertEqual(record["counted_from"], guidelines_recs.SOURCE_RULED_TABLE)
+        self.assertEqual(record["totals"]["recommendations"], 1)
+        self.assertEqual(record["recommendations"][0]["rec_id"], "one-p1-t1-r1")
+        self.assertEqual(
+            {row["path"] for row in record["producer"]["inputs"]},
+            set(
+                guidelines_recs.RECORD_TRUST_FLOOR[
+                    guidelines_recs.SOURCE_RULED_TABLE
+                ]
+            ),
+        )
+
+
+class KeyingRecommendationSweeps(BuildCommandCase):
+    def test_the_identity_is_corpus_wide_and_carries_the_curated_table(self):
+        identity = guidelines_build.recs_identity(self.source)
+
+        self.assertEqual(identity["kind"], "recs")
+        self.assertEqual([row["path"] for row in identity["source_files"]], ["one.pdf"])
+        self.assertEqual(
+            {row["path"] for row in identity["producer_files"]},
+            set(artifact_provenance.CACHE_IDENTITY["recs"]),
+        )
+        self.assertEqual(
+            identity["curated_table"]["path"], "reference/guidelines-uspstf.md"
+        )
+
+    def test_a_curated_table_change_during_the_sweep_refuses_the_build(self):
+        curated = self.root / "guidelines-uspstf.md"
+        curated.write_text("before", encoding="utf-8")
+        stderr = io.StringIO()
+
+        def changing_table(*_: object):
+            curated.write_text("after", encoding="utf-8")
+            return (
+                [],
+                guidelines_recs.MODE_BOUND,
+                guidelines_recs.SOURCE_TEXT_MARKER,
+            )
+
+        with (
+            mock.patch.object(guidelines_recs, "CURATED_TABLE", curated),
+            mock.patch("guidelines_build.subprocess.run", side_effect=self.produce),
+            mock.patch(
+                "guidelines_build.artifact_provenance.current_producer",
+                return_value=self.producer,
+            ),
+            mock.patch(
+                "guidelines_build.guidelines_recs.extract",
+                side_effect=changing_table,
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(guidelines_build.main(self.arguments), 2)
+
+        self.assertIn("curated table changed during recommendation sweep", stderr.getvalue())
+
+
+class RefusingAnIncompleteRecommendationSweep(BuildCommandCase):
+    def test_did_not_scan_refuses_the_whole_build(self):
+        stderr = io.StringIO()
+        with (
+            mock.patch("guidelines_build.subprocess.run", side_effect=self.produce),
+            mock.patch(
+                "guidelines_build.artifact_provenance.current_producer",
+                return_value=self.producer,
+            ),
+            mock.patch(
+                "guidelines_build.guidelines_recs.extract",
+                side_effect=guidelines_recs.DidNotScan("synthetic mismatch"),
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(guidelines_build.main(self.arguments), 2)
+
+        self.assertIn("synthetic mismatch", stderr.getvalue())
+        catalog = json.loads(
+            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(catalog["artifacts"]["recs"], {})
 
 
 class SeparatingDifferentInputs(BuildCommandCase):
+    def test_the_catalog_schema_bump_forces_all_three_stages_once(self):
+        self.catalog_root.mkdir()
+        (self.catalog_root / "catalog.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifacts": {"extraction": {}, "index": {}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(self.run_command(), 0)
+        self.assertEqual(self.run_command(), 0)
+
+        catalog = json.loads(
+            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(catalog["schema_version"], guidelines_build.CATALOG_SCHEMA_VERSION)
+        self.assertEqual(
+            {kind: len(rows) for kind, rows in catalog["artifacts"].items()},
+            {"extraction": 1, "index": 1, "recs": 1},
+        )
+        self.assertEqual(
+            self.launches, ["guidelines_extract.py", "guidelines_index.py"]
+        )
+
     def test_a_source_change_gets_new_extraction_and_index_builds(self):
         self.assertEqual(self.run_command(), 0)
         self.pdf.write_bytes(b"different synthetic guideline bytes")

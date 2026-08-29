@@ -828,6 +828,11 @@ class RecommendationRecordOwnership(unittest.TestCase):
                     "tools/guidelines_recs.py",
                     "tools/guidelines_extract.py",
                 ),
+                recs.SOURCE_NOTHING_FOUND: (
+                    "tools/guidelines_recs.py",
+                    "tools/guidelines_extract.py",
+                    "reference/guidelines-uspstf.md",
+                ),
             },
         )
 

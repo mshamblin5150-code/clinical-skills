@@ -1,4 +1,4 @@
-"""Build or reuse content-addressed guideline extraction and index artifacts.
+"""Build or reuse content-addressed extraction, index, and recommendation artifacts.
 
     python tools/guidelines_build.py <source-folder>
 
@@ -25,21 +25,25 @@ import sys
 import uuid
 from collections.abc import Callable
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import guidelines_extract
 import guidelines_index
 import guidelines_index_artifact
 import guidelines_manifest
+import guidelines_recs
 from console_codec import use_utf8
 from repo_root import ensure_outside_checkout, main_repo_root
 
 
-CATALOG_SCHEMA_VERSION = 1
+CATALOG_SCHEMA_VERSION = 2
 ARTIFACT_SCHEMA_VERSION = 1
 ARTIFACT_RECORD = "artifact.json"
 CATALOG_NAME = "catalog.json"
+RECS_MANIFEST = "manifest.json"
+NOTHING_FOUND = "nothing-found"
+RECOMMENDATIONS_FOUND = "recommendations-found"
 CATALOG_ENVIRONMENT_VARIABLE = "CLINICAL_GUIDELINES_BUILDS"
 WHY_OUTSIDE = (
     "Guideline build artifacts contain society-copyrighted text and must stay "
@@ -153,6 +157,26 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
     }
 
 
+def recs_identity(source: Path) -> dict[str, object]:
+    source_files = _files(source, "*.pdf")
+    if not source_files:
+        raise ValueError(f"no PDFs under {source}")
+    return {
+        "kind": "recs",
+        "schema": ARTIFACT_SCHEMA_VERSION,
+        "source_files": source_files,
+        "producer_files": _code_inputs(*artifact_provenance.CACHE_IDENTITY["recs"]),
+        "runtime": {
+            "python": platform.python_version(),
+            "pymupdf": _package_version("PyMuPDF"),
+        },
+        "curated_table": {
+            "path": "reference/guidelines-uspstf.md",
+            "sha256": _sha256(guidelines_recs.CURATED_TABLE),
+        },
+    }
+
+
 def _extraction_inventory(extraction: SelectedArtifact) -> str:
     """Identify extracted content without allowing lineage metadata to key it."""
     rows: list[dict[str, object]] = []
@@ -170,7 +194,7 @@ def _extraction_inventory(extraction: SelectedArtifact) -> str:
 def _empty_catalog() -> dict[str, object]:
     return {
         "schema_version": CATALOG_SCHEMA_VERSION,
-        "artifacts": {"extraction": {}, "index": {}},
+        "artifacts": {kind: {} for kind in artifact_provenance.CACHE_IDENTITY},
     }
 
 
@@ -181,13 +205,24 @@ def _read_catalog_unlocked(path: Path) -> dict[str, object]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as failure:
         raise ValueError(f"catalog {path} is unreadable: {failure}") from failure
+    if (
+        isinstance(data, dict)
+        and data.get("schema_version") == 1
+        and isinstance(data.get("artifacts"), dict)
+        and all(
+            isinstance(data["artifacts"].get(kind), dict)
+            for kind in ("extraction", "index")
+        )
+    ):
+        return _empty_catalog()
     if not isinstance(data, dict) or data.get("schema_version") != CATALOG_SCHEMA_VERSION:
         raise ValueError(f"catalog {path} has an unsupported schema")
     artifacts = data.get("artifacts")
     if not isinstance(artifacts, dict) or any(
-        not isinstance(artifacts.get(kind), dict) for kind in ("extraction", "index")
+        not isinstance(artifacts.get(kind), dict)
+        for kind in artifact_provenance.CACHE_IDENTITY
     ):
-        raise ValueError(f"catalog {path} has no extraction and index maps")
+        raise ValueError(f"catalog {path} does not map every artifact kind")
     return data
 
 
@@ -601,6 +636,128 @@ def _build_index(
     )
 
 
+def _recommendation_payload(
+    pdf: Path,
+    doc_id: str,
+    producer: dict[str, str | bool],
+) -> tuple[dict[str, object], str]:
+    records, mode, counted_from = guidelines_recs.extract(pdf, doc_id)
+    outcome = RECOMMENDATIONS_FOUND if records else NOTHING_FOUND
+    floor_key = counted_from if records else guidelines_recs.SOURCE_NOTHING_FOUND
+    record_producer = dict(producer)
+    record_producer["inputs"] = artifact_provenance.producer_file_identity(
+        guidelines_recs.RECORD_TRUST_FLOOR[floor_key]
+    )
+    payload: dict[str, object] = {
+        "doc_id": doc_id,
+        "source": str(pdf),
+        "source_sha256": _sha256(pdf),
+        "counted_from": floor_key,
+        "mode": mode if records else None,
+        "producer": record_producer,
+        "outcome": outcome,
+        "recommendations": [asdict(record) for record in records],
+    }
+    if records:
+        payload["totals"] = {
+            "recommendations": len(records),
+            "tables": len({record.table for record in records}),
+            "glued_runs": guidelines_recs.glued_run_census(records),
+        }
+    return payload, outcome
+
+
+def _build_recs(
+    source: Path,
+    catalog_root: Path,
+    catalog_path: Path,
+    identity: dict[str, object],
+    producer: dict[str, str | bool],
+) -> SelectedArtifact:
+    def build_temporary(temporary: Path, _: dict[str, object]) -> None:
+        documents: list[dict[str, str]] = []
+        pdfs = sorted(
+            source.rglob("*.pdf"),
+            key=lambda path: path.relative_to(source).as_posix(),
+        )
+        for pdf in pdfs:
+            relative = pdf.relative_to(source)
+            doc_id = guidelines_extract.document_id(relative)
+            try:
+                payload, outcome = _recommendation_payload(pdf, doc_id, producer)
+            except guidelines_recs.DidNotScan as failure:
+                raise ValueError(
+                    f"recommendation sweep did not scan {relative.as_posix()}: {failure}"
+                ) from failure
+            record_name = f"{doc_id}.json"
+            record_path = temporary / record_name
+            record_path.parent.mkdir(parents=True, exist_ok=True)
+            record_path.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            documents.append(
+                {
+                    "doc_id": doc_id,
+                    "source": relative.as_posix(),
+                    "record": record_name,
+                    "outcome": outcome,
+                }
+            )
+        if _files(source, "*.pdf") != identity["source_files"]:
+            raise ValueError(
+                "source files changed during recommendation sweep; retry the build"
+            )
+        curated_identity = identity.get("curated_table")
+        if (
+            not isinstance(curated_identity, dict)
+            or curated_identity.get("sha256") != _sha256(guidelines_recs.CURATED_TABLE)
+        ):
+            raise ValueError(
+                "curated table changed during recommendation sweep; retry the build"
+            )
+        (temporary / RECS_MANIFEST).write_text(
+            json.dumps({"schema_version": 1, "documents": documents}, indent=2)
+            + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    return _select_or_build(
+        "recs",
+        catalog_root,
+        catalog_path,
+        identity,
+        producer,
+        build_temporary,
+    )
+
+
+def _recs_coverage(root: Path) -> tuple[int, int, int]:
+    manifest = json.loads((root / RECS_MANIFEST).read_text(encoding="utf-8"))
+    documents = manifest.get("documents") if isinstance(manifest, dict) else None
+    if not isinstance(documents, list) or any(
+        not isinstance(row, dict) for row in documents
+    ):
+        raise ValueError("recommendation manifest has no document rows")
+    records = sum(
+        1
+        for row in documents
+        if isinstance(row.get("record"), str) and (root / row["record"]).is_file()
+    )
+    nothing_found = sum(
+        1 for row in documents if row.get("outcome") == NOTHING_FOUND
+    )
+    if records != len(documents):
+        raise ValueError("recommendation manifest does not resolve every record")
+    return len(documents), records, nothing_found
+
+
+def default_recs_alias(source: Path) -> Path:
+    return source.parent / "guidelines-recs"
+
+
 def _publish_directory(source: Path, alias: Path) -> None:
     alias = ensure_outside_checkout(alias, detail=WHY_OUTSIDE)
     if alias.resolve() == source.resolve():
@@ -610,7 +767,7 @@ def _publish_directory(source: Path, alias: Path) -> None:
     backup = alias.with_name(f".{alias.name}.{uuid.uuid4().hex}.previous")
     try:
         shutil.copytree(source, temporary, ignore=shutil.ignore_patterns(ARTIFACT_RECORD))
-        with artifact_lock.hold(alias, "publishing extracted guideline compatibility path"):
+        with artifact_lock.hold(alias, "publishing guideline directory compatibility path"):
             moved_previous = False
             try:
                 if alias.exists():
@@ -663,6 +820,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="compatibility index path (default: the existing index default)",
     )
     parser.add_argument(
+        "--recs-alias",
+        type=Path,
+        default=None,
+        help="compatibility recommendation-record path (default: beside the source)",
+    )
+    parser.add_argument(
+        "--no-recs",
+        action="store_true",
+        help="skip the default recommendation-record stage",
+    )
+    parser.add_argument(
         "--jobs", type=int, default=0, help="extractor worker processes"
     )
     return parser
@@ -678,6 +846,7 @@ def main(argv: list[str]) -> int:
         catalog_path = catalog_root / CATALOG_NAME
         text_alias = (args.text_alias or guidelines_extract.default_output(source)).resolve()
         index_alias = (args.index_alias or guidelines_index.default_database()).resolve()
+        recs_alias = (args.recs_alias or default_recs_alias(source)).resolve()
         producer = artifact_provenance.current_producer()
         extraction_spec = extraction_identity(source)
         extraction = _build_extraction(
@@ -692,18 +861,41 @@ def main(argv: list[str]) -> int:
         index = _build_index(
             extraction, catalog_root, catalog_path, index_spec, producer
         )
+        recs = None
+        if not args.no_recs:
+            recs_spec = recs_identity(source)
+            recs = _build_recs(
+                source, catalog_root, catalog_path, recs_spec, producer
+            )
         _publish_directory(extraction.path, text_alias)
         _publish_file(index.path / "guidelines.sqlite", index_alias)
+        if recs is not None:
+            _publish_directory(recs.path, recs_alias)
         _remember_alias(catalog_path, "extraction", extraction.key, text_alias)
         _remember_alias(catalog_path, "index", index.key, index_alias)
+        if recs is not None:
+            _remember_alias(catalog_path, "recs", recs.key, recs_alias)
+            recs_coverage = _recs_coverage(recs.path)
     except (artifact_lock.ArtifactBusy, OSError, ValueError) as failure:
         print(str(failure), file=sys.stderr)
         return 2
 
     print(f"extraction  {'REUSED' if extraction.reused else 'BUILT'}  {extraction.path}")
     print(f"index       {'REUSED' if index.reused else 'BUILT'}  {index.path / 'guidelines.sqlite'}")
+    if recs is None:
+        print("recs        SKIPPED (--no-recs)")
+    else:
+        print(f"recs        {'REUSED' if recs.reused else 'BUILT'}  {recs.path}")
+        print(
+            "recs coverage  "
+            f"documents read {recs_coverage[0]}; "
+            f"records written {recs_coverage[1]}; "
+            f"yielded nothing {recs_coverage[2]}"
+        )
     print(f"text alias  {text_alias}")
     print(f"index alias {index_alias}")
+    if recs is not None:
+        print(f"recs alias  {recs_alias}")
     return 0
 
 
