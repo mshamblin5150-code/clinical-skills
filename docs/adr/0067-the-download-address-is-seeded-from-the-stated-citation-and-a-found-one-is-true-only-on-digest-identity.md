@@ -91,7 +91,7 @@ one document. **That is the whole ground of ruling 1**, and it was measured rath
     seeded from the document's own printed citation, already audited on the catalog. `digest <date>` —
     fetched, bytes matched. `gated <date>` — authenticated route attempted, download still gated,
     title matched. `chosen` — a person deliberately picked a different-but-correct address. A single
-    rule was refused: a seeded DOI resolves to a landing page rather than to the bytes, so demanding a
+    rule was refused: a seeded DOI points at a landing page rather than at the bytes, so demanding a
     digest of it fails a correct value for a property the rule does not care about, which is
     [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s recorded defect. It
     would also make the six documents that cite nothing the best-evidenced rows in the artifact and
