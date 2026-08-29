@@ -375,6 +375,43 @@ class ThresholdDraftCli(unittest.TestCase):
             scope,
         )
 
+    def test_a_new_bound_draft_leaves_snippets_blank_and_moves_labels_to_candidates(self):
+        payload = recommendation_record()
+        payload["mode"] = "bound"
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(Path(directory), record_payload=payload)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        drafted = threshold_sheet.parse(result.stdout, Path("draft.md"))
+        self.assertEqual([row.snippet for row in drafted.rows], ["", ""])
+        candidates = result.stdout.split("## Candidate set", 1)[1].split("## ", 1)[0]
+        self.assertIn("Adults should have an SBP goal below 130 mm Hg.", candidates)
+        self.assertIn("A drafted bound sheet intentionally fails structure", result.stdout)
+
+    def test_a_seeded_bound_draft_skips_membership_and_containment_rejections(self):
+        payload = recommendation_record()
+        payload["mode"] = "bound"
+        seed = seeded_sheet().replace("| exact |", "| bound |").replace(
+            "## Conflicts",
+            "|  |  |  | \"page-read narrative\" | aha-2025 | p4 | p4/narrative/1 | narrative |\n\n## Conflicts",
+        ).replace("an SBP goal below 130 mm Hg", "page-read text absent from the label")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "sheets"
+            sheets.mkdir()
+            (sheets / "hypertension.md").write_text(seed, encoding="utf-8")
+            result = self.run_cli(root, record_payload=payload)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        drafted = threshold_sheet.parse(result.stdout, Path("draft.md"))
+        self.assertEqual(len(drafted.rows), 2)
+        self.assertEqual(
+            {row.rec for row in drafted.rows},
+            {"p3/topic/1", "p4/narrative/1"},
+        )
+        self.assertNotIn("not in its recommendation record", result.stdout)
+        self.assertNotIn("seeded snippet is not in its record", result.stdout)
+
     def test_an_untrusted_manifest_cannot_supply_a_draft_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli(

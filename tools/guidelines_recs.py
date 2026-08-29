@@ -402,6 +402,11 @@ DECLARED_LIMITS = (
         "A recommendation record keyed on doc_id is invisible to a source walk keyed on the recs- filename prefix.",
         EvidenceDisposition.DECLARED_READING,
     ),
+    DeclaredLimit(
+        "changelog-shape-floor",
+        "The changelog census reaches only a leading recommendation reference followed by 'was' and a participle; other editorial shapes remain outside it.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -574,11 +579,34 @@ NUMBERED = re.compile(r"^\s*(?P<number>\d+)\.\s*(?P<text>.+)$", re.DOTALL)
 CLASS_CELL = re.compile(r"^\s*(?P<value>1|2a|2b|3)\b(?P<qualifier>.*)$", re.IGNORECASE | re.DOTALL)
 
 # Text markers, for the sources that do not rule their recommendations into tables.
-# Each is (society-independent name, pattern). These produce a BOUND count and the
-# module says so in every place the number is printed.
+# A required anchor makes a malformed marker fail while this module is imported.
+# ``threshold_sheet.py`` imports it from the pre-commit path, so the same defect
+# refuses every commit and turns the suite red; that blast radius is deliberate.
+ANCHOR_LEADING = "leading"
+ANCHOR_TRAILING = "trailing"
+MARKER_ANCHORS = frozenset({ANCHOR_LEADING, ANCHOR_TRAILING})
+
+
+@dataclass(frozen=True)
+class Marker:
+    """A bound marker and the end of its recommendation where it is anchored."""
+
+    name: str
+    pattern: re.Pattern[str]
+    anchor: str
+
+    def __post_init__(self) -> None:
+        if self.anchor not in MARKER_ANCHORS:
+            raise ValueError(f"unknown marker anchor {self.anchor!r}")
+
+
 TEXT_MARKERS = (
-    ("recommendation", re.compile(r"\bRecommendation\s+(?P<ref>\d+(?:\.\d+)+)")),
-    ("practice-point", re.compile(r"\bPractice Point\b")),
+    Marker(
+        "recommendation",
+        re.compile(r"\bRecommendation\s+(?P<ref>\d+(?:\.\d+)+[a-z]?)", re.IGNORECASE),
+        ANCHOR_LEADING,
+    ),
+    Marker("practice-point", re.compile(r"\bPractice Point\b"), ANCHOR_LEADING),
     # IDSA -- #173 limb 2. Strength and certainty are written in prose rather than
     # ruled into a table, in two renderings that are both in the corpus. They are two
     # markers rather than one alternation because they are two conventions, and a
@@ -588,27 +616,96 @@ TEXT_MARKERS = (
     # parenthesis -- ``(weak recommendation, low-\nquality evidence)`` is off a real
     # page -- and a pattern that could not cross the break would find nothing on the
     # documents this limb exists for.
-    (
+    Marker(
         "grade-spelled-out",
         re.compile(
             r"\((?:strong|weak|conditional)[^)]{0,120}?(?:evidence|certainty)[^)]{0,40}\)",
             re.IGNORECASE,
         ),
+        ANCHOR_TRAILING,
     ),
     # The elided rendering. Both halves are closed vocabularies and that is the whole
     # of its safety: ``strong`` is an ordinary English adjective, so a pattern that
     # accepted any following word would match prose. The four certainty words are
     # GRADE's own.
-    (
+    Marker(
         "grade-terse",
         re.compile(
             r"\((?:strong|weak|conditional)\s*,\s*(?:very low|low|moderate|high)\)",
             re.IGNORECASE,
         ),
+        ANCHOR_TRAILING,
     ),
 )
 
 _WHITESPACE = re.compile(r"\s+")
+
+# ADR 0029 measured this forward cap over the marker corpus. It remains 160
+# because a bound label names a recommendation; widening it to carry the row's
+# clinical numbers would create the prose-derived record family ADR 0026 forbids.
+FORWARD_LABEL_WINDOW = 160
+
+# Measured 2026-08-29 after #446's repaired reader landed, across all 31 corpus
+# documents carrying 2,055 trailing markers. The first plateau is 880--940; 920
+# is its midpoint. At that cap 1,961 markers (95.426%) reached the nearest
+# candidate sentence boundary, 27 stopped farther back, and 67 had no candidate.
+# The unexcluded probe had one demonstrable false stop in 1,988 candidates
+# (0.050%: ``Liberal Vs. Conservative``). The abbreviation exclusions below
+# remove it, but that observed zero is a floor, not a claim that every remaining
+# boundary is the recommendation's true beginning.
+BACKWARD_LABEL_WINDOW = 920
+
+_SENTENCE_BOUNDARY = re.compile(r"[.!?]\s+(?=[A-Z])")
+_BOUNDARY_ABBREVIATIONS = ("e.g.", "i.e.", "vs.")
+_CHANGELOG_SHAPE = re.compile(
+    r"^Recommendation\s+\d+(?:\.\d+)+[a-z]?\s+was\s+"
+    r"(?:[A-Za-z]+ed|[A-Za-z]+en)\b",
+    re.IGNORECASE,
+)
+
+
+def _whole_word_forward_end(text: str, start: int, cap: int) -> int:
+    """Back a capped forward end off to the preceding token boundary."""
+
+    end = min(len(text), start + cap)
+    if end == len(text) or text[end - 1].isspace() or text[end].isspace():
+        return end
+    boundary = text.rfind(" ", start, end)
+    return boundary if boundary > start else end
+
+
+def _whole_word_backward_start(text: str, cap_start: int, end: int) -> int:
+    """Advance a capped backward start so the label never opens mid-token."""
+
+    if cap_start == 0 or text[cap_start].isspace() or text[cap_start - 1].isspace():
+        return cap_start
+    boundary = text.find(" ", cap_start, end)
+    return boundary + 1 if boundary >= 0 else cap_start
+
+
+def _backward_label_start(text: str, match: re.Match[str]) -> int:
+    cap_start = max(0, match.end() - BACKWARD_LABEL_WINDOW)
+    candidates = []
+    for boundary in _SENTENCE_BOUNDARY.finditer(text, cap_start, match.start()):
+        prefix = text[cap_start : boundary.end()].rstrip().casefold()
+        if prefix.endswith(_BOUNDARY_ABBREVIATIONS):
+            continue
+        candidates.append(boundary.end())
+    if candidates:
+        return candidates[-1]
+    return _whole_word_backward_start(text, cap_start, match.end())
+
+
+def _marker_label(text: str, match: re.Match[str], anchor: str) -> str:
+    if anchor == ANCHOR_LEADING:
+        start = match.start()
+        end = _whole_word_forward_end(text, start, FORWARD_LABEL_WINDOW)
+    elif anchor == ANCHOR_TRAILING:
+        start = _backward_label_start(text, match)
+        end = match.end()
+    else:
+        raise ValueError(f"unknown marker anchor {anchor!r}")
+    return _WHITESPACE.sub(" ", text[start:end]).strip()
 
 
 def flatten(cell: str | None) -> str:
@@ -721,19 +818,19 @@ def read_marker_recommendations(page_number: int, text: str, doc_id: str) -> lis
     exact count to one of these without the total becoming a bound too.
     """
     found: list[Recommendation] = []
-    for name, pattern in TEXT_MARKERS:
-        for index, match in enumerate(pattern.finditer(text), start=1):
+    for marker in TEXT_MARKERS:
+        for index, match in enumerate(marker.pattern.finditer(text), start=1):
             reference = match.groupdict().get("ref") if match.groupdict() else None
             found.append(
                 Recommendation(
-                    rec_id=f"p{page_number}/{name}/{reference or index}",
+                    rec_id=f"p{page_number}/{marker.name}/{reference or index}",
                     doc_id=doc_id,
                     page=page_number,
-                    table=name,
+                    table=marker.name,
                     number=index,
                     cor=None,
                     loe=None,
-                    text=_WHITESPACE.sub(" ", text[match.start(): match.start() + 160]).strip(),
+                    text=_marker_label(text, match, marker.anchor),
                     mode=MODE_BOUND,
                 )
             )
@@ -744,6 +841,16 @@ def glued_run_census(records: list[Recommendation]) -> int:
     """Alphabetic runs at the declared floor across one document's final records."""
 
     return sum(len(GLUED_RUN.findall(record.text)) for record in records)
+
+
+def changelog_shape_census(records: list[Recommendation]) -> int:
+    """Leading ``Recommendation <ref> was <participle>`` labels; a reporting floor."""
+
+    return sum(
+        bool(_CHANGELOG_SHAPE.match(record.text))
+        for record in records
+        if record.table == "recommendation"
+    )
 
 
 def rebuilt_page_text(page) -> str:
@@ -1078,6 +1185,7 @@ def _record_payload(
             "recommendations": len(records),
             "tables": len({record.table for record in records}),
             "glued_runs": glued_run_census(records),
+            "changelog_shape_floor": changelog_shape_census(records),
         }
     return payload, outcome
 
@@ -1118,6 +1226,11 @@ def build_sweep(
                 "record": record_name,
                 "outcome": outcome,
             }
+        )
+        print(
+            f"  {doc_id}  changelog floor "
+            f"{payload.get('totals', {}).get('changelog_shape_floor', 0)} "
+            "(Recommendation <ref> was <participle>; reports only; spacing-dependent)"
         )
     (destination / SWEEP_MANIFEST).write_text(
         json.dumps({"schema_version": 1, "documents": documents}, indent=2)
@@ -1288,6 +1401,7 @@ def main(argv: list[str]) -> int:
 
     tables = sorted({record.table for record in records})
     glued_runs = glued_run_census(records)
+    changelog_floor = changelog_shape_census(records)
     print(f"== {doc_id}")
     print(f"  mode            {mode}")
     print(f"  source          {source}")
@@ -1296,6 +1410,10 @@ def main(argv: list[str]) -> int:
     print(
         f"  glued runs      {glued_runs} "
         f"(alphabetic runs of at least {GLUED_RUN_MIN_LETTERS}; reports only)"
+    )
+    print(
+        f"  changelog floor {changelog_floor} "
+        "(leading Recommendation <ref> was <participle>; reports only; spacing-dependent)"
     )
     if source == SOURCE_CURATED_TABLE:
         print()

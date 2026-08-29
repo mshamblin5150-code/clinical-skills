@@ -800,6 +800,35 @@ class CitationTier0(unittest.TestCase):
         self.assertIn("NOT RUN", result.report[0])
         self.assertIn("bound", result.report[0])
 
+    def test_a_bound_report_derives_both_denominators_and_tier_two_skips(self):
+        parsed = sheet(
+            row(rec="p41/goal/1", snippet="page-read recommendation")
+            + row(rec="p42/goal/2", snippet="RENDERED: page transcription", page="p42")
+            + row(
+                rec="p43/narrative/1",
+                klass="narrative",
+                snippet="RENDERED: narrative transcription",
+                page="p43",
+            ),
+            mode="bound",
+        )
+        result = gate.gate_citation_tier0(
+            parsed,
+            {
+                "src": {
+                    "mode": "bound",
+                    "recommendations": [],
+                }
+            },
+            {},
+        )
+
+        report = "\n".join(result.report)
+        self.assertIn("3 row(s) ungraded here", report)
+        self.assertIn("2 cite a recommendation identifier", report)
+        self.assertIn("all 3 keep tier 1", report)
+        self.assertIn("2 that declare RENDERED: -- 1 of those 2", report)
+
     def test_a_rendered_snippet_is_exempt_and_counted(self):
         result = gate.gate_citation_tier0(
             sheet(row(snippet="RENDERED: an SBP goal of <130 mm Hg")),

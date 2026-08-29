@@ -546,7 +546,7 @@ not left to be discovered:
   | --- | --- | ---: | ---: | --- |
   | `exact` | `ruled-table` | **22** | 2,969 | omissions **refused**; 22 of 23 AHA/ACC files |
   | `exact` | `curated-table` | **90** | 143 | omissions **refused**; every USPSTF document |
-  | `bound` | `text-marker` | 48 | 4,619 | omissions **warned**; 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
+  | `bound` | `text-marker` | 48 | 4,619 | omissions **warned**; marker hits can over-report changelog and cross-reference prose, with ADA's measured instance recorded in [diabetes.md](diabetes.md); 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
   | nothing found | — | **19** | 0 | nothing counted, so nothing gated |
 
   `python tools/guidelines_recs.py <corpus-root> --compare-readers` reports each

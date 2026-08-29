@@ -1412,6 +1412,7 @@ def gate_citation_tier0(
     failures: list[str] = []
     rendered = 0
     ungraded_sources: list[str] = []
+    bound_reports: list[str] = []
 
     for source_key in sorted(sheet.sources):
         record = records.get(source_key)
@@ -1425,6 +1426,28 @@ def gate_citation_tier0(
         if mode != MODE_EXACT:
             reason = "source mode is 'bound'" if mode == MODE_BOUND else f"source mode is {mode!r}"
             ungraded_sources.append(f"{source_key} ({reason})")
+            if mode == MODE_BOUND:
+                source_rows = [row for row in sheet.rows if row.source == source_key]
+                recommendation_rows = [
+                    row
+                    for row in source_rows
+                    if (locator := source_locator(row.rec)) is not None
+                    and not locator.is_narrative
+                ]
+                rendered_rows = [
+                    row for row in source_rows if row.snippet.startswith(RENDERED_MARKER)
+                ]
+                rendered_recommendations = [
+                    row for row in recommendation_rows if row.snippet.startswith(RENDERED_MARKER)
+                ]
+                bound_reports.append(
+                    f"{source_key} ({reason}: {len(source_rows)} row(s) ungraded here; "
+                    f"{len(recommendation_rows)} cite a recommendation identifier and lose "
+                    "its membership pin, and their class cell is ungraded because a bound "
+                    f"record carries no class; all {len(source_rows)} keep tier 1, and tier 2 "
+                    f"grades all but the {len(rendered_rows)} that declare {RENDERED_MARKER} -- "
+                    f"{len(rendered_recommendations)} of those {len(recommendation_rows)})"
+                )
             continue
 
         source_rows = [candidate for candidate in sheet.rows if candidate.source == source_key]
@@ -1522,8 +1545,13 @@ def gate_citation_tier0(
                 )
 
     if ungraded_sources:
+        detailed = bound_reports + [
+            source
+            for source in ungraded_sources
+            if not source.endswith("(source mode is 'bound')")
+        ]
         report = [
-            "  CITATION tier 0 NOT RUN -- " + "; ".join(ungraded_sources),
+            "  CITATION tier 0 NOT RUN -- " + "; ".join(detailed),
         ]
         if failures:
             report.append(

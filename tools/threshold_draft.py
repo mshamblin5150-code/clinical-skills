@@ -3,6 +3,11 @@
 The committed Markdown remains curated source of truth. This command only lifts
 machine-settleable citation cells from recommendation records and prints them to
 stdout; it never writes a sheet.
+
+A bound source deliberately drafts blank snippets. The sheet's structure gate then
+refuses every row until a reader fills those cells from the rendered source pages;
+that non-zero result on a fresh bound scaffold is the required workflow, not a
+broken draft.
 """
 
 from __future__ import annotations
@@ -286,7 +291,11 @@ def select_rows(
     if seeded_sheet is None:
         rows = [
             DraftRow(
-                snippet=" ".join(str(item.get("text") or "").split()),
+                snippet=(
+                    ""
+                    if source.mode == "bound"
+                    else " ".join(str(item.get("text") or "").split())
+                ),
                 source=source.key,
                 page=f"p{item.get('page', '')}",
                 rec=str(item["rec_id"]),
@@ -299,8 +308,20 @@ def select_rows(
         return rows, {}, rejected
 
     rows: list[DraftRow] = []
+    modes = {source.key: source.mode for source in sources}
     for row in seeded_sheet.rows:
         item = known.get((row.source, row.rec))
+        if modes.get(row.source) == "bound":
+            rows.append(
+                DraftRow(
+                    snippet=row.snippet,
+                    source=row.source,
+                    page=f"p{row.page or ''}",
+                    rec=row.rec,
+                    klass=row.klass,
+                )
+            )
+            continue
         if item is None:
             rejected.append(f"{row.source}/{row.rec}: not in its recommendation record")
             continue
@@ -340,7 +361,13 @@ def render(
     known = _recommendations(sources)
     cited = {row.rec for row in rows}
     candidate_rows = [
-        [source, rec, f"p{item.get('page', '')}", str(item.get("cor") or "")]
+        [
+            source,
+            rec,
+            f"p{item.get('page', '')}",
+            str(item.get("cor") or ""),
+            " ".join(str(item.get("text") or "").split()),
+        ]
         for (source, rec), item in known.items()
     ]
     source_rows = [
@@ -366,7 +393,9 @@ def render(
         f"# {topic.title()} — threshold sheet draft",
         SCHEMA_MARKER,
         "Machine-owned citation cells are filled; quantity, population, and value are blank for a reader.",
-        "## Candidate set\n\n" + _table(("source", "rec", "page", "class"), candidate_rows),
+        "A drafted bound sheet intentionally fails structure until a page read fills every blank snippet.",
+        "## Candidate set\n\n"
+        + _table(("source", "rec", "page", "class", "label"), candidate_rows),
         SOURCES_HEADING
         + "\n\n"
         + _table(
