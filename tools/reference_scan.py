@@ -509,7 +509,9 @@ NOT_REACHED = (
         "grades a year an agent read off the page and a refutation a second agent "
         "returned. Neither module sprouts a URL fetcher: no tool here opens a socket. "
         "The research and refutation passes own their access paths, including the "
-        "required Authenticated route attempt before ``paywalled`` is available.",
+        "required Authenticated route attempt before ``paywalled`` is available. A "
+        "resolving locator whose title and authors match the entry is evidence the "
+        "document exists even when that route cannot reach its body.",
     ),
 )
 
