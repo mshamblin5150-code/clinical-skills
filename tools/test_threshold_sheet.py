@@ -1892,20 +1892,27 @@ class TheScopeSectionIsGraded(unittest.TestCase):
 class ScopeSummaryTracksTheUnreadList(unittest.TestCase):
     """ADR 0046's conservative direction at the public SCHEMA seam."""
 
-    def corrected_cervical_sheet(self) -> tuple[Path, str]:
+    def cervical_sheet_with_unread_fixture(self) -> tuple[Path, str]:
         path = gate.SHEET_ROOT / "cervical-cancer.md"
         text = path.read_text(encoding="utf-8")
         self.assertIn(
             "**Read:** all five recommendation statements in the USPSTF recommendation table. "
+            "The rationale, clinical considerations, and evidence review on pp. 1-11 were read "
+            "on 2026-08-29. "
             "The reference list is retired by class because it is a citation list with no "
             "clinical prose.",
             " ".join(text.split()),
         )
-        self.assertIn("**Not read:** the rationale, clinical considerations, and evidence review.", text)
-        return path, text
+        current = "**Not read:** nothing in the source page range."
+        self.assertIn(current, text)
+        fixture = text.replace(
+            current,
+            "**Not read:** the rationale, clinical considerations, and evidence review.",
+        )
+        return path, fixture
 
     def test_a_retired_span_named_as_unread_is_refused(self):
-        path, text = self.corrected_cervical_sheet()
+        path, text = self.cervical_sheet_with_unread_fixture()
         planted = text.replace(
             "clinical considerations, and evidence review.",
             "clinical considerations, evidence review, and references.",
@@ -1928,7 +1935,7 @@ class ScopeSummaryTracksTheUnreadList(unittest.TestCase):
         self.assertFalse(any("span 'index'" in finding for finding in findings), findings)
 
     def test_a_hard_wrapped_retired_span_label_is_still_refused(self):
-        path, text = self.corrected_cervical_sheet()
+        path, text = self.cervical_sheet_with_unread_fixture()
         planted = text.replace(
             "and evidence review.",
             "evidence review, and recommendation\nstatements.",
@@ -1943,7 +1950,7 @@ class ScopeSummaryTracksTheUnreadList(unittest.TestCase):
         )
 
     def test_a_span_label_inside_a_longer_list_item_does_not_match(self):
-        path, text = self.corrected_cervical_sheet()
+        path, text = self.cervical_sheet_with_unread_fixture()
         planted = text.replace(
             "and evidence review.",
             "evidence review, and a references appendix.",

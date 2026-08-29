@@ -48,7 +48,7 @@
 | cardiovascular-kidney-metabolic syndrome | unread |  | exact recommendation index available; full-document read pending |
 | carotid artery stenosis screening | unread |  | exact recommendation index available; full-document read pending |
 | celiac disease screening | unread |  | exact recommendation index available; full-document read pending |
-| cervical cancer screening | unread | cervical-cancer.md | partial artifact; full-document read pending |
+| cervical cancer screening | sheet | cervical-cancer.md | all 13 source pages accounted for on 2026-08-29; references retired by class |
 | chest pain evaluation | unread |  | exact recommendation index available; full-document read pending |
 | child maltreatment prevention | unread |  | exact recommendation index available; full-document read pending |
 | childhood and adolescent immunization schedule | unread |  | no recommendation record; full-document read pending |
