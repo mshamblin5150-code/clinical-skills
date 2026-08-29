@@ -160,8 +160,11 @@ class ThresholdDraftCli(unittest.TestCase):
             root = Path(directory)
             catalog = root / "catalog.md"
             sheets = root / "sheets"
+            text_root = root / "text"
             catalog.write_text(catalog_row(), encoding="utf-8")
             sheets.mkdir()
+            text_root.mkdir()
+            write_trusted_extraction_manifest(text_root)
             result = subprocess.run(
                 [
                     sys.executable,
@@ -173,6 +176,8 @@ class ThresholdDraftCli(unittest.TestCase):
                     str(COMMITTED_RECS),
                     "--sheet-root",
                     str(sheets),
+                    "--text-root",
+                    str(text_root),
                 ],
                 cwd=ROOT,
                 text=True,
@@ -302,8 +307,11 @@ class ThresholdDraftCli(unittest.TestCase):
             catalog = root / "catalog.md"
             recs = root / "recs"
             sheets = root / "sheets"
+            text_root = root / "text"
             recs.mkdir()
             sheets.mkdir()
+            text_root.mkdir()
+            write_trusted_extraction_manifest(text_root)
             catalog.write_text(
                 "| society | filename | title | topic | population | year | page_count | class |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
@@ -343,6 +351,8 @@ class ThresholdDraftCli(unittest.TestCase):
                     str(recs),
                     "--sheet-root",
                     str(sheets),
+                    "--text-root",
+                    str(text_root),
                 ],
                 cwd=ROOT,
                 text=True,
