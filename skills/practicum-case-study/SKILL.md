@@ -590,7 +590,8 @@ separator and both substantive halves are required, and the two normalized halve
 Before writing `paywalled`, try the clinician's authenticated Chrome route through
 `mcp__claude-in-chrome__*`; the in-app Browser pane is not that signed-in route. Refuter
 independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the mechanical
-boundary.
+boundary. A source is `paywalled` only when its body remains inaccessible through that
+**Authenticated route**; an anonymous or in-app login wall does not establish the disposition.
 
 It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
 record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to
@@ -606,10 +607,10 @@ citation cannot do. **Say what did match** — the title, the authors, the date 
 
 **It is the weakest disposition that passes, and the run says so on its own face.** The report
 counts `paywalled` records on their own line, because a set of citations all behind a wall has been
-checked far less than a clean exit suggests. The alternative — failing them — would refuse every
-UpToDate record, and UpToDate dominates this corpus's references — see
-[style.md](reference/style.md) §10, which measures it and hedges it. That dominance is the reason no
-resolver was built here in the first place.
+checked far less than a clean exit suggests. It passes because a resolving locator whose title and
+authors match the entry is evidence that the document exists, while the separate count preserves
+that the source body did not verify the claim. No tool here opens a socket; access belongs to the
+research and refutation passes, including the required Authenticated route attempt above.
 
 **The independence is an instruction and not a check.** Nothing in a record shows which agent wrote
 it, so the grader cannot tell a real second reading from the first agent answering itself — that is
@@ -696,16 +697,16 @@ python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 
 | The citation | Why |
 | --- | --- |
-| an UpToDate topic cited here that the evidence dump does not carry | UpToDate is subscription-gated, so a topic you were not handed is one nobody opened, and citing it is the Module 1 defect exactly |
+| an UpToDate topic cited here that the evidence dump does not carry | the companion evidence is the required supplied-source set; opening a topic through another route does not put it in that set, so citing the missing topic is the Module 1 defect exactly |
 | an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
-**The grounding is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)'s and it
-is what scopes the row.** A fetch of an UpToDate topic reaches a login wall rather than the page, so
-there is no reading of one outside the dump -- the dump is the whole of what the clinician handed
-over, and he hands topics over wholesale. **A journal article, a society guideline or a government
-page the dump lacks is left alone**, because that is this step's ordinary case: a claim record only
-exists because the evidence did *not* cover the claim, and a row firing on those would refuse the
-correct outcome.
+**The grounding is companion-evidence membership, not whether some route can open the page.** The
+Authenticated route may reach an UpToDate topic outside the dump; that does not add the topic to the
+faculty material the case study must use. The clinician hands supplied topics over wholesale, so the
+dump is the whole supplied set. **A journal article, a society guideline or a government page the
+dump lacks is left alone**, because that is this step's ordinary case: a claim record only exists
+because the evidence did *not* cover the claim, and a row firing on those would refuse the correct
+outcome.
 
 **A topic the dump merely *refers* to and does not carry is not a defect and is not graded.** The
 dump cross-references far more topics than it carries -- by better than an order of magnitude in the

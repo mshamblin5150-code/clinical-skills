@@ -110,7 +110,9 @@ honestly unsourced before drafting; it is never cited. The refuter also returns
 `SECOND-ROUTE: <research route> -> <refutation route>` with substantive halves that differ after
 normalization. Before `paywalled`, it attempts the clinician's authenticated Chrome route through
 `mcp__claude-in-chrome__*`, not the separate in-app Browser pane. Refuter independence remains
-orchestrator-owned; see `research_ledger.DECLARED_LIMITS`.
+orchestrator-owned; see `research_ledger.DECLARED_LIMITS`. A source is `paywalled` only when its
+body remains inaccessible through that **Authenticated route**; an anonymous or in-app login wall
+does not establish the disposition.
 
 Each record uses the full research-ledger shape:
 

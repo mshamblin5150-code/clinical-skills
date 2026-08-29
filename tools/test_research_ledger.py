@@ -1033,9 +1033,9 @@ class TheAgentWritesDownWhatItRead(unittest.TestCase):
     that matters most, because it survives review.
 
     **Deliberately not exempt by source class.** ``tertiary reference`` is
-    UpToDate, whose topics the clinician hands over wholesale -- but a claim only
-    reaches this ledger because the evidence dump did **not** cover it, so an
-    UpToDate reference here is a topic nobody has. Exempting the class would
+    UpToDate, whose supplied topics the clinician hands over wholesale. A claim
+    can reach this ledger through another research route, but that does not add
+    its topic to the required companion-evidence set. Exempting the class would
     exempt the records that need the row most.
     """
 
@@ -1697,10 +1697,10 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         self.assertNotIn("A clean scan is not a sourced document", self._flat())
 
     def test_the_skill_scopes_the_evidence_row_to_uptodate(self):
-        """The scope *is* the grounding -- #231's login wall -- so a reader who
-        loses it reads the row as firing on any source the dump lacks, which is
+        """The scope is companion-evidence membership, so a reader who loses it
+        reads the row as firing on any source the dump lacks, which is
         ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case."""
-        self.assertIn("UpToDate is subscription-gated", self._flat())
+        self.assertIn("required supplied-source set", self._flat())
         self.assertIn("is left alone", self._flat())
 
     def test_the_skill_says_a_referred_to_topic_is_not_a_defect(self):
@@ -3203,9 +3203,9 @@ class ACarriedTopicIsRecognizedByItsMasthead(unittest.TestCase):
 class AnUpToDateEntryNamesItsTopic(unittest.TestCase):
     """The title element of §2's published form, and nothing looser.
 
-    Scoped to UpToDate because that is the whole grounding: #231 ruled the
-    database subscription-gated, so a topic the dump does not carry is one nobody
-    could have opened. A journal article the dump lacks is
+    Scoped to UpToDate because supplied topics belong in the companion evidence;
+    opening one through another route does not put it in that set. A journal
+    article the dump lacks is
     ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case.
     """
 

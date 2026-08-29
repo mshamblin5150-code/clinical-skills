@@ -507,8 +507,9 @@ NOT_REACHED = (
         "[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231) and it "
         "is answered before the draft exists rather than here: ``research_ledger.py`` "
         "grades a year an agent read off the page and a refutation a second agent "
-        "returned. Neither module sprouts a URL fetcher, and not because the work was "
-        "deferred -- a fetch reaches UpToDate's login wall and passes on a 200.",
+        "returned. Neither module sprouts a URL fetcher: no tool here opens a socket. "
+        "The research and refutation passes own their access paths, including the "
+        "required Authenticated route attempt before ``paywalled`` is available.",
     ),
 )
 

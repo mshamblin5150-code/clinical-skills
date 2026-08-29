@@ -467,12 +467,11 @@ carrying `nothing newer` or `guideline in force` with a reason stands.
 **Open question 2 is settled on [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231).** The *format* half already had a written
 standard from #211 ([apa7.md](skills/practicum-case-study/reference/apa7.md), walked by `practicum-case-study` step 7 and by
 #218). For the *truth* half the ticket proposed `threshold_sheet.py`'s two-tier arrangement — a
-resolver opting into the network, skipping with a banner. **Two findings killed it, and the second is
-the clinician's.** UpToDate **dominates** this corpus's references and is subscription-gated, so
-a fetch reaches a login wall rather than the topic page `apa7.md` §2 takes the date element from:
-every such entry would fail outright, or **pass on a 200 from a login form**, which is the silent-pass
-shape this whole directory exists to refuse. And the clinician hands the topics over wholesale, so
-wherever a source is in the evidence dump there was never anything to resolve.
+resolver opting into the network, skipping with a banner. **The repository policy rules that shape
+out: no tool here opens a socket.** Access belongs to the research and refutation agents, which must
+try the clinician's **Authenticated route** before `paywalled` is available. An anonymous fetch can
+stop at a login form even when that signed-in route reaches the topic, so an in-tool fetch cannot
+stand for the access attempt the ledger requires.
 
 **So the checking moved to where the reading already happens, in two halves.** The agent that
 researched a claim was on the page, so it records what it opened and when (`RESOLVED`) and the year
@@ -480,28 +479,27 @@ the page itself carries and where (`PAGE-YEAR`); a **second** agent, briefed to 
 to confirm — because an agent asked *is this right?* says yes — records what the attempt found
 (`REFUTATION`). Ten rows grade the three fields offline. The residue this reaches is the
 **non-UpToDate** references: a `practicum-case-study` step-3 record only exists because the evidence dump did *not* cover
-the claim, so the sources here are the ones nobody has.
+the claim, so the sources here are the ones researched outside that supplied set.
 
 **A wall is not an absence, and the clinician split decision 4 on that line, 2026-08-19.** A locator
 that 404s or names a document a search cannot find is `refuted` and **fails**. A live page whose
 title and authors match the entry, body behind a subscription, is `paywalled` and **passes** — the
 URL resolving to the right document is itself evidence it exists, which is most of what a fabricated
 citation cannot do. **It is the weakest disposition that passes**, so the report counts those
-records on their own line rather than letting a clean exit stand for them. The alternative fails
-every UpToDate record, which is most of this corpus and the reason there is no resolver here.
+records on their own line rather than letting a clean exit stand for them. The disposition is
+available only after the Authenticated route still leaves the body unreadable; its ground is the
+resolving locator's evidence that the document exists, not an assumption that no signed-in route
+exists.
 
-**How dominant is measured once, and deliberately not restated in the four places this reasoning
-appears.** [style.md](skills/practicum-case-study/reference/style.md) §10 puts it at *roughly* nine
-in ten across ten graded submissions, and that working set is **gitignored** — so nothing committed
-re-derives the figure and no test pins it. It is load-bearing here, being the reason no resolver was
-built and the reason `paywalled` passes, which is why the hedge travels with it. This branch first
-published it flat in five new places and was caught by its own tracker sweep: [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
-shape arriving inside the change that cites #143.
+**Corpus composition is measured once and does not ground either decision.**
+[style.md](skills/practicum-case-study/reference/style.md) §10 owns the hedged measurement against
+its gitignored working set. The no-socket policy explains why no resolver lives in `tools/`; the
+matching locator and the required Authenticated route attempt explain why `paywalled` passes.
 
 **Not exempt by source class, and that was decided rather than defaulted into.** `tertiary reference`
-is UpToDate, which the clinician has wholesale — but for exactly the reason above, an UpToDate
-reference reaching *this file* is a topic he does not have. Exempting the class would exempt the
-records that need the rows most.
+is UpToDate. A reference can reach *this file* through research outside the companion evidence, but
+that does not add its topic to the required supplied-source set. Exempting the class would exempt
+the records that need the rows most.
 
 `RESOLVED` and `PAGE-YEAR` require specifics a reader can check in one click, and the refutation
 pass remains the second-agent verification workflow. The grader's boundary around those recorded
@@ -535,7 +533,7 @@ The dose-comparison boundary is named only in `research_ledger.DECLARED_LIMITS`.
 
 **`--evidence` is [#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298), ruled by the clinician 2026-08-20, and it is `--draft`'s argument arriving at a citation rather than at a dose.** `--draft` closes the hole only where the missing topic is a **drug**; this closes it wherever the topic is **cited**. A run recorded in its own `REFUTATION` that the treatment topic was missing from the companion evidence and wrote specific doses citing it anyway, and three graders exited 0.
 
-**The grounding is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231)'s and it is what makes the row narrow enough to refuse on.** That ruling established UpToDate is subscription-gated — a fetch reaches a login wall rather than the topic page, which is why no resolver was ever built here — so an UpToDate topic the dump does not carry is one **nobody could have opened**. The clinician hands topics over wholesale, in his own words *"a bunch of articles in one fell swoop"*, so the dump is the whole of what was read. **A journal article, a society guideline or a government page the dump lacks is left alone**, because a `practicum-case-study` step 3 record exists *because* the evidence did not cover the claim — a row firing on those would be [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s defect a fifth time.
+**The grounding is companion-evidence membership, which makes the row narrow enough to refuse on.** The Authenticated route can open an UpToDate topic outside the dump, but that does not put it in the faculty material the case study must use. The clinician hands supplied topics over wholesale, in his own words *"a bunch of articles in one fell swoop"*, so the dump is the whole supplied set. **A journal article, a society guideline or a government page the dump lacks is left alone**, because a `practicum-case-study` step 3 record exists *because* the evidence did not cover the claim — a row firing on those would be [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s defect a fifth time.
 
 **The topics the dump merely refers to are not graded, and that is the ruling rather than the residue.** #298's decision 2 proposed reporting a cross-reference whose title appears under no *heading*, and **the artifact has no headings of any kind** — the rendered dump is prose, bullets and short all-caps section labels, so a body is recognized by its `Authors:` masthead and the title is the line above it. Reporting the misses is worse than unimplementable, it is noise: the dump cross-references far more topics than it carries, which the ticket's own *What must not come out of this* forbids firing on. **And ranking them does not rescue it** — the reference counts decay smoothly with no plateau anywhere, so any cut is a value named at an edge, which is `SPACE_ADVANCE_FRACTION`'s recorded failure and [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s objection. **No threshold is built and none is available.** **Every figure behind all of that is counted against a file under `scratch/`, so nothing committed re-derives one and the next article the clinician pastes moves them all; they are stated on #298 and nowhere in this tree**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms. **That sentence was false when it was first written**, which is the finding rather than the repair: the commit carrying it stated those figures in **ten** places across `tools/research_ledger.py` and `skills/practicum-case-study/SKILL.md` — #143 arriving inside the paragraph claiming compliance with #143, at the shortest range this file has recorded, and caught by the standards axis of `/code-review` rather than by anything that fails.
 
@@ -580,7 +578,7 @@ python tools/reference_scan.py <a draft .md> --as-of <YYYY-MM-DD>
 
 **A third row was keyed on the wrong half of the author string, and it failed in the expensive direction.** The `a`/`b` rows grouped entries on `Entry.key`, which is the **first surname alone** — correct for matching an in-text citation, where APA names one author and `et al.`, and wrong for section 3, which scopes the letters to *the same authors*. So `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year read as an author who had failed to letter two works, when APA requires neither to carry one and `(Hsu, 2026)` and `(Hsu & Khosropour, 2026)` already differ in text. **What makes it worse than a false alarm is that obeying it writes an APA error**: a run that trusted the command would stamp `2026a`/`2026b` onto two entries that must carry neither, so the checker refuses a correct list *and* teaches the next run to produce a wrong one. `Entry.authors` is the fix and `key` is untouched, because the two are different questions. **Found by pointing the command at a real draft** on [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s re-run rather than by a fixture — `block_scan.py`'s and `threshold_sheet.py`'s lesson a third time, and the first time it has landed on a row that was *stricter* than its own sheet rather than looser.
 
-**What no row here reaches** is whether the source exists, whether it says what the sentence citing it says, and whether the year on the page is the year in the entry. That last is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), and it is **answered before the draft exists rather than here** — `research_ledger.py` grades the year an agent read off the page against the year in the entry. **It needed no network**, which is the opposite of what this sentence said when the two branches were written a day apart: a fetch reaches UpToDate's login wall and passes on a 200. So neither module sprouts a URL fetcher, and not because the work was deferred. **A clean scan is not a checked reference list**, `skills/practicum-case-study/SKILL.md` step 7 says so beside the command, and a test asserts that sentence is still there.
+**What no row here reaches** is whether the source exists, whether it says what the sentence citing it says, and whether the year on the page is the year in the entry. That last is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), and it is **answered before the draft exists rather than here** — `research_ledger.py` grades the year an agent read off the page against the year in the entry. Neither module sprouts a URL fetcher because no tool here opens a socket; the research and refutation passes own their access paths, including the required Authenticated route attempt. **A clean scan is not a checked reference list**, `skills/practicum-case-study/SKILL.md` step 7 says so beside the command, and a test asserts that sentence is still there.
 
 **That list is `reference_scan.NOT_REACHED` now rather than a paragraph, and it is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one artifact over** — [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241). It sat in this module's docstring *and* in [apa7.md](skills/practicum-case-study/reference/apa7.md) §7, and a **prose** edit to either failed nothing, so the reader who was misled was the one who checked the file nearer to hand. One object, and a test asserts the sheet names the same items in both directions. **How many rows is that tuple's to say and is deliberately not restated here**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms. **That bind still cannot establish whether a row's verdict is true, so #323 drives a synthetic draft through the scanner for every current row and makes a new row fail until it gains a measurement.**
 
