@@ -153,9 +153,10 @@ BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
 # #231's three dispositions. The brief is to *refute*, so ``stands`` is the outcome
 # of a failed attempt rather than the default.
 #
-# ``paywalled`` is the clinician's 2026-08-19 decision-4 disposition. The
-# alternative rejected the subscription-heavy UpToDate population wholesale;
-# #231 therefore keeps the disposition visible as its own report count.
+# ``paywalled`` is the clinician's 2026-08-19 decision-4 disposition. It is
+# available only after the clinician's Authenticated route still leaves the body
+# unreadable. A resolving locator that matches the entry is evidence the document
+# exists; the report keeps that weaker verification visible as its own count.
 REFUTATION_STANDS = "stands"
 REFUTATION_REFUTED = "refuted"
 REFUTATION_PAYWALLED = "paywalled"
