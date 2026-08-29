@@ -3206,6 +3206,12 @@ class CodificationYearProseMatchesTheHistoricalInstrument(
 
     def test_the_adr_records_the_fixed_historical_comparison(self):
         adr = self.ADR.read_text(encoding="utf-8")
+        for moving_current_description in (
+            "current annual edition",
+            "current annual codification",
+        ):
+            with self.subTest(description=moving_current_description):
+                self.assertProseNotIn(moving_current_description, adr)
         self.assertProseIn(
             "the official 2024 and 2025 annual Title 42 codifications",
             adr,
