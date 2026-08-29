@@ -113,6 +113,9 @@ normalization. Before `paywalled`, it attempts the clinician's authenticated Chr
 orchestrator-owned; see `research_ledger.DECLARED_LIMITS`. A source is `paywalled` only when its
 body remains inaccessible through that **Authenticated route**; an anonymous or in-app login wall
 does not establish the disposition.
+If the profile records the **Authenticated route** as available, a research agent must attempt it
+before giving up on the sought source, choosing an open substitute, or returning
+`STATUS: unsourced` because of the wall.
 
 Each record uses the full research-ledger shape:
 
