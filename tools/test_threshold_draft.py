@@ -418,6 +418,26 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("not in its recommendation record", result.stdout)
         self.assertNotIn("seeded snippet is not in its record", result.stdout)
 
+    def test_a_seeded_exact_draft_preserves_reserved_narrative_rows(self):
+        seed = seeded_sheet().replace(
+            "## Conflicts",
+            "|  |  |  | \"page-read narrative\" | aha-2025 | p4 | p4/narrative/1 | narrative |\n\n## Conflicts",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "sheets"
+            sheets.mkdir()
+            (sheets / "hypertension.md").write_text(seed, encoding="utf-8")
+            result = self.run_cli(root)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        drafted = threshold_sheet.parse(result.stdout, Path("draft.md"))
+        self.assertEqual(
+            {row.rec for row in drafted.rows},
+            {"p3/topic/1", "p4/narrative/1"},
+        )
+        self.assertNotIn("not in its recommendation record", result.stdout)
+
     def test_the_real_diabetes_bound_sheet_rejects_no_rows_when_its_record_is_trusted(self):
         record_path = Path(threshold_sheet.DEFAULT_RECS_ROOT) / "recs-ada-2026.json"
         if not record_path.is_file():
@@ -563,6 +583,12 @@ class ThresholdDraftCli(unittest.TestCase):
         recs = Path(threshold_sheet.DEFAULT_RECS_ROOT) / "recs-aha-2025.json"
         if not recs.is_file():
             self.skipTest(f"acceptance record not present at {recs}")
+        try:
+            guidelines_recs.load_recommendation_record(
+                recs, require_source_pdf=True
+            )
+        except (OSError, ValueError, guidelines_recs.UntrustedRecommendationRecord) as error:
+            self.skipTest(f"acceptance record is not trusted in this checkout: {error}")
 
         result = subprocess.run(
             [sys.executable, str(COMMAND), "hypertension"],
@@ -579,11 +605,19 @@ class ThresholdDraftCli(unittest.TestCase):
         committed = threshold_sheet.parse(
             committed_path.read_text(encoding="utf-8"), committed_path
         )
-        self.assertEqual(len(drafted.rows), 74)
-        self.assertEqual(len({row.rec for row in drafted.rows}), 53)
+        self.assertEqual(len(drafted.rows), 316)
+        narrative_rows = [
+            row
+            for row in drafted.rows
+            if (locator := threshold_sheet.source_locator(row.rec)) is not None
+            and locator.is_narrative
+        ]
+        recommendation_rows = [row for row in drafted.rows if row not in narrative_rows]
+        self.assertEqual(len(narrative_rows), 242)
+        self.assertEqual(len({row.rec for row in recommendation_rows}), 53)
         self.assertEqual(len(drafted.scoped_out), 50)
         self.assertEqual(
-            len({row.rec for row in drafted.rows} | set(drafted.scoped_out)), 103
+            len({row.rec for row in recommendation_rows} | set(drafted.scoped_out)), 103
         )
         self.assertEqual(
             [

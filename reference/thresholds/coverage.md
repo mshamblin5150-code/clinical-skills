@@ -98,7 +98,7 @@
 | hepatitis C screening | unread |  | exact recommendation index available; full-document read pending |
 | hepatitis C treatment trial, babesiosis treatment tables (corrections) | unread |  | no recommendation record; full-document read pending |
 | hepatitis C virus infection | unread |  | no recommendation record; full-document read pending |
-| high blood pressure | unread | hypertension.md | partial artifact; full-document read pending |
+| high blood pressure | sheet | hypertension.md | full clinical-content read completed 2026-08-29 |
 | high blood pressure screening | unread |  | exact recommendation index available; full-document read pending |
 | high body mass index intervention | unread |  | exact recommendation index available; full-document read pending |
 | HIV preexposure prophylaxis | unread |  | exact recommendation index available; full-document read pending |

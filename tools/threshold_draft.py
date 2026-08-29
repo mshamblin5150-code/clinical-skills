@@ -43,6 +43,7 @@ from threshold_sheet import (
     DEFAULT_RECS_ALIAS,
     DEFAULT_RECS_ROOT,
     ExtractionIdentity,
+    NARRATIVE_KIND,
     POPULATIONS_HEADING,
     QUANTITIES_HEADING,
     ROW_COLUMNS,
@@ -57,6 +58,7 @@ from threshold_sheet import (
     extraction_identity_from_manifest,
     parse,
     render_extraction_identity,
+    source_locator,
 )
 
 
@@ -311,7 +313,24 @@ def select_rows(
     modes = {source.key: source.mode for source in sources}
     for row in seeded_sheet.rows:
         item = known.get((row.source, row.rec))
+        locator = source_locator(row.rec)
+        is_narrative = (
+            locator is not None
+            and locator.is_narrative
+            and row.klass.strip().casefold() == NARRATIVE_KIND
+        )
         if modes.get(row.source) == "bound":
+            rows.append(
+                DraftRow(
+                    snippet=row.snippet,
+                    source=row.source,
+                    page=f"p{row.page or ''}",
+                    rec=row.rec,
+                    klass=row.klass,
+                )
+            )
+            continue
+        if is_narrative:
             rows.append(
                 DraftRow(
                     snippet=row.snippet,
