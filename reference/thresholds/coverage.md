@@ -146,7 +146,7 @@
 | perinatal depression prevention | unread |  | exact recommendation index available; full-document read pending |
 | peripheral artery disease screening, ankle-brachial index | unread |  | exact recommendation index available; full-document read pending |
 | postmenopausal hormone therapy for chronic disease prevention | unread |  | exact recommendation index available; full-document read pending |
-| prediabetes and type 2 diabetes screening | unread | prediabetes-type-2-diabetes-screening.md | partial artifact; full-document read pending |
+| prediabetes and type 2 diabetes screening | sheet | prediabetes-type-2-diabetes-screening.md | full source page coverage recorded in artifact |
 | preeclampsia prevention, low-dose aspirin | unread |  | exact recommendation index available; full-document read pending |
 | primary open-angle glaucoma screening | unread |  | exact recommendation index available; full-document read pending |
 | prostate cancer screening | unread |  | exact recommendation index available; full-document read pending |
