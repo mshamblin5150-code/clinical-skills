@@ -799,8 +799,12 @@ class RenderingTests(unittest.TestCase):
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
         )
         self.assertIn(
-            "from the statement sentence alone, so a period the document states elsewhere "
-            "is outside the rule's reach rather than missed by it.",
+            "from the statement sentence alone, a reach ruled permanent rather than awaiting "
+            "a wider derivation.",
+            markdown,
+        )
+        self.assertIn(
+            "A document may state elsewhere that no interval is established.",
             markdown,
         )
         self.assertIn(

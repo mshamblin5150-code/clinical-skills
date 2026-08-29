@@ -103,6 +103,28 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
             ],
         )
 
+    def test_the_ruled_interval_reach_population_has_not_moved(self) -> None:
+        not_stated = [row for row in self.rows if row.interval == NOT_STATED]
+        rows_by_file: dict[str, list[guidelines_recs.CuratedRow]] = {}
+        for row in self.rows:
+            rows_by_file.setdefault(row.filename, []).append(row)
+        population = (
+            len(self.rows),
+            len(not_stated),
+            len({row.filename for row in not_stated}),
+            sum(
+                all(row.interval == NOT_STATED for row in rows)
+                for rows in rows_by_file.values()
+            ),
+        )
+        self.assertEqual(
+            population,
+            (143, 135, 89, 83),
+            "The ruled interval-reach population moved. Run "
+            "tools/uspstf_interval_reach.py and review ADR 0028 before accepting "
+            "a changed USPSTF artifact.",
+        )
+
     def test_no_undeclared_sub_yearly_period_reaches_a_committed_statement(self) -> None:
         declared = {phrase.casefold() for phrase, _reason in uspstf_table.INTERVAL_EXCLUSIONS}
         reached = []
