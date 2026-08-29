@@ -243,8 +243,13 @@ def ledger_publishing_skills(read_text=None) -> tuple[Path, ...]:
     )
 
 
-def authenticated_research_route_blocks(path: Path) -> tuple[str, ...]:
-    """Normalized prose blocks carrying the research-side route obligation."""
+def authenticated_research_route_blocks(path: Path, read_text=None) -> tuple[str, ...]:
+    """Normalized prose blocks carrying the research-side route obligation.
+
+    This recognizes only one blank-line-delimited block carrying the literal
+    concept vocabulary below. A paraphrase outside those regex forms is beyond
+    its ceiling and is not evidence that the obligation is absent.
+    """
 
     required = (
         r"\bprofile\b",
@@ -256,9 +261,10 @@ def authenticated_research_route_blocks(path: Path) -> tuple[str, ...]:
         r"\bsubstitut(?:e|ion)\b",
         r"\bstatus\s*:\s*unsourced\b",
     )
+    reader = read_text or (lambda source: source.read_text(encoding="utf-8"))
     blocks = (
         normalized_prose(block)
-        for block in re.split(r"\n\s*\n", path.read_text(encoding="utf-8"))
+        for block in re.split(r"\n\s*\n", reader(path))
     )
     return tuple(
         block
@@ -348,6 +354,20 @@ class EveryLedgerPublishingSkillCarriesTheAuthenticatedResearchRoute(unittest.Te
         for path in ledger_publishing_skills():
             with self.subTest(skill=path.parent.name):
                 self.assertTrue(authenticated_research_route_blocks(path), path)
+
+    def test_removing_one_required_concept_makes_a_real_skill_unrecognized(self):
+        target = ledger_publishing_skills()[0]
+
+        def without_giving_up(path: Path) -> str:
+            prose = path.read_text(encoding="utf-8")
+            if path == target:
+                prose = re.sub(r"\bgiv(?:e|ing) up\b", "stopping", prose, count=1)
+            return prose
+
+        self.assertTrue(authenticated_research_route_blocks(target))
+        self.assertFalse(
+            authenticated_research_route_blocks(target, without_giving_up)
+        )
 
 
 class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
