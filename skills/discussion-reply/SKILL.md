@@ -87,8 +87,9 @@ List every new factual claim the replies may add. A paraphrase of the classmate'
 of agreement, and the clinician's own argument need no record. A number, threshold, factual
 comparison, or empirical assertion does. A source already verified in this board's `claims.md`
 may discharge another page-level read, but the new claim does not inherit the earlier claim's
-verification. Give it a new `RESTATEMENT` and a new `REFUTATION`; it inherits `REFERENCE`,
-`RESOLVED` and `PAGE-YEAR`, which are facts about the page already opened. `respent-source` remains
+verification. Give it a new `RESTATEMENT`, `REFUTATION`, and `SECOND-ROUTE`; it inherits `REFERENCE`,
+`RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY`, which are facts about the page already opened.
+`SECOND-ROUTE` belongs to the new refutation and is never inherited. `respent-source` remains
 reply against reply and never compares a reply file with `post.md`, so a course-required initial-post
 source does not become unavailable to every reply.
 
@@ -99,13 +100,17 @@ keeps the same number in another reply's record from tracing the wrong assertion
 research agent per claim. Each returns a reputable source from one of
 four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
-the read date, and the page's stated year and where it appears. The orchestrator alone writes the
-records.
+the read date, the page's stated year and where it appears, and the source's stated expiry or
+`none stated`. The orchestrator alone writes the records.
 
 Then send every sourced record to a different agent briefed to refute it. The second agent tries to
 prove the reference, locator, year, bibliographic details, or restatement wrong and returns
 `stands`, `refuted`, or `paywalled` with a substantive reason. A refuted record is repaired or made
-honestly unsourced before drafting; it is never cited.
+honestly unsourced before drafting; it is never cited. The refuter also returns
+`SECOND-ROUTE: <research route> -> <refutation route>` with substantive halves that differ after
+normalization. Before `paywalled`, it attempts the clinician's authenticated Chrome route through
+`mcp__claude-in-chrome__*`, not the separate in-app Browser pane. Refuter independence remains
+orchestrator-owned; see `research_ledger.DECLARED_LIMITS`.
 
 Each record uses the full research-ledger shape:
 
@@ -119,9 +124,14 @@ RECENCY: current | within five | nothing newer - <reason> | guideline in force -
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled - <reason>
+SECOND-ROUTE: <research route> -> <refutation route>
+STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
-For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. Within two
+For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. For a sourced
+record, transcribe only an expiry the document states; do not infer one from a publication cadence.
+`42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the edition year is
+provenance, and the annual reissue schedule is not a stated expiry. Within two
 years is the target, within five is ordinarily expected, and an older source may stand only when
 nothing newer exists and the record says what was searched. The research and refutation agents
 open the sources.
