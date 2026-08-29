@@ -12,6 +12,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet  # noqa: E402
+from guidelines_manifest_test_support import (  # noqa: E402
+    trusted_extraction_producer,
+    write_trusted_extraction_manifest,
+)
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -95,13 +99,17 @@ class ThresholdDraftCli(unittest.TestCase):
         record_name: str = "recs-aha-2025.json",
         record_payload: object | None = None,
         other_files: dict[str, object] | None = None,
+        manifest_producer: object | None = None,
     ) -> subprocess.CompletedProcess[str]:
         catalog = root / "catalog.md"
         recs = root / "recs"
         sheets = root / "sheets"
+        text_root = root / "text"
         catalog.write_text(catalog_row(), encoding="utf-8")
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
+        text_root.mkdir()
+        write_trusted_extraction_manifest(text_root, manifest_producer)
         (recs / record_name).write_text(
             json.dumps(record_payload or recommendation_record()), encoding="utf-8"
         )
@@ -122,6 +130,8 @@ class ThresholdDraftCli(unittest.TestCase):
                 str(recs),
                 "--sheet-root",
                 str(sheets),
+                "--text-root",
+                str(text_root),
                 *extra,
             ],
             cwd=ROOT,
@@ -150,8 +160,11 @@ class ThresholdDraftCli(unittest.TestCase):
             root = Path(directory)
             catalog = root / "catalog.md"
             sheets = root / "sheets"
+            text_root = root / "text"
             catalog.write_text(catalog_row(), encoding="utf-8")
             sheets.mkdir()
+            text_root.mkdir()
+            write_trusted_extraction_manifest(text_root)
             result = subprocess.run(
                 [
                     sys.executable,
@@ -163,6 +176,8 @@ class ThresholdDraftCli(unittest.TestCase):
                     str(COMMITTED_RECS),
                     "--sheet-root",
                     str(sheets),
+                    "--text-root",
+                    str(text_root),
                 ],
                 cwd=ROOT,
                 text=True,
@@ -242,6 +257,28 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("Read:", scope)
         self.assertNotIn("Not read:", scope)
         self.assertIn("| 2 | 2 | 0 |", scope)
+        producer = trusted_extraction_producer()
+        extractor = next(
+            row["sha256"]
+            for row in producer["inputs"]
+            if row["path"] == "tools/guidelines_extract.py"
+        )
+        self.assertIn(
+            f"extraction identity: producer {producer['commit']}; "
+            f"tools/guidelines_extract.py sha256 {extractor}",
+            scope,
+        )
+
+    def test_an_untrusted_manifest_cannot_supply_a_draft_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                manifest_producer={"commit": "f" * 40, "dirty": False},
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("untrusted artifact", result.stderr)
+        self.assertNotIn("extraction identity:", result.stdout)
 
     def test_an_existing_curated_sheet_selects_rows_without_copying_judgment_cells(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -270,8 +307,11 @@ class ThresholdDraftCli(unittest.TestCase):
             catalog = root / "catalog.md"
             recs = root / "recs"
             sheets = root / "sheets"
+            text_root = root / "text"
             recs.mkdir()
             sheets.mkdir()
+            text_root.mkdir()
+            write_trusted_extraction_manifest(text_root)
             catalog.write_text(
                 "| society | filename | title | topic | population | year | page_count | class |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
@@ -311,6 +351,8 @@ class ThresholdDraftCli(unittest.TestCase):
                     str(recs),
                     "--sheet-root",
                     str(sheets),
+                    "--text-root",
+                    str(text_root),
                 ],
                 cwd=ROOT,
                 text=True,

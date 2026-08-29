@@ -36,7 +36,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact_lock  # noqa: E402
 import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
-from guidelines_manifest_test_support import ReadingManifestConformance  # noqa: E402
+from guidelines_manifest_test_support import (  # noqa: E402
+    ReadingManifestConformance,
+    write_trusted_extraction_manifest,
+)
 import threshold_sheet as gate  # noqa: E402
 
 
@@ -106,6 +109,7 @@ HEADER = f"""# Test sheet
 | narrative sections and appendices | 51-60 | no |
 
 citations resolved against {TEST_PDF_ROOT} on 2026-08-16
+extraction identity: producer {'a' * 40}; tools/guidelines_extract.py sha256 {'b' * 64}
 
 ## Populations
 
@@ -206,6 +210,7 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 | narrative sections and appendices | 51-60 | no |
 
 citations resolved against {TEST_PDF_ROOT} on 2026-08-16
+extraction identity: producer {'a' * 40}; tools/guidelines_extract.py sha256 {'b' * 64}
 
 ## Populations
 
@@ -380,7 +385,7 @@ class RawInputOperatorGate(unittest.TestCase):
         """The raw-input refusal preserves the sheet line that needs a visual read."""
         parsed = sheet(row(value="\u001f120 mm Hg"))
         self.assertFalse(parsed.ok)
-        self.assertIn("test-sheet.md:41", parsed.why_not)
+        self.assertIn("test-sheet.md:42", parsed.why_not)
         self.assertIn("U+001F", parsed.why_not)
         self.assertIn("PyMuPDF", parsed.why_not)
 
@@ -389,7 +394,7 @@ class RawInputOperatorGate(unittest.TestCase):
         self.assertEqual("a\u001eb".splitlines(), ["a", "b"])
         parsed = sheet(row(value="\u001e120 mm Hg"))
         self.assertFalse(parsed.ok)
-        self.assertIn("test-sheet.md:41", parsed.why_not)
+        self.assertIn("test-sheet.md:42", parsed.why_not)
         self.assertIn("U+001E", parsed.why_not)
         self.assertIn("PyMuPDF", parsed.why_not)
 
@@ -1047,6 +1052,13 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
         parsed = sheet(row())
         results = (
             ("SCHEMA", gate.gate_schema(parsed)),
+            (
+                "EXTRACTION IDENTITY",
+                gate.gate_extraction_identity(
+                    parsed,
+                    gate.ExtractionIdentity("a" * 40, "b" * 64),
+                ),
+            ),
             ("PAGE COVERAGE", gate.gate_page_coverage(parsed, {"Society/doc": 60})),
             ("CITATION tier 0", gate.gate_citation_tier0(parsed, {}, {})),
             ("CITATION tier 1", gate.gate_citation_tier1(parsed)),
@@ -1074,6 +1086,141 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
                 self.assertIsInstance(result, gate.GateResult)
                 self.assertEqual(result.gate, name)
                 self.assertIsInstance(result.findings, list)
+
+
+class ExtractionIdentityGate(unittest.TestCase):
+    @staticmethod
+    def write_manifest(root: Path) -> gate.ExtractionIdentity:
+        producer = write_trusted_extraction_manifest(root)
+        assert isinstance(producer, dict)
+        extractor = next(
+            row["sha256"]
+            for row in producer["inputs"]
+            if row["path"] == "tools/guidelines_extract.py"
+        )
+        return gate.ExtractionIdentity(str(producer["commit"]), extractor)
+
+    def test_the_declaration_is_parsed_from_scope(self):
+        parsed = sheet(row())
+
+        self.assertEqual(
+            parsed.extraction_identity,
+            gate.ExtractionIdentity("a" * 40, "b" * 64),
+        )
+
+    def test_the_current_identity_is_read_from_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = self.write_manifest(root)
+
+            identity, problems = gate.extraction_identity_from_manifest(root)
+
+        self.assertEqual(problems, [])
+        self.assertEqual(identity, expected)
+
+    def test_a_different_extraction_warns_without_refusing(self):
+        parsed = sheet(row())
+        parsed.extraction_identity = gate.ExtractionIdentity(
+            "a" * 40,
+            "b" * 64,
+        )
+        current = gate.ExtractionIdentity("c" * 40, "d" * 64)
+
+        result = gate.gate_extraction_identity(parsed, current)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(len(result.warnings), 1)
+        self.assertIn("test-sheet.md", result.warnings[0])
+        self.assertIn("different extraction", result.warnings[0])
+
+    def test_the_same_extraction_is_quiet(self):
+        parsed = sheet(row())
+        identity = gate.ExtractionIdentity("a" * 40, "b" * 64)
+        parsed.extraction_identity = identity
+
+        result = gate.gate_extraction_identity(parsed, identity)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.warnings, [])
+
+    def test_a_sheet_without_a_declaration_fails_the_format_schema(self):
+        parsed = sheet(row())
+        parsed.extraction_identity = None
+
+        result = gate.gate_schema(parsed)
+
+        self.assertTrue(
+            any("has no extraction identity" in finding for finding in result.findings)
+        )
+
+    def test_an_unavailable_manifest_says_the_comparison_did_not_run(self):
+        result = gate.gate_extraction_identity(
+            sheet(row()),
+            None,
+            ["manifest is unavailable"],
+        )
+
+        self.assertEqual(result.warnings, [])
+        self.assertEqual(result.skip_reason, "manifest is unavailable")
+        self.assertIn("NOT RUN", result.report[0])
+        self.assertIn("NOT RUN", result.diagnostics[0])
+
+    def test_survey_compares_the_sheet_with_its_text_root_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_manifest(root)
+            path = root / "sheet.md"
+            path.write_text(
+                HEADER
+                + "\n## Thresholds\n\n"
+                + "| quantity | population | value | snippet | source | page | rec | class |\n"
+                + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row(),
+                encoding="utf-8",
+            )
+
+            scan = gate.survey(
+                path,
+                [],
+                None,
+                text_root=root,
+                page_counts={"Society/doc": 60},
+            )
+
+        identity = next(
+            result for result in scan.results if result.gate == "EXTRACTION IDENTITY"
+        )
+        self.assertEqual(len(identity.warnings), 1)
+
+    def test_all_quiet_counts_and_names_the_affected_sheets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = (root / "one.md", root / "two.md")
+            for path in paths:
+                path.write_text("selected", encoding="utf-8")
+            scans = {
+                paths[0]: gate.Scan(
+                    gate.Sheet(paths[0]),
+                    (
+                        gate.GateResult(
+                            "EXTRACTION IDENTITY",
+                            warnings=["one.md was read against a different extraction"],
+                        ),
+                    ),
+                ),
+                paths[1]: gate.Scan(
+                    gate.Sheet(paths[1]),
+                    (gate.GateResult("EXTRACTION IDENTITY"),),
+                ),
+            }
+            stderr = io.StringIO()
+            with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
+                gate, "survey", side_effect=lambda path, *_: scans[path]
+            ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+                status = gate.main(["--all", "--quiet"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("EXTRACTION IDENTITY 1 affected sheet(s): one.md", stderr.getvalue())
 
 
 class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):

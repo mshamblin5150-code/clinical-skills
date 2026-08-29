@@ -2,10 +2,37 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 
 import artifact_lock
+import artifact_provenance
+import guidelines_manifest
+
+
+def trusted_extraction_producer() -> dict[str, object]:
+    """A producer stamp accepted by the current checkout's extraction trust floor."""
+
+    producer = dict(artifact_provenance.current_producer())
+    producer["inputs"] = artifact_provenance.producer_file_identity(
+        artifact_provenance.TRUST_FLOOR["extraction"]
+    )
+    return producer
+
+
+def write_trusted_extraction_manifest(
+    root: Path,
+    producer: object | None = None,
+) -> dict[str, object] | object:
+    """Write the one minimal manifest fixture shared by threshold consumers."""
+
+    selected = producer if producer is not None else trusted_extraction_producer()
+    (root / guidelines_manifest.MANIFEST_NAME).write_text(
+        json.dumps({"producer": selected, "documents": []}),
+        encoding="utf-8",
+    )
+    return selected
 
 
 class ReadingManifestConformance:

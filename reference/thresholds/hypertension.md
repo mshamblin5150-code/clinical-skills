@@ -53,6 +53,7 @@ tables. A number stated only in the prose around a recommendation is not here, s
 | appendices | 98-105 | read 2026-08-23 |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-16
+extraction identity: producer dc7512e01421ded48cc5d8e5f053a840f09b40ea; tools/guidelines_extract.py sha256 d247c269f42141cda14c8cd3d1bb8bce7db91ba66df74d442a3d611c284d251e
 
 
 ## Populations

@@ -47,6 +47,7 @@ current exact-source contract while #464 remains open.
 | article information and references | 5 | read 2026-08-23 |
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-22
+extraction identity: producer 794297463096430132fc936043438fd64a607dd7; tools/guidelines_extract.py sha256 f8e95baf7e4e74328a752d89e1e7b617217ba1e43c4368fba92f789840e21cf9
 
 ## Populations
 
