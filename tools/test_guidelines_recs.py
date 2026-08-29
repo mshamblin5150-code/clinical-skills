@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import hashlib
+import re
 import sys
 import tempfile
 import unittest
@@ -140,6 +141,73 @@ class ReadingATable(unittest.TestCase):
 
 
 class MarkerReading(unittest.TestCase):
+    def test_every_marker_declares_a_valid_anchor_and_the_old_shape_is_a_type_error(self):
+        self.assertEqual(
+            {marker.anchor for marker in recs.TEXT_MARKERS},
+            recs.MARKER_ANCHORS,
+        )
+        with self.assertRaises(TypeError):
+            recs.Marker("old-shape", re.compile("marker"))
+        with self.assertRaisesRegex(ValueError, "sideways"):
+            recs.Marker("bad-value", re.compile("marker"), "sideways")
+
+    def test_an_invalid_anchor_is_refused_again_when_the_reader_dispatches(self):
+        malformed = recs.Marker("malformed", re.compile("marker"), recs.ANCHOR_LEADING)
+        object.__setattr__(malformed, "anchor", "sideways")
+        with mock.patch.object(recs, "TEXT_MARKERS", (malformed,)):
+            with self.assertRaisesRegex(ValueError, "sideways"):
+                recs.read_marker_recommendations(1, "marker text", "doc")
+
+    def test_the_two_measured_windows_are_pinned(self):
+        self.assertEqual(recs.FORWARD_LABEL_WINDOW, 160)
+        self.assertEqual(recs.BACKWARD_LABEL_WINDOW, 920)
+
+    def test_a_leading_marker_reads_forward_and_backs_off_the_cut_token(self):
+        text = "Recommendation 3.1.1 " + "whole " * 30 + "unfinishedtoken"
+        found = recs.read_marker_recommendations(8, text, "KDIGO/x")
+
+        self.assertTrue(found[0].text.startswith("Recommendation 3.1.1"))
+        self.assertFalse(found[0].text.endswith("unfinished"))
+        self.assertLessEqual(len(found[0].text), recs.FORWARD_LABEL_WINDOW)
+
+    def test_a_trailing_marker_reads_from_its_nearest_sentence_boundary(self):
+        text = (
+            "Previous recommendation should not leak. "
+            "We suggest the treatment for this population "
+            "(conditional recommendation, low certainty of evidence)."
+        )
+        found = recs.read_marker_recommendations(9, text, "IDSA/x")
+
+        self.assertEqual(len(found), 1)
+        self.assertTrue(found[0].text.startswith("We suggest the treatment"))
+        self.assertNotIn("Previous recommendation", found[0].text)
+
+    def test_backward_boundaries_ignore_abbreviations_and_decimal_units(self):
+        text = (
+            "We suggest culture for e.g. Streptococcus infection after 1.5 mg dosing "
+            "rather than a Liberal Vs. Conservative split "
+            "(conditional recommendation, low certainty of evidence)."
+        )
+        found = recs.read_marker_recommendations(9, text, "IDSA/x")
+
+        self.assertTrue(found[0].text.startswith("We suggest culture"))
+
+    def test_a_backward_read_with_no_sentence_boundary_takes_the_cap_on_a_whole_word(self):
+        prefix = "intro " * 220
+        marker = "(weak recommendation, low-quality evidence)"
+        found = recs.read_marker_recommendations(9, prefix + marker, "IDSA/x")
+
+        self.assertLessEqual(len(found[0].text), recs.BACKWARD_LABEL_WINDOW)
+        self.assertTrue(found[0].text.endswith(marker))
+        self.assertFalse(found[0].text.startswith("ntro"))
+
+    def test_sub_references_are_part_of_the_leading_marker_anchor(self):
+        found = recs.read_marker_recommendations(
+            12, "Recommendation 11.8a was revised for clarity.", "ADA/x"
+        )
+
+        self.assertEqual(found[0].rec_id, "p12/recommendation/11.8a")
+
     def test_finds_kdigo_style_markers(self):
         found = recs.read_marker_recommendations(
             8, "Recommendation 3.1.1 We suggest ... Practice Point 3.1.2 ...", "KDIGO/x"
@@ -673,6 +741,96 @@ class Precedence(unittest.TestCase):
 
 
 class DeclaredLimitsAndCensus(unittest.TestCase):
+    def test_real_committed_ada_changelog_prefixes_are_recognized(self):
+        fixture = (
+            recs.REPO_ROOT
+            / "fixtures"
+            / "guidelines-recs-labels"
+            / "ada-changelog-prefixes.txt"
+        )
+        labels = fixture.read_text(encoding="utf-8").splitlines()
+        records = [
+            recs.read_marker_recommendations(12, label, "ADA/x")[0]
+            for label in labels
+        ]
+
+        self.assertEqual(recs.changelog_shape_census(records), len(labels))
+
+    def test_a_mutated_real_prefix_outside_the_shape_matches_nothing(self):
+        fixture = (
+            recs.REPO_ROOT
+            / "fixtures"
+            / "guidelines-recs-labels"
+            / "ada-changelog-prefixes.txt"
+        )
+        real = fixture.read_text(encoding="utf-8").splitlines()[0]
+        mutated = real.replace(" was ", " now ", 1)
+        records = recs.read_marker_recommendations(12, mutated, "ADA/x")
+
+        self.assertEqual(recs.changelog_shape_census(records), 0)
+
+    def test_the_changelog_census_is_a_shape_floor_not_a_verb_list(self):
+        records = recs.read_marker_recommendations(
+            12,
+            "Recommendation 11.8a was revised. "
+            "Recommendation 11.8b was written. "
+            "Recommendation 11.8c now includes another item.",
+            "ADA/x",
+        )
+
+        self.assertEqual(recs.changelog_shape_census(records), 2)
+
+    def test_the_changelog_limit_is_appended_to_the_shared_registry(self):
+        self.assertIn(
+            "changelog-shape-floor",
+            {row.key for row in recs.DECLARED_LIMITS},
+        )
+
+    def test_a_sweep_record_and_its_per_document_summary_carry_the_floor(self):
+        record = recs.Recommendation(
+            rec_id="p12/recommendation/11.8a",
+            doc_id="society/doc",
+            page=12,
+            table="recommendation",
+            number=1,
+            cor=None,
+            loe=None,
+            text="Recommendation 11.8a was revised.",
+            mode=recs.MODE_BOUND,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "records"
+            source.mkdir()
+            destination.mkdir()
+            (source / "doc.pdf").write_bytes(b"synthetic")
+            out = io.StringIO()
+            with mock.patch.object(
+                recs,
+                "extract",
+                return_value=([record], recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER),
+            ), contextlib.redirect_stdout(out):
+                recs.build_sweep(
+                    source,
+                    destination,
+                    {"commit": "a" * 40, "dirty": False},
+                )
+            payload = json.loads((destination / "doc.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["totals"]["changelog_shape_floor"], 1)
+        self.assertIn("doc  changelog floor 1", out.getvalue())
+
+    def test_the_glossary_describes_both_windows_and_the_boundary_stop(self):
+        context = (recs.REPO_ROOT / "CONTEXT.md").read_text(encoding="utf-8")
+        definition = context.split("**Recommendation label**:", 1)[1].split(
+            "_Avoid_:", 1
+        )[0]
+
+        self.assertIn(str(recs.FORWARD_LABEL_WINDOW), definition)
+        self.assertIn(str(recs.BACKWARD_LABEL_WINDOW), definition)
+        self.assertIn("sentence boundary", definition)
+
     def test_the_registry_rows_are_named_three_field_records(self):
         self.assertEqual(len(recs.DECLARED_LIMITS), len(recs.NOT_REACHED))
         keys = [row.key for row in recs.DECLARED_LIMITS]
@@ -987,8 +1145,12 @@ class RecommendationRecordOwnership(unittest.TestCase):
             payload = json.loads(target.read_text(encoding="utf-8"))
         self.assertEqual(status, 0)
         self.assertIn("glued runs", out.getvalue())
+        self.assertIn("changelog floor", out.getvalue())
+        self.assertIn("spacing-dependent", out.getvalue())
+        self.assertIn("#446", out.getvalue())
         self.assertIn("reports only", out.getvalue())
         self.assertEqual(payload["totals"]["glued_runs"], 0)
+        self.assertEqual(payload["totals"]["changelog_shape_floor"], 0)
 
     def test_the_comparison_command_reports_the_repaired_difference(self):
         welded = "Recommendation3.3Yearly influenza vaccination is recommended."
