@@ -164,9 +164,8 @@ RECOMMENDATIONS_FOUND = "recommendations-found"
 
 # Everything this producer writes wears this prefix. The reverse remains false:
 # a prefixed file need not have come from this producer, and ``recs-sweep.json``
-# is the standing counter-example. ADR 0058's addenda assign #446 to build the
-# whole ``DECLARED_LIMITS`` object before the other appenders; until it lands,
-# this limit stays here rather than creating that object's partial predecessor.
+# is the standing counter-example. ``DECLARED_LIMITS`` records that one-way
+# producer guarantee separately from the filename-to-source-key limit.
 RECS_PREFIX = "recs-"
 
 
@@ -425,6 +424,16 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
+        "record-prefix-does-not-prove-producer",
+        "A file wearing the recs- prefix need not have been written by this producer; the producer guarantee runs only from produced file to prefix.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "recs-root-clutter-unreported",
+        "Non-record files in the recommendation-record root are intentionally omitted from resolution reports, so the resolver does not inventory that directory's clutter.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
         "record-shape-validation-floor",
         "The shared record loader checks only for a mapping with a recommendations list; it does not validate recommendation rows, totals, outcome, mode, or their agreement.",
         EvidenceDisposition.BEHAVIOR,
@@ -452,6 +461,11 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "numbered-table-row-vocabulary",
         "A recognized table emits only rows beginning with a decimal number and period, so differently numbered or unnumbered recommendations are omitted.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "ruled-table-rec-id-collision",
+        "Ruled-table identifiers discard caption punctuation, truncate the normalized caption, and add only page and row number, so distinct rows can receive the same rec_id without refusal.",
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(

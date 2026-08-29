@@ -850,6 +850,10 @@ class DeclaredLimitsAndCensus(ProseBind, unittest.TestCase):
             "registry-population-floor",
             {row.key for row in recs.DECLARED_LIMITS},
         )
+        source = (recs.REPO_ROOT / "tools" / "guidelines_recs.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("until it lands", source.lower())
 
     def test_record_resolution_limits_are_part_of_the_shared_registry(self):
         keys = {row.key for row in recs.DECLARED_LIMITS}
@@ -858,8 +862,32 @@ class DeclaredLimitsAndCensus(ProseBind, unittest.TestCase):
                 "record-source-unreadable",
                 "literal-read-site-floor",
                 "record-prefix-does-not-bind-source-key",
+                "record-prefix-does-not-prove-producer",
+                "recs-root-clutter-unreported",
             }.issubset(keys)
         )
+
+    def test_ruled_table_identifier_collisions_are_declared(self):
+        keys = {row.key for row in recs.DECLARED_LIMITS}
+        self.assertIn("ruled-table-rec-id-collision", keys)
+
+        shared = "x" * 48
+        tables = [
+            [
+                [f"Recommendations for {shared} first"],
+                ["COR", "LOE", "Recommendation"],
+                ["1", "A", "1. First recommendation."],
+            ],
+            [
+                [f"Recommendations for {shared} second"],
+                ["COR", "LOE", "Recommendation"],
+                ["1", "A", "1. Second recommendation."],
+            ],
+        ]
+
+        rows = recs.read_table_recommendations(7, tables, "society/doc")
+
+        self.assertEqual(rows[0].rec_id, rows[1].rec_id)
 
     def test_record_ownership_limits_are_part_of_the_shared_registry(self):
         keys = {row.key for row in recs.DECLARED_LIMITS}
