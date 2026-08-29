@@ -233,7 +233,13 @@ import guidelines_manifest
 import guidelines_catalog
 import artifact_provenance
 from console_codec import use_utf8
-from guidelines_recs import MODE_BOUND, MODE_EXACT, record_built_from_another_document
+from guidelines_recs import (
+    MODE_BOUND,
+    MODE_EXACT,
+    UntrustedRecommendationRecord,
+    load_recommendation_record,
+    record_built_from_another_document,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
@@ -2363,7 +2369,11 @@ def gate_second_read(
     )
 
 def bind_recs(
-    sheet: Sheet, arguments: list[str], recs_root: Path | None
+    sheet: Sheet,
+    arguments: list[str],
+    recs_root: Path | None,
+    *,
+    allow_untrusted_provenance: bool = False,
 ) -> tuple[dict[str, dict | None], dict[str, str], list[str], set[str]]:
     """Which recommendation record answers for each source the sheet declares.
 
@@ -2438,7 +2448,11 @@ def bind_recs(
                 missing_records.add(key)
         else:
             try:
-                loaded = json.loads(path.read_text(encoding="utf-8"))
+                loaded = load_recommendation_record(
+                    path, allow_untrusted=allow_untrusted_provenance
+                )
+            except UntrustedRecommendationRecord as error:
+                why_not[key] = f"untrusted record: {'; '.join(error.reasons)}"
             except (OSError, ValueError) as error:
                 why_not[key] = f"unreadable recommendation record {path}: {error}"
             else:
@@ -2780,7 +2794,10 @@ def survey(
     # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
     # `why_not` so the report can say which source and which of the two it was.
     records, why_not, recs_errors, missing_records = bind_recs(
-        sheet, recs_arguments or [], recs_root
+        sheet,
+        recs_arguments or [],
+        recs_root,
+        allow_untrusted_provenance=allow_untrusted_provenance,
     )
 
     schema = gate_schema(sheet)

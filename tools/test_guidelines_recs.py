@@ -12,9 +12,11 @@ table that qualifies, and a table that looks like one and must not.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -692,6 +694,238 @@ class DeclaredLimitsAndCensus(unittest.TestCase):
                 "literal-read-site-floor",
                 "record-prefix-does-not-bind-source-key",
             }.issubset(keys)
+        )
+
+    def test_record_ownership_limits_are_part_of_the_shared_registry(self):
+        keys = {row.key for row in recs.DECLARED_LIMITS}
+        self.assertTrue(
+            {
+                "literal-read-site-floor",
+                "source-pdf-left-corpus",
+                "source-pdf-verification-skipped",
+                "ownership-does-not-prove-content",
+            }.issubset(keys)
+        )
+
+    def test_prose_points_at_the_registry_without_copying_any_row(self):
+        claude = (recs.REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("DECLARED_LIMITS", recs.__doc__)
+        self.assertIn("guidelines_recs.DECLARED_LIMITS", claude)
+        for row in recs.DECLARED_LIMITS:
+            self.assertNotIn(row.limit, recs.__doc__)
+            self.assertNotIn(row.limit, claude)
+
+    @staticmethod
+    def _literal_record_reads(source: str) -> list[int]:
+        tree = ast.parse(source)
+        parents: dict[ast.AST, ast.AST] = {}
+        for node in ast.walk(tree):
+            for child in ast.iter_child_nodes(node):
+                parents[child] = node
+
+        def scope(node: ast.AST) -> ast.AST:
+            current = node
+            while current in parents:
+                current = parents[current]
+                if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    return current
+            return tree
+
+        literal_paths: dict[ast.AST, set[str]] = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            value = node.value
+            if value is None or not any(
+                isinstance(part, ast.Constant)
+                and isinstance(part.value, str)
+                and "recs-" in part.value
+                for part in ast.walk(value)
+            ):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            literal_paths.setdefault(scope(node), set()).update(
+                target.id for target in targets if isinstance(target, ast.Name)
+            )
+        findings: list[int] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            inline_literal = any(
+                isinstance(part, ast.Constant)
+                and isinstance(part.value, str)
+                and "recs-" in part.value
+                for part in ast.walk(node)
+            )
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"read_text", "read_bytes", "open"}
+                and (
+                    inline_literal
+                    or (
+                        isinstance(node.func.value, ast.Name)
+                        and node.func.value.id in literal_paths.get(scope(node), set())
+                    )
+                )
+            ) or (
+                isinstance(node.func, ast.Name)
+                and node.func.id == "open"
+                and inline_literal
+            ):
+                findings.append(node.lineno)
+        return findings
+
+    def test_no_other_tool_directly_opens_a_literal_recommendation_record(self):
+        """A one-assignment walk: paths assembled by deeper indirection are unseen."""
+        positive = "path = root / f'recs-{key}.json'\nvalue = path.read_text()\n"
+        self.assertEqual(self._literal_record_reads(positive), [2])
+        self.assertEqual(
+            self._literal_record_reads(
+                "value = (root / f'recs-{key}.json').read_text()\n"
+            ),
+            [1],
+        )
+        self.assertEqual(
+            self._literal_record_reads("value = open(root / f'recs-{key}.json')\n"),
+            [1],
+        )
+        findings = {}
+        for path in (recs.REPO_ROOT / "tools").glob("*.py"):
+            if path.name == "guidelines_recs.py" or path.name.startswith("test_"):
+                continue
+            lines = self._literal_record_reads(path.read_text(encoding="utf-8"))
+            if lines:
+                findings[path.name] = lines
+        self.assertEqual(findings, {})
+
+
+class RecommendationRecordOwnership(unittest.TestCase):
+    def trusted_record(self, pdf: Path, counted_from: str) -> dict:
+        producer = recs.artifact_provenance.current_producer()
+        producer["inputs"] = recs.artifact_provenance.producer_file_identity(
+            recs.RECORD_TRUST_FLOOR[counted_from]
+        )
+        return {
+            "doc_id": "Society/guideline",
+            "source": str(pdf),
+            "source_sha256": hashlib.sha256(pdf.read_bytes()).hexdigest(),
+            "counted_from": counted_from,
+            "mode": recs.MODE_EXACT,
+            "producer": producer,
+            "recommendations": [],
+        }
+
+    def test_each_counting_limb_has_its_ruled_input_floor(self):
+        self.assertEqual(
+            recs.RECORD_TRUST_FLOOR,
+            {
+                recs.SOURCE_RULED_TABLE: ("tools/guidelines_recs.py",),
+                recs.SOURCE_CURATED_TABLE: (
+                    "tools/guidelines_recs.py",
+                    "reference/guidelines-uspstf.md",
+                ),
+                recs.SOURCE_TEXT_MARKER: (
+                    "tools/guidelines_recs.py",
+                    "tools/guidelines_extract.py",
+                ),
+            },
+        )
+
+    def test_the_writer_stamps_its_inputs_and_source_pdf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "idsa.pdf"
+            pdf.write_bytes(b"source bytes")
+            target = root / "recs-idsa.json"
+            with stub_reader([_StubPage("Give fluids (strong, moderate).")] ):
+                status = recs.main([str(pdf), "--json", str(target)])
+            payload = json.loads(target.read_text(encoding="utf-8"))
+
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            payload["source_sha256"], hashlib.sha256(b"source bytes").hexdigest()
+        )
+        self.assertIsInstance(payload["producer"]["commit"], str)
+        self.assertIsInstance(payload["producer"]["dirty"], bool)
+        self.assertEqual(
+            {row["path"] for row in payload["producer"]["inputs"]},
+            set(recs.RECORD_TRUST_FLOOR[recs.SOURCE_TEXT_MARKER]),
+        )
+
+    def test_an_absent_or_unrecognized_counted_from_refuses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "guideline.pdf"
+            pdf.write_bytes(b"source")
+            for counted_from in (None, "remembered-default"):
+                with self.subTest(counted_from=counted_from):
+                    payload = self.trusted_record(pdf, recs.SOURCE_RULED_TABLE)
+                    if counted_from is None:
+                        payload.pop("counted_from")
+                    else:
+                        payload["counted_from"] = counted_from
+                    path = root / f"recs-{counted_from or 'absent'}.json"
+                    path.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaises(recs.UntrustedRecommendationRecord):
+                        recs.load_recommendation_record(path)
+
+    def test_a_changed_source_pdf_refuses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "guideline.pdf"
+            pdf.write_bytes(b"source")
+            path = root / "recs-guideline.json"
+            path.write_text(
+                json.dumps(self.trusted_record(pdf, recs.SOURCE_RULED_TABLE)),
+                encoding="utf-8",
+            )
+            pdf.write_bytes(b"different source")
+            with self.assertRaisesRegex(
+                recs.UntrustedRecommendationRecord, "source PDF sha256"
+            ):
+                recs.load_recommendation_record(path)
+
+    def test_an_unreachable_source_pdf_is_bannered_but_the_record_can_be_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "guideline.pdf"
+            pdf.write_bytes(b"source")
+            payload = self.trusted_record(pdf, recs.SOURCE_RULED_TABLE)
+            pdf.unlink()
+            path = root / "recs-guideline.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                loaded = recs.load_recommendation_record(path)
+
+        self.assertEqual(loaded["doc_id"], "Society/guideline")
+        self.assertIn("SOURCE PDF NOT VERIFIED", stderr.getvalue())
+        self.assertIn(str(pdf), stderr.getvalue())
+
+    def test_the_untrusted_peek_returns_only_the_source_filename(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs-guideline.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "source": "C:/corpus/Society/guideline.pdf",
+                        "recommendations": [{"text": "must not escape the peek"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                recs.peek_recommendation_source(path), "guideline.pdf"
+            )
+
+    def test_source_filename_matching_owns_case_suffix_and_whitespace_normalization(self):
+        self.assertTrue(
+            recs.source_filename_matches_document(
+                "GUIDELINE.PDF", "  Society/guideline  "
+            )
+        )
+        self.assertFalse(
+            recs.source_filename_matches_document("other.pdf", "Society/guideline")
         )
 
     def test_a_nontext_record_source_matches_no_document(self):

@@ -21,7 +21,14 @@ from urllib.parse import quote
 import guidelines_catalog
 import guidelines_extract
 from console_codec import use_utf8
-from guidelines_recs import RECS_PREFIX, record_built_from_another_document
+from guidelines_recs import (
+    RECS_PREFIX,
+    UntrustedRecommendationRecord,
+    load_recommendation_record,
+    peek_recommendation_source,
+    record_built_from_another_document,
+    source_filename_matches_document,
+)
 from threshold_sheet import (
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
@@ -52,6 +59,10 @@ DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 # topic. This is a vocabulary bridge, not a fuzzy match: a request for hypertension
 # must not silently absorb the separate "hypertension screening" topic.
 TOPIC_ALIASES = {"hypertension": "high blood pressure"}
+
+# Deliberately no --allow-untrusted-provenance: this command turns a transient
+# record into prose a person can curate into a committed sheet, erasing the origin
+# of any accepted distrust. ADR 0030 ruling 6 forbids that laundering path.
 
 
 @dataclass(frozen=True)
@@ -103,20 +114,13 @@ def _document(row: guidelines_catalog.Row) -> str:
     return f"{row.society}/{Path(row.filename).stem}"
 
 
-def _load_json(path: Path) -> object:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _is_recommendation_record(loaded: object) -> bool:
-    return isinstance(loaded, dict) and isinstance(loaded.get("recommendations"), list)
-
-
 def _load_record(path: Path) -> dict:
-    loaded = _load_json(path)
-    if not _is_recommendation_record(loaded):
-        raise ValueError(f"{path} is not a recommendation record")
-    assert isinstance(loaded, dict)
-    return loaded
+    try:
+        return load_recommendation_record(path, require_source_pdf=True)
+    except UntrustedRecommendationRecord as error:
+        raise ValueError(
+            f"untrusted recommendation record {path}: {'; '.join(error.reasons)}"
+        ) from error
 
 
 def _record_path(recs_root: Path, key: str) -> Path:
@@ -130,24 +134,19 @@ def _record_hint_errors(recs_root: Path, key: str, document: str) -> list[str]:
     messages: list[str] = []
     for candidate in candidates:
         try:
-            loaded = _load_json(candidate)
+            built_from = peek_recommendation_source(candidate)
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             if candidate.name.startswith(RECS_PREFIX):
                 messages.append(f"{candidate}: would not parse: {error}")
             continue
-        if not _is_recommendation_record(loaded):
+        except ValueError:
             if candidate.name.startswith(RECS_PREFIX):
                 messages.append(
                     f"{candidate}: parsed and is not a recommendation record"
                 )
             continue
-        assert isinstance(loaded, dict)
         record_count += 1
-        source = loaded.get("source")
-        built_from = (
-            Path(source.replace("\\", "/")).name if isinstance(source, str) else ""
-        )
-        if built_from and not record_built_from_another_document(loaded, document):
+        if source_filename_matches_document(built_from, document):
             messages.append(
                 f"{candidate}: built from {built_from}; rename this to "
                 f"{RECS_PREFIX}{key}.json"
