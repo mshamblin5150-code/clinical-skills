@@ -37,11 +37,11 @@ sources.
 
 | | |
 | --- | --- |
-| rows | 74 |
-| snippet cells, and distinct snippets among them | 74, of which **70** are distinct |
-| words across the distinct snippets | **773** |
-| longest / median / shortest snippet, in words | 15 / 11 / 6 |
-| words in the `## Populations` table, 19 rows of verbatim scope wording | **115** |
+| rows | 316 |
+| snippet cells, and distinct snippets among them | 316, of which **298** are distinct |
+| words across the distinct snippets | **2,860** |
+| longest / median / shortest snippet, in words | 30 / 8 / 3 |
+| words in the `## Populations` table, 32 rows of verbatim scope wording | **199** |
 | pages in the source guideline | **105** |
 
 In [diabetes.md](diabetes.md), re-ruled on #482 after its complete source-page read

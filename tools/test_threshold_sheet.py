@@ -2390,30 +2390,30 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
 
     def test_the_row_and_snippet_counts(self):
         snippets = self._snippets()
-        self.assertEqual(len(snippets), 74)
-        self.assertEqual(len(set(snippets)), 70)
+        self.assertEqual(len(snippets), 316)
+        self.assertEqual(len(set(snippets)), 298)
         readme = self._readme()
-        self.assertIn("| rows | 74 |", readme)
-        self.assertIn("**70**", readme)
+        self.assertIn("| rows | 316 |", readme)
+        self.assertIn("**298**", readme)
 
     def test_the_quoted_word_count(self):
         """Distinct snippets, because a snippet repeated on two rows is quoted once."""
         words = [len(snippet.split()) for snippet in set(self._snippets())]
-        self.assertEqual(sum(words), 773)
-        self.assertEqual(max(words), 15)
-        self.assertEqual(min(words), 6)
-        self.assertEqual(sorted(words)[len(words) // 2], 11)
+        self.assertEqual(sum(words), 2860)
+        self.assertEqual(max(words), 30)
+        self.assertEqual(min(words), 3)
+        self.assertEqual(sorted(words)[len(words) // 2], 8)
         readme = self._readme()
-        self.assertIn("**773**", readme)
-        self.assertIn("15 / 11 / 6", readme)
+        self.assertIn("**2,860**", readme)
+        self.assertIn("30 / 8 / 3", readme)
 
     def test_the_populations_table_word_count(self):
         values = list(self._sheet().populations.values())
-        self.assertEqual(len(values), 19)
-        self.assertEqual(sum(len(value.split()) for value in values), 115)
+        self.assertEqual(len(values), 32)
+        self.assertEqual(sum(len(value.split()) for value in values), 199)
         readme = self._readme()
-        self.assertIn("**115**", readme)
-        self.assertIn("19 rows", readme)
+        self.assertIn("**199**", readme)
+        self.assertIn("32 rows", readme)
 
     def test_the_source_page_count_is_the_catalogs(self):
         """105 is the catalog's ``page_count`` for the cited document, not a recollection.
@@ -3357,10 +3357,12 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             subprocess.run([git, "add", "--", str(sheet_path)], cwd=root, check=True)
             empty_recs = root / "empty-recs"
             empty_recs.mkdir()
+            empty_recs_alias = root / "empty-recs-alias"
+            empty_recs_alias.mkdir()
             environment = {
                 **os.environ,
                 "CLINICAL_GUIDELINES_RECS": str(empty_recs),
-                "CLINICAL_GUIDELINES_RECS_ALIAS": str(empty_recs),
+                "CLINICAL_GUIDELINES_RECS_ALIAS": str(empty_recs_alias),
                 "CLINICAL_GUIDELINES_TEXT": str(root / "absent-text"),
             }
             result = subprocess.run(
