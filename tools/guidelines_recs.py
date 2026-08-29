@@ -138,6 +138,7 @@ nothing installed and **nothing a consumer runs imports this at all**.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -147,6 +148,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
 
+import artifact_provenance
 import guidelines_extract
 from console_codec import use_utf8
 from repo_root import InsideCheckout, ensure_outside_checkout
@@ -160,6 +162,15 @@ MODE_BOUND = "bound"
 # whole ``DECLARED_LIMITS`` object before the other appenders; until it lands,
 # this limit stays here rather than creating that object's partial predecessor.
 RECS_PREFIX = "recs-"
+
+
+def source_filename_matches_document(source_filename: str, document: str) -> bool:
+    """Whether a source filename and a catalog/sheet document name agree."""
+    built_from = Path(source_filename.strip().replace("\\", "/")).name
+    expected = Path(document.strip().replace("\\", "/")).name
+    if expected and Path(expected).suffix.casefold() != ".pdf":
+        expected += ".pdf"
+    return bool(built_from and expected and built_from.casefold() == expected.casefold())
 
 
 def record_built_from_another_document(record: dict, document: str) -> str:
@@ -176,12 +187,9 @@ def record_built_from_another_document(record: dict, document: str) -> str:
     if not isinstance(source, str):
         return ""
     built_from = Path(source.replace("\\", "/")).name
-    expected = Path(document.strip().replace("\\", "/")).name
-    if expected and Path(expected).suffix.casefold() != ".pdf":
-        expected += ".pdf"
-    if not built_from or not expected:
+    if not built_from or not document.strip():
         return ""
-    return "" if built_from.casefold() == expected.casefold() else built_from
+    return "" if source_filename_matches_document(built_from, document) else built_from
 
 
 class EvidenceDisposition(Enum):
@@ -261,6 +269,21 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
+        "source-pdf-left-corpus",
+        "A recommendation record whose source PDF has left the corpus cannot be rebuilt or used by the no-override drafter.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "source-pdf-verification-skipped",
+        "Source-PDF digest verification does not run where the recorded corpus path is unreachable; the reader banners that skipped check.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "ownership-does-not-prove-content",
+        "A trusted producer stamp establishes ownership and inputs, not that the extracted recommendation content is clinically correct.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
         "record-prefix-does-not-bind-source-key",
         "The producer enforces the recs- prefix, but it does not bind the remaining filename stem to a source key or document.",
         EvidenceDisposition.BEHAVIOR,
@@ -291,6 +314,118 @@ SOURCE_TEXT_MARKER = "text-marker"
 # read lazily so importing this module still needs nothing but the standard library.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CURATED_TABLE = REPO_ROOT / "reference" / "guidelines-uspstf.md"
+
+# A record's ``counted_from`` limb selects the files that can change its contents.
+# This is deliberately not a defaulting lookup: a legacy or foreign limb names no
+# floor the clinician chose and is therefore untrusted. ADR 0030 ruling 2.
+RECORD_TRUST_FLOOR = {
+    SOURCE_RULED_TABLE: ("tools/guidelines_recs.py",),
+    SOURCE_CURATED_TABLE: (
+        "tools/guidelines_recs.py",
+        "reference/guidelines-uspstf.md",
+    ),
+    SOURCE_TEXT_MARKER: (
+        "tools/guidelines_recs.py",
+        "tools/guidelines_extract.py",
+    ),
+}
+
+SOURCE_PDF_NOT_VERIFIED = "RECOMMENDATION SOURCE PDF NOT VERIFIED"
+
+
+class UntrustedRecommendationRecord(ValueError):
+    """A present recommendation record whose ownership cannot be established."""
+
+    def __init__(self, path: Path, reasons: list[str]):
+        self.path = path
+        self.reasons = tuple(reasons)
+        super().__init__("; ".join(reasons))
+
+
+def _recommendation_record(value: object, path: Path) -> dict:
+    if not isinstance(value, dict) or not isinstance(value.get("recommendations"), list):
+        raise ValueError(
+            f"{path} holds a JSON {type(value).__name__}, not a record"
+        )
+    return value
+
+
+def peek_recommendation_source(path: Path) -> str:
+    """Return only the source PDF filename from an untrusted record.
+
+    This is the resolver's deliberately narrow peek: selecting a candidate by its
+    filename does not expose recommendation text or confer trust on the candidate.
+    """
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    record = _recommendation_record(loaded, path)
+    source = record.get("source")
+    return Path(source.replace("\\", "/")).name if isinstance(source, str) else ""
+
+
+def load_recommendation_record(
+    path: Path,
+    *,
+    allow_untrusted: bool = False,
+    require_source_pdf: bool = False,
+) -> dict:
+    """Load the selected record, enforcing its limb-specific ownership floor.
+
+    The source PDF digest is checked when the recorded path is reachable. The sheet
+    reader accepts an unreachable corpus with the same unmistakable did-not-run
+    banner used by citation tier 2. ``require_source_pdf`` gives the no-override
+    drafter its stricter mode: the same absence refuses instead of being bannered.
+    """
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    record = _recommendation_record(loaded, path)
+    reasons: list[str] = []
+    counted_from = record.get("counted_from")
+    floor = RECORD_TRUST_FLOOR.get(counted_from)
+    if floor is None:
+        reasons.append(
+            "has absent or unrecognized counted_from"
+            if counted_from is None
+            else f"has unrecognized counted_from {counted_from!r}"
+        )
+    else:
+        try:
+            artifact_provenance.check_producer(
+                record.get("producer"),
+                path,
+                allow_untrusted=allow_untrusted,
+                unchanged_paths=floor,
+            )
+        except artifact_provenance.UntrustedProvenance as error:
+            prefix = f"untrusted artifact {path}: "
+            reasons.append(str(error).removeprefix(prefix))
+
+    source = record.get("source")
+    expected_sha = record.get("source_sha256")
+    if not isinstance(source, str) or not source:
+        reasons.append("has no source PDF path")
+    if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+        reasons.append("has no recognized source PDF sha256")
+    if isinstance(source, str) and source:
+        source_path = Path(source)
+        if source_path.is_file():
+            actual_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+            if isinstance(expected_sha, str) and actual_sha != expected_sha:
+                reasons.append("source PDF sha256 does not match the reachable document")
+        elif require_source_pdf:
+            reasons.append(f"source PDF is not reachable at {source_path}")
+        else:
+            print(
+                f"{SOURCE_PDF_NOT_VERIFIED} -- source PDF not found at {source_path}",
+                file=sys.stderr,
+            )
+
+    if reasons:
+        if allow_untrusted:
+            artifact_provenance._trace(
+                f"untrusted artifact {path}: " + "; ".join(reasons)
+            )
+        else:
+            raise UntrustedRecommendationRecord(path, reasons)
+    return record
 
 
 class DidNotScan(Exception):
@@ -993,13 +1128,19 @@ def main(argv: list[str]) -> int:
         # different string than the one that was checked is how a guard comes to
         # have been consulted about a path nothing wrote to.
         json_target.parent.mkdir(parents=True, exist_ok=True)
+        producer = artifact_provenance.current_producer()
+        producer["inputs"] = artifact_provenance.producer_file_identity(
+            RECORD_TRUST_FLOOR[source]
+        )
         json_target.write_text(
             json.dumps(
                 {
                     "doc_id": doc_id,
                     "source": str(args.pdf),
+                    "source_sha256": hashlib.sha256(args.pdf.read_bytes()).hexdigest(),
                     "counted_from": source,
                     "mode": mode,
+                    "producer": producer,
                     "totals": {
                         "recommendations": len(records),
                         "tables": len(tables),

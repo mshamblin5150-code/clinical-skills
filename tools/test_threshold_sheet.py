@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact_lock  # noqa: E402
 import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
+from guidelines_recs_test_support import trust_recommendation_record  # noqa: E402
 from guidelines_manifest_test_support import (  # noqa: E402
     ReadingManifestConformance,
     write_trusted_extraction_manifest,
@@ -258,7 +259,7 @@ def record(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
     }
     if built_from is not None:
         record_["source"] = built_from
-    return record_
+    return trust_recommendation_record(record_)
 
 
 class Parsing(unittest.TestCase):
@@ -1798,7 +1799,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             recs = Path(directory) / "recs.json"
             recs.write_text(
                 json.dumps(
-                    {
+                    trust_recommendation_record({
                         "doc_id": "d",
                         "source": "C:/corpus/Society/doc.pdf",
                         "mode": "exact",
@@ -1806,7 +1807,7 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
                         "recommendations": [
                             {"rec_id": "p1/topic/1", "page": 1, "cor": "1", "text": "t"}
                         ],
-                    }
+                    })
                 ),
                 encoding="utf-8",
             )
@@ -2712,6 +2713,38 @@ class BindingARecordToEachSource(unittest.TestCase):
             self.assertIsNone(records["kdigo"])
             self.assertIn("kdigo", why)
 
+    def test_an_untrusted_record_is_not_bound(self):
+        payload = record("p41/goal/1")
+        payload.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            records, why, errors = self.bind(sheet(row()), [str(path)])
+
+        self.assertEqual(errors, [])
+        self.assertIsNone(records["src"])
+        self.assertIn("untrusted record: has no producer provenance stamp", why["src"])
+
+    def test_the_existing_provenance_hatch_can_accept_an_untrusted_record(self):
+        payload = record("p41/goal/1")
+        payload.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "recs.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                records, why, errors, _ = gate.bind_recs(
+                    sheet(row()),
+                    [str(path)],
+                    None,
+                    allow_untrusted_provenance=True,
+                )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(why, {})
+        self.assertIsNotNone(records["src"])
+        self.assertIn(artifact_provenance.FLAG, stderr.getvalue())
+
     def test_a_bare_path_binds_to_the_only_source(self):
         """The form the README documents and the one a single-source sheet keeps."""
         with tempfile.TemporaryDirectory() as directory:
@@ -2899,6 +2932,35 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         line = self.coverage_line(out)
         self.assertIn("refusing", line)
         self.assertNotIn("NOT RUN", line)
+
+    def test_an_untrusted_record_is_not_run_and_exit_2(self):
+        payload = record("p1/aha/1")
+        payload.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-aha.json").write_text(json.dumps(payload), encoding="utf-8")
+            (root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+            status, out, err = self.run_grade([], root)
+
+        self.assertEqual(status, 2)
+        self.assertIn("COVERAGE        NOT RUN for source 'aha' -- untrusted record:", err)
+        self.assertIn("NOT RUN", self.coverage_line(out))
+
+    def test_a_trusted_finding_wins_over_an_untrusted_source(self):
+        untrusted = record("p9/kdigo/1")
+        untrusted.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "recs-aha.json").write_text(
+                json.dumps(record("p1/aha/1", "p1/aha/omitted")), encoding="utf-8"
+            )
+            (root / "recs-kdigo.json").write_text(json.dumps(untrusted), encoding="utf-8")
+            status, _, err = self.run_grade([], root)
+
+        self.assertEqual(status, 1)
+        self.assertIn("COVERAGE        NOT RUN for source 'kdigo' -- untrusted record:", err)
 
     def test_an_argument_error_is_2_rather_than_a_quiet_full_pass(self):
         """Both records resolve from the root, so COVERAGE runs on everything -- and

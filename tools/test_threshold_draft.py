@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -12,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet  # noqa: E402
+from guidelines_recs_test_support import trust_recommendation_record  # noqa: E402
 from guidelines_manifest_test_support import (  # noqa: E402
     trusted_extraction_producer,
     write_trusted_extraction_manifest,
@@ -32,7 +34,7 @@ def catalog_row(topic: str = "hypertension") -> str:
 
 
 def recommendation_record() -> dict:
-    return {
+    return trust_recommendation_record({
         "doc_id": "AHA ACC/guideline",
         "source": "C:/corpus/AHA ACC/guideline.pdf",
         "mode": "exact",
@@ -51,7 +53,7 @@ def recommendation_record() -> dict:
                 "text": "Use standardized measurement technique.",
             },
         ],
-    }
+    })
 
 
 def seeded_sheet() -> str:
@@ -100,6 +102,7 @@ class ThresholdDraftCli(unittest.TestCase):
         record_payload: object | None = None,
         other_files: dict[str, object] | None = None,
         manifest_producer: object | None = None,
+        source_available: bool = True,
     ) -> subprocess.CompletedProcess[str]:
         catalog = root / "catalog.md"
         recs = root / "recs"
@@ -110,9 +113,16 @@ class ThresholdDraftCli(unittest.TestCase):
         sheets.mkdir(exist_ok=True)
         text_root.mkdir()
         write_trusted_extraction_manifest(text_root, manifest_producer)
-        (recs / record_name).write_text(
-            json.dumps(record_payload or recommendation_record()), encoding="utf-8"
-        )
+        payload = record_payload or recommendation_record()
+        if source_available and isinstance(payload, dict):
+            source_name = Path(str(payload.get("source") or "guideline.pdf")).name
+            source_pdf = root / "source" / source_name
+            source_pdf.parent.mkdir()
+            source_pdf.write_bytes(b"synthetic guideline")
+            payload = dict(payload)
+            payload["source"] = str(source_pdf)
+            payload["source_sha256"] = hashlib.sha256(source_pdf.read_bytes()).hexdigest()
+        (recs / record_name).write_text(json.dumps(payload), encoding="utf-8")
         for name, payload in (other_files or {}).items():
             if isinstance(payload, bytes):
                 (recs / name).write_bytes(payload)
@@ -226,6 +236,25 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertIn("scanned 1, 1 recommendation records, 0 not", result.stderr)
         self.assertNotIn("Adults should have an SBP goal", result.stdout)
 
+    def test_an_untrusted_exact_name_is_refused_with_no_escape_hatch(self):
+        payload = recommendation_record()
+        payload.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(Path(directory), record_payload=payload)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("untrusted recommendation record", result.stderr)
+        self.assertIn("has no producer provenance stamp", result.stderr)
+        self.assertNotIn("Adults should have an SBP goal", result.stdout)
+
+    def test_a_trusted_record_whose_source_pdf_left_the_corpus_is_not_drafted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(Path(directory), source_available=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("source PDF is not reachable", result.stderr)
+        self.assertNotIn("Adults should have an SBP goal", result.stdout)
+
     def test_a_resolved_exact_record_does_not_scan_the_lookup_root(self):
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli(
@@ -252,7 +281,7 @@ class ThresholdDraftCli(unittest.TestCase):
             for line in result.stdout.splitlines()
             if line.startswith("| aha-2025 |") and "AHA ACC/guideline" in line
         )
-        self.assertIn("file:///C:/corpus/AHA%20ACC/guideline.pdf", source_row)
+        self.assertIn("/source/guideline.pdf", source_row)
         scope = result.stdout.split("## Scope", 1)[1].split("## ", 1)[0]
         self.assertNotIn("Read:", scope)
         self.assertNotIn("Not read:", scope)
@@ -323,9 +352,14 @@ class ThresholdDraftCli(unittest.TestCase):
                 "adults": "uspstf-2023-adults-d94f77",
                 "children": "uspstf-2023-children-751b2d",
             }
+            source_root = root / "source"
+            source_root.mkdir()
             for name, page in (("adults", 2), ("children", 4)):
-                payload = {
-                    "source": f"C:/corpus/USPSTF/{name}.pdf",
+                source_pdf = source_root / f"{name}.pdf"
+                source_pdf.write_bytes(f"synthetic {name}".encode("utf-8"))
+                payload = trust_recommendation_record({
+                    "source": str(source_pdf),
+                    "source_sha256": hashlib.sha256(source_pdf.read_bytes()).hexdigest(),
                     "mode": "exact",
                     "recommendations": [
                         {
@@ -335,7 +369,7 @@ class ThresholdDraftCli(unittest.TestCase):
                             "text": f"{name} recommendation text",
                         }
                     ],
-                }
+                })
                 (recs / f"recs-{source_names[name]}.json").write_text(
                     json.dumps(payload), encoding="utf-8"
                 )
