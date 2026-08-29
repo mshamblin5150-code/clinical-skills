@@ -175,6 +175,17 @@ Three things belong to this step rather than to that sheet:
   look at**, not the sample count: a model covering the clinical registers and not the reflective
   one is the case #213 was filed about, and it is the state a first pass most often lands in.
 
+When this step builds or rebuilds the model, run its acceptance check before showing the draft:
+
+```bash
+python tools/voice_model_scan.py
+```
+
+Exit 0 is required. Exit 1 means the built model's shape must be repaired before confirmation; exit
+2 means no model was scanned and cannot certify a build. The default report is counts only, and
+`--show` is private working material that must not be pasted. A clean result certifies shape only;
+step 10's clinician confirmation remains the check on whether the model is true.
+
 ### 9. Their own shorthand
 
 **Step 8 collects how they write output. This collects how they write input**, and it is the same

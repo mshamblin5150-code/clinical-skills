@@ -39,6 +39,7 @@ MEMBERS: set[str] = {
     "refusal_scan",
     "research_ledger",
     "specificity_scan",
+    "voice_model_scan",
 }
 
 NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
