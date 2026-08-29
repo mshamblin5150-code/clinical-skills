@@ -280,7 +280,7 @@ Where a reader is sent to obtain a corpus document, recorded on the threshold sh
 _Avoid_: locator, url, doi, link, source, stated citation
 
 **Download basis**:
-What a Download address rests on, one of four: seeded from the document's own stated citation, verified by the fetched bytes matching the audited digest, matched by title where a wall stopped the fetch, or deliberately chosen by a person over the address the document itself prints. It records the kind of evidence rather than a degree of confidence, because the seeded and the verified kinds are strong in different ways and neither is a guess.
+What a Download address rests on, one of four: `stated`, seeded from the document's own stated citation; `digest`, where the fetched bytes matched the audited digest; `gated`, where a title matched but a wall stopped the fetch; or `chosen`, where a person deliberately picked an address over the one the document itself prints. It records the kind of evidence rather than a degree of confidence, because the `stated` and `digest` kinds are strong in different ways and neither is a guess.
 _Avoid_: confidence, verification, provenance, mode
 
 **Corpus drift**:
