@@ -198,8 +198,8 @@ instruction cannot do is fail*.
 Coupling `differential_scan` to the sheet's `## Sources` table — reporting a **candidate**, never a
 finding, where a cited topic's sole source is a non-`guideline` class — is attractive and mechanical,
 and it is deferred rather than refused. It changes a consumer in a ticket whose subject is a format,
-which ADR 0057's own Consequences already separates; and it cannot be built until a draft-backed
-sheet exists, which is the last item in the reading order. Filed separately.
+which ADR 0057's own Consequences already separates; and only its `draft` firing path waits on a
+draft-backed sheet, which is the last item in the reading order. Filed separately.
 
 ## Consequences
 
@@ -264,3 +264,14 @@ after ratification. Two facts about corpus membership, both true when written an
 [ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md)
 on the same day. **No ruling of this record changes** — ruling 2 keeps `errata` an ordinary source,
 and the measurement that would most tempt a reader to reopen it is recorded there rather than here.)*
+
+*(Corrected in place 2026-08-29, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#641](https://github.com/mshamblin5150-code/clinical-skills/issues/641)'s grilling. The deferral
+paragraph read *"it cannot be built until a draft-backed sheet exists"*. That rested on the premise
+that `differential_scan` never opens a threshold sheet; `tools/differential_scan.py:1004-1013` opens
+one and parses its `## Thresholds` table, so only the `draft` firing path needs that sheet and the
+rest is exercisable against the four shipped ones. **Ruling 6 is unchanged and the decision to defer
+rather than refuse is untouched** — it is discharged by
+[ADR 0063](0063-a-draft-backed-citation-is-caught-per-row-by-the-parser-the-module-already-shares-and-the-class-set-is-draft-alone.md),
+which also narrows the deferred option from *sole source* to per row and from *non-`guideline`* to
+`{draft}`. Those are a later ruling rather than a correction, and are recorded there.)*
