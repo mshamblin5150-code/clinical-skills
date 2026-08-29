@@ -67,10 +67,15 @@ column — plus a changed clinical rule stated in prose: where IV azithromycin 1
 *"subsequent doses should be reduced to 500 mg daily,"* and the clindamycin and quinine dosing
 intervals are revised. It is not empty and it is exactly the kind of thing somebody leans on.
 
-**And the document it corrects is not in the corpus.** The parent is `ciaa1216`, IDSA's 2020
-babesiosis guideline; the catalog holds `ciaa1215` (Lyme) and no babesiosis guideline. So this
-two-page corrigendum is the corpus's entire babesiosis holding — a correction with no corrected
-document behind it.
+**And the document it corrects was not in the corpus.** The parent is `ciaa1216`, IDSA's 2020
+babesiosis guideline; on the day this record was ratified the catalog held `ciaa1215` (Lyme) and no
+babesiosis guideline, so the two-page corrigendum was the corpus's entire babesiosis holding — a
+correction with no corrected document behind it. **Both sentences are true of that day and false
+now.** [ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md)
+put `ciaa1216` in the corpus the same afternoon and merged both rows onto one `babesiosis` topic —
+and measured that the parent as served **already carries every value the corrigendum revised**,
+while saying nothing about having been corrected. The argument below is unaffected: it turns on the
+orphan being a membership fact, and membership is exactly what moved.
 
 That is a strong argument for calling it a non-source and it is the wrong argument. **The orphaned
 parent is a fact about corpus membership, not about document form.** Keying it on `class` would
@@ -240,7 +245,9 @@ sentence, which is a factual claim this session falsified by reading the documen
 - **Keying it on whether a document holds no clinical quantity by design.** A reading, not a cell;
   not derivable from the catalog, which build item 1 requires.
 - **`errata` as a declared non-source.** It carries a full revised dose table; the orphaned parent
-  that tempts the ruling is a corpus-membership fact rather than a form fact.
+  that tempts the ruling is a corpus-membership fact rather than a form fact. *(ADR 0062 dissolved
+  the orphan and measured the table as redundant against the parent now in the corpus. The ruling
+  stands; this ground is narrower than it reads.)*
 - **`web-capture` as a declared non-source.** Holds a schedule; suppressing it would drop three
   topics' only material.
 - **Parking the row at `unread`.** Makes ADR 0057 ruling 4's completion condition permanently
@@ -250,3 +257,10 @@ sentence, which is a factual claim this session falsified by reading the documen
 - **Naming the cell `class`.** Collides with the class of recommendation in the same file, and
   appending it last walks into the parser hazard the source file documents in a comment.
 - **Refusing a citation to a draft-backed topic.** Refuses the corpus's only AKI material.
+
+*(Corrected in place 2026-08-29, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#640](https://github.com/mshamblin5150-code/clinical-skills/issues/640)'s grilling, hours
+after ratification. Two facts about corpus membership, both true when written and both moved by
+[ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md)
+on the same day. **No ruling of this record changes** — ruling 2 keeps `errata` an ordinary source,
+and the measurement that would most tempt a reader to reopen it is recorded there rather than here.)*

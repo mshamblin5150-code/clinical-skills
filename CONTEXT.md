@@ -260,7 +260,7 @@ _Avoid_: fixture, baseline, snapshot
 ### Guidelines
 
 **Corpus**:
-The society guideline PDFs every derived artifact here is built from. It lives outside every checkout and is not going into one, so nothing committed re-derives a figure counted against it and no runner ever sees it. It grows by a person putting a file into it, which is an event no artifact in the tree witnesses.
+The society guideline PDFs every derived artifact here is built from. It lives outside every checkout and is not going into one, so nothing committed re-derives a figure counted against it and no runner ever sees it. It grows by a person putting a file into it, which is one form of corpus drift.
 _Avoid_: sources, library, guidelines, documents
 
 **Guideline catalog**:
