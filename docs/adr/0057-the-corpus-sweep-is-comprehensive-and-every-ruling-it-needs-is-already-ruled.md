@@ -240,8 +240,11 @@ it: true of the document, false about the world, since KDIGO has not written the
 yet. That is precisely the defect ADR 0009 built `none` against `unread` to prevent, arriving
 through a door neither record checked. It becomes a declared non-source instead.
 
-The `errata` needs none of this. Its topic is named *(corrections)* and nobody will lean on
-it.
+The `errata` was recorded here as needing none of this, on the ground that its topic is named
+*(corrections)* and nobody will lean on it. [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md)
+falsified both halves by reading the document: half of it is a revised babesiosis treatment
+table carrying doses, and the guideline it corrects is not in the corpus. It stays an
+ordinary source, for a different reason than the one written here.
 
 ## Why sheet-local vocabularies stay
 
@@ -318,8 +321,10 @@ extraction identity, the directory README's statement that a clean `--all` over 
 they become true rather than where they are built.
 
 `none` remains the registry's strongest claim and is now bounded on two sides: it is a claim
-about the **named source documents** and never about the topic, and a source that is not a
-guideline cannot produce one.
+about the **named source documents** and never about the topic, and a source whose class is in
+the declared-non-source set cannot produce one. *(This read "a source that is not a guideline
+cannot produce one" until [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md),
+which is wider than ruling 8 by 90 documents and forbids #483's own first `none` topic.)*
 
 ## Corrected in place, 2026-08-27, by this record's own tracker sweep
 
@@ -396,3 +401,5 @@ overstated sentence, one unnamed dependency and one count that names its members
   refuses all 169 sheets and teaches people to bypass the hook.
 
 *(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0055 link in the correction section named a remembered title rather than that record's tracked filename; its target now matches the index. No ruling changed.)*
+
+*(Corrected in place 2026-08-29, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms, by [#587](https://github.com/mshamblin5150-code/clinical-skills/issues/587)'s grilling. Two facts: the Consequences sentence stated ruling 8 wider than ruling 8 states it, and the errata sentence was falsified by reading the document. No ruling changed.)*
