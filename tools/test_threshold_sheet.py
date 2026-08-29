@@ -1216,7 +1216,7 @@ class ExtractionIdentityGate(unittest.TestCase):
             }
             stderr = io.StringIO()
             with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
-                gate, "survey", side_effect=lambda path, *_: scans[path]
+                gate, "survey", side_effect=lambda path, *_, **__: scans[path]
             ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
                 status = gate.main(["--all", "--quiet"])
 
@@ -1624,7 +1624,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
                 for path, report in zip(paths, reports, strict=True)
             }
             with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
-                gate, "survey", side_effect=lambda path, *_: scans[path]
+                gate, "survey", side_effect=lambda path, *_, **__: scans[path]
             ):
                 loud = stdout_for()
                 quiet = stdout_for("--quiet")
@@ -2701,6 +2701,120 @@ class BindingARecordToEachSource(unittest.TestCase):
         records, why, errors, _ = gate.bind_recs(sheet_, arguments, recs_root)
         return records, why, errors
 
+    def test_the_sweep_alias_wins_over_the_exact_name_root_and_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recs_root = root / "recs"
+            recs_alias = root / "guidelines-recs"
+            alias_record = recs_alias / "Society" / "doc.json"
+            recs_root.mkdir()
+            alias_record.parent.mkdir(parents=True)
+            alias_record.write_text(
+                json.dumps(record("p41/goal/alias", built_from="C:/corpus/Society/doc.pdf")),
+                encoding="utf-8",
+            )
+            (recs_alias / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "documents": [
+                            {
+                                "doc_id": "Society/doc",
+                                "source": "Society/doc.pdf",
+                                "record": "Society/doc.json",
+                                "outcome": "recommendations-found",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (recs_root / "recs-src.json").write_text(
+                json.dumps(record("p41/goal/fallback", built_from="C:/corpus/Society/doc.pdf")),
+                encoding="utf-8",
+            )
+
+            bound = gate.bind_recs(
+                sheet(row(rec="p41/goal/alias")),
+                [],
+                recs_root,
+                recs_alias=recs_alias,
+                corpus_documents={"Society/doc"},
+            )
+
+            records, why, errors, _ = bound
+
+        self.assertEqual(errors, [])
+        self.assertEqual(why, {})
+        self.assertEqual(records["src"]["recommendations"][0]["rec_id"], "p41/goal/alias")
+        self.assertIn("sweep alias", bound.origins["src"])
+        self.assertIn("doc.json", bound.origins["src"])
+
+    def test_each_sweep_alias_absence_is_named_before_recs_root_fallback(self):
+        cases = (
+            ("no-alias", "no sweep alias at"),
+            ("listed-file-missing", "manifest lists 'Society/doc'"),
+            ("manifest-lacks-document", "manifest lacks corpus document 'Society/doc'"),
+            ("not-a-corpus-document", "'Society/doc' is not a corpus document"),
+        )
+        for case, expected in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                recs_root = root / "recs"
+                recs_alias = root / "guidelines-recs"
+                recs_root.mkdir()
+                (recs_root / "recs-src.json").write_text(
+                    json.dumps(record("p41/goal/1")), encoding="utf-8"
+                )
+                corpus_documents = {"Society/doc"}
+                if case != "no-alias":
+                    recs_alias.mkdir()
+                    documents = []
+                    if case == "listed-file-missing":
+                        documents.append(
+                            {
+                                "doc_id": "Society/doc",
+                                "source": "Society/doc.pdf",
+                                "record": "Society/doc.json",
+                                "outcome": "recommendations-found",
+                            }
+                        )
+                    if case == "not-a-corpus-document":
+                        corpus_documents = {"Society/other"}
+                    (recs_alias / "manifest.json").write_text(
+                        json.dumps({"schema_version": 1, "documents": documents}),
+                        encoding="utf-8",
+                    )
+
+                bound = gate.bind_recs(
+                    sheet(row()),
+                    [],
+                    recs_root,
+                    recs_alias=recs_alias,
+                    corpus_documents=corpus_documents,
+                )
+
+            self.assertIsNotNone(bound.records["src"])
+            self.assertIn("recs root", bound.origins["src"])
+            self.assertIn(expected, bound.origins["src"])
+
+    def test_an_explicit_recs_argument_beats_both_lookup_roots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            explicit = root / "explicit.json"
+            explicit.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+
+            bound = gate.bind_recs(
+                sheet(row()),
+                [str(explicit)],
+                root / "recs",
+                recs_alias=root / "guidelines-recs",
+                corpus_documents={"Society/doc"},
+            )
+
+        self.assertIsNotNone(bound.records["src"])
+        self.assertEqual(bound.origins["src"], f"--recs override {explicit}")
+
     def test_a_keyed_argument_binds_to_that_source(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "anything.json"
@@ -2898,6 +3012,24 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertEqual(len(lines), 1, f"expected one COVERAGE line, got {lines}")
         return lines[0]
 
+    def test_a_successful_run_names_the_lookup_root_for_every_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recs_root = root / "recs"
+            recs_root.mkdir()
+            (recs_root / "recs-aha.json").write_text(
+                json.dumps(record("p1/aha/1")), encoding="utf-8"
+            )
+            (recs_root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+
+            status, _, err = self.run_grade([], recs_root)
+
+        self.assertEqual(status, 0)
+        self.assertIn("RECOMMENDATION RECORD source 'aha' -- recs root", err)
+        self.assertIn("RECOMMENDATION RECORD source 'kdigo' -- recs root", err)
+
     def test_one_record_for_a_two_source_sheet_is_2_and_names_the_other(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "recs.json"
@@ -3025,6 +3157,13 @@ class TheRecordsStayOutsideTheRepo(unittest.TestCase):
             str(root).startswith(str(gate.REPO_ROOT.resolve())),
             f"--recs-root defaults inside the repo: {root}",
         )
+
+    def test_the_sweep_alias_has_an_environment_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(os.environ, {gate.RECS_ALIAS_ENV: directory}):
+                arguments = gate.build_parser().parse_args(["--all"])
+
+        self.assertEqual(arguments.recs_alias, Path(directory))
 
     def test_all_takes_no_recs_at_all(self):
         """A bare path binds to *the* source of a one-source sheet, so it would bind

@@ -138,6 +138,8 @@ class ThresholdDraftCli(unittest.TestCase):
                 str(catalog),
                 "--recs-root",
                 str(recs),
+                "--recs-alias",
+                str(root / "recs-alias"),
                 "--sheet-root",
                 str(sheets),
                 "--text-root",
@@ -266,6 +268,77 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("scanned", result.stderr)
         self.assertNotIn("recs-broken.json", result.stderr)
 
+    def test_the_sweep_alias_wins_and_the_draft_reports_that_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            recs = root / "recs"
+            recs_alias = root / "guidelines-recs"
+            sheets = root / "sheets"
+            text_root = root / "text"
+            source_pdf = root / "source" / "guideline.pdf"
+            catalog.write_text(catalog_row(), encoding="utf-8")
+            recs.mkdir()
+            sheets.mkdir()
+            text_root.mkdir()
+            source_pdf.parent.mkdir()
+            source_pdf.write_bytes(b"synthetic guideline")
+            write_trusted_extraction_manifest(text_root)
+            alias_payload = recommendation_record()
+            alias_payload["source"] = str(source_pdf)
+            alias_payload["source_sha256"] = hashlib.sha256(
+                source_pdf.read_bytes()
+            ).hexdigest()
+            alias_record = recs_alias / "AHA ACC" / "guideline.json"
+            alias_record.parent.mkdir(parents=True)
+            alias_record.write_text(json.dumps(alias_payload), encoding="utf-8")
+            (recs_alias / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "documents": [
+                            {
+                                "doc_id": "AHA ACC/guideline",
+                                "source": "AHA ACC/guideline.pdf",
+                                "record": "AHA ACC/guideline.json",
+                                "outcome": "recommendations-found",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMMAND),
+                    "hypertension",
+                    "--catalog",
+                    str(catalog),
+                    "--recs-root",
+                    str(recs),
+                    "--recs-alias",
+                    str(recs_alias),
+                    "--sheet-root",
+                    str(sheets),
+                    "--text-root",
+                    str(text_root),
+                ],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Adults should have an SBP goal", result.stdout)
+        self.assertIn(
+            "RECOMMENDATION RECORD source 'aha-2025' -- sweep alias",
+            result.stderr,
+        )
+
     def test_a_new_topic_prints_a_skeleton_with_only_machine_cells_filled(self):
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli(Path(directory))
@@ -276,6 +349,10 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertIn("## Quantities", result.stdout)
         self.assertIn("|  |  |  | \"Adults should have an SBP goal below 130 mm Hg.\"", result.stdout)
         self.assertIn("| aha-2025 | p3 | p3/topic/1 | 1 |", result.stdout)
+        self.assertIn(
+            "RECOMMENDATION RECORD source 'aha-2025' -- recs root",
+            result.stderr,
+        )
         source_row = next(
             line
             for line in result.stdout.splitlines()

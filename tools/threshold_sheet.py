@@ -81,10 +81,11 @@ row needed it.
     decision 3 makes multi-source the normal case -- one row per society with a
     ``CONFLICT`` block where they disagree -- so the first sheet carrying ADA beside
     AHA/ACC would have hit it, and hit it reading green. ``--recs`` is
-    ``<source key>=<path>`` now and ``--recs-root`` resolves
-    ``recs-<source key>.json``. A record absent from that lookup root warns loudly and
-    exits 0 on #181's ruling; an explicit path that does not resolve, an unreadable
-    record, or any refusal from a record that is present remains non-zero.
+    ``<source key>=<path>`` now. Without it, the sweep alias resolves
+    ``<doc_id>.json`` first and ``--recs-root`` fills a gap with exact
+    ``recs-<source key>.json`` lookup. A record absent from both warns loudly and exits
+    0 on #181's ruling; an explicit path that does not resolve, an unreadable record,
+    or any refusal from a record that is present remains non-zero.
 
 ``WATERMARK`` refuses, and skips loudly where the extracted corpus is absent
     #83 gate 4: *"If a string stripped by #80 appears inside an extracted table row,
@@ -236,10 +237,34 @@ from console_codec import use_utf8
 from guidelines_recs import (
     MODE_BOUND,
     MODE_EXACT,
+    RecommendationRecordLocation,
+    RecommendationRecordOrigin,
     UntrustedRecommendationRecord,
+    locate_recommendation_record,
     load_recommendation_record,
     record_built_from_another_document,
 )
+
+
+@dataclass(frozen=True)
+class BoundRecommendationRecords:
+    records: dict[str, dict | None]
+    why_not: dict[str, str]
+    errors: list[str]
+    missing_records: set[str]
+    locations: dict[str, RecommendationRecordLocation]
+
+    @property
+    def origins(self) -> dict[str, str]:
+        return {
+            key: location.description for key, location in self.locations.items()
+        }
+
+    def __iter__(self):
+        yield self.records
+        yield self.why_not
+        yield self.errors
+        yield self.missing_records
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
@@ -251,6 +276,8 @@ DEFAULT_PDF_ROOT = Path("C:/codeing/guidelines-src")
 # can change what `parse_args` produces, and a test reading that would be measuring
 # the machine it ran on.
 DEFAULT_RECS_ROOT = "C:/codeing/guidelines-index"
+DEFAULT_RECS_ALIAS = str(Path(DEFAULT_RECS_ROOT).parent / "guidelines-recs")
+RECS_ALIAS_ENV = "CLINICAL_GUIDELINES_RECS_ALIAS"
 
 # **This module takes no write guard, and #176 asked for that to be a decision
 # rather than an absence** -- its own first comment: *"an absent guard is easy to
@@ -258,8 +285,9 @@ DEFAULT_RECS_ROOT = "C:/codeing/guidelines-index"
 # 2026-08-19.
 #
 # The three writers and `name_index` all refuse a *write* inside a checkout. This
-# module only ever reads: `bind_recs` opens `recs-<key>.json` and nothing here
-# creates one. Guarding a read would refuse a record that already exists, which
+# module only ever reads: `bind_recs` opens `<doc_id>.json` from the sweep alias or
+# `recs-<key>.json` from the recs root, and nothing here creates either. Guarding a
+# read would refuse a record that already exists, which
 # prevents nothing -- whatever put it there was the guarded step, and refusing to
 # read it turns one module's escaped artifact into a second module's failure.
 #
@@ -2374,7 +2402,9 @@ def bind_recs(
     recs_root: Path | None,
     *,
     allow_untrusted_provenance: bool = False,
-) -> tuple[dict[str, dict | None], dict[str, str], list[str], set[str]]:
+    recs_alias: Path | None = None,
+    corpus_documents: set[str] | frozenset[str] = frozenset(),
+) -> BoundRecommendationRecords:
     """Which recommendation record answers for each source the sheet declares.
 
     Returns ``({source key: record or None}, {source key: why there is none},
@@ -2393,12 +2423,12 @@ def bind_recs(
     guess, because guessing which source a record answers for is the defect this
     function exists to remove.
 
-    **The lookup stays outside the repo.** ``recs_root`` resolves ``recs-<key>.json``
-    and there is deliberately no fallback to the sheet's own directory: a record holds
-    the society's recommendation text in full, which is the copyrighted expression the
-    sheet format exists to avoid committing, and ``repo_root.ensure_outside_checkout``
-    refuses to write one inside a checkout. A convenience that looked beside the sheet
-    would quietly invite someone to put one there to make ``--all`` work.
+    **The lookup stays outside the repo.** The sweep alias resolves ``<doc_id>.json``
+    first, then ``recs_root`` fills a gap with exact ``recs-<key>.json`` lookup. There
+    is deliberately no fallback to the sheet's own directory: a record holds the
+    society's recommendation text in full, which is the copyrighted expression the
+    sheet format exists to avoid committing. A convenience that looked beside the
+    sheet would quietly invite someone to put one there to make ``--all`` work.
     """
     errors: list[str] = []
     explicit: dict[str, Path] = {}
@@ -2428,11 +2458,25 @@ def bind_recs(
     records: dict[str, dict | None] = {}
     why_not: dict[str, str] = {}
     missing_records: set[str] = set()
+    locations: dict[str, RecommendationRecordLocation] = {}
     for key in sorted(sheet.sources):
         path = explicit.get(key)
         named = path is not None
-        if path is None and recs_root is not None:
-            path = recs_root / f"recs-{key}.json"
+        if path is None:
+            location = locate_recommendation_record(
+                document=sheet.sources[key].get("document", ""),
+                key=key,
+                recs_alias=recs_alias,
+                recs_root=recs_root,
+                corpus_documents=corpus_documents,
+            )
+            path = location.path
+            locations[key] = location
+        else:
+            locations[key] = RecommendationRecordLocation(
+                path,
+                RecommendationRecordOrigin.EXPLICIT_ARGUMENT,
+            )
         records[key] = None
         if path is None:
             why_not[key] = "no --recs given for this source, so omission was not checked"
@@ -2474,7 +2518,7 @@ def bind_recs(
     # the JSON `null` above -- and the symptom was a KeyError in `grade` rather than
     # anything a reader could act on. `EveryAbsentRecordSaysWhy` walks all four ways
     # of not having one.
-    return records, why_not, errors, missing_records
+    return BoundRecommendationRecords(records, why_not, errors, missing_records, locations)
 
 
 def gate_coverage(
@@ -2761,6 +2805,7 @@ def survey(
     second_read_path: Path | None = None,
     allow_untrusted_provenance: bool = False,
     page_counts: dict[str, int] | None = None,
+    recs_alias: Path | None = None,
 ) -> Scan:
     """Read and grade one sheet without emitting either report or findings."""
 
@@ -2793,12 +2838,19 @@ def survey(
     # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
     # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
     # `why_not` so the report can say which source and which of the two it was.
-    records, why_not, recs_errors, missing_records = bind_recs(
+    catalog_problems: list[str] = []
+    if page_counts is None:
+        page_counts, catalog_problems = load_catalog_page_counts()
+
+    bound_records = bind_recs(
         sheet,
         recs_arguments or [],
         recs_root,
         allow_untrusted_provenance=allow_untrusted_provenance,
+        recs_alias=recs_alias,
+        corpus_documents=frozenset(page_counts),
     )
+    records, why_not, recs_errors, missing_records = bound_records
 
     schema = gate_schema(sheet)
     current_extraction, identity_problems = (
@@ -2814,9 +2866,6 @@ def survey(
         current_extraction,
         identity_problems,
     )
-    catalog_problems: list[str] = []
-    if page_counts is None:
-        page_counts, catalog_problems = load_catalog_page_counts()
     page_coverage = gate_page_coverage(sheet, page_counts)
     if catalog_problems:
         page_coverage.not_graded = True
@@ -2887,6 +2936,10 @@ def survey(
         + second_read_result.findings
     )
     diagnostics = list(page_coverage.diagnostics)
+    diagnostics.extend(
+        f"  RECOMMENDATION RECORD source '{key}' -- {origin}"
+        for key, origin in sorted(bound_records.origins.items())
+    )
     diagnostics.extend(extraction_identity.diagnostics)
     diagnostics.extend(watermark.diagnostics[:1])
     diagnostics.extend(f"  FAIL  {message}" for message in refusals)
@@ -2957,7 +3010,7 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("sheet", type=Path, nargs="?", help="the sheet to grade")
-    parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/ (resolves from --recs-root; takes no --recs)")
+    parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/ (resolves from the sweep alias, then --recs-root; takes no --recs)")
     parser.add_argument(
         "--quiet",
         action="store_true",
@@ -2983,6 +3036,15 @@ def build_parser() -> argparse.ArgumentParser:
         # CLINICAL_GUIDELINES_INDEX, which names a database file. This names a
         # directory of recommendation records, and two env vars one word apart that
         # mean different kinds of thing is how the wrong one gets set.
+    )
+    parser.add_argument(
+        "--recs-alias",
+        type=Path,
+        default=Path(os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)),
+        help=(
+            "published recommendation sweep containing <doc_id>.json records; "
+            f"defaults from {RECS_ALIAS_ENV}"
+        ),
     )
     parser.add_argument(
         "--pdf-root",
@@ -3080,10 +3142,10 @@ def main(argv: list[str]) -> int:
         # record would bind to every sheet that cites one source; a keyed one binds by
         # a key that is sheet-local, so it lands on every sheet declaring that key and
         # exits 2 on every sheet that does not. Neither is a thing anybody means. The
-        # directory mode resolves from `--recs-root` and nothing else.
+        # directory mode resolves automatically from the sweep alias and recs root.
         if args.recs:
             parser.error(
-                "--all resolves recs-<source key>.json from --recs-root and takes no "
+                "--all resolves from the sweep alias and --recs-root and takes no "
                 "--recs: a source key is sheet-local, so which sheet's source a "
                 "record answers for is unknowable across a directory. Name the sheet, "
                 "or point --recs-root at the records."
@@ -3119,6 +3181,7 @@ def main(argv: list[str]) -> int:
                 text_root,
                 None,
                 args.allow_untrusted_provenance,
+                recs_alias=args.recs_alias,
             )
             worst = max(
                 worst,
@@ -3152,6 +3215,7 @@ def main(argv: list[str]) -> int:
             text_root,
             args.second_read,
             args.allow_untrusted_provenance,
+            recs_alias=args.recs_alias,
         ),
         quiet=args.quiet,
     )
