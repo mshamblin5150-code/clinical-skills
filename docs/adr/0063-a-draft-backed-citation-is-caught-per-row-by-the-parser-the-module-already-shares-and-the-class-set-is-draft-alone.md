@@ -273,3 +273,7 @@ deferral is discharged by this record rather than reversed.
 - **A `status` column.** [#107](https://github.com/mshamblin5150-code/clinical-skills/issues/107)
   refused one and ADR 0061 forbids reopening it. Nothing here reopens it: `draft` is a form, and
   whether a guideline is current or superseded is still answered nowhere in this tree.
+
+---
+
+*Dated line added 2026-08-29, re-derived at `origin/main` `d9890e3`, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. **No fact of this record is corrected and no ruling is touched.** The Consequences paragraph filing [#645](https://github.com/mshamblin5150-code/clinical-skills/issues/645) is true as written — nothing binds a sheet's `## Sources` documents to its own topic's catalog documents. That absence has since been ruled **deliberate** rather than a gap, in [ADR 0064](0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md): the catalog's `topic` cell is the guideline's own wording, one cell per document, so it cannot tell a correct cross-topic citation from a wrong one in either direction. The word* finding *there should be read as* a limit now declared *rather than as an open defect.*

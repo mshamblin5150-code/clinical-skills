@@ -284,8 +284,12 @@ The distilled decision points of one clinical topic, drawn from every guideline 
 _Avoid_: summary, digest, extract, cheat sheet
 
 **Topic**:
-The subject a threshold sheet is keyed to, such as hypertension. The unit a clinician cites; a guideline document is not one, and several documents may address the same topic.
+The subject a threshold sheet is keyed to, such as hypertension. The unit a clinician cites; a guideline document is not one, and several documents may address the same topic. Distinct from the **catalog topic**, which is a document's own wording rather than the clinician's, so one topic in this sense may be spread across several catalog topics under names no committed artifact groups.
 _Avoid_: condition, subject, area
+
+**Catalog topic**:
+The guideline catalog's `topic` cell — the subject *that document* states it is about, in the society's wording, one cell per document. It is the population every per-topic figure in this repo is counted over: the coverage registry's rows, the sweep's denominator, and the set a threshold-sheet draft is seeded from. It is **not** the clinical topic and does not group: a subject a clinician names once is routinely several cells, and most cells own exactly one document. **Nothing in this tree derives which cells are one clinical topic**, which is why no gate joins a sheet's sources to its own topic ([ADR 0064](docs/adr/0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md)) and why the only bridge between the two senses is a hand-kept alias table with one entry.
+_Avoid_: topic — unqualified, that word means the clinical subject here; say which.
 
 **Recommendation record**:
 The machine-readable extraction of one guideline document's recommendations, keyed to the document it was read from. Which lookup root holds it decides how it is found: where records are fed in one document at a time the filename is a claim rather than a fact, so a record is resolved by exact name and then checked against the document it says it came from; where a sweep published them it is addressed by the document, the name having been ruled incapable of distinguishing one document from another across the whole corpus. The producer guarantees that everything it writes makes the claim, never that everything making the claim came from it.
