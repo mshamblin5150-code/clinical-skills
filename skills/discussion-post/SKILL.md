@@ -188,9 +188,11 @@ After every research and refutation result is gathered, a fresh non-authoring co
 python tools/research_ledger.py scratch/runs/<course>-<module>-discussion/claims.md
 ```
 
+The grader's coverage boundaries are inventoried in
+`research_ledger.DECLARED_LIMITS`; this skill points there without copying its rows.
+
 Exit 0 means the records are mechanically complete, 1 means a finding, and 2 means the ledger was
-not scanned. The command does not decide whether a source supports a claim; the refutation pass and
-the draft-to-ledger read own that judgment.
+not scanned. The refutation pass and the draft-to-ledger read own the source-support judgment.
 
 ## 4. Resolve dead claims before the draft is final
 

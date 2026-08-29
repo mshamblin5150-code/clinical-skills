@@ -1,488 +1,21 @@
-"""Grade the research ledger a ``practicum-case-study`` run writes before it drafts.
+"""Grade a research ledger and its optional draft/evidence companions.
 
     python tools/research_ledger.py <a ledger file> [--draft <a draft .md>]
         [--evidence <the evidence dump>] [--show]
 
-[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) is this.
-The skill used to write an unsourced claim into the body and list it in the
-``PROPOSED`` block with **verify this** against it; the clinician's ruling of
-2026-08-18 is that such a claim gets **researched** instead, one agent per claim,
-in parallel. **The ticket asks for a mechanism rather than an instruction**, and
-the mechanism is a written record with a grader in front of it: the fan-out
-produces one ledger record per claim, and this refuses the ones that did not
-answer the question they were sent to answer.
+The ledger is the pre-draft mechanism established by #214: one prewritten record
+per claim, completed by the research and refutation passes, then graded before
+drafting. ``--draft`` adds the prescription joins established by #289;
+``--evidence`` adds the citation-to-evidence joins established by #298.
 
-**The ledger is the mechanism, not the parallelism.** A harness with no subagent
-tool works the same briefs serially into the same file, and the grader cannot tell
-the difference -- which is the point. ``SKILL.md`` says so where it names this
-command, and a test here asserts that sentence is still there.
+The complete coverage inventory is ``research_ledger.DECLARED_LIMITS``. This
+docstring points to that object and states no second version of any row. Its
+population was derived by an end-to-end read of this module and every record in
+``docs/adr/`` on 2026-08-27; later prose-only boundaries remain reader-owned.
 
-**One writer, and the claim list goes in before the agents go out.** N agents
-appending to one Markdown file lose records to each other, and this tool has no
-expected count to measure a short ledger against -- so three records where eight
-claims were sent out would grade clean and the run would draft.
-[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s
-shared-artifact channel, with lost writes where that ticket has leaked reads.
-**Writing the headings first is what closes it rather than a new row**: a heading
-whose answer never arrived carries no ``STATUS``, and a record with no ``STATUS``
-already fails. ``skills/practicum-case-study/SKILL.md`` step 3 orders it that way
-and a test below pins the consequence.
-
-**The record shape**, one per claim, in a Markdown file under ``scratch/``::
-
-    DATE: 2026-08-19
-
-    ## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.
-    STATUS: sourced
-    SOURCE: peer-reviewed
-    REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009).
-        Pregnancy and laboratory studies. Obstetrics and Gynecology, 114(6), 1326-1331.
-    RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to
-        16.9 x 10^9/L in normal pregnancy.
-    RECENCY: nothing newer - searched 2026-08-19; no later reference-range table
-        for pregnancy exists, and obstetric texts still cite this one.
-    RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
-    PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
-    REFUTATION: stands - the volume, issue and pages match the publisher's landing
-        page, and the third-trimester row is on page 1327.
-
-A field's value runs to the next field line or the next claim, so an APA entry may
-wrap the way an APA entry wraps.
-
-**What it checks, and which ruling each row belongs to.**
-
-*#214, the fan-out's own contract:*
-
-- **Every field is present and carries something.** A record missing its
-  ``RESTATEMENT`` is a citation nobody checked against the claim.
-- **``STATUS`` is one of two branches**, and an unrecognized one is a **failure**
-  rather than a counted curiosity. This departs from ``specificity_scan.py``'s
-  third-branch rule deliberately: there the keyword selects a message, here it
-  selects **which tests run**, so a record reading ``STATUS: pending`` is graded on
-  nothing at all and reports as clean.
-- **``STATUS: unsourced`` carries a reason.** That is ``specificity_scan.py``'s
-  substance test and it is here for its reason -- nobody writes *"searched PubMed,
-  IDSA and UpToDate, nothing addresses this"* without having looked, and anybody
-  can write ``unsourced``. An unsourced record is **not a failure**: the skill
-  routes it to ``PROPOSED``, and out of the document entirely where it is a number.
-  The count is printed so the run knows how many did.
-- **An unsourced record may not carry a ``REFERENCE``.** The two statements
-  contradict each other and nothing else in the file can tell which was meant.
-- **The restatement is not the claim again.** Normalized equality only, because
-  anything looser is a guess about paraphrase. This is the cheap half of the limb
-  the ticket calls the one that matters most.
-- **A claim carrying a number gets a restatement carrying a number.** ``A white
-  count of 15,000 ...`` answered by *"the source discusses leukocytosis in
-  pregnancy"* is the wrong-citation-survives-review failure at its most expensive,
-  and it is the one form of it a string test can reach.
-
-*#215, the recency rule as amended:*
-
-- **``RECENCY`` is one of four dispositions**, and an unrecognized one is a failure
-  for ``STATUS``'s reason rather than ``SOURCE``'s: it gates the row below it, so a
-  record reading ``RECENCY: probably fine`` is never measured against the window at
-  all. **This row was missing from the first version of this module** and was found
-  by review, which is the same argument arriving at the field it was first written
-  for and not at the field beside it.
-- **Past five years, the record says why it stands.** ``nothing newer`` or
-  ``guideline in force``, and nothing else excuses it. The first version of this
-  rule cut a correct 2018 refutation and left a 1932 teaching standing by default;
-  what the rule refuses is a claim that is old **and superseded**.
-- **The excuse carries a reason**, on the same footing as the status. *The run must
-  have looked, and must say so* is #215's own wording, and a bare ``nothing newer``
-  is the assertion without the looking.
-- **A reference states a year, unless an excuse stands in for one.** ``n.d.`` is
-  legitimate APA, and the recency rule cannot be applied to it -- a row that could
-  not be graded reads exactly like a row that passed. **Refusing it outright would
-  be a rule the clinician never made**, so the escape hatch is the one he did make:
-  an undated source carrying ``nothing newer`` or ``guideline in force`` with a
-  reason stands, and one carrying neither is refused.
-
-*#231, the citation's truth half:*
-
-- **``RESOLVED`` is a URL or a bare DOI, and it says when it was opened.** The field
-  exists to put a specific in front of a reader; *"on the society website"* is not
-  one, and neither is a locator with no date beside it. The date is read off the
-  word ``read`` or ``retrieved`` rather than off any digits in the value, because a
-  URL is full of digits and one being date-shaped is not the agent saying when it
-  looked.
-- **A source cannot be read after the paper was written.** That is the second row
-  measured against ``DATE``, and the second one a dateless ledger loses.
-- **``PAGE-YEAR`` and ``REFERENCE`` agree about the year.** One rule in three rows:
-  a page year that states none against an entry that states one, a page year that is
-  a year and nothing else, and a page year that is not the entry's. **An ``n.d.``
-  entry beside a page carrying no date is the agreeing case and passes** -- refusing
-  it would refuse legitimate APA, which is the mistake ``UNDATED_REFERENCE`` was
-  corrected for once already.
-- **``REFUTATION`` is one of three dispositions with a reason after it**, and an
-  unrecognized one is a failure for ``STATUS``'s reason: it gates the row below.
-- **``refuted`` is a failure and not an outcome.** Unlike ``unsourced``, which the
-  skill routes to ``PROPOSED`` honestly, a refuted record is a **false citation
-  sitting in the ledger**: the run rewrites it or writes ``unsourced``, and never
-  drafts from it.
-- **``paywalled`` passes, and it is the clinician's ruling of 2026-08-19 on the
-  ticket's decision 4.** A locator that 404s or names a document search cannot find
-  is ``refuted``; a live page whose title and authors match, body behind a
-  subscription, is ``paywalled`` -- the URL resolving to the right document is
-  itself evidence it exists, which is most of what a fabricated citation cannot do.
-  **It is the weakest disposition that passes**, so ``survey`` counts it on its own
-  line: a set of citations all behind a wall has been checked far less than exit 0
-  suggests. Failing them instead would refuse every UpToDate record, which is nine
-  in ten of this corpus and the reason no resolver was built here at all.
-- **A refutation that is the restatement pasted back** is the first agent
-  re-asserting rather than a second one checking -- ``RESTATEMENT_ECHOES_CLAIM``'s
-  trick one level up, and the only part of the pass's independence a row can reach.
-- **An unsourced record carries none of the four citation fields.** That is
-  ``UNSOURCED_WITH_CITATION_FIELD`` widened from one field to four: a locator on a record
-  that says it found nothing is the same contradiction, and it was passing.
-
-**#289, and it was the only thing here that read anything but the ledger until
-#298 put ``--evidence`` beside it.**
-
-- **Every drug the run chose a number for has a claim record.** The rows above
-  grade the records that exist, and this module has **no expected count of its
-  own and says so** -- so a dose nobody entered as a claim is invisible to every
-  one of them. That is exactly what happened: a run recorded in its own
-  ``REFUTATION`` field that the treatment topic was unavailable, wrote specific
-  doses citing it anyway, and ``research_ledger``, ``reference_scan`` and
-  ``checks_ledger`` all exited 0. **A prescription is a dose**, which makes it
-  the highest-stakes claim in the document and the one nothing reached.
-- **The set comes from the draft rather than from a table in here**, which is
-  the one way ``checks_ledger.py``'s expected-set arrangement transfers: there
-  ``skills/practicum-case-study/SKILL.md`` step 9's table fixes the checks, and
-  here the run's own Rx blocks fix the drugs. ``--draft`` is what supplies it.
-- **A record is required for every drug the run chose a number for**, ruled by
-  the clinician on 2026-08-19 against the alternative of every drug with a table.
-  A home medication continued unchanged at the patient's own dose is a number the
-  patient arrived on, and a row **declaring** itself ``Continued home
-  medication:`` is exempt. **Declared and never inferred**: an unlabeled row is
-  graded, so the direction the rule fails in is toward asking for a record.
-- **An order stating a dose is answered by a claim stating a number**, and that
-  is a chain rather than a second check: where the claim carries a number,
-  ``NUMERIC_CLAIM_UNQUANTIFIED`` above already forces the restatement to answer
-  with one. So the two rows compose into *the table's dose reaches a source*.
-- **A prescription table with no readable drug row is a finding**, not a table
-  subtracted from the set in silence.
-
-**It never compares the numbers, and that is #289's own closing prohibition.** A
-dose depends on indication, weight, renal function, pregnancy and route, so a row
-refusing a correct dose for the wrong reason is #215's defect a fourth time --
-and #215 has already produced three. The reachable property is whether the dose
-was **sourced**, never whether it is right: a record carrying a *different*
-number passes these rows. There is no drug table here and there will not be one.
-
-**Without ``--draft`` those rows do not run, and the report prints ``not
-graded`` against them rather than ``0``.** That is
-[#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling
-arriving at the one grader here that reads two files, and it is why
-``Scan.prescriptions`` is ``int | None`` rather than an ``int`` starting at zero:
-a zero beside a row that never ran is indistinguishable from a row that passed,
-which is the shape the whole ticket is about.
-
-**``DOSE_NOT_CLAIMED`` asks for a number and cannot ask for *the* number**, and
-that limit is documented rather than tightened, on ``UNRESOLVABLE_LOCATOR``'s
-terms. Any digit in the claim heading satisfies it, so a heading carrying a year
-and no dose passes -- and narrowing it is not available, because the heading is
-written in the source's own terms by design and this module's own
-``NUMERIC_CLAIM_UNQUANTIFIED`` exists because a claim about 15,000 cells is
-rightly answered in ``10^9/L``. **It only ever weakens the weaker half of a
-pair**: the row says *this claim was not asked numerically*, never *this dose is
-sourced*, and it is one row of three. Pinned by a test so it is a known behavior
-rather than an accident.
-
-**One drug row is one drug, and nothing here makes that true.** ``_drug_of``
-takes the leading token, so a row welding two orders together --
-``doxycycline 100 mg PO BID x 7 days and metronidazole 500 mg PO TID x 7 days``
--- is one drug to this parser, and the second drug's dose is invisible to all
-three rows. ``style.md`` section 8 says *one table per drug* and this grades
-nothing about that, so **the run picks the denominator**, which is
-[#127](https://github.com/mshamblin5150-code/clinical-skills/issues/127)'s shape
-arriving in a set built to be an expected one. **It is not narrowable here**:
-splitting a drug row on ``and`` would cut ``normal saline and potassium
-chloride``, and telling two drugs apart needs a drug vocabulary, which is
-exactly the table #289 forbids. Written down and pinned by a test rather than
-guessed at, on ``UNRESOLVABLE_LOCATOR``'s terms, and filed --
-[#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300).
-
-**Ruled a reading rather than a row on 2026-08-20, and the row stays exactly as
-declared above.** #300 offered three answers and the clinician took the third:
-``skills/practicum-case-study/SKILL.md`` step 9's ``the Rx blocks`` row asks its
-reader for the welded row by name. **That row was already the right reader and
-was simply not told** -- its brief has always asked whether every drug in the Plan
-has a table, and a welded pair is precisely a drug in the Plan without one. **No
-parser moved**, which is the durable half; where the wording landed is those
-files' to say rather than this docstring's.
-
-**The declined parser row is refused on a measurement, and the measurement is a
-test rather than a figure here.** Both forms the ticket priced fire on correct
-orders, and they do not fire on the same ones: *a second unit-bearing token after
-the first dose* takes a taper and an infusion rate as well as a titration and a
-repeat dose, and narrowing to a conjunction between the two doses drops the taper
-and keeps the rest. **The narrowing helps and does not close it**, which is the
-finding rather than the count. Narrowing past what is left needs a closed set of
-continuation
-verbs, and a verb missing from that set is a false alarm on a correct order,
-which is **the same failure direction as the drug table #289 prohibits**.
-``test_research_ledger.TheDeclinedParserRowsFireOnCorrectOrders`` implements both
-forms and runs them, so re-proposing one costs a failing test rather than an
-argument.
-
-**What that buys is a brief and not a gate**, which is the standing price of the
-option and is named rather than left to be found: that row's ``clean`` is not one
-``checks_ledger`` requires to say what it walked --
-[#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255) ruled
-which rows do and this is not one -- so a bare ``clean`` from a reader that
-skimmed still passes.
-
-**What it cannot reach, and the sharpest limb is a claim about coverage rather
-than about a dose.** Whether the dose is right for this patient, whether the
-record that names the drug sourced its *dose* rather than its indication --
-record 1 of the run that produced #289 sourced the **disposition**, and would
-have failed these rows only because it named no drug at all -- and whether the
-drug row and the ``Sig`` agree.
-
-**A reader is looking at the number since
-[#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299), and it
-is not this module.** This paragraph said ``skills/practicum-case-study/SKILL.md``
-step 9 sends a reader at the Rx blocks *for exactly that reason*, and that was
-false: that row briefs a reader on whether every drug has a table -- including,
-since [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300),
-whether a drug row welds a second drug into it -- whether every ``Sig`` ends in
-an indication and whether the prose block is there, and on no number at all -- and ``checks_ledger.SUBSTANTIATED_CLEAN`` leaves it out, so a
-bare ``clean`` on it passes. So the residue was declared covered and covered
-nowhere -- this
-ticket's own shape arriving in the fix for it, found by the spec axis of
-``/code-review``. It is ``the dose against the record that sourced it``, its own
-row of step 9's table and of ``checks_ledger.EXPECTED_CHECKS``, and one of the
-rows ``checks_ledger.SUBSTANTIATED_CLEAN`` names -- so a bare ``clean`` on it
-fails.
-
-**A reader and not a row, ruled by the clinician on 2026-08-20, and the ground is
-that the false-alarm rate could not be grounded rather than that it would be
-high.** A string test can reach *the table's number appears in the record naming
-that drug* and nothing further, so it fires on ``1 g`` against *1000 mg* and on
-``q24h`` against *once daily* -- the unit problem ``NUMERIC_CLAIM_UNQUANTIFIED``
-above already refuses to touch, arriving one level down. And when it was ruled
-there was **no pair in the tree to measure it on**: the only ``practicum-case-study``
-run **with a claim ledger** predated these rows, so every one of its
-prescriptions reached no claim
-record at all and not one drug-row-and-record pair existed anywhere. **How
-many that was is deliberately not stated**, here or in the two other places
-this paragraph is written: it counts a run under ``scratch/`` that nothing
-committed re-derives, which is
-[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143), and
-the three copies disagreed about it the day they were written.
-[#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
-precedent is that a cut point is grounded where the corpus offers one and refused
-where it does not. **The prohibition is unchanged either way**: the question is
-whether the document's number and the record's number are the *same* number,
-never whether either is right. **A clean scan is not a checked prescription.**
-
-**``--evidence`` grades what the run says it read against what it was handed**
--- [#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298),
-ruled by the clinician 2026-08-20. A run recorded in its own ``REFUTATION`` field
-that the treatment topic was missing from the companion evidence and cited it
-anyway; ``--draft`` closes that only where the missing topic is a **drug**, and
-this closes it wherever the topic is **cited**.
-
-- **The grounding is #231's and it is what scopes the row to UpToDate.** That
-  ticket ruled the database subscription-gated -- a fetch reaches a login wall
-  rather than the topic page -- so an UpToDate topic the dump does not carry is
-  one **nobody could have opened**. The clinician hands topics over wholesale, so
-  the dump is the whole of what was read. A journal article, a society guideline
-  or a government page the dump lacks is ``skills/practicum-case-study/SKILL.md``
-  step 3's ordinary case: a claim record exists *because* the evidence did not
-  cover the claim, and a row firing on those would be #215's defect again.
-- **The topics the dump merely refers to are not graded, and that is the ruling
-  rather than an omission.** A rendered dump cross-references far more topics than
-  it carries -- by more than an order of magnitude in the one this was measured on
-  -- which is the ordinary case #298's own *What must not come out of this*
-  forbids firing on. Ranking them does not rescue it either: the reference counts
-  decay smoothly with **no plateau anywhere**, so any cut is a value named at an
-  edge, which is ``guidelines_extract.SPACE_ADVANCE_FRACTION``'s recorded failure
-  and #97's objection. **No threshold is built and none is available.** What is
-  graded is the join. **Every figure behind that is counted against a file under
-  ``scratch/``, so nothing committed re-derives one and the next article the
-  clinician pastes moves them all; they are stated on #298 and nowhere in this
-  tree**, on #143's terms.
-- **A body is recognized by its ``Authors:`` masthead and never by a heading.**
-  #298 decision 2 proposed reading a title as a heading and that is not
-  implementable against the artifact it describes -- the rendered dump carries no
-  headings of any kind. **Measured before it was believed**: nearly every body the
-  real dump carries joins a ``See "..."`` cross-reference exactly under this rule,
-  and the count is #298's to state.
-- **No escape hatch, and it was asked rather than assumed.** If an UpToDate topic
-  is worth citing it goes in the dump, and the remedy for a finding is one paste.
-- **The draft's reference list is parsed by ``reference_scan`` and not by a second
-  reading in here**, on ``REFERENCE_HEADING``'s precedent and #108's.
-- **An entry this cannot read is a finding, and for a row with no escape hatch
-  that limb *is* the hatch.** ``uptodate_topic`` recognizes a topic only from the
-  database element, so an entry dropping ``UpToDate.`` was invisible to the row
-  **and** to the population row -- and ``reference_scan`` reports nothing on it
-  either, so four characters removed from an entry took the topic out of the join
-  with nothing red anywhere. ``UNREADABLE_UPTODATE_ENTRY`` keys on the
-  **locator's host** and is ``UNREADABLE_DRUG_ROW``'s argument one row over: a
-  citation this cannot read is never one subtracted from the set in silence.
-  Found by a tracker-sweep subagent and re-derived in both directions.
-
-**What that leaves is an entry naming neither the database element nor an
-UpToDate locator**, which is invisible to both rows and to the population count,
-so the report cannot tell *cited none* from *cited one unreadably*. It is not
-narrowable: with neither element there is nothing distinguishing such an entry
-from a journal article, and guessing would fail a correct one -- #215's defect,
-which the scope limb above exists to avoid. Documented rather than tightened, on
-``UNRESOLVABLE_LOCATOR``'s terms, and it only ever weakens the weaker half: the
-rows say *this citation did not reach the dump*, never *this citation is good*.
-
-**What ``--evidence`` cannot reach is a claim that rested on a missing topic
-without citing it.** The join is on a citation, so a threshold, a screening
-interval or a discriminator taken from a topic nobody read and written with no
-reference is invisible to this row and to every other one -- which is the residue
-#298 names and does not close. **A clean scan is not a sourced document.**
-
-**#215's first limb reaches no row here, and that is deliberate.** *Within two years
-is the target* is a target: a ``current`` disposition on a three-year-old reference
-is not a defect, and grading it would refuse what the ruling merely prefers.
-
-**The rows sit in four helpers, and the branching sits in ``record_findings``.**
-[#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242), which filed
-one 129-line grader against the four scanners that keep one -- and did not check
-``reference_scan.py``, the only sibling with a comparable row count, which had
-already split five ways. What could not move is the control flow: a record with no
-recognized ``STATUS`` is graded on nothing below it, and an ``unsourced`` one on a
-different set entirely. **A record's findings are sorted by ``KINDS`` now** rather
-than appended in call order, so which helper a row lives in is invisible and the
-seam can move again without ``--show`` changing shape. **Within a record**, which is
-the honest width: ``survey`` concatenates one sorted list per record, so a ledger's
-findings are grouped by record rather than globally sorted -- and should be, since a
-reader wants one record's rows together.
-
-**What the split makes visible is which rows need the date.** Two helpers take
-``as_of`` and each spends it on one row -- ``STALE_UNEXCUSED`` and
-``READ_AFTER_DATE`` -- so the exit-2 banner's claim about a dateless ledger is
-readable off two signatures instead of off the whole grader. A test drives one ledger
-both ways and asserts the difference is exactly those two.
-
-**``UNRESOLVABLE_LOCATOR``'s own limit, since #242.** A DOI is a registrant prefix
-and a free-form suffix, so ``pp. 10.1327/1400`` is a page range wearing the shape
-and passes the row. It is not narrowable -- a real bare DOI arrives with no scheme
-and no ``doi:`` prefix to key on -- and it only ever weakens the weaker half of a
-pair: the row says *this is not a locator*, never *this locator is good*, and
-``UNDATED_READ`` and ``REFUTATION`` still ask when the page was opened and what was
-found there. Documented rather than tightened, and pinned by a test, because every
-other limit in this module is written down and this one was not.
-
-**What it cannot reach, and this is most of the ticket.** Whether the source is
-reputable, whether it says what the restatement says it says, and whether the
-numbers agree. **The last one is not an oversight**: the restatement is written in
-the source's own terms *by design*, so a claim about 15,000 cells is rightly
-answered with a range in ``10^9/L``, and a test comparing the digits would refuse
-the correct answer. Judging a restatement against its source is a reading, and a
-clean scan here is not a walked claim.
-
-**Nor does it reach the document.** *A claim that survives the fan-out still
-unsourced does not go in the body* is #214's rule and it is about the draft, which
-this never sees -- so a ledger of nothing but well-formed ``unsourced`` records
-exits 0, and that 0 means the records are honest rather than that the paper is. The
-count is printed for exactly that reason, and
-``skills/practicum-case-study/SKILL.md`` step 9 walks it.
-
-**#214's open question 2 is answered on
-[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), and the
-answer is that nothing here fetches anything.** The format half already had a written
-standard from #211 -- ``skills/practicum-case-study/reference/apa7.md``, walked by
-``skills/practicum-case-study/SKILL.md`` step 7 and by
-[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
-For the truth half the ticket proposed ``threshold_sheet.py``'s two-tier arrangement,
-a resolver opting into the network and skipping with a banner. **Two findings killed
-it.** UpToDate **dominates** this corpus's references and is subscription-gated, so a
-fetch reaches a login wall rather than the topic page ``apa7.md`` section 2 takes the
-date element from -- every such entry would fail outright, or pass on a 200 from a
-login form, which is the silent-pass shape this whole directory exists to refuse.
-**The size of that dominance is stated once, in ``reference/style.md`` section 10,
-hedged and against a gitignored set that nothing committed re-derives.** And
-**the clinician hands the topics over wholesale**, so wherever a source is in the
-evidence dump there was never anything to resolve.
-
-**So the checking moved to where the reading already happens.** The agent that
-researched a claim was on the page: it records what it opened and when
-(``RESOLVED``), and the year the page itself carries and where (``PAGE-YEAR``). A
-second agent, briefed to **refute** rather than to confirm -- because an agent asked
-*is this right?* says yes -- records what the attempt found (``REFUTATION``). All
-three are graded here, offline. **No tool in this repo touches the network**, which is
-the ticket's decision 1 settled by making it unnecessary rather than by opting out of
-it.
-
-**What that buys, and what it does not.** ``RESOLVED`` and ``PAGE-YEAR`` narrow the
-hole rather than closing it -- an agent can write a URL it never opened -- but they
-force a commitment to specifics a reader can be caught on in one click, where a
-correctly formatted APA entry is checkable only by going and looking. The refutation
-pass is the only **verification** in the arrangement -- **and it does not happen
-here.** The pass is a second agent; this module refuses a record where the pass did
-not answer, answered in a third word, or answered by pasting the restatement back.
-**No row here can see that the refuter was a different agent**, or that it opened
-anything: that is an instruction, and *what a written instruction cannot do is fail*
-binds its own successor as squarely as it bound #214.
-
-**Per record, when the source was read is ``RESOLVED``'s own date; what there is
-deliberately no second date for is the ledger.** #231 admired ``threshold_sheet.py`` recording *the date tier 2 last really
-ran*, and the difference is that tier 2 there is skippable and months stale by
-design, while the fan-out and the refutation both run in one sitting before a word
-is drafted. ``RESOLVED``'s date is the **research** agent's, and it is bounded above
-by ``DATE`` and **not below** -- a read date years before the paper is incoherent and
-passes. Bounding it below would need a window nothing here grounds, which is
-``filled_vitals_census.py``'s reason for grading three rows and counting five.
-
-**This module states no opinion about whether a source is reputable or whether it
-says what the restatement says it says.** What it checks is that a year is *stated*,
-that two records *agree* about it, and that the pass sent to knock the citation down
-came back and said something. It opens nothing.
-
-**Counts only by default**, on ``specificity_scan.py``'s and ``block_scan.py``'s
-terms and for their reason: the ledger lives under ``scratch/`` and a claim is
-transcribed from faculty material about a patient. **``--show`` output is PHI** on
-``harvest_review.py``'s terms -- read it, do not paste it.
-
-**Exit status distinguishes not having scanned from having found nothing** -- 0
-clean, 1 for a violation, **2 for every way of not having scanned**: no argument,
-no file, no ``## CLAIM:`` record in it, **no ``DATE:`` header**, a ``--draft``
-naming a file that is not there, a draft carrying **no readable prescription
-table**, an ``--evidence`` naming a file that is not there, and an evidence file
-carrying **no topic body at all**.
-
-**Two of those limbs are the ones that matter, and they are the two where a row
-would otherwise print a zero it never earned.** The window is measured against
-the day the paper is written, so a ledger with no ``DATE`` was never measured by
-#215's rule at all and a clean report would read as though it had been -- **two
-rows need that date**, #215's window and #231's read date, both comparing to
-``DATE``. And a draft whose prescriptions are written in a shape
-``read_prescriptions`` does not read would report #289's rows as zeros and look
-like a document whose every dose reaches a record, which is
-``differential_scan.py``'s reasoning arriving at a second file.
-
-**The evidence limb inverts that and is the sharpest of the three.** A dump
-``carried_topics`` cannot read carries **no** topic to join against, so every
-UpToDate citation in the ledger would fire at once -- a mass false finding rather
-than a silent pass, and the one not-scanned limb here whose failure is loud rather
-than quiet. So the row is left **ungraded** and prints *not graded*, and the exit
-2 is deferred to the tail like its two siblings.
-
-**Returning it early is the defect this module was built having already read
-about**, and it shipped anyway: it suppressed every other row's findings and
-printed no report at all, which is ``tracker_scan.py``'s recorded corpus-limb
-inversion -- *returning 2 before scanning, so a real hit was reported as did not
-scan* -- arriving in the one function whose own docstring, in the paragraph below,
-states the ordering it broke. Caught by the spec axis of ``/code-review``, and
-pinned by a test that drives ``main`` rather than the report, because every test
-that had been written for this limb asserted the status and none asserted that
-the other rows survived it.
-
-**Where a violation and any not-scanned limb both hold, 1 wins**, on
-``differential_scan.py``'s and ``filled_vitals_census.py``'s ordering and for their
-reason: returning 2 would file the strongest thing known about the ledger under the
-weakest heading. The banner prints either way, so an exit 1 over a dateless ledger
-reads as a floor rather than the whole. **The first version of this module returned
-2 there**, which is the one place it departed from both siblings without saying so.
+Counts print by default because the ledger can contain PHI. ``--show`` output is PHI;
+it exposes claim details and must not be pasted. Exit 0 is clean, exit 1 reports findings,
+and exit 2 means a required input or mechanically readable population was absent.
 """
 
 from __future__ import annotations
@@ -492,9 +25,11 @@ import sys
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import NamedTuple
 
 import run_grader
 import coursework_run
+from case_study_scan import EvidenceDisposition
 from docx_write import markdown_tables, split_row
 
 # **The draft's reference list is parsed once, by the module that grades it.**
@@ -504,6 +39,55 @@ from docx_write import markdown_tables, split_row
 # is #108's duplication and the failure ``reference_scan`` records against
 # itself. A test asserts the two are one object *and* drives both.
 from reference_scan import read_document
+
+
+class DeclaredLimit(NamedTuple):
+    """One named coverage boundary and how its evidence is maintained."""
+
+    key: str
+    limit: str
+    evidence: EvidenceDisposition
+
+
+DECLARED_LIMITS = (
+    DeclaredLimit("execution-order-unobservable", "The ledger cannot show whether claim research ran concurrently or serially.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("record-population-unbounded", "The grader has no expected claim-record population to detect omitted records.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("reason-substance-unverified", "Alphanumeric substance cannot prove that a stated search or reason happened.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("restatement-semantic-equivalence-unchecked", "Only normalized equality is rejected; semantic restatements are not compared.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("numeric-values-uncompared", "Numeric claims and restatements need numbers whose actual values are never compared.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("two-year-target-unenforced", "The preferred two-year recency target is not an enforced grading window.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("doi-shape-overmatches", "The bare-DOI pattern also accepts page-range text shaped like a DOI.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("locator-opening-unverified", "A record may state a locator that its research agent never opened.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("source-reputation-unchecked", "An allowed source-class word does not establish that the source is reputable.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("source-support-unchecked", "The grader cannot determine whether a source supports its recorded restatement.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("refutation-independence-unverified", "The record cannot prove a different agent opened the source for refutation.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("read-date-lower-bound-absent", "A source read arbitrarily long before the writing date can still pass.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("keyword-parser-copy-uncompared", "Parity with checks_ledger's intentionally copied keyword parser is not asserted.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("paywall-body-unread", "The passing paywalled disposition verifies no claim against the source body.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("page-year-first-plausible-token", "PAGE-YEAR uses the first plausible year even when that token is a page number.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("prescription-number-correctness-unchecked", "Prescription grading establishes sourcing but never whether a dose is clinically correct.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("dose-claim-accepts-any-number", "A dosed drug's claim may contain an unrelated number and satisfy the row.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("welded-drug-hidden", "A second medication welded into one order is invisible to prescription grading.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("leading-token-drug-parser", "Only the leading token identifies a medication and matching errs toward omission.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("spelled-dose-unseen", "A dose written only as words is not recognized as a numeric prescription.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("dose-versus-indication-unseen", "A drug-naming claim may quantify an indication without sourcing the prescribed dose.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("drug-sig-agreement-unseen", "Prescription grading does not compare the medication order with its Sig row.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("table-record-number-equivalence-unseen", "Equivalent or conflicting dose expressions between draft and record are not compared.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("partial-prescription-table-nonfatal", "Partially anchored prescription tables are reported but do not fail the grade.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("rx-reader-completion-unverified", "The grader cannot prove that the separate prescription reader completed its brief.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("evidence-cross-references-ungraded", "Topics merely cross-referenced by an evidence dump are outside the carried set.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("unmastheaded-evidence-body-unseen", "An evidence body without an Authors masthead is invisible to the topic join.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("non-uptodate-evidence-unjoined", "Evidence coverage is not joined for journal, society, or government citations.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("unrecognizable-uptodate-entry-unseen", "An UpToDate citation lacking both database element and locator is invisible.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("uncited-missing-topic-unseen", "A claim derived from missing evidence is invisible when no citation names it.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("draft-rows-optional", "Prescription coverage is not graded when the caller omits the draft argument.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("evidence-rows-optional", "Evidence-topic coverage is not graded when the caller omits the evidence argument.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("evidence-without-draft-skips-references", "Evidence grading without a draft cannot inspect citations in the draft reference list.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("reply-reference-label-unchecked", "The discussion-reply path omits draft grading and cannot reject a misspelled references label.", EvidenceDisposition.BEHAVIOR),
+)
+NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
 # A record opens on a heading. The heading level is free, so the ledger can sit
 # under a document heading without the parser caring.
@@ -534,22 +118,10 @@ RECENCY_IN_FORCE = "guideline in force"
 RECENCY_VALUES = (RECENCY_CURRENT, RECENCY_WITHIN_FIVE, RECENCY_NOTHING_NEWER, RECENCY_IN_FORCE)
 EXCUSES = (RECENCY_NOTHING_NEWER, RECENCY_IN_FORCE)
 
-# #231. A locator is a URL or a bare DOI, and nothing else -- the field exists to
-# put a specific in front of a reader, and *"on the society website"* is not one.
-#
-# **The DOI branch matches text that is not a DOI, and that is documented rather
-# than tightened** -- [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242).
-# A DOI is a registrant prefix and a free-form suffix, so ``pp. 10.1327/1400 vol``
-# is a page range wearing the shape and matches. It is not narrowable from here: a
-# real bare DOI arrives with no scheme and no ``doi:`` prefix to key on, so refusing
-# the coincidence would refuse the field's own documented form.
-#
-# **It only ever weakens a row that is already the weaker half of a pair.**
-# ``UNRESOLVABLE_LOCATOR`` says *this is not a locator*, never *this locator is
-# good* -- nothing here opens anything -- and the value has to carry substance
-# before the row runs at all. So the cost is a ``RESOLVED`` full of page numbers
-# passing one row, while ``UNDATED_READ`` still asks it when the page was opened
-# and ``REFUTATION`` still asks what the second agent found there.
+# #231 accepts a URL or bare DOI so the record commits to a specific locator.
+# #242 retained the DOI suffix's free form because the documented bare form has
+# no required scheme or ``doi:`` prefix; the date and refutation rows provide the
+# independent checks that made that choice affordable.
 LOCATOR = re.compile(r"(?i)\bhttps?://\S+|\b10\.\d{4,9}/\S+")
 # Anchored on the word rather than on the shape, because a URL is full of digits
 # and one of them being date-shaped is not the agent saying when it looked.
@@ -571,25 +143,15 @@ READ_DATE = re.compile(
 # ``\d{4}`` takes the first four-digit token, and ``PAGE-YEAR`` is documented as the
 # year *and where the page says so* -- so ``on page 1327, dated 2009`` read as the
 # year 1327 and reported a false disagreement against a correct record. A page
-# number is not in 1900-2099; a page number that is remains order-dependent, and
-# that limit is the reason the field's documented form puts the year first.
+# number is not in 1900-2099. The documented form puts the asserted year first.
 BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
 
 # #231's three dispositions. The brief is to *refute*, so ``stands`` is the outcome
 # of a failed attempt rather than the default.
 #
-# **``paywalled`` is the clinician's ruling of 2026-08-19 on decision 4**, and the
-# split it makes is between *could not reach* and *is not there*. A locator that
-# 404s, or that names a document search cannot find, is ``refuted`` and fails. A
-# live page whose title and authors match, whose body sits behind a subscription,
-# **passes** -- the URL resolving to the right document is itself evidence the
-# document exists, which is most of what a fabricated citation fails to do.
-#
-# **It is a weaker check wearing a passing disposition, and that was priced rather
-# than missed.** The alternative failed every UpToDate record, and UpToDate dominates
-# this corpus -- which is the reason no resolver was built in the first place. What
-# the report does about it is count them: a run whose citations are all ``paywalled``
-# says so on its own face rather than reading as fully checked.
+# ``paywalled`` is the clinician's 2026-08-19 decision-4 disposition. The
+# alternative rejected the subscription-heavy UpToDate population wholesale;
+# #231 therefore keeps the disposition visible as its own report count.
 REFUTATION_STANDS = "stands"
 REFUTATION_REFUTED = "refuted"
 REFUTATION_PAYWALLED = "paywalled"
@@ -602,8 +164,7 @@ STATUSES = (SOURCED, UNSOURCED)
 # #215's "ordinarily expected" window. Past it a record has to say why it stands.
 ORDINARY_WINDOW_YEARS = 5
 
-# Anything alphanumeric after a keyword is substance. Judging whether the reason is
-# a real search or a stock phrase takes a reader -- ``specificity_scan.py``'s R2.
+# ``specificity_scan.py`` R2's alphanumeric substance predicate.
 SUBSTANCE = re.compile(r"[0-9A-Za-z]")
 DIGIT = re.compile(r"[0-9]")
 NOT_ALNUM = re.compile(r"[^0-9a-z]+")
@@ -634,22 +195,13 @@ BARE_REFUTATION = "bare-refutation"
 REFUTED_CITATION = "refuted-citation"
 REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
 
-# #289's three, and they are the only rows here that read anything but the
-# ledger. They grade the draft's prescriptions against it, so they run only
-# where ``--draft`` named one -- and ``format_report`` prints them as *not
-# graded* rather than as zeros where it did not, on
-# [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
-# ruling: a zero beside a row that never ran is the silent pass this whole
-# directory refuses.
-# #298's one row, ruled by the clinician 2026-08-20. It reads the evidence
-# dump, so it runs only where ``--evidence`` named one, on the arrangement
-# directly below.
+# #289 and #298 add the draft and evidence grading groups. Their optional-run
+# reporting follows #258's distinction between an executed zero and an omitted
+# group.
 CITED_TOPIC_NOT_IN_EVIDENCE = "cited-topic-not-in-evidence"
 
-# The sibling that keeps the row above from being escapable. An entry whose
-# locator is an UpToDate topic but whose title element this cannot read is a
-# finding, never a citation subtracted from the set in silence --
-# ``UNREADABLE_DRUG_ROW``'s argument one row over.
+# The sibling row reports an UpToDate locator whose title element is unreadable,
+# on ``UNREADABLE_DRUG_ROW``'s fail-visible precedent.
 UNREADABLE_UPTODATE_ENTRY = "unreadable-uptodate-entry"
 
 UNRESEARCHED_PRESCRIPTION = "unresearched-prescription"
@@ -709,16 +261,11 @@ REQUIRED_WHEN_SOURCED = (
 # defect and was passing.
 CITATION_FIELDS = ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION")
 
-# The rows #289 added, so ``format_report`` can tell a zero apart from a row
-# that never ran. **One tuple, and how many is its own to say** -- a second
-# list of the same rows is #220's drift, and a count of them in prose is
-# [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143),
-# which this module published in five places before a review re-derived it.
+# The #289 report group, held once so report ordering and optional-run display
+# share one population.
 DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
 
-# #298's row, on ``DRAFT_ROWS``' arrangement and for its reason: a zero beside
-# a row that never ran reads exactly like a row that passed, which is #258's
-# ruling. **One tuple, and how many is its own to say.**
+# The #298 report group, on ``DRAFT_ROWS``' single-population arrangement.
 EVIDENCE_ROWS = (CITED_TOPIC_NOT_IN_EVIDENCE, UNREADABLE_UPTODATE_ENTRY)
 
 # A prescription table is the one table in a case study carrying both of
@@ -732,20 +279,9 @@ DISP = re.compile(r"(?i)^disp\b[ \t]*:")
 SIG = re.compile(r"(?i)^sig\b[ \t]*:")
 SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 
-# The drug name is the leading token of the drug row and nothing cleverer.
-# ``ceftriaxone 1 g IV q24h`` gives ``ceftriaxone``; ``magnesium sulfate 4 g``
-# gives ``magnesium``, which still matches a claim naming the salt. **It errs
-# toward matching**, so what it costs is a missed finding rather than a
-# refused correct record -- the direction #215's three false alarms say to
-# take. A first token that is not a word is no drug at all, which is
-# ``UNREADABLE_DRUG_ROW`` rather than a guess.
-#
-# **The cost it names is a missed drug and not only a missed match**, and the
-# module docstring says which: a row welding two orders together is one drug
-# here, so the second one's dose is graded by no command in this repo. #300 ruled
-# it a reading on 2026-08-20 -- ``skills/practicum-case-study/SKILL.md`` step 9's
-# ``the Rx blocks`` row asks a reader for it -- and this parser is untouched by
-# that, which is the point of taking the option that needed no parser change.
+# #215's false-alarm direction governs this intentionally small parser; #300
+# keeps the broader medication-identity judgment with the
+# ``practicum-case-study`` step-9 reader.
 DRUG_NAME = re.compile(r"[A-Za-z][A-Za-z'-]*")
 
 # What a drug row may declare about itself. **The exemption is declared and
@@ -762,11 +298,7 @@ EXEMPT_DECLARATIONS = (CONTINUED_HOME,)
 
 
 def normalize(text: str) -> str:
-    """Lowercase alphanumerics only, single-spaced.
-
-    Used for equality and never for similarity -- anything looser would be a guess
-    about paraphrase, and paraphrase is exactly what the restatement is for.
-    """
+    """Lowercase alphanumerics for the #214 equality check."""
     return " ".join(NOT_ALNUM.sub(" ", text.lower()).split())
 
 
@@ -821,14 +353,9 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     normalized equality against ``_CLASS_KEYS``, which is also where the corpus's
     only hyphen *inside* a vocabulary word lives: ``peer-reviewed``.
 
-    **This adopted the sibling's rule rather than sharing its code.**
-    ``checks_ledger.py`` ruled the boundary first and keeps its own **copy**, which
-    the two modules' docstrings both argue for. **Whether the two agree today is
-    deliberately not asserted anywhere** -- a claim of present identity is
-    [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) the
-    moment either module moves, and pinning it in a test would forbid the very
-    divergence the copy exists to permit. ``console_codec.py`` is this directory's
-    only module that exists to be depended on.
+    **This adopted the sibling's rule rather than sharing its code.** The copy is
+    intentional because the two record vocabularies may diverge; #143 records why
+    prose must not claim a current identity between them.
     """
     stripped = value.strip()
     lowered = stripped.lower()
@@ -887,10 +414,8 @@ class Record:
 class Prescription:
     """One drug row of one prescription table in the draft.
 
-    ``drug`` is empty where the row could not be read, which is a finding
-    rather than a table quietly dropped. ``order`` is the row with its
-    declaration stripped, so the dose test reads what was prescribed and not
-    a digit inside the words ``Continued home medication``.
+    ``drug`` uses an empty sentinel for ``UNREADABLE_DRUG_ROW``. ``order`` has
+    its declaration stripped before the numeric branch runs.
     """
 
     drug: str
@@ -903,13 +428,7 @@ class Prescription:
 
     @property
     def states_a_dose(self) -> bool:
-        """Whether the run chose a number here.
-
-        ``prenatal vitamin one tablet PO daily`` spells its number out and is
-        not asked for a quantified claim, which is
-        ``NUMERIC_CLAIM_UNQUANTIFIED``'s *a claim with no number is not asked
-        for one* arriving one artifact over.
-        """
+        """Whether the authored order carries a digit for #289's branch."""
         return bool(DIGIT.search(self.order))
 
 
@@ -923,11 +442,7 @@ class Finding(run_grader.Finding):
 
 @dataclass(frozen=True)
 class Scan:
-    """Counts over one ledger, plus the findings ``--show`` prints.
-
-    ``as_of`` is ``None`` where the ledger carried no ``DATE:`` header. Nine of the
-    ten rows still grade; the window does not, and the report says so.
-    """
+    """Counts over one ledger, plus the findings ``--show`` prints."""
 
     as_of: date | None
     records: int
@@ -937,45 +452,26 @@ class Scan:
     by_class: tuple[tuple[str, int], ...]
     outside_vocabulary: int
     standing_past_five: int
-    # Counted rather than graded, because ``paywalled`` passes. A run whose
-    # citations are all behind a wall has been checked much less than a clean
-    # exit suggests, and this line is the only place that shows.
+    # #231's visible paywall population.
     behind_a_paywall: int
     counts: tuple[tuple[str, int], ...]
     failing_records: int
-    # ``None`` where no ``--draft`` was given, which is the whole reason it is
-    # not an ``int`` starting at zero: #289's rows did not run, and a
-    # zero beside a row that never ran reads exactly like a row that passed.
-    # ``format_report`` prints *not graded* off this, on #258's ruling.
+    # ``None`` is #258's sentinel for the omitted #289 group.
     prescriptions: int | None
     continued_home: int
-    # Table runs carrying one anchor and not the other -- a partial read,
-    # counted and reported and outside the exit status. See
-    # ``half_anchored_tables``.
+    # The #204 partial-read census from ``half_anchored_tables``.
     half_anchored: int
     prescriptions_at_fault: int
-    # ``None`` where no ``--evidence`` was given, for the reason
-    # ``prescriptions`` is not an ``int``: a zero beside a row that never ran
-    # is indistinguishable from a row that passed, which is #258's ruling.
+    # ``None`` is #258's sentinel for the omitted #298 group.
     evidence_topics: int | None
-    # What the row **read**, where ``evidence_topics`` is what it read
-    # *against*. #258 one level down: a ledger citing no UpToDate topic at all
-    # reported a clean row, which is indistinguishable from one whose every
-    # citation checked out. Found by pointing the command at the real ledger.
+    # The #298 joined-citation population beside the carried-topic population.
     uptodate_citations: int | None
     evidence_at_fault: int
     findings: tuple[Finding, ...]
 
 
-# A topic body is present when its masthead is. **#298 decision 2 proposed
-# reading a title as a *heading* and that is not implementable against the
-# artifact it describes** -- the rendered dump carries no headings of any kind,
-# only prose, bullets and short all-caps section labels. The masthead is what
-# marks a body, and the title is the line above it. Measured before it was
-# believed: nearly every body the real dump carries joins a ``See "..."``
-# cross-reference exactly under this rule. **The count is #298's to state and is
-# deliberately nowhere in this tree** -- it is measured against a file under
-# ``scratch/``, so nothing here re-derives it and the next paste moves it.
+# #298 decision 3's artifact marker, chosen after the heading heuristic was
+# rejected against the rendered dump's prose-and-section-label shape.
 TOPIC_MASTHEAD = re.compile(r"(?i)^[ \t]*authors?[ \t]*:")
 
 # The title element of [apa7.md](skills/practicum-case-study/reference/apa7.md)
@@ -1008,13 +504,7 @@ DRAFT_LIST = "the draft's reference list"
 
 
 def carried_topics(text: str) -> set[str]:
-    """Every topic whose **body** the dump carries.
-
-    A cross-reference is not a body and that distinction is the whole row: the
-    real dump refers to more than an order of magnitude more topics than it
-    carries, so reading a reference as a body would report a clean join over a
-    dump carrying almost nothing. The two figures are #298's to state.
-    """
+    """Parse #298's carried-topic population."""
     lines = text.splitlines()
     carried: set[str] = set()
     for index, line in enumerate(lines):
@@ -1032,15 +522,7 @@ def carried_topics(text: str) -> set[str]:
 
 
 def uptodate_topic(entry: str) -> str:
-    """The topic an UpToDate reference entry names, or ``""`` if it is not one.
-
-    **Scoped to UpToDate, and that scope is the grounding rather than a
-    narrowing.** #231 ruled the database subscription-gated -- a fetch reaches a
-    login wall -- so a topic the dump does not carry is one nobody could have
-    opened. A journal article the dump lacks is
-    ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case, and a row
-    firing on one would be #215's defect again.
-    """
+    """Read the topic element from #231's UpToDate reference form."""
     match = UPTODATE_TITLE.search(entry)
     return " ".join(match.group("title").split()) if match else ""
 
@@ -1178,8 +660,8 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
     window that is **every** row in the module measured against a date, and the two
     signatures are where a reader sees it.
 
-    Nothing here fetches anything. What the rows buy is a commitment to specifics a
-    reader can be caught on in one click, which an APA entry alone is not.
+    These rows require the recorded specifics that make the separate source read
+    checkable in one click; #231 records the declined resolver design.
     """
     claim = record.claim
     found: list[Finding] = []
@@ -1223,10 +705,8 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
                     Finding(PAGE_YEAR_DISAGREES, claim, f"{page_year} on the page, {entry} in REFERENCE")
                 )
 
-    # #231's second half, and the only row here that is verification rather than a
-    # better-shaped promise. **That the refuter was a different agent is not
-    # reachable from the record** -- ``skills/practicum-case-study/SKILL.md`` step 3
-    # states it, this grades the shape.
+    # #231's second half grades the refutation record shape; the skill owns the
+    # second-agent workflow.
     refutation = record.value("REFUTATION")
     if SUBSTANCE.search(refutation):
         verdict, reason = keyword_of(refutation, REFUTATION_VALUES)
@@ -1338,10 +818,7 @@ def _declaration_of(order: str) -> tuple[str, str]:
 
 
 def _drug_of(order: str) -> str:
-    """The leading token of a drug row, or ``""`` where it is not a word.
-
-    Deliberately the first token and nothing cleverer -- see ``DRUG_NAME``.
-    """
+    """Parse the medication identifier with ``DRUG_NAME``."""
     tokens = order.split()
     if not tokens:
         return ""
@@ -1376,35 +853,14 @@ def read_prescriptions(text: str) -> list[Prescription]:
     ``Disp:``. Any other table in the document -- the differential, the MDM, the
     faculty's questions -- carries neither and is not read.
 
-    **A table carrying the pair with nothing readable above ``Disp:`` comes back
-    with an empty ``drug``** rather than being dropped, so a table this parser
-    cannot read is a finding instead of a silent subtraction from the set.
+    A pair with no readable row above ``Disp:`` yields the empty sentinel consumed
+    by ``UNREADABLE_DRUG_ROW``.
     """
     return [rx for rows in _table_runs(text) for rx in _prescriptions_in(rows)]
 
 
 def half_anchored_tables(text: str) -> int:
-    """Table runs carrying one of the two anchors and not the other.
-
-    **A partial read is what this exists to make visible**, and total absence is
-    not the only way to get one. A draft whose Rx tables are mixed -- one
-    canonical, one writing ``Dispense:``, which the word boundary in ``DISP``
-    rightly refuses -- yields a smaller set, and all three rows then grade a
-    subset while the report prints the shrunken count with nothing beside it.
-    ``main``'s exit-2 limb covers *no* prescription table and never a short one,
-    which is
-    [#204](https://github.com/mshamblin5150-code/clinical-skills/issues/204)'s
-    complaint -- a parser reading one declaration of eight and printing nothing
-    to say so -- arriving in a second tool. Found by the tracker sweep on #289's
-    own branch.
-
-    **Counted and reported, and deliberately outside the exit status**, which is
-    ``block_scan.py``'s arrangement for a reading rather than a violation: a
-    table carrying one anchor is *probably* a malformed prescription and this
-    cannot know it is one, and #204's own question -- whether a short read may
-    refuse -- is unruled. What the run gets is the number, on the same page as
-    its exit.
-    """
+    """Count one-anchor table runs for #204's partial-read census."""
     return sum(
         1
         for rows in _table_runs(text)
@@ -1444,20 +900,12 @@ def _records_naming(drug: str, records: list[Record]) -> list[Record]:
 def prescription_findings(
     prescriptions: list[Prescription], records: list[Record]
 ) -> list[Finding]:
-    """#289's rows: the draft's prescriptions against the ledger.
+    """Apply #289's draft-derived prescription joins.
 
-    One of the two graders here that read anything but the ledger -- #298's
-    ``evidence_findings`` is the other -- and **the only one with an expected
-    set** -- which is the gap the ticket is about.
-    ``research_ledger`` has no expected count of its own and says so, so a dose
-    nobody entered as a claim is invisible to every other row in this module.
-    ``checks_ledger.py``'s arrangement, with the set derived from the document
-    the run wrote rather than from a table in here.
-
-    **It never compares the numbers**, which is the ticket's own closing
-    prohibition: a dose depends on indication, weight, renal function, pregnancy
-    and route, and a row refusing a correct dose for the wrong reason is #215's
-    defect a fourth time. What is reachable is whether the dose was *sourced*.
+    The set comes from the authored document on ``checks_ledger.py``'s expected-set
+    precedent. Clinical dose judgment remains with the ``practicum-case-study``
+    step-9 reader because it depends on indication, weight, renal function,
+    pregnancy, and route.
     """
     found: list[Finding] = []
     for rx in prescriptions:
@@ -1498,26 +946,11 @@ def evidence_findings(
     entries: tuple[str, ...],
     carried: set[str],
 ) -> tuple[list[Finding], int]:
-    """#298's row: an UpToDate topic the run cites that the dump does not carry.
+    """Apply #298's citation-to-carried-topic join.
 
-    **The topics the dump merely refers to and does not carry are not graded**,
-    and that is the ruling rather than an omission. The overwhelming majority of
-    the real dump's cross-references are exactly that, which is the ordinary case
-    the ticket's own *What must not come out of this* forbids firing on, and their
-    reference counts decay smoothly with no plateau -- so any cut is a value named
-    at an edge, which is ``SPACE_ADVANCE_FRACTION``'s recorded failure and #97's
-    objection. **The figures are #298's to state**, being counted against a file
-    under ``scratch/`` that nothing committed re-derives. What is graded is the
-    **join**: the dump is the whole of what the clinician handed over, so an
-    UpToDate topic cited and absent from it is one nobody read.
-
-    **No escape hatch, ruled 2026-08-20.** If an UpToDate topic is worth citing
-    it goes in the dump, and the remedy is one paste.
-
-    Reads the ledger's ``REFERENCE`` fields and the draft's entries where
-    ``--draft`` named one. **One finding per topic and not per citation** -- the
-    row is about a topic nobody read, so two records naming the same missing one
-    is one thing wrong.
+    The clinician supplies complete topic bodies, so a cited UpToDate topic joins
+    against that authored set. Findings de-duplicate by topic because two
+    citations name one missing artifact.
     """
     keys = {normalize(title) for title in carried}
     found: list[Finding] = []
@@ -1529,12 +962,8 @@ def evidence_findings(
         title = uptodate_topic(entry)
         key = normalize(title)
         if not key:
-            # An entry this cannot read but whose locator says it was meant to be
-            # an UpToDate topic. It is counted and reported rather than dropped:
-            # dropping it took the topic out of the join **and** out of the
-            # population row, so four characters removed from an entry walked
-            # around a row that has no escape hatch, with nothing red anywhere --
-            # ``reference_scan`` does not reach it either.
+            # Preserve an unreadable UpToDate-shaped entry in the population and
+            # report it on ``UNREADABLE_DRUG_ROW``'s fail-visible precedent.
             if UPTODATE_LOCATOR.search(entry):
                 read += 1
                 found.append(

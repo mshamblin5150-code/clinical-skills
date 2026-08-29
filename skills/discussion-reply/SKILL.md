@@ -123,14 +123,17 @@ REFUTATION: stands | refuted | paywalled - <reason>
 
 For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. Within two
 years is the target, within five is ordinarily expected, and an older source may stand only when
-nothing newer exists and the record says what was searched. No tool here touches the network; the
-research and refutation agents open the sources.
+nothing newer exists and the record says what was searched. The research and refutation agents
+open the sources.
 
 After all records and refutations are gathered, a fresh non-authoring context runs:
 
 ```bash
 python tools/research_ledger.py scratch/runs/<run-key>/claims.md
 ```
+
+The grader's coverage boundaries are inventoried in
+`research_ledger.DECLARED_LIMITS`; this skill points there without copying its rows.
 
 Its exit must be 0 before a sourced claim is drafted. The record vocabulary, recency rules, and
 all failure rows are also written in
