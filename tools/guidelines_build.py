@@ -161,6 +161,9 @@ def recs_identity(source: Path) -> dict[str, object]:
     return {
         "kind": "recs",
         "schema": ARTIFACT_SCHEMA_VERSION,
+        # Sweep records preserve absolute source paths for strict consumers,
+        # so corpus location is part of their byte-level identity.
+        "source_root": str(source.resolve()),
         "source_files": source_files,
         "producer_files": _code_inputs(*artifact_provenance.CACHE_IDENTITY["recs"]),
         "runtime": {

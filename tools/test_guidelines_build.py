@@ -241,6 +241,7 @@ class KeyingRecommendationSweeps(BuildCommandCase):
         identity = guidelines_build.recs_identity(self.source)
 
         self.assertEqual(identity["kind"], "recs")
+        self.assertEqual(identity["source_root"], str(self.source.resolve()))
         self.assertEqual([row["path"] for row in identity["source_files"]], ["one.pdf"])
         self.assertEqual(
             {row["path"] for row in identity["producer_files"]},
@@ -248,6 +249,18 @@ class KeyingRecommendationSweeps(BuildCommandCase):
         )
         self.assertEqual(
             identity["curated_table"]["path"], "reference/guidelines-uspstf.md"
+        )
+
+    def test_identical_corpora_at_different_roots_have_different_identities(self):
+        other_source = self.root / "other-guidelines-src"
+        other_source.mkdir()
+        (other_source / "one.pdf").write_bytes(self.pdf.read_bytes())
+
+        self.assertNotEqual(
+            guidelines_build.identity_key(guidelines_build.recs_identity(self.source)),
+            guidelines_build.identity_key(
+                guidelines_build.recs_identity(other_source)
+            ),
         )
 
     def test_a_curated_table_change_during_the_sweep_refuses_the_build(self):
