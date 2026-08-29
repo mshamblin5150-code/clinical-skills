@@ -3047,41 +3047,69 @@ class TheDeclinedCadenceRowFiresOnCorrectCitations(unittest.TestCase):
     """Why #534 refuses a per-publisher annual-cadence row.
 
     The declined row is implemented here rather than described: a C.F.R.
-    citation whose edition year is behind the current annual edition is called
-    stale. The cited sections below are correct across the two editions, so
-    every finding is a false alarm about the section's content.
+    citation whose codification year is behind a later annual codification is
+    called stale. The cited sections below are correct in both codifications,
+    so every finding is a false alarm about the section's content.
 
     These citations are written in this test and measured against no corpus.
     The result is therefore a floor on the false-alarm shape and never a rate.
     A finished claim ledger lives under ``scratch/`` and cannot be a fixture.
+
+    This is the historical comparison #534 fixed on 2026-08-27: the official
+    2024 and 2025 annual Title 42 codifications, not a claim about which annual
+    codification is current whenever the suite happens to run.
     """
 
-    CURRENT_ANNUAL_EDITION = 2026
-    CFR_EDITION = re.compile(
-        r"\b\d+\s+C\.F\.R\.\s+§+\s+[\d.]+\s+\((?P<edition>\d{4})\)"
+    CFR_CODIFICATION_YEAR_PATTERN = re.compile(
+        r"\b\d+\s+C\.F\.R\.\s+§+\s+[\d.]+\s+"
+        r"\((?P<codification_year>\d{4})\)"
     )
-    CORRECT_ACROSS_EDITIONS = (
-        "42 C.F.R. § 410.20 (2025)",
-        "42 C.F.R. § 482.13 (2025)",
-        "42 C.F.R. § 483.10 (2025)",
+    CORRECT_ACROSS_CODIFICATIONS = (
+        (
+            "Physicians' services, 42 C.F.R. § 410.20 (2024).",
+            "Physicians' services, 42 C.F.R. § 410.20 (2025).",
+        ),
+        (
+            "Condition of participation: Patient's rights, "
+            "42 C.F.R. § 482.13 (2024).",
+            "Condition of participation: Patient's rights, "
+            "42 C.F.R. § 482.13 (2025).",
+        ),
+        (
+            "Resident rights, 42 C.F.R. § 483.10 (2024).",
+            "Resident rights, 42 C.F.R. § 483.10 (2025).",
+        ),
     )
 
     @classmethod
-    def declined_cadence_row(cls, reference: str) -> bool:
-        match = cls.CFR_EDITION.search(reference)
+    def declined_cadence_row(
+        cls, reference: str, later_annual_reference: str
+    ) -> bool:
+        match = cls.CFR_CODIFICATION_YEAR_PATTERN.search(reference)
+        later_match = cls.CFR_CODIFICATION_YEAR_PATTERN.search(
+            later_annual_reference
+        )
         return bool(
             match
-            and int(match.group("edition")) < cls.CURRENT_ANNUAL_EDITION
+            and later_match
+            and int(match.group("codification_year"))
+            < int(later_match.group("codification_year"))
         )
 
-    def test_the_instrument_distinguishes_the_current_edition(self):
-        self.assertFalse(self.declined_cadence_row("42 C.F.R. § 482.13 (2026)"))
+    def test_the_instrument_distinguishes_the_later_codification(self):
+        later_reference = (
+            "Condition of participation: Patient's rights, "
+            "42 C.F.R. § 482.13 (2025)."
+        )
+        self.assertFalse(
+            self.declined_cadence_row(later_reference, later_reference)
+        )
 
     def test_the_cadence_row_fires_on_every_correct_citation(self):
-        for reference in self.CORRECT_ACROSS_EDITIONS:
+        for reference, later_reference in self.CORRECT_ACROSS_CODIFICATIONS:
             with self.subTest(reference=reference):
                 self.assertTrue(
-                    self.declined_cadence_row(reference),
+                    self.declined_cadence_row(reference, later_reference),
                     "the declined cadence row no longer fires on this correct "
                     "citation, so #534's ruling needs re-deriving",
                 )
