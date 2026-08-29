@@ -592,6 +592,9 @@ Before writing `paywalled`, try the clinician's authenticated Chrome route throu
 independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the mechanical
 boundary. A source is `paywalled` only when its body remains inaccessible through that
 **Authenticated route**; an anonymous or in-app login wall does not establish the disposition.
+Where the profile says the **Authenticated route** is available, the researcher must try it before
+giving up on the intended source, settling for a reachable substitute, or writing
+`STATUS: unsourced` because the body was inaccessible.
 
 It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
 record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to

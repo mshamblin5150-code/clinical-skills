@@ -187,6 +187,9 @@ Chrome route through `mcp__claude-in-chrome__*`, not the separate in-app Browser
 independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS`. A source is
 `paywalled` only when its body remains inaccessible through that **Authenticated route**; an
 anonymous or in-app login wall does not establish the disposition.
+When the account profile records that the **Authenticated route** is available, the research
+context must try it before giving up on a preferred source, settling for a reachable substitute,
+or writing `STATUS: unsourced` because an access wall stopped the search.
 
 A source already verified elsewhere in this board's ledger may discharge a second page-level
 read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `REFUTATION`; only

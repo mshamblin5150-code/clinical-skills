@@ -200,6 +200,16 @@ class DeclaredLimitsHaveDurableNames(unittest.TestCase):
     def test_the_object_is_live(self):
         self.assertTrue(ledger.DECLARED_LIMITS)
 
+    def test_authenticated_research_route_limit_names_both_unobservable_steps(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        row = limits["research-authenticated-route-unverified"]
+        self.assertEqual(
+            row.limit,
+            "Nothing can see whether the browser was opened, and nothing can see "
+            "whether the profile's answer was consulted.",
+        )
+        self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+
     def test_declared_limits_do_not_print(self):
         report = ledger.format_report(
             ledger.survey(ledger.read_records(CLEAN), AS_OF), "claims.md"
@@ -220,12 +230,46 @@ def module_prose_without_inventory() -> str:
 
 
 def ledger_publishing_skills(read_text=None) -> tuple[Path, ...]:
-    """Derive the skills that publish claim-ledger records from their marker."""
+    """Derive publishing skills from their literal ledger-template marker.
+
+    This predicate can see only the literal ``## CLAIM:`` spelling: a skill that
+    publishes a ledger through another template spelling is outside its ceiling.
+    """
     reader = read_text or (lambda path: path.read_text(encoding="utf-8"))
     return tuple(
         path
         for path in sorted((REPO_ROOT / "skills").glob("*/SKILL.md"))
         if "## CLAIM:" in reader(path)
+    )
+
+
+def authenticated_research_route_blocks(path: Path, read_text=None) -> tuple[str, ...]:
+    """Normalized prose blocks carrying the research-side route obligation.
+
+    This recognizes only one blank-line-delimited block carrying the literal
+    concept vocabulary below. A paraphrase outside those regex forms is beyond
+    its ceiling and is not evidence that the obligation is absent.
+    """
+
+    required = (
+        r"\bprofile\b",
+        r"\bavailable\b",
+        r"\bresearch(?:er| agent| context)\b",
+        r"\bauthenticated route\b",
+        r"\bmust\b",
+        r"\bbefore\b.*\bgiv(?:e|ing) up\b",
+        r"\bsubstitut(?:e|ion)\b",
+        r"\bstatus\s*:\s*unsourced\b",
+    )
+    reader = read_text or (lambda source: source.read_text(encoding="utf-8"))
+    blocks = (
+        normalized_prose(block)
+        for block in re.split(r"\n\s*\n", reader(path))
+    )
+    return tuple(
+        block
+        for block in blocks
+        if all(re.search(pattern, block, re.IGNORECASE) for pattern in required)
     )
 
 
@@ -301,6 +345,29 @@ class EveryLedgerPublishingSkillCarriesTheRecordContract(unittest.TestCase):
         mutated = ledger_publishing_skills(without_target_marker)
         self.assertNotIn(target, mutated)
         self.assertEqual(set(mutated), set(baseline) - {target})
+
+
+class EveryLedgerPublishingSkillCarriesTheAuthenticatedResearchRoute(unittest.TestCase):
+    """ADR 0055 rulings 2, 5, and 6, over the derived skill population."""
+
+    def test_each_research_brief_carries_the_conditional_route_obligation(self):
+        for path in ledger_publishing_skills():
+            with self.subTest(skill=path.parent.name):
+                self.assertTrue(authenticated_research_route_blocks(path), path)
+
+    def test_removing_one_required_concept_makes_a_real_skill_unrecognized(self):
+        target = ledger_publishing_skills()[0]
+
+        def without_giving_up(path: Path) -> str:
+            prose = path.read_text(encoding="utf-8")
+            if path == target:
+                prose = re.sub(r"\bgiv(?:e|ing) up\b", "stopping", prose, count=1)
+            return prose
+
+        self.assertTrue(authenticated_research_route_blocks(target))
+        self.assertFalse(
+            authenticated_research_route_blocks(target, without_giving_up)
+        )
 
 
 class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
