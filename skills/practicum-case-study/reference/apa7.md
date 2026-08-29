@@ -57,7 +57,7 @@ differential is very important, but that shouldn't take the place of tidiness.*
 [style.md](style.md) §10 described the corpus as roughly alphabetical, which was an accurate
 description of ten submitted documents and was never a statement of the standard. Sorted is sorted.
 
-## 2. UpToDate — nine in ten of the corpus's references
+## 2. UpToDate reference form
 
 APA publishes a reference example for this database specifically, which is worth knowing before
 inventing a form for it. *Publication Manual* §10.1.
