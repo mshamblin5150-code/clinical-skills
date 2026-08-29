@@ -112,14 +112,16 @@ python tools/guidelines_recs.py \
 python tools/threshold_sheet.py reference/thresholds/hypertension.md \
     --recs aha-2025=C:/codeing/guidelines-index/recs-aha-2025.json
 
-# `--recs` is repeatable, once per source. Give it twice for a sheet citing two
-# societies, or leave it off and let `--recs-root` resolve `recs-<source key>.json`
-# for every one of them -- which the command above does too since #177, so a sheet
-# grades the same whichever way it is reached.
+# `--recs` is repeatable, once per source, and overrides both automatic roots.
+# Without it, the published sweep alias resolves `<doc_id>.json` first and
+# `--recs-root` fills a gap with exact `recs-<source key>.json` lookup. Override the
+# alias with `--recs-alias` or CLINICAL_GUIDELINES_RECS_ALIAS. Every run reports
+# which root answered each source and why the alias fell back.
 #
-# `--all` resolves from `--recs-root` and takes no `--recs`: a source key is
-# sheet-local, so which sheet's source a record answers for is unknowable across a
-# directory. A sheet where ANY source has no record exits 2, never 0.
+# `--all` uses both automatic roots and takes no `--recs`: a source key is
+# sheet-local, so which sheet's source an explicit record answers for is unknowable
+# across a directory. A missing automatic record reports COVERAGE NOT RUN and does
+# not refuse by itself.
 python tools/threshold_sheet.py --all
 ```
 
@@ -506,9 +508,10 @@ not left to be discovered:
   is right. A mis-keyed row hides a real conflict by making two rows look like
   different patients.
 - **On a machine without the recommendation records, COVERAGE skips loudly and the
-  hook does not refuse the edit.** `--all` resolves `recs-<source key>.json` under
-  `--recs-root`, which defaults outside the repo and is **not committed**, because it
-  holds the society's recommendation text in full. When a record was never built,
+  hook does not refuse the edit.** `--all` resolves `<doc_id>.json` from the published
+  sweep alias first, then `recs-<source key>.json` under `--recs-root`. Both default
+  outside the repo and are **not committed**, because they hold the society's
+  recommendation text in full. When a record was never built,
   `grade` prints `COVERAGE NOT RUN` even through `--quiet`, calls the result a warning
   rather than a clean COVERAGE pass, and exits 0 unless another gate refuses. An
   explicit `--recs` path that does not resolve or a record that exists but is unreadable

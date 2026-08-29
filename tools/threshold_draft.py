@@ -23,7 +23,9 @@ import guidelines_extract
 from console_codec import use_utf8
 from guidelines_recs import (
     RECS_PREFIX,
+    RecommendationRecordLocation,
     UntrustedRecommendationRecord,
+    locate_recommendation_record,
     load_recommendation_record,
     peek_recommendation_source,
     record_built_from_another_document,
@@ -33,11 +35,13 @@ from threshold_sheet import (
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
     DEFAULT_PDF_ROOT,
+    DEFAULT_RECS_ALIAS,
     DEFAULT_RECS_ROOT,
     ExtractionIdentity,
     POPULATIONS_HEADING,
     QUANTITIES_HEADING,
     ROW_COLUMNS,
+    RECS_ALIAS_ENV,
     SCHEMA_MARKER,
     Sheet,
     SCOPE_HEADING,
@@ -75,6 +79,7 @@ class Source:
     url: str
     mode: str
     record: dict
+    record_location: RecommendationRecordLocation
 
 
 @dataclass(frozen=True)
@@ -172,6 +177,7 @@ def resolve_sources(
     catalog_path: Path,
     recs_root: Path,
     seeded_sheet: Sheet | None,
+    recs_alias: Path | None = None,
 ) -> tuple[list[Source], list[str], list[str]]:
     catalog_rows, _, problems = guidelines_catalog.parse_catalog(
         catalog_path.read_text(encoding="utf-8")
@@ -208,21 +214,31 @@ def resolve_sources(
             None,
         )
         key = seeded[0] if seeded else source_keys[row]
-        record_path = _record_path(recs_root, key)
-        if not record_path.is_file():
-            errors.append(f"{row.society}/{row.filename}: no recommendation record at {record_path}")
+        location = locate_recommendation_record(
+            document=document,
+            key=key,
+            recs_alias=recs_alias,
+            recs_root=recs_root,
+            corpus_documents={_document(item) for item in catalog_rows},
+        )
+        record_path = location.path
+        if record_path is None or not record_path.is_file():
+            errors.append(f"{row.society}/{row.filename}: {location.description}")
             errors.extend(_record_hint_errors(recs_root, key, row.filename))
             continue
         try:
             record = _load_record(record_path)
         except (OSError, ValueError, json.JSONDecodeError) as error:
-            errors.append(f"{row.society}/{row.filename}: {error}")
+            errors.append(
+                f"{row.society}/{row.filename}: {location.description}: {error}"
+            )
             errors.extend(_record_hint_errors(recs_root, key, row.filename))
             continue
         built_from = record_built_from_another_document(record, row.filename)
         if built_from:
             errors.append(
-                f"{row.society}/{row.filename}: recommendation record {record_path} "
+                f"{row.society}/{row.filename}: {location.description}: "
+                f"recommendation record {record_path} "
                 f"was built from {built_from}"
             )
             errors.extend(_record_hint_errors(recs_root, key, row.filename))
@@ -231,7 +247,8 @@ def resolve_sources(
         url = metadata.get("url") or _record_locator(record)
         if not url:
             errors.append(
-                f"{row.society}/{row.filename}: recommendation record carries no source locator"
+                f"{row.society}/{row.filename}: {location.description}: "
+                "recommendation record carries no source locator"
             )
             continue
         sources.append(
@@ -244,6 +261,7 @@ def resolve_sources(
                 url=url,
                 mode=str(record.get("mode") or metadata.get("mode", "")),
                 record=record,
+                record_location=location,
             )
         )
     if not candidates:
@@ -384,6 +402,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
     )
+    parser.add_argument(
+        "--recs-alias",
+        type=Path,
+        default=Path(
+            os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)
+        ),
+        help=(
+            "published sweep alias containing <doc_id>.json records; "
+            f"defaults from {RECS_ALIAS_ENV}"
+        ),
+    )
     parser.add_argument("--sheet-root", type=Path, default=DEFAULT_SHEET_ROOT)
     parser.add_argument(
         "--text-root",
@@ -413,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         sources, source_rejections, source_errors = resolve_sources(
-            args.topic, args.catalog, args.recs_root, seeded_sheet
+            args.topic, args.catalog, args.recs_root, seeded_sheet, args.recs_alias
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(error, file=sys.stderr)
@@ -436,6 +465,12 @@ def main(argv: list[str] | None = None) -> int:
         ),
         end="",
     )
+    for source in sources:
+        print(
+            f"RECOMMENDATION RECORD source '{source.key}' -- "
+            f"{source.record_location.description}",
+            file=sys.stderr,
+        )
     if source_errors or row_rejections:
         for reason in source_errors + row_rejections:
             print(f"REJECTED: {reason}", file=sys.stderr)

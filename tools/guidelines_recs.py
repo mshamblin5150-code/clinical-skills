@@ -168,6 +168,106 @@ RECOMMENDATIONS_FOUND = "recommendations-found"
 RECS_PREFIX = "recs-"
 
 
+@dataclass(frozen=True)
+class RecommendationRecordLocation:
+    path: Path | None
+    origin: RecommendationRecordOrigin | None
+    alias_absence: str | None = None
+
+    @property
+    def description(self) -> str:
+        if self.origin is RecommendationRecordOrigin.EXPLICIT_ARGUMENT:
+            return f"--recs override {self.path}"
+        if self.origin is RecommendationRecordOrigin.SWEEP_ALIAS:
+            return f"sweep alias {self.path}"
+        if self.origin is RecommendationRecordOrigin.RECS_ROOT:
+            return f"recs root {self.path}; sweep alias fallback: {self.alias_absence}"
+        missing = (
+            f"no recommendation record at {self.path}"
+            if self.path is not None
+            else "no automatic recommendation-record root"
+        )
+        return f"{missing}; sweep alias fallback: {self.alias_absence}"
+
+
+class RecommendationRecordOrigin(Enum):
+    EXPLICIT_ARGUMENT = "explicit argument"
+    SWEEP_ALIAS = "sweep alias"
+    RECS_ROOT = "recs root"
+
+
+def locate_recommendation_record(
+    *,
+    document: str,
+    key: str,
+    recs_alias: Path | None,
+    recs_root: Path | None,
+    corpus_documents: set[str] | frozenset[str],
+) -> RecommendationRecordLocation:
+    """Resolve one document from the sweep alias, then the exact-name recs root."""
+
+    alias_absence: str
+    if recs_alias is None or not recs_alias.is_dir():
+        alias_absence = f"no sweep alias at {recs_alias}"
+    else:
+        manifest_path = recs_alias / SWEEP_MANIFEST
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            alias_absence = (
+                f"no sweep alias at {recs_alias} (manifest missing or unreadable)"
+            )
+        else:
+            rows = manifest.get("documents") if isinstance(manifest, dict) else None
+            if not isinstance(rows, list):
+                alias_absence = (
+                    f"no sweep alias at {recs_alias} (manifest missing or unreadable)"
+                )
+            else:
+                row = next(
+                    (
+                        item
+                        for item in rows
+                        if isinstance(item, dict)
+                        and str(item.get("doc_id") or "").casefold()
+                        == document.casefold()
+                    ),
+                    None,
+                )
+                if row is not None:
+                    alias_path = recs_alias / f"{document}.json"
+                    if alias_path.is_file():
+                        return RecommendationRecordLocation(
+                            alias_path,
+                            RecommendationRecordOrigin.SWEEP_ALIAS,
+                        )
+                    alias_absence = (
+                        f"sweep alias manifest lists '{document}' but its record is "
+                        f"missing at {alias_path}"
+                    )
+                elif document.casefold() in {
+                    item.casefold() for item in corpus_documents
+                }:
+                    alias_absence = (
+                        f"sweep alias manifest lacks corpus document '{document}'"
+                    )
+                else:
+                    alias_absence = f"'{document}' is not a corpus document"
+
+    recs_path = recs_root / f"{RECS_PREFIX}{key}.json" if recs_root is not None else None
+    if recs_path is not None and recs_path.is_file():
+        return RecommendationRecordLocation(
+            recs_path,
+            RecommendationRecordOrigin.RECS_ROOT,
+            alias_absence,
+        )
+    return RecommendationRecordLocation(
+        recs_path,
+        None,
+        alias_absence,
+    )
+
+
 def source_filename_matches_document(source_filename: str, document: str) -> bool:
     """Whether a source filename and a catalog/sheet document name agree."""
     built_from = Path(source_filename.strip().replace("\\", "/")).name
