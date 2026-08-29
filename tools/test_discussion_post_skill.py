@@ -270,8 +270,12 @@ class VerifiedSourcesComposeAcrossTheBoard(unittest.TestCase):
     def test_reply_reuse_requires_a_new_claim_record_but_not_new_page_resolution(self):
         reply = read(REPLY)
 
-        self.assertRegex(reply, r"inherits `REFERENCE`,\s*`RESOLVED` and `PAGE-YEAR`")
-        self.assertIn("new `RESTATEMENT` and a new `REFUTATION`", reply)
+        self.assertRegex(
+            reply,
+            r"inherits `REFERENCE`,\s*`RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY`",
+        )
+        self.assertIn("new `RESTATEMENT`, `REFUTATION`, and `SECOND-ROUTE`", reply)
+        self.assertIn("`SECOND-ROUTE` belongs to the new refutation and is never inherited", reply)
         self.assertRegex(reply, r"(?is)respent-source.*reply.*reply")
 
 

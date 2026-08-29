@@ -506,15 +506,16 @@ makes a lost answer visible: a heading whose record never arrived has no `STATUS
 refuses a record with no `STATUS`.
 
 **One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
-**five returns** and the recency rule above — a reputable source in one of four classes, a full
+**six returns** and the recency rule above — a reputable source in one of four classes, a full
 APA 7 reference, the claim restated in the source's own terms, **the locator it actually opened with
-the date it opened it, and the year the page itself carries with where the page says so**. Tell it
+the date it opened it, the year the page itself carries with where the page says so, and the
+source's stated expiry or `none stated`**. Tell it
 the source classes by name, because a returned source outside them is a finding rather than an
 answer.
 
 **The last two are not extra bookkeeping**, and a run that treats them as optional writes a ledger
 the grader refuses: they are what turns *"I found a source"* into something the clinician can audit
-in one click. See the two paragraphs under the record shape below, and note that a **sixth** return
+in one click. See the paragraphs under the record shape below, and note that a **seventh** return
 comes from a different agent afterwards.
 
 **They return their record; they do not write it.** One writer to the ledger, and it is the context
@@ -542,6 +543,8 @@ RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
 REFUTATION: stands - the volume, issue and pages match the publisher's landing page, and the
     third-trimester row is on page 1327.
+SECOND-ROUTE: publisher landing page -> journal PDF and table on page 1327
+STATED-EXPIRY: none stated
 ```
 
 `STATUS` is `sourced` or `unsourced`, and an `unsourced` record says on the same line what was
@@ -551,8 +554,18 @@ searched. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` 
 and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
 it rather than against the clock. `RESOLVED` is the URL or DOI the agent actually opened and the
 day it opened it — the word `read` or `retrieved`, then an ISO date. `PAGE-YEAR` is the year the
-page itself states and where on the page it says so. `REFUTATION` is `stands`, `refuted` or `paywalled` with the
-reason after a hyphen. A field's value may wrap onto the next line.
+page itself states and where on the page it says so. `STATED-EXPIRY` is `none stated`, an ISO date
+and where the document states it, or an ISO date followed by `superseded cited deliberately` and a
+reason. Transcribe only what the document states; do not infer an expiry from a publication cadence.
+`42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the edition year is
+provenance, and the annual reissue schedule is not a stated expiry. `REFUTATION` is `stands`,
+`refuted` or `paywalled` with the reason after a hyphen. A field's value may wrap onto the next line.
+
+The grader also refuses a `SECOND-ROUTE` with no ASCII `->` separator.
+It refuses a `SECOND-ROUTE` with an empty half.
+It refuses a `SECOND-ROUTE` whose normalized halves are equal.
+It refuses a `STATED-EXPIRY` outside the three forms.
+It refuses a stated expiry at or before `DATE` without the deliberate-supersession reason.
 
 **Two of those returns are what stops a citation nobody can check, and the third is a second agent.**
 A reference in correct APA form is not evidence that the document exists — an invented one looks
@@ -572,7 +585,12 @@ claim, all at once, into the same ledger by the same one writer. The brief is ad
 a reference and a restatement,* ***try to prove it wrong****.* Not *check whether this is right*,
 because an agent asked that says yes. It looks for the document at the locator, checks the year, the
 volume, the numbering and the pages, and reads whether the source says what the restatement says it
-says.
+says. It also returns `SECOND-ROUTE: <research route> -> <refutation route>`. The ASCII `->`
+separator and both substantive halves are required, and the two normalized halves must differ.
+Before writing `paywalled`, try the clinician's authenticated Chrome route through
+`mcp__claude-in-chrome__*`; the in-app Browser pane is not that signed-in route. Refuter
+independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the mechanical
+boundary.
 
 It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
 record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to

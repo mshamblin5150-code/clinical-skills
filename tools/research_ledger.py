@@ -62,7 +62,9 @@ DECLARED_LIMITS = (
     DeclaredLimit("source-support-unchecked", "The grader cannot determine whether a source supports its recorded restatement.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
-    DeclaredLimit("refutation-independence-unverified", "The record cannot prove a different agent opened the source for refutation.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("refutation-independence-unverified", "SECOND-ROUTE cannot prove that the refuter was a different agent, that it actually took the route it declared, or that it opened anything.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("stated-expiry-transcription-unverified", "The grader cannot prove that a STATED-EXPIRY value was transcribed from the cited document rather than inferred.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("publication-cadence-reader-owned", "STATED-EXPIRY does not carry cadence-derived dates. Re-open the day a tree-wide count returns a SECOND citation on a published reissue cadence, or a SECOND distinct publisher in that bucket; measured 1 and 1 on 2026-08-27 at f9a501c over 22 citations in 4 claim ledgers. This reader-owned trigger cannot fire mechanically.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("read-date-lower-bound-absent", "A source read arbitrarily long before the writing date can still pass.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("keyword-parser-copy-uncompared", "Parity with checks_ledger's intentionally copied keyword parser is not asserted.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("paywall-body-unread", "The passing paywalled disposition verifies no claim against the source body.", EvidenceDisposition.BEHAVIOR),
@@ -94,7 +96,8 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
     r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|RECENCY"
-    r"|RESOLVED|PAGE-YEAR|REFUTATION)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|STATED-EXPIRY)"
+    r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 # The day the paper is written. Recency is measured against it and never against
 # the clock -- a ledger graded twice a year apart has to grade the same both times.
@@ -157,6 +160,20 @@ REFUTATION_REFUTED = "refuted"
 REFUTATION_PAYWALLED = "paywalled"
 REFUTATION_VALUES = (REFUTATION_STANDS, REFUTATION_REFUTED, REFUTATION_PAYWALLED)
 
+# #498's three forms. A date is transcribed from the source, never inferred
+# from a publication cadence. The C.F.R. citation that filed #534 is the known
+# instance where ``none stated`` is the correct answer: its edition year is
+# provenance and the annual reissue schedule is not a stated expiry.
+STATED_EXPIRY_NONE = "none stated"
+STATED_EXPIRY_DATE = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})[ \t]+-[ \t]+(?P<where>.+)$"
+)
+STATED_EXPIRY_ESCAPE = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2}),[ \t]*superseded cited deliberately"
+    r"[ \t]+-[ \t]+(?P<reason>.+)$",
+    re.I,
+)
+
 SOURCED = "sourced"
 UNSOURCED = "unsourced"
 STATUSES = (SOURCED, UNSOURCED)
@@ -194,6 +211,11 @@ UNKNOWN_REFUTATION = "unknown-refutation"
 BARE_REFUTATION = "bare-refutation"
 REFUTED_CITATION = "refuted-citation"
 REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
+UNSPLIT_SECOND_ROUTE = "unsplit-second-route"
+BARE_SECOND_ROUTE = "bare-second-route"
+SECOND_ROUTE_UNCHANGED = "second-route-unchanged"
+UNKNOWN_STATED_EXPIRY = "unknown-stated-expiry"
+STATED_EXPIRY_REACHED = "stated-expiry-reached"
 
 # #289 and #298 add the draft and evidence grading groups. Their optional-run
 # reporting follows #258's distinction between an executed zero and an omitted
@@ -236,6 +258,11 @@ ROWS = {
     BARE_REFUTATION: "#231",
     REFUTED_CITATION: "#231",
     REFUTATION_ECHOES_RESTATEMENT: "#231",
+    UNSPLIT_SECOND_ROUTE: "#500",
+    BARE_SECOND_ROUTE: "#500",
+    SECOND_ROUTE_UNCHANGED: "#500",
+    UNKNOWN_STATED_EXPIRY: "#498",
+    STATED_EXPIRY_REACHED: "#498",
 }
 KINDS = tuple(ROWS)
 
@@ -252,6 +279,8 @@ REQUIRED_WHEN_SOURCED = (
     "RESOLVED",
     "PAGE-YEAR",
     "REFUTATION",
+    "SECOND-ROUTE",
+    "STATED-EXPIRY",
 )
 
 # Every field that is a claim about a source. An ``unsourced`` record says there
@@ -259,7 +288,14 @@ REQUIRED_WHEN_SOURCED = (
 # ``UNSOURCED_WITH_CITATION_FIELD`` was written for -- widened by #231 from the one
 # field to the four, because a locator on a record that found nothing is the same
 # defect and was passing.
-CITATION_FIELDS = ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION")
+CITATION_FIELDS = (
+    "REFERENCE",
+    "RESOLVED",
+    "PAGE-YEAR",
+    "REFUTATION",
+    "SECOND-ROUTE",
+    "STATED-EXPIRY",
+)
 
 # The #289 report group, held once so report ordering and optional-run display
 # share one population.
@@ -365,6 +401,27 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     return "", stripped
 
 
+def stated_expiry_of(value: str) -> tuple[date | None, bool, bool]:
+    """Return the stated date, deliberate-supersession flag, and valid-form flag."""
+    stripped = value.strip()
+    if normalize(stripped) == normalize(STATED_EXPIRY_NONE):
+        return None, False, True
+
+    escaped = STATED_EXPIRY_ESCAPE.fullmatch(stripped)
+    ordinary = STATED_EXPIRY_DATE.fullmatch(stripped)
+    match = escaped or ordinary
+    if not match:
+        return None, False, False
+    try:
+        stated = date.fromisoformat(match.group("date"))
+    except ValueError:
+        return None, False, False
+    detail = match.group("reason" if escaped else "where")
+    if not SUBSTANCE.search(detail):
+        return None, False, False
+    return stated, escaped is not None, True
+
+
 @dataclass(frozen=True)
 class Record:
     """One claim and the fields the fan-out returned for it."""
@@ -454,6 +511,9 @@ class Scan:
     standing_past_five: int
     # #231's visible paywall population.
     behind_a_paywall: int
+    # #498's two always-printed expiry populations.
+    stated_expiries: int
+    superseded_deliberately: int
     counts: tuple[tuple[str, int], ...]
     failing_records: int
     # ``None`` is #258's sentinel for the omitted #289 group.
@@ -656,9 +716,10 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
     re-reads ``RESTATEMENT`` off the record rather than being handed it, so no value
     crosses the boundary.
 
-    One row here reads ``as_of``: ``READ_AFTER_DATE``. With ``_recency_findings``'s
-    window that is **every** row in the module measured against a date, and the two
-    signatures are where a reader sees it.
+    One row here reads ``as_of``: ``READ_AFTER_DATE``. With
+    ``_recency_findings``'s window and ``_stated_expiry_findings`` those are the
+    three rows in the module measured against a date, and the helper signatures
+    are where a reader sees them.
 
     These rows require the recorded specifics that make the separate source read
     checkable in one click; #231 records the declined resolver design.
@@ -726,6 +787,50 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
                 # ``PROPOSED`` honestly. This is a false citation sitting in the
                 # ledger: the run rewrites the record or writes ``unsourced``.
                 found.append(Finding(REFUTED_CITATION, claim, refutation))
+
+    return found
+
+
+def _second_route_findings(record: Record) -> list[Finding]:
+    """#500's three rows over the declared two-half route difference."""
+    claim = record.claim
+    found: list[Finding] = []
+    # The separator is a declared difference between two routes, not a
+    # vocabulary: an honest combined pass has one route, writes it twice, and
+    # fails the normalized equality check. ``partition`` preserves any further
+    # arrows in the second half instead of inventing a third slot.
+    second_route = record.value("SECOND-ROUTE")
+    if SUBSTANCE.search(second_route):
+        first, separator, second = second_route.partition("->")
+        if not separator:
+            found.append(Finding(UNSPLIT_SECOND_ROUTE, claim, second_route))
+        elif not SUBSTANCE.search(first) or not SUBSTANCE.search(second):
+            found.append(Finding(BARE_SECOND_ROUTE, claim, second_route))
+        elif normalize(first) == normalize(second):
+            found.append(Finding(SECOND_ROUTE_UNCHANGED, claim, second_route))
+
+    return found
+
+
+def _stated_expiry_findings(record: Record, as_of: date | None) -> list[Finding]:
+    """#498's grammar and expiry comparison against the ledger header."""
+    claim = record.claim
+    found: list[Finding] = []
+    # The page states a date and where it states it; the grader compares
+    # that transcription with the ledger's DATE header, never with the clock.
+    stated_expiry = record.value("STATED-EXPIRY")
+    if SUBSTANCE.search(stated_expiry):
+        expiry, superseded, recognized = stated_expiry_of(stated_expiry)
+        if not recognized:
+            found.append(Finding(UNKNOWN_STATED_EXPIRY, claim, stated_expiry))
+        elif expiry is not None and not superseded and as_of is not None and expiry <= as_of:
+            found.append(
+                Finding(
+                    STATED_EXPIRY_REACHED,
+                    claim,
+                    f"stated expiry {expiry.isoformat()}, DATE {as_of.isoformat()}",
+                )
+            )
     return found
 
 
@@ -736,7 +841,7 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
     read-date row are skipped and every other row still runs --
     ``differential_scan.py``'s ordering, where a finding outranks an incomplete scan.
 
-    **The rows live in four helpers and the branching lives here**, on
+    **The rows live in helpers and the branching lives here**, on
     ``reference_scan.py``'s arrangement -- the sibling with a comparable row count,
     and the one
     [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242) did not
@@ -772,6 +877,8 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
         found += _contract_findings(record)
         found += _recency_findings(record, as_of)
         found += _citation_findings(record, as_of)
+        found += _second_route_findings(record)
+        found += _stated_expiry_findings(record, as_of)
 
     # Stable, so two findings of one kind keep the order their helper appended them in.
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
@@ -1002,6 +1109,28 @@ def survey(
     sibling prints a run directory's -- the name, never the path.
     """
     graded = [(record, record_findings(record, as_of)) for record in records]
+    sourced_records = [record for record in records if record.status == SOURCED]
+    stated_expiry_unscanned = bool(sourced_records) and not any(
+        "STATED-EXPIRY" in record.fields for record in sourced_records
+    )
+    if stated_expiry_unscanned:
+        # The whole-ledger retired shape is coverage failure, not one repeated
+        # missing-field finding per record. Other findings remain and outrank
+        # the banner at the command seam.
+        graded = [
+            (
+                record,
+                [
+                    finding
+                    for finding in findings
+                    if not (
+                        finding.kind == MISSING_FIELD
+                        and finding.detail == "STATED-EXPIRY"
+                    )
+                ],
+            )
+            for record, findings in graded
+        ]
     # The prescription rows lead, in the findings as well as in the counts:
     # they are their own group rather than one more row of a record, and
     # ``--show`` and the count column have to agree about the order.
@@ -1019,7 +1148,7 @@ def survey(
         + on_the_draft
         + [f for _, per_record in graded for f in per_record]
     )
-    sourced = [r for r in records if r.status == SOURCED]
+    sourced = sourced_records
     return Scan(
         as_of=as_of,
         records=len(records),
@@ -1038,6 +1167,18 @@ def survey(
             1
             for r in sourced
             if keyword_of(r.value("REFUTATION"), REFUTATION_VALUES)[0] == REFUTATION_PAYWALLED
+        ),
+        stated_expiries=sum(
+            1
+            for r in sourced
+            if (parsed := stated_expiry_of(r.value("STATED-EXPIRY")))[2]
+            and parsed[0] is not None
+        ),
+        superseded_deliberately=sum(
+            1
+            for r in sourced
+            if (parsed := stated_expiry_of(r.value("STATED-EXPIRY")))[2]
+            and parsed[1]
         ),
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
         failing_records=sum(1 for _, per_record in graded if per_record),
@@ -1074,6 +1215,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append("")
     lines.append(f"  standing past five years         {scan.standing_past_five}")
     lines.append(f"  citations behind a paywall       {scan.behind_a_paywall}")
+    lines.append(
+        "  stated expiry                     "
+        f"{scan.stated_expiries} of {scan.sourced} sourced records name a date"
+    )
+    lines.append(
+        f"  superseded cited deliberately     {scan.superseded_deliberately}"
+    )
     lines.append("")
     # **The coverage line, and it prints on every run rather than only a short
     # one.** #258's ruling: a reader who has learned to read the qualifier
@@ -1163,6 +1311,7 @@ class Source:
     carried: set[str] | None
     entries: tuple[str, ...]
     evidence_unreadable: bool
+    stated_expiry_unscanned: bool
     draft_name: str | None
     evidence_name: str | None
 
@@ -1217,6 +1366,10 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
+    sourced = tuple(record for record in records if record.status == SOURCED)
+    stated_expiry_unscanned = bool(sourced) and not any(
+        "STATED-EXPIRY" in record.fields for record in sourced
+    )
     return Source(
         path,
         records,
@@ -1226,6 +1379,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         carried,
         entries,
         evidence_unreadable,
+        stated_expiry_unscanned,
         draft_name,
         evidence_name,
     )
@@ -1249,7 +1403,13 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     if source.as_of is None:
         diagnostics.append(
             f"{source.path.name} carries no DATE: <YYYY-MM-DD> header, so neither the"
-            " five-year window nor the read-date check was applied to any record in it."
+            " five-year window, read-date check, nor stated-expiry check was applied"
+            " to any record in it."
+        )
+    if source.stated_expiry_unscanned:
+        diagnostics.append(
+            f"{source.path.name} carries STATED-EXPIRY nowhere, so it predates #498's"
+            " required question. Every other row still ran."
         )
     if source.prescriptions is not None and not source.prescriptions:
         diagnostics.append(
@@ -1278,6 +1438,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     coverage_failed = bool(
         source.as_of is None
         or source.evidence_unreadable
+        or source.stated_expiry_unscanned
         or (source.prescriptions is not None and not source.prescriptions)
     )
     return run_grader.Grade(

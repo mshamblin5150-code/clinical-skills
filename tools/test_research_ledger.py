@@ -64,6 +64,8 @@ RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
 REFUTATION: stands - the volume, issue and pages match the publisher's landing
     page, and the third-trimester row is on page 1327.
+SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
+STATED-EXPIRY: none stated
 """
 
 
@@ -215,6 +217,51 @@ def module_prose_without_inventory() -> str:
     start = source.index("DECLARED_LIMITS =")
     end = source.index("NOT_REACHED =", start)
     return source[:start] + source[end:]
+
+
+def ledger_publishing_skills(read_text=None) -> tuple[Path, ...]:
+    """Derive the skills that publish claim-ledger records from their marker."""
+    reader = read_text or (lambda path: path.read_text(encoding="utf-8"))
+    return tuple(
+        path
+        for path in sorted((REPO_ROOT / "skills").glob("*/SKILL.md"))
+        if "## CLAIM:" in reader(path)
+    )
+
+
+class EveryLedgerPublishingSkillCarriesTheRecordContract(unittest.TestCase):
+    """#498 and #500's one shared, derived-population vocabulary bind."""
+
+    def test_every_publishing_skill_names_every_required_field(self):
+        for path in ledger_publishing_skills():
+            text = path.read_text(encoding="utf-8")
+            for name in ledger.REQUIRED_WHEN_SOURCED:
+                with self.subTest(skill=path.parent.name, field=name):
+                    self.assertIn(f"{name}:", text)
+
+    def test_every_publishing_skill_carries_both_new_field_vocabularies(self):
+        for path in ledger_publishing_skills():
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(skill=path.parent.name):
+                self.assertIn("none stated", text)
+                self.assertIn("superseded cited deliberately", text)
+                self.assertIn("SECOND-ROUTE", text)
+                self.assertIn("->", text)
+
+    def test_the_population_changes_when_a_claim_marker_is_removed(self):
+        baseline = ledger_publishing_skills()
+        self.assertTrue(baseline)
+        target = baseline[0]
+
+        def without_target_marker(path: Path) -> str:
+            text = path.read_text(encoding="utf-8")
+            if path == target:
+                return text.replace("## CLAIM:", "## RESEARCH CLAIM:")
+            return text
+
+        mutated = ledger_publishing_skills(without_target_marker)
+        self.assertNotIn(target, mutated)
+        self.assertEqual(set(mutated), set(baseline) - {target})
 
 
 class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
@@ -879,10 +926,11 @@ class APrefixIsNotAWord(unittest.TestCase):
                 self.assertEqual(kinds(ledger_text(record)), [])
 
 
-class TheDatelessLedgerLosesTheTwoRowsMeasuredAgainstTheDate(unittest.TestCase):
-    """The five-year window, and #231's read-date. Both compare a date to ``DATE``
-    and neither can run without one. **This class was named for one row** and the
-    second arrived with #231, which is a claim in a name going stale."""
+class TheDatelessLedgerLosesTheThreeRowsMeasuredAgainstTheDate(unittest.TestCase):
+    """The five-year window, #231's read date, and #498's stated expiry.
+
+    All three compare a date to ``DATE`` and none can run without one.
+    """
 
     def test_an_old_source_is_not_reported_without_a_date_to_measure_against(self):
         record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
@@ -1171,6 +1219,170 @@ class TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong(unittest.Test
         self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
 
 
+class TheRefutationDeclaresASecondRoute(unittest.TestCase):
+    """#500's two-half declared difference at the public record-finding seam."""
+
+    def test_a_different_second_route_passes(self):
+        self.assertEqual(kinds(ledger_text(CLEAN)), [])
+
+    def test_the_field_is_parsed_and_required(self):
+        record = ledger.read_records(ledger_text(CLEAN))[0]
+        self.assertEqual(
+            record.value("SECOND-ROUTE"),
+            "publisher HTML -> journal PDF rendered at 600 dpi",
+        )
+        self.assertIn("SECOND-ROUTE", ledger.REQUIRED_WHEN_SOURCED)
+        self.assertIn("SECOND-ROUTE", ledger.CITATION_FIELDS)
+
+    def test_an_unsplit_route_is_a_finding(self):
+        record = replace_field(CLEAN, "SECOND-ROUTE", "journal PDF at 600 dpi")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNSPLIT_SECOND_ROUTE])
+
+    def test_either_bare_half_is_a_finding(self):
+        for value in (" -> journal PDF at 600 dpi", "publisher HTML -> "):
+            with self.subTest(value=value):
+                record = replace_field(CLEAN, "SECOND-ROUTE", value)
+                self.assertEqual(kinds(ledger_text(record)), [ledger.BARE_SECOND_ROUTE])
+
+    def test_normalized_equal_halves_are_a_finding(self):
+        record = replace_field(
+            CLEAN,
+            "SECOND-ROUTE",
+            "journal PDF at 600 dpi -> Journal PDF, at 600 DPI",
+        )
+        self.assertEqual(kinds(ledger_text(record)), [ledger.SECOND_ROUTE_UNCHANGED])
+
+    def test_the_three_kinds_are_attributed_to_500(self):
+        for kind in (
+            ledger.UNSPLIT_SECOND_ROUTE,
+            ledger.BARE_SECOND_ROUTE,
+            ledger.SECOND_ROUTE_UNCHANGED,
+        ):
+            with self.subTest(kind=kind):
+                self.assertEqual(ledger.ROWS[kind], "#500")
+
+
+class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
+    """#498's field at the record, report, and command seams."""
+
+    def test_a_future_stated_expiry_passes(self):
+        record = replace_field(
+            CLEAN,
+            "STATED-EXPIRY",
+            "2034-08-01 - termination date on the rule's cover sheet",
+        )
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_none_stated_passes(self):
+        self.assertEqual(kinds(ledger_text(CLEAN)), [])
+
+    def test_a_stated_expiry_at_or_before_the_ledger_date_fires(self):
+        for expiry in ("2026-08-18", "2026-08-19"):
+            with self.subTest(expiry=expiry):
+                record = replace_field(
+                    CLEAN,
+                    "STATED-EXPIRY",
+                    f"{expiry} - termination date on the rule's cover sheet",
+                )
+                self.assertEqual(
+                    kinds(ledger_text(record)),
+                    [ledger.STATED_EXPIRY_REACHED],
+                )
+
+    def test_a_deliberately_superseded_source_carries_a_reason_and_passes(self):
+        record = replace_field(
+            CLEAN,
+            "STATED-EXPIRY",
+            "2024-05-02, superseded cited deliberately - the claim traces policy history",
+        )
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_an_unrecognized_disposition_is_a_finding(self):
+        record = replace_field(CLEAN, "STATED-EXPIRY", "current")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATED_EXPIRY])
+
+    def test_a_dateless_ledger_loses_the_expiry_comparison(self):
+        record = replace_field(
+            CLEAN,
+            "STATED-EXPIRY",
+            "2026-08-18 - termination date on the rule's cover sheet",
+        )
+        self.assertNotIn(
+            ledger.STATED_EXPIRY_REACHED,
+            kinds(ledger_text(record, stamp=""), None),
+        )
+
+    def test_the_report_prints_both_counts_on_every_run(self):
+        dated = replace_field(
+            CLEAN,
+            "STATED-EXPIRY",
+            "2034-08-01 - termination date on the rule's cover sheet",
+        )
+        superseded = replace_field(
+            CLEAN,
+            "STATED-EXPIRY",
+            "2024-05-02, superseded cited deliberately - the claim traces policy history",
+        )
+        scan = ledger.survey(
+            ledger.read_records(ledger_text(CLEAN, dated, superseded)),
+            AS_OF,
+        )
+        report = ledger.format_report(scan, source="claims.md")
+        self.assertIn("stated expiry                     2 of 3 sourced records name a date", report)
+        self.assertIn("superseded cited deliberately     1", report)
+
+    def run_main(self, *records: str) -> tuple[int, str, str]:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "claims.md"
+            path.write_text(ledger_text(*records), encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = ledger.main([str(path)])
+            return status, out.getvalue(), err.getvalue()
+
+    def test_a_ledger_carrying_the_field_nowhere_exits_two(self):
+        legacy = replace_field(CLEAN, "STATED-EXPIRY", None)
+        status, _out, err = self.run_main(legacy)
+        self.assertEqual(status, 2)
+        self.assertIn("STATED-EXPIRY", err)
+
+    def test_one_missing_field_in_a_migrated_ledger_is_a_finding(self):
+        legacy = replace_field(CLEAN, "STATED-EXPIRY", None)
+        status, out, err = self.run_main(CLEAN, legacy)
+        self.assertEqual(status, 1)
+        self.assertIn(ledger.MISSING_FIELD, out)
+        self.assertNotIn("carries STATED-EXPIRY nowhere", err)
+
+    def test_findings_outrank_the_not_scanned_banner(self):
+        legacy = replace_field(CLEAN, "STATED-EXPIRY", None)
+        failing = replace_field(legacy, "SOURCE", "a blog post")
+        status, _out, err = self.run_main(failing)
+        self.assertEqual(status, 1)
+        self.assertIn("STATED-EXPIRY", err)
+
+    def test_the_inventory_declares_the_transcription_limit(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        row = limits["stated-expiry-transcription-unverified"]
+        self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+
+
+class TheQueuedFieldLimitsLandWithTheirFields(unittest.TestCase):
+    def test_second_route_replaces_the_old_single_clause(self):
+        limits = {row.key: row.limit for row in ledger.DECLARED_LIMITS}
+        limit = limits["refutation-independence-unverified"]
+        self.assertIn("different agent", limit)
+        self.assertIn("actually took", limit)
+        self.assertIn("opened anything", limit)
+
+    def test_the_cadence_limit_carries_its_reader_owned_trigger(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        row = limits["publication-cadence-reader-owned"]
+        self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+        self.assertIn("SECOND citation", row.limit)
+        self.assertIn("SECOND distinct publisher", row.limit)
+        self.assertIn("cannot fire mechanically", row.limit)
+
+
 class AnUnsourcedRecordCarriesNoneOfTheCitationFields(unittest.TestCase):
     """``UNSOURCED_WITH_CITATION_FIELD``'s reasoning, widened by #231: a record saying
     it found no source may not carry a locator, a page year or a refutation
@@ -1181,7 +1393,7 @@ class AnUnsourcedRecordCarriesNoneOfTheCitationFields(unittest.TestCase):
         record = replace_field(
             CLEAN, "STATUS", "unsourced - searched PubMed, IDSA and UpToDate, nothing addresses it."
         )
-        for name in ("REFERENCE", "RESOLVED", "PAGE-YEAR", "REFUTATION"):
+        for name in ledger.CITATION_FIELDS:
             record = replace_field(record, name, None)
         return record
 
@@ -1360,6 +1572,13 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
         ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
         ledger.REFUTATION_ECHOES_RESTATEMENT: "a `REFUTATION` that is the restatement pasted back",
+        ledger.UNSPLIT_SECOND_ROUTE: "a `SECOND-ROUTE` with no ASCII `->` separator",
+        ledger.BARE_SECOND_ROUTE: "a `SECOND-ROUTE` with an empty half",
+        ledger.SECOND_ROUTE_UNCHANGED: "a `SECOND-ROUTE` whose normalized halves are equal",
+        ledger.UNKNOWN_STATED_EXPIRY: "a `STATED-EXPIRY` outside the three forms",
+        ledger.STATED_EXPIRY_REACHED: (
+            "a stated expiry at or before `DATE` without the deliberate-supersession reason"
+        ),
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
@@ -1517,6 +1736,18 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
 
     def test_the_recency_helper_holds_every_215_row_and_nothing_else(self):
         self.assertEqual(self._kinds_constructed_in("_recency_findings"), self._rows_for("#215"))
+
+    def test_the_second_route_helper_holds_every_500_row_and_nothing_else(self):
+        self.assertEqual(
+            self._kinds_constructed_in("_second_route_findings"),
+            self._rows_for("#500"),
+        )
+
+    def test_the_stated_expiry_helper_holds_every_498_row_and_nothing_else(self):
+        self.assertEqual(
+            self._kinds_constructed_in("_stated_expiry_findings"),
+            self._rows_for("#498"),
+        )
 
     def test_the_draft_grader_holds_every_289_row_and_nothing_else(self):
         """#289's rows read the draft rather than a record, so they are the one
@@ -2839,6 +3070,8 @@ RECENCY: current - the topic was last updated in 2026.
 RESOLVED: https://www.uptodate.com/contents/some-slug - read 2026-08-19
 PAGE-YEAR: 2026 - stated in the topic's own last-updated line.
 REFUTATION: stands - the title and authors match the topic page.
+SECOND-ROUTE: topic HTML -> publisher references and author list
+STATED-EXPIRY: none stated
 """
 
 

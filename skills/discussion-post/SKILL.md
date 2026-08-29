@@ -162,6 +162,8 @@ RECENCY: current | within five | nothing newer - <reason> | guideline in force -
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled - <reason>
+SECOND-ROUTE: <research route> -> <refutation route>
+STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
 For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. The source
@@ -171,16 +173,24 @@ searched. `guideline in force` applies only when the cited guideline is presentl
 record says why; membership in a catalog does not establish standing.
 
 Fan out one research context per claim. Each returns the source class, full APA 7 reference,
-restatement, opened URL or DOI and read date, and the page's stated year and locator. The
+restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's
+stated expiry or `none stated`. Transcribe only an expiry the document states; do not infer one from
+a publication cadence. `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct:
+the edition year is provenance, and the annual reissue schedule is not a stated expiry. The
 orchestrator alone writes the records. Then send every `sourced` record to a different context
 briefed to disprove the reference, locator, year, bibliographic details, or restatement. It returns
 `stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
-primary sources: a refuter checks whether the cited section says what the draft claims.
+primary sources: a refuter checks whether the cited section says what the draft claims. It also
+returns `SECOND-ROUTE: <research route> -> <refutation route>`; both halves must have substance and
+must differ after normalization. Before `paywalled`, it attempts the clinician's authenticated
+Chrome route through `mcp__claude-in-chrome__*`, not the separate in-app Browser pane. Refuter
+independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS`.
 
 A source already verified elsewhere in this board's ledger may discharge a second page-level
 read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `REFUTATION`; only
-`REFERENCE`, `RESOLVED`, and `PAGE-YEAR` may be inherited because those describe the page already
-opened. A claim is never inherited from another sentence.
+`REFERENCE`, `RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY` may be inherited because those describe
+the page already opened. `SECOND-ROUTE` belongs to the new refutation and is never inherited. A
+claim is never inherited from another sentence.
 
 After every research and refutation result is gathered, a fresh non-authoring context runs:
 
