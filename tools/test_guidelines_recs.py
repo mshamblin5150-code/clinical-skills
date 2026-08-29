@@ -741,6 +741,34 @@ class Precedence(unittest.TestCase):
 
 
 class DeclaredLimitsAndCensus(unittest.TestCase):
+    def test_real_committed_ada_changelog_prefixes_are_recognized(self):
+        fixture = (
+            recs.REPO_ROOT
+            / "fixtures"
+            / "guidelines-recs-labels"
+            / "ada-changelog-prefixes.txt"
+        )
+        labels = fixture.read_text(encoding="utf-8").splitlines()
+        records = [
+            recs.read_marker_recommendations(12, label, "ADA/x")[0]
+            for label in labels
+        ]
+
+        self.assertEqual(recs.changelog_shape_census(records), len(labels))
+
+    def test_a_mutated_real_prefix_outside_the_shape_matches_nothing(self):
+        fixture = (
+            recs.REPO_ROOT
+            / "fixtures"
+            / "guidelines-recs-labels"
+            / "ada-changelog-prefixes.txt"
+        )
+        real = fixture.read_text(encoding="utf-8").splitlines()[0]
+        mutated = real.replace(" was ", " now ", 1)
+        records = recs.read_marker_recommendations(12, mutated, "ADA/x")
+
+        self.assertEqual(recs.changelog_shape_census(records), 0)
+
     def test_the_changelog_census_is_a_shape_floor_not_a_verb_list(self):
         records = recs.read_marker_recommendations(
             12,
@@ -1119,6 +1147,7 @@ class RecommendationRecordOwnership(unittest.TestCase):
         self.assertIn("glued runs", out.getvalue())
         self.assertIn("changelog floor", out.getvalue())
         self.assertIn("spacing-dependent", out.getvalue())
+        self.assertIn("#446", out.getvalue())
         self.assertIn("reports only", out.getvalue())
         self.assertEqual(payload["totals"]["glued_runs"], 0)
         self.assertEqual(payload["totals"]["changelog_shape_floor"], 0)

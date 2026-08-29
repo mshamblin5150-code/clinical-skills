@@ -404,7 +404,7 @@ DECLARED_LIMITS = (
     ),
     DeclaredLimit(
         "changelog-shape-floor",
-        "The changelog census reaches only a leading recommendation reference followed by 'was' and a participle; other editorial shapes remain outside it.",
+        "The changelog census reaches only a leading recommendation reference followed by 'was' and a participle; other editorial shapes remain outside it, and #446's rebuilt-text spacing can move the reported figure.",
         EvidenceDisposition.DECLARED_READING,
     ),
 )
@@ -645,14 +645,18 @@ _WHITESPACE = re.compile(r"\s+")
 # clinical numbers would create the prose-derived record family ADR 0026 forbids.
 FORWARD_LABEL_WINDOW = 160
 
-# Measured 2026-08-29 after #446's repaired reader landed, across all 31 corpus
-# documents carrying 2,055 trailing markers. The first plateau is 880--940; 920
-# is its midpoint. At that cap 1,961 markers (95.426%) reached the nearest
-# candidate sentence boundary, 27 stopped farther back, and 67 had no candidate.
-# The unexcluded probe had one demonstrable false stop in 1,988 candidates
-# (0.050%: ``Liberal Vs. Conservative``). The abbreviation exclusions below
+# Historical measurement, 2026-08-29, after #446's repaired reader landed:
+# walk every PDF under ``C:/codeing/guidelines-src``; rebuild each page with
+# ``rebuilt_page_text``; apply both trailing marker patterns; measure from
+# ``match.end()`` to the nearest preceding ``_SENTENCE_BOUNDARY``; then tally
+# 20-character caps. Across 31 documents and 2,055 markers, the first plateau was
+# 880--940; 920 is its midpoint. At that cap 1,961 markers (95.426%) reached a
+# candidate boundary, 27 stopped farther back, and 67 had no candidate. Inspecting
+# every abbreviation-shaped candidate found one demonstrable false stop among
+# 1,988 candidates (0.050%: ``Liberal Vs. Conservative``). The exclusions below
 # remove it, but that observed zero is a floor, not a claim that every remaining
-# boundary is the recommendation's true beginning.
+# boundary is the recommendation's true beginning. The corpus is outside the repo,
+# so these dated character and record counts are provenance, not current figures.
 BACKWARD_LABEL_WINDOW = 920
 
 _SENTENCE_BOUNDARY = re.compile(r"[.!?]\s+(?=[A-Z])")
@@ -1230,7 +1234,8 @@ def build_sweep(
         print(
             f"  {doc_id}  changelog floor "
             f"{payload.get('totals', {}).get('changelog_shape_floor', 0)} "
-            "(Recommendation <ref> was <participle>; reports only; spacing-dependent)"
+            "(Recommendation <ref> was <participle>; reports only; "
+            "spacing-dependent after #446's rebuilt-text reconstruction)"
         )
     (destination / SWEEP_MANIFEST).write_text(
         json.dumps({"schema_version": 1, "documents": documents}, indent=2)
@@ -1413,7 +1418,8 @@ def main(argv: list[str]) -> int:
     )
     print(
         f"  changelog floor {changelog_floor} "
-        "(leading Recommendation <ref> was <participle>; reports only; spacing-dependent)"
+        "(leading Recommendation <ref> was <participle>; reports only; "
+        "spacing-dependent after #446's rebuilt-text reconstruction)"
     )
     if source == SOURCE_CURATED_TABLE:
         print()

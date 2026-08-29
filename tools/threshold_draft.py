@@ -360,16 +360,18 @@ def render(
 ) -> str:
     known = _recommendations(sources)
     cited = {row.rec for row in rows}
-    candidate_rows = [
-        [
-            source,
-            rec,
-            f"p{item.get('page', '')}",
-            str(item.get("cor") or ""),
-            " ".join(str(item.get("text") or "").split()),
-        ]
-        for (source, rec), item in known.items()
-    ]
+    has_bound_source = any(source.mode == "bound" for source in sources)
+    candidate_columns = (
+        ("source", "rec", "page", "class", "label")
+        if has_bound_source
+        else ("source", "rec", "page", "class")
+    )
+    candidate_rows = []
+    for (source, rec), item in known.items():
+        candidate = [source, rec, f"p{item.get('page', '')}", str(item.get("cor") or "")]
+        if has_bound_source:
+            candidate.append(" ".join(str(item.get("text") or "").split()))
+        candidate_rows.append(candidate)
     source_rows = [
         [
             source.key,
@@ -393,9 +395,8 @@ def render(
         f"# {topic.title()} — threshold sheet draft",
         SCHEMA_MARKER,
         "Machine-owned citation cells are filled; quantity, population, and value are blank for a reader.",
-        "A drafted bound sheet intentionally fails structure until a page read fills every blank snippet.",
         "## Candidate set\n\n"
-        + _table(("source", "rec", "page", "class", "label"), candidate_rows),
+        + _table(candidate_columns, candidate_rows),
         SOURCES_HEADING
         + "\n\n"
         + _table(
@@ -419,6 +420,11 @@ def render(
         + "\n".join(f"- `{rec}` - {reason}" for rec, reason in scoped_out.items()),
         "## Rejected candidates\n\n" + _table(("candidate", "reason"), rejected_rows),
     ]
+    if has_bound_source:
+        sections.insert(
+            3,
+            "A drafted bound sheet intentionally fails structure until a page read fills every blank snippet.",
+        )
     return "\n\n".join(sections).rstrip() + "\n"
 
 

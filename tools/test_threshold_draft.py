@@ -13,6 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet  # noqa: E402
+import threshold_draft as draft  # noqa: E402
+import guidelines_recs  # noqa: E402
 from guidelines_recs_test_support import trust_recommendation_record  # noqa: E402
 from guidelines_manifest_test_support import (  # noqa: E402
     trusted_extraction_producer,
@@ -345,6 +347,10 @@ class ThresholdDraftCli(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("## Candidate set", result.stdout)
+        candidates = result.stdout.split("## Candidate set", 1)[1].split("## ", 1)[0]
+        self.assertIn("| source | rec | page | class |", candidates)
+        self.assertNotIn("| source | rec | page | class | label |", candidates)
+        self.assertNotIn("A drafted bound sheet intentionally fails structure", result.stdout)
         self.assertIn("## Rejected candidates", result.stdout)
         self.assertIn("## Quantities", result.stdout)
         self.assertIn("|  |  |  | \"Adults should have an SBP goal below 130 mm Hg.\"", result.stdout)
@@ -411,6 +417,37 @@ class ThresholdDraftCli(unittest.TestCase):
         )
         self.assertNotIn("not in its recommendation record", result.stdout)
         self.assertNotIn("seeded snippet is not in its record", result.stdout)
+
+    def test_the_real_diabetes_bound_sheet_rejects_no_rows_when_its_record_is_trusted(self):
+        record_path = Path(threshold_sheet.DEFAULT_RECS_ROOT) / "recs-ada-2026.json"
+        if not record_path.is_file():
+            self.skipTest(f"acceptance record not present at {record_path}")
+        try:
+            record = guidelines_recs.load_recommendation_record(
+                record_path, require_source_pdf=True
+            )
+        except (OSError, ValueError, guidelines_recs.UntrustedRecommendationRecord) as error:
+            self.skipTest(f"acceptance record is not trusted in this checkout: {error}")
+        sheet_path = ROOT / "reference" / "thresholds" / "diabetes.md"
+        seeded = threshold_sheet.parse(
+            sheet_path.read_text(encoding="utf-8"), sheet_path
+        )
+        source = draft.Source(
+            key="ada-2026",
+            society="ADA",
+            document="ADA/standards-of-care-2026",
+            version="2026",
+            published="2026",
+            url=str(record.get("source") or ""),
+            mode="bound",
+            record=record,
+        )
+
+        rows, scoped_out, rejected = draft.select_rows([source], seeded)
+
+        self.assertEqual(len(rows), 357)
+        self.assertEqual(scoped_out, seeded.scoped_out)
+        self.assertEqual(rejected, [])
 
     def test_an_untrusted_manifest_cannot_supply_a_draft_identity(self):
         with tempfile.TemporaryDirectory() as directory:
