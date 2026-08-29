@@ -25,7 +25,7 @@ import sys
 import uuid
 from collections.abc import Callable
 from contextlib import closing
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 import guidelines_extract
@@ -41,9 +41,6 @@ CATALOG_SCHEMA_VERSION = 2
 ARTIFACT_SCHEMA_VERSION = 1
 ARTIFACT_RECORD = "artifact.json"
 CATALOG_NAME = "catalog.json"
-RECS_MANIFEST = "manifest.json"
-NOTHING_FOUND = "nothing-found"
-RECOMMENDATIONS_FOUND = "recommendations-found"
 CATALOG_ENVIRONMENT_VARIABLE = "CLINICAL_GUIDELINES_BUILDS"
 WHY_OUTSIDE = (
     "Guideline build artifacts contain society-copyrighted text and must stay "
@@ -636,37 +633,6 @@ def _build_index(
     )
 
 
-def _recommendation_payload(
-    pdf: Path,
-    doc_id: str,
-    producer: dict[str, str | bool],
-) -> tuple[dict[str, object], str]:
-    records, mode, counted_from = guidelines_recs.extract(pdf, doc_id)
-    outcome = RECOMMENDATIONS_FOUND if records else NOTHING_FOUND
-    floor_key = counted_from if records else guidelines_recs.SOURCE_NOTHING_FOUND
-    record_producer = dict(producer)
-    record_producer["inputs"] = artifact_provenance.producer_file_identity(
-        guidelines_recs.RECORD_TRUST_FLOOR[floor_key]
-    )
-    payload: dict[str, object] = {
-        "doc_id": doc_id,
-        "source": str(pdf),
-        "source_sha256": _sha256(pdf),
-        "counted_from": floor_key,
-        "mode": mode if records else None,
-        "producer": record_producer,
-        "outcome": outcome,
-        "recommendations": [asdict(record) for record in records],
-    }
-    if records:
-        payload["totals"] = {
-            "recommendations": len(records),
-            "tables": len({record.table for record in records}),
-            "glued_runs": guidelines_recs.glued_run_census(records),
-        }
-    return payload, outcome
-
-
 def _build_recs(
     source: Path,
     catalog_root: Path,
@@ -675,36 +641,12 @@ def _build_recs(
     producer: dict[str, str | bool],
 ) -> SelectedArtifact:
     def build_temporary(temporary: Path, _: dict[str, object]) -> None:
-        documents: list[dict[str, str]] = []
-        pdfs = sorted(
-            source.rglob("*.pdf"),
-            key=lambda path: path.relative_to(source).as_posix(),
-        )
-        for pdf in pdfs:
-            relative = pdf.relative_to(source)
-            doc_id = guidelines_extract.document_id(relative)
-            try:
-                payload, outcome = _recommendation_payload(pdf, doc_id, producer)
-            except guidelines_recs.DidNotScan as failure:
-                raise ValueError(
-                    f"recommendation sweep did not scan {relative.as_posix()}: {failure}"
-                ) from failure
-            record_name = f"{doc_id}.json"
-            record_path = temporary / record_name
-            record_path.parent.mkdir(parents=True, exist_ok=True)
-            record_path.write_text(
-                json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-                newline="\n",
-            )
-            documents.append(
-                {
-                    "doc_id": doc_id,
-                    "source": relative.as_posix(),
-                    "record": record_name,
-                    "outcome": outcome,
-                }
-            )
+        try:
+            guidelines_recs.build_sweep(source, temporary, producer)
+        except guidelines_recs.DidNotScan as failure:
+            raise ValueError(
+                f"recommendation sweep did not scan {failure}"
+            ) from failure
         if _files(source, "*.pdf") != identity["source_files"]:
             raise ValueError(
                 "source files changed during recommendation sweep; retry the build"
@@ -717,12 +659,6 @@ def _build_recs(
             raise ValueError(
                 "curated table changed during recommendation sweep; retry the build"
             )
-        (temporary / RECS_MANIFEST).write_text(
-            json.dumps({"schema_version": 1, "documents": documents}, indent=2)
-            + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
 
     return _select_or_build(
         "recs",
@@ -735,7 +671,9 @@ def _build_recs(
 
 
 def _recs_coverage(root: Path) -> tuple[int, int, int]:
-    manifest = json.loads((root / RECS_MANIFEST).read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (root / guidelines_recs.SWEEP_MANIFEST).read_text(encoding="utf-8")
+    )
     documents = manifest.get("documents") if isinstance(manifest, dict) else None
     if not isinstance(documents, list) or any(
         not isinstance(row, dict) for row in documents
@@ -747,7 +685,7 @@ def _recs_coverage(root: Path) -> tuple[int, int, int]:
         if isinstance(row.get("record"), str) and (root / row["record"]).is_file()
     )
     nothing_found = sum(
-        1 for row in documents if row.get("outcome") == NOTHING_FOUND
+        1 for row in documents if row.get("outcome") == guidelines_recs.NOTHING_FOUND
     )
     if records != len(documents):
         raise ValueError("recommendation manifest does not resolve every record")
@@ -848,6 +786,12 @@ def main(argv: list[str]) -> int:
         index_alias = (args.index_alias or guidelines_index.default_database()).resolve()
         recs_alias = (args.recs_alias or default_recs_alias(source)).resolve()
         producer = artifact_provenance.current_producer()
+        recs = None
+        if not args.no_recs:
+            recs_spec = recs_identity(source)
+            recs = _build_recs(
+                source, catalog_root, catalog_path, recs_spec, producer
+            )
         extraction_spec = extraction_identity(source)
         extraction = _build_extraction(
             source,
@@ -861,12 +805,6 @@ def main(argv: list[str]) -> int:
         index = _build_index(
             extraction, catalog_root, catalog_path, index_spec, producer
         )
-        recs = None
-        if not args.no_recs:
-            recs_spec = recs_identity(source)
-            recs = _build_recs(
-                source, catalog_root, catalog_path, recs_spec, producer
-            )
         _publish_directory(extraction.path, text_alias)
         _publish_file(index.path / "guidelines.sqlite", index_alias)
         if recs is not None:

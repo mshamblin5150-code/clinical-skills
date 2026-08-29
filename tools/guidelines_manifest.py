@@ -22,6 +22,13 @@ DISCOVERY_CEILING = (
     "read_extracted_corpus",
 )
 
+# Other artifact families may deliberately own a different manifest contract under
+# the same conventional filename. Naming each owner here keeps the lexical consumer
+# walk refusing by default without pretending those producers consume this module.
+NON_EXTRACTION_MANIFEST_OWNERS = {
+    "guidelines_recs.py": "recommendation sweep manifest",
+}
+
 # The refusing walk remains runnable during staged migration. Each exception must
 # say why it exists and is removed in the commit that migrates that consumer.
 NOT_MIGRATED: dict[str, str] = {}

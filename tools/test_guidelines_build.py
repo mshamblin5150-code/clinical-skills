@@ -153,11 +153,11 @@ class ReusingAnIdenticalBuild(BuildCommandCase):
         record = json.loads(
             (self.recs_alias / "one.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(record["outcome"], guidelines_build.NOTHING_FOUND)
+        self.assertEqual(record["outcome"], guidelines_recs.NOTHING_FOUND)
         self.assertEqual(record["recommendations"], [])
         self.assertNotIn("totals", record)
         manifest = json.loads(
-            (self.recs_alias / guidelines_build.RECS_MANIFEST).read_text(
+            (self.recs_alias / guidelines_recs.SWEEP_MANIFEST).read_text(
                 encoding="utf-8"
             )
         )
@@ -166,7 +166,7 @@ class ReusingAnIdenticalBuild(BuildCommandCase):
             [
                 {
                     "doc_id": "one",
-                    "outcome": guidelines_build.NOTHING_FOUND,
+                    "outcome": guidelines_recs.NOTHING_FOUND,
                     "record": "one.json",
                     "source": "one.pdf",
                 }
@@ -222,7 +222,7 @@ class ReusingAnIdenticalBuild(BuildCommandCase):
         record = json.loads(
             (self.recs_alias / "one.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(record["outcome"], guidelines_build.RECOMMENDATIONS_FOUND)
+        self.assertEqual(record["outcome"], guidelines_recs.RECOMMENDATIONS_FOUND)
         self.assertEqual(record["counted_from"], guidelines_recs.SOURCE_RULED_TABLE)
         self.assertEqual(record["totals"]["recommendations"], 1)
         self.assertEqual(record["recommendations"][0]["rec_id"], "one-p1-t1-r1")
@@ -299,10 +299,8 @@ class RefusingAnIncompleteRecommendationSweep(BuildCommandCase):
             self.assertEqual(guidelines_build.main(self.arguments), 2)
 
         self.assertIn("synthetic mismatch", stderr.getvalue())
-        catalog = json.loads(
-            (self.catalog_root / "catalog.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(catalog["artifacts"]["recs"], {})
+        self.assertEqual(self.launches, [])
+        self.assertFalse((self.catalog_root / "catalog.json").exists())
 
 
 class SeparatingDifferentInputs(BuildCommandCase):
@@ -768,7 +766,9 @@ class DetectingSourceChangesDuringProduction(BuildCommandCase):
             contextlib.redirect_stdout(self.stdout),
             contextlib.redirect_stderr(stderr),
         ):
-            self.assertEqual(guidelines_build.main(self.arguments), 2)
+            self.assertEqual(
+                guidelines_build.main([*self.arguments, "--no-recs"]), 2
+            )
 
         self.assertIn("source files changed during extraction", stderr.getvalue())
         self.assertFalse((self.catalog_root / "catalog.json").exists())

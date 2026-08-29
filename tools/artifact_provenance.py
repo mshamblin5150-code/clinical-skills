@@ -60,6 +60,7 @@ CACHE_IDENTITY = {
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
         "tools/artifact_provenance.py",
+        "reference/guidelines-uspstf.md",
     ),
 }
 
@@ -75,6 +76,7 @@ TRUST_FLOOR = {
     "recs": (
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
+        "reference/guidelines-uspstf.md",
     ),
 }
 

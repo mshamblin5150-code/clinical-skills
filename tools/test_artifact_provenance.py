@@ -43,6 +43,7 @@ class ArtifactIdentityTables(unittest.TestCase):
                 "tools/guidelines_recs.py",
                 "tools/guidelines_extract.py",
                 "tools/artifact_provenance.py",
+                "reference/guidelines-uspstf.md",
             },
         }
         expected_floor = {
@@ -57,6 +58,7 @@ class ArtifactIdentityTables(unittest.TestCase):
             "recs": {
                 "tools/guidelines_recs.py",
                 "tools/guidelines_extract.py",
+                "reference/guidelines-uspstf.md",
             },
         }
 

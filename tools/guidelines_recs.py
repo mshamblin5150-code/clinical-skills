@@ -156,6 +156,9 @@ from repo_root import InsideCheckout, ensure_outside_checkout
 MODE_EXACT = "exact"
 MODE_BOUND = "bound"
 SOURCE_NOTHING_FOUND = "nothing-found"
+SWEEP_MANIFEST = "manifest.json"
+NOTHING_FOUND = "nothing-found"
+RECOMMENDATIONS_FOUND = "recommendations-found"
 
 # Everything this producer writes wears this prefix. The reverse remains false:
 # a prefixed file need not have come from this producer, and ``recs-sweep.json``
@@ -945,6 +948,85 @@ def extract(
         document.close()
 
 
+def _record_payload(
+    path: Path,
+    doc_id: str,
+    records: list[Recommendation],
+    mode: str,
+    counted_from: str,
+    producer: dict[str, str | bool],
+) -> tuple[dict[str, object], str]:
+    """Serialize one standalone or sweep recommendation record."""
+    outcome = RECOMMENDATIONS_FOUND if records else NOTHING_FOUND
+    floor_key = counted_from if records else SOURCE_NOTHING_FOUND
+    record_producer = dict(producer)
+    record_producer["inputs"] = artifact_provenance.producer_file_identity(
+        RECORD_TRUST_FLOOR[floor_key]
+    )
+    payload: dict[str, object] = {
+        "doc_id": doc_id,
+        "source": str(path),
+        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "counted_from": floor_key,
+        "mode": mode if records else None,
+        "producer": record_producer,
+        "outcome": outcome,
+        "recommendations": [asdict(record) for record in records],
+    }
+    if records:
+        payload["totals"] = {
+            "recommendations": len(records),
+            "tables": len({record.table for record in records}),
+            "glued_runs": glued_run_census(records),
+        }
+    return payload, outcome
+
+
+def build_sweep(
+    source: Path,
+    destination: Path,
+    producer: dict[str, str | bool],
+) -> None:
+    """Write one doc-id record per corpus PDF and the sweep manifest."""
+    documents: list[dict[str, str]] = []
+    pdfs = sorted(
+        source.rglob("*.pdf"),
+        key=lambda path: path.relative_to(source).as_posix(),
+    )
+    for path in pdfs:
+        relative = path.relative_to(source)
+        doc_id = guidelines_extract.document_id(relative)
+        try:
+            records, mode, counted_from = extract(path, doc_id)
+        except DidNotScan as failure:
+            raise DidNotScan(f"{relative.as_posix()}: {failure}") from failure
+        payload, outcome = _record_payload(
+            path, doc_id, records, mode, counted_from, producer
+        )
+        record_name = f"{doc_id}.json"
+        record_path = destination / record_name
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        record_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        documents.append(
+            {
+                "doc_id": doc_id,
+                "source": relative.as_posix(),
+                "record": record_name,
+                "outcome": outcome,
+            }
+        )
+    (destination / SWEEP_MANIFEST).write_text(
+        json.dumps({"schema_version": 1, "documents": documents}, indent=2)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
 def compare_marker_readers(path: Path, doc_id: str) -> tuple[int, int, int]:
     """Return raw count, repaired count, and changed-record count for one document.
 
@@ -1139,29 +1221,16 @@ def main(argv: list[str]) -> int:
         # different string than the one that was checked is how a guard comes to
         # have been consulted about a path nothing wrote to.
         json_target.parent.mkdir(parents=True, exist_ok=True)
-        producer = artifact_provenance.current_producer()
-        producer["inputs"] = artifact_provenance.producer_file_identity(
-            RECORD_TRUST_FLOOR[source]
+        payload, _ = _record_payload(
+            args.pdf,
+            doc_id,
+            records,
+            mode,
+            source,
+            artifact_provenance.current_producer(),
         )
         json_target.write_text(
-            json.dumps(
-                {
-                    "doc_id": doc_id,
-                    "source": str(args.pdf),
-                    "source_sha256": hashlib.sha256(args.pdf.read_bytes()).hexdigest(),
-                    "counted_from": source,
-                    "mode": mode,
-                    "producer": producer,
-                    "totals": {
-                        "recommendations": len(records),
-                        "tables": len(tables),
-                        "glued_runs": glued_runs,
-                    },
-                    "recommendations": [asdict(record) for record in records],
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
+            json.dumps(payload, indent=2, ensure_ascii=False)
             + "\n",
             encoding="utf-8",
             newline="\n",
