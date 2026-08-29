@@ -22,13 +22,15 @@ that goes stale unwatched, which is #143 and is how this one crossed two files a
 a review before anyone re-derived it.
 
 **Two modes, and the whole honesty of this module is in telling them apart.**
-The coverage ceilings behind those modes are inventoried in ``DECLARED_LIMITS``;
-this prose keeps the reasoning at the mechanism and does not stand in for that
-registry.
+The coverage ceilings behind those modes are inventoried in
+``guidelines_recs.DECLARED_LIMITS``; this prose keeps the reasoning at the
+mechanism and does not stand in for that registry.
 
 ``EXACT``
-    Every row is one recommendation, the class is a cell rather than a guess, and
-    the count is the count. Gate 2 may **refuse** on one.
+    Every recognized row is one recommendation, the class comes from a cell rather
+    than a guess, and gate 2 may **refuse** on the resulting count. The named
+    registry holds the recognition ceilings rather than letting ``exact`` imply
+    that every possible table shape was read.
 
 ``BOUND``
     Recommendations found by matching a marker in running text -- KDIGO's
@@ -123,9 +125,9 @@ count, and no threshold on the number would be anything but invented.
 
 **Nothing here is PHI and standing rule 1 is not in play** -- these are published
 society guidelines. Copyright is: a recommendation is the society's own expression.
-So stdout prints **counts and identifiers only**, `--show` prints the text, and the
-JSON is written outside every checkout on `guidelines_index.py`'s terms. Paste a
-line into a ticket, never a table.
+So stdout prints **counts and identifiers only**, `--show` prints a text preview,
+and the JSON is written outside every checkout on `guidelines_index.py`'s terms.
+Paste a line into a ticket, never a table.
 
 **One of the tools in ``tools/`` that is not stdlib**, because it reads a PDF:
 
@@ -313,9 +315,9 @@ class DeclaredLimit:
 
 
 # The module docstring explains why these mechanisms exist and points here instead
-# of maintaining a second inventory. The population is deliberately a floor: #589
-# owns the end-to-end read of this module and its ADRs. Each later mechanism appends
-# its own row rather than creating another declared-limits object.
+# of maintaining a second inventory. This population was derived by #589's
+# end-to-end read of this module and every ADR that rules on it. A new mechanism
+# appends its own row rather than creating another declared-limits object.
 DECLARED_LIMITS = (
     DeclaredLimit(
         "bound-count-over-reports",
@@ -348,13 +350,43 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
+        "bound-label-not-evidence",
+        "A bound label is not evidence that its text belongs to the recommendation named by its identifier.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "marker-label-page-boundary",
+        "A marker label is read from one page and cannot include a recommendation's continuation on another page.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "forward-label-window-cap",
+        "A leading-marker label stops at its fixed forward cap and can omit identifying text later in the recommendation.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "backward-label-window-cap",
+        "A trailing-marker label with no recognized preceding sentence boundary starts at its fixed backward cap and can omit the recommendation's opening.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "backward-boundary-false-stop",
+        "The backward boundary rule excludes only its declared abbreviations, so other abbreviation-shaped punctuation can stop a label inside its recommendation.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
         "unrepaired-nonmarker-limbs",
         "Curated verification and ruled-table extraction skip glyph-space reconstruction; comparison folding protects the curated limb, while ruled-table text can retain spacing damage.",
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
+        "rebuilt-text-not-ground-truth",
+        "Glyph-space reconstruction is a measured improvement rather than ground truth and can leave damaged runs or make a different reconstruction error.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
         "glued-run-census-floor",
-        "The glued-run census sees only alphabetic runs at or above its declared length floor, so shorter welds are invisible and genuine long words are counted.",
+        "The glued-run census sees only ASCII-letter runs at or above its declared length floor, so shorter or non-ASCII welds are invisible and genuine long words are counted.",
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
@@ -393,9 +425,9 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
-        "registry-population-floor",
-        "This registry covers the previously identified docstring ceilings and the mechanisms added with the repaired marker reader; its end-to-end module and ADR derivation remains outstanding.",
-        EvidenceDisposition.DECLARED_READING,
+        "record-shape-validation-floor",
+        "The shared record loader checks only for a mapping with a recommendations list; it does not validate recommendation rows, totals, outcome, mode, or their agreement.",
+        EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
         "doc-id-records-escape-prefix-walk",
@@ -406,6 +438,91 @@ DECLARED_LIMITS = (
         "changelog-shape-floor",
         "The changelog census reaches only a leading recommendation reference followed by 'was' and a participle; other editorial shapes remain outside it, and #446's rebuilt-text spacing can move the reported figure.",
         EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "ruled-table-shape-vocabulary",
+        "Ruled-table extraction recognizes only a Recommendations for caption followed by a COR and LOE header, so other recommendation-table layouts fall through to a weaker limb.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "table-parse-failure-falls-through",
+        "A page whose tables raise during parsing is treated as having no table rows, so another page can still make an incomplete document exact.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "numbered-table-row-vocabulary",
+        "A recognized table emits only rows beginning with a decimal number and period, so differently numbered or unnumbered recommendations are omitted.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "table-class-vocabulary",
+        "A ruled-table class cell outside the declared numeric vocabulary leaves cor empty without preventing an exact result.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "ruled-table-precedence-skips-markers",
+        "Once any ruled-table recommendation is found, text markers are not read, so recommendations stated only outside those tables are not added.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "curated-filename-only-selection",
+        "Curated rows are selected by PDF basename alone, without the society directory or any other document identity.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "curated-positional-join-floor",
+        "The curated table's two halves join by position and cross-check only grade, filename, and page, so reordered rows sharing those fields are not detected.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "curated-page-membership-only",
+        "Curated verification proves only that the normalized statement occurs somewhere on its cited page, not that it is the intended recommendation row.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "curated-fold-discards-symbols",
+        "Curated verification removes every nonletter and nondigit after normalization, so statements differing only in operators or punctuation can compare equal.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "curated-metadata-unrecorded",
+        "Curated population, interval, and year fields do not leave CuratedRow and are not carried into a recommendation record.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "source-identity-basename-only",
+        "Recommendation-record source identity compares PDF basenames and cannot distinguish different corpus paths with the same filename.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "published-alias-stage-unverified",
+        "A published sweep alias carries no artifact record, so a read site can verify each record's producer but cannot prove the alias came from the verified cache stage.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "alias-manifest-shape-floor",
+        "Alias lookup checks only for a documents list and matching doc_id; it does not validate the manifest schema, row outcome, declared record path, or duplicate identifiers.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "alias-damage-falls-back",
+        "A missing, stale, or damaged sweep alias does not refuse at a read site and can fall back to different bytes in the exact-name recs root.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "nothing-found-is-not-negative",
+        "A nothing-found record establishes only that the configured table and marker limbs found nothing, never that the document states no recommendations.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "standalone-empty-record-unwritten",
+        "The one-document command exits before writing JSON when it finds no recommendations, so only the sweep can publish a self-declaring nothing-found record.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "show-output-truncated",
+        "The --show command prints only a fixed prefix of each recommendation text rather than the complete stored text.",
+        EvidenceDisposition.BEHAVIOR,
     ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
@@ -1324,7 +1441,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--show",
         action="store_true",
-        help="print recommendation text -- the society's expression, not for pasting",
+        help="print a recommendation-text preview -- the society's expression, not for pasting",
     )
     parser.add_argument(
         "--compare-readers",
