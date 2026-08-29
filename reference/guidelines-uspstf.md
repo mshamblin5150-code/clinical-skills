@@ -2,7 +2,7 @@
 
 143 recommendation statements from 90 of 90 USPSTF documents in the guideline corpus, one row each. Built by `tools/uspstf_table.py`; see that module for how every column is derived. Issue #82.
 
-**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. `population` and `interval` are *derived from the statement text*, not quoted from a field the document declares — from the statement sentence alone, a reach ruled permanent rather than awaiting a wider derivation. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. A document may state elsewhere that no interval is established. Where a recommendation offers alternatives, `interval` names every recurrence of a recommended service that its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell. A dose or supplement frequency is not a recurrence and is deliberately outside the column.
+**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. `population` is quoted from the statement when possible and otherwise from the document's declared `POPULATION` field. `interval` is derived from the statement sentence alone, a reach ruled permanent rather than awaiting a wider derivation. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. A document may state elsewhere that no interval is established. Where a recommendation offers alternatives, `interval` names every recurrence of a recommended service that its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell. A dose or supplement frequency is not a recurrence and is deliberately outside the column.
 
 **USPSTF recommendation statements are federal work and public domain**, which is why this half of the corpus ships as a table of its own content while the society documents do not. The source PDFs stay outside this repo and are not redistributed.
 
@@ -146,7 +146,7 @@
 | Screening for Prostate Cancer | men aged 55 to 69 years | C | periodic | 2018 |  |  | `prostate-cancer-final-rec-statement-051418.pdf` | 1 |
 | Screening for Prostate Cancer | men 70 years and older | D | not stated | 2018 |  |  | `prostate-cancer-final-rec-statement-051418.pdf` | 1 |
 | Screening for Rh (D) Incompatibility | all pregnant women during their first visit for pregnancy-related care | A | not stated | not stated |  |  | `rhrs.pdf` | 1 |
-| Screening for Rh (D) Incompatibility | not stated | B | repeated | not stated |  |  | `rhrs.pdf` | 1 |
+| Screening for Rh (D) Incompatibility | all unsensitized Rh (D)-negative women at 24-28 weeks' gestation, unless the biological father is known to be Rh (D)-negative | B | repeated | not stated |  |  | `rhrs.pdf` | 1 |
 | Screening for Skin Cancer | adolescents and adults | I | not stated | 2023 |  |  | `skin-cancer-screening-final-recommendation.pdf` | 1 |
 | Screening for Speech and Language Delay and Disorders in Children | children 5 years or younger without signs or symptoms | I | not stated | 2024 |  |  | `speech-language-delay-screening-children-final-recommendation.pdf` | 1 |
 | Screening for Syphilis Infection During Pregnancy | Adolescents and adults who are pregnant | A | not stated | 2025 |  |  | `syphilis-pregnancy-screening-final-rec-statement.pdf` | 1 |
@@ -172,7 +172,7 @@
 
 ## Statements
 
-**Beyond the columns #82 asked for, and here for a reason.** `population` and `interval` are derived rather than quoted, and the source PDFs stay outside this repo and are not redistributed ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)) — so without the sentence each row was cut from, a reader with no copy of the corpus has no way to check a derived cell at all. These are quotations of public-domain federal text, transcribed rather than written, which is also why the American English rule reads them as reported rather than used.
+**Beyond the columns #82 asked for, and here for a reason.** `population` is quoted from the statement where possible but may instead quote the document's declared `POPULATION` field; `interval` is derived from the statement. The source PDFs stay outside this repo and are not redistributed ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)) — so without the sentence each row was cut from, a reader with no copy of the corpus has no way to check a derived cell at all. These are quotations of public-domain federal text, transcribed rather than written, which is also why the American English rule reads them as reported rather than used.
 
 | Grade | Statement | File | Page |
 | --- | --- | --- | --- |

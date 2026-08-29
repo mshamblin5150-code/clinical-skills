@@ -8,9 +8,10 @@ network access.
 
 ## What this cannot reach
 
-**Whether ``population`` is completely derived from its statement.** Population uses a
-different grammar and can fall back to a document field that the committed table does
-not carry. This file establishes nothing about that derived cell.
+**Whether ``population`` content is correct.** Population uses a different grammar and
+can fall back to a document field that the committed table does not carry. This file
+establishes that every committed Population cell is present; it establishes nothing
+about whether a cell's content is right.
 
 **Whether a document states a period outside the recommendation sentence.** Issue #435
 owns that wider read. This check is deliberately bounded to the statement sentence the
@@ -24,6 +25,7 @@ from __future__ import annotations
 import re
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import guidelines_recs
 import uspstf_table
@@ -59,6 +61,14 @@ SUB_YEARLY_PERIOD = re.compile(
     rf"|(?:twice|{COUNT} times?) (?:yearly|(?:a|per) year)"
     rf"|{SUB_YEARLY_ADVERB})\b",
     re.I,
+)
+DECLINED_HYPHENATED_QUALIFIER = r"[A-Za-z]+(?:\s*\([A-Z]\))?-[a-z]+"
+DECLINED_WIDENED_POPULATION_PHRASE = re.compile(
+    uspstf_table.POPULATION_PHRASE.pattern.replace(
+        uspstf_table._POP_QUALIFIER,
+        rf"(?:{uspstf_table._POP_QUALIFIER}|{DECLINED_HYPHENATED_QUALIFIER})",
+    ),
+    uspstf_table.POPULATION_PHRASE.flags,
 )
 
 
@@ -177,6 +187,68 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
                 "in 6 months",
                 "two days per week",
             ],
+        )
+
+
+class TheCommittedPopulationsArePresent(unittest.TestCase):
+    def test_no_population_cell_is_not_stated(self) -> None:
+        grouped = guidelines_recs.parse_curated_table(
+            REFERENCE.read_text(encoding="utf-8")
+        )
+        rows = [row for document_rows in grouped.values() for row in document_rows]
+
+        self.assertEqual(
+            sum(row.population == NOT_STATED for row in rows),
+            0,
+            "The committed USPSTF artifact has a missing Population cell. Re-run "
+            "tools/uspstf_table.py and review ADR 0044 before accepting a changed "
+            "artifact.",
+        )
+
+
+class TheRuledPopulationLiteral(unittest.TestCase):
+    def test_the_rh_negative_literal_reads_the_complete_population(self) -> None:
+        statement = (
+            "The USPSTF recommends repeated Rh (D) antibody testing for all "
+            "unsensitized Rh (D)-negative women at 24-28 weeks' gestation, unless "
+            "the biological father is known to be Rh (D)-negative."
+        )
+
+        self.assertEqual(
+            uspstf_table.derive_population(statement),
+            "all unsensitized Rh (D)-negative women at 24-28 weeks' gestation, "
+            "unless the biological father is known to be Rh (D)-negative",
+        )
+
+    def test_the_declined_widening_fires_in_both_directions(self) -> None:
+        """Constructed sentences are a floor; ADR 0044 records a 2026-08-26 corpus cost of zero."""
+        real_population = (
+            "The USPSTF recommends counseling for tobacco-dependent adults."
+        )
+        methodological_adjective = (
+            "The USPSTF concludes the evidence is insufficient in low-quality patients."
+        )
+
+        with mock.patch.object(
+            uspstf_table,
+            "POPULATION_PHRASE",
+            DECLINED_WIDENED_POPULATION_PHRASE,
+        ):
+            self.assertEqual(
+                uspstf_table.derive_population(real_population),
+                "tobacco-dependent adults",
+            )
+            self.assertEqual(
+                uspstf_table.derive_population(methodological_adjective),
+                "low-quality patients",
+            )
+        self.assertEqual(
+            uspstf_table.derive_population(real_population),
+            NOT_STATED,
+        )
+        self.assertEqual(
+            uspstf_table.derive_population(methodological_adjective),
+            NOT_STATED,
         )
 
 

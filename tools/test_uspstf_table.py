@@ -794,15 +794,21 @@ class RenderingTests(unittest.TestCase):
             "the derived pointer must be the only byte changed by a filename match",
         )
 
-    def test_the_header_explains_the_interval_rules_reach_and_alternatives(self):
+    def test_the_header_splits_the_population_fallback_from_the_interval_reach(self):
         markdown = ut.render_markdown(
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
         )
         self.assertIn(
-            "from the statement sentence alone, a reach ruled permanent rather than awaiting "
-            "a wider derivation.",
+            "`population` is quoted from the statement when possible and otherwise from "
+            "the document's declared `POPULATION` field.",
             markdown,
         )
+        self.assertIn(
+            "`interval` is derived from the statement sentence alone, a reach ruled "
+            "permanent rather than awaiting a wider derivation.",
+            markdown,
+        )
+        self.assertNotIn("`population` and `interval` are", markdown)
         self.assertIn(
             "A document may state elsewhere that no interval is established.",
             markdown,
@@ -815,6 +821,19 @@ class RenderingTests(unittest.TestCase):
             "not a recurrence and is deliberately outside the column.",
             markdown,
         )
+
+    def test_the_module_contract_splits_population_from_interval(self):
+        contract = " ".join(ut.__doc__.split())
+        self.assertIn(
+            "The ``population`` column is quoted from the statement when possible and "
+            "otherwise from the document's declared ``POPULATION`` field.",
+            contract,
+        )
+        self.assertIn(
+            "The ``interval`` column is derived from the statement text alone",
+            contract,
+        )
+        self.assertNotIn("``population`` and ``interval`` columns are", contract)
 
     def test_a_pipe_in_a_cell_is_escaped_so_it_cannot_break_the_table(self):
         self.assertEqual(ut.escape_cell("a | b"), "a \\| b")
