@@ -3360,6 +3360,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             environment = {
                 **os.environ,
                 "CLINICAL_GUIDELINES_RECS": str(empty_recs),
+                "CLINICAL_GUIDELINES_RECS_ALIAS": str(empty_recs),
                 "CLINICAL_GUIDELINES_TEXT": str(root / "absent-text"),
             }
             result = subprocess.run(

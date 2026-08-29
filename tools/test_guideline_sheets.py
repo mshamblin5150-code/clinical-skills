@@ -212,12 +212,14 @@ class TheSkillCarriesTheObligation(ProseBind, unittest.TestCase):
         self.assertIn("fill the wrong age", self.section)
         self.assertIn("owed to a different patient population", self.section)
 
-    def test_the_population_cell_is_copied_and_its_two_caveats_are_stated(self):
-        # The USPSTF column is derived rather than quoted, and one row of 143
-        # has none. Both make "quote the population" less safe than it sounds.
+    def test_the_population_cell_is_copied_with_its_provenance_and_presence_limit(self):
+        # The USPSTF column can come from either the statement or the document's
+        # declared field. That provenance makes "quote the population" less safe
+        # than it sounds even though every committed row is present.
         self.assertIn("taken from the sheet's own cell", self.section)
-        self.assertIn("derived from the statement text rather than quoted", self.section)
-        self.assertIn("population not stated", self.section)
+        self.assertIn("document's declared `POPULATION` field", self.section)
+        self.assertIn("Every committed population cell is present", self.section)
+        self.assertNotIn("population not stated", self.section)
 
     def test_a_filled_population_key_is_marked_never_withheld(self):
         self.assertIn("A filled population key is marked, never withheld", self.section)
@@ -522,16 +524,17 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
             self.assertNotIn(word, rows.lower())
         self.assertIn("zero** immunization rows", self.text)
 
-    def test_the_one_population_that_is_not_stated_is_still_one(self):
-        # The skill gives wording for it. Two would not change the wording; zero
-        # would make the sentence describe nothing.
+    def test_every_committed_population_cell_is_present(self):
+        # The skill says the current artifact is complete for presence while
+        # refusing to turn that into a claim that each cell is correct.
         cells = [
             line.split("|")[2].strip()
             for line in _section(self.uspstf, "## Recommendations").splitlines()
             if line.startswith("| ") and line.count("|") > 6
         ]
-        self.assertEqual(sum(1 for c in cells if c == "not stated"), 1)
-        self.assertIn("**one row of the 143 has a population reading `not stated`**", self.text)
+        self.assertEqual(sum(1 for c in cells if c == "not stated"), 0)
+        self.assertIn("**Every committed population cell is present**", self.text)
+        self.assertIn("does not establish that their content is correct", self.text)
 
     def test_the_ungated_majority_figure_matches_the_readmes_own(self):
         # A consistency check between two files, NOT a verification: 138 is a
