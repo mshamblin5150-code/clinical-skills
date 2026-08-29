@@ -165,7 +165,7 @@ REFUTATION_VALUES = (REFUTATION_STANDS, REFUTATION_REFUTED, REFUTATION_PAYWALLED
 
 # #498's three forms. A date is transcribed from the source, never inferred
 # from a publication cadence. The C.F.R. citation that filed #534 is the known
-# instance where ``none stated`` is the correct answer: its edition year is
+# instance where ``none stated`` is the correct answer: its codification year is
 # provenance and the annual reissue schedule is not a stated expiry.
 STATED_EXPIRY_NONE = "none stated"
 STATED_EXPIRY_DATE = re.compile(

@@ -135,7 +135,7 @@ STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO 
 
 For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. For a sourced
 record, transcribe only an expiry the document states; do not infer one from a publication cadence.
-`42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the edition year is
+`42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the codification year is
 provenance, and the annual reissue schedule is not a stated expiry. Within two
 years is the target, within five is ordinarily expected, and an older source may stand only when
 nothing newer exists and the record says what was searched. The research and refutation agents

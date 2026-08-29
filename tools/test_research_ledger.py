@@ -3182,6 +3182,41 @@ class TheDeclinedCadenceRowFiresOnCorrectCitations(unittest.TestCase):
                 )
 
 
+class CodificationYearProseMatchesTheHistoricalInstrument(
+    ProseBind, unittest.TestCase
+):
+    """#624's bind from the live instructions to #534's fixed comparison."""
+
+    ADR = REPO_ROOT / "docs" / "adr" / (
+        "0052-a-codification-year-is-provenance-and-the-snapshot-behind-it-is-"
+        "declared-unreached.md"
+    )
+
+    @classmethod
+    def live_surfaces(cls) -> tuple[Path, ...]:
+        return (*ledger_publishing_skills(), Path(ledger.__file__), cls.ADR)
+
+    def test_live_surfaces_use_the_canonical_term(self):
+        for path in self.live_surfaces():
+            with self.subTest(path=path.relative_to(REPO_ROOT)):
+                self.assertNotRegex(
+                    path.read_text(encoding="utf-8").lower(),
+                    r"\bedition year\b",
+                )
+
+    def test_the_adr_records_the_fixed_historical_comparison(self):
+        adr = self.ADR.read_text(encoding="utf-8")
+        self.assertProseIn(
+            "the official 2024 and 2025 annual Title 42 codifications",
+            adr,
+        )
+        self.assertProseIn(
+            "not a claim about which annual codification is current whenever "
+            "the suite happens to run",
+            adr,
+        )
+
+
 # --------------------------------------------------------------------------
 # #298 -- the evidence dump cross-references a topic it does not carry
 # --------------------------------------------------------------------------

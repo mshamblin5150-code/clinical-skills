@@ -176,7 +176,7 @@ Fan out one research context per claim. Each returns the source class, full APA 
 restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's
 stated expiry or `none stated`. Transcribe only an expiry the document states; do not infer one from
 a publication cadence. `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct:
-the edition year is provenance, and the annual reissue schedule is not a stated expiry. The
+the codification year is provenance, and the annual reissue schedule is not a stated expiry. The
 orchestrator alone writes the records. Then send every `sourced` record to a different context
 briefed to disprove the reference, locator, year, bibliographic details, or restatement. It returns
 `stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
