@@ -372,6 +372,10 @@ Covered by `tools/test_docx.py`, one file for the pair the way `test_icd10.py` c
 
 ### Research ledger
 
+The grader's coverage inventory is `research_ledger.DECLARED_LIMITS`. This section
+points to that object and keeps the reasoning near the mechanisms it explains; it
+does not publish a second copy of the inventory.
+
 The five tools above that take `<a run directory>` read a finished run. This one reads a `practicum-case-study` run's
 **working file**, and since #289 the draft's prescriptions beside it. It is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) — the research fan-out made a mechanism rather than an instruction.
 
@@ -431,23 +435,13 @@ and for its reason.
 spends it on one row, so the exit-2 banner's claim about a dateless ledger is readable off two
 signatures. A test drives one ledger both ways and asserts the difference is exactly those two.
 
-**`UNRESOLVABLE_LOCATOR` has a limit of its own, documented rather than tightened, and #242 is where
-it was found.** A DOI is a registrant prefix and a free-form suffix, so `pp. 10.1327/1400` is a page
-range wearing the shape and passes the row. It is not narrowable — a real bare DOI arrives with no
-scheme and no `doi:` prefix to key on, so refusing the coincidence would refuse the field's own
-documented form. **It only ever weakens the weaker half of a pair**: the row says *this is not a
-locator*, never *this locator is good*, nothing here opens anything, and `UNDATED_READ` and
-`REFUTATION` still ask when the page was opened and what the second agent found there. Written down
-because every other limit in this module was and this one was not, and pinned by a test so it is a
-known behavior rather than an accident.
+[#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242) records why the DOI shape
+was not narrowed: bare DOI syntax has no required scheme or prefix, and a page range can share that
+syntax. The adopted boundary is named only in `research_ledger.DECLARED_LIMITS`.
 
-**The numbers are deliberately not compared, and that is the sharpest limit.** The restatement is
-written in the source's own terms *by design*, so a claim about a white count of 15,000 is rightly
-answered with a range in `10^9/L`, and a digit-matching test would refuse the correct answer. What
-the row can reach is that a numeric claim came back **quantified at all** — the wrong-citation
-failure at its most expensive, and the one form of it a string test sees. Whether the source is
-reputable and whether it says what the record says it says are both readings. **A clean scan is not
-a checked claim**, and `skills/practicum-case-study/SKILL.md` says so beside the command.
+The numeric rationale stays here while its boundary lives only in the inventory. Restatements use
+the source's own units, so a white count stated as 15,000 can correctly be answered with a range in
+`10^9/L`; comparing digit strings would reject a valid unit conversion.
 
 **Counts only by default**, on `specificity_scan.py`'s and `block_scan.py`'s terms and for their
 reason: the ledger lives under `scratch/` and a claim is transcribed from faculty material about a
@@ -470,8 +464,7 @@ argument for the first — the field gates the row below it. And `n.d.` was refu
 the clinician never made**; the escape hatch is now the one he did make, so an undated source
 carrying `nothing newer` or `guideline in force` with a reason stands.
 
-**Open question 2 is settled on [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231),
-and the answer is that no tool here touches the network.** The *format* half already had a written
+**Open question 2 is settled on [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231).** The *format* half already had a written
 standard from #211 ([apa7.md](skills/practicum-case-study/reference/apa7.md), walked by `practicum-case-study` step 7 and by
 #218). For the *truth* half the ticket proposed `threshold_sheet.py`'s two-tier arrangement — a
 resolver opting into the network, skipping with a banner. **Two findings killed it, and the second is
@@ -510,16 +503,9 @@ is UpToDate, which the clinician has wholesale — but for exactly the reason ab
 reference reaching *this file* is a topic he does not have. Exempting the class would exempt the
 records that need the rows most.
 
-**What the two halves buy is not the same thing.** `RESOLVED` and `PAGE-YEAR` **narrow** the hole:
-an agent can write a URL it never opened, but it has to commit to specifics a reader can be caught on
-in one click, where a correctly formatted APA entry is checkable only by going and looking. The
-refutation pass is the only **verification** in the arrangement — **and it does not happen in this
-module.** The pass is a second agent; what the module does is refuse a record where the pass did not
-answer, answered in a third word, or answered by pasting the restatement back. **No row can see that
-the refuter was a different agent**, or that it opened anything, which is #214's *what a written instruction cannot do is fail* binding its
-own successor. The one shape a row reaches is a refutation that is the restatement pasted back.
-**This module still checks that a year is stated and that two records agree about it. It opens
-nothing.**
+`RESOLVED` and `PAGE-YEAR` require specifics a reader can check in one click, and the refutation
+pass remains the second-agent verification workflow. The grader's boundary around those recorded
+facts is named only in `research_ledger.DECLARED_LIMITS`.
 
 **A prefix was being read as a word until [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253), and what it cost is a record grading clean on the residue of its own keyword.** `keyword_of` split a field on `startswith` alone, so a value merely *opening* with a vocabulary word was read as that word and the rest of the token went into the remainder — which is the field the substance rows read as a reason. `STATUS: unsourced-but-see-below` reported **nothing at all**: the row that exists to make an unsourced record say what was searched was satisfied by `-but-see-below`. `RECENCY: nothing newerish` did the same one field over, where the excuse is what the five-year window reads, so an old reference passed with no excuse and no reason. `REFUTATION: standstill on the publisher's side` is the defect on the one verification row. The character after a keyword has to be a boundary now, **with the hyphen excluded**: the documented form writes a *spaced* hyphen as its separator, so a *welded* one is part of the word, and no legitimate value of the vocabularies this helper serves opens with a welded hyphenated form — checked against the tree rather than copied from the sibling that ruled it first. **Which vocabularies those are is read off the module by AST** rather than typed into the test, so a fourth cannot arrive with the boundary loops still green.
 
@@ -535,9 +521,9 @@ nothing.**
 
 **One row is a chain rather than a second check.** An order stating a dose is answered by a claim record stating a number — and where the claim carries a number, `NUMERIC_CLAIM_UNQUANTIFIED` above already forces the *restatement* to answer with one. The two compose into *the table's dose reaches a source*, which is as far as offline grading goes.
 
-**It never compares the numbers, and that is #289's own closing prohibition.** A dose depends on indication, weight, renal function, pregnancy and route, so a row refusing a correct dose for the wrong reason is [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215)'s defect a fourth time — and #215 has already produced three. The reachable property is whether the dose was **sourced**, never whether it is right: a record carrying a *different* number passes. **And `DOSE_NOT_CLAIMED` asks for a number rather than for *the* number** — any digit in the claim heading satisfies it, documented on `UNRESOLVABLE_LOCATOR`'s terms and pinned by a test, because the heading is written in the source's own terms by design and narrowing it would refuse the correct answer. **Whether the dose is the one the record sourced is walked by a reader since [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299), and still by nothing here.** It is `the dose against the record that sourced it`, its own row of [practicum-case-study](skills/practicum-case-study/SKILL.md) step 9's table and one of the rows `checks_ledger.SUBSTANTIATED_CLEAN` names, so a bare `clean` on it fails. **A reader and not a row, ruled 2026-08-20, and the ground is that the false-alarm rate could not be grounded rather than that it would be high**: a string test reaches *the table's number appears in the record naming that drug* and nothing further, so it fires on `1 g` against *1000 mg* and `q24h` against *once daily* — this module's own `NUMERIC_CLAIM_UNQUANTIFIED` prohibition arriving one level down — and when it was ruled the only `practicum-case-study` run in the tree **with a claim ledger** predated these rows, every one of its prescriptions reaching no claim record, so **not one drug-row-and-record pair existed anywhere to measure it on**. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s precedent: ground a cut point where the corpus offers one, refuse to invent one where it does not. **It is its own row rather than a clause in `the Rx blocks` because `SUBSTANTIATED_CLEAN` is keyed on the check name** — marking the correspondence reading inside that row would have marked its three shape checks too, which #255 deliberately left alone. That step's `the Rx blocks` reader is still briefed on the table's shape and not on its number, and a first draft of the section this replaced claimed the number was covered in three files at once. **There is no drug table here and there will not be one**, so [#271](https://github.com/mshamblin5150-code/clinical-skills/issues/271) does not become a correctness dependency the way the ticket's comment predicted a `guidelines_search.py`-backed row would — nothing here searches anything.
+The dose-comparison boundary is named only in `research_ledger.DECLARED_LIMITS`. The rationale stays here: dose correctness depends on indication, weight, renal function, pregnancy, and route, while literal comparison would also reject equivalent expressions such as `1 g` and `1000 mg`. Since [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299), `practicum-case-study` step 9's `the dose against the record that sourced it` assigns that judgment to a reader. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s precedent applies: ground a cut point where the corpus offers one and refuse to invent one where it does not.
 
-**And the run picks the denominator, which is [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300) and was ruled a *reading* on 2026-08-20.** `_drug_of` takes a drug row's leading token, so a row welding two orders together is one drug to every row here and the second drug's dose — exactly the recalled number #289 was filed over — is graded by nothing. The same hole is live in `case_study_scan.py`, where the first drug's `x 7 days` discharges `no-stop-criterion` for a second drug that states none; it arrived there after this ticket was filed and by someone who had not read it, which is why both modules declare it at the grading site. **The clinician took the ticket's third option**: [skills/practicum-case-study/SKILL.md](skills/practicum-case-study/SKILL.md) step 9's `the Rx blocks` row asks its reader for the welded row by name, and no parser moved. **That row was already the right reader and was simply not told** — its brief has always asked whether every drug in the Plan has a table, and a welded pair is precisely a drug in the Plan without one. **No parser moved**, which is the durable half of that claim; a first draft of this sentence counted the places the wording landed in and got the count wrong in the same commit that wrote them, which is [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180) inside a paragraph about a ruling taken to avoid moving code.
+[#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300) records the parser-denominator decision and the clinician's choice to keep it reader-owned. `practicum-case-study` step 9's `the Rx blocks` row briefs that reader; the mechanical boundary is named only in `research_ledger.DECLARED_LIMITS`.
 
 **The declined option is refused on a measurement, and the measurement is a test rather than a figure — which is the part worth copying.** Decision 2 is the option the next session will re-propose, because it looks obvious: *a drug row whose text after the first dose contains a second unit-bearing token*. `test_research_ledger.TheDeclinedParserRowsFireOnCorrectOrders` **implements both the broad form and its narrowing to a conjunction and runs them** over a set of correct one-drug orders, so re-proposing one costs a failing test rather than an argument — `threshold_sheet.py`'s two heuristics tried against the corpus before a constant was named, and [#278](https://github.com/mshamblin5150-code/clinical-skills/issues/278)'s finding that a proposal's supporting argument can be falsified by the artifact it proposes to extend. **How many fire is that class's to say and is deliberately not counted here**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms; what is stated is the shape, because the shape is the ruling. A taper, a titration, a repeat dose and a bolus-then-infusion each put two dose-bearing tokens in one correct row; **the conjunction narrowing drops the taper and keeps the other three**, which is the finding rather than the count — it helps and does not close it. **Narrowing past what is left needs a closed set of continuation verbs whose miss is a false alarm on a correct order, the same failure direction as the drug table #289 prohibits**, which is the ground the ticket itself rules decision 2's cousins out on. **The orders are written in the test and were measured against no corpus**, because a finished draft lives under `output/` and is written about a patient, so the claim is a floor and never a rate.
 
@@ -565,7 +551,7 @@ nothing.**
 
 **Both directions were measured against the real dump before any of this was believed, which is `block_scan.py`'s and `threshold_sheet.py`'s lesson a fourth time.** A ledger reproducing #289's citation exits 1 with the remedy named; **every topic the dump carries, cited one at a time, exits 0** — no false positive anywhere in the set. Neither measurement is committed and neither is restated as a figure here, because the dump is under `scratch/`.
 
-**What no row here reaches is the residue #298 names and does not close**: the join is on a **citation**, so a threshold, a screening interval or a discriminator taken from a topic nobody read and written with no reference is invisible to this row and to every other one. **A clean scan is not a sourced document**, `skills/practicum-case-study/SKILL.md` step 3 says so beside the command, and a test asserts that sentence is still there.
+[#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298) records the declined wider join and its rationale. The implemented boundary is named only in `research_ledger.DECLARED_LIMITS`.
 
 **Nothing committed can be pointed at it, and there will not be one** — a ledger is a patient record
 by `scratch/`'s own terms, which is `differential_scan.py`'s position exactly. So

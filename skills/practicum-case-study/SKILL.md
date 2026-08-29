@@ -652,10 +652,9 @@ rather than `0`.** A zero beside a row that never ran is the silent pass this wh
 exists to refuse, so the run that graded no prescriptions says so on the same page as its clean
 exit. A draft carrying no readable prescription table is exit 2 for the same reason.
 
-**What this must never become is a dose checked against a table.** A dose depends on indication,
-weight, renal function, pregnancy and route, so a row refusing a correct dose for the wrong reason
-is #215's defect a fourth time. The reachable property is whether the dose was **sourced**, never
-whether it is right -- a record carrying a *different* number passes these rows.
+The choice not to build a dose-correctness table is grounded in indication, weight, renal function,
+pregnancy, route, and #215's warning against rejecting a correct result for the wrong reason. The
+mechanical boundary of these rows is named only in `research_ledger.DECLARED_LIMITS`.
 
 **Nothing downstream reads the number either, and that stopped being true on
 [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299).** Step 9's `the Rx blocks`
@@ -706,11 +705,9 @@ on the same reasoning as the prescription rows above. **An evidence file carryin
 all is exit 2**, because a dump this cannot read would otherwise fire the row on every UpToDate
 citation in the ledger -- a mass false finding rather than a scan.
 
-**What it cannot reach is a claim that rested on a missing topic without citing it.** The join is on
-a citation, so a threshold, a screening interval or a discriminator taken from a topic nobody read
-and written without a reference is invisible here and to every other row --
-[#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298). **A clean scan is not a
-sourced document.**
+[#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298) records the declined wider
+join and its rationale; the implemented boundary is named only in
+`research_ledger.DECLARED_LIMITS`.
 
 **Then hand the ledger to a fresh checker, and do not draft until that checker reports it clean:**
 
@@ -718,15 +715,13 @@ sourced document.**
 python tools/research_ledger.py <claims-ledger>
 ```
 
+The grader's coverage boundaries are inventoried in
+`research_ledger.DECLARED_LIMITS`; this skill points there without copying its rows.
+
 Exit 0 is clean, 1 names how many records failed, and **2 means it did not scan** — no file, no
 records, or no `DATE` header. Re-run with `--show` to see which records, and **that output is PHI**:
-read it, do not paste it. What the command checks and what it cannot are in its module docstring;
-the short version is that it can see a missing field, an unexcused old reference, a restatement
-that is the claim pasted back, a locator that is not one and a page year that disagrees with the
-entry — and it **cannot** see whether the source is reputable, whether it says what the record
-claims it says, or whether the refutation came from a second agent at all.
-**A clean scan is not a checked claim** — the refutation pass is what checks a claim, and this
-command only grades that the pass answered.
+read it, do not paste it. The command's full coverage inventory is
+`research_ledger.DECLARED_LIMITS`; the refutation pass remains the clinical-source reading.
 
 **Every rule the command applies is written above, so a harness with no Python walks the ledger by
 eye instead.** The command saves the reading; it is not where the rule lives. That is

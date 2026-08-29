@@ -38,7 +38,7 @@ import reference_scan
 import research_ledger as ledger
 import coursework_run
 from grader_conformance import constructed_kinds, for_module
-from prose_bind import ProseBind
+from prose_bind import ProseBind, normalized as normalized_prose
 
 GraderConformance = for_module(ledger)
 import run_grader
@@ -172,6 +172,273 @@ class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
 
     def test_the_clean_record_fails_nothing(self):
         self.assertEqual(kinds(ledger_text(CLEAN)), [])
+
+
+class DeclaredLimitsHaveDurableNames(unittest.TestCase):
+    """ADR 0053 ruling 8's public object and derived sentence view."""
+
+    def test_each_row_is_key_sentence_and_evidence_disposition(self):
+        for row in ledger.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertIsInstance(row, ledger.DeclaredLimit)
+                self.assertTrue(row.key.strip())
+                self.assertTrue(row.limit.strip())
+                self.assertIsInstance(row.evidence, ledger.EvidenceDisposition)
+
+    def test_not_reached_is_the_order_preserving_sentence_view(self):
+        self.assertEqual(
+            ledger.NOT_REACHED,
+            tuple(row.limit for row in ledger.DECLARED_LIMITS),
+        )
+
+    def test_keys_are_distinct(self):
+        keys = [row.key for row in ledger.DECLARED_LIMITS]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_the_object_is_live(self):
+        self.assertTrue(ledger.DECLARED_LIMITS)
+
+    def test_declared_limits_do_not_print(self):
+        report = ledger.format_report(
+            ledger.survey(ledger.read_records(CLEAN), AS_OF), "claims.md"
+        )
+        for row in ledger.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertNotIn(row.key, report)
+                self.assertNotIn(row.limit, report)
+
+
+def module_prose_without_inventory() -> str:
+    """The module surface with the canonical rows themselves removed."""
+
+    source = Path(ledger.__file__).read_text(encoding="utf-8")
+    start = source.index("DECLARED_LIMITS =")
+    end = source.index("NOT_REACHED =", start)
+    return source[:start] + source[end:]
+
+
+class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
+    """ADR 0053 ruling 10's two-direction, live, mutation-tested bind."""
+
+    SHINGLE = 8
+    SURFACES = {
+        "the module prose": module_prose_without_inventory,
+        "CLAUDE.md": lambda: (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
+        "discussion-post": lambda: (
+            REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
+        ).read_text(encoding="utf-8"),
+        "discussion-reply": lambda: (
+            REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
+        ).read_text(encoding="utf-8"),
+        "practicum-case-study": lambda: SKILL.read_text(encoding="utf-8"),
+    }
+
+    @classmethod
+    def shingles(cls, text: str) -> set[str]:
+        words = normalized_prose(text).split()
+        return {
+            " ".join(words[index : index + cls.SHINGLE])
+            for index in range(len(words) - cls.SHINGLE + 1)
+        }
+
+    @classmethod
+    def copies_in(cls, text: str) -> list[str]:
+        normalized = normalized_prose(text)
+        prose = cls.shingles(normalized)
+        found = []
+        for row in ledger.DECLARED_LIMITS:
+            if row.key in normalized:
+                found.append(f"{row.key}: names the key")
+            shared = sorted(cls.shingles(row.limit) & prose)
+            if shared:
+                found.append(f"{row.key}: {shared[0]!r}")
+        return found
+
+    def test_every_surface_points_at_the_object_and_copies_no_row(self):
+        for where, read in self.SURFACES.items():
+            with self.subTest(where=where):
+                prose = read()
+                self.assertProseIn("research_ledger.DECLARED_LIMITS", prose)
+                self.assertEqual(self.copies_in(prose), [], where)
+
+    def test_the_bind_is_live_in_both_directions(self):
+        self.assertTrue(ledger.DECLARED_LIMITS)
+        for where, read in self.SURFACES.items():
+            with self.subTest(where=where):
+                self.assertGreater(len(read()), 200)
+
+    def test_a_planted_key_and_sentence_each_trigger_the_copy_detector(self):
+        for row in ledger.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertTrue(self.copies_in(f"See the object. {row.key}."))
+                self.assertTrue(self.copies_in(f"See the object. {row.limit}"))
+        self.assertEqual(
+            self.copies_in("See research_ledger.DECLARED_LIMITS for the limits."),
+            [],
+        )
+
+
+class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
+    """Bind each behavior row to its blind-spot test and positive control."""
+
+    HANDLERS = {
+        "record-population-unbounded": ("AHeadingWhoseAnswerNeverArrivedIsAFinding.test_a_short_ledger_is_only_visible_because_the_headings_were_written_first", "AHeadingWhoseAnswerNeverArrivedIsAFinding.test_a_bare_heading_fails"),
+        "restatement-semantic-equivalence-unchecked": ("TheRestatementIsNotTheClaimAgain.test_a_real_paraphrase_passes", "TheRestatementIsNotTheClaimAgain.test_pasting_the_claim_back_is_a_finding"),
+        "numeric-values-uncompared": ("ANumericClaimGetsANumericRestatement.test_the_source_may_answer_in_its_own_units", "ANumericClaimGetsANumericRestatement.test_a_number_answered_with_prose_is_a_finding"),
+        "two-year-target-unenforced": ("TheRecencyRuleIsTheAmendedOne.test_the_window_boundary_is_five_years_inclusive", "TheRecencyRuleIsTheAmendedOne.test_an_old_source_with_no_excuse_is_a_finding"),
+        "doi-shape-overmatches": ("TheDoiBranchOfTheLocatorMatchesAPageRange.test_a_page_range_shaped_like_a_doi_matches", "TheDoiBranchOfTheLocatorMatchesAPageRange.test_prose_with_no_locator_shape_still_fails_the_row"),
+        "read-date-lower-bound-absent": ("DeclaredLimitBehaviorControls.test_a_read_date_long_before_the_ledger_passes", "DeclaredLimitBehaviorControls.test_a_read_date_after_the_ledger_fires"),
+        "paywall-body-unread": ("TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong.test_a_paywall_passes_because_the_wall_is_not_an_absence", "TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong.test_a_refuted_citation_is_a_failure_and_not_an_outcome"),
+        "page-year-first-plausible-token": ("ThePageYearIsCheckedAgainstTheEntry.test_a_page_number_that_is_itself_a_plausible_year_still_wins", "ThePageYearIsCheckedAgainstTheEntry.test_a_page_number_before_the_year_is_not_read_as_the_year"),
+        "prescription-number-correctness-unchecked": ("AClaimForADosedDrugCarriesTheNumber.test_the_row_never_compares_the_numbers", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
+        "dose-claim-accepts-any-number": ("TheDoseRowAsksForANumberAndNotForTheNumber.test_a_year_in_the_heading_satisfies_the_row", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
+        "welded-drug-hidden": ("OneDrugRowIsOneDrugAndNothingHereMakesThatTrue.test_the_second_drugs_dose_is_graded_by_nothing", "EveryPrescribedDrugHasAClaimRecord.test_a_drug_no_record_names_is_the_ticket_itself"),
+        "leading-token-drug-parser": ("ADrugRowIsReadOffTheDispSigPair.test_the_drug_is_the_leading_token_and_the_rest_is_the_order", "EveryPrescribedDrugHasAClaimRecord.test_an_unreadable_drug_row_is_a_finding_and_not_a_silent_drop"),
+        "spelled-dose-unseen": ("ADrugRowIsReadOffTheDispSigPair.test_a_row_with_no_digit_states_no_dose", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
+        "dose-versus-indication-unseen": ("DeclaredLimitBehaviorControls.test_an_indication_number_satisfies_the_dose_row", "DeclaredLimitBehaviorControls.test_the_same_indication_without_a_number_fires"),
+        "drug-sig-agreement-unseen": ("DeclaredLimitBehaviorControls.test_a_conflicting_sig_does_not_change_the_parsed_order", "ADrugRowIsReadOffTheDispSigPair.test_a_table_carrying_disp_and_no_sig_is_not_a_prescription"),
+        "table-record-number-equivalence-unseen": ("AClaimForADosedDrugCarriesTheNumber.test_the_row_never_compares_the_numbers", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
+        "partial-prescription-table-nonfatal": ("TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_a_short_read_is_outside_the_exit_status_and_says_so", "TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_a_draft_with_no_prescription_table_exits_two"),
+        "evidence-cross-references-ungraded": ("ACarriedTopicIsRecognizedByItsMasthead.test_a_cross_reference_is_not_a_body", "ACarriedTopicIsRecognizedByItsMasthead.test_a_body_is_carried"),
+        "unmastheaded-evidence-body-unseen": ("DeclaredLimitBehaviorControls.test_an_unmastheaded_topic_body_is_not_carried", "ACarriedTopicIsRecognizedByItsMasthead.test_a_body_is_carried"),
+        "non-uptodate-evidence-unjoined": ("ACitedTopicTheDumpDoesNotCarryIsRefused.test_a_journal_citation_is_left_alone", "ACitedTopicTheDumpDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
+        "unrecognizable-uptodate-entry-unseen": ("DeclaredLimitBehaviorControls.test_an_entry_with_neither_database_nor_locator_is_unseen", "AnUpToDateEntryThisCannotReadIsAFinding.test_an_uptodate_locator_with_no_database_element_is_a_finding"),
+        "uncited-missing-topic-unseen": ("DeclaredLimitBehaviorControls.test_a_missing_topic_with_no_citation_is_unseen", "ACitedTopicTheDumpDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
+        "draft-rows-optional": ("TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_without_the_flag_the_three_rows_read_not_graded", "TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_with_the_flag_the_rows_carry_counts"),
+        "evidence-rows-optional": ("TheEvidenceRowsAreWiredInLikeTheDraftRows.test_the_report_says_not_graded_without_the_flag", "TheEvidenceRowsAreWiredInLikeTheDraftRows.test_the_report_states_the_population_when_it_ran"),
+        "evidence-without-draft-skips-references": ("DeclaredLimitBehaviorControls.test_evidence_without_draft_supplies_no_reference_entries", "DeclaredLimitBehaviorControls.test_evidence_with_draft_reads_reference_entries"),
+        "reply-reference-label-unchecked": ("DeclaredLimitBehaviorControls.test_the_reply_path_accepts_a_misspelled_reference_label", "DeclaredLimitBehaviorControls.test_reference_scan_rejects_the_same_label"),
+    }
+
+    def test_behavior_keys_are_exactly_the_handled_keys(self):
+        behavior = {
+            row.key
+            for row in ledger.DECLARED_LIMITS
+            if row.evidence is ledger.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(behavior, set(self.HANDLERS))
+
+    def test_every_handler_runs_a_blind_spot_and_positive_control(self):
+        for key, (blind_spot, positive_control) in self.HANDLERS.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(blind_spot, positive_control)
+                for named in (blind_spot, positive_control):
+                    result = unittest.TestResult()
+                    unittest.defaultTestLoader.loadTestsFromName(
+                        f"test_research_ledger.{named}"
+                    ).run(result)
+                    self.assertTrue(
+                        result.wasSuccessful(),
+                        f"{key}: {named}: {result.errors + result.failures}",
+                    )
+
+
+class DeclaredLimitBehaviorControls(unittest.TestCase):
+    """Direct controls for boundaries that do not have a natural row test."""
+
+    def test_a_read_date_long_before_the_ledger_passes(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://example.test - read 2020-01-01")
+        self.assertNotIn(ledger.READ_AFTER_DATE, kinds(ledger_text(record)))
+
+    def test_a_read_date_after_the_ledger_fires(self):
+        record = replace_field(CLEAN, "RESOLVED", "https://example.test - read 2027-01-01")
+        self.assertIn(ledger.READ_AFTER_DATE, kinds(ledger_text(record)))
+
+    def test_a_conflicting_sig_does_not_change_the_parsed_order(self):
+        first = ledger.read_prescriptions(rx_table(CEFTRIAXONE, sig="Take for infection."))
+        second = ledger.read_prescriptions(rx_table(CEFTRIAXONE, sig="Take for migraine."))
+        self.assertEqual(first, second)
+
+    def test_an_indication_number_satisfies_the_dose_row(self):
+        claim = "Ceftriaxone is indicated for 2 clinical syndromes."
+        self.assertEqual(rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim(claim)), [])
+
+    def test_the_same_indication_without_a_number_fires(self):
+        claim = "Ceftriaxone is indicated for two clinical syndromes."
+        self.assertEqual(
+            rx_kinds(rx_table(CEFTRIAXONE), a_drug_claim(claim)),
+            [ledger.DOSE_NOT_CLAIMED],
+        )
+
+    def test_an_unmastheaded_topic_body_is_not_carried(self):
+        self.assertEqual(
+            ledger.carried_topics("A topic title\nTreatment details without a masthead.\n"),
+            set(),
+        )
+
+    def test_an_entry_with_neither_database_nor_locator_is_unseen(self):
+        record = """\
+## CLAIM: A claim resting on an unrecognizable entry.
+STATUS: sourced
+REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
+"""
+        found, read = ledger.evidence_findings(
+            ledger.read_records(ledger_text(record)), (), {"Some topic"}
+        )
+        self.assertEqual((found, read), ([], 0))
+
+    def test_a_missing_topic_with_no_citation_is_unseen(self):
+        self.assertEqual(ledger.evidence_findings([], (), {"A carried topic"}), ([], 0))
+
+    def test_evidence_without_draft_supplies_no_reference_entries(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            claims = root / "claims.md"
+            evidence = root / "evidence.txt"
+            claims.write_text(ledger_text(CLEAN), encoding="utf-8")
+            evidence.write_text(topic("A carried topic"), encoding="utf-8")
+            parsed = run_grader.Parsed(
+                str(claims), values={"--evidence": str(evidence)}
+            )
+            with mock.patch.object(ledger, "read_document") as read_document:
+                source = ledger._load(parsed)
+        read_document.assert_not_called()
+        self.assertEqual(source.entries, ())
+
+    def test_evidence_with_draft_reads_reference_entries(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            claims = root / "claims.md"
+            evidence = root / "evidence.txt"
+            draft = root / "draft.md"
+            claims.write_text(ledger_text(CLEAN), encoding="utf-8")
+            evidence.write_text(topic("A carried topic"), encoding="utf-8")
+            draft.write_text("## References\nAn entry.\n", encoding="utf-8")
+            parsed = run_grader.Parsed(
+                str(claims),
+                values={"--evidence": str(evidence), "--draft": str(draft)},
+            )
+            parsed_document = mock.Mock(entries=(mock.Mock(text="An entry."),))
+            with mock.patch.object(
+                ledger, "read_document", return_value=parsed_document
+            ) as read_document:
+                source = ledger._load(parsed)
+        read_document.assert_called_once()
+        self.assertEqual(source.entries, ("An entry.",))
+
+    def test_the_reply_path_accepts_a_misspelled_reference_label(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            claims = root / "claims.md"
+            reply = root / "reply.md"
+            claims.write_text(ledger_text(CLEAN), encoding="utf-8")
+            reply.write_text("# Reply\n\n## Refrences\n\nAn entry.\n", encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = ledger.main([str(claims)])
+        self.assertEqual(status, 0)
+
+    def test_reference_scan_rejects_the_same_label(self):
+        with tempfile.TemporaryDirectory() as raw:
+            reply = Path(raw) / "reply.md"
+            reply.write_text("# Reply\n\n## Refrences\n\nAn entry.\n", encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = reference_scan.main(
+                    [str(reply), "--as-of", "2026-08-19"]
+                )
+        self.assertEqual(status, 2)
+        self.assertIn("no reference list", out.getvalue() + err.getvalue())
 
 
 class AStatusIsOneOfTwoBranches(unittest.TestCase):
@@ -1162,20 +1429,10 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         """
         return " ".join(self.skill.split())
 
-    def test_the_skill_says_a_clean_scan_is_not_a_checked_claim(self):
-        self.assertIn("A clean scan is not a checked claim", self.skill)
-
-    def test_the_skill_says_a_clean_scan_is_not_a_sourced_document(self):
-        """#298's residue, and the sentence carries the whole of what the row does
-        not reach: the join is on a citation, so a claim resting on a topic nobody
-        read and written with no reference is invisible to every row here.
-
-        **Compared against a whitespace-normalized skill and not against the raw
-        file**, which is ``test_run_record_claim``'s finding adopted rather than
-        rediscovered: every sentence here is long enough to be hard-wrapped, and a
-        phrase broken across two lines is invisible to a substring search.
-        """
-        self.assertIn("A clean scan is not a sourced document", self._flat())
+    def test_the_skill_points_at_the_declared_limit_inventory(self):
+        self.assertIn("research_ledger.DECLARED_LIMITS", self._flat())
+        self.assertNotIn("A clean scan is not a checked claim", self._flat())
+        self.assertNotIn("A clean scan is not a sourced document", self._flat())
 
     def test_the_skill_scopes_the_evidence_row_to_uptodate(self):
         """The scope *is* the grounding -- #231's login wall -- so a reader who
@@ -1498,29 +1755,14 @@ class TheDoiBranchOfTheLocatorMatchesAPageRange(unittest.TestCase):
     LIMIT = "registrant prefix and a free-form suffix"
     TICKET = "clinical-skills/issues/242"
 
-    def test_the_module_writes_the_limit_down(self):
-        """``test_spelling_scan``'s reasoning: a limit a reader cannot find reads
-        as coverage.
+    def test_the_inventory_names_the_limit(self):
+        limits = {row.key: row.limit for row in ledger.DECLARED_LIMITS}
+        self.assertIn("doi-shape-overmatches", limits)
 
-        **The ticket is matched as its URL and not as three digits.** A bare
-        ``242`` matches a year, a count or a line number, which is the
-        substring-versus-AST trap ``test_console_codec`` was rewritten to avoid.
-        """
-        source = Path(ledger.__file__).read_text(encoding="utf-8")
-        self.assertIn(self.LIMIT, source)
-        self.assertIn(self.TICKET, source)
-
-    def test_the_repo_level_copy_says_the_same_thing(self):
-        """**#220's shape, and this limit is written in three places.** Beside the
-        pattern, in the module docstring, and in ``CLAUDE.md``'s *Research ledger*
-        section -- and a prose edit to any one of them failed nothing, so the two
-        could disagree and the reader misled was whichever one they opened.
-
-        This binds the repo-level copy to the module's own words. What it cannot
-        reach is whether either copy is *true*; that is the behavior tests above.
-        """
+    def test_the_repo_level_prose_points_instead_of_copying(self):
         doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-        self.assertIn(self.LIMIT, doc)
+        self.assertIn("research_ledger.DECLARED_LIMITS", doc)
+        self.assertNotIn(self.LIMIT, doc)
         self.assertIn(self.TICKET, doc)
 
 
@@ -2197,11 +2439,9 @@ class TheDoseRowAsksForANumberAndNotForTheNumber(unittest.TestCase):
         )
         self.assertEqual(found, [], "the row is narrower than it is documented to be")
 
-    def test_the_module_writes_the_limit_down(self):
-        """``test_spelling_scan``'s reasoning: a limit a reader cannot find reads
-        as coverage."""
-        source = Path(ledger.__file__).read_text(encoding="utf-8")
-        self.assertIn("asks for a number and cannot ask for *the* number", source)
+    def test_the_inventory_names_the_limit(self):
+        limits = {row.key: row.limit for row in ledger.DECLARED_LIMITS}
+        self.assertIn("dose-claim-accepts-any-number", limits)
 
     def test_the_sibling_row_still_asks_for_the_record(self):
         """Why it is affordable. A heading with a year and no drug fails the row
@@ -2244,10 +2484,9 @@ class OneDrugRowIsOneDrugAndNothingHereMakesThatTrue(unittest.TestCase):
         )
         self.assertEqual(found, [])
 
-    def test_the_module_writes_the_limit_down(self):
-        source = Path(ledger.__file__).read_text(encoding="utf-8")
-        self.assertIn("One drug row is one drug, and nothing here makes that true", source)
-        self.assertIn("clinical-skills/issues/300", source)
+    def test_the_inventory_names_the_limit(self):
+        limits = {row.key: row.limit for row in ledger.DECLARED_LIMITS}
+        self.assertIn("welded-drug-hidden", limits)
 
 
 class TheRowSplitIsTheRenderersOwn(unittest.TestCase):
