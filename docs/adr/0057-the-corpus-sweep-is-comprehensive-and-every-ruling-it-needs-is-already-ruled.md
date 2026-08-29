@@ -216,7 +216,11 @@ does not answer whether a guideline is current or superseded."* Nothing therefor
 draft's numbers may not ship as thresholds.
 
 Three non-guideline documents are the **sole** source for their topic, and no topic mixes
-classes:
+classes. **Both halves held when this was written and hold for two of the three today** —
+[ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md)
+put the errata's parent in the corpus and merged both onto one `babesiosis` topic, so that row is
+no longer sole-source and its topic now mixes `guideline` with `errata`. The reasoning below is
+about the draft and the scope of work and is untouched:
 
 | class | pages | topic |
 | --- | ---: | --- |
@@ -243,8 +247,13 @@ through a door neither record checked. It becomes a declared non-source instead.
 The `errata` was recorded here as needing none of this, on the ground that its topic is named
 *(corrections)* and nobody will lean on it. [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md)
 falsified both halves by reading the document: half of it is a revised babesiosis treatment
-table carrying doses, and the guideline it corrects is not in the corpus. It stays an
-ordinary source, for a different reason than the one written here.
+table carrying doses, and the guideline it corrects was not in the corpus. It stays an
+ordinary source, for a different reason than the one written here. **The second half of that is no
+longer true either**, and by a different route:
+[ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md)
+added `ciaa1216` and measured that the parent as served already carries every value the corrigendum
+revised, so what the errata now supplies is not a dose but the only record in the tree that a
+correction happened.
 
 ## Why sheet-local vocabularies stay
 
@@ -403,3 +412,10 @@ overstated sentence, one unnamed dependency and one count that names its members
 *(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0055 link in the correction section named a remembered title rather than that record's tracked filename; its target now matches the index. No ruling changed.)*
 
 *(Corrected in place 2026-08-29, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms, by [#587](https://github.com/mshamblin5150-code/clinical-skills/issues/587)'s grilling. Two facts: the Consequences sentence stated ruling 8 wider than ruling 8 states it, and the errata sentence was falsified by reading the document. No ruling changed.)*
+
+*(Corrected in place 2026-08-29 a second time, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#640](https://github.com/mshamblin5150-code/clinical-skills/issues/640)'s grilling. Two
+statements about the errata row's corpus membership — that it is sole-source with an unmixed class,
+and that its parent is absent — were true when written and were moved the same day by
+[ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md).
+No ruling changed.)*
