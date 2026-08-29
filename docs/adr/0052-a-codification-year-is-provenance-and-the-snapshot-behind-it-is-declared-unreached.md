@@ -130,16 +130,16 @@ unmentioned.**
 
 The build that survives ruling 1 is not in the ticket. It is a per-section **last amended** date
 transcribed off the eCFR section page — a fact the document states about itself, so it clears
-ADR 0040 ruling 1's transcription-not-inference line — joined against the edition year already
+ADR 0040 ruling 1's transcription-not-inference line — joined against the codification year already
 in the citation:
 
 ```text
 REFERENCE:  42 C.F.R. § 414.56 (2025). ...
 SECTION-AMENDED: 2026-03-14, stated on the eCFR section page under "Source"
-                 -> edition cited 2025, section amended after it - SUPERSEDED
+                 -> codification cited 2025, section amended after it - SUPERSEDED
 
 SECTION-AMENDED: 2019-11-12, stated on the eCFR section page under "Source"
-                 -> edition cited 2025, section unchanged since 2019 - clean
+                 -> codification cited 2025, section unchanged since 2019 - clean
 ```
 
 One row, two transcribed strings, no cadence, no inference, no network at grading time. It
@@ -161,7 +161,7 @@ refused to let any field carry.
 
 ### Rejected: a weaker form of ruling 2's build
 
-A `SECTION-AMENDED` field with no join to the edition year buys no row at all. The last-amended
+A `SECTION-AMENDED` field with no join to the codification year buys no row at all. The last-amended
 date is always at or before the day the agent read the page, so the comparison is vacuous on the
 day it is written and nothing ever re-reads it. A field that fires never is the R2 defect with
 extra steps. If this is ever built it is built with the join.
@@ -254,11 +254,13 @@ it is named by `CLAUDE.md` as the transferable half of
 [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300)'s ruling: implement the
 declined row and run it, so re-proposing costs a failing test rather than an argument.
 
-So the build implements the cadence row — *edition year in the citation is behind the current
-annual edition, therefore a finding* — and runs it over correct C.F.R. citations written in the
-test whose sections are unchanged across editions. Every one fires; the test asserts they fire;
-its name says why. It lands in the same module gaining `NOT_REACHED`, so the row and its
-demonstration sit together.
+So the build implements the cadence row — *the codification year in a 2024 citation is behind the
+same reference's 2025 annual Title 42 codification, therefore a finding* — and runs it over correct
+C.F.R. citations written in the test whose sections are unchanged across those two codifications.
+This is the fixed historical comparison between the official 2024 and 2025 annual Title 42
+codifications, not a claim about which annual codification is current whenever the suite happens
+to run. Every 2024 citation fires; the test asserts they fire; its name says why. It lands in the
+same module gaining `NOT_REACHED`, so the row and its demonstration sit together.
 
 **Its ceiling is declared and is the precedent's own.** The citations are written in the test and
 measured against no corpus, because a finished ledger lives under `scratch/` and cannot be a

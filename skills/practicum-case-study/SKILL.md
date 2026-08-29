@@ -557,7 +557,7 @@ day it opened it — the word `read` or `retrieved`, then an ISO date. `PAGE-YEA
 page itself states and where on the page it says so. `STATED-EXPIRY` is `none stated`, an ISO date
 and where the document states it, or an ISO date followed by `superseded cited deliberately` and a
 reason. Transcribe only what the document states; do not infer an expiry from a publication cadence.
-`42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the edition year is
+`42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the codification year is
 provenance, and the annual reissue schedule is not a stated expiry. `REFUTATION` is `stands`,
 `refuted` or `paywalled` with the reason after a hyphen. A field's value may wrap onto the next line.
 
