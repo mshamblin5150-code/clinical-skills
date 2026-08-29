@@ -26,11 +26,12 @@ layouts all at once, and it is why a document that changes its section headings 
 parses.
 
 **What this does not do.** It does not read the recommendation; it transcribes it. The
-``population`` and ``interval`` columns are *derived from the statement text by the rules
-below*, not quoted from a field the document declares, and where the rules find nothing
-the cell says so rather than guessing. Every row carries ``filename`` and ``page`` so a
-grade can be checked against the source in one jump, and that jump is the check -- the
-table is an index into the corpus, not a substitute for it.
+``population`` column is quoted from the statement when possible and otherwise from the
+document's declared ``POPULATION`` field. The ``interval`` column is derived from the
+statement text alone. Where the applicable rule finds nothing, the cell says so rather
+than guessing. Every row carries ``filename`` and ``page`` so a grade can be checked
+against the source in one jump, and that jump is the check -- the table is an index into
+the corpus, not a substitute for it.
 
 Usage::
 
@@ -411,7 +412,7 @@ def validate_grade(letter: str) -> str:
 _POP_QUALIFIER = (
     r"(?:asymptomatic|nonpregnant|pregnant|postpartum|postmenopausal|community-dwelling"
     r"|sexually active|school-aged|average-risk|high-risk|increased-risk|unsensitized"
-    r"|young|older|adult|adolescent|newly|all|the|primary care)"
+    r"|Rh \(D\)-negative|young|older|adult|adolescent|newly|all|the|primary care)"
 )
 _POP_NOUN = (
     r"(?:adults?|women|men|persons?|people|patients?|children|adolescents?|newborns?"
@@ -831,9 +832,10 @@ def render_markdown(
         "**This is an index into the corpus, not a substitute for it.** Every row carries "
         "the source `filename` and the `page` the grade was read from, so any grade can be "
         "checked against the document in one jump — and a row that matters to a patient "
-        "should be. `population` and `interval` are *derived from the statement text*, not "
-        "quoted from a field the document declares — from the statement sentence alone, a "
-        "reach ruled permanent rather than awaiting a wider derivation. `not stated` means "
+        "should be. `population` is quoted from the statement when possible and otherwise "
+        "from the document's declared `POPULATION` field. `interval` is derived from the "
+        "statement sentence alone, a reach ruled permanent rather than awaiting a wider "
+        "derivation. `not stated` means "
         "the rule found nothing there, which for `interval` is the ordinary case rather than "
         "a gap. A document may state elsewhere that no interval is established. Where a "
         "recommendation offers alternatives, "
@@ -927,8 +929,10 @@ def render_markdown(
     out.append("## Statements")
     out.append("")
     out.append(
-        "**Beyond the columns #82 asked for, and here for a reason.** `population` and "
-        "`interval` are derived rather than quoted, and the source PDFs stay outside this "
+        "**Beyond the columns #82 asked for, and here for a reason.** `population` is "
+        "quoted from the statement where possible but may instead quote the document's "
+        "declared `POPULATION` field; `interval` is derived from the statement. The source "
+        "PDFs stay outside this "
         "repo and are not redistributed ([#87](https://github.com/mshamblin5150-code/"
         "clinical-skills/issues/87)) — so without the sentence each row was cut from, a "
         "reader with no copy of the corpus has no way to check a derived cell at all. "
