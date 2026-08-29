@@ -43,7 +43,12 @@ grep -n "No decision point" tools/threshold_sheet.py  ->  0   (ADR 0035, ratifie
    alone. [#436](https://github.com/mshamblin5150-code/clinical-skills/issues/436) leaves
    #429's dependency list and keeps the recommendation accounting inside a sheet.
 6. **The guideline catalog gains a `url` column**, filled once and audited like every other
-   mechanical column, rather than a per-sheet lookup.
+   mechanical column, rather than a per-sheet lookup. **Superseded by
+   [ADR 0067](0067-the-download-address-is-seeded-from-the-stated-citation-and-a-found-one-is-true-only-on-digest-identity.md)
+   and left as written**, being the dated record of what was decided on 2026-08-27. Its 33-topic cost
+   was measured against page 1 alone; ADR 0047's column admits a locator read at any page, and the
+   residue re-derives as six documents carrying one topic each. No `url` column lands on the catalog.
+   Every other ruling here is unchanged.
 7. **A threshold sheet records the extraction identity it was read against.** A mismatch
    against the current extraction warns and names the affected sheets; it does not refuse.
 8. **A source document's `class` enters the sheet's `## Sources` table.** A source whose
