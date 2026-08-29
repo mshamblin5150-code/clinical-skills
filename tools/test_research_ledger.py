@@ -2754,6 +2754,50 @@ class TheDeclinedParserRowsFireOnCorrectOrders(unittest.TestCase):
                 self.assertNotEqual(rx_kinds(rx_table(order)), [])
 
 
+class TheDeclinedCadenceRowFiresOnCorrectCitations(unittest.TestCase):
+    """Why #534 refuses a per-publisher annual-cadence row.
+
+    The declined row is implemented here rather than described: a C.F.R.
+    citation whose edition year is behind the current annual edition is called
+    stale. The cited sections below are correct across the two editions, so
+    every finding is a false alarm about the section's content.
+
+    These citations are written in this test and measured against no corpus.
+    The result is therefore a floor on the false-alarm shape and never a rate.
+    A finished claim ledger lives under ``scratch/`` and cannot be a fixture.
+    """
+
+    CURRENT_ANNUAL_EDITION = 2026
+    CFR_EDITION = re.compile(
+        r"\b\d+\s+C\.F\.R\.\s+§+\s+[\d.]+\s+\((?P<edition>\d{4})\)"
+    )
+    CORRECT_ACROSS_EDITIONS = (
+        "42 C.F.R. § 410.20 (2025)",
+        "42 C.F.R. § 482.13 (2025)",
+        "42 C.F.R. § 483.10 (2025)",
+    )
+
+    @classmethod
+    def declined_cadence_row(cls, reference: str) -> bool:
+        match = cls.CFR_EDITION.search(reference)
+        return bool(
+            match
+            and int(match.group("edition")) < cls.CURRENT_ANNUAL_EDITION
+        )
+
+    def test_the_instrument_distinguishes_the_current_edition(self):
+        self.assertFalse(self.declined_cadence_row("42 C.F.R. § 482.13 (2026)"))
+
+    def test_the_cadence_row_fires_on_every_correct_citation(self):
+        for reference in self.CORRECT_ACROSS_EDITIONS:
+            with self.subTest(reference=reference):
+                self.assertTrue(
+                    self.declined_cadence_row(reference),
+                    "the declined cadence row no longer fires on this correct "
+                    "citation, so #534's ruling needs re-deriving",
+                )
+
+
 # --------------------------------------------------------------------------
 # #298 -- the evidence dump cross-references a topic it does not carry
 # --------------------------------------------------------------------------
