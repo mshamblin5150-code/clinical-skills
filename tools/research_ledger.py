@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -64,7 +65,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("refutation-independence-unverified", "SECOND-ROUTE cannot prove that the refuter was a different agent, that it actually took the route it declared, or that it opened anything.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("stated-expiry-transcription-unverified", "The grader cannot prove that a STATED-EXPIRY value was transcribed from the cited document rather than inferred.", EvidenceDisposition.DECLARED_READING),
-    DeclaredLimit("publication-cadence-reader-owned", "STATED-EXPIRY does not carry cadence-derived dates. Re-open the day a tree-wide count returns a SECOND citation on a published reissue cadence, or a SECOND distinct publisher in that bucket; measured 1 and 1 on 2026-08-27 at f9a501c over 22 citations in 4 claim ledgers. This reader-owned trigger cannot fire mechanically.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("publication-cadence-reader-owned", "STATED-EXPIRY does not carry cadence-derived dates. Re-open the day a tree-wide count returns a SECOND citation on a published reissue cadence, or a SECOND distinct publisher in that bucket; measured 1 and 1 on 2026-08-27, at f9a501c, over 22 citations in 4 claim ledgers. This reader-owned trigger cannot fire mechanically.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("read-date-lower-bound-absent", "A source read arbitrarily long before the writing date can still pass.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("keyword-parser-copy-uncompared", "Parity with checks_ledger's intentionally copied keyword parser is not asserted.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("paywall-body-unread", "The passing paywalled disposition verifies no claim against the source body.", EvidenceDisposition.BEHAVIOR),
@@ -1094,6 +1095,12 @@ def evidence_findings(
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind]), read
 
 
+def _stated_expiry_unscanned(records: Iterable[Record]) -> bool:
+    """Whether sourced records all predate #498's required field."""
+    sourced = [record for record in records if record.status == SOURCED]
+    return bool(sourced) and not any("STATED-EXPIRY" in record.fields for record in sourced)
+
+
 def survey(
     records: list[Record],
     as_of: date | None,
@@ -1109,10 +1116,8 @@ def survey(
     sibling prints a run directory's -- the name, never the path.
     """
     graded = [(record, record_findings(record, as_of)) for record in records]
-    sourced_records = [record for record in records if record.status == SOURCED]
-    stated_expiry_unscanned = bool(sourced_records) and not any(
-        "STATED-EXPIRY" in record.fields for record in sourced_records
-    )
+    sourced = [record for record in records if record.status == SOURCED]
+    stated_expiry_unscanned = _stated_expiry_unscanned(sourced)
     if stated_expiry_unscanned:
         # The whole-ledger retired shape is coverage failure, not one repeated
         # missing-field finding per record. Other findings remain and outrank
@@ -1148,7 +1153,6 @@ def survey(
         + on_the_draft
         + [f for _, per_record in graded for f in per_record]
     )
-    sourced = sourced_records
     return Scan(
         as_of=as_of,
         records=len(records),
@@ -1366,10 +1370,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
-    sourced = tuple(record for record in records if record.status == SOURCED)
-    stated_expiry_unscanned = bool(sourced) and not any(
-        "STATED-EXPIRY" in record.fields for record in sourced
-    )
+    stated_expiry_unscanned = _stated_expiry_unscanned(records)
     return Source(
         path,
         records,

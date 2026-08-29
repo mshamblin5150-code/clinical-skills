@@ -229,24 +229,63 @@ def ledger_publishing_skills(read_text=None) -> tuple[Path, ...]:
     )
 
 
+def claim_blocks(path: Path) -> tuple[str, ...]:
+    """Fenced templates and examples that actually publish claim records."""
+    blocks: list[str] = []
+    current: list[str] | None = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("```"):
+            if current is None:
+                current = []
+            else:
+                block = "\n".join(current) + "\n"
+                if ledger.CLAIM.search(block):
+                    blocks.append(block)
+                current = None
+            continue
+        if current is not None:
+            current.append(line)
+    return tuple(blocks)
+
+
 class EveryLedgerPublishingSkillCarriesTheRecordContract(unittest.TestCase):
     """#498 and #500's one shared, derived-population vocabulary bind."""
 
     def test_every_publishing_skill_names_every_required_field(self):
         for path in ledger_publishing_skills():
-            text = path.read_text(encoding="utf-8")
-            for name in ledger.REQUIRED_WHEN_SOURCED:
-                with self.subTest(skill=path.parent.name, field=name):
-                    self.assertIn(f"{name}:", text)
+            blocks = claim_blocks(path)
+            self.assertTrue(blocks, path.parent.name)
+            for block in blocks:
+                for name in ledger.REQUIRED_WHEN_SOURCED:
+                    with self.subTest(skill=path.parent.name, field=name):
+                        self.assertIn(f"{name}:", block)
 
     def test_every_publishing_skill_carries_both_new_field_vocabularies(self):
         for path in ledger_publishing_skills():
-            text = path.read_text(encoding="utf-8")
-            with self.subTest(skill=path.parent.name):
-                self.assertIn("none stated", text)
-                self.assertIn("superseded cited deliberately", text)
-                self.assertIn("SECOND-ROUTE", text)
-                self.assertIn("->", text)
+            for block in claim_blocks(path):
+                with self.subTest(skill=path.parent.name):
+                    self.assertIn("none stated", block)
+                    self.assertIn("SECOND-ROUTE", block)
+                    self.assertIn("->", block)
+                    if "<" in block:
+                        self.assertIn("superseded cited deliberately", block)
+
+    def test_every_concrete_worked_example_passes_the_scanner(self):
+        examples = [
+            block
+            for path in ledger_publishing_skills()
+            for block in claim_blocks(path)
+            if "<" not in block
+        ]
+        self.assertTrue(examples)
+        for example in examples:
+            records = ledger.read_records(example)
+            self.assertTrue(records)
+            stamp = ledger.DATE_HEADER.search(example)
+            self.assertIsNotNone(stamp)
+            as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3)))
+            for record in records:
+                self.assertEqual(ledger.record_findings(record, as_of), [])
 
     def test_the_population_changes_when_a_claim_marker_is_removed(self):
         baseline = ledger_publishing_skills()
@@ -1401,12 +1440,16 @@ class AnUnsourcedRecordCarriesNoneOfTheCitationFields(unittest.TestCase):
         self.assertEqual(kinds(ledger_text(self._unsourced())), [])
 
     def test_each_citation_field_contradicts_it_on_its_own(self):
-        for name, value in (
-            ("REFERENCE", "Someone, A. (2020). A study. Journal, 1(1), 1-9."),
-            ("RESOLVED", "https://doi.org/10.1/x - read 2026-08-19"),
-            ("PAGE-YEAR", "2020 - on the masthead."),
-            ("REFUTATION", "stands - checked the landing page."),
-        ):
+        values = {
+            "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
+            "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
+            "PAGE-YEAR": "2020 - on the masthead.",
+            "REFUTATION": "stands - checked the landing page.",
+            "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
+            "STATED-EXPIRY": "none stated",
+        }
+        self.assertEqual(set(values), set(ledger.CITATION_FIELDS))
+        for name, value in values.items():
             with self.subTest(field=name):
                 record = replace_field(self._unsourced(), "RECENCY", value)
                 record = record.replace("RECENCY:", name + ":")
@@ -1779,6 +1822,8 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         "_contract_findings",
         "_recency_findings",
         "_citation_findings",
+        "_second_route_findings",
+        "_stated_expiry_findings",
         # #289's, and the only one that is not handed a ``Record``. The count in
         # the name below is deliberately gone: it read *five* while the tuple
         # held six for the length of one edit, which is #143 at the shortest
@@ -1813,9 +1858,9 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         )
 
 
-class ExactlyTwoRowsAreMeasuredAgainstTheDate(unittest.TestCase):
+class ExactlyThreeRowsAreMeasuredAgainstTheDate(unittest.TestCase):
     """#242's stated payoff. The exit-2 banner claims a dateless ledger loses the
-    window and the read date and nothing else; before the split that claim was
+    window, the read date and the stated expiry and nothing else; before the split that claim was
     readable only by reading the whole grader, and nothing asserted it.
 
     **The behavioral half is the one that counts.** A signature can take ``as_of``
@@ -1828,13 +1873,23 @@ class ExactlyTwoRowsAreMeasuredAgainstTheDate(unittest.TestCase):
         undated = set(kinds(ledger_text(record, stamp=""), None))
         return dated, undated
 
-    def test_the_window_and_the_read_date_are_the_whole_of_what_a_date_buys(self):
+    def test_the_three_date_rows_are_the_whole_of_what_a_date_buys(self):
         record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
         record = replace_field(record, "RECENCY", "current")
         record = replace_field(record, "RESOLVED", "https://doi.org/10.1/x - read 2027-01-01")
+        record = replace_field(
+            record,
+            "STATED-EXPIRY",
+            "2026-08-18 - termination date on the rule's cover sheet",
+        )
         dated, undated = self._both_ways(record)
         self.assertEqual(
-            dated - undated, {ledger.STALE_UNEXCUSED, ledger.READ_AFTER_DATE}
+            dated - undated,
+            {
+                ledger.STALE_UNEXCUSED,
+                ledger.READ_AFTER_DATE,
+                ledger.STATED_EXPIRY_REACHED,
+            },
         )
         self.assertEqual(undated - dated, set())
 
@@ -1843,7 +1898,7 @@ class ExactlyTwoRowsAreMeasuredAgainstTheDate(unittest.TestCase):
         self.assertEqual(dated, set())
         self.assertEqual(undated, set())
 
-    def test_only_two_helpers_take_the_date(self):
+    def test_only_three_helpers_take_the_date(self):
         """The signatures are where a reader sees it. #214's rows are measured
         against no date at all, which is why ``_contract_findings`` takes none."""
         takes = {
@@ -1851,7 +1906,10 @@ class ExactlyTwoRowsAreMeasuredAgainstTheDate(unittest.TestCase):
             for name in TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings.OWNERS
             if "as_of" in inspect.signature(getattr(ledger, name)).parameters
         } - {"record_findings"}
-        self.assertEqual(takes, {"_recency_findings", "_citation_findings"})
+        self.assertEqual(
+            takes,
+            {"_recency_findings", "_citation_findings", "_stated_expiry_findings"},
+        )
 
 
 class TheFindingsComeBackInReportOrder(unittest.TestCase):
