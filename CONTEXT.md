@@ -359,6 +359,10 @@ _Avoid_: false positive, spurious record, noise
 A quantity a guideline attaches a value to that changes what is done to a patient — a dose, a period, a cutoff, or a target. It is read from what the guideline states, never inferred from a catalog or recommendation index. A recommendation carrying no such quantity has none.
 _Avoid_: threshold, recommendation, criterion
 
+**Stated evidence absence**:
+A source's own statement that it looked for evidence on a quantity and found none. Read off the document and never inferred from a value's absence — the source is the one speaking, which is what separates it from an `Interval` cell reading `not stated`, where a derivation found nothing; from a `nothing-found` recommendation record, where two reader limbs matched nothing; and from a `none` **sweep state**, where a read found no decision point. It does not say the quantity is unestablished: a source may find no evidence and still offer an approach in its absence, and most that carry one do, sometimes naming a period. Describing evidence as *limited*, or a frequency as *not well established*, does not earn it — such a source is characterizing evidence it has, and may state a quantity of its own in the same document. Distinct from a [[Decision point]], which is the quantity rather than the evidence for it.
+_Avoid_: stated absence, no interval established, evidence gap, silence
+
 **Interval**:
 How often a recommended service recurs, which is the question the USPSTF recommendation table's
 `Interval` column answers. A period where the recommendation names one, and a bare recurrence or a

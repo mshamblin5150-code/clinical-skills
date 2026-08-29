@@ -50,7 +50,10 @@ document.
 
 **The region is dominated by wrong candidates.** `hypertension-screening-adults`
 states *"The USPSTF suggests annual screening for hypertension in adults 40 years or older"* —
-genuinely the USPSTF's own interval, genuinely outside the statement.
+genuinely the USPSTF's own interval, genuinely outside the statement. *(This sentence and the
+declared-limit section below contradicted each other about this document until 2026-08-29, when
+[ADR 0068](0068-a-stated-evidence-absence-is-read-into-the-uspstf-artifact-and-the-class-is-named-for-what-the-source-says.md)
+resolved it in favor of this one and withdrew the list.)*
 `colorectal-cancer-screening` carries a per-modality table against rows of differing grade.
 The rest are evidence discussion, and some fire on the sentence stating that no interval exists:
 
@@ -175,11 +178,25 @@ A term here would be a sixth location rather than a clarification.
 
 ## The declared limit this ruling is known to be hiding
 
-**These documents state, outside the statement sentence, that no interval is established** —
-`anxiety-adults`, `depression-suicide-risk-adults`, `hypertension`, `ipv`,
-`latent-tuberculosis`, `screening-anxiety-children`, `screening-depression-children`,
-`syphilis`. All carry `not stated` rows, and in the cell that is indistinguishable from a
-recommendation that is simply not periodic.
+**Some documents state, outside the statement sentence, that the USPSTF looked for evidence on
+the screening interval and found none.** They carry `not stated` rows, and in the cell that is
+indistinguishable from a recommendation that is simply not periodic.
+
+**Corrected in place on 2026-08-29.** This paragraph named eight documents. That membership was
+measured by one phrase family on 2026-08-24 at `9dd61fd` and **was wrong in both directions**;
+the list is withdrawn rather than reprinted one member shorter, because an unre-derivable list
+inside a ratified record is where the error lived and where seven sweeps went to confirm it —
+`CONTEXT.md`'s **Underived count**, *derive it or drop it*. The three movements are named because
+a later session will otherwise re-derive eight from this record's history: `hypertension` and
+`syphilis` were **not** members — each characterizes its evidence as *limited* rather than absent
+and each states an interval of its own — and `hepatitis-b` was a member and was missing.
+Membership belongs to the generated section ruled in
+[ADR 0068](0068-a-stated-evidence-absence-is-read-into-the-uspstf-artifact-and-the-class-is-named-for-what-the-source-says.md),
+which is graded rather than asserted.
+
+**And the class was misnamed here.** No document says no interval is established; each says the
+USPSTF *found no evidence*, and most then offer an approach in its absence. The wrong name is
+what admitted the two wrong members, since both fit it and neither fits the right one.
 
 *The USPSTF looked and found no evidence for an interval* is a different fact from silence, and
 a clinician can act on it. It is out of reach for exactly the reason ruling 1 gives, and
@@ -207,6 +224,12 @@ because `none` has nowhere to put its evidence.
 So the stated-absence class currently has **no artifact anywhere in the tree**, and #505 is
 open on where it goes rather than on how it is written. That is recorded here because the
 first draft of this record asserted the routing as settled.
+
+**Settled on 2026-08-29 by ADR 0068**, and by neither candidate above: the class is recorded in a
+generated `##` section of `reference/guidelines-uspstf.md`, membership is read rather than matched,
+and #505 is unblocked from #483 because nothing in that build touches a threshold sheet, the
+coverage registry or a `none` row. Ruling 1 above is untouched — no derivation widens and no cell
+moves.
 
 ## Dated observation after #434 — 2026-08-29
 
