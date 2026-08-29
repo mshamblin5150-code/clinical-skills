@@ -481,6 +481,10 @@ _Avoid_: notification, confirmation, comment, log
 A merge that was graded and yielded no binding. It is a finding rather than a result, because a merge whose binding failed to parse and one that never wrote a binding are otherwise the same output. Distinct from a **declared no-binding**, which is the same absence stated on purpose.
 _Avoid_: no receipts, zero, clean, nothing found
 
+**Authored message**:
+One text a person wrote in a pull request — the pull request body, or one commit message. GitHub serializes a commit message as a headline and a body; they are halves of one authored message rather than two, so a contradiction spanning them is one artifact contradicting itself.
+_Avoid_: artifact, source, field, commit
+
 **Declared no-binding**:
-A merge stating, with a reason, that it changes no ticket's state. It is what makes a legitimate absence a different row from an omission, which no count of bindings can distinguish on its own.
+An authored message stating, with a reason, that it changes no ticket's state. It is what makes a legitimate absence a different row from an omission, which no count of bindings can distinguish on its own. Scoped to the message carrying it, so a pull request may bind a ticket and still contain one; only a message that both binds and declares is a contradiction.
 _Avoid_: exemption, opt-out, skip, waiver
