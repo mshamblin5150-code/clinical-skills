@@ -275,6 +275,14 @@ _Avoid_: audit file, digest file, hash list, checksums
 The way a corpus document identifies itself on its own page, so that a person could obtain it again — a DOI, a URL the document prints, or a journal citation line. It is read off the page and never found by searching, so a document that prints no such thing has none rather than acquiring one. It says what this copy states, which is a fact about the copy: a co-published guideline prints one DOI and may be correctly cited by another, so a difference from the address a threshold sheet sends a reader to is not a defect. Nothing in the tree has opened one.
 _Avoid_: locator, url, doi, link, source
 
+**Download address**:
+Where a reader is sent to obtain a corpus document, recorded on the threshold sheet that cites it. It points outward and is chosen or found, which is what distinguishes it from a Stated citation — that is read off the document and points inward, and the two may legitimately differ where a guideline was co-published. It is seeded from the Stated citation where there is one and found by an agent where there is not; nothing in the tree fetches one.
+_Avoid_: locator, url, doi, link, source, stated citation
+
+**Download basis**:
+What a Download address rests on, one of four: seeded from the document's own stated citation, verified by the fetched bytes matching the audited digest, matched by title where a wall stopped the fetch, or deliberately chosen by a person over the address the document itself prints. It records the kind of evidence rather than a degree of confidence, because the seeded and the verified kinds are strong in different ways and neither is a guess.
+_Avoid_: confidence, verification, provenance, mode
+
 **Corpus drift**:
 The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened.
 _Avoid_: staleness, desync, corpus change, mismatch
