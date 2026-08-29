@@ -312,8 +312,12 @@ How completely a guideline's recommendations could be read, and therefore how st
 _Avoid_: confidence, quality, extraction mode; also avoid source class, which answers a different question
 
 **Source class**:
-What form a corpus document takes — a guideline, a recommendation statement, a web capture, a draft, an errata, a scope of work. It says nothing about whether a guideline is current or superseded. A threshold sheet names it beside each source, because a number read out of a public review draft is not guidance in force and a year alone does not say so. A scope of work states what a future guideline will cover and holds no clinical quantity by design, which makes it a declared non-source rather than a source read and found empty.
+What form a corpus document takes — a guideline, a recommendation statement, a web capture, a draft, an errata, a scope of work. It says nothing about whether a guideline is current or superseded. A threshold sheet names it beside each source, because a number read out of a public review draft is not guidance in force and a year alone does not say so. On a sheet the cell is spelled **source class**, which keeps it apart from a row's class of recommendation in the same file. One class is a **declared non-source**.
 _Avoid_: status, standing, document type, source mode
+
+**Declared non-source**:
+A source class enumerated as holding no clinical quantity by design — a scope of work, which states what a future guideline will cover — so a topic sourced only from one is disposed on the document's form rather than on a reading that found it empty. The set is enumerated and never a predicate over what is not a guideline: a correction and a web capture both carry clinical quantities, and the corpus's largest class is where a legitimate empty read is most likely to be earned. It is still read like any other source, because the declaration is a claim about a class and the read is what makes it true of a document.
+_Avoid_: excluded source, non-guideline, empty source, unusable source
 
 **Extraction identity**:
 Which build of the extracted corpus a claim was checked against — the producing commit, the extractor's own fingerprint, the reader engine and the boilerplate settings, as opposed to a corpus path and a date. A threshold sheet names it because a re-extraction moves every snippet's substrate at once, and without it a stale sheet is indistinguishable from a current one.
@@ -366,7 +370,7 @@ The one-row-per-topic record of the threshold-sheet sweep. Its topic population 
 _Avoid_: checklist, index, inventory
 
 **Sweep state**:
-One of `sheet`, `none`, or `unread`. `none` means the topic's **named source documents** were read and state no decision point, which is a claim about those documents and never about the topic — a society that has not yet published on a subject cannot earn one, so a source that is not a guideline cannot produce it. `unread` establishes nothing. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question. What `sheet` asserts is that every page of the source sits in a read span — it is derived from the sheet's own span table rather than typed, and the registry refuses a disagreement in either direction.
+One of `sheet`, `none`, or `unread`. `none` means the topic's **named source documents** were read and state no decision point, which is a claim about those documents and never about the topic — a society that has not yet published on a subject cannot earn one, so a declared non-source cannot produce it. `unread` establishes nothing, and it is a defect to be burned down rather than a resting state, so nothing may be parked there by design — which is why a topic sourced only from a declared non-source is ruled a fourth state of its own, in [ADR 0061](docs/adr/0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md), absent from this list until the code holds it. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question. What `sheet` asserts is that every page of the source sits in a read span — it is derived from the sheet's own span table rather than typed, and the registry refuses a disagreement in either direction.
 _Avoid_: status, result, disposition
 
 **Shipped artifact**:
