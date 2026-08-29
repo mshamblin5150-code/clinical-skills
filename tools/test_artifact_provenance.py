@@ -39,6 +39,12 @@ class ArtifactIdentityTables(unittest.TestCase):
                 "tools/guidelines_manifest.py",
                 "tools/artifact_provenance.py",
             },
+            "recs": {
+                "tools/guidelines_recs.py",
+                "tools/guidelines_extract.py",
+                "tools/artifact_provenance.py",
+                "reference/guidelines-uspstf.md",
+            },
         }
         expected_floor = {
             "extraction": {
@@ -48,6 +54,11 @@ class ArtifactIdentityTables(unittest.TestCase):
             "index": {
                 "tools/guidelines_index.py",
                 "tools/guidelines_manifest.py",
+            },
+            "recs": {
+                "tools/guidelines_recs.py",
+                "tools/guidelines_extract.py",
+                "reference/guidelines-uspstf.md",
             },
         }
 

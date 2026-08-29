@@ -1,4 +1,4 @@
-"""Build or reuse content-addressed guideline extraction and index artifacts.
+"""Build or reuse content-addressed extraction, index, and recommendation artifacts.
 
     python tools/guidelines_build.py <source-folder>
 
@@ -32,11 +32,12 @@ import guidelines_extract
 import guidelines_index
 import guidelines_index_artifact
 import guidelines_manifest
+import guidelines_recs
 from console_codec import use_utf8
 from repo_root import ensure_outside_checkout, main_repo_root
 
 
-CATALOG_SCHEMA_VERSION = 1
+CATALOG_SCHEMA_VERSION = 2
 ARTIFACT_SCHEMA_VERSION = 1
 ARTIFACT_RECORD = "artifact.json"
 CATALOG_NAME = "catalog.json"
@@ -153,6 +154,29 @@ def index_identity(extraction: SelectedArtifact) -> dict[str, object]:
     }
 
 
+def recs_identity(source: Path) -> dict[str, object]:
+    source_files = _files(source, "*.pdf")
+    if not source_files:
+        raise ValueError(f"no PDFs under {source}")
+    return {
+        "kind": "recs",
+        "schema": ARTIFACT_SCHEMA_VERSION,
+        # Sweep records preserve absolute source paths for strict consumers,
+        # so corpus location is part of their byte-level identity.
+        "source_root": str(source.resolve()),
+        "source_files": source_files,
+        "producer_files": _code_inputs(*artifact_provenance.CACHE_IDENTITY["recs"]),
+        "runtime": {
+            "python": platform.python_version(),
+            "pymupdf": _package_version("PyMuPDF"),
+        },
+        "curated_table": {
+            "path": "reference/guidelines-uspstf.md",
+            "sha256": _sha256(guidelines_recs.CURATED_TABLE),
+        },
+    }
+
+
 def _extraction_inventory(extraction: SelectedArtifact) -> str:
     """Identify extracted content without allowing lineage metadata to key it."""
     rows: list[dict[str, object]] = []
@@ -170,7 +194,7 @@ def _extraction_inventory(extraction: SelectedArtifact) -> str:
 def _empty_catalog() -> dict[str, object]:
     return {
         "schema_version": CATALOG_SCHEMA_VERSION,
-        "artifacts": {"extraction": {}, "index": {}},
+        "artifacts": {kind: {} for kind in artifact_provenance.CACHE_IDENTITY},
     }
 
 
@@ -181,13 +205,24 @@ def _read_catalog_unlocked(path: Path) -> dict[str, object]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as failure:
         raise ValueError(f"catalog {path} is unreadable: {failure}") from failure
+    if (
+        isinstance(data, dict)
+        and data.get("schema_version") == 1
+        and isinstance(data.get("artifacts"), dict)
+        and all(
+            isinstance(data["artifacts"].get(kind), dict)
+            for kind in ("extraction", "index")
+        )
+    ):
+        return _empty_catalog()
     if not isinstance(data, dict) or data.get("schema_version") != CATALOG_SCHEMA_VERSION:
         raise ValueError(f"catalog {path} has an unsupported schema")
     artifacts = data.get("artifacts")
     if not isinstance(artifacts, dict) or any(
-        not isinstance(artifacts.get(kind), dict) for kind in ("extraction", "index")
+        not isinstance(artifacts.get(kind), dict)
+        for kind in artifact_provenance.CACHE_IDENTITY
     ):
-        raise ValueError(f"catalog {path} has no extraction and index maps")
+        raise ValueError(f"catalog {path} does not map every artifact kind")
     return data
 
 
@@ -601,6 +636,69 @@ def _build_index(
     )
 
 
+def _build_recs(
+    source: Path,
+    catalog_root: Path,
+    catalog_path: Path,
+    identity: dict[str, object],
+    producer: dict[str, str | bool],
+) -> SelectedArtifact:
+    def build_temporary(temporary: Path, _: dict[str, object]) -> None:
+        try:
+            guidelines_recs.build_sweep(source, temporary, producer)
+        except guidelines_recs.DidNotScan as failure:
+            raise ValueError(
+                f"recommendation sweep did not scan {failure}"
+            ) from failure
+        if _files(source, "*.pdf") != identity["source_files"]:
+            raise ValueError(
+                "source files changed during recommendation sweep; retry the build"
+            )
+        curated_identity = identity.get("curated_table")
+        if (
+            not isinstance(curated_identity, dict)
+            or curated_identity.get("sha256") != _sha256(guidelines_recs.CURATED_TABLE)
+        ):
+            raise ValueError(
+                "curated table changed during recommendation sweep; retry the build"
+            )
+
+    return _select_or_build(
+        "recs",
+        catalog_root,
+        catalog_path,
+        identity,
+        producer,
+        build_temporary,
+    )
+
+
+def _recs_coverage(root: Path) -> tuple[int, int, int]:
+    manifest = json.loads(
+        (root / guidelines_recs.SWEEP_MANIFEST).read_text(encoding="utf-8")
+    )
+    documents = manifest.get("documents") if isinstance(manifest, dict) else None
+    if not isinstance(documents, list) or any(
+        not isinstance(row, dict) for row in documents
+    ):
+        raise ValueError("recommendation manifest has no document rows")
+    records = sum(
+        1
+        for row in documents
+        if isinstance(row.get("record"), str) and (root / row["record"]).is_file()
+    )
+    nothing_found = sum(
+        1 for row in documents if row.get("outcome") == guidelines_recs.NOTHING_FOUND
+    )
+    if records != len(documents):
+        raise ValueError("recommendation manifest does not resolve every record")
+    return len(documents), records, nothing_found
+
+
+def default_recs_alias(source: Path) -> Path:
+    return source.parent / "guidelines-recs"
+
+
 def _publish_directory(source: Path, alias: Path) -> None:
     alias = ensure_outside_checkout(alias, detail=WHY_OUTSIDE)
     if alias.resolve() == source.resolve():
@@ -610,7 +708,7 @@ def _publish_directory(source: Path, alias: Path) -> None:
     backup = alias.with_name(f".{alias.name}.{uuid.uuid4().hex}.previous")
     try:
         shutil.copytree(source, temporary, ignore=shutil.ignore_patterns(ARTIFACT_RECORD))
-        with artifact_lock.hold(alias, "publishing extracted guideline compatibility path"):
+        with artifact_lock.hold(alias, "publishing guideline directory compatibility path"):
             moved_previous = False
             try:
                 if alias.exists():
@@ -663,6 +761,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="compatibility index path (default: the existing index default)",
     )
     parser.add_argument(
+        "--recs-alias",
+        type=Path,
+        default=None,
+        help="compatibility recommendation-record path (default: beside the source)",
+    )
+    parser.add_argument(
+        "--no-recs",
+        action="store_true",
+        help="skip the default recommendation-record stage",
+    )
+    parser.add_argument(
         "--jobs", type=int, default=0, help="extractor worker processes"
     )
     return parser
@@ -678,7 +787,14 @@ def main(argv: list[str]) -> int:
         catalog_path = catalog_root / CATALOG_NAME
         text_alias = (args.text_alias or guidelines_extract.default_output(source)).resolve()
         index_alias = (args.index_alias or guidelines_index.default_database()).resolve()
+        recs_alias = (args.recs_alias or default_recs_alias(source)).resolve()
         producer = artifact_provenance.current_producer()
+        recs = None
+        if not args.no_recs:
+            recs_spec = recs_identity(source)
+            recs = _build_recs(
+                source, catalog_root, catalog_path, recs_spec, producer
+            )
         extraction_spec = extraction_identity(source)
         extraction = _build_extraction(
             source,
@@ -694,16 +810,33 @@ def main(argv: list[str]) -> int:
         )
         _publish_directory(extraction.path, text_alias)
         _publish_file(index.path / "guidelines.sqlite", index_alias)
+        if recs is not None:
+            _publish_directory(recs.path, recs_alias)
         _remember_alias(catalog_path, "extraction", extraction.key, text_alias)
         _remember_alias(catalog_path, "index", index.key, index_alias)
+        if recs is not None:
+            _remember_alias(catalog_path, "recs", recs.key, recs_alias)
+            recs_coverage = _recs_coverage(recs.path)
     except (artifact_lock.ArtifactBusy, OSError, ValueError) as failure:
         print(str(failure), file=sys.stderr)
         return 2
 
     print(f"extraction  {'REUSED' if extraction.reused else 'BUILT'}  {extraction.path}")
     print(f"index       {'REUSED' if index.reused else 'BUILT'}  {index.path / 'guidelines.sqlite'}")
+    if recs is None:
+        print("recs        SKIPPED (--no-recs)")
+    else:
+        print(f"recs        {'REUSED' if recs.reused else 'BUILT'}  {recs.path}")
+        print(
+            "recs coverage  "
+            f"documents read {recs_coverage[0]}; "
+            f"records written {recs_coverage[1]}; "
+            f"yielded nothing {recs_coverage[2]}"
+        )
     print(f"text alias  {text_alias}")
     print(f"index alias {index_alias}")
+    if recs is not None:
+        print(f"recs alias  {recs_alias}")
     return 0
 
 

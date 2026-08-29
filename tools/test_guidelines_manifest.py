@@ -165,6 +165,8 @@ class ManifestOwnershipTests(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             if not any(token in source for token in manifest.DISCOVERY_CEILING):
                 continue
+            if path.name in manifest.NON_EXTRACTION_MANIFEST_OWNERS:
+                continue
             tree = ast.parse(source, path)
             imports_owner = any(
                 (isinstance(node, ast.Import) and any(alias.name == "guidelines_manifest" for alias in node.names))
@@ -175,6 +177,10 @@ class ManifestOwnershipTests(unittest.TestCase):
                 missing[path.name] = manifest.NOT_MIGRATED.get(path.name)
         self.assertEqual(missing, manifest.NOT_MIGRATED)
         self.assertTrue(all(manifest.NOT_MIGRATED.values()))
+        self.assertEqual(
+            manifest.NON_EXTRACTION_MANIFEST_OWNERS,
+            {"guidelines_recs.py": "recommendation sweep manifest"},
+        )
 
 
 class ManifestReadingTests(unittest.TestCase):
