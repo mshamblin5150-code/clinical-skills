@@ -441,6 +441,11 @@ class ThresholdDraftCli(unittest.TestCase):
             url=str(record.get("source") or ""),
             mode="bound",
             record=record,
+            record_location=guidelines_recs.RecommendationRecordLocation(
+                record_path,
+                guidelines_recs.RecommendationRecordOrigin.RECS_ROOT,
+                "acceptance test uses the exact record path",
+            ),
         )
 
         rows, scoped_out, rejected = draft.select_rows([source], seeded)
