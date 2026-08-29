@@ -3199,9 +3199,9 @@ class CodificationYearProseMatchesTheHistoricalInstrument(
     def test_live_surfaces_use_the_canonical_term(self):
         for path in self.live_surfaces():
             with self.subTest(path=path.relative_to(REPO_ROOT)):
-                self.assertNotRegex(
-                    path.read_text(encoding="utf-8").lower(),
-                    r"\bedition year\b",
+                self.assertProseNotIn(
+                    "edition year",
+                    path.read_text(encoding="utf-8"),
                 )
 
     def test_the_adr_records_the_fixed_historical_comparison(self):
