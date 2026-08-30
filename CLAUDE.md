@@ -767,12 +767,19 @@ hook, and a comment published without a push is still published by a tool call.
 **When a full harvest last really ran, and what it found, is what the command
 prints and is deliberately stated nowhere here** -- ADR 0077 ruling 7, on
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
-This paragraph carried that result in prose and it went stale in the direction
-nobody notices: it reported a harvest with **no corpus-name or corpus-date row**,
-and [#646](https://github.com/mshamblin5150-code/clinical-skills/issues/646) is
-the record that falsified it, published four days later and found nine days
-after that. A dated result in prose reads as a current property of the tracker,
-and no edit to a sentence fails.
+**The marker that command reads is
+[#671](https://github.com/mshamblin5150-code/clinical-skills/issues/671)'s build
+and does not exist yet; until it lands the figure is re-derived by running a
+full harvest from the maintainer clone.** This paragraph used to carry the
+result itself and it went stale in the direction nobody notices. **The carrying
+record and the finding ticket are two records four days apart, and a first
+draft of this sentence merged them into one**:
+[#498](https://github.com/mshamblin5150-code/clinical-skills/issues/498) was
+published four days after that harvest and carries the very finding class the
+prose reported absent, and
+[#646](https://github.com/mshamblin5150-code/clinical-skills/issues/646) found
+it nine days after the harvest rather than four. A dated result in prose reads
+as a current property of the tracker, and no edit to a sentence fails.
 
 **It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
