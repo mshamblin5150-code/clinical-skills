@@ -1281,9 +1281,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         shown = count
         if scan.prescriptions is None and kind in DRAFT_ROWS:
             shown = "not graded"
-        if scan.evidence_topics is None and kind in EVIDENCE_ROWS:
-            shown = "not graded"
-        if scan.uptodate_citations is None and kind in EVIDENCE_ROWS:
+        if (
+            scan.evidence_topics is None or scan.uptodate_citations is None
+        ) and kind in EVIDENCE_ROWS:
             shown = "not graded"
         lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")
