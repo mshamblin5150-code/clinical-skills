@@ -20,6 +20,7 @@ REPO = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 
 import artifact_provenance  # noqa: E402
+import guidelines_recs  # noqa: E402
 import uspstf_table  # noqa: E402
 from repo_root import InsideCheckout  # noqa: E402
 from prose_bind import ProseBind  # noqa: E402
@@ -97,6 +98,93 @@ class ArtifactIdentityTables(unittest.TestCase):
             [call.kwargs["unchanged_paths"] for call in check.call_args_list],
             [floors["index"], floors["extraction"]],
         )
+
+
+class TextProducerIdentity(unittest.TestCase):
+    def test_a_crlf_stamp_stays_trusted_after_an_lf_checkout_rewrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            producer_path = repo / "tools" / "producer.py"
+            producer_path.parent.mkdir()
+            producer_path.write_bytes(b"first\r\nsecond\r\n")
+            inputs = artifact_provenance.producer_file_identity(
+                ("tools/producer.py",), repo_root=repo
+            )
+            producer_path.write_bytes(b"first\nsecond\n")
+
+            result = artifact_provenance.check_producer(
+                {"commit": "same", "dirty": False, "inputs": inputs},
+                repo / "artifact.json",
+                expected_commit="same",
+                repo_root=repo,
+                unchanged_paths=("tools/producer.py",),
+            )
+
+            self.assertTrue(result.trusted)
+
+            producer_path.write_bytes(b"first\nchanged\n")
+            with self.assertRaisesRegex(
+                artifact_provenance.UntrustedProvenance,
+                "producer inputs do not match",
+            ):
+                artifact_provenance.check_producer(
+                    {"commit": "same", "dirty": False, "inputs": inputs},
+                    repo / "artifact.json",
+                    expected_commit="same",
+                    repo_root=repo,
+                    unchanged_paths=("tools/producer.py",),
+                )
+
+    def test_a_crlf_pair_at_the_old_streaming_boundary_is_one_newline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            producer_path = Path(directory) / "producer.txt"
+            producer_path.write_bytes(
+                b"a" * (1024 * 1024 - 1) + b"\r\n" + b"b" * 7
+            )
+
+            digest = artifact_provenance.text_file_identity(producer_path)
+
+        self.assertEqual(
+            digest,
+            "b7811da8c410963f45e16eb8274f9fddb0d7fc4738aed69cd144d8441d129114",
+        )
+
+    def test_every_repo_relative_identity_input_is_tracked_as_text(self):
+        """A clean result covers every configured tracked identity input.
+
+        It cannot classify an untracked producer path until that path is staged.
+        """
+        paths = sorted(
+            {
+                path
+                for table in (
+                    artifact_provenance.CACHE_IDENTITY,
+                    artifact_provenance.TRUST_FLOOR,
+                    guidelines_recs.RECORD_TRUST_FLOOR,
+                )
+                for members in table.values()
+                for path in members
+            }
+        )
+
+        result = subprocess.run(
+            ["git", "-C", str(REPO), "ls-files", "--eol", "--", *paths],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        rows = {
+            line.split("\t", 1)[1]: line.split("\t", 1)[0]
+            for line in result.stdout.splitlines()
+        }
+
+        self.assertEqual(set(rows), set(paths))
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertIn("i/lf", rows[path])
+                self.assertNotIn("-text", rows[path])
 
 
 class AcceptedDistrustDeclarations(unittest.TestCase):

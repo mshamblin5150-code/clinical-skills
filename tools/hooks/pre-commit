@@ -50,6 +50,9 @@ for python in python python3 py; do
         # around. `--all` rather than the staged paths: a sheet's conflict rule is a
         # statement about the whole directory, and grading one file in isolation
         # would miss a disagreement introduced between two of them.
+        # A producer-code edit invalidates recommendation-record provenance. Run the
+        # recommendation sweep again before the next threshold-sheet commit so the
+        # published --recs-alias records carry the current producer identity.
         if git diff --cached --name-only --diff-filter=ACM \
             | grep '^reference/thresholds/[^/]*\.md$' \
             | grep -Ev '^reference/thresholds/(README|coverage)\.md$' \
