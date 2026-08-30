@@ -343,6 +343,10 @@ _Avoid_: quote, excerpt, evidence, text
 What a reader saw on a rendered guideline page, reassembled into one cell — faithful to the page's layout and meaning rather than to its text stream, so a table's columns may be joined and a figure's branch named. It is what a cell marked `RENDERED:` holds, and it is not a **snippet**: no verbatim test applies to it, which is why the page check skips such a row rather than failing it. The marker is the audit claim that a page was rendered and read, and that claim is what licenses the cell.
 _Avoid_: snippet, quote, paraphrase, reconstruction, transcription
 
+**Field quotation**:
+A cell quoted from a structured field the document declares, where the column's rule primarily reads a passage of its prose. It is a second passage of the same document, not a second source. It cannot be checked against the statement the artifact ships beside its row, which is why such cells are listed rather than left to a re-derivation.
+_Avoid_: fallback, second source, default, secondary
+
 **Recommendation label**:
 The text a recommendation carries to say which recommendation its identifier names. On a `bound` source a leading marker reads forward at most 160 characters, while a trailing marker reads backward at most 920 characters and stops at the nearest preceding sentence boundary when one is available. Both caps end on a whole word. The label is an aid to a reader and never a quotation — a **snippet** on such a source is read off the page instead. On an `exact` source the same field is the ruled-table cell or curated statement itself and may be quoted.
 _Avoid_: snippet, quote, record text, excerpt
