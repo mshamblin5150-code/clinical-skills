@@ -1339,7 +1339,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "  declared floor: a tail whose sheet carries no source class cell is unread,"
         " not clean.",
         "  declared floor: a draft's numbers ship labeled, not suppressed -- whether this one",
-        "  should stand is the step 9 reader's.",
+        "  should stand is the `practicum-case-study` step 9 reader's.",
     ]
     ungraded = scan.notes - scan.notes_with_differential
     if ungraded > 0:
