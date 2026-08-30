@@ -633,7 +633,7 @@ python tools/checks_ledger.py <a checks file>
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a violation, **2 for every way of not having scanned**: no argument, no file, and **no `## CHECK:` record in it**. That last limb is `differential_scan.py`'s reasoning, and there is no dateless limb here because nothing in this file is measured against a date — the one row of `research_ledger.py`'s arrangement that does not transfer.
 
-**What it cannot reach is every verdict in the file.** Whether the differential's `1.` is what would kill first, whether an MDM entry's discriminator is from this case, whether the reader opened the draft at all. A well-formed `clean` from a reader that skimmed is what a well-formed `clean` from a reader that read looks like. **A clean scan is not a checked draft**, `skills/practicum-case-study/SKILL.md` says so beside the command, and a test asserts that sentence is still there.
+**The complete coverage boundary is `checks_ledger.DECLARED_LIMITS`.** This section points to that object without copying its rows; `practicum-case-study` step 9's inventory is the by-eye brief. **A clean scan is not a checked draft**, `skills/practicum-case-study/SKILL.md` says so beside the command, and a test asserts that sentence is still there.
 
 Covered by `tools/test_checks_ledger.py`, which builds synthetic checks files in that file and a temp directory — **there is no committed checks file and there will not be one**, on `test_differential_scan.py`'s position: a reader's findings describe a draft written about a patient. The one thing it reads from the tree is **the skill's own worked record, which it runs the scanner over**.
 ### Case study house style

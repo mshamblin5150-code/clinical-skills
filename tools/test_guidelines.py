@@ -127,7 +127,6 @@ class ProducerEditHandoffTests(unittest.TestCase):
     def _write_trusted_manifest(self) -> None:
         completed = self._python(
             f"""
-            import hashlib
             import json
             import sys
             from pathlib import Path
@@ -136,13 +135,9 @@ class ProducerEditHandoffTests(unittest.TestCase):
             import artifact_provenance as provenance
 
             producer = provenance.current_producer()
-            producer["inputs"] = [
-                {{
-                    "path": path,
-                    "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
-                }}
-                for path in provenance.TRUST_FLOOR["extraction"]
-            ]
+            producer["inputs"] = provenance.producer_file_identity(
+                provenance.TRUST_FLOOR["extraction"]
+            )
             manifest = {{
                 "producer": producer,
                 "documents": [{{"doc_id": "Society/one"}}],

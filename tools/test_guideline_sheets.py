@@ -60,6 +60,8 @@ import unittest
 from pathlib import Path
 
 from prose_bind import ProseBind
+import threshold_coverage
+import threshold_sheet
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTE_SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
@@ -405,12 +407,25 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
             for line in coverage.splitlines()
             if line.startswith("| ")
             and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 4
-            and cells[1] in {"sheet", "none", "unread"}
+            and cells[1] in threshold_coverage.STATES
             and cells[2]
         )
         self.assertEqual(sheets, registered)
         self.assertIn("thresholds/coverage.md", self.text)
         self.assertIn("thresholds/coverage.md", self.agents)
+
+    def test_every_shipped_source_class_is_derived_from_the_catalog(self):
+        source_classes, problems = threshold_sheet.load_catalog_source_classes()
+        self.assertEqual(problems, [])
+        for path in THRESHOLDS.glob("*.md"):
+            if path.name in {"README.md", "coverage.md"}:
+                continue
+            parsed = threshold_sheet.parse(path.read_text(encoding="utf-8"), path)
+            self.assertTrue(parsed.ok, parsed.why_not)
+            for source in parsed.sources.values():
+                self.assertEqual(
+                    source["source class"], source_classes[source["document"]]
+                )
 
     def test_both_consumers_join_threshold_sheets_on_the_artifact_column(self):
         rule = (

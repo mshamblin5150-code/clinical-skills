@@ -19,7 +19,7 @@ DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 SCHEMA_MARKER = "<!-- schema: threshold-coverage/2 -->"
-STATES = ("sheet", "none", "unread")
+STATES = ("sheet", "none", "non-source", "unread")
 
 
 @dataclass(frozen=True)
@@ -31,10 +31,26 @@ class Entry:
     line: int
 
 
-def catalog_topics(path: Path) -> tuple[list[str], int, list[str]]:
-    rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
+def catalog_topics(rows: list[guidelines_catalog.Row]) -> list[str]:
     topics = sorted({" ".join(row.topic.split()) for row in rows}, key=str.casefold)
-    return topics, len(rows), problems
+    return topics
+
+
+def render_source_class_topics(
+    rows: list[guidelines_catalog.Row], source_classes: list[str]
+) -> str:
+    wanted = {source_class.casefold() for source_class in source_classes}
+    matches = sorted(
+        {
+            (row.cls, " ".join(row.topic.split()))
+            for row in rows
+            if row.cls.casefold() in wanted
+        },
+        key=lambda match: (match[0].casefold(), match[1].casefold()),
+    )
+    return "source class\ttopic\n" + "".join(
+        f"{source_class}\t{topic}\n" for source_class, topic in matches
+    )
 
 
 def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
@@ -74,6 +90,7 @@ def render_draft(topics: list[str]) -> str:
 def audit(
     topics: list[str], entries: list[Entry], sheet_root: Path,
     page_counts: dict[str, int] | None = None,
+    source_classes: dict[str, str] | None = None,
 ) -> tuple[list[str], Counter[str], Counter[str]]:
     failures: list[str] = []
     counts = Counter(entry.state for entry in entries if entry.state in STATES)
@@ -82,6 +99,7 @@ def audit(
     )
     by_topic: dict[str, list[Entry]] = {}
     page_counts = page_counts or {}
+    source_classes = source_classes or {}
     for entry in entries:
         by_topic.setdefault(entry.topic.casefold(), []).append(entry)
         if entry.state not in STATES:
@@ -92,9 +110,9 @@ def audit(
             failures.append(
                 f"coverage.md:{entry.line} topic '{entry.topic}' state '{entry.state}' has no record"
             )
-        if entry.state == "sheet" and not entry.artifact:
+        if entry.state in {"sheet", "none", "non-source"} and not entry.artifact:
             failures.append(
-                f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' has no artifact"
+                f"coverage.md:{entry.line} topic '{entry.topic}' state '{entry.state}' has no artifact"
             )
         if entry.artifact:
             artifact = Path(entry.artifact)
@@ -117,7 +135,7 @@ def audit(
                         f"a usable threshold-sheet/2: {sheet.why_not}"
                     )
                     continue
-                schema_findings = threshold_sheet.gate_schema(sheet).findings
+                schema_findings = threshold_sheet.gate_schema(sheet, source_classes).findings
                 if schema_findings:
                     failures.append(
                         f"coverage.md:{entry.line} artifact '{entry.artifact}' fails "
@@ -125,11 +143,6 @@ def audit(
                     )
                     continue
                 unread = [span for span in sheet.spans if span.is_unread]
-                if entry.state == "sheet" and unread:
-                    failures.append(
-                        f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' "
-                        f"but artifact '{entry.artifact}' still lists {len(unread)} unread span(s)"
-                    )
                 # An overlapping positive span may cover the same page range as an
                 # unread span. Completion requires both the page union and the
                 # named-span inventory, or neither registry state could be valid.
@@ -148,10 +161,30 @@ def audit(
                     if not set(range(1, page_count + 1)) <= read_pages:
                         all_pages_read = False
                         break
-                if entry.state != "sheet" and all_pages_read:
+                if not sheet.rows and not all_pages_read:
+                    failures.append(
+                        f"coverage.md:{entry.line} zero-row artifact "
+                        f"'{entry.artifact}' does not cover every catalog page and "
+                        "cannot represent a completed null-sheet state"
+                    )
+                all_declared_non_source = bool(sheet.sources) and all(
+                    source.get("source class")
+                    in threshold_sheet.DECLARED_NON_SOURCE_CLASSES
+                    for source in sheet.sources.values()
+                )
+                if all_pages_read and all_declared_non_source:
+                    derived_state = "non-source"
+                elif all_pages_read and sheet.rows:
+                    derived_state = "sheet"
+                elif all_pages_read:
+                    derived_state = "none"
+                else:
+                    derived_state = "unread"
+                if entry.state != derived_state:
                     failures.append(
                         f"coverage.md:{entry.line} topic '{entry.topic}' state "
-                        f"'{entry.state}' but artifact '{entry.artifact}' shows every page read"
+                        f"'{entry.state}' disagrees with derived state '{derived_state}' "
+                        f"from artifact '{entry.artifact}'"
                     )
 
     wanted = {topic.casefold(): topic for topic in topics}
@@ -184,40 +217,68 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE)
     parser.add_argument("--sheet-root", type=Path, default=DEFAULT_SHEET_ROOT)
-    parser.add_argument("--draft", action="store_true")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--draft", action="store_true")
+    output.add_argument(
+        "--source-class",
+        dest="source_classes",
+        action="append",
+        metavar="CLASS",
+        help="print the distinct catalog topics supplied by CLASS; repeatable",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    try:
-        topics, catalog_rows, problems = catalog_topics(args.catalog)
-    except OSError as error:
-        print(error, file=sys.stderr)
-        return 2
-    if problems:
-        for problem in problems:
+    catalog_facts = threshold_sheet.load_catalog_facts(args.catalog)
+    if catalog_facts.parse_problems:
+        for problem in catalog_facts.parse_problems:
             print(problem, file=sys.stderr)
         return 2
+    rows = list(catalog_facts.rows)
+    topics = catalog_topics(rows)
     if args.draft:
         print(render_draft(topics), end="")
+        return 0
+    if args.source_classes:
+        print(render_source_class_topics(rows, args.source_classes), end="")
         return 0
     try:
         entries, parse_problems = parse_registry(args.coverage.read_text(encoding="utf-8"))
     except OSError as error:
         print(error, file=sys.stderr)
         return 2
-    page_counts, catalog_page_problems = threshold_sheet.load_catalog_page_counts(args.catalog)
-    failures, counts, artifact_counts = audit(topics, entries, args.sheet_root, page_counts)
-    failures = catalog_page_problems + failures
+    failures, counts, artifact_counts = audit(
+        topics,
+        entries,
+        args.sheet_root,
+        catalog_facts.page_counts,
+        catalog_facts.source_classes,
+    )
+    failures = list(catalog_facts.problems) + failures
     failures = parse_problems + failures
     if failures:
         for failure in failures:
             print(f"REFUSING: {failure}", file=sys.stderr)
         return 1
-    print(f"topics     {len(topics)} from {catalog_rows} catalog rows")
+    print(f"topics     {len(topics)} from {len(rows)} catalog rows")
     for state in STATES:
-        print(f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}")
+        qualifier = ""
+        if state == "none":
+            qualifier = (
+                "   -- every span retired on a marker or a class exemption; "
+                "no row carries a gated citation"
+            )
+        elif state == "non-source":
+            qualifier = (
+                "   -- every span retired; source form is in the declared "
+                "non-source class set"
+            )
+        print(
+            f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}"
+            f"{qualifier}"
+        )
     return 0
 
 

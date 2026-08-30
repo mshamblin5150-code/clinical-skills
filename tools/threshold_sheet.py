@@ -27,8 +27,9 @@ row needed it.
 ``SCHEMA``  refuses
     Structural. Every row has all eight columns, a population key drawn from the
     sheet's own declared vocabulary, no non-ASCII comparison character in its value,
-    and a source key that the Sources table defines. Every source carries a version,
-    a publication date and a URL. The sheet has a ``## Scope`` section saying both
+    and a source key that the Sources table defines. Every source carries its catalog
+    source class, a version, a publication date and a URL. The sheet has a ``## Scope``
+    section saying both
     what was read and what was **not**. **And the conflict rule**: two rows sharing a
     quantity key AND a population key with different values must be covered by a
     ``CONFLICT`` block for that quantity. Needs nothing but the sheet, so it runs
@@ -171,7 +172,8 @@ Exit status
 ``0`` no refusing finding. This includes a recommendation record that was never built
 under ``--recs-root``: COVERAGE prints ``NOT RUN`` through ``--quiet`` and calls the
 result a warning, never a clean COVERAGE pass. ``1`` a gate that refuses found
-something. ``2`` every other way of not having graded -- no sheet, no rows in it, an
+something. ``2`` every other way of not having graded -- no sheet, a zero-row sheet
+with no declaration, an
 unreadable Sources table, no record lookup requested, an explicit ``--recs`` path that
 does not resolve, an unreadable record, a ``--recs`` argument naming a source the sheet
 does not declare, a ``--second-read`` that was asked for and did not load, **and one
@@ -230,6 +232,7 @@ class BoundRecommendationRecords:
     why_not: dict[str, str]
     errors: list[str]
     missing_records: set[str]
+    untrusted_records: set[str]
     locations: dict[str, RecommendationRecordLocation]
 
     @property
@@ -336,10 +339,29 @@ _SOURCE_LOCATOR = re.compile(
 # draft scaffolder imports these names so it cannot emit a section the auditor does
 # not read after a heading rename.
 SOURCES_HEADING = "## Sources"
+SOURCE_COLUMNS = (
+    "key",
+    "society",
+    "document",
+    "source class",
+    "version",
+    "published",
+    "url",
+    "mode",
+)
 SCOPE_HEADING = "## Scope"
 POPULATIONS_HEADING = "## Populations"
 QUANTITIES_HEADING = "## Quantities"
 THRESHOLDS_HEADING = "## Thresholds"
+NONE_DECLARATION = (
+    "**No decision point.** Every span in `## Scope` has left the unread list and "
+    "this source states no quantity that changes what is done to a patient."
+)
+NON_SOURCE_DECLARATION = (
+    "**Declared non-source.** Every span in `## Scope` has left the unread list and "
+    "this source is a scope of work that states what a future guideline will cover."
+)
+DECLARED_NON_SOURCE_CLASSES = frozenset({"scope-of-work"})
 CONFLICTS_HEADING = "## Conflicts"
 COVERAGE_HEADING = "## Coverage"
 SECTION_HEADINGS = (
@@ -670,6 +692,7 @@ class Sheet:
     # phrases that satisfy it are ordinary English: a threshold row whose snippet
     # quotes "not read" would otherwise discharge the sheet's honesty clause.
     scope: str = ""
+    thresholds: str = ""
     has_scope_section: bool = False
     resolved_corpus: str | None = None
     resolved_date: str | None = None
@@ -877,6 +900,9 @@ def parse(text: str, path: Path) -> Sheet:
                     extraction_identity.group("sha256").lower(),
                 )
 
+        if section == THRESHOLDS_HEADING.removeprefix("## ").lower():
+            sheet.thresholds += line + "\n"
+
         if section == CONFLICTS_HEADING.removeprefix("## ").lower():
             conflict = _CONFLICT.match(line)
             if conflict:
@@ -931,28 +957,27 @@ def parse(text: str, path: Path) -> Sheet:
             sheet.spans.append(Span(source, cells[0], first, last, cells[2], number))
             continue
 
-        if section == SOURCES_HEADING.removeprefix("## ").lower() and cells[0] == "key":
-            source_columns = [cell.lower() for cell in cells]
+        if section == SOURCES_HEADING.removeprefix("## ").lower() and not source_columns:
+            if cells != list(SOURCE_COLUMNS):
+                sheet.ok = False
+                sheet.why_not = (
+                    f"{path.name}:{number} unreadable '## Sources' header; expected "
+                    + " | ".join(SOURCE_COLUMNS)
+                )
+                return sheet
+            source_columns = list(SOURCE_COLUMNS)
             continue
 
         if (
             section == SOURCES_HEADING.removeprefix("## ").lower()
-            and len(cells) >= 3
+            and len(cells) == len(SOURCE_COLUMNS)
             and cells[0] != "key"
         ):
-            # Read by NAME against the header row rather than by position, which is
-            # `ROW_COLUMNS`' rule applied to the table it was not applied to. `mode`
-            # was `cells[-1]`, so appending a column to this table would silently
-            # redefine the cell that decides refuse-versus-warn. Position is kept
-            # only as the fallback for a sheet whose header this cannot read.
-            named = dict(zip(source_columns, cells)) if source_columns else {}
+            named = dict(zip(source_columns, cells, strict=True))
             sheet.sources[cells[0]] = {
-                "society": named.get("society", cells[1]),
-                "document": named.get("document", cells[2]),
-                "version": named.get("version", cells[3] if len(cells) > 3 else ""),
-                "published": named.get("published", cells[4] if len(cells) > 4 else ""),
-                "url": named.get("url", cells[5] if len(cells) > 5 else ""),
-                "mode": named.get("mode", cells[-1]),
+                column: named[column]
+                for column in SOURCE_COLUMNS
+                if column != "key"
             }
         elif (
             section == POPULATIONS_HEADING.removeprefix("## ").lower()
@@ -986,7 +1011,12 @@ def parse(text: str, path: Path) -> Sheet:
                 )
             )
 
-    if not sheet.rows:
+    declaration_text = " ".join(sheet.thresholds.split())
+    has_null_declaration = any(
+        " ".join(declaration.split()) in declaration_text
+        for declaration in (NONE_DECLARATION, NON_SOURCE_DECLARATION)
+    )
+    if not sheet.rows and not has_null_declaration:
         sheet.ok = False
         sheet.why_not = "no row under a '## Thresholds' heading"
     sheet.accepted_distrust, sheet.accepted_distrust_problems = (
@@ -995,12 +1025,31 @@ def parse(text: str, path: Path) -> Sheet:
     return sheet
 
 
-def gate_schema(sheet: Sheet) -> GateResult:
+def gate_schema(
+    sheet: Sheet, catalog_source_classes: dict[str, str] | None = None
+) -> GateResult:
     """Structure, provenance, scope, declared vocabulary, and the conflict rule."""
     failures: list[str] = []
     failures.extend(
         f"{sheet.path.name}  {problem}" for problem in sheet.accepted_distrust_problems
     )
+    declaration_text = " ".join(sheet.thresholds.split())
+    has_none_declaration = " ".join(NONE_DECLARATION.split()) in declaration_text
+    has_non_source_declaration = (
+        " ".join(NON_SOURCE_DECLARATION.split()) in declaration_text
+    )
+    all_sources_declared_non_source = bool(sheet.sources) and all(
+        source.get("source class") in DECLARED_NON_SOURCE_CLASSES
+        for source in sheet.sources.values()
+    )
+    if not sheet.rows and all_sources_declared_non_source and has_none_declaration:
+        failures.append(
+            f"{sheet.path.name}  none declaration cannot describe declared non-source classes"
+        )
+    if not sheet.rows and not all_sources_declared_non_source and has_non_source_declaration:
+        failures.append(
+            f"{sheet.path.name}  non-source declaration requires every source class to be declared non-source"
+        )
 
     # #83 lists the scope line among the things a sheet *carries*, and gives the
     # reason: *"so that 'absent from the sheet' is never misread as 'absent from the
@@ -1059,13 +1108,28 @@ def gate_schema(sheet: Sheet) -> GateResult:
                 f"{where} read span '{span.name}' has neither rows nor a dated marker"
             )
 
+    unread_null_spans = [span.name for span in sheet.spans if span.is_unread]
+    if not sheet.rows and unread_null_spans:
+        failures.append(
+            f"{sheet.path.name}  zero-row sheet still has unread span(s): "
+            + ", ".join(unread_null_spans)
+        )
+
     # A threshold with no edition behind it is the failure the format exists to
     # prevent: societies revise, and 2017's number under 2025's heading is wrong in
     # the most expensive way. These three cells were parsed past until they were not.
     for key, source in sheet.sources.items():
-        for column in ("version", "published", "url"):
+        for column in ("source class", "version", "published", "url"):
             if not source.get(column):
                 failures.append(f"{sheet.path.name}  source '{key}' has no {column}")
+        document = source.get("document", "")
+        expected_class = (catalog_source_classes or {}).get(document)
+        if expected_class is not None and source.get("source class") != expected_class:
+            failures.append(
+                f"{sheet.path.name}  source '{key}' source class "
+                f"'{source.get('source class', '')}' disagrees with catalog class "
+                f"'{expected_class}' for '{document}'"
+            )
 
     for row in sheet.rows:
         where = f"{sheet.path.name}:{row.line}"
@@ -1079,6 +1143,10 @@ def gate_schema(sheet: Sheet) -> GateResult:
             )
         if row.source not in sheet.sources:
             failures.append(f"{where}  source key '{row.source}' is not declared under '## Sources'")
+        elif sheet.sources[row.source].get("source class") in DECLARED_NON_SOURCE_CLASSES:
+            failures.append(
+                f"{where}  declared non-source source '{row.source}' cannot carry a threshold row"
+            )
         if row.page is None:
             failures.append(f"{where}  no page number")
         locator = source_locator(row.rec)
@@ -1278,22 +1346,58 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
     )
 
 
-def load_catalog_page_counts(path: Path = DEFAULT_CATALOG) -> tuple[dict[str, int], list[str]]:
-    """Resolve source document ids to the catalog's independently derived count."""
+@dataclass(frozen=True)
+class CatalogFacts:
+    rows: tuple[guidelines_catalog.Row, ...]
+    page_counts: dict[str, int]
+    source_classes: dict[str, str]
+    parse_problems: tuple[str, ...]
+    page_count_problems: tuple[str, ...]
+
+    @property
+    def problems(self) -> tuple[str, ...]:
+        return self.parse_problems + self.page_count_problems
+
+
+def load_catalog_facts(path: Path = DEFAULT_CATALOG) -> CatalogFacts:
+    """Resolve the catalog facts threshold-sheet gates consume in one parse."""
     try:
         rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
     except OSError as error:
-        return {}, [str(error)]
+        return CatalogFacts((), {}, {}, (str(error),), ())
     counts: dict[str, int] = {}
+    source_classes: dict[str, str] = {}
+    page_count_problems: list[str] = []
     for row in rows:
         document = f"{row.society}/{Path(row.filename).stem}"
+        source_classes[document] = row.cls
         if row.page_count.isdigit():
             counts[document] = int(row.page_count)
         else:
-            problems.append(
+            page_count_problems.append(
                 f"catalog source '{document}' has unresolved page_count '{row.page_count}'"
             )
-    return counts, problems
+    return CatalogFacts(
+        tuple(rows),
+        counts,
+        source_classes,
+        tuple(problems),
+        tuple(page_count_problems),
+    )
+
+
+def load_catalog_page_counts(path: Path = DEFAULT_CATALOG) -> tuple[dict[str, int], list[str]]:
+    """Resolve source document ids to the catalog's independently derived count."""
+    facts = load_catalog_facts(path)
+    return facts.page_counts, list(facts.problems)
+
+
+def load_catalog_source_classes(
+    path: Path = DEFAULT_CATALOG,
+) -> tuple[dict[str, str], list[str]]:
+    """Resolve source document ids to the catalog's declared document form."""
+    facts = load_catalog_facts(path)
+    return facts.source_classes, list(facts.parse_problems)
 
 
 def gate_citation_tier1(sheet: Sheet) -> GateResult:
@@ -2557,6 +2661,7 @@ def bind_recs(
     records: dict[str, dict | None] = {}
     why_not: dict[str, str] = {}
     missing_records: set[str] = set()
+    untrusted_records: set[str] = set()
     locations: dict[str, RecommendationRecordLocation] = {}
     for key in sorted(sheet.sources):
         path = explicit.get(key)
@@ -2596,6 +2701,7 @@ def bind_recs(
                 )
             except UntrustedRecommendationRecord as error:
                 why_not[key] = f"untrusted record: {'; '.join(error.reasons)}"
+                untrusted_records.add(key)
             except (OSError, ValueError) as error:
                 why_not[key] = f"unreadable recommendation record {path}: {error}"
             else:
@@ -2617,7 +2723,14 @@ def bind_recs(
     # the JSON `null` above -- and the symptom was a KeyError in `grade` rather than
     # anything a reader could act on. `EveryAbsentRecordSaysWhy` walks all four ways
     # of not having one.
-    return BoundRecommendationRecords(records, why_not, errors, missing_records, locations)
+    return BoundRecommendationRecords(
+        records,
+        why_not,
+        errors,
+        missing_records,
+        untrusted_records,
+        locations,
+    )
 
 
 def gate_coverage(
@@ -2626,6 +2739,7 @@ def gate_coverage(
     why_not: dict[str, str] | None = None,
     recs_errors: list[str] | tuple[str, ...] = (),
     missing_records: set[str] | frozenset[str] = frozenset(),
+    untrusted_records: set[str] | frozenset[str] = frozenset(),
 ) -> GateResult:
     """Gate 2, naming refusals, warnings, and ungraded source keys in its result.
 
@@ -2823,7 +2937,16 @@ def gate_coverage(
             "COVERAGE pass."
         )
     blocking_ungraded = [key for key in ungraded if key not in missing_records]
-    if blocking_ungraded or recs_errors:
+    untrusted_blocking = [key for key in blocking_ungraded if key in untrusted_records]
+    if untrusted_blocking:
+        diagnostics.append(
+            "  The ordinary remedy for the untrusted recommendation record(s) above "
+            "is a recommendation sweep rebuild, which publishes to "
+            f"--recs-alias {DEFAULT_RECS_ALIAS}, if the source PDF is still available. "
+            "A rebuild is not guaranteed when the source has left the corpus."
+        )
+    other_blocking = [key for key in blocking_ungraded if key not in untrusted_records]
+    if other_blocking or recs_errors:
         diagnostics.extend(
             (
                 "  Omission was not checked for the source(s) above. A source with no",
@@ -2905,6 +3028,7 @@ def survey(
     allow_untrusted_provenance: bool = False,
     page_counts: dict[str, int] | None = None,
     recs_alias: Path | None = None,
+    catalog_source_classes: dict[str, str] | None = None,
 ) -> Scan:
     """Read and grade one sheet without emitting either report or findings."""
 
@@ -2939,7 +3063,10 @@ def survey(
     # `why_not` so the report can say which source and which of the two it was.
     catalog_problems: list[str] = []
     if page_counts is None:
-        page_counts, catalog_problems = load_catalog_page_counts()
+        catalog_facts = load_catalog_facts()
+        page_counts = catalog_facts.page_counts
+        catalog_source_classes = catalog_facts.source_classes
+        catalog_problems = list(catalog_facts.problems)
 
     bound_records = bind_recs(
         sheet,
@@ -2951,7 +3078,7 @@ def survey(
     )
     records, why_not, recs_errors, missing_records = bound_records
 
-    schema = gate_schema(sheet)
+    schema = gate_schema(sheet, catalog_source_classes)
     current_extraction, identity_problems = (
         extraction_identity_from_manifest(
             text_root,
@@ -2975,7 +3102,14 @@ def survey(
     tier0 = gate_citation_tier0(sheet, records, why_not)
     tier1 = gate_citation_tier1(sheet)
     tier2 = gate_citation_tier2(sheet, pdf_root)
-    coverage = gate_coverage(sheet, records, why_not, recs_errors, missing_records)
+    coverage = gate_coverage(
+        sheet,
+        records,
+        why_not,
+        recs_errors,
+        missing_records,
+        bound_records.untrusted_records,
+    )
     ranges = gate_range(sheet)
     watermark = gate_watermark(
         sheet,

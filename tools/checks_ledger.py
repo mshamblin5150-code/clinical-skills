@@ -22,6 +22,10 @@ works the same briefs serially into the same file, and this cannot tell the
 difference. ``skills/practicum-case-study/SKILL.md`` says so where it names this
 command, and a test asserts that sentence is still there.
 
+The complete coverage inventory is ``checks_ledger.DECLARED_LIMITS``. This
+docstring points to that object rather than maintaining another copy of its rows;
+the arguments for the boundaries stay at the code points that create them.
+
 **The record shape**, one per check, in a Markdown file under ``scratch/``::
 
     ## CHECK: differential ordering
@@ -88,11 +92,6 @@ directory is not a checkout, so this cannot read ``SKILL.md`` at run time, and
 its reason -- a scanner holding a different answer than the file a reader opens is
 worse than none, because it reads as agreement.
 
-**A heading outside the table is counted and never graded.** A run adding a check
-of its own has failed nothing, and a *misspelled* one is already caught from the
-other direction by the row above. Grading it would refuse the first and report the
-second twice.
-
 **The sixth row is the one this module did not inherit, and the distinction is
 worth keeping.** ``VERDICT: clean`` with an empty ``FINDINGS`` is
 [#182](https://github.com/mshamblin5150-code/clinical-skills/issues/182)'s *a
@@ -119,15 +118,6 @@ arrangement, and **the report names the graded rows on every run** rather than
 only when the row fires, because *say which is which* is the clause a report drops
 in silence.
 
-**What it buys is a shape rather than a reading**, and that was priced rather than
-glossed. A lazy reader satisfies it with one stock sentence --
-``specificity_scan.py``'s R2 limit, inherited here as it is by every substance
-test in this directory. What changes is that the records on the rows
-``SUBSTANTIATED_CLEAN`` names stop being unfalsifiable and become checkable by
-eye, which is what the walk in
-``skills/practicum-case-study/SKILL.md`` step 9 is for and previously had
-nothing to work with.
-
 **No count of rows or of graded checks appears in this docstring, and both used to.**
 ``KINDS`` and ``SUBSTANTIATED_CLEAN`` are the ones that know, a floor is all any
 test pins, and a seventh row would have left six sentences here wrong at once --
@@ -135,19 +125,9 @@ test pins, and a seventh row would have left six sentences here wrong at once --
 inside the change that cites it, which this file records happening three times
 already.
 
-**What it cannot reach, and it is most of the file.** Every verdict is a reading.
-Whether the differential's ``1.`` really is what would kill first, whether an MDM
-entry's discriminator is from this case, whether the reader looked at the draft at
-all -- none of it is in the record, and a well-formed ``clean`` from a reader that
-skimmed is indistinguishable from one that read. **#255 narrows that on the rows
-``SUBSTANTIATED_CLEAN`` names and does not close it**: a stock clause is still a clause. **A clean scan is not
-a checked draft**, ``skills/practicum-case-study/SKILL.md`` says so beside the
-command, and a test asserts that sentence is still there.
-
-**Nor does it reach the repair.** *A finding is fixed, not handed over* is #211's
-rule inherited by that step, and it is about the document, which this never sees.
-So a file of well-formed ``defect`` records exits 0, and that 0 means the verdicts
-are well formed rather than that the draft was mended.
+**A clean scan is not a checked draft**, ``skills/practicum-case-study/SKILL.md``
+says so beside the command, and a test asserts that sentence is still there. The
+object above names the coverage boundaries without duplicating them here.
 
 **Counts only by default**, on ``research_ledger.py``'s and ``block_scan.py``'s
 terms and for their reason: the file lives under ``scratch/`` and a finding
@@ -185,8 +165,52 @@ import re
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import NamedTuple
 
 import run_grader
+from case_study_scan import EvidenceDisposition
+
+
+class DeclaredLimit(NamedTuple):
+    """One named coverage boundary and how its evidence is maintained."""
+
+    key: str
+    limit: str
+    evidence: EvidenceDisposition
+
+
+DECLARED_LIMITS = (
+    # CHECK/VERDICT/FINDINGS carries no provenance about which artifact the
+    # reader opened. The same record shape is available to a reader who did not
+    # perform the assigned walk, so this remains a declared reading.
+    DeclaredLimit(
+        "reader-work-unobservable",
+        "A well-formed verdict cannot prove that its reader opened or read the draft.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    # SUBSTANCE rejects an empty field and intentionally accepts any
+    # alphanumeric stock phrase. It grades record shape, not the clinical read.
+    DeclaredLimit(
+        "findings-substance-is-shape",
+        "Alphanumeric substance cannot prove that a reader's findings reflect a substantive review.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    # survey sees the checks file and never the draft. A valid defect record is
+    # therefore a passing record even while its documented repair is pending.
+    DeclaredLimit(
+        "repair-unverified",
+        "A clean grader result does not establish that recorded defects were repaired in the draft.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    # An unknown heading is excluded from the expected vocabulary. Treating it
+    # as another graded row would also report a likely typo through MISSING_CHECK.
+    DeclaredLimit(
+        "outside-table-ungraded",
+        "An off-table heading is counted but no expected-check rule grades its content.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+)
+NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
 # A record opens on a heading. The heading level is free, so the file can sit
 # under a document heading without the parser caring -- ``research_ledger.py``'s
@@ -240,6 +264,7 @@ EXPECTED_CHECKS = (
     "the numbering in context",
     "the rendered document",
     "the faculty's own to-do list",
+    "the draft label on threshold-sheet citations",
 )
 
 # The checks where a ``clean`` has to say what it examined -- how many is this
@@ -403,6 +428,9 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     that exists to be depended on, and a test pinning the agreement would forbid
     the divergence the copy exists to permit. ``console_codec.py`` is this
     directory's only module that does exist to be depended on.
+    The unasserted parity is owned by
+    ``research_ledger.DECLARED_LIMITS['keyword-parser-copy-uncompared']`` rather
+    than mirrored in this module's inventory.
     """
     stripped = value.strip()
     lowered = stripped.lower()
@@ -623,7 +651,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    neither verdict                {scan.unrecognized_verdict}",
         "",
         f"  checks the skill expects         {scan.expected}",
-        f"    outside the table              {scan.outside_the_table}",
+        f"    outside the table (counted, never graded) {scan.outside_the_table}",
         "",
     ]
     for kind, count in scan.counts:

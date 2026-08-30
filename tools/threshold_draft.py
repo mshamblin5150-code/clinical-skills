@@ -71,6 +71,14 @@ DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 # must not silently absorb the separate "hypertension screening" topic.
 TOPIC_ALIASES = {"hypertension": "high blood pressure"}
 
+NEARBY_REPORT_BOUND = (
+    "This list is bounded. A catalog row is reported only where one of the "
+    "drafted topic's own names appears in that row's topic or title; "
+    "{named_subject_count} of the catalog's {catalog_topic_count} topics has a "
+    "second name recorded, and for the rest the only key is the name that was "
+    "typed. An empty list is not a checked topic join."
+)
+
 # Deliberately no --allow-untrusted-provenance: this command turns a transient
 # record into prose a person can curate into a committed sheet, erasing the origin
 # of any accepted distrust. ADR 0030 ruling 6 forbids that laundering path.
@@ -81,6 +89,7 @@ class Source:
     key: str
     society: str
     document: str
+    source_class: str
     version: str
     published: str
     url: str
@@ -98,9 +107,29 @@ class DraftRow:
     klass: str
 
 
+def _normalized_topic(value: str) -> str:
+    return " ".join(value.casefold().replace("-", " ").split())
+
+
 def _topic(value: str) -> str:
-    normalized = " ".join(value.casefold().replace("-", " ").split())
+    normalized = _normalized_topic(value)
     return TOPIC_ALIASES.get(normalized, normalized)
+
+
+def _topic_alias_groups() -> dict[str, frozenset[str]]:
+    groups: dict[str, frozenset[str]] = {}
+    for raw_name, raw_alias in TOPIC_ALIASES.items():
+        pair = frozenset(
+            (_normalized_topic(raw_name), _normalized_topic(raw_alias))
+        )
+        for name in pair:
+            if name in groups:
+                raise ValueError(
+                    "TOPIC_ALIASES gives one subject a third alias name; "
+                    "record that grouping in ticket #689"
+                )
+            groups[name] = pair
+    return groups
 
 
 def _source_key(row: guidelines_catalog.Row) -> str:
@@ -185,24 +214,35 @@ def resolve_sources(
     recs_root: Path,
     seeded_sheet: Sheet | None,
     recs_alias: Path | None = None,
-) -> tuple[list[Source], list[str], list[str]]:
+) -> tuple[list[Source], list[str], list[str], int, int]:
     catalog_rows, _, problems = guidelines_catalog.parse_catalog(
         catalog_path.read_text(encoding="utf-8")
     )
     if problems:
-        return [], [], problems
+        return [], [], problems, 0, 0
 
+    alias_groups = _topic_alias_groups()
     wanted = _topic(topic)
-    candidates = [row for row in catalog_rows if _topic(row.topic) == wanted]
-    raw_topic = " ".join(topic.casefold().replace("-", " ").split())
+    candidates = [
+        row for row in catalog_rows if _normalized_topic(row.topic) == wanted
+    ]
+    raw_topic = _normalized_topic(topic)
+    report_names = alias_groups.get(raw_topic, frozenset((raw_topic,)))
+    seeded_sources = seeded_sheet.sources if seeded_sheet else {}
+    seeded_documents = {
+        source.get("document", "").casefold()
+        for source in seeded_sources.values()
+    }
     nearby = [
         row
         for row in catalog_rows
         if row not in candidates
-        and raw_topic
-        and raw_topic in f"{row.topic} {row.title}".casefold()
+        and _document(row).casefold() not in seeded_documents
+        and any(
+            name and name in f"{row.topic} {row.title}".casefold()
+            for name in report_names
+        )
     ]
-    seeded_sources = seeded_sheet.sources if seeded_sheet else {}
     source_keys = _source_keys(candidates)
     sources: list[Source] = []
     rejected = [
@@ -263,6 +303,7 @@ def resolve_sources(
                 key=key,
                 society=metadata.get("society", row.society),
                 document=metadata.get("document", document),
+                source_class=row.cls,
                 version=metadata.get("version", row.year),
                 published=metadata.get("published", row.year),
                 url=url,
@@ -273,7 +314,11 @@ def resolve_sources(
         )
     if not candidates:
         errors.append(f"no catalog row has topic '{wanted}'")
-    return sources, rejected, errors
+    named_subject_count = len(set(alias_groups.values()))
+    catalog_topic_count = len(
+        {_normalized_topic(row.topic) for row in catalog_rows}
+    )
+    return sources, rejected, errors, named_subject_count, catalog_topic_count
 
 
 def _recommendations(sources: list[Source]) -> dict[tuple[str, str], dict]:
@@ -365,6 +410,8 @@ def render(
     scoped_out: dict[str, str],
     rejected: list[str],
     extraction_identity: ExtractionIdentity,
+    named_subject_count: int,
+    catalog_topic_count: int,
 ) -> str:
     known = _recommendations(sources)
     cited = {row.rec for row in rows}
@@ -385,6 +432,7 @@ def render(
             source.key,
             source.society,
             source.document,
+            source.source_class,
             source.version,
             source.published,
             source.url,
@@ -408,7 +456,10 @@ def render(
         SOURCES_HEADING
         + "\n\n"
         + _table(
-            ("key", "society", "document", "version", "published", "url", "mode"),
+            (
+                "key", "society", "document", "source class", "version",
+                "published", "url", "mode",
+            ),
             source_rows,
         ),
         SCOPE_HEADING
@@ -426,7 +477,13 @@ def render(
         COVERAGE_HEADING
         + "\n\n"
         + "\n".join(f"- `{rec}` - {reason}" for rec, reason in scoped_out.items()),
-        "## Rejected candidates\n\n" + _table(("candidate", "reason"), rejected_rows),
+        "## Rejected candidates\n\n"
+        + NEARBY_REPORT_BOUND.format(
+            named_subject_count=named_subject_count,
+            catalog_topic_count=catalog_topic_count,
+        )
+        + "\n\n"
+        + _table(("candidate", "reason"), rejected_rows),
     ]
     if has_bound_source:
         sections.insert(
@@ -484,7 +541,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"existing sheet cannot seed the draft: {seeded_sheet.why_not}", file=sys.stderr)
         return 2
     try:
-        sources, source_rejections, source_errors = resolve_sources(
+        (
+            sources,
+            source_rejections,
+            source_errors,
+            named_subject_count,
+            catalog_topic_count,
+        ) = resolve_sources(
             args.topic, args.catalog, args.recs_root, seeded_sheet, args.recs_alias
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
@@ -505,6 +568,8 @@ def main(argv: list[str] | None = None) -> int:
             scoped_out,
             rejected,
             extraction_identity,
+            named_subject_count,
+            catalog_topic_count,
         ),
         end="",
     )

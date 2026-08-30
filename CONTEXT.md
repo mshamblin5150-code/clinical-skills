@@ -386,11 +386,11 @@ The name for what a threshold row measures, stable within its own sheet and neve
 _Avoid_: metric, field, variable; also avoid reading "stable" as directory-wide
 
 **Coverage registry**:
-The one-row-per-topic record of the threshold-sheet sweep. Its topic population is derived from the guideline catalog, and each row names whether the topic has a sheet, was read and had no decision point, or remains unread.
+The one-row-per-topic record of the threshold-sheet sweep. Its topic population is derived from the guideline catalog, and each row names whether the topic has a sheet, was read and had no decision point, is sourced only from a declared non-source, or remains unread.
 _Avoid_: checklist, index, inventory
 
 **Sweep state**:
-One of `sheet`, `none`, or `unread`. `none` means the topic's **named source documents** were read and state no decision point, which is a claim about those documents and never about the topic — a society that has not yet published on a subject cannot earn one, so a declared non-source cannot produce it. `unread` establishes nothing, and it is a defect to be burned down rather than a resting state, so nothing may be parked there by design — which is why a topic sourced only from a declared non-source is ruled a fourth state of its own, in [ADR 0061](docs/adr/0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md), absent from this list until the code holds it. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question. What `sheet` asserts is that every page of the source sits in a read span — it is derived from the sheet's own span table rather than typed, and the registry refuses a disagreement in either direction.
+One of `sheet`, `none`, `non-source`, or `unread`. `none` means the topic's **named source documents** were read and state no decision point, which is a claim about those documents and never about the topic — a society that has not yet published on a subject cannot earn one, so a declared non-source cannot produce it. `non-source` means every named source belongs to the enumerated declared-non-source class set and its null sheet records a completed read. `unread` establishes nothing, and it is a defect to be burned down rather than a resting state, so nothing may be parked there by design. The partition is derived from source class, page coverage, and row presence rather than typed, and the registry refuses a disagreement in either direction. It describes the read behind a sheet and never whether a run may open one, which is the shipped artifact's question.
 _Avoid_: status, result, disposition
 
 **Shipped artifact**:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 COMMAND = ROOT / "tools" / "threshold_coverage.py"
+sys.path.insert(0, str(ROOT / "tools"))
+import threshold_sheet  # noqa: E402
 
 
 CATALOG = """| society | filename | title | topic | population | year | page_count | class |
@@ -19,6 +22,11 @@ CATALOG = """| society | filename | title | topic | population | year | page_cou
 | AHA ACC | second.pdf | Second | hypertension | adults | 2025 | 20 | guideline |
 | AHA ACC | third.pdf | Third | hypertension | adults | 2024 | 18 | guideline |
 """
+
+NON_SOURCE_CATALOG = CATALOG + (
+    "| KDIGO | scope.pdf | Scope | heart failure in chronic kidney disease | "
+    "adults | 2026 | 9 | scope-of-work |\n"
+)
 
 
 def registry(*rows: str) -> str:
@@ -39,9 +47,9 @@ def artifact(read: str) -> str:
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| first | USPSTF | USPSTF/first | 2018 | 2018 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| first | USPSTF | USPSTF/first | recommendation-statement | 2018 | 2018 | https://example.invalid | exact |
 
 ## Scope
 
@@ -73,6 +81,35 @@ extraction identity: producer 0000000000000000000000000000000000000000; tools/gu
 | quantity | population | value | snippet | source | page | rec | class |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | interval | adults | 3 years | "every 3 years" | first | p1 | p1/rec/1 | B |
+"""
+
+
+def non_source_artifact(pages: str = "1-9") -> str:
+    return f"""# Heart failure in chronic kidney disease
+
+<!-- schema: threshold-sheet/2 -->
+
+## Sources
+
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scope | KDIGO | KDIGO/scope | scope-of-work | 2026 | 2026 | https://example.invalid | bound |
+
+## Scope
+
+extraction identity: producer {'0' * 40}; tools/guidelines_extract.py sha256 {'0' * 64}
+
+**Read:** all source pages.
+
+**Not read:** nothing in the source page range.
+
+| span | pages | read |
+| --- | --- | --- |
+| scope of work | {pages} | read 2026-08-29 |
+
+## Thresholds
+
+{threshold_sheet.NON_SOURCE_DECLARATION}
 """
 
 
@@ -121,7 +158,7 @@ class ThresholdCoverageCli(unittest.TestCase):
         result = self.run_cli(
             CATALOG,
             registry(
-                "| cervical cancer | none |  | guideline read; no decision point |\n",
+                "| cervical cancer | unread |  | pending |\n",
                 "| hypertension | unread |  | blocked on #436 |\n",
             ),
         )
@@ -131,8 +168,76 @@ class ThresholdCoverageCli(unittest.TestCase):
             result.stdout,
             "topics     2 from 3 catalog rows\n"
             "sheet      0   artifacts   0\n"
-            "none       1   artifacts   0\n"
-            "unread     1   artifacts   0\n",
+            "none       0   artifacts   0   -- every span retired on a marker or a class exemption; no row carries a gated citation\n"
+            "non-source 0   artifacts   0   -- every span retired; source form is in the declared non-source class set\n"
+            "unread     2   artifacts   0\n",
+        )
+
+    def test_scope_of_work_derives_non_source_before_the_zero_row_fork(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "heart-failure.md").write_text(non_source_artifact(), encoding="utf-8")
+            result = self.run_cli(
+                NON_SOURCE_CATALOG,
+                registry(
+                    "| cervical cancer | unread |  | pending |\n",
+                    "| heart failure in chronic kidney disease | non-source | heart-failure.md | source is a scope of work; all pages read |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+            wrong_state = self.run_cli(
+                NON_SOURCE_CATALOG,
+                registry(
+                    "| cervical cancer | unread |  | pending |\n",
+                    "| heart failure in chronic kidney disease | none | heart-failure.md | all pages read |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout, r"(?m)^non-source\s+1\s+artifacts\s+1")
+        self.assertEqual(wrong_state.returncode, 1)
+        self.assertIn("derived state 'non-source'", wrong_state.stderr)
+
+    def test_scope_of_work_needs_full_page_coverage_to_derive_non_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "heart-failure.md").write_text(
+                non_source_artifact("1-8"), encoding="utf-8"
+            )
+            result = self.run_cli(
+                NON_SOURCE_CATALOG,
+                registry(
+                    "| cervical cancer | unread |  | pending |\n",
+                    "| heart failure in chronic kidney disease | unread | heart-failure.md | incomplete read |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("zero-row artifact", result.stderr)
+        self.assertIn("does not cover every catalog page", result.stderr)
+
+    def test_source_class_query_rederives_topics_without_a_registry(self):
+        result = self.run_cli(
+            NON_SOURCE_CATALOG,
+            None,
+            "--source-class", "scope-of-work",
+            "--source-class", "draft",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout,
+            "source class\ttopic\n"
+            "scope-of-work\theart failure in chronic kidney disease\n",
         )
 
     def test_missing_topic_duplicate_topic_and_unknown_state_refuse(self):
@@ -149,18 +254,19 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertIn("missing topic 'hypertension'", result.stderr)
         self.assertIn("unknown state 'pending'", result.stderr)
 
-    def test_a_state_requires_a_record_and_sheet_state_requires_an_artifact(self):
+    def test_positive_states_require_records_and_artifacts(self):
         result = self.run_cli(
             CATALOG,
             registry(
-                "| cervical cancer | sheet |  | full-document read complete |\n",
-                "| hypertension | unread |  |  |\n",
+                "| cervical cancer | none |  | full-document read complete |\n",
+                "| hypertension | non-source |  |  |\n",
             ),
         )
 
         self.assertEqual(result.returncode, 1)
-        self.assertIn("state 'sheet' has no artifact", result.stderr)
-        self.assertIn("state 'unread' has no record", result.stderr)
+        self.assertIn("state 'none' has no artifact", result.stderr)
+        self.assertIn("state 'non-source' has no artifact", result.stderr)
+        self.assertIn("state 'non-source' has no record", result.stderr)
 
     def test_an_unread_topic_may_register_a_partial_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -199,11 +305,11 @@ class ThresholdCoverageCli(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         state_artifacts = [
-            int(line.rsplit(maxsplit=1)[1])
+            int(re.search(r"artifacts\s+(\d+)", line).group(1))
             for line in result.stdout.splitlines()
             if "artifacts" in line
         ]
-        self.assertEqual(state_artifacts, [0, 0, 1])
+        self.assertEqual(state_artifacts, [0, 0, 0, 1])
         self.assertEqual(sum(state_artifacts), 1)
 
     def test_sheet_state_refuses_an_artifact_with_an_unread_span(self):
@@ -222,7 +328,7 @@ class ThresholdCoverageCli(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 1)
         self.assertIn("state 'sheet'", result.stderr)
-        self.assertIn("unread span", result.stderr)
+        self.assertIn("derived state 'unread'", result.stderr)
 
     def test_registry_state_is_not_bound_to_an_artifact_that_fails_schema(self):
         malformed = artifact("yes").replace(
@@ -263,7 +369,7 @@ class ThresholdCoverageCli(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 1)
         self.assertIn("state 'unread'", result.stderr)
-        self.assertIn("every page", result.stderr)
+        self.assertIn("derived state 'sheet'", result.stderr)
 
     def test_an_overlapping_unread_span_keeps_the_artifact_partial(self):
         overlapping = artifact("yes").replace(

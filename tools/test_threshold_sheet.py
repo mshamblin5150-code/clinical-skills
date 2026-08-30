@@ -96,9 +96,9 @@ HEADER = f"""# Test sheet
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |
 
 ## Scope
 
@@ -187,10 +187,10 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| aha | AHA/ACC | Society/aha | 2025 | 2025 | https://example.invalid | exact |
-| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| aha | AHA/ACC | Society/aha | guideline | 2025 | 2025 | https://example.invalid | exact |
+| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | exact |
 
 ## Scope
 
@@ -277,6 +277,38 @@ class Parsing(unittest.TestCase):
         self.assertFalse(parsed.ok)
         self.assertIn("no row", parsed.why_not)
 
+    def test_a_source_class_is_parsed_without_redefining_source_mode(self):
+        parsed = sheet(row())
+
+        self.assertEqual(parsed.sources["src"]["source class"], "guideline")
+        self.assertEqual(parsed.sources["src"]["mode"], "exact")
+
+    def test_an_unreadable_sources_header_refuses_instead_of_using_positions(self):
+        malformed = HEADER.replace("| key | society |", "| Key | society |")
+        parsed = gate.parse(
+            malformed
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("x.md"),
+        )
+
+        self.assertFalse(parsed.ok)
+        self.assertIn("unreadable '## Sources' header", parsed.why_not)
+
+    def test_a_declared_null_sheet_parses_without_threshold_rows(self):
+        parsed = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\n"
+            + gate.NONE_DECLARATION
+            + "\n",
+            Path("x.md"),
+        )
+
+        self.assertTrue(parsed.ok, parsed.why_not)
+        self.assertEqual(parsed.rows, [])
+
     def test_a_pipe_row_outside_the_thresholds_section_is_not_a_threshold(self):
         """The load-bearing parser choice, and `block_scan.py`'s rule adopted whole.
 
@@ -292,6 +324,64 @@ class Parsing(unittest.TestCase):
 
 
 class SchemaGate(unittest.TestCase):
+    def test_a_null_sheet_with_an_unread_span_is_a_schema_finding(self):
+        parsed = gate.parse(
+            HEADER + "\n## Thresholds\n\n" + gate.NONE_DECLARATION + "\n",
+            Path("x.md"),
+        )
+        findings = gate.gate_schema(parsed).findings
+
+        self.assertTrue(
+            any("zero-row sheet" in finding and "unread span" in finding for finding in findings),
+            findings,
+        )
+
+    def test_source_class_must_match_the_guideline_catalog(self):
+        parsed = sheet(row())
+
+        findings = gate.gate_schema(
+            parsed, {"Society/doc": "recommendation-statement"}
+        ).findings
+
+        self.assertTrue(any("source class" in finding and "catalog" in finding for finding in findings), findings)
+
+    def test_none_and_non_source_declarations_refuse_each_others_source_classes(self):
+        none_on_non_source = gate.parse(
+            HEADER.replace("| guideline |", "| scope-of-work |")
+            + "\n## Thresholds\n\n"
+            + gate.NONE_DECLARATION
+            + "\n",
+            Path("none.md"),
+        )
+        non_source_on_guideline = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\n"
+            + gate.NON_SOURCE_DECLARATION
+            + "\n",
+            Path("non-source.md"),
+        )
+
+        self.assertTrue(
+            any("none declaration" in finding for finding in gate.gate_schema(none_on_non_source).findings)
+        )
+        self.assertTrue(
+            any("non-source declaration" in finding for finding in gate.gate_schema(non_source_on_guideline).findings)
+        )
+
+    def test_a_declared_non_source_cannot_carry_a_threshold_row(self):
+        parsed = gate.parse(
+            (header().replace("| guideline |", "| scope-of-work |"))
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("x.md"),
+        )
+
+        findings = gate.gate_schema(parsed).findings
+
+        self.assertTrue(any("declared non-source" in finding and "threshold row" in finding for finding in findings), findings)
+
     def test_an_undeclared_quantity_key_fails(self):
         result = gate.gate_schema(sheet(row(quantity="screening-interval")))
         self.assertTrue(
@@ -1043,8 +1133,8 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
 
     def test_the_tripwire_detects_a_synthetic_mixed_mode_sheet_with_markers(self):
         mixed_header = TWO_SOURCE_HEADER.replace(
-            "| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | exact |",
-            "| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | bound |",
+            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | exact |",
+            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | bound |",
         )
         parsed = two_source_sheet(
             row(source="aha", snippet="RENDERED: exact-source transcription")
@@ -2461,10 +2551,10 @@ class TheSourceRowCarriesItsProvenance(unittest.TestCase):
     def blanked(self, column: str) -> list[str]:
         cells = {"version": "2025", "published": "2025", "url": "https://example.invalid"}
         cells[column] = ""
-        line = (f"| src | AHA/ACC | Society/doc | {cells['version']} | "
+        line = (f"| src | AHA/ACC | Society/doc | guideline | {cells['version']} | "
                 f"{cells['published']} | {cells['url']} | exact |")
         text = HEADER.replace(
-            "| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |",
+            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |",
             line,
         ) + ("\n## Thresholds\n\n"
              "| quantity | population | value | snippet | source | page | rec | class |\n"
@@ -3341,6 +3431,93 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("COVERAGE        NOT RUN for source 'aha' -- untrusted record:", err)
         self.assertIn("NOT RUN", self.coverage_line(out))
+        self.assertIn("recommendation sweep rebuild", err)
+        self.assertIn(f"--recs-alias {gate.DEFAULT_RECS_ALIAS}", err)
+        self.assertIn("if the source PDF is still available", err)
+        self.assertNotIn("A source with no recommendation record", err)
+
+    def test_untrusted_remedy_uses_structured_state_not_diagnostic_wording(self):
+        result = gate.gate_coverage(
+            sheet(row()),
+            {"src": None},
+            {"src": "wording may change"},
+            untrusted_records={"src"},
+        )
+
+        self.assertIn("recommendation sweep rebuild", "\n".join(result.diagnostics))
+
+    def test_all_quiet_keeps_an_alias_record_provenance_refusal_at_two(self):
+        payload = record("p41/goal/1")
+        payload.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "sheets"
+            sheets.mkdir()
+            (sheets / "one.md").write_text(
+                TheExitStatusSaysWhichKindOfNotGraded.CLEAN,
+                encoding="utf-8",
+            )
+            recs_alias = root / "recs-alias"
+            record_path = recs_alias / "Society" / "doc.json"
+            record_path.parent.mkdir(parents=True)
+            record_path.write_text(json.dumps(payload), encoding="utf-8")
+            (recs_alias / "manifest.json").write_text(
+                json.dumps({"documents": [{"doc_id": "Society/doc"}]}),
+                encoding="utf-8",
+            )
+            recs_root = root / "recs-root"
+            recs_root.mkdir()
+            err = io.StringIO()
+            with (
+                mock.patch.object(gate, "SHEET_ROOT", sheets),
+                mock.patch.object(
+                    gate,
+                    "load_catalog_page_counts",
+                    return_value=({"Society/doc": 60}, []),
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(err),
+            ):
+                status = gate.main(
+                    [
+                        "--all",
+                        "--quiet",
+                        "--recs-root",
+                        str(recs_root),
+                        "--recs-alias",
+                        str(recs_alias),
+                        "--pdf-root",
+                        str(root / "pdfs"),
+                        "--text-root",
+                        str(root / "text"),
+                    ]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn(f"sweep alias {record_path}", err.getvalue())
+        self.assertIn("untrusted record", err.getvalue())
+
+    def test_all_keeps_an_earlier_untrusted_status_when_a_later_sheet_is_clean(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = (root / "a-untrusted.md", root / "z-clean.md")
+            for path in paths:
+                path.write_text("selected by --all", encoding="utf-8")
+            scans = {
+                paths[0]: gate.Scan(gate.Sheet(paths[0]), status=2),
+                paths[1]: gate.Scan(gate.Sheet(paths[1]), status=0),
+            }
+            with (
+                mock.patch.object(gate, "SHEET_ROOT", root),
+                mock.patch.object(
+                    gate, "survey", side_effect=lambda path, *_, **__: scans[path]
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                status = gate.main(["--all", "--quiet"])
+
+        self.assertEqual(status, 2)
 
     def test_a_trusted_finding_wins_over_an_untrusted_source(self):
         untrusted = record("p9/kdigo/1")
@@ -3376,7 +3553,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         byte for byte what a clean pass prints. SCHEMA already refuses every row for
         an undeclared source key, so this is about what the *report* says."""
         text = TheExitStatusSaysWhichKindOfNotGraded.CLEAN.replace(
-            "| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |\n",
+            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |\n",
             "",
         )
         self.assertNotIn("| src |", text.split("## Scope")[0])
