@@ -520,3 +520,11 @@ _Avoid_: artifact, source, field, commit
 **Declared no-binding**:
 An authored message stating, with a reason, that it changes no ticket's state. It is what makes a legitimate absence a different row from an omission, which no count of bindings can distinguish on its own. Scoped to the message carrying it, so a pull request may bind a ticket and still contain one; only a message that both binds and declares is a contradiction.
 _Avoid_: exemption, opt-out, skip, waiver
+
+**Publish route**:
+One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. What makes a route recognized is a body-bearing flag, so a route outside the recognized set is not a clean scan but an absent one.
+_Avoid_: publish command, gh call, write, surface
+
+**Unreadable body**:
+Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. Distinct from a route carrying no body at all, which is silent rather than reported.
+_Avoid_: no body, empty, skipped, not scanned
