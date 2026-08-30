@@ -38,6 +38,7 @@ GraderConformance = for_module(checks)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
+THRESHOLDS_README = REPO_ROOT / "reference" / "thresholds" / "README.md"
 
 # A record that passes every row, so a test can change one field and know the
 # finding it gets back belongs to that field. **It carries a ``FINDINGS`` because
@@ -712,6 +713,56 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         run directory is not a checkout and the tool cannot read ``SKILL.md`` at
         run time. This is the assertion that keeps the two the same."""
         self.assertEqual(list(checks.EXPECTED_CHECKS), self.table_checks())
+
+    def test_the_threshold_sheet_reading_is_bound_from_declaration_to_grader(self):
+        """#584's three-surface chain and substantiated-clean ruling.
+
+        The directory declaration points at the reader by the same name the
+        ``practicum-case-study`` step 9 table and the run-time grader use. A
+        rename or deletion on any one surface fails here instead of leaving the
+        declaration to promise a reading no run performs.
+        """
+        name = "the threshold sheets against this patient"
+        readme = THRESHOLDS_README.read_text(encoding="utf-8")
+
+        self.assertIn(name, readme)
+        self.assertIn(name, self.table_checks())
+        self.assertIn(name, checks.EXPECTED_CHECKS)
+        self.assertIn(name, checks.SUBSTANTIATED_CLEAN)
+
+        bare = instead_of(name, f"## CHECK: {name}\nVERDICT: clean\n")
+        self.assertEqual(kinds(bare), [checks.CLEAN_WITHOUT_FINDINGS])
+
+    def test_the_threshold_directory_declares_its_boundary_and_points_to_why(self):
+        """#584's declaration says exactly what ``--all`` does not establish.
+
+        The rationale stays in ADR 0064 and the glossary. This surface carries
+        only the ruled pointer sentence, not either source's deeper explanation
+        or implementation detail.
+        """
+        readme = THRESHOLDS_README.read_text(encoding="utf-8")
+        collapsed = " ".join(readme.split())
+
+        self.assertIn("Population and quantity keys are **sheet-local**", collapsed)
+        self.assertIn("`CONFLICT` compares rows within one sheet only", collapsed)
+        self.assertIn(
+            "A clean `--all` run is therefore **not** a claim that the directory "
+            "is internally consistent",
+            collapsed,
+        )
+        self.assertIn("[ADR 0064](../../docs/adr/0064-", collapsed)
+        self.assertIn(
+            "[CONTEXT.md](../../CONTEXT.md)'s **Topic** and **Catalog topic** entries",
+            collapsed,
+        )
+
+        for copied_detail in (
+            "Nothing in this tree derives which cells are one clinical topic",
+            "hand-kept alias table",
+            "a cross-sheet gate has no committed grouping to iterate over",
+        ):
+            with self.subTest(detail=copied_detail):
+                self.assertNotIn(copied_detail, readme)
 
     def test_the_skill_marks_the_rows_where_a_clean_says_what_it_walked(self):
         """#255's column, derived here and held in the module -- the expected
