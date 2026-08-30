@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -395,6 +396,13 @@ class MainInATempRepo(ATempRepo):
         path.write_text(json.dumps(payload), encoding="utf-8")
         return str(path)
 
+    def full_harvest(self, issues):
+        return (
+            self.harvest("tracker-issues.json", issues),
+            self.harvest("tracker-comments.json", []),
+            self.harvest("tracker-reviews.json", []),
+        )
+
     def run_main(self, *argv):
         buffer = io.StringIO()
         with redirect_stdout(buffer):
@@ -432,12 +440,11 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
         self.assertIn("no finding", out)
 
     def test_a_completed_harvest_writes_a_dated_counts_only_marker(self):
-        path = self.harvest(
-            "hit.json",
+        paths = self.full_harvest(
             [{"number": 9, "title": "t", "body": f"seen by {NAME}"}],
         )
 
-        status, _ = self.run_main("--harvest", path)
+        status, _ = self.run_main("--harvest", *paths)
 
         self.assertEqual(status, tracker_scan.FOUND)
         marker = json.loads(
@@ -455,16 +462,59 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
         self.assertNotIn(DATE, serialized)
 
     def test_the_producing_harvest_reports_the_marker_it_just_wrote(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+
+        status, out = self.run_main("--harvest", *paths)
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("0 day(s)", out)
+        self.assertNotIn("never run", out.lower())
+
+    def test_one_harvest_file_cannot_advance_the_full_harvest_marker(self):
         path = self.harvest(
-            "ok.json",
+            "tracker-issues.json",
             [{"number": 1, "title": "a title", "body": "no identifier"}],
         )
 
         status, out = self.run_main("--harvest", path)
 
         self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+        self.assertIn("never run", out.lower())
+
+    def test_mixing_another_surface_cannot_pollute_harvest_counts(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+
+        status, _ = self.run_main("--harvest", *paths, "--paths")
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+
+    def test_claude_command_drives_the_notice_its_paragraph_names(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+        prose = (
+            Path(__file__).resolve().parent.parent / "CLAUDE.md"
+        ).read_text(encoding="utf-8")
+        command = next(
+            line.strip()
+            for line in prose.splitlines()
+            if line.startswith("python tools/tracker_scan.py --harvest")
+        )
+        harvest_root = Path(paths[0]).parent.as_posix()
+        tokens = shlex.split(command.replace("$H", harvest_root))
+        self.assertEqual(tokens[:2], ["python", "tools/tracker_scan.py"])
+
+        status, out = self.run_main(*tokens[2:])
+
+        self.assertEqual(status, tracker_scan.CLEAN)
         self.assertIn("0 day(s)", out)
-        self.assertNotIn("never run", out.lower())
+        self.assertTrue((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
 
     def test_a_harvest_that_did_not_scan_writes_no_marker(self):
         gone = str(Path(self.tmp.name) / "gone.json")

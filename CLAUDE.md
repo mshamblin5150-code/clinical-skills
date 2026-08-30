@@ -732,7 +732,7 @@ mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
-python tools/tracker_scan.py --harvest "$H"/tracker-*.json
+python tools/tracker_scan.py --harvest "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json"
 
 git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
 git fetch origin

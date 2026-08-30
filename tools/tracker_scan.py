@@ -35,7 +35,8 @@ Harvest first, then scan::
         > "$H/tracker-comments.json"
     gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" \\
         > "$H/tracker-reviews.json"
-    python tools/tracker_scan.py --harvest "$H"/tracker-*.json
+    python tools/tracker_scan.py --harvest "$H/tracker-issues.json" \
+        "$H/tracker-comments.json" "$H/tracker-reviews.json"
 
     git config --add remote.origin.fetch \
         "+refs/pull/*/head:refs/remotes/origin/pr/*"
@@ -159,6 +160,11 @@ CONFIGURE_PULL_REFS = (
 )
 FETCH_PULL_REFS = "git fetch origin"
 RULINGS_PATH = Path("reference/tracker-scan-rulings.json")
+FULL_HARVEST_FILES = frozenset({
+    "tracker-issues.json",
+    "tracker-comments.json",
+    "tracker-reviews.json",
+})
 RULING_VERDICTS = {"noise", "accepted-history"}
 COMMIT_FINDING = re.compile(r"^commit ([0-9a-f]{40})$")
 HARVEST_RECORD = re.compile(r"^https://github\.com/\S+ (?:title|body)$")
@@ -704,6 +710,19 @@ def write_harvest_marker(
     temporary.replace(target)
 
 
+def is_full_harvest(args: argparse.Namespace) -> bool:
+    """Whether this invocation is only the documented three-surface harvest."""
+    names = [path.name for path in args.harvest]
+    return (
+        len(names) == len(FULL_HARVEST_FILES)
+        and set(names) == FULL_HARVEST_FILES
+        and args.github_event is None
+        and not args.commits
+        and not args.history
+        and not args.paths
+    )
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Scan tracker text, commit messages, blobs and paths for PHI.",
@@ -828,7 +847,7 @@ def main(argv: list[str]) -> int:
     )
     if ruled:
         context.append(("ruled findings", len(ruled)))
-    if args.harvest and not unscanned:
+    if is_full_harvest(args) and not unscanned:
         try:
             write_harvest_marker(repo, findings)
         except OSError as error:

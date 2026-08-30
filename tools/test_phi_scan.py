@@ -1039,7 +1039,7 @@ class TheWalkedPopulation(unittest.TestCase):
                 self.assertNotIn(identifier, text)
 
 
-class TheShortfallReachesTheCommitter(unittest.TestCase):
+class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
     """The venue is the whole ruling, and the first version reached none of it.
 
     #141 comment 4: *"on every commit from every worktree, which is where most
@@ -1154,16 +1154,6 @@ class TheShortfallReachesTheCommitter(unittest.TestCase):
                 self.assertNotRegex(
                     err.lower(), r"stale|overdue|threshold|too old"
                 )
-
-    def test_claude_points_at_the_command_that_supplies_the_notice(self):
-        prose = (
-            Path(__file__).resolve().parent.parent / "CLAUDE.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn("python tools/tracker_scan.py --harvest", prose)
-        self.assertIn(
-            ps.TRACKER_HARVEST_NOTICE,
-            self.run_main(self.coverage(551, 551))[2],
-        )
 
 class AnAllRunStatesItsCoverage(unittest.TestCase):
     """#258 open question 2: on **every** ``--all`` run, not only a degraded one.
