@@ -230,6 +230,7 @@ class BoundRecommendationRecords:
     why_not: dict[str, str]
     errors: list[str]
     missing_records: set[str]
+    untrusted_records: set[str]
     locations: dict[str, RecommendationRecordLocation]
 
     @property
@@ -2557,6 +2558,7 @@ def bind_recs(
     records: dict[str, dict | None] = {}
     why_not: dict[str, str] = {}
     missing_records: set[str] = set()
+    untrusted_records: set[str] = set()
     locations: dict[str, RecommendationRecordLocation] = {}
     for key in sorted(sheet.sources):
         path = explicit.get(key)
@@ -2596,6 +2598,7 @@ def bind_recs(
                 )
             except UntrustedRecommendationRecord as error:
                 why_not[key] = f"untrusted record: {'; '.join(error.reasons)}"
+                untrusted_records.add(key)
             except (OSError, ValueError) as error:
                 why_not[key] = f"unreadable recommendation record {path}: {error}"
             else:
@@ -2617,7 +2620,14 @@ def bind_recs(
     # the JSON `null` above -- and the symptom was a KeyError in `grade` rather than
     # anything a reader could act on. `EveryAbsentRecordSaysWhy` walks all four ways
     # of not having one.
-    return BoundRecommendationRecords(records, why_not, errors, missing_records, locations)
+    return BoundRecommendationRecords(
+        records,
+        why_not,
+        errors,
+        missing_records,
+        untrusted_records,
+        locations,
+    )
 
 
 def gate_coverage(
@@ -2626,6 +2636,7 @@ def gate_coverage(
     why_not: dict[str, str] | None = None,
     recs_errors: list[str] | tuple[str, ...] = (),
     missing_records: set[str] | frozenset[str] = frozenset(),
+    untrusted_records: set[str] | frozenset[str] = frozenset(),
 ) -> GateResult:
     """Gate 2, naming refusals, warnings, and ungraded source keys in its result.
 
@@ -2823,12 +2834,8 @@ def gate_coverage(
             "COVERAGE pass."
         )
     blocking_ungraded = [key for key in ungraded if key not in missing_records]
-    untrusted_records = [
-        key
-        for key in blocking_ungraded
-        if why_not.get(key, "").startswith("untrusted record:")
-    ]
-    if untrusted_records:
+    untrusted_blocking = [key for key in blocking_ungraded if key in untrusted_records]
+    if untrusted_blocking:
         diagnostics.append(
             "  The ordinary remedy for the untrusted recommendation record(s) above "
             "is a recommendation sweep rebuild, which publishes to "
@@ -2988,7 +2995,14 @@ def survey(
     tier0 = gate_citation_tier0(sheet, records, why_not)
     tier1 = gate_citation_tier1(sheet)
     tier2 = gate_citation_tier2(sheet, pdf_root)
-    coverage = gate_coverage(sheet, records, why_not, recs_errors, missing_records)
+    coverage = gate_coverage(
+        sheet,
+        records,
+        why_not,
+        recs_errors,
+        missing_records,
+        bound_records.untrusted_records,
+    )
     ranges = gate_range(sheet)
     watermark = gate_watermark(
         sheet,

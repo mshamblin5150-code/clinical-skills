@@ -3346,6 +3346,16 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertIn("if the source PDF is still available", err)
         self.assertNotIn("A source with no recommendation record", err)
 
+    def test_untrusted_remedy_uses_structured_state_not_diagnostic_wording(self):
+        result = gate.gate_coverage(
+            sheet(row()),
+            {"src": None},
+            {"src": "wording may change"},
+            untrusted_records={"src"},
+        )
+
+        self.assertIn("recommendation sweep rebuild", "\n".join(result.diagnostics))
+
     def test_all_quiet_keeps_an_alias_record_provenance_refusal_at_two(self):
         payload = record("p41/goal/1")
         payload.pop("producer")
