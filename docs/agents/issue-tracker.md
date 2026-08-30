@@ -153,7 +153,10 @@ ordered or unordered list decoration, blockquote decoration, and a
 comma-separated list of further references do not stop a binding from owning
 the line. Prose before or after it does. A pull request body or commit message
 that intentionally binds nothing writes `Binds no ticket: <reason>` on its own
-line.
+line. The pull request body is one authored message, and each commit is one
+authored message whose headline and body are grouped together. A declaration
+may sit in a pull request that has bindings elsewhere; it conflicts only with a
+binding in the same authored message.
 When that pull request merges into `main`, `tracker.yml` runs
 `tools/tracker_merge_receipt.py` over the PR body and commit messages and posts
 one merge receipt for each explicitly named whole ticket or partial lead. The

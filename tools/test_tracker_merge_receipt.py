@@ -174,6 +174,122 @@ class OnlyACompletedMainMergeCanProduceReceipts(unittest.TestCase):
 
 
 class CommandLineOutputIsMachineReadable(unittest.TestCase):
+    def test_one_authored_message_cannot_both_bind_and_declare_no_ticket(self):
+        report = io.StringIO()
+        document = merged_pr(
+            "Part of #629\nBinds no ticket: this message contradicts itself.\n"
+        )
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 1)
+        self.assertIn(
+            "authored message body has a binding at body line 1 and a no-ticket "
+            "declaration at body line 2",
+            report.getvalue(),
+        )
+
+    def test_pr_628s_bound_pull_request_and_unbound_sync_commit_are_clean(self):
+        report = io.StringIO()
+        document = merged_pr(
+            "> **Branch state:** `codex/518-reader-alias-lookup` at "
+            "`3115ec5ed46bf41acc9159606ae73ec991bbaff5` is not on `main` as of "
+            "`2026-08-29`.\n\n"
+            "## Summary\n\n"
+            "- read recommendation records from the sweep alias before the exact-name recs root\n"
+            "- preserve explicit record precedence and report the selected origin per source\n"
+            "- distinguish the four ruled alias absence states and document both reader paths\n\n"
+            "## Verification\n\n"
+            "- focused reader tests: 22 passed\n"
+            "- full suite: 3,946 passed, 1 machine-local external-manifest trust refusal, 2 skipped\n"
+            "- compile, PHI, spelling, scratch census, implementation-map, and freshness checks passed\n"
+            "- independent Standards and Spec reviews passed\n\n"
+            "Closes #518",
+            commits=[
+                {
+                    "messageHeadline": "Read recommendation records from sweep alias",
+                    "messageBody": "Closes #518",
+                },
+                {
+                    "messageHeadline": (
+                        "Merge origin/main into codex/518-reader-alias-lookup"
+                    ),
+                    "messageBody": (
+                        "Binds no ticket: brings the implementation branch to the "
+                        "current base."
+                    ),
+                },
+            ],
+            number=628,
+            url="https://github.com/mshamblin5150-code/clinical-skills/pull/628",
+            title="Read recommendation records from sweep alias",
+            mergedAt="2026-08-29T09:02:59Z",
+            mergeCommit={"oid": "b5ce2d015f70fe3afb9af540e7d3ecf7ae7a975b"},
+        )
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 0)
+        self.assertIn(
+            "commits[1].messageBody line 1: Binds no ticket "
+            "(pull request also contains bindings): brings the implementation "
+            "branch to the current base.",
+            report.getvalue(),
+        )
+        self.assertNotIn("finding:", report.getvalue())
+
+    def test_commit_headline_and_body_are_one_authored_message(self):
+        report = io.StringIO()
+        document = merged_pr(
+            "",
+            commits=[
+                {
+                    "messageHeadline": "Part of #629",
+                    "messageBody": (
+                        "Binds no ticket: the two fields still form one message."
+                    ),
+                }
+            ],
+        )
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 1)
+        self.assertIn(
+            "authored message commits[0] has a binding at "
+            "commits[0].messageHeadline line 1 and a no-ticket declaration at "
+            "commits[0].messageBody line 1",
+            report.getvalue(),
+        )
+
+    def test_a_standalone_declaration_names_the_no_bindings_case(self):
+        report = io.StringIO()
+        document = merged_pr("Binds no ticket: documentation-only housekeeping.\n")
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(report),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            status = receipt.main(["-"])
+
+        self.assertEqual(status, 0)
+        self.assertIn(
+            "Binds no ticket (pull request contains no bindings)",
+            report.getvalue(),
+        )
+
     def test_json_lines_mode_reads_standard_input(self):
         output = io.StringIO()
         with (
