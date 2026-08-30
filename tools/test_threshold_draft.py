@@ -68,9 +68,9 @@ def seeded_sheet() -> str:
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| aha-2025 | AHA/ACC | AHA ACC/guideline | 2025 | 2025 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |
 
 ## Scope
 
@@ -325,9 +325,9 @@ class ThresholdDraftCli(unittest.TestCase):
                 encoding="utf-8",
             )
             seed_text = seeded_sheet().replace(
-                "| aha-2025 | AHA/ACC | AHA ACC/guideline | 2025 | 2025 | https://example.invalid | exact |",
-                "| aha-2025 | AHA/ACC | AHA ACC/guideline | 2025 | 2025 | https://example.invalid | exact |\n"
-                "| uspstf-adults | USPSTF | USPSTF/adults | 2024 | 2024 | https://example.invalid/adults | exact |",
+                "| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |",
+                "| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |\n"
+                "| uspstf-adults | USPSTF | USPSTF/adults | recommendation-statement | 2024 | 2024 | https://example.invalid/adults | exact |",
             )
             seeded = threshold_sheet.parse(seed_text, root / "seed.md")
             self.assertTrue(seeded.ok, seeded.why_not)

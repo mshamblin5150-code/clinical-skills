@@ -28,6 +28,8 @@ import threshold_coverage
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTEXT = REPO_ROOT / "CONTEXT.md"
+AGENTS = REPO_ROOT / "AGENTS.md"
+THRESHOLD_README = REPO_ROOT / "reference" / "thresholds" / "README.md"
 
 #: The glossary terms whose values this check binds to code, paired with their
 #: implementations. This tuple is the ceiling: a term absent here is not inspected
@@ -68,6 +70,28 @@ class TheGlossaryVocabulariesAreBoundToCode(unittest.TestCase):
 
     def test_every_declared_term_is_the_code_vocabulary(self) -> None:
         self.assertEqual(vocabulary_mismatches(self.text), ())
+
+    def test_every_published_sweep_state_copy_is_the_code_vocabulary(self) -> None:
+        agents = AGENTS.read_text(encoding="utf-8")
+        readme = THRESHOLD_README.read_text(encoding="utf-8")
+        agents_sentence = re.search(
+            r"records every catalog topic as (?P<states>[^.]+)\.", agents
+        )
+        state_section = readme.split("with one of these states:", 1)[1].split(
+            "The `artifact` column", 1
+        )[0]
+        summary_sentence = re.search(
+            r"distinguishes (?P<states>`sheet`[^.]+)\.", readme
+        )
+
+        self.assertIsNotNone(agents_sentence)
+        self.assertIsNotNone(summary_sentence)
+        copies = (
+            tuple(BACKTICKED.findall(agents_sentence.group("states"))),
+            tuple(re.findall(r"(?m)^- `([^`]+)`:.*$", state_section)),
+            tuple(BACKTICKED.findall(summary_sentence.group("states"))),
+        )
+        self.assertEqual(copies, (threshold_coverage.STATES,) * len(copies))
 
 
 class TheInstrumentIsLive(unittest.TestCase):

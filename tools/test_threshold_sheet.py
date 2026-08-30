@@ -96,9 +96,9 @@ HEADER = f"""# Test sheet
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |
 
 ## Scope
 
@@ -187,10 +187,10 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| aha | AHA/ACC | Society/aha | 2025 | 2025 | https://example.invalid | exact |
-| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| aha | AHA/ACC | Society/aha | guideline | 2025 | 2025 | https://example.invalid | exact |
+| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | exact |
 
 ## Scope
 
@@ -277,6 +277,38 @@ class Parsing(unittest.TestCase):
         self.assertFalse(parsed.ok)
         self.assertIn("no row", parsed.why_not)
 
+    def test_a_source_class_is_parsed_without_redefining_source_mode(self):
+        parsed = sheet(row())
+
+        self.assertEqual(parsed.sources["src"]["source class"], "guideline")
+        self.assertEqual(parsed.sources["src"]["mode"], "exact")
+
+    def test_an_unreadable_sources_header_refuses_instead_of_using_positions(self):
+        malformed = HEADER.replace("| key | society |", "| Key | society |")
+        parsed = gate.parse(
+            malformed
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("x.md"),
+        )
+
+        self.assertFalse(parsed.ok)
+        self.assertIn("unreadable '## Sources' header", parsed.why_not)
+
+    def test_a_declared_null_sheet_parses_without_threshold_rows(self):
+        parsed = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\n"
+            + gate.NONE_DECLARATION
+            + "\n",
+            Path("x.md"),
+        )
+
+        self.assertTrue(parsed.ok, parsed.why_not)
+        self.assertEqual(parsed.rows, [])
+
     def test_a_pipe_row_outside_the_thresholds_section_is_not_a_threshold(self):
         """The load-bearing parser choice, and `block_scan.py`'s rule adopted whole.
 
@@ -292,6 +324,64 @@ class Parsing(unittest.TestCase):
 
 
 class SchemaGate(unittest.TestCase):
+    def test_a_null_sheet_with_an_unread_span_is_a_schema_finding(self):
+        parsed = gate.parse(
+            HEADER + "\n## Thresholds\n\n" + gate.NONE_DECLARATION + "\n",
+            Path("x.md"),
+        )
+        findings = gate.gate_schema(parsed).findings
+
+        self.assertTrue(
+            any("zero-row sheet" in finding and "unread span" in finding for finding in findings),
+            findings,
+        )
+
+    def test_source_class_must_match_the_guideline_catalog(self):
+        parsed = sheet(row())
+
+        findings = gate.gate_schema(
+            parsed, {"Society/doc": "recommendation-statement"}
+        ).findings
+
+        self.assertTrue(any("source class" in finding and "catalog" in finding for finding in findings), findings)
+
+    def test_none_and_non_source_declarations_refuse_each_others_source_classes(self):
+        none_on_non_source = gate.parse(
+            HEADER.replace("| guideline |", "| scope-of-work |")
+            + "\n## Thresholds\n\n"
+            + gate.NONE_DECLARATION
+            + "\n",
+            Path("none.md"),
+        )
+        non_source_on_guideline = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\n"
+            + gate.NON_SOURCE_DECLARATION
+            + "\n",
+            Path("non-source.md"),
+        )
+
+        self.assertTrue(
+            any("none declaration" in finding for finding in gate.gate_schema(none_on_non_source).findings)
+        )
+        self.assertTrue(
+            any("non-source declaration" in finding for finding in gate.gate_schema(non_source_on_guideline).findings)
+        )
+
+    def test_a_declared_non_source_cannot_carry_a_threshold_row(self):
+        parsed = gate.parse(
+            (header().replace("| guideline |", "| scope-of-work |"))
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("x.md"),
+        )
+
+        findings = gate.gate_schema(parsed).findings
+
+        self.assertTrue(any("declared non-source" in finding and "threshold row" in finding for finding in findings), findings)
+
     def test_an_undeclared_quantity_key_fails(self):
         result = gate.gate_schema(sheet(row(quantity="screening-interval")))
         self.assertTrue(
@@ -1043,8 +1133,8 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
 
     def test_the_tripwire_detects_a_synthetic_mixed_mode_sheet_with_markers(self):
         mixed_header = TWO_SOURCE_HEADER.replace(
-            "| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | exact |",
-            "| kdigo | KDIGO | Society/kdigo | 2021 | 2021 | https://example.invalid | bound |",
+            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | exact |",
+            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | bound |",
         )
         parsed = two_source_sheet(
             row(source="aha", snippet="RENDERED: exact-source transcription")
@@ -2461,10 +2551,10 @@ class TheSourceRowCarriesItsProvenance(unittest.TestCase):
     def blanked(self, column: str) -> list[str]:
         cells = {"version": "2025", "published": "2025", "url": "https://example.invalid"}
         cells[column] = ""
-        line = (f"| src | AHA/ACC | Society/doc | {cells['version']} | "
+        line = (f"| src | AHA/ACC | Society/doc | guideline | {cells['version']} | "
                 f"{cells['published']} | {cells['url']} | exact |")
         text = HEADER.replace(
-            "| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |",
+            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |",
             line,
         ) + ("\n## Thresholds\n\n"
              "| quantity | population | value | snippet | source | page | rec | class |\n"
@@ -3463,7 +3553,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         byte for byte what a clean pass prints. SCHEMA already refuses every row for
         an undeclared source key, so this is about what the *report* says."""
         text = TheExitStatusSaysWhichKindOfNotGraded.CLEAN.replace(
-            "| src | AHA/ACC | Society/doc | 2025 | 2025 | https://example.invalid | exact |\n",
+            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |\n",
             "",
         )
         self.assertNotIn("| src |", text.split("## Scope")[0])

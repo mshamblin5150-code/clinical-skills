@@ -89,6 +89,7 @@ class Source:
     key: str
     society: str
     document: str
+    source_class: str
     version: str
     published: str
     url: str
@@ -302,6 +303,7 @@ def resolve_sources(
                 key=key,
                 society=metadata.get("society", row.society),
                 document=metadata.get("document", document),
+                source_class=row.cls,
                 version=metadata.get("version", row.year),
                 published=metadata.get("published", row.year),
                 url=url,
@@ -430,6 +432,7 @@ def render(
             source.key,
             source.society,
             source.document,
+            source.source_class,
             source.version,
             source.published,
             source.url,
@@ -453,7 +456,10 @@ def render(
         SOURCES_HEADING
         + "\n\n"
         + _table(
-            ("key", "society", "document", "version", "published", "url", "mode"),
+            (
+                "key", "society", "document", "source class", "version",
+                "published", "url", "mode",
+            ),
             source_rows,
         ),
         SCOPE_HEADING

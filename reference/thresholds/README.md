@@ -226,8 +226,10 @@ reported as **not graded** rather than as clean.
 ### `## Sources`
 
 One row per document, with the key each threshold row cites, the society, the
-document's `doc_id` (which is its path under the corpus root, no suffix), the version,
-the publication date, the URL, and the **mode**.
+document's `doc_id` (which is its path under the corpus root, no suffix), the **source
+class** from `reference/guidelines-catalog.md`, the version, the publication date, the
+URL, and the **mode**. The class records document form and is not the threshold row's
+class of recommendation.
 
 **Version, publication date and URL are required, and a blank one is refused.** They
 were parsed past until they were not — the grader kept society, document and mode and
@@ -237,7 +239,8 @@ and 2017's number sitting under a 2025 heading is wrong in the most expensive wa
 
 **The columns are read by name against the header row**, not by position, so adding a
 column cannot silently redefine `mode` — which is the cell deciding whether an
-omission refuses or merely warns.
+omission refuses or merely warns. An unreadable header refuses, and the source class
+must agree with the catalog.
 
 **Mode is not a style choice and is not set by hand.** It comes from
 `tools/guidelines_recs.py`, and it says whether that document's recommendations could
@@ -361,6 +364,8 @@ exemption retire a span but cannot support a cited row. Overlap remains valid: o
 covering `yes` span is enough even when another covering span is unread. The marker
 records that a read happened; it never establishes that the read was careful. Page
 coverage likewise catches an omitted span, not a boundary drawn on the wrong page.
+On a zero-row sheet every span must have left the unread list; an unread span is a
+SCHEMA finding even when the sheet carries a declaration.
 
 ### `## Populations`
 
@@ -392,6 +397,14 @@ distortion. [ADR 0009](../../docs/adr/0009-a-topic-is-swept-on-what-the-guidelin
 ### `## Thresholds`
 
 Eight columns: `quantity | population | value | snippet | source | page | rec | class`.
+
+A zero-row section is legal only with one exact declaration. `none` uses **No decision
+point.** and says every scope span has left the unread list and the source states no
+quantity that changes what is done to a patient. `non-source` uses **Declared
+non-source.** and says the completed read belongs to a source whose class is in the
+enumerated declared-non-source set. The grader refuses either declaration on the
+other source-class state. With no declaration, zero rows remain an unreadable sheet,
+which is also what catches a populated table whose rows lost a column.
 
 - `value` uses **ASCII comparison operators only** — `<`, `>`, `<=`, `>=`. This is a
   rule about the corpus rather than about taste: two fonts in it render a comparison
@@ -467,9 +480,11 @@ for every distinct topic derived from
 
 - `sheet`: the named sheet holds the topic's decision points;
 - `none`: the source documents were read and state no decision point;
+- `non-source`: every source has a declared non-source form and its null sheet records the completed read;
 - `unread`: the sources have not been read completely enough to decide.
 
-The optional `artifact` column names a shipped sheet. It can accompany `unread` when
+The `artifact` column names a shipped sheet and is required for `sheet`, `none`, and
+`non-source`. It can accompany `unread` when
 the sheet contains verified decision points but the full-document read is incomplete;
 that artifact does not promote the topic to `sheet` or make its omissions meaningful.
 
@@ -479,10 +494,11 @@ and state counts and to refuse missing, duplicate, or orphaned rows and artifact
 `none` row does not change the rule inside a sheet: a missing threshold row still means
 `sheet does not settle it`.
 
-The registry also binds state to the artifact's page arithmetic in both directions. A
-`sheet` row refuses while any declared span remains unread. A non-`sheet` row refuses
-when the artifact's completed or exempt spans cover every catalog page. This prevents a
-completed artifact from remaining stranded under `unread` as well as preventing an
+The registry also binds state to source class, row presence, and the artifact's page
+arithmetic in both directions. Declared non-source classes derive `non-source` first;
+otherwise complete coverage with rows derives `sheet`, complete coverage without rows
+derives `none`, and incomplete coverage derives `unread`. This prevents a completed
+artifact from remaining stranded under `unread` as well as preventing an
 incomplete artifact from being promoted.
 
 ## What the sources being absent means
@@ -534,8 +550,8 @@ whose scope is wider than one grader.
   could only be warned about, and #173 made that false without touching the sentence.
   The standing figure is the table below and is deliberately not restated elsewhere.
 - **The topic sweep is recorded rather than summarized by a hand-maintained count.**
-  [`coverage.md`](coverage.md) names every catalog topic and distinguishes a completed
-  sheet, a completed read with no decision point, and an unread source. Its separate
+  [`coverage.md`](coverage.md) names every catalog topic and distinguishes `sheet`,
+  `none`, `non-source`, and `unread`. Its separate
   artifact column can name partial work without changing that state. Run
   `python tools/threshold_coverage.py` to re-derive the counts. An `unread` row is not
   a negative finding about a guideline.

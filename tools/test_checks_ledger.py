@@ -906,6 +906,15 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         run time. This is the assertion that keeps the two the same."""
         self.assertEqual(list(checks.EXPECTED_CHECKS), self.table_checks())
 
+    def test_the_draft_source_class_reader_is_a_named_unsubstantiated_check(self):
+        name = "the draft label on threshold-sheet citations"
+        rows = {row[0]: row for row in self.table_rows()}
+
+        self.assertIn(name, checks.EXPECTED_CHECKS)
+        self.assertIn(name, rows)
+        self.assertIn("a reader", rows[name][2])
+        self.assertFalse(self.table_substantiated()[name])
+
     def test_the_threshold_sheet_reading_is_bound_from_declaration_to_grader(self):
         """#584's three-surface chain and substantiated-clean ruling.
 
