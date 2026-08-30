@@ -32,7 +32,7 @@ import tempfile
 import unittest
 from collections import Counter
 from contextlib import redirect_stdout
-from datetime import date as CalendarDate
+from datetime import date as CalendarDate, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -410,7 +410,7 @@ class MainInATempRepo(ATempRepo):
         return status, buffer.getvalue()
 
 
-class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
+class TrackerScanCommandOutcomes(MainInATempRepo):
     """0 clean, 1 found, 2 did not scan."""
 
     def test_naming_no_surface_is_not_a_clean_scan(self):
@@ -493,6 +493,28 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
 
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+
+    def test_a_corpus_incomplete_run_preserves_the_previous_marker(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+        prior = {
+            "version": 1,
+            "ran_on": (CalendarDate.today() - timedelta(days=30)).isoformat(),
+            "finding_counts": {"corpus-name": 2},
+        }
+        target = self.repo / phi_scan.TRACKER_HARVEST_MARKER
+        target.parent.mkdir(parents=True)
+        target.write_text(json.dumps(prior), encoding="utf-8")
+        phi_scan.missing_corpus_sources = lambda: ["name-index.json"]
+        phi_scan.corpus_identifiers = lambda: (set(), set())
+
+        status, _ = self.run_main(
+            "--harvest", *paths, phi_scan.ALLOW_NO_CORPUS_FLAG
+        )
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertEqual(json.loads(target.read_text(encoding="utf-8")), prior)
 
     def test_claude_command_drives_the_notice_its_paragraph_names(self):
         paths = self.full_harvest(

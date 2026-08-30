@@ -847,7 +847,7 @@ def main(argv: list[str]) -> int:
     )
     if ruled:
         context.append(("ruled findings", len(ruled)))
-    if is_full_harvest(args) and not unscanned:
+    if is_full_harvest(args) and not missing and not unscanned:
         try:
             write_harvest_marker(repo, findings)
         except OSError as error:
