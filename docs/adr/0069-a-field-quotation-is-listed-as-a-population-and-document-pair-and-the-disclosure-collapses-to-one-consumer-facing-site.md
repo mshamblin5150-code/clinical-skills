@@ -257,7 +257,7 @@ Caught by the sweep this session ran, which is the citation this record makes ab
 in the one way it warns about.
 
 **11. The section's width is safe by coincidence and the build says so.**
-`differential_scan._uspstf_index` at `:742` walks **the whole artifact**, anchored to no section,
+`differential_scan._uspstf_index` walks **the whole artifact**, anchored to no section,
 admitting any row of exactly nine cells whose third is a grade and whose fifth is a four-digit
 year. The section ruled here is three cells wide and ADR 0068 ruling 2's is three, so neither is
 picked up — **by column count, not by design.** A later section shaped like `## Recommendations`
@@ -302,3 +302,14 @@ _Avoid_: fallback, second source, default, secondary
 It already covers `Topic`'s metadata-title route. It does **not** cover `Topic`'s filename-slug
 route, which is not a quotation of the document at all — a reason to file that ticket rather
 than fold it in.
+
+---
+
+*Corrected in place 2026-08-30.* Ruling 11 cited `differential_scan._uspstf_index` at `:742`; the
+symbol had moved to `:737`, so the line number is dropped and the symbol name carries the citation.
+[ADR 0075](0075-a-ruling-ordinal-has-one-referent-addenda-continue-the-numbering-and-the-citation-resolver-is-a-third-walker-joining-against-the-record-s-own-list.md)
+ruling 8 rules that remedy — *durable records cite names and ordinals, never line numbers into
+files that take insertions* — and was ruled so a sweep finding line drift has a record to cite
+instead of deriving the remedy again. Found by three sweeps on
+[#656](https://github.com/mshamblin5150-code/clinical-skills/issues/656) and repaired on that
+ticket's grilling branch. The ruling itself is untouched.
