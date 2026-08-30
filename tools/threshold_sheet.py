@@ -460,8 +460,8 @@ FORBIDDEN_IN_VALUE = {
     },
 }
 
-# Sanity bounds, keyed on the UNIT a number is written in and never on the row's
-# quantity name. These are deliberately WIDE: the gate exists to catch a decimal
+# Sanity bounds are normally keyed only on the UNIT a number is written in. These
+# are deliberately WIDE: the gate exists to catch a decimal
 # point in the wrong place and a unit confusion, not to second-guess a society. 1300
 # for a systolic pressure and 450 for an eGFR are the failures #83 names, and both
 # are an order of magnitude out.
@@ -484,6 +484,7 @@ UNIT_BOUNDS = {
     "mg/d": (1.0, 6000.0),
     "mg/day": (1.0, 6000.0),
     "mg/g": (1.0, 6000.0),
+    "mg/kg": (0.01, 1000.0),
     "mg": (1.0, 6000.0),
     "ml/min": (1.0, 150.0),
     "kg/m2": (10.0, 70.0),
@@ -492,6 +493,14 @@ UNIT_BOUNDS = {
     "drinks/d": (0.0, 10.0),
     "year": (0.0, 120.0),
     "years": (0.0, 120.0),
+}
+
+# These quantities use the same pressure unit as blood pressure but have
+# source-valid values below its 40 mm Hg floor. Keep the semantic exceptions
+# explicit so ordinary pressure rows retain the wider gate's bound.
+QUANTITY_UNIT_BOUNDS = {
+    ("historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
+    ("lvoto-present-gradient", "mm hg"): (30.0, 250.0),
 }
 
 # A run of numbers sharing one trailing unit. The separators are what make
@@ -503,7 +512,7 @@ UNIT_BOUNDS = {
 # matching `24 to 48 hours` is what stops those numbers being attributed to the mm Hg
 # that appears earlier in the same value.
 _UNIT_ALTERNATION = (
-    r"mm\s*Hg|mg/d(?:ay)?|mg/g|mg|mL\s*/\s*min|kg/m2|kg|%|drinks?/d|"
+    r"mm\s*Hg|mg/d(?:ay)?|mg/g|mg/kg|mg|mL\s*/\s*min|kg/m2|kg|%|drinks?/d|"
     r"days?|weeks?|months?|years?|hours?|h|min(?:utes)?"
 )
 _MEASURED = re.compile(
@@ -1551,7 +1560,8 @@ def gate_citation_tier0(
                     f"{len(recommendation_rows)} cite a recommendation identifier and lose "
                     "its membership pin, and their class cell is ungraded because a bound "
                     f"record carries no class; all {len(source_rows)} keep tier 1, and tier 2 "
-                    f"grades all but the {len(rendered_rows)} that declare {RENDERED_MARKER} -- "
+                    f"grades all but the {len(rendered_rows)} bound-source row(s) that "
+                    f"declare {RENDERED_MARKER} -- "
                     f"{len(rendered_recommendations)} of those {len(recommendation_rows)})"
                 )
             continue
@@ -1667,7 +1677,8 @@ def gate_citation_tier0(
         report = [f"  CITATION tier 0 {len(failures)}"]
     if rendered:
         report.append(
-            f"                  {rendered} row(s) declared {RENDERED_MARKER} "
+            f"                  {rendered} row(s) on graded exact source(s) declared "
+            f"{RENDERED_MARKER} "
             "and were read off the rendered page; recommendation rows skipped tier 0 "
             "and narrative rows ran its same-page negative check"
         )
@@ -3122,7 +3133,10 @@ def gate_range(sheet: Sheet) -> GateResult:
         graded_spans: list[tuple[int, int]] = []
         for match in _MEASURED.finditer(row.value):
             graded_spans.append(match.span("numbers"))
-            bounds = UNIT_BOUNDS.get(re.sub(r"\s+", " ", match.group("unit").strip().lower()))
+            unit = re.sub(r"\s+", " ", match.group("unit").strip().lower())
+            bounds = QUANTITY_UNIT_BOUNDS.get(
+                (row.quantity, unit), UNIT_BOUNDS.get(unit)
+            )
             if bounds is None:
                 # A recognized unit with no bound -- hours, days, weeks. Matching it
                 # is the point: it stops those numbers being attributed to whatever

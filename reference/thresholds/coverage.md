@@ -4,11 +4,11 @@
 
 | topic | state | artifact | record |
 | --- | --- | --- | --- |
-| abdominal aortic aneurysm screening | unread |  | exact recommendation index available; full-document read pending |
+| abdominal aortic aneurysm screening | sheet | abdominal-aortic-aneurysm-screening.md | all 8 source pages accounted for on 2026-08-30; references retired by class |
 | acute bacterial arthritis | unread |  | bound recommendation record available; full-document read pending |
 | acute coronary syndromes | unread |  | exact recommendation index available; full-document read pending |
 | acute hematogenous osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
-| acute ischemic stroke, early management | unread |  | exact recommendation index available; full-document read pending |
+| acute ischemic stroke, early management | sheet | acute-ischemic-stroke-early-management.md | all 196 source pages accounted for on 2026-08-30; exact omissions reconciled per source |
 | acute kidney injury and acute kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | acute pulmonary embolism | unread |  | exact recommendation index available; full-document read pending |
 | adolescent idiopathic scoliosis screening | unread |  | exact recommendation index available; full-document read pending |
@@ -41,7 +41,7 @@
 | Candida auris infection prevention and control | unread |  | no recommendation record; full-document read pending |
 | cardiac arrest and life-threatening toxicity due to poisoning | unread |  | exact recommendation index available; full-document read pending |
 | cardiovascular disease prevention, aspirin | unread |  | exact recommendation index available; full-document read pending |
-| cardiovascular disease prevention, diet and physical activity counseling | unread |  | exact recommendation index available; full-document read pending |
+| cardiovascular disease prevention, diet and physical activity counseling | sheet | cardiovascular-disease-prevention-diet-and-physical-activity-counseling.md | all 15 source pages accounted for on 2026-08-30; seven null spans blindly corroborated |
 | cardiovascular disease prevention, statins | unread |  | exact recommendation index available; full-document read pending |
 | cardiovascular disease risk assessment, nontraditional risk factors | unread |  | exact recommendation index available; full-document read pending |
 | cardiovascular disease risk screening, electrocardiography | unread |  | exact recommendation index available; full-document read pending |
@@ -73,7 +73,7 @@
 | COVID-19 serologic testing | unread |  | bound recommendation record available; full-document read pending |
 | COVID-19 treatment | unread |  | bound recommendation record available; full-document read pending |
 | dental caries prevention | unread |  | exact recommendation index available; full-document read pending |
-| depression and suicide risk screening | unread |  | exact recommendation index available; full-document read pending |
+| depression and suicide risk screening | sheet | depression-and-suicide-risk-screening.md | all 20 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
 | diabetes in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | diabetes mellitus | sheet | diabetes.md | all 377 source pages accounted for on 2026-08-23; recommendation accounting remains bound under #436 |
 | diabetes-related foot infection | unread |  | bound recommendation record available; full-document read pending |
@@ -93,7 +93,7 @@
 | hearing loss screening | unread |  | exact recommendation index available; full-document read pending |
 | heart failure | unread |  | exact recommendation index available; full-document read pending |
 | heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
-| hepatitis B screening | unread |  | exact recommendation index available; full-document read pending |
+| hepatitis B screening | sheet | hepatitis-b-screening.md | all 14 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
 | hepatitis C screening | unread |  | exact recommendation index available; full-document read pending |
 | babesiosis | unread |  | no recommendation record; full-document read pending |
@@ -107,7 +107,7 @@
 | hospital-acquired and ventilator-associated pneumonia | unread |  | bound recommendation record available; full-document read pending |
 | hypertension screening | unread |  | exact recommendation index available; full-document read pending |
 | hypertensive disorders of pregnancy screening | unread |  | exact recommendation index available; full-document read pending |
-| hypertrophic cardiomyopathy | unread |  | exact recommendation index available; full-document read pending |
+| hypertrophic cardiomyopathy | sheet | hypertrophic-cardiomyopathy.md | all 172 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
 | IgA nephropathy and IgA vasculitis | unread |  | bound recommendation record available; full-document read pending |
 | illicit drug use prevention | unread |  | exact recommendation index available; full-document read pending |
 | impaired visual acuity screening | unread |  | exact recommendation index available; full-document read pending |
@@ -138,7 +138,7 @@
 | obstructive sleep apnea screening | unread |  | exact recommendation index available; full-document read pending |
 | opioid prescribing for pain | unread |  | no recommendation record; full-document read pending |
 | oral cancer screening | unread |  | exact recommendation index available; full-document read pending |
-| oral health screening and prevention | unread |  | exact recommendation index available; full-document read pending |
+| oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | osteoporosis screening, fracture prevention | unread |  | exact recommendation index available; full-document read pending |
 | outpatient parenteral antimicrobial therapy | unread |  | bound recommendation record available; full-document read pending |
 | ovarian cancer screening | unread |  | exact recommendation index available; full-document read pending |
@@ -160,7 +160,7 @@
 | skin cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | speech and language delay screening | unread |  | exact recommendation index available; full-document read pending |
 | stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
-| syphilis screening | unread |  | exact recommendation index available; full-document read pending |
+| syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
 | testicular cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | thyroid cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | thyroid dysfunction screening | unread |  | exact recommendation index available; full-document read pending |
