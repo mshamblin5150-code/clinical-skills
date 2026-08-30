@@ -136,6 +136,7 @@ class Binding(NamedTuple):
 
 class ArtifactText(NamedTuple):
     name: str
+    message: str
     text: str
 
 
@@ -143,16 +144,50 @@ class PlanLine(NamedTuple):
     source: str
     number: int
     text: str
+    message: str
+
+
+class BindingLine(NamedTuple):
+    source: str
+    number: int
+    binding: Binding
+    message: str
+
+
+class MessageConflict(NamedTuple):
+    message: str
+    binding: BindingLine
+    declaration: PlanLine
 
 
 class PlanAssessment(NamedTuple):
-    bindings: list[Binding]
+    bindings: list[BindingLine]
     declarations: list[PlanLine]
     declined: list[PlanLine]
 
     @property
+    def conflicts(self) -> list[MessageConflict]:
+        conflicts = {}
+        for binding in self.bindings:
+            for declaration in self.declarations:
+                if binding.message != declaration.message:
+                    continue
+                coordinates = (
+                    binding.message,
+                    binding.source,
+                    binding.number,
+                    declaration.source,
+                    declaration.number,
+                )
+                conflicts.setdefault(
+                    coordinates,
+                    MessageConflict(binding.message, binding, declaration),
+                )
+        return list(conflicts.values())
+
+    @property
     def status(self) -> int:
-        if self.declined or (self.bindings and self.declarations):
+        if self.declined or self.conflicts:
             return 1
         if self.bindings or self.declarations:
             return 0
@@ -167,7 +202,7 @@ def _text(record: dict[str, Any], field: str, source: str) -> str:
 
 
 def _artifact_sources(document: dict[str, Any]) -> list[ArtifactText]:
-    sources = [ArtifactText("body", _text(document, "body", "body"))]
+    sources = [ArtifactText("body", "body", _text(document, "body", "body"))]
     commits = document.get("commits", [])
     if commits is None:
         commits = []
@@ -179,20 +214,18 @@ def _artifact_sources(document: dict[str, Any]) -> list[ArtifactText]:
         sources.append(
             ArtifactText(
                 f"commits[{index}].messageHeadline",
+                f"commits[{index}]",
                 _text(commit, "messageHeadline", f"commits[{index}].messageHeadline"),
             )
         )
         sources.append(
             ArtifactText(
                 f"commits[{index}].messageBody",
+                f"commits[{index}]",
                 _text(commit, "messageBody", f"commits[{index}].messageBody"),
             )
         )
     return sources
-
-
-def _artifact_texts(document: dict[str, Any]) -> list[str]:
-    return [source.text for source in _artifact_sources(document)]
 
 
 def _match_bindings(match: re.Match[str]) -> list[Binding]:
@@ -217,48 +250,75 @@ def _match_bindings(match: re.Match[str]) -> list[Binding]:
 
 
 def _bindings(document: dict[str, Any]) -> list[Binding]:
-    found = set()
-    for text in _artifact_texts(document):
-        for match in REFERENCE.finditer(text):
-            found.update(_match_bindings(match))
-    return sorted(found)
+    return sorted({line.binding for line in _binding_lines(document)})
+
+
+def _binding_lines(document: dict[str, Any]) -> list[BindingLine]:
+    found = []
+    for source in _artifact_sources(document):
+        for number, line in enumerate(source.text.splitlines(), start=1):
+            if match := REFERENCE.fullmatch(line):
+                found.extend(
+                    BindingLine(source.name, number, binding, source.message)
+                    for binding in _match_bindings(match)
+                )
+    return found
 
 
 def assess_plan(document: Any) -> PlanAssessment:
     if not isinstance(document, dict):
         raise ValueError("GitHub JSON must be an object")
 
-    bindings = _bindings(document)
+    bindings = _binding_lines(document)
     declarations = []
     declined = []
     for source in _artifact_sources(document):
         for number, line in enumerate(source.text.splitlines(), start=1):
             if declaration := NO_BINDING.fullmatch(line):
                 declarations.append(
-                    PlanLine(source.name, number, declaration.group("reason"))
+                    PlanLine(
+                        source.name,
+                        number,
+                        declaration.group("reason"),
+                        source.message,
+                    )
                 )
                 continue
             if REFERENCE.fullmatch(line):
                 continue
             if near_match := REFERENCE_SHAPE.search(line):
                 declined.append(
-                    PlanLine(source.name, number, near_match.group(0).strip())
+                    PlanLine(
+                        source.name,
+                        number,
+                        near_match.group(0).strip(),
+                        source.message,
+                    )
                 )
     return PlanAssessment(bindings, declarations, declined)
 
 
 def report_assessment(assessment: PlanAssessment) -> None:
+    declaration_case = (
+        "pull request also contains bindings"
+        if assessment.bindings
+        else "pull request contains no bindings"
+    )
     for declaration in assessment.declarations:
         print(
             f"tracker-merge-receipt: {declaration.source} line "
-            f"{declaration.number}: Binds no ticket: {declaration.text}",
+            f"{declaration.number}: Binds no ticket ({declaration_case}): "
+            f"{declaration.text}",
             file=sys.stderr,
         )
     if not assessment.bindings and not assessment.declarations:
         print("tracker-merge-receipt: finding: receipt plan is empty", file=sys.stderr)
-    if assessment.bindings and assessment.declarations:
+    for conflict in assessment.conflicts:
         print(
-            "tracker-merge-receipt: finding: bindings conflict with a no-ticket declaration",
+            f"tracker-merge-receipt: finding: authored message {conflict.message} "
+            f"has a binding at {conflict.binding.source} line "
+            f"{conflict.binding.number} and a no-ticket declaration at "
+            f"{conflict.declaration.source} line {conflict.declaration.number}",
             file=sys.stderr,
         )
     for line in assessment.declined:
