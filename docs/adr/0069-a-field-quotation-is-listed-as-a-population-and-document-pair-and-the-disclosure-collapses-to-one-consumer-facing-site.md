@@ -50,9 +50,11 @@ when the statement rule finds no phrase. The 26 is the withdrawn regression figu
 ticket was filed downstream of, and it is a defect of the **container** rather than a
 property of the artifact.
 
-## Four findings this grilling produced
+## Findings this grilling produced
 
-**1. A document-level list over-claims, and that is the frame the ticket used.** Keying on
+**These are numbered `Finding N` and the rulings below are numbered `N`, deliberately.** A first draft numbered both `**N.**`, which made *"ADR 0069 ruling 3"* resolve to two different real items under a bold-shape extractor — [#554](https://github.com/mshamblin5150-code/clinical-skills/issues/554)'s over-count direction, in a record written after that ticket's own correction declared it uninstantiated. Found by the sweep this session ran.
+
+**Finding 1. A document-level list over-claims, and that is the frame the ticket used.** Keying on
 `File` alone puts a statement-quoted row inside the mark in **two** of the thirteen:
 `dental-caries-young children-final-rec-statement.pdf` and
 `ipv-screening-final-rec-statement.pdf` each carry a correctly quoted row beside a
@@ -68,14 +70,22 @@ key                        distinct over the 15   buckets mixing the two routes
 whole row (all 9 cells)             14                 0
 ```
 
-**2. Two of the 15 are byte-identical across all nine columns.** The `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf`
+**Finding 2. Two of the 15 are byte-identical across all nine columns.** The `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf`
 grade-I pair differs only in its `## Statements` entries, beta carotene and vitamin E against
 single or paired nutrients. Nothing in `## Recommendations` separates them.
 
-**3. The population rule is stated in five places and no count on #545's thread reached the
-fifth.** The artifact header at `:5`, the `## Statements` preamble at `:175`, the module
-docstring at `uspstf_table.py:29`, **`derive_population`'s own docstring at `:476-478`**, and
-`test_uspstf_derived_cells.py:11-12`.
+**Finding 3. The population rule is stated in six places and no count on #545's thread reached
+the last two.** The artifact header at `:5`, the `## Statements` preamble at `:175`, the module
+docstring at `uspstf_table.py:29`, **`derive_population`'s own docstring at `:476-478`**,
+`test_uspstf_derived_cells.py:11-12`, and **`skills/clinical-note/SKILL.md:678`**, which states
+it verbatim — *"quoted from the statement when possible and otherwise from the document's
+declared `POPULATION` field — the sheet says so at its top"* — and is pinned by
+`tools/test_guideline_sheets.py:215-222`.
+
+**The sixth was found by the sweep, after a first draft of this record had already published
+five and concluded on that number.** It is the most consequential of the six and the one a
+count keyed on the producer could never reach, because it is in **a different artifact with a
+different audience**: `skills/` is what a consumer opens, and `reference/` is not.
 
 **ADR 0068 ruling 8's *"three sites to police"* is not undercounting this, and a first draft
 of this record said it was.** That count is about the **interval**-derivation claim — its
@@ -90,7 +100,7 @@ subject arriving inside a record whose own subject is a claim copied to five pla
 caught by re-deriving a finding this session had itself produced, before it reached a sweep
 verdict.
 
-**4. `Topic` has the same shape and is worse.** `derive_topic` at `:574` takes three routes —
+**Finding 4. `Topic` has the same shape and is worse.** `derive_topic` at `:574` takes three routes —
 page 1's title, the PDF metadata title (*"missing or reads `JAMA` in twelve of the ninety
 documents"*), then the filename slug — and marks none. Unlike `Population` it is **not
 recoverable corpus-free**: the artifact ships the statement, so a field quotation differences
@@ -158,10 +168,29 @@ is the outcome this ruling exists to avoid.
   *"This check establishes presence, not correctness"* stays true; *"a document field that the
   committed table does not carry"* stops being the reason once the table names the cells.
 
-That leaves one consumer-facing boundary statement, one mechanism-facing one, and three
-pointers. **It also answers what made the ticket's *not marked* branch illusory**: the
-disclosure was never missing, it was duplicated five ways, and a build adding a sixth without
-consolidating makes the original defect worse.
+**A sixth site exists in a second artifact, and a first draft of this ruling concluded on
+five without it.** `skills/clinical-note/SKILL.md:678` states the rule verbatim — *"quoted from
+the statement when possible and otherwise from the document's declared `POPULATION` field — the
+sheet says so at its top"* — pinned by `tools/test_guideline_sheets.py:215-222`. **It stays, and
+it is a second consumer-facing statement by design**: its audience is a run writing a note
+rather than a reader of the table, and its work is the clinical caution that follows it, that a
+row whose population decides care is a row to check against its page. `skills/` is what a
+consumer opens and `reference/` is not, so collapsing it would move a caution out of the file
+where it fires.
+
+**But it takes a build item, because ruling 5 changes what it describes.** That sentence asserts
+*the sheet says so at its top*, and this ruling reduces the top to a pointing clause. The
+pointing clause must keep saying so, and the build re-reads `SKILL.md:678` against the emitted
+paragraph. **Nothing mechanical couples them** — `test_guideline_sheets.py` asserts the substring
+against `SKILL.md`, never against `reference/guidelines-uspstf.md`, so the two can disagree with
+the suite green. That gap is declared here rather than closed, and it is the reason the site was
+invisible to every count on #545's thread: those counts were keyed on the producer, and this one
+lives in a different artifact with a different audience.
+
+That leaves **two consumer-facing boundary statements with different audiences**, one
+mechanism-facing owner, and three pointers. **It also answers what made the ticket's *not
+marked* branch illusory**: the disclosure was never missing, it was duplicated six ways, and a
+build adding a seventh without consolidating makes the original defect worse.
 
 **6. The section is graded, in two tiers**, on `threshold_sheet.py`'s citation arrangement and
 for its reason — *there is no machine on which checking drops to zero* — which ADR 0068 ruling
@@ -213,13 +242,28 @@ vocabulary instead of coining a rival.
 on one branch, and neither blocks the other.** ADR 0068 ruling 10 already records the hazard:
 #505 rewrites the interval clause of the **same generated paragraph** at
 `reference/guidelines-uspstf.md:5`, and ruling 5 above rewrites its population clause.
-**Whichever lands second re-reads that paragraph from the generator at `uspstf_table.py:833-846`
+**Whichever lands second re-reads that paragraph from the generator at `uspstf_table.py:832-845`
 and never from a quotation, including the ones in this record.** That is
 [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s byte-identical trap
 in a file that has produced one already.
 
 **Co-landing is a saving and not a sequencing constraint.** Both rebuild the artifact and each
 busts `artifact_provenance.CACHE_IDENTITY["recs"]`; landing together pays the rebuild once.
+
+**The span above was cited as `:833-846` for one commit**, which is off by one — `:831` is the
+`out.append(` and `:846` the closing paren — in the sentence whose whole point is to re-read the
+paragraph from the generator rather than from a quotation. ADR 0068 ruling 10 cites it correctly.
+Caught by the sweep this session ran, which is the citation this record makes about itself failing
+in the one way it warns about.
+
+**11. The section's width is safe by coincidence and the build says so.**
+`differential_scan._uspstf_index` at `:742` walks **the whole artifact**, anchored to no section,
+admitting any row of exactly nine cells whose third is a grade and whose fifth is a four-digit
+year. The section ruled here is three cells wide and ADR 0068 ruling 2's is three, so neither is
+picked up — **by column count, not by design.** A later section shaped like `## Recommendations`
+would mint citation rows silently. That is [#641](https://github.com/mshamblin5150-code/clinical-skills/issues/641)'s
+parser and belongs in its build; it is named here so the next author of a generated section in
+this file meets it, rather than discovering it.
 
 ## Consequences
 
