@@ -16,16 +16,16 @@ sys.path.insert(0, str(ROOT / "tools"))
 import threshold_sheet  # noqa: E402
 
 
-CATALOG = """| society | filename | title | topic | population | year | page_count | class |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| USPSTF | first.pdf | First | cervical cancer | adults | 2018 | 10 | recommendation-statement |
-| AHA ACC | second.pdf | Second | hypertension | adults | 2025 | 20 | guideline |
-| AHA ACC | third.pdf | Third | hypertension | adults | 2024 | 18 | guideline |
+CATALOG = """| society | filename | title | topic | population | year | page_count | class | citation |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| USPSTF | first.pdf | First | cervical cancer | adults | 2018 | 10 | recommendation-statement | ? |
+| AHA ACC | second.pdf | Second | hypertension | adults | 2025 | 20 | guideline | ? |
+| AHA ACC | third.pdf | Third | hypertension | adults | 2024 | 18 | guideline | ? |
 """
 
 NON_SOURCE_CATALOG = CATALOG + (
     "| KDIGO | scope.pdf | Scope | heart failure in chronic kidney disease | "
-    "adults | 2026 | 9 | scope-of-work |\n"
+    "adults | 2026 | 9 | scope-of-work | ? |\n"
 )
 
 

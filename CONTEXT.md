@@ -264,7 +264,7 @@ The society guideline PDFs every derived artifact here is built from. It lives o
 _Avoid_: sources, library, guidelines, documents
 
 **Guideline catalog**:
-One curated row per corpus document — society, filename, title, topic, population, year, page count, class. Its mechanical columns are re-derived and audited; its judgment columns are read by a person. It is the denominator every downstream population is counted from, so a corpus document with no row is invisible to all of them.
+One curated row per corpus document — society, filename, title, topic, population, year, page count, class, stated citation. Its mechanical columns are re-derived and audited; its judgment columns are read by a person. It is the denominator every downstream population is counted from, so a corpus document with no row is invisible to all of them.
 _Avoid_: index, manifest, inventory, document list
 
 **Audit ledger**:
@@ -272,7 +272,7 @@ The committed record of the blind second read of the catalog, holding one row pe
 _Avoid_: audit file, digest file, hash list, checksums
 
 **Stated citation**:
-The way a corpus document identifies itself on its own page, so that a person could obtain it again — a DOI, a URL the document prints, or a journal citation line. It is read off the page and never found by searching, so a document that prints no such thing has none rather than acquiring one. It says what this copy states, which is a fact about the copy: a co-published guideline prints one DOI and may be correctly cited by another, so a difference from the address a threshold sheet sends a reader to is not a defect. Nothing in the tree has opened one.
+The way a corpus document identifies itself on its own page, so that a person could obtain it again — a DOI, a URL the document prints, or a journal citation line. It is read off the page and never found by searching, so a document that prints no such thing has none rather than acquiring one. Its declared limits live in `guidelines_catalog.NOT_REACHED`; this glossary keeps no second copy.
 _Avoid_: locator, url, doi, link, source
 
 **Download address**:

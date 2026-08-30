@@ -752,10 +752,10 @@ class DocumentTests(unittest.TestCase):
 
 class ThresholdSheetJoinTests(unittest.TestCase):
     def test_catalog_filename_joins_to_the_coverage_artifact_through_catalog_topic(self):
-        catalog = """| society | filename | title | topic | population | year | page_count | class |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| USPSTF | cervical.pdf | Cervical title | cervical cancer screening | adult | 2018 | 13 | recommendation-statement |
-| USPSTF | breast.pdf | Breast title | breast cancer screening | adult | 2024 | 12 | recommendation-statement |
+        catalog = """| society | filename | title | topic | population | year | page_count | class | citation |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| USPSTF | cervical.pdf | Cervical title | cervical cancer screening | adult | 2018 | 13 | recommendation-statement | 10.1000/cervical |
+| USPSTF | breast.pdf | Breast title | breast cancer screening | adult | 2024 | 12 | recommendation-statement | 10.1000/breast |
 """
         coverage = """# Threshold-sheet coverage
 

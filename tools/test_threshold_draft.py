@@ -32,9 +32,9 @@ COMMITTED_RECS = ROOT / "fixtures" / "threshold-draft-records"
 
 def catalog_row(topic: str = "high blood pressure") -> str:
     return (
-        "| society | filename | title | topic | population | year | page_count | class |\n"
-        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        f"| AHA ACC | guideline.pdf | Guideline title | {topic} | adult | 2025 | 12 | guideline |\n"
+        "| society | filename | title | topic | population | year | page_count | class | citation |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"| AHA ACC | guideline.pdf | Guideline title | {topic} | adult | 2025 | 12 | guideline | ? |\n"
     )
 
 
@@ -280,12 +280,12 @@ class ThresholdDraftCli(unittest.TestCase):
             recs = root / "recs"
             recs.mkdir()
             catalog.write_text(
-                "| society | filename | title | topic | population | year | page_count | class |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| AHA ACC | guideline.pdf | Guideline title | high blood pressure | adult | 2025 | 12 | guideline |\n"
-                "| Synthetic | alias.pdf | Alias title | hypertension | adult | 2025 | 4 | guideline |\n"
-                "| USPSTF | adults.pdf | Screening for Hypertension in Adults | hypertension screening | adult | 2024 | 8 | recommendation-statement |\n"
-                "| USPSTF | children.pdf | High Blood Pressure in Children and Adolescents | high blood pressure screening | pediatric | 2020 | 8 | recommendation-statement |\n",
+                "| society | filename | title | topic | population | year | page_count | class | citation |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| AHA ACC | guideline.pdf | Guideline title | high blood pressure | adult | 2025 | 12 | guideline | 10.1000/aha |\n"
+                "| Synthetic | alias.pdf | Alias title | hypertension | adult | 2025 | 4 | guideline | 10.1000/synthetic |\n"
+                "| USPSTF | adults.pdf | Screening for Hypertension in Adults | hypertension screening | adult | 2024 | 8 | recommendation-statement | 10.1000/adults |\n"
+                "| USPSTF | children.pdf | High Blood Pressure in Children and Adolescents | high blood pressure screening | pediatric | 2020 | 8 | recommendation-statement | 10.1000/children |\n",
                 encoding="utf-8",
             )
 
@@ -317,11 +317,11 @@ class ThresholdDraftCli(unittest.TestCase):
             recs = root / "recs"
             recs.mkdir()
             catalog.write_text(
-                "| society | filename | title | topic | population | year | page_count | class |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| AHA ACC | guideline.pdf | Guideline title | high blood pressure | adult | 2025 | 12 | guideline |\n"
-                "| USPSTF | adults.pdf | Screening for Hypertension in Adults | hypertension screening | adult | 2024 | 8 | recommendation-statement |\n"
-                "| USPSTF | children.pdf | High Blood Pressure in Children and Adolescents | high blood pressure screening | pediatric | 2020 | 8 | recommendation-statement |\n",
+                "| society | filename | title | topic | population | year | page_count | class | citation |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| AHA ACC | guideline.pdf | Guideline title | high blood pressure | adult | 2025 | 12 | guideline | 10.1000/aha |\n"
+                "| USPSTF | adults.pdf | Screening for Hypertension in Adults | hypertension screening | adult | 2024 | 8 | recommendation-statement | 10.1000/adults |\n"
+                "| USPSTF | children.pdf | High Blood Pressure in Children and Adolescents | high blood pressure screening | pediatric | 2020 | 8 | recommendation-statement | 10.1000/children |\n",
                 encoding="utf-8",
             )
             seed_text = seeded_sheet().replace(
@@ -661,10 +661,10 @@ class ThresholdDraftCli(unittest.TestCase):
             text_root.mkdir()
             write_trusted_extraction_manifest(text_root)
             catalog.write_text(
-                "| society | filename | title | topic | population | year | page_count | class |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| USPSTF | adults.pdf | Adult oral health | oral health | adult | 2023 | 10 | recommendation-statement |\n"
-                "| USPSTF | children.pdf | Child oral health | oral health | pediatric | 2023 | 11 | recommendation-statement |\n",
+                "| society | filename | title | topic | population | year | page_count | class | citation |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| USPSTF | adults.pdf | Adult oral health | oral health | adult | 2023 | 10 | recommendation-statement | 10.1000/adults |\n"
+                "| USPSTF | children.pdf | Child oral health | oral health | pediatric | 2023 | 11 | recommendation-statement | 10.1000/children |\n",
                 encoding="utf-8",
             )
             source_names = {

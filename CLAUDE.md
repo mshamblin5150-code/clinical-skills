@@ -1194,16 +1194,16 @@ Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in
 
 ### Guideline catalog
 
-`reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
+`reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class, stated citation. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
 
 ```bash
 python tools/guidelines_catalog.py                              # audit the committed catalog
 python tools/guidelines_catalog.py --draft C:/codeing/guidelines-text  # scaffold to curate from
 ```
 
-**The catalog is curated and the tool audits it, which is the opposite of `icd10_build.py`.** `--draft` fills only what a machine can settle — society, filename, page count, class — and takes a run at title and year; it leaves `topic` and `population` blank on purpose, because a rule that reads those off a title page is guessing and **a guessed population is worse than a blank one**: it is the field that decides whether a threshold applies to the patient at all. So the committed Markdown is the source of truth, and the default run re-derives the mechanical columns and refuses a catalog that has drifted — a dropped row, a wrong page count, a row for a file that is gone, a `?` nobody listed in the closing comment.
+**The catalog is curated and the tool audits it, which is the opposite of `icd10_build.py`.** `--draft` fills only what a machine can settle — society, filename, page count, class — and takes a run at title and year. It leaves `topic` and `population` blank on purpose, and offers a page-1 DOI only with an `UNCONFIRMED:` marker; a rule that silently promotes any of those readings is guessing and **a guessed population or citation is worse than a blank one**. So the committed Markdown is the source of truth, and the default run re-derives the mechanical columns and refuses a catalog that has drifted — a dropped row, a wrong page count, a row for a file that is gone, a `?` nobody listed in the closing comment.
 
-**43 cells are `?` today, 36 of them `population`**, and that is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
+An unsettled cell is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
 
 It reports filenames, column names and counts, never document text, so its output is safe to paste. Covered by `tools/test_guidelines_catalog.py`, which runs against fixtures in `tools/testdata/` and **never against the shipped catalog**. Its public-seam fixture builds a one-document #80 artifact and proves the draft reader needs no PDF.
 
@@ -1245,7 +1245,7 @@ The catalog documents a `class` column and `guidelines_search.py --class` filter
 
 **And the reading between the two was a third branch's build.** `manifest.json` and the index sit on one path that multiple worktrees can write, so a rebuild there reported whatever ran last anywhere — for a window on 2026-08-19 that was #178's extractor, publishing the retired vocabulary against a character count belonging to neither branch. **What made it visible rather than silent was #185's own new exit-2 limb**, which named the classes the index actually held. At the time, `SCHEMA_VERSION` guarded the schema while neither artifact recorded its producing commit; #184 now records and checks that identity, while #276 owns the remaining writer race.
 
-**What was re-checked is the `class` column and not the rows.** #185's third *Done when* asks for the three ACIP and 90 USPSTF rows re-checked under the ruling; what that means here is a cell-by-cell comparison of the extractor's answer against the committed catalog, every row agreeing. It is not a reading of those rows' `topic` or `population`, which is [#106](https://github.com/mshamblin5150-code/clinical-skills/issues/106)'s four hand-read columns and stays there.
+**What was re-checked is the `class` column and not the rows.** #185's third *Done when* asks for the three ACIP and 90 USPSTF rows re-checked under the ruling; what that means here is a cell-by-cell comparison of the extractor's answer against the committed catalog, every row agreeing. It is not a reading of those rows' judgment columns, which are the five independently audited fields ruled by [#106](https://github.com/mshamblin5150-code/clinical-skills/issues/106) and [#512](https://github.com/mshamblin5150-code/clinical-skills/issues/512).
 
 ### Guideline full-text index
 

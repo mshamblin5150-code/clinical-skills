@@ -15,9 +15,10 @@ fills the four columns a machine can settle — ``society``, ``filename``,
 ``page_count``, ``class`` — and takes a run at ``title`` and ``year``. It does
 **not** fill ``topic`` or ``population``, because a rule that reads those off a
 title page is guessing, and a guessed population is worse than a blank one: it is
-the field that decides whether a threshold applies to the patient at all. Those
-cells are read by a human or an agent and left ``?`` where the title page does not
-settle them.
+the field that decides whether a threshold applies to the patient at all. A
+page-one DOI is offered only as an explicitly unconfirmed citation candidate.
+Those cells are read by a human or an agent and left ``?`` where the document
+does not settle them.
 
 So the committed catalog remains the source of truth, but it is no longer its own
 evidence. ``reference/guidelines-catalog-audit.md`` records a blind second read of
@@ -88,15 +89,42 @@ COLUMNS = (
     "year",
     "page_count",
     "class",
+    "citation",
 )
 
 # The only columns that may be left unsettled. ``society``, ``filename`` and
 # ``page_count`` are read off the corpus and cannot be in doubt; ``class`` is
 # decided by a rule below and falls back to ``guideline`` rather than to ``?``.
-NULLABLE = ("title", "topic", "population", "year")
+NULLABLE = ("title", "topic", "population", "year", "citation")
 
-# The four judgment columns ticket #106 requires a second reader to settle.
+# The judgment columns tickets #106 and #512 require a second reader to settle.
 AUDITED_COLUMNS = NULLABLE
+
+# ADR 0047 ruling 12 and ADR 0067 ruling 3. The catalog and ``CONTEXT.md``
+# point here instead of maintaining prose copies that cannot fail when they
+# drift. These are limits of the public catalog/audit contract, not findings.
+NOT_REACHED = (
+    (
+        "resolution",
+        "The catalog records only what the document prints. No tool opens a "
+        "socket, so a passing audit does not establish that a DOI or URL resolves.",
+    ),
+    (
+        "download provenance",
+        "A stated citation does not say where the corpus bytes were downloaded. "
+        "Hand-found publisher and download addresses are excluded.",
+    ),
+    (
+        "threshold-sheet agreement",
+        "A threshold sheet's url answers where a reader should go and may differ "
+        "from the citation printed by a co-published corpus copy.",
+    ),
+    (
+        "link rot",
+        "A printed URL can cease to resolve where a DOI is designed not to; neither "
+        "kind of value has been opened by this command.",
+    ),
+)
 
 # ``CLASSES`` is imported from ``guidelines_extract`` rather than restated here.
 # [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185): the
@@ -126,6 +154,8 @@ UNSETTLED = "?"
 UNSETTLED_HEADING = "## Unsettled cells"
 
 YEAR_RE = re.compile(r"(?:19|20)\d{2}")
+DOI_RE = re.compile(r"\b10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+UNCONFIRMED_PREFIX = "UNCONFIRMED: "
 
 @dataclass(frozen=True)
 class Row:
@@ -141,6 +171,7 @@ class Row:
     year: str
     page_count: str
     cls: str
+    citation: str
 
     @property
     def cells(self) -> dict[str, str]:
@@ -153,6 +184,7 @@ class Row:
             "year": self.year,
             "page_count": self.page_count,
             "class": self.cls,
+            "citation": self.citation,
         }
 
     def unsettled_columns(self) -> list[str]:
@@ -182,6 +214,7 @@ class Document:
     cls: str
     title_guess: str
     year_guess: str
+    citation_candidate: str
 
 
 @dataclass(frozen=True)
@@ -473,6 +506,21 @@ def title_guess(meta_title: str | None, pages: list[str], filename: str) -> str:
     return UNSETTLED
 
 
+def stated_citation_candidate(pages: list[str]) -> str:
+    """Offer a page-one DOI to the catalog reader without claiming it is correct.
+
+    The candidate deliberately stops at page one. A later DOI may be the
+    document's own Foreword citation or may belong to a cited reference; choosing
+    between those is the reading this scaffold must not pretend to perform.
+    """
+    if not pages:
+        return UNSETTLED
+    match = DOI_RE.search(pages[0])
+    if match is None:
+        return UNSETTLED
+    return UNCONFIRMED_PREFIX + match.group(0).rstrip(".,;")
+
+
 def looks_like_title(candidate: str, filename: str) -> bool:
     text = " ".join(candidate.split())
     if len(text) < 20 or " " not in text:
@@ -516,6 +564,7 @@ def read_corpus_handoff(
                 cls=document.document_class,
                 title_guess=title,
                 year_guess=year_guess(title, pages, document.year_page_counts),
+                citation_candidate=stated_citation_candidate(pages),
             )
         )
     return docs, handoff
@@ -987,6 +1036,7 @@ def draft_rows(docs: list[Document]) -> list[Row]:
             year=d.year_guess,
             page_count=str(d.page_count),
             cls=d.cls,
+            citation=d.citation_candidate,
         )
         for d in docs
     ]

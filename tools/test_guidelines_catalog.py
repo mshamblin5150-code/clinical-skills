@@ -47,6 +47,7 @@ def clean_producer():
     return producer
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
+REPO_ROOT = TESTDATA.parent.parent
 
 
 def pages(name: str) -> list[str]:
@@ -82,6 +83,7 @@ def row(**overrides) -> gc.Row:
         year="2022",
         page_count="6",
         cls="recommendation-statement",
+        citation="10.1001/jama.2022.5690",
     )
     base.update(overrides)
     return gc.Row(**base)
@@ -95,6 +97,7 @@ def doc(**overrides) -> gc.Document:
         cls="recommendation-statement",
         title_guess="Screening for Chronic Obstructive Pulmonary Disease",
         year_guess="2022",
+        citation_candidate="UNCONFIRMED: 10.1001/jama.2022.5690",
     )
     base.update(overrides)
     return gc.Document(**base)
@@ -191,6 +194,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
                         cls=extract.CLASS_RECOMMENDATION_STATEMENT,
                         title_guess="Screening for Example Disease",
                         year_guess="2021",
+                        citation_candidate=gc.UNSETTLED,
                     )
                 ],
             )
@@ -287,6 +291,7 @@ AUDIT = """# Independent audit
 | USPSTF | copd-screening.pdf | topic | COPD screening | 1 | title-page |
 | USPSTF | copd-screening.pdf | population | adult | 1 | front-matter |
 | USPSTF | copd-screening.pdf | year | 2022 | 1 | title-page |
+| USPSTF | copd-screening.pdf | citation | 10.1001/jama.2022.5690 | 1 | publication-line |
 
 ## Clinician rulings
 
@@ -308,7 +313,17 @@ class TableRows(unittest.TestCase):
 
     def test_cells_are_assigned_by_column_name_not_position(self):
         built = gc.row_from_cells(
-            ["USPSTF", "f.pdf", "T", "topic", "adult", "2022", "6", "recommendation-statement"]
+            [
+                "USPSTF",
+                "f.pdf",
+                "T",
+                "topic",
+                "adult",
+                "2022",
+                "6",
+                "recommendation-statement",
+                "10.1001/example",
+            ]
         )
         self.assertEqual(built.cls, "recommendation-statement")
         self.assertEqual(built.cells["class"], "recommendation-statement")
@@ -350,7 +365,7 @@ class ParsingTheCatalog(unittest.TestCase):
         )
         rows, _, problems = gc.parse_catalog(broken)
         self.assertEqual(len(rows), 2)
-        self.assertTrue(any("9 cells, expected 8" in p for p in problems))
+        self.assertTrue(any("10 cells, expected 9" in p for p in problems))
 
     def test_a_file_with_no_catalog_table_says_so(self):
         _, _, problems = gc.parse_catalog("# Nothing here\n\nJust prose.\n")
@@ -418,6 +433,44 @@ class TitleGuess(unittest.TestCase):
         self.assertEqual(gc.title_guess(None, ["S3", "9", "2009"], "x.pdf"), gc.UNSETTLED)
 
 
+class StatedCitationCandidate(unittest.TestCase):
+    def test_a_page_one_doi_is_only_an_unconfirmed_catalog_candidate(self):
+        pages = [
+            "JAMA. 2022;327(18):1806-1811. doi:10.1001/jama.2022.5690\nbody",
+            "References doi:10.1001/jama.2021.0001",
+        ]
+
+        self.assertEqual(
+            gc.stated_citation_candidate(pages),
+            "UNCONFIRMED: 10.1001/jama.2022.5690",
+        )
+
+    def test_the_catalog_draft_carries_the_marker_but_the_blind_draft_does_not(self):
+        drafted = gc.draft_rows([doc()])
+        blind = gc.render_audit_draft([audit_document()])
+
+        self.assertEqual(drafted[0].citation, doc().citation_candidate)
+        self.assertNotIn(gc.UNCONFIRMED_PREFIX, blind)
+
+
+class TheTwoCopiesOfWhatTheCatalogDoesNotReach(unittest.TestCase):
+    def test_catalog_and_glossary_point_to_the_module_object(self):
+        for path in (
+            REPO_ROOT / "reference" / "guidelines-catalog.md",
+            REPO_ROOT / "CONTEXT.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(text.count("guidelines_catalog.NOT_REACHED"), 1, path)
+            for _, reason in gc.NOT_REACHED:
+                self.assertNotIn(reason, text, path)
+
+    def test_every_declared_limit_has_a_key_and_reason(self):
+        self.assertIn("link rot", dict(gc.NOT_REACHED))
+        for key, reason in gc.NOT_REACHED:
+            self.assertTrue(key.strip(), key)
+            self.assertGreater(len(reason.split()), 8, key)
+
+
 class CheckAgainstTheCorpus(unittest.TestCase):
     def test_a_catalog_that_matches_the_corpus_passes(self):
         self.assertEqual(gc.check([row()], {}, [doc()]), [])
@@ -454,14 +507,15 @@ class CheckTheIndependentAudit(unittest.TestCase):
             reading("topic", row().topic),
             reading("population", row().population),
             reading("year", row().year),
+            reading("citation", row().citation),
         ]
 
-    def test_deleting_one_hand_read_entry_fails(self):
+    def test_deleting_the_stated_citation_reading_fails(self):
         readings = self.complete_readings()[:-1]
 
         failures = gc.check_audit([row()], [audit_document()], readings, [])
 
-        self.assertTrue(any("year has no independent reading" in f for f in failures))
+        self.assertTrue(any("citation has no independent reading" in f for f in failures))
 
     def test_a_disagreement_without_a_clinician_ruling_fails(self):
         readings = self.complete_readings()
