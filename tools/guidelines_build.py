@@ -75,7 +75,8 @@ def default_catalog_root() -> Path:
     return main_repo_root().parent / "guidelines-builds"
 
 
-def _sha256(path: Path) -> str:
+def _raw_file_identity(path: Path) -> str:
+    """Hash corpus and built-artifact bytes without text normalization."""
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -91,7 +92,7 @@ def _files(root: Path, pattern: str = "*") -> tuple[dict[str, str | int], ...]:
         rows.append(
             {
                 "path": path.relative_to(root).as_posix(),
-                "sha256": _sha256(path),
+                "sha256": _raw_file_identity(path),
                 "bytes": path.stat().st_size,
             }
         )
@@ -108,7 +109,10 @@ def identity_key(payload: object) -> str:
 def _code_inputs(*paths: str) -> tuple[dict[str, str], ...]:
     repo = Path(__file__).resolve().parent.parent
     return tuple(
-        {"path": path, "sha256": _sha256(repo / path)}
+        {
+            "path": path,
+            "sha256": artifact_provenance.text_file_identity(repo / path),
+        }
         for path in paths
     )
 
@@ -172,7 +176,9 @@ def recs_identity(source: Path) -> dict[str, object]:
         },
         "curated_table": {
             "path": "reference/guidelines-uspstf.md",
-            "sha256": _sha256(guidelines_recs.CURATED_TABLE),
+            "sha256": artifact_provenance.text_file_identity(
+                guidelines_recs.CURATED_TABLE
+            ),
         },
     }
 
@@ -657,7 +663,8 @@ def _build_recs(
         curated_identity = identity.get("curated_table")
         if (
             not isinstance(curated_identity, dict)
-            or curated_identity.get("sha256") != _sha256(guidelines_recs.CURATED_TABLE)
+            or curated_identity.get("sha256")
+            != artifact_provenance.text_file_identity(guidelines_recs.CURATED_TABLE)
         ):
             raise ValueError(
                 "curated table changed during recommendation sweep; retry the build"

@@ -293,6 +293,34 @@ class KeyingRecommendationSweeps(BuildCommandCase):
 
         self.assertIn("curated table changed during recommendation sweep", stderr.getvalue())
 
+    def test_a_curated_table_eol_rewrite_during_the_sweep_is_not_a_change(self):
+        curated = self.root / "guidelines-uspstf.md"
+        curated.write_bytes(b"first\r\nsecond\r\n")
+
+        def rewriting_table(*_: object):
+            curated.write_bytes(b"first\nsecond\n")
+            return (
+                [],
+                guidelines_recs.MODE_BOUND,
+                guidelines_recs.SOURCE_TEXT_MARKER,
+            )
+
+        with (
+            mock.patch.object(guidelines_recs, "CURATED_TABLE", curated),
+            mock.patch("guidelines_build.subprocess.run", side_effect=self.produce),
+            mock.patch(
+                "guidelines_build.artifact_provenance.current_producer",
+                return_value=self.producer,
+            ),
+            mock.patch(
+                "guidelines_build.guidelines_recs.extract",
+                side_effect=rewriting_table,
+            ),
+        ):
+            status = guidelines_build.main(self.arguments)
+
+        self.assertEqual(status, 0)
+
 
 class RefusingAnIncompleteRecommendationSweep(BuildCommandCase):
     def test_did_not_scan_refuses_the_whole_build(self):
@@ -317,6 +345,31 @@ class RefusingAnIncompleteRecommendationSweep(BuildCommandCase):
 
 
 class SeparatingDifferentInputs(BuildCommandCase):
+    def test_repo_text_inputs_keep_one_cache_identity_across_checkout_eol(self):
+        repo = self.root / "repo"
+        producer = repo / "tools" / "producer.py"
+        producer.parent.mkdir(parents=True)
+        producer.write_bytes(b"first\r\nsecond\r\n")
+        fake_module = repo / "tools" / "guidelines_build.py"
+
+        with mock.patch.object(guidelines_build, "__file__", str(fake_module)):
+            crlf = guidelines_build._code_inputs("tools/producer.py")
+            producer.write_bytes(b"first\nsecond\n")
+            lf = guidelines_build._code_inputs("tools/producer.py")
+
+        self.assertEqual(crlf, lf)
+
+    def test_corpus_and_artifact_inventories_keep_raw_binary_identity(self):
+        binary_root = self.root / "binary"
+        binary_root.mkdir()
+        binary = binary_root / "source.pdf"
+        binary.write_bytes(b"first\r\nsecond\r\n")
+        crlf = guidelines_build._files(binary_root)
+        binary.write_bytes(b"first\nsecond\n")
+        lf = guidelines_build._files(binary_root)
+
+        self.assertNotEqual(crlf[0]["sha256"], lf[0]["sha256"])
+
     def test_the_catalog_schema_bump_forces_all_three_stages_once(self):
         self.catalog_root.mkdir()
         (self.catalog_root / "catalog.json").write_text(

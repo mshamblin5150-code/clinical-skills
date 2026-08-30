@@ -325,14 +325,24 @@ def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
     return {"commit": commit, "dirty": dirty}
 
 
+def text_file_identity(path: Path) -> str:
+    """Hash a repo-relative text producer as git-normalized bytes.
+
+    Read the whole file before normalizing so a CRLF pair cannot straddle a
+    streaming chunk boundary. Corpus documents and built-artifact inventories
+    are binary identities and deliberately do not use this helper.
+    """
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def producer_file_identity(
     paths: tuple[str, ...], repo_root: Path = REPO_ROOT
 ) -> list[dict[str, str]]:
-    """Record the exact checkout bytes that determine an artifact's contents."""
+    """Record git-normalized text bytes that determine an artifact's contents."""
     return [
         {
             "path": Path(path).as_posix(),
-            "sha256": hashlib.sha256((repo_root / path).read_bytes()).hexdigest(),
+            "sha256": text_file_identity(repo_root / path),
         }
         for path in paths
     ]
@@ -384,7 +394,7 @@ def _content_inputs(
         target = (repo_root / path).resolve()
         if not target.is_relative_to(repo_root.resolve()) or not target.is_file():
             return False, []
-        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        digest = text_file_identity(target)
         if digest != expected:
             return False, []
         normalized.append({"path": path.as_posix(), "sha256": expected})
