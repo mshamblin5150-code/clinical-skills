@@ -458,8 +458,12 @@ A published measurement whose producing instrument no longer exists, so no comma
 _Avoid_: historical figure, legacy number, dated result
 
 **Declared limit**:
-A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives.
-_Avoid_: caveat, known issue, disclaimer
+A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. What may go in one is a sentence telling a reader that a clean result covers less than it appears to. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives. Distinct from a **declared rationale**, which is the same shape holding a different sentence.
+_Avoid_: caveat, known issue, disclaimer, rationale
+
+**Declared rationale**:
+A named object beside a mechanism holding why it is built as it is — why an option was declined, or why a refusal refuses. The same shape as a **declared limit** and never a member of one, because it states a why rather than an unreached what. Which it is, is decided on the sentence and never on the constant's name: a `WHY_`-named constant carrying a coverage sentence is a limit, and a plainly-named one carrying reasoning is not.
+_Avoid_: declared limit, caveat, note, comment
 
 **Underived count**:
 A figure stating the size of a population that is sitting in code and was never consulted. The remedy is to derive it or to drop it; the corrected number is as underived as the wrong one. Distinct from an **orphaned figure**, whose instrument no longer exists at all — that one is declared, this one is repaired.
