@@ -490,12 +490,16 @@ _Avoid_: citation, URL, cross-reference
 ### Tracker
 
 **Binding**:
-A statement in a merged pull request's artifact text that the merge changes a named ticket's state — the whole ticket, or one numbered unit of it. A binding owns its line: it is the only thing that line says. Distinct from a **citation**, which names a ticket without claiming anything about its state, and the two are indistinguishable by any property other than owning the line.
+A statement in a merged pull request's artifact text that the merge changes a named ticket's state — the whole ticket, or one numbered unit of it. A binding owns its line: it is the only thing that line says. Distinct from a **citation**, which names a ticket without claiming anything about its state — the two are indistinguishable by any property other than owning the line — and from a **closing hazard**, which is accidental rather than authored.
 _Avoid_: reference, link, mention, tag
 
 **Citation**:
 A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything.
 _Avoid_: reference, mention, cross-reference
+
+**Closing hazard**:
+Text on a surface GitHub scans — a commit message, a pull request title or body — that its measured closing grammar would act on. Accidental by nature: the author was writing prose and the parser found an instruction. Distinct from a **binding**, which is deliberate and owns its line, and from a **citation**, which the grammar never reaches. The same bytes on a non-surface — an issue comment, a committed file — are not a hazard until they migrate.
+_Avoid_: binding, false positive, accidental close, match
 
 **Merge receipt**:
 The immutable comment recording that one merge bound one ticket, anchored to the pull request, the full merge commit and the date. It preserves that bounded relation and makes no other claim on the ticket current.
