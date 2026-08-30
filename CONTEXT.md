@@ -457,6 +457,10 @@ _Avoid_: caveat, known issue, disclaimer
 A figure stating the size of a population that is sitting in code and was never consulted. The remedy is to derive it or to drop it; the corrected number is as underived as the wrong one. Distinct from an **orphaned figure**, whose instrument no longer exists at all — that one is declared, this one is repaired.
 _Avoid_: stale count, off-by-one, magic number
 
+**Gated row set**:
+A report row group that runs only when its gate is satisfied — a flag passed, a population present. Its absent run prints `not graded`, never `0`, because an executed zero and an omitted group must not read alike. The gate's shape is each module's own; what is uniform is the rule, not the sentinel.
+_Avoid_: optional rows, conditional section, flag rows
+
 ### Checks
 
 **Prose bind**:
