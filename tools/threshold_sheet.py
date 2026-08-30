@@ -146,34 +146,10 @@ row needed it.
 What no gate here reaches, stated the same day the gates were built
 --------------------------------------------------------------------
 
-- **Whether the row says what its source passage says.** For a recommendation row,
-  ``CITATION`` tier 0 proves the recommendation record states the snippet; for a
-  narrative row, it proves only that same-page recommendation records do not. Tier 2
-  proves the snippet is on the page. Neither can prove the row's ``quantity`` is what that
-  sentence was about, and a sheet whose numbers are all real and all filed under the
-  wrong heading passes every *automatic* gate here. **``SECOND READ`` narrows this
-  and does not close it**: it sets the row's heading beside an independent reader's
-  own description of the number and grades neither, so what closes the hole is a
-  person reading the pairs. A green gate 5 is not a read pairing list -- and a gate 5
-  that was never handed a read says ``NOT RUN`` rather than nothing.
-- **Whether the population key is right.** ``SCHEMA`` checks it is *declared*. The
-  key is a judgment, which is why the verbatim population text sits beside it in the
-  Sources table for a reader to check the key against. A mis-keyed row hides a real
-  conflict by making two rows look like different patients -- and the ruling that
-  population decides this at all came from the clinician, not from the corpus.
-- **A recommendation scoped out for a bad reason.** ``COVERAGE`` requires a reason
-  string; it cannot grade one. ``out: not relevant`` passes.
-- **Identifier membership for a ``bound`` source.** A marker-derived record can
-  under-report a recommendation the sheet author read directly, so absence from that
-  record proves nothing. This is declared in
-  ``WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED`` rather than left as quiet arithmetic.
-- **Occurrence-level coverage where a record repeats a ``rec_id``.** The real ADA
-  record demonstrated that identifiers are not unique even within one document.
-  ``COVERAGE`` grades identifier membership and accounting; it cannot distinguish
-  two occurrences carrying the same identifier, so those occurrences need a separate
-  audit. A source-free scope-out is likewise not membership-graded when any declared
-  source is bound or ungraded, because the gate cannot know which source should carry
-  it.
+The complete module-wide inventory is ``threshold_sheet.DECLARED_LIMITS``; this
+docstring points there and copies no row. Its population was derived by an end-to-end
+read of this module and its ratified records on 2026-08-30. A limit written only as
+later prose remains reader-owned.
 
 **Deliberately not built, because it would pass for the wrong reason**: any gate
 that re-extracts a value and compares it to the sheet through the path that wrote
@@ -228,6 +204,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import NamedTuple
 
 import guidelines_extract
 import guidelines_manifest
@@ -235,6 +212,7 @@ import guidelines_catalog
 import artifact_provenance
 from console_codec import use_utf8
 from guidelines_recs import (
+    EvidenceDisposition,
     MODE_BOUND,
     MODE_EXACT,
     RecommendationRecordLocation,
@@ -281,8 +259,8 @@ RECS_ALIAS_ENV = "CLINICAL_GUIDELINES_RECS_ALIAS"
 
 # **This module takes no write guard, and #176 asked for that to be a decision
 # rather than an absence** -- its own first comment: *"an absent guard is easy to
-# read as an oversight when it is a choice."* Ruled while consolidating the four,
-# 2026-08-19.
+# read as an oversight when it is a choice."* Ruled during the limit consolidation
+# on 2026-08-19.
 #
 # The three writers and `name_index` all refuse a *write* inside a checkout. This
 # module only ever reads: `bind_recs` opens `<doc_id>.json` from the sweep alias or
@@ -1230,53 +1208,6 @@ def _not_read_scope_items(scope: str) -> set[str] | None:
     }
 
 
-# What ADR 0046's scope-summary refusal does not reach. Kept as one object beside
-# the mechanism because prose elsewhere points here and copies no row. This is the
-# conservative direction only: it catches a retired span still described as unread,
-# not an unread span missing from the scope summary.
-SCOPE_SUMMARY_NOT_REACHED = (
-    (
-        "unread spans omitted from Not read",
-        "Nothing checks that the summary names every unread span; this is the "
-        "direction in which a wrong summary misleads a clinician.",
-    ),
-    (
-        "compound span labels",
-        "A compound span label such as X and Y is split at and, so the complete "
-        "label is never compared as one item.",
-    ),
-    (
-        "sentences after the first",
-        "Only the first sentence after Not read is parsed as the list; later "
-        "sentences are outside the comparison.",
-    ),
-    (
-        "unread spans named under Read",
-        "An unread span named under Read is not graded, and no committed sheet "
-        "provides an instance on which to key that mirror rule.",
-    ),
-    (
-        "class-retirement placement",
-        "Putting class-retired material under Read is a convention only; correct "
-        "sheets may describe a reference list without repeating its span label.",
-    ),
-    (
-        "items that are not span labels",
-        "A scope-summary item that is not a span label is compared in neither "
-        "direction and remains a reading.",
-    ),
-    (
-        "null-sheet wording",
-        "The ruled null-sheet wording names no span, so the check is vacuous unless "
-        "that wording changes to name one.",
-    ),
-    (
-        "misdrawn span boundaries",
-        PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES,
-    ),
-)
-
-
 def _page_runs(pages: set[int]) -> str:
     """Compact a page set without hiding any member of the remainder."""
     if not pages:
@@ -1991,6 +1922,146 @@ def gate_watermark(
 SECOND_READ_IS_A_SMOKE_TEST = (
     "a second read is a smoke test and never proof: the same model over the same PDF "
     "mangles it the same way, so agreement is cheap"
+)
+
+
+class DeclaredLimit(NamedTuple):
+    """One named coverage boundary and how its evidence is maintained."""
+
+    key: str
+    limit: str
+    evidence: EvidenceDisposition
+
+
+# The complete coverage inventory, derived by an end-to-end read of this module and
+# its ratified records on 2026-08-30. Later prose-only boundaries remain reader-owned.
+# The ADR 0046 rows stay contiguous so its surviving view can select one key-bounded
+# span instead of maintaining the same membership a second time.
+DECLARED_LIMITS = (
+    DeclaredLimit(
+        "unread spans omitted from Not read",
+        "Nothing checks that the summary names every unread span; this is the "
+        "direction in which a wrong summary misleads a clinician.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "compound span labels",
+        "A compound span label such as X and Y is split at and, so the complete "
+        "label is never compared as one item.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "sentences after the first",
+        "Only the first sentence after Not read is parsed as the list; later "
+        "sentences are outside the comparison.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "unread spans named under Read",
+        "An unread span named under Read is not graded, and no committed sheet "
+        "provides an instance on which to key that mirror rule.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "class-retirement placement",
+        "Putting class-retired material under Read is a convention only; correct "
+        "sheets may describe a reference list without repeating its span label.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "items that are not span labels",
+        "A scope-summary item that is not a span label is compared in neither "
+        "direction and remains a reading.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "null-sheet wording",
+        "The ruled null-sheet wording names no span, so the check is vacuous unless "
+        "that wording changes to name one.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "misdrawn span boundaries",
+        PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES,
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "row-source-meaning-unverified",
+        "No gate can prove that a threshold row says what its cited source passage says.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "population-key-correctness-unverified",
+        "SCHEMA checks that a population key is declared, never that the key describes "
+        "the right patients.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "scope-out-reason-ungraded",
+        "COVERAGE requires a scope-out reason but cannot grade whether the reason is sound.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "bound-record-membership-ungraded",
+        WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED,
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "duplicate-rec-id-occurrences-ungraded",
+        "COVERAGE grades recommendation identifier membership, not separate occurrences "
+        "that repeat one identifier.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "source-free-scope-out-membership-ungraded",
+        "A source-free scope-out is not membership-graded when any declared source is "
+        "bound or ungraded.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "second-read-agreement-unproven",
+        SECOND_READ_IS_A_SMOKE_TEST,
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "cross-topic-source-membership-unchecked",
+        "No gate checks whether a source document belongs to the sheet's topic. "
+        "threshold_draft reports near-miss documents at draft time only, and only where "
+        "the typed topic words appear in the other row's topic or title. A source added "
+        "after drafting, or one from an unrelated topic, is surfaced by nothing.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "recommendation-alias-provenance-unverified",
+        "The recommendation-record alias carries no artifact record, so a read site "
+        "cannot verify that the alias it opened came from the build.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "rowless-source-invisible",
+        "A source that yields no threshold rows is invisible to every sheet gate; a "
+        "later source version that made its correction relevant would surface nothing.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+)
+NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
+
+
+def _declared_limit_span(first_key: str, last_key: str) -> tuple[DeclaredLimit, ...]:
+    """Select one contiguous key-bounded view without copying its membership."""
+
+    keys = tuple(row.key for row in DECLARED_LIMITS)
+    first = keys.index(first_key)
+    last = keys.index(last_key, first)
+    return DECLARED_LIMITS[first:last + 1]
+
+
+SCOPE_SUMMARY_NOT_REACHED = tuple(
+    (row.key, row.limit)
+    for row in _declared_limit_span(
+        "unread spans omitted from Not read",
+        "misdrawn span boundaries",
+    )
 )
 
 # The fields a second-read entry has to carry. Named here rather than read
