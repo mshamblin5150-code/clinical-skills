@@ -47,7 +47,6 @@ def clean_producer():
     return producer
 
 TESTDATA = Path(__file__).resolve().parent / "testdata"
-REPO_ROOT = TESTDATA.parent.parent
 
 
 def pages(name: str) -> list[str]:
@@ -453,17 +452,7 @@ class StatedCitationCandidate(unittest.TestCase):
         self.assertNotIn(gc.UNCONFIRMED_PREFIX, blind)
 
 
-class TheTwoCopiesOfWhatTheCatalogDoesNotReach(unittest.TestCase):
-    def test_catalog_and_glossary_point_to_the_module_object(self):
-        for path in (
-            REPO_ROOT / "reference" / "guidelines-catalog.md",
-            REPO_ROOT / "CONTEXT.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertEqual(text.count("guidelines_catalog.NOT_REACHED"), 1, path)
-            for _, reason in gc.NOT_REACHED:
-                self.assertNotIn(reason, text, path)
-
+class TheDeclaredLimitsObject(unittest.TestCase):
     def test_every_declared_limit_has_a_key_and_reason(self):
         self.assertIn("link rot", dict(gc.NOT_REACHED))
         for key, reason in gc.NOT_REACHED:

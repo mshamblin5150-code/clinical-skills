@@ -12,7 +12,7 @@ reading it. Something has to choose *which document*, and that is a metadata
 problem rather than a retrieval one — so the table is small enough to read in
 full, and says what each document **is**, never what it says.
 
-The five hand-read columns are independently audited in
+The hand-read columns are independently audited in
 [`guidelines-catalog-audit.md`](guidelines-catalog-audit.md). That ledger was
 written blind to the values below, binds every reading to the PDF's SHA-256, and
 records a page locator and evidence kind. `tools/guidelines_catalog.py` fails on

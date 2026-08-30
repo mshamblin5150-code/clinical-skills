@@ -911,7 +911,7 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | ACIP | Recommended Vaccinations for Adults  Vaccines  Immunizations  CDC.pdf | citation | https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html | 1 | rendered-page |
 | ACIP | Recommended Vaccines for Older Children  Vaccines  Immunizations  CDC.pdf | citation | https://www.cdc.gov/vaccines/imz-schedules/adolescent-easyread.html | 1 | rendered-page |
 | ACIP | Recommended Vaccines for Young Children  Vaccines  Immunizations  CDC.pdf | citation | https://www.cdc.gov/vaccines/imz-schedules/child-easyread.html | 1 | rendered-page |
-| ADA | standards-of-care-2026.pdf | citation | ? | 1 | document-read |
+| ADA | standards-of-care-2026.pdf | citation | ? | 7 | introduction-doi-excluded |
 | AHA ACC | blumenthal-et-al-2026-2026-acc-aha-aacvpr-abc-acpm-ada-ags-apha-aspc-nla-pcna-guideline-on-the-management-of.pdf | citation | 10.1161/CIR.0000000000001423 | 1 | publication-line |
 | AHA ACC | bushnell-et-al-2024-2024-guideline-for-the-primary-prevention-of-stroke-a-guideline-from-the-american-heart-association.pdf | citation | 10.1161/STR.0000000000000475 | 1 | publication-line |
 | AHA ACC | creager-et-al-2026-2026-aha-acc-accp-acep-chest-scai-shm-sir-svm-svn-guideline-for-the-evaluation-and-management-of.pdf | citation | 10.1161/CIR.0000000000001415 | 1 | publication-line |
@@ -935,9 +935,9 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | AHA ACC | prabhakaran-et-al-2026-2026-guideline-for-the-early-management-of-patients-with-acute-ischemic-stroke-a-guideline-from.pdf | citation | 10.1161/STR.0000000000000513 | 1 | publication-line |
 | AHA ACC | rao-et-al-2025-2025-acc-aha-acep-naemsp-scai-guideline-for-the-management-of-patients-with-acute-coronary-syndromes-a.pdf | citation | 10.1161/CIR.0000000000001309 | 1 | publication-line |
 | AHA ACC | virani-et-al-2023-2023-aha-acc-accp-aspc-nla-pcna-guideline-for-the-management-of-patients-with-chronic-coronary.pdf | citation | 10.1161/CIR.0000000000001168 | 1 | publication-line |
-| CDC | CDC Clinical Practice Guideline for Prescribing Opioids for Pain — United States, 2022 MMWR.pdf | citation | ? | 1 | document-read |
-| GINA | GINA-Summary-Guide-2026-WEB-WMS.pdf | citation | ? | 1 | document-read |
-| GOLD | GOLD-REPORT-2026-v1.3-8Dec2025_WMV2.pdf | citation | ? | 1 | document-read |
+| CDC | CDC Clinical Practice Guideline for Prescribing Opioids for Pain — United States, 2022 MMWR.pdf | citation | ? | 30 | prior-edition-citation-excluded |
+| GINA | GINA-Summary-Guide-2026-WEB-WMS.pdf | citation | ? | 1 | masthead-url-excluded |
+| GOLD | GOLD-REPORT-2026-v1.3-8Dec2025_WMV2.pdf | citation | ? | 197 | reference-list-doi-excluded |
 | IDSA | aasld-idsa-practice-guideline-on-treatment-of-chronic.pdf | citation | 10.1097/HEP.0000000000001549 | 1 | publication-line |
 | IDSA | ajrccm_200_7_e45.pdf | citation | 10.1164/rccm.201908-1581ST | 1 | publication-line |
 | IDSA | amr-guidance-update.pdf | citation | www.idsociety.org/practice-guideline/amr-guidance/ | 2 | printed-url |
@@ -993,7 +993,7 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | KDIGO | KDIGO-2025-ADPKD-Guideline.pdf | citation | 10.1016/j.kint.2024.07.009 | 15 | publication-line |
 | KDIGO | KDIGO-2025-Guideline-for-Nephrotic-Syndrome-in-Children.pdf | citation | 10.1016/j.kint.2024.11.007 | 14 | publication-line |
 | KDIGO | KDIGO-2025-IgAN-IgAV-Guideline.pdf | citation | 10.1016/j.kint.2025.04.004 | 12 | publication-line |
-| KDIGO | KDIGO-2026-AKI-AKD-Guideline-Public-Review-Draft-March-2026.pdf | citation | ? | 1 | document-read |
+| KDIGO | KDIGO-2026-AKI-AKD-Guideline-Public-Review-Draft-March-2026.pdf | citation | ? | 397 | reference-list-doi-excluded |
 | KDIGO | KDIGO-2026-Anemia-in-CKD-Guideline.pdf | citation | 10.1016/j.kint.2025.06.006 | 13 | publication-line |
 | KDIGO | KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work.pdf | citation | ? | 1 | document-read |
 | KDIGO | KDIGO_2024_Lupus_Nephritis_Guideline.pdf | citation | 10.1016/j.kint.2023.09.002 | 13 | publication-line |
