@@ -222,6 +222,11 @@ EXPECTED_CHECKS = (
     # complete. Added on
     # [#299](https://github.com/mshamblin5150-code/clinical-skills/issues/299).
     "the dose against the record that sourced it",
+    # A per-patient reading across every applicable threshold sheet. The keys
+    # and ``CONFLICT`` gate are sheet-local, so no directory command reaches
+    # this correspondence. Added on
+    # [#584](https://github.com/mshamblin5150-code/clinical-skills/issues/584).
+    "the threshold sheets against this patient",
     # These are separate because the first is clinical judgment over the source
     # material and draft while the second needs rendered pages and vision. A
     # reader holding both jobs could return a partial walk as one complete one.
@@ -260,6 +265,7 @@ SUBSTANTIATED_CLEAN = (
     "differential ordering",
     "MDM completeness",
     "the dose against the record that sourced it",
+    "the threshold sheets against this patient",
     "the clinical decisions no command reaches",
     "the numbering in context",
     "the rendered document",
