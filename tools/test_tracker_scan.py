@@ -503,6 +503,7 @@ class ACommittedRulingRemovesOnlyThatExactCommitFinding(MainInATempRepo):
                 for rule in rules
                 for _ in range(copies)
             ],
+            "harvest_findings": [],
         }), encoding="utf-8")
 
     def test_an_exact_ruling_leaves_the_commit_surface_clean(self):
@@ -695,6 +696,21 @@ class AHarvestRulingRemovesOnlyThatExactPublishedFinding(MainInATempRepo):
         self.assertEqual(status, tracker_scan.NOT_SCANNED)
         self.assertIn("DID NOT APPLY commit rulings", out)
 
+    def test_an_absent_harvest_section_is_not_an_empty_harvest_section(self):
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text(json.dumps({
+            "version": 2,
+            "commit_findings": [],
+        }), encoding="utf-8")
+
+        status, out = self.run_main(
+            "--harvest", self.a_harvest("nothing identifying")
+        )
+
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("harvest_findings must be a list", out)
+
 
 class TheCommittedRulingPopulationIsLive(unittest.TestCase):
     """The real ledger, its extraction, and a match-key mutant are independent.
@@ -711,7 +727,7 @@ class TheCommittedRulingPopulationIsLive(unittest.TestCase):
     def test_every_committed_ruling_matches_one_real_finding(self):
         path = phi_scan.REPO_ROOT / tracker_scan.RULINGS_PATH
         rows = json.loads(path.read_text(encoding="utf-8"))["commit_findings"]
-        rulings = tracker_scan.load_commit_rulings(phi_scan.REPO_ROOT)
+        rulings, _ = tracker_scan.load_rulings(phi_scan.REPO_ROOT)
         self.assertTrue(rows)
         self.assertEqual(len(rows), rulings.total())
 

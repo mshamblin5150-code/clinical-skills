@@ -137,7 +137,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, NamedTuple, Sequence
+from typing import Iterable, NamedTuple, Sequence, TypeVar
 
 import phi_scan
 from console_codec import use_utf8
@@ -209,6 +209,9 @@ class HarvestRulingKey(NamedTuple):
     line_sha256: str
 
 
+RulingKeyT = TypeVar("RulingKeyT", RulingKey, HarvestRulingKey)
+
+
 @dataclass(frozen=True)
 class ScannedFinding(Finding):
     """A finding plus the non-enumerable identity of its containing line."""
@@ -239,6 +242,21 @@ def _ruling_fields(
     if not isinstance(reason, str) or not reason.strip():
         raise RulingError(f"{path}: {label} has an invalid reason")
     return row, line, rule, digest, (verdict, reason)
+
+
+def _add_ruling(
+    path: Path,
+    key: RulingKeyT,
+    decision: tuple[str, str],
+    decisions: dict[RulingKeyT, tuple[str, str]],
+    rulings: Counter[RulingKeyT],
+    conflict: str,
+) -> None:
+    """Add one verdict while refusing contradictory duplicate rows."""
+    if key in decisions and decisions[key] != decision:
+        raise RulingError(f"{path}: {conflict}")
+    decisions[key] = decision
+    rulings[key] += 1
 
 
 def _run_git(
@@ -441,7 +459,7 @@ def load_rulings(
     commit_rows = data.get("commit_findings")
     if not isinstance(commit_rows, list):
         raise RulingError(f"{path}: commit_findings must be a list")
-    harvest_rows = data.get("harvest_findings", [])
+    harvest_rows = data.get("harvest_findings")
     if not isinstance(harvest_rows, list):
         raise RulingError(f"{path}: harvest_findings must be a list")
 
@@ -453,12 +471,10 @@ def load_rulings(
         if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
             raise RulingError(f"{path}: row {number} has an invalid commit")
         key = RulingKey(commit, line, rule, digest)
-        if key in decisions and decisions[key] != decision:
-            raise RulingError(
-                f"{path}: row {number} conflicts with an earlier line ruling"
-            )
-        decisions[key] = decision
-        rulings[key] += 1
+        _add_ruling(
+            path, key, decision, decisions, rulings,
+            f"row {number} conflicts with an earlier line ruling",
+        )
 
     harvest_rulings: Counter[HarvestRulingKey] = Counter()
     harvest_decisions: dict[HarvestRulingKey, tuple[str, str]] = {}
@@ -472,18 +488,11 @@ def load_rulings(
                 f"{path}: harvest row {number} has an invalid record"
             )
         key = HarvestRulingKey(record, line, rule, digest)
-        if key in harvest_decisions and harvest_decisions[key] != decision:
-            raise RulingError(
-                f"{path}: harvest row {number} conflicts with an earlier line ruling"
-            )
-        harvest_decisions[key] = decision
-        harvest_rulings[key] += 1
+        _add_ruling(
+            path, key, decision, harvest_decisions, harvest_rulings,
+            f"harvest row {number} conflicts with an earlier line ruling",
+        )
     return rulings, harvest_rulings
-
-
-def load_commit_rulings(repo: Path) -> Counter[RulingKey]:
-    """Compatibility reader for callers that inspect only commit verdicts."""
-    return load_rulings(repo)[0]
 
 
 def partition_ruled_findings(
