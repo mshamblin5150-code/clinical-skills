@@ -30,6 +30,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
+from typing import get_args, get_type_hints
 from unittest import mock
 
 import checks_ledger
@@ -3534,6 +3535,114 @@ REFERENCE: Author, A. (2026). How clinicians use UpToDate in practice. Journal o
         found, read = ledger.evidence_findings(records, (), self.carried)
         self.assertEqual(found, [])
         self.assertEqual(read, 0)
+
+
+class EveryGatedRowSetFollowsTheSentinelConvention(unittest.TestCase):
+    """Derive each gated set from ``Scan`` rather than maintaining a list.
+
+    A plain ``int`` row set is outside this walk: no mechanical rule can tell
+    an executed zero from an omitted group unless its author declares the
+    omission with the module's ``int | None`` sentinel convention.
+    """
+
+    @staticmethod
+    def nullable_int_fields() -> set[str]:
+        return {
+            name
+            for name, annotation in get_type_hints(ledger.Scan).items()
+            if int in get_args(annotation) and type(None) in get_args(annotation)
+        }
+
+    @staticmethod
+    def report_row_sets() -> dict[str, set[str]]:
+        """Read the sentinel-to-row-set joins from ``format_report`` itself."""
+        tree = ast.parse(inspect.getsource(ledger.format_report))
+        joins: dict[str, set[str]] = {}
+        for branch in (node for node in ast.walk(tree) if isinstance(node, ast.If)):
+            if not any(
+                isinstance(node, ast.Compare)
+                and any(isinstance(operator, ast.In) for operator in node.ops)
+                for node in ast.walk(branch.test)
+            ):
+                continue
+            row_sets = {
+                node.id
+                for node in ast.walk(branch.test)
+                if isinstance(node, ast.Name) and node.id.endswith("_ROWS")
+            }
+            sentinels = {
+                node.attr
+                for node in ast.walk(branch.test)
+                if isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "scan"
+            }
+            for sentinel in sentinels:
+                joins.setdefault(sentinel, set()).update(row_sets)
+        return joins
+
+    def test_each_nullable_integer_sentinel_joins_a_named_report_row_set(self):
+        joins = self.report_row_sets()
+        self.assertEqual(self.nullable_int_fields(), set(joins))
+        for sentinel, names in joins.items():
+            with self.subTest(sentinel=sentinel):
+                self.assertEqual(len(names), 1)
+                rows = getattr(ledger, next(iter(names)))
+                self.assertIsInstance(rows, tuple)
+                self.assertTrue(rows)
+
+    def test_each_gated_row_set_declares_its_behavior_limit(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        for name in set().union(*self.report_row_sets().values()):
+            key = f"{name.lower().replace('_', '-')}-optional"
+            with self.subTest(row_set=name):
+                self.assertIn(key, limits)
+                self.assertIs(
+                    limits[key].evidence, ledger.EvidenceDisposition.BEHAVIOR
+                )
+
+    def _run_main(self, row_set: str, enabled: bool) -> tuple[int, str]:
+        flag = f"--{row_set.removesuffix('_ROWS').lower()}"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ledger_path = root / "claims.md"
+            body = (
+                ledger_text(a_drug_claim(CEFTRIAXONE_CLAIM))
+                if flag == "--draft"
+                else ledger_text(CLEAN)
+            )
+            ledger_path.write_text(body, encoding="utf-8")
+            argv = [str(ledger_path)]
+            if enabled:
+                optional_path = root / f"{flag[2:]}.md"
+                if flag == "--draft":
+                    optional_path.write_text(rx_table(CEFTRIAXONE), encoding="utf-8")
+                elif flag == "--evidence":
+                    optional_path.write_text(topic("A carried topic"), encoding="utf-8")
+                else:
+                    self.fail(f"no live positive-control input for {flag}")
+                argv += [flag, str(optional_path)]
+            out = io.StringIO()
+            with redirect_stdout(out):
+                status = ledger.main(argv)
+            return status, out.getvalue()
+
+    def test_each_gating_flag_changes_its_rows_from_not_graded_to_counts(self):
+        for name in set().union(*self.report_row_sets().values()):
+            without_status, without = self._run_main(name, enabled=False)
+            with_status, with_flag = self._run_main(name, enabled=True)
+            with self.subTest(row_set=name):
+                self.assertEqual(without_status, 0)
+                self.assertEqual(with_status, 0)
+                for row in getattr(ledger, name):
+                    without_line = next(
+                        line for line in without.splitlines() if row in line
+                    )
+                    with_line = next(
+                        line for line in with_flag.splitlines() if row in line
+                    )
+                    self.assertIn("not graded", without_line)
+                    self.assertRegex(with_line, rf"{re.escape(row)}\s+\d+$")
 
 
 class TheEvidenceRowsAreWiredInLikeTheDraftRows(unittest.TestCase):
