@@ -401,6 +401,14 @@ _Avoid_: partial sheet, draft sheet, provisional sheet, candidate sheet
 One named part of a source document with a page range, such as its clinical considerations or its reference list. The unit a sheet's unread list is written in, and the unit a blind second reader is briefed on. Spans may overlap, because a page can carry two of them.
 _Avoid_: section, chapter, part, region
 
+**Null span**:
+A span retired having found nothing. Its `read` cell states two dated claims: that a read happened, and that an independent reader agreed it holds none.
+_Avoid_: dated marker, null read, retired span, empty span
+
+**Blind read**:
+A read performed by a reader briefed only on the span's name and page range, never shown the threshold sheet. Independence is declared and unreachable: the dated token is an audit claim, and no check can establish that the reader was a second reader.
+_Avoid_: verification, second opinion, double-check, independent check
+
 **Section read**:
 Reading one span for decision points. It leaves the rows that span holds and a narrowed unread list, and it is the unit of work — a sheet is completed one span at a time, never in a single promotion. A span leaves the unread list when it yields rows, when a blind independent read agrees it holds none, or when it is a reference list retired by class with that reason recorded.
 _Avoid_: sweep, pass, promotion, full read

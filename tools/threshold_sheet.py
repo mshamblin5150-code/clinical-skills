@@ -28,8 +28,8 @@ row needed it.
     Structural. Every row has all eight columns, a population key drawn from the
     sheet's own declared vocabulary, no non-ASCII comparison character in its value,
     and a source key that the Sources table defines. Every source carries its catalog
-    source class, a version, a publication date and a URL. The sheet has a ``## Scope``
-    section saying both
+    source class, a version, a publication date, an HTTP(S) Download address, and its
+    ruled Download basis. The sheet has a ``## Scope`` section saying both
     what was read and what was **not**. **And the conflict rule**: two rows sharing a
     quantity key AND a population key with different values must be covered by a
     ``CONFLICT`` block for that quantity. Needs nothing but the sheet, so it runs
@@ -109,6 +109,13 @@ row needed it.
     clinician bottleneck. The agent renders the cited page, confirms the row, and
     records that check with ``RENDERED:``; an incorrect or ambiguous row stays
     refusing until it is corrected.
+
+``NULL SPAN`` refuses
+    A span retired on ``read YYYY-MM-DD`` claims that its read found no decision
+    point. The same cell must carry ``; blind YYYY-MM-DD`` to record the required
+    cold corroboration. The dates may be equal. The gate reports both its retired-span
+    denominator and how many carry corroboration on every run; ``exempt:`` spans are
+    outside that population because retirement by class is not a read.
 
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
@@ -347,6 +354,7 @@ SOURCE_COLUMNS = (
     "version",
     "published",
     "url",
+    "basis",
     "mode",
 )
 SCOPE_HEADING = "## Scope"
@@ -519,8 +527,15 @@ _SPAN_SOURCE = re.compile(
     re.IGNORECASE,
 )
 _SPAN_RANGE = re.compile(r"^p?(?P<first>\d+)(?:\s*-\s*p?(?P<last>\d+))?$", re.I)
-_DATED_SPAN_READ = re.compile(r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})$", re.I)
+_DATED_SPAN_READ = re.compile(
+    r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})"
+    r"(?:;\s*blind\s+(?P<blind_date>\d{4}-\d{2}-\d{2}))?$",
+    re.I,
+)
 _SPAN_EXEMPTION = re.compile(r"^exempt:\s*(?P<reason>\S.+)$", re.I)
+_DATED_DOWNLOAD_BASIS = re.compile(
+    r"^(?:digest|gated)\s+(?P<date>\d{4}-\d{2}-\d{2})$"
+)
 
 _INEQUALITY_WORDS = (
     (r"\b(?:less than or equal to|at or below|no more than)\b", "<="),
@@ -611,11 +626,23 @@ class Span:
         match = _DATED_SPAN_READ.fullmatch(self.read)
         if match is None:
             return False
-        try:
-            date.fromisoformat(match.group("date"))
-        except ValueError:
-            return False
+        for group in ("date", "blind_date"):
+            value = match.group(group)
+            if value is None:
+                continue
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return False
         return True
+
+    @property
+    def blind_read_date(self) -> date | None:
+        match = _DATED_SPAN_READ.fullmatch(self.read)
+        if match is None or not self.has_dated_marker:
+            return None
+        value = match.group("blind_date")
+        return date.fromisoformat(value) if value is not None else None
 
     @property
     def exemption_reason(self) -> str | None:
@@ -1119,9 +1146,28 @@ def gate_schema(
     # prevent: societies revise, and 2017's number under 2025's heading is wrong in
     # the most expensive way. These three cells were parsed past until they were not.
     for key, source in sheet.sources.items():
-        for column in ("source class", "version", "published", "url"):
+        for column in ("source class", "version", "published", "url", "basis"):
             if not source.get(column):
                 failures.append(f"{sheet.path.name}  source '{key}' has no {column}")
+        url = source.get("url", "")
+        if url and re.fullmatch(r"https?://\S+", url) is None:
+            failures.append(
+                f"{sheet.path.name}  source '{key}' download address must be an HTTP(S) address"
+            )
+        basis = source.get("basis", "")
+        basis_match = _DATED_DOWNLOAD_BASIS.fullmatch(basis)
+        valid_basis = basis in {"stated", "chosen"}
+        if basis_match is not None:
+            try:
+                basis_date = date.fromisoformat(basis_match.group("date"))
+            except ValueError:
+                pass
+            else:
+                valid_basis = basis_date <= date.today()
+        if basis and not valid_basis:
+            failures.append(
+                f"{sheet.path.name}  source '{key}' has invalid download basis '{basis}'"
+            )
         document = source.get("document", "")
         expected_class = (catalog_source_classes or {}).get(document)
         if expected_class is not None and source.get("source class") != expected_class:
@@ -1221,6 +1267,26 @@ def gate_schema(
         failures,
         report=(f"  SCHEMA          {len(failures)}",),
     )
+
+
+def gate_null_span(sheet: Sheet) -> GateResult:
+    """Refuse a span's null claim until it carries dated corroboration."""
+
+    retired = [span for span in sheet.spans if span.has_dated_marker]
+    uncorroborated = [span for span in retired if span.blind_read_date is None]
+    failures = [
+        f"{sheet.path.name}  span '{span.name}' was retired on a marker without "
+        "a dated blind-read token"
+        for span in uncorroborated
+    ]
+    corroborated = len(retired) - len(uncorroborated)
+    line = (
+        f"  NULL SPAN       {len(failures)} refusing over {len(retired)} "
+        "span(s) retired on a marker"
+    )
+    if retired:
+        line += f", {corroborated} corroborated"
+    return GateResult("NULL SPAN", failures, report=(line,))
 
 
 def gate_extraction_identity(
@@ -1791,7 +1857,7 @@ def usable_probes(entry: guidelines_manifest.Record, body: str) -> dict[str, str
     goes wrong, and the value here is that there is no constant to name.
 
     **Those two counts are stated here and deliberately nowhere else.** They are
-    measured against a 179-document corpus outside this repo, so nothing committed
+    measured against a corpus outside this repo, so nothing committed
     re-derives them, and a copy in ``CLAUDE.md`` or in ``reference/thresholds/README.md``
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) --
     which is what the first draft of this change did, in three places each, inside a
@@ -1909,7 +1975,7 @@ def gate_watermark(
     returned in the fourth value and printed, because a sheet citing one is a sheet
     this gate said nothing about. A silent zero there is the shape
     ``differential_scan.py`` and every scanner after it exists to refuse. **How many
-    of the 179 have no usable probe is stated once, in
+    have no usable probe is stated once, in
     ``reference/thresholds/README.md``**, where the command that re-derives it sits
     beside it -- it is measured against a corpus outside this repo, so a second copy
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
@@ -2043,6 +2109,11 @@ SECOND_READ_IS_A_SMOKE_TEST = (
     "mangles it the same way, so agreement is cheap"
 )
 
+BLIND_READ_IS_A_SMOKE_TEST = (
+    "a blind read is a smoke test in the clean direction: two readers can miss the "
+    "same decision point"
+)
+
 
 class DeclaredLimit(NamedTuple):
     """One named coverage boundary and how its evidence is maintained."""
@@ -2141,6 +2212,49 @@ DECLARED_LIMITS = (
         "second-read-agreement-unproven",
         SECOND_READ_IS_A_SMOKE_TEST,
         EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "null-span-token-grades-claim-only",
+        "NULL SPAN grades the committed token claiming corroboration and never the "
+        "read that token describes.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "blind-read-independence-unverified",
+        "Nothing checks that the blind reader was a second reader, was briefed cold, "
+        "or did not open the threshold sheet.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "blind-read-shared-miss-unverified",
+        BLIND_READ_IS_A_SMOKE_TEST,
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "null-span-coverage-auditor-unreached",
+        "The NULL SPAN refusal is outside threshold_coverage.py, whose threshold-sheet "
+        "report reads gate_schema findings only.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "transcribed-blind-token-accuracy-unverified",
+        "A blind token transcribed from a sheet's prose is only as accurate as the "
+        "reader-authored sentence it copies.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "download-address-reachability-unverified",
+        "SCHEMA checks that a Download address is an HTTP(S) address but never opens it, "
+        "so a clean run proves neither reachability nor resistance to link rot.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "download-basis-evidence-not-replayed",
+        "SCHEMA validates the Download basis vocabulary and date shape but does not "
+        "replay a fetch, authenticated-route attempt, or digest comparison. Byte "
+        "identity is sufficient for a match and byte inequality does not prove that "
+        "the content differs.",
+        EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
         "cross-topic-source-membership-unchecked",
@@ -3099,6 +3213,7 @@ def survey(
     records, why_not, recs_errors, missing_records = bound_records
 
     schema = gate_schema(sheet, catalog_source_classes)
+    null_span = gate_null_span(sheet)
     current_extraction, identity_problems = (
         extraction_identity_from_manifest(
             text_root,
@@ -3165,6 +3280,7 @@ def survey(
 
     results = (
         schema,
+        null_span,
         extraction_identity,
         page_coverage,
         tier0,
@@ -3178,6 +3294,7 @@ def survey(
 
     refusals = (
         schema.findings
+        + null_span.findings
         + extraction_identity.findings
         + page_coverage.findings
         + tier0.findings

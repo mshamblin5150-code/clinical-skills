@@ -6,7 +6,7 @@ index of the guideline corpus.
     python tools/guidelines_catalog.py --audit-draft <pdf-dir> # emit a blind audit
     python tools/guidelines_catalog.py --check-corpus-size     # advisory drift report
 
-The corpus is 179 PDFs at ``C:/codeing/guidelines-src``. It lives **outside this
+The PDF corpus at ``C:/codeing/guidelines-src`` lives **outside this
 repo** and stays there: most of it society-copyrighted, and no consumer
 needs the sources, they need the derived facts. Issue #87.
 

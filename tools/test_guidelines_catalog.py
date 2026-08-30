@@ -967,12 +967,12 @@ class TheHeaderAgreesWithTheColumnBeneathIt(unittest.TestCase):
 
     def test_the_document_count_in_the_header_is_the_number_of_rows(self):
         rows = self._rows()
-        self.assertEqual(len(rows), 179)
+        self.assertEqual(len(rows), 180)
         self.assertIn(f"{len(rows)} PDFs", self.CATALOG.read_text(encoding="utf-8"))
 
     def test_the_page_total_in_the_header_is_the_column_sum(self):
         total = sum(int(cells[6]) for cells in self._rows())
-        self.assertEqual(total, 7733)
+        self.assertEqual(total, 7749)
         self.assertIn(f"{total:,} pages", self.CATALOG.read_text(encoding="utf-8"))
 
 

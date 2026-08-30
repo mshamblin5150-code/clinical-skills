@@ -752,9 +752,9 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| draft-src | Example Society | Public review draft | SOURCE_CLASS | 1 | 2026 | https://example.test/draft | text |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| draft-src | Example Society | Public review draft | SOURCE_CLASS | 1 | 2026 | https://example.test/draft | chosen | text |
 
 ## Thresholds
 

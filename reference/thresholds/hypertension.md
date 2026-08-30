@@ -20,9 +20,9 @@ this file by a test, so the figures cannot go stale here.
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| aha-2025 | AHA/ACC | AHA ACC/jones-et-al-2025-2025-aha-acc-aanp-aapa-abc-accp-acpm-ags-ama-aspc-nma-pcna-sgim-guideline-for-the-prevention-detection | guideline | 2025 | 2025 | https://doi.org/10.1161/HYP.0000000000000249 | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| aha-2025 | AHA/ACC | AHA ACC/jones-et-al-2025-2025-aha-acc-aanp-aapa-abc-accp-acpm-ags-ama-aspc-nma-pcna-sgim-guideline-for-the-prevention-detection | guideline | 2025 | 2025 | https://doi.org/10.1161/HYP.0000000000000249 | chosen | exact |
 
 ## Scope
 
@@ -54,7 +54,11 @@ citation list, and the appendices have a dated null read below.
 | front matter and methods | 1-10 | yes |
 | recommendation tables, narrative sections, figures, and clinical tables | 11-74 | yes |
 | references | 75-97 | exempt: citation list contains no clinical prose |
-| appendices | 98-105 | read 2026-08-23 |
+| appendices | 98-105 | read 2026-08-23; blind 2026-08-30 |
+
+**Second read:** a cold blind read dated 2026-08-30 covered appendices pp. 98-105.
+It found writing-committee and reviewer disclosures, including administrative
+financial-disclosure cutoffs, and no patient-care decision point.
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-29
 extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/guidelines_extract.py sha256 f8e95baf7e4e74328a752d89e1e7b617217ba1e43c4368fba92f789840e21cf9

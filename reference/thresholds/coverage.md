@@ -96,7 +96,7 @@
 | hepatitis B screening | unread |  | exact recommendation index available; full-document read pending |
 | hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
 | hepatitis C screening | unread |  | exact recommendation index available; full-document read pending |
-| hepatitis C treatment trial, babesiosis treatment tables (corrections) | unread |  | no recommendation record; full-document read pending |
+| babesiosis | unread |  | no recommendation record; full-document read pending |
 | hepatitis C virus infection | unread |  | no recommendation record; full-document read pending |
 | high blood pressure | sheet | hypertension.md | clinical-content spans on pp. 1-74 read 2026-08-29 |
 | high blood pressure screening | unread |  | exact recommendation index available; full-document read pending |

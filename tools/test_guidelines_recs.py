@@ -1,7 +1,7 @@
 """Tests for tools/guidelines_recs.py.
 
 **Synthetic tables built in this file, and no PDF is ever opened.** ``*.pdf`` is
-globally gitignored and the corpus is 179 copyrighted documents outside the repo, so
+globally gitignored and the corpus is copyrighted documents outside the repo, so
 a test that read one could not run on a fresh clone. Every function under test above
 ``extract`` takes a list of cells, which is what makes that possible -- the same line
 ``test_guidelines_extract.py`` draws around ``rebuild_text`` taking a dictionary.

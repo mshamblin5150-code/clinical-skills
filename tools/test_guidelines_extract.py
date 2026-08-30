@@ -138,7 +138,7 @@ def rawline(text: str, size: float, gaps: list[float], font: str | None = None) 
     substitution table has to survive one.
 
     Built as a literal rather than read from a PDF, on this file's standing rule:
-    ``*.pdf`` is globally gitignored and the corpus is 179 copyrighted documents
+    ``*.pdf`` is globally gitignored and the corpus is copyrighted documents
     outside the repo, so a test that opened one could not run on a fresh clone.
     """
     advance = size * 0.5
@@ -453,7 +453,7 @@ class SymbolFontsThatLieAboutTheirOwnEncoding(unittest.TestCase):
 class TheSubstitutionTableHoldsWhatItClaims(unittest.TestCase):
     """The table is a set of measurements, so its shape is asserted rather than
     trusted -- ``NormalizationTablesHoldWhatTheyClaim``'s arrangement, for its
-    reason. Nothing here re-derives a *count*: the corpus is 179 copyrighted PDFs
+    reason. Nothing here re-derives a *count*: the corpus is copyrighted PDFs
     outside the repo and no test in this file opens one.
     """
 

@@ -42,6 +42,7 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | IDSA | ajrccm_200_7_e45.pdf | ef03f6a627875b4fc953e7c427866a596815cdf06ceb5e1d85bb7b5299ed79cd | 789030 | 2026-08-30 |
 | IDSA | amr-guidance-update.pdf | 00c8af8fb551fd1094e6d0f23c9198702f8cf5eb3437b9ef46a395806994df2a | 1205401 | 2026-08-30 |
 | IDSA | ciaa1215.pdf | 37c86a089c5b901f45ba83b48936582f41ef7477a66ecfdd7fb3004ae5f71108 | 1274722 | 2026-08-30 |
+| IDSA | ciaa1216.pdf | e3210dee9d0e417263bccf45a7e1e2f939bd4888459e38e622355fc9d32f9775 | 16724109 | 2026-08-30 |
 | IDSA | ciaa241.pdf | eb9b84ad81c9e33dfc5c61c177e898e10423bfb3c72a4ba6914471fac39f2685 | 634363 | 2026-08-30 |
 | IDSA | ciab275.pdf | ec94d72672a320b21655d7523c41fa2195a67573707c1ee7b65ddd5ed6332f8b | 144215 | 2026-08-30 |
 | IDSA | ciab549.pdf | 0bf8f3483969496aff9ab80d2b94ab3958c68ade8c815416e114d9b9215fd4b1 | 10161997 | 2026-08-30 |
@@ -328,6 +329,10 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | IDSA | ciaa1215.pdf | topic | Lyme disease prevention, diagnosis, and treatment | 1 | title-page |
 | IDSA | ciaa1215.pdf | population | general | 1 | front-matter |
 | IDSA | ciaa1215.pdf | year | 2020 | 1 | title-page |
+| IDSA | ciaa1216.pdf | title | Clinical Practice Guidelines by the Infectious Diseases Society of America (IDSA): 2020 Guideline on Diagnosis and Management of Babesiosis | 1 | title-page |
+| IDSA | ciaa1216.pdf | topic | diagnosis and management of human babesiosis | 1 | purpose-statement |
+| IDSA | ciaa1216.pdf | population | pediatric, adult | 1 | front-matter |
+| IDSA | ciaa1216.pdf | year | 2020 | 1 | title-page |
 | IDSA | ciaa241.pdf | title | Treatment of Nontuberculous Mycobacterial Pulmonary Disease: An Official ATS/ERS/ESCMID/IDSA Clinical Practice Guideline | 1 | title-page |
 | IDSA | ciaa241.pdf | topic | nontuberculous mycobacterial pulmonary disease treatment | 1 | title-page |
 | IDSA | ciaa241.pdf | population | adult | 1 | front-matter |
@@ -942,6 +947,7 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | IDSA | ajrccm_200_7_e45.pdf | citation | 10.1164/rccm.201908-1581ST | 1 | publication-line |
 | IDSA | amr-guidance-update.pdf | citation | www.idsociety.org/practice-guideline/amr-guidance/ | 2 | printed-url |
 | IDSA | ciaa1215.pdf | citation | 10.1093/cid/ciaa1215 | 1 | publication-line |
+| IDSA | ciaa1216.pdf | citation | 10.1093/cid/ciaa1216 | 1 | publication-line |
 | IDSA | ciaa241.pdf | citation | 10.1093/cid/ciaa241 | 1 | publication-line |
 | IDSA | ciab275.pdf | citation | Clinical Infectious Diseases. 2021;73(1):172–4. | 1 | journal-citation-line |
 | IDSA | ciab549.pdf | citation | 10.1093/cid/ciab549 | 1 | publication-line |
@@ -1142,9 +1148,10 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | IDSA | ciaa1215.pdf | topic | Lyme disease | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | IDSA | ciaa1215.pdf | population | pediatric, adult | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | IDSA | ciaa1215.pdf | year | 2021 | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
+| IDSA | ciaa1216.pdf | topic | babesiosis | 2026-08-29 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | IDSA | ciaa241.pdf | topic | nontuberculous mycobacterial pulmonary disease | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | IDSA | ciab275.pdf | title | Errata | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
-| IDSA | ciab275.pdf | topic | hepatitis C treatment trial, babesiosis treatment tables (corrections) | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
+| IDSA | ciab275.pdf | topic | babesiosis | 2026-08-29 | Clinician re-took the catalog topic ruling after the Topic glossary term was established. |
 | IDSA | ciab549.pdf | title | Clinical Practice Guideline by the Infectious Diseases Society of America (IDSA) and Society for Healthcare Epidemiology of America (SHEA): 2021 Focused Update Guidelines on Management of Clostridioides difficile Infection in Adults | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | IDSA | ciab549.pdf | topic | Clostridioides difficile infection | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | IDSA | ciab953.pdf | title | Infectious Diseases Society of America Guidelines on Infection Prevention for Healthcare Personnel Caring for Patients With Suspected or Known COVID-19 | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |

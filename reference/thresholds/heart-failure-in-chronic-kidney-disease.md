@@ -10,9 +10,9 @@ out in [README.md](README.md).
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| kdigo-scope | KDIGO | KDIGO/KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work | scope-of-work | ? | ? | https://kdigo.org/guidelines/heart-failure-in-ckd/ | bound |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| kdigo-scope | KDIGO | KDIGO/KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work | scope-of-work | ? | ? | https://kdigo.org/guidelines/heart-failure-in-ckd/ | chosen | bound |
 
 ## Scope
 
@@ -24,7 +24,11 @@ what is done to a patient.
 
 | span | pages | read |
 | --- | --- | --- |
-| complete scope of work | 1-9 | read 2026-08-29 |
+| complete scope of work | 1-9 | read 2026-08-29; blind 2026-08-30 |
+
+**Second read:** a cold blind read dated 2026-08-30 covered all nine pages. It found
+future guideline questions about thresholds, kidney-function change, treatment timing,
+and outcomes, but no stated clinical threshold, target, cutoff, dose, or interval.
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-29
 extraction identity: producer c21df89505190e2bd6b073892aa3b6f6c009c614; tools/guidelines_extract.py sha256 f8e95baf7e4e74328a752d89e1e7b617217ba1e43c4368fba92f789840e21cf9

@@ -83,8 +83,10 @@ def header(mode: str = "exact") -> str:
     the thing under test. That mismatch is itself a finding now, and it has its own
     test below.
     """
-    return HEADER.replace("| 2025 | 2025 | https://example.invalid | exact |",
-                          f"| 2025 | 2025 | https://example.invalid | {mode} |")
+    return HEADER.replace(
+        "| 2025 | 2025 | https://example.invalid | stated | exact |",
+        f"| 2025 | 2025 | https://example.invalid | stated | {mode} |",
+    )
 
 
 TEST_PDF_ROOT = Path(__file__).resolve().parent.as_posix()
@@ -96,9 +98,9 @@ HEADER = f"""# Test sheet
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | stated | exact |
 
 ## Scope
 
@@ -211,10 +213,10 @@ TWO_SOURCE_HEADER = f"""# Test sheet
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| aha | AHA/ACC | Society/aha | guideline | 2025 | 2025 | https://example.invalid | exact |
-| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| aha | AHA/ACC | Society/aha | guideline | 2025 | 2025 | https://example.invalid | stated | exact |
+| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | stated | exact |
 
 ## Scope
 
@@ -1216,8 +1218,8 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
 
     def test_the_tripwire_detects_a_synthetic_mixed_mode_sheet_with_markers(self):
         mixed_header = TWO_SOURCE_HEADER.replace(
-            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | exact |",
-            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | bound |",
+            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | stated | exact |",
+            "| kdigo | KDIGO | Society/kdigo | guideline | 2021 | 2021 | https://example.invalid | stated | bound |",
         )
         parsed = two_source_sheet(
             row(source="aha", snippet="RENDERED: exact-source transcription")
@@ -2280,6 +2282,13 @@ class DeclaredLimits(unittest.TestCase):
         "duplicate-rec-id-occurrences-ungraded",
         "source-free-scope-out-membership-ungraded",
         "second-read-agreement-unproven",
+        "download-address-reachability-unverified",
+        "download-basis-evidence-not-replayed",
+        "null-span-token-grades-claim-only",
+        "blind-read-independence-unverified",
+        "blind-read-shared-miss-unverified",
+        "null-span-coverage-auditor-unreached",
+        "transcribed-blind-token-accuracy-unverified",
     }
 
     def test_each_row_is_key_sentence_and_evidence_disposition(self):
@@ -2315,12 +2324,13 @@ class DeclaredLimits(unittest.TestCase):
         keys = {row.key for row in gate.DECLARED_LIMITS}
         self.assertLessEqual(self.QUEUED_KEYS, keys)
 
-    def test_all_five_cited_names_survive(self):
+    def test_all_six_cited_names_survive(self):
         for name in (
             "WHY_NO_WRITE_GUARD",
             "WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED",
             "PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES",
             "SECOND_READ_IS_A_SMOKE_TEST",
+            "BLIND_READ_IS_A_SMOKE_TEST",
             "SCOPE_SUMMARY_NOT_REACHED",
         ):
             with self.subTest(name=name):
@@ -2471,6 +2481,14 @@ class DeclaredLimitBehaviorControls(unittest.TestCase):
         "source-free-scope-out-membership-ungraded": (
             "CoverageGate.test_unknown_scope_out_membership_is_not_graded_for_a_bound_record",
             "CoverageGate.test_an_unknown_scope_out_refuses_when_every_source_record_is_exact",
+        ),
+        "download-address-reachability-unverified": (
+            "TheDownloadAddressIsGraded.test_each_ruled_download_basis_is_accepted",
+            "TheDownloadAddressIsGraded.test_a_machine_local_address_is_refused",
+        ),
+        "download-basis-evidence-not-replayed": (
+            "TheDownloadAddressIsGraded.test_each_ruled_download_basis_is_accepted",
+            "TheDownloadAddressIsGraded.test_an_impossible_dated_download_basis_is_refused",
         ),
     }
 
@@ -2695,6 +2713,100 @@ class ScopeSpanTable(unittest.TestCase):
         self.assertTrue(any("only a references span" in item for item in self.findings(refused)))
 
 
+class NullSpanBlindCorroboration(unittest.TestCase):
+    """ADR 0081's committed corroboration at the public gate seam."""
+
+    def parsed(self, read: str) -> gate.Sheet:
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            f"| narrative sections and appendices | 51-60 | {read} |",
+        )
+        return gate.parse(text, Path("test-sheet.md"))
+
+    def test_a_dated_blind_token_corroborates_one_span(self):
+        parsed = self.parsed("read 2026-08-23; blind 2026-08-23")
+
+        result = gate.gate_null_span(parsed)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(
+            result.report,
+            (
+                "  NULL SPAN       0 refusing over 1 span(s) retired on a marker, "
+                "1 corroborated",
+            ),
+        )
+
+    def test_zero_null_spans_has_a_distinct_denominator_line(self):
+        result = gate.gate_null_span(self.parsed("no"))
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(
+            result.report,
+            ("  NULL SPAN       0 refusing over 0 span(s) retired on a marker",),
+        )
+
+    def test_an_exemption_is_outside_the_denominator(self):
+        parsed = self.parsed("exempt: citation list has no clinical prose")
+
+        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+
+    def test_an_impossible_blind_date_stays_a_schema_failure(self):
+        parsed = self.parsed("read 2026-08-23; blind 2026-99-99")
+
+        self.assertTrue(
+            any("invalid read value" in item for item in gate.gate_schema(parsed).findings)
+        )
+        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+
+    def test_the_public_survey_refuses_an_uncorroborated_marker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "test-sheet.md"
+            path.write_text(
+                HEADER.replace(
+                    "| narrative sections and appendices | 51-60 | no |",
+                    "| narrative sections and appendices | 51-60 | read 2026-08-23 |",
+                )
+                + "\n## Thresholds\n\n"
+                + "| quantity | population | value | snippet | source | page | rec | class |\n"
+                + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row(),
+                encoding="utf-8",
+            )
+            scan = gate.survey(
+                path,
+                recs_arguments=[],
+                pdf_root=None,
+                recs_root=Path(directory) / "recs",
+                text_root=None,
+                page_counts={"Society/doc": 60},
+                catalog_source_classes={"Society/doc": "guideline"},
+            )
+
+        self.assertEqual(scan.status, 1)
+        self.assertIn(
+            "NULL SPAN       1 refusing over 1 span(s) retired on a marker, 0 corroborated",
+            gate.format_report(scan),
+        )
+
+    def test_every_shipped_blind_token_is_live_under_mutation(self):
+        root = Path(__file__).resolve().parent.parent / "reference" / "thresholds"
+        token = re.compile(r"; blind \d{4}-\d{2}-\d{2}")
+        exercised = 0
+        for path in sorted(root.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            for match in tuple(token.finditer(text)):
+                exercised += 1
+                mutated = text[:match.start()] + text[match.end():]
+                result = gate.gate_null_span(gate.parse(mutated, path))
+                self.assertTrue(
+                    result.findings,
+                    f"{path.name} token at offset {match.start()} did not drive the gate",
+                )
+
+        self.assertEqual(exercised, 7)
+
+
 class TheSourceRowCarriesItsProvenance(unittest.TestCase):
     """#83: *"Each sheet carries source, **version, publication date, URL**"*, and
     `reference/thresholds/README.md` claims *"every part of it is read by the
@@ -2702,16 +2814,22 @@ class TheSourceRowCarriesItsProvenance(unittest.TestCase):
     `document` and `mode` -- so a sheet could leave version, published and url blank
     and grade clean. A threshold with no edition behind it is the failure this whole
     format exists to prevent: guidelines are revised, and 2017's number under 2025's
-    heading is wrong in the most expensive way.
+    heading is wrong in the most expensive way. #551 adds the Download basis to the
+    same required provenance row.
     """
 
     def blanked(self, column: str) -> list[str]:
-        cells = {"version": "2025", "published": "2025", "url": "https://example.invalid"}
+        cells = {
+            "version": "2025",
+            "published": "2025",
+            "url": "https://example.invalid",
+            "basis": "stated",
+        }
         cells[column] = ""
         line = (f"| src | AHA/ACC | Society/doc | guideline | {cells['version']} | "
-                f"{cells['published']} | {cells['url']} | exact |")
+                f"{cells['published']} | {cells['url']} | {cells['basis']} | exact |")
         text = HEADER.replace(
-            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |",
+            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | stated | exact |",
             line,
         ) + ("\n## Thresholds\n\n"
              "| quantity | population | value | snippet | source | page | rec | class |\n"
@@ -2727,15 +2845,75 @@ class TheSourceRowCarriesItsProvenance(unittest.TestCase):
     def test_a_blank_url_fails(self):
         self.assertTrue(any("url" in f.lower() for f in self.blanked("url")))
 
-    def test_the_real_sheet_carries_all_three(self):
+    def test_a_blank_basis_fails(self):
+        self.assertTrue(any("basis" in f.lower() for f in self.blanked("basis")))
+
+    def test_the_real_sheet_carries_all_four(self):
         """The one committed sheet has to satisfy the rule this adds, or the rule is
         aspirational rather than enforced."""
         path = Path(__file__).resolve().parent.parent / "reference" / "thresholds" / "hypertension.md"
         parsed = gate.parse(path.read_text(encoding="utf-8"), path)
         self.assertTrue(parsed.sources)
         for key, source in parsed.sources.items():
-            for column in ("version", "published", "url"):
+            for column in ("version", "published", "url", "basis"):
                 self.assertTrue(source.get(column), f"{key} has no {column}")
+
+
+class TheDownloadAddressIsGraded(unittest.TestCase):
+    def findings_for(
+        self, download_address: str, download_basis: str
+    ) -> list[str]:
+        text = HEADER.replace(
+            "https://example.invalid | stated | exact",
+            f"{download_address} | {download_basis} | exact",
+        )
+        parsed = gate.parse(
+            text + "\n## Thresholds\n\n" + gate.NONE_DECLARATION,
+            Path("x.md"),
+        )
+        return gate.gate_schema(parsed).findings
+
+    def test_a_machine_local_address_is_refused(self):
+        findings = self.findings_for(
+            "file:///C:/corpus/guideline.pdf", "chosen"
+        )
+
+        self.assertTrue(any("download address" in finding for finding in findings), findings)
+
+    def test_an_unruled_download_basis_is_refused(self):
+        findings = self.findings_for("https://example.invalid", "verified")
+
+        self.assertTrue(any("download basis" in finding for finding in findings), findings)
+
+    def test_an_impossible_dated_download_basis_is_refused(self):
+        findings = self.findings_for(
+            "https://example.invalid", "digest 2026-99-99"
+        )
+
+        self.assertTrue(any("download basis" in finding for finding in findings), findings)
+
+    def test_a_future_dated_download_basis_is_refused(self):
+        findings = self.findings_for(
+            "https://example.invalid", "digest 2099-01-01"
+        )
+
+        self.assertTrue(any("download basis" in finding for finding in findings), findings)
+
+    def test_each_ruled_download_basis_is_accepted(self):
+        for download_basis in (
+            "stated",
+            "digest 2026-08-30",
+            "gated 2026-08-30",
+            "chosen",
+        ):
+            with self.subTest(download_basis=download_basis):
+                findings = self.findings_for(
+                    "https://example.invalid", download_basis
+                )
+                self.assertFalse(
+                    any("download basis" in finding for finding in findings),
+                    findings,
+                )
 
 
 class TheRenderedPageEscapeHatch(unittest.TestCase):
@@ -3710,7 +3888,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         byte for byte what a clean pass prints. SCHEMA already refuses every row for
         an undeclared source key, so this is about what the *report* says."""
         text = TheExitStatusSaysWhichKindOfNotGraded.CLEAN.replace(
-            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | exact |\n",
+            "| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | stated | exact |\n",
             "",
         )
         self.assertNotIn("| src |", text.split("## Scope")[0])
@@ -3946,7 +4124,7 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
     """A throwaway `guidelines_extract.py` output directory: manifest plus one `.txt`.
 
     Built here rather than pointed at `C:/codeing/guidelines-text` on
-    `test_guidelines.py`'s reasoning: the real corpus is 179 copyrighted PDFs'
+    `test_guidelines.py`'s reasoning: the real corpus is copyrighted PDFs'
     extracted text, outside the repo, and a build artifact that may not exist on the
     machine running the tests. Every figure gate 4's design rests on was measured
     against it once and is stated where it was measured, never asserted here.
@@ -4915,6 +5093,12 @@ class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
         self.assertIn("--brief", readme)
         self.assertIn("--second-read", readme)
         self.assertIn("--text-root", readme)
+
+    def test_the_span_grammar_and_null_span_gate_are_documented(self):
+        readme = self.readme()
+        self.assertIn("read YYYY-MM-DD; blind YYYY-MM-DD", readme)
+        self.assertIn("NULL SPAN", readme)
+        self.assertIn("``NULL SPAN``", gate.__doc__)
 
     def test_the_readme_states_every_field_the_second_read_grader_requires(self):
         readme = self.readme()
