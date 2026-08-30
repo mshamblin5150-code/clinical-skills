@@ -180,6 +180,27 @@ STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
 #: unread by the very check written to find it.
 STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
 
+#: ADRs express rulings as numbered paragraphs, numbered nested headings, or a
+#: number in an H2 ruling heading. Addenda deliberately remain in the ruling
+#: sequence; another H2 takes numbered prose back out of it.
+ADR_HEADING = re.compile(r"^(#{2,4})\s+(.+?)\s*$")
+RULING_HEADING = re.compile(r"^ruling\s+(\d+)\b", re.IGNORECASE)
+NUMBERED_HEADING = re.compile(r"^(\d+)\.\s")
+RULING_SECTION = re.compile(
+    r"^(?:what is ruled|the ruling|rulings|the decisions|ruled\b|(?:\w+\s+)?addendum\b)",
+    re.IGNORECASE,
+)
+RULING_ITEM = re.compile(r"^(?:\*\*)?(\d+)\.\s")
+RULING_CITATION = re.compile(
+    r"\bADR\s+0*(\d+)(?:\]\([^\r\n]+?\))?(?:'s)?\s+"
+    r"(ruling|point|decision|rule)\s+(\d+)\b",
+    re.IGNORECASE,
+)
+RULING_EXEMPT_MARKER = re.compile(
+    r"<!--\s*unresolved-ruling-citations:\s*(\d+)\s*-->"
+)
+RULING_EXEMPT_CEILING = 2
+
 #: A reference-style Markdown destination. Link labels are deliberately opaque:
 #: only the destination participates in relative-path resolution.
 REFERENCE_DESTINATION = re.compile(r"(?m)^[ \t]{0,3}\[[^\]\r\n]+\]:[ \t]*")
@@ -257,6 +278,168 @@ def declared_steps(name: str) -> set[int]:
         for found in [STEP_HEADING.match(line)]
         if found
     }
+
+
+def ruling_ordinals(text: str) -> list[int]:
+    """Ruling ordinals in document order, across the record and its addenda."""
+    ordinals = []
+    # Early ADRs place their ruling list directly below the H1. Any later H2
+    # distinguishes the sections that follow, including correction lists.
+    in_ruling_section = True
+    accepts_items = True
+    for line in text.splitlines():
+        heading = ADR_HEADING.match(line)
+        if heading:
+            level, title = len(heading.group(1)), heading.group(2)
+            numbered = RULING_HEADING.match(title)
+            if level == 2 and numbered:
+                ordinals.append(int(numbered.group(1)))
+                in_ruling_section = False
+                accepts_items = False
+            elif level == 2:
+                in_ruling_section = bool(RULING_SECTION.match(title))
+                accepts_items = in_ruling_section
+            elif in_ruling_section:
+                numbered_item = NUMBERED_HEADING.match(title)
+                if numbered_item and (
+                    accepts_items or int(numbered_item.group(1)) == len(ordinals) + 1
+                ):
+                    ordinals.append(int(numbered_item.group(1)))
+                    accepts_items = True
+                    continue
+                # A nested heading distinguishes its numbered material from
+                # the parent ruling list. The next expected ordinal may resume
+                # that parent list after the nested discussion.
+                accepts_items = bool(RULING_SECTION.match(title))
+            else:
+                accepts_items = False
+            continue
+        if in_ruling_section:
+            numbered = RULING_ITEM.match(line)
+            if numbered and (accepts_items or int(numbered.group(1)) == len(ordinals) + 1):
+                ordinals.append(int(numbered.group(1)))
+                accepts_items = True
+    return ordinals
+
+
+def ruling_shape_findings(text: str) -> list[str]:
+    """Every gap, restart, or other break in a record's ruling sequence."""
+    findings = []
+    previous = 0
+    for ordinal in ruling_ordinals(text):
+        expected = previous + 1
+        if ordinal != expected:
+            findings.append(
+                f"ruling {ordinal} follows ruling {previous}; expected ruling {expected}"
+            )
+        previous = ordinal
+    return findings
+
+
+class RulingCitation(NamedTuple):
+    """One ADR coordinate citation found at the adjacency ruled by ADR 0075."""
+
+    line: int
+    record: int
+    number: int
+    word: str
+
+
+def ruling_citations(text: str) -> Iterator[RulingCitation]:
+    """Every adjacent ``ADR NNNN`` plus one of the four ordinal words."""
+    for found in RULING_CITATION.finditer(text):
+        yield RulingCitation(
+            text.count("\n", 0, found.start()) + 1,
+            int(found.group(1)),
+            int(found.group(3)),
+            found.group(2).lower(),
+        )
+
+
+def ruling_exemptions(text: str) -> list[Exemption]:
+    """Every ruling-citation marker paired with its next paragraph."""
+    blocks = list(paragraphs(text))
+    found = []
+    for index, (start, block) in enumerate(blocks):
+        if "\n" in block:
+            continue
+        matched = RULING_EXEMPT_MARKER.fullmatch(block.strip())
+        if not matched:
+            continue
+        declared = int(matched.group(1))
+        if index + 1 == len(blocks):
+            found.append(Exemption(start, start, start, declared))
+            continue
+        next_start, next_block = blocks[index + 1]
+        found.append(
+            Exemption(start, next_start, next_start + next_block.count("\n"), declared)
+        )
+    return found
+
+
+def unresolved_ruling_citations(
+    text: str,
+    declared: dict[int, set[int]],
+) -> list[str]:
+    """Dangling ADR coordinates not exactly covered by a counted marker."""
+    unresolved = [
+        cite
+        for cite in ruling_citations(text)
+        if cite.record not in declared or cite.number not in declared[cite.record]
+    ]
+    spans = ruling_exemptions(text)
+    covering = [span for span in spans if span.declared >= 1]
+    complaints = []
+    for cite in unresolved:
+        if not any(span.first <= cite.line <= span.last for span in covering):
+            complaints.append(
+                f"{cite.line}: ADR {cite.record:04d} {cite.word} {cite.number} does not exist"
+            )
+    for span in spans:
+        held = len([cite for cite in unresolved if span.first <= cite.line <= span.last])
+        if span.declared < 1:
+            complaints.append(f"{span.marker}: a marker declaring nothing exempts nothing")
+        elif held != span.declared:
+            complaints.append(f"{span.marker}: declares {span.declared}, paragraph holds {held}")
+    return sorted(complaints, key=lambda line: int(line.split(":")[0]))
+
+
+def declared_rulings() -> dict[int, set[int]]:
+    """Each tracked ADR number joined to the shared parser's ordinal set."""
+    declared = {}
+    for record in sorted((REPO_ROOT / "docs" / "adr").glob("*.md")):
+        matched = re.match(r"^(\d{4})-", record.name)
+        if not matched:
+            continue
+        number = int(matched.group(1))
+        if number in declared:
+            raise AssertionError(f"ADR {number:04d} has more than one tracked record")
+        declared[number] = set(ruling_ordinals(read(record)))
+    return declared
+
+
+def walk_ruling_citations() -> list[tuple[Path, RulingCitation]]:
+    """Every adjacent ADR coordinate in the shared graded-file population."""
+    return [
+        (path, cite)
+        for path in graded_files()
+        for cite in ruling_citations(read(path))
+    ]
+
+
+def ruling_marker_ceiling_findings(texts: list[str]) -> list[str]:
+    """The global declared-count ceiling over every graded document."""
+    declared = sum(
+        span.declared
+        for text in texts
+        for span in ruling_exemptions(text)
+    )
+    if declared <= RULING_EXEMPT_CEILING:
+        return []
+    return [
+        f"{declared} unresolved ruling citations exceed the ceiling of "
+        f"{RULING_EXEMPT_CEILING}"
+    ]
 
 
 def paragraphs(text: str) -> Iterator[tuple[int, str]]:
@@ -1663,6 +1846,190 @@ class TheDeadLinkResolverIsLive(unittest.TestCase):
             [],
         )
         self.assertEqual(asked, [Path("fixtures/day-a/README.md")])
+
+
+class TheRulingOrdinalParserIsLive(unittest.TestCase):
+    """#554's shared parser, driven before either tree-wide gate consumes it."""
+
+    def test_addenda_continue_across_a_shape_change(self) -> None:
+        record = next((REPO_ROOT / "docs" / "adr").glob("0049-*.md"))
+        self.assertEqual(ruling_ordinals(read(record)), list(range(1, 12)))
+
+    def test_a_restarted_addendum_sequence_is_ambiguous(self) -> None:
+        text = """\
+## Rulings
+
+1. First ruling.
+2. Second ruling.
+
+## Addendum
+
+**1. A second referent for ruling one.**
+"""
+        self.assertEqual(
+            ruling_shape_findings(text),
+            ["ruling 1 follows ruling 2; expected ruling 3"],
+        )
+
+
+class EveryADRHasOneRulingSequence(unittest.TestCase):
+    """#554: one ordinal has one referent across a record and its addenda."""
+
+    def test_every_record_has_one_monotonic_ruling_sequence(self) -> None:
+        findings = []
+        for record in sorted((REPO_ROOT / "docs" / "adr").glob("*.md")):
+            findings.extend(
+                f"{record.name}: {finding}"
+                for finding in ruling_shape_findings(read(record))
+            )
+        self.assertEqual(findings, [])
+
+
+class TheRulingCitationResolverIsLive(unittest.TestCase):
+    """#554's four coordinate words and adjacency bound, driven synthetically."""
+
+    def test_all_four_coordinate_words_are_read(self) -> None:
+        text = "\n".join(
+            (
+                "ADR 0016 ruling 1",
+                "ADR 0016's point 2",
+                "[ADR 0016](0016-record.md) decision 3",
+                "[ADR 0016](0016-record.md)'s rule 4",
+            )
+        )
+        self.assertEqual(
+            [(cite.record, cite.number, cite.word) for cite in ruling_citations(text)],
+            [(16, 1, "ruling"), (16, 2, "point"), (16, 3, "decision"), (16, 4, "rule")],
+        )
+
+    def test_proximity_does_not_bind_an_ordinal_to_the_wrong_record(self) -> None:
+        text = "ADR 0016's terms leave ruling 4 beside another subject"
+        self.assertEqual(list(ruling_citations(text)), [])
+
+    def test_a_dangling_ordinal_is_caught_against_the_shared_parser(self) -> None:
+        record = next((REPO_ROOT / "docs" / "adr").glob("0030-*.md"))
+        declared = {30: set(ruling_ordinals(read(record)))}
+        self.assertEqual(
+            unresolved_ruling_citations("ADR 0030 ruling 9", declared),
+            ["1: ADR 0030 ruling 9 does not exist"],
+        )
+
+
+class TheRulingCitationMarkerIsNarrow(unittest.TestCase):
+    """#554's counted next-paragraph marker is a declaration, not an opt-out."""
+
+    MARKER = "<!-- unresolved-ruling-citations: 1 -->"
+    DECLARED = {30: set(range(1, 9))}
+
+    def complain(self, *blocks: str) -> list[str]:
+        return unresolved_ruling_citations("\n\n".join(blocks), self.DECLARED)
+
+    def test_the_marker_covers_only_the_next_paragraph(self) -> None:
+        self.assertEqual(
+            self.complain(self.MARKER, "quoted ADR 0030 ruling 9", "later ADR 0030 ruling 10"),
+            ["5: ADR 0030 ruling 10 does not exist"],
+        )
+
+    def test_a_second_mention_in_the_paragraph_fails_the_count(self) -> None:
+        self.assertEqual(
+            self.complain(self.MARKER, "ADR 0030 ruling 9 and ADR 0030 ruling 10"),
+            ["1: declares 1, paragraph holds 2"],
+        )
+
+    def test_a_stale_marker_fails(self) -> None:
+        self.assertEqual(
+            self.complain(self.MARKER, "this paragraph cites nothing"),
+            ["1: declares 1, paragraph holds 0"],
+        )
+
+    def test_zero_exempts_nothing(self) -> None:
+        marker = "<!-- unresolved-ruling-citations: 0 -->"
+        self.assertEqual(
+            self.complain(marker, "ADR 0030 ruling 9"),
+            [
+                "1: a marker declaring nothing exempts nothing",
+                "3: ADR 0030 ruling 9 does not exist",
+            ],
+        )
+
+    def test_three_declared_mentions_exceed_the_global_ceiling(self) -> None:
+        texts = [self.MARKER + "\n\nADR 0030 ruling 9"] * 3
+        self.assertEqual(
+            ruling_marker_ceiling_findings(texts),
+            ["3 unresolved ruling citations exceed the ceiling of 2"],
+        )
+
+
+class EveryCitedRulingResolvesToADeclaredRuling(unittest.TestCase):
+    """#554's third walker: every adjacent ADR coordinate joins to that record."""
+
+    DECLARED_LIMITS = (
+        (
+            "adjacent-ruling-slip",
+            "An in-range ordinal can resolve to the wrong ruling; existence is not meaning.",
+            "ADR 0075 ruling 9 records two observed slips that no existence join can see.",
+        ),
+        (
+            "line-coordinates",
+            "File and glossary line coordinates move when text is inserted above them.",
+            "ADR 0075 ruling 9 records the unrelated-commit false-alarm cost.",
+        ),
+        (
+            "tracker-text",
+            "Issue, pull-request, and comment prose is outside graded_files().",
+            "ADR 0075 ruling 4 uses #554's own title as the counterexample.",
+        ),
+        (
+            "possessive-drift",
+            "An ordinal not adjacent to its ADR is deliberately left unread.",
+            "ADR 0075 ruling 6 records the measured false positives from proximity.",
+        ),
+        (
+            "ticket-number-citations",
+            "A #N citation would require a join against the tracker, not this tree.",
+            "ADR 0075 ruling 9 keeps the tracker surface outside this mechanism.",
+        ),
+    )
+
+    def test_the_declared_limit_population_is_the_five_ruled_rows(self) -> None:
+        self.assertEqual(
+            [key for key, _limit, _evidence in self.DECLARED_LIMITS],
+            [
+                "adjacent-ruling-slip",
+                "line-coordinates",
+                "tracker-text",
+                "possessive-drift",
+                "ticket-number-citations",
+            ],
+        )
+        for _key, limit, evidence in self.DECLARED_LIMITS:
+            self.assertTrue(limit)
+            self.assertTrue(evidence)
+
+    def test_the_walk_reads_a_nontrivial_live_population_in_all_four_words(self) -> None:
+        citations = [cite for _path, cite in walk_ruling_citations()]
+        self.assertGreater(len(citations), 100)
+        self.assertEqual({cite.word for cite in citations}, {"ruling", "point", "decision", "rule"})
+
+    def test_the_gate_and_resolver_share_the_record_parser(self) -> None:
+        declared = declared_rulings()
+        self.assertEqual(declared[49], set(range(1, 12)))
+
+    def test_every_tree_side_coordinate_resolves(self) -> None:
+        declared = declared_rulings()
+        findings = []
+        for path in graded_files():
+            findings.extend(
+                f"{path.relative_to(REPO_ROOT).as_posix()}:{finding}"
+                for finding in unresolved_ruling_citations(read(path), declared)
+            )
+        self.assertEqual(findings, [])
+
+    def test_the_global_marker_ceiling_is_held(self) -> None:
+        self.assertEqual(
+            ruling_marker_ceiling_findings([read(path) for path in graded_files()]),
+            [],
+        )
 
 
 class TheTwoRootDocumentsAreNotOneKind(unittest.TestCase):

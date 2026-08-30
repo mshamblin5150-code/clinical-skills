@@ -10,6 +10,8 @@ said they were not exclusive.
 Grilled 2026-08-27 against `d3c9f6a`. **Thirteen decisions, ruled by the clinician on that date.**
 Nothing is built here; this is the record the build reads.
 
+## Corrections
+
 **Corrected in place 2026-08-27, after merging and before anything was built against it.** The
 exhaustive tracker sweep that followed the merge found four defects, and every one is in the
 *evidence* rather than in a ruling. ADR 0038's and ADR 0042's correction headers are the precedent.
@@ -330,3 +332,7 @@ moves both. That is the existing coupling, not a new one.
 #521's option 2 — should the capture preserve formatting — is **untouched and still open**. Nothing
 here makes it cheaper or dearer; ruling 1 records only that capture cannot be the mechanism while the
 capture instrument is measured to strip every mark a reread would be checking.
+
+Correction, 2026-08-30: the four-item corrections list formerly had no heading, so its ordinals
+could be read as a second ruling sequence. `## Corrections` was added under ADR 0075 ruling 3; the
+four corrections themselves are unchanged.

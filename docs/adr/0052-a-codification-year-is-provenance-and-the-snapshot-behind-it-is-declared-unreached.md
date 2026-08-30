@@ -363,7 +363,7 @@ ground every one of these refusals rests on no longer describes the module.
 
 ### What is ruled
 
-**1. Piece B's limit lands as a row in `research_ledger.DECLARED_LIMITS`, not as prose.**
+**9. Piece B's limit lands as a row in `research_ledger.DECLARED_LIMITS`, not as prose.**
 
 ADR 0053 ruling 1 had already ruled this and named the ticket — *"#498, #500 and **#534's piece B**
 each own a limit that is not true yet [...] each ticket appends its row when it lands [...] piece B
@@ -375,7 +375,7 @@ the whole of that day, and this addendum is what tells it.
 scope was ever in question: do not create the object *for this row*. Appending to one built for the
 module's whole population is the thing the three records were distinguishing all along.
 
-**2. The row is unconditional, and #534 gains `blocked_by #535`.**
+**10. The row is unconditional, and #534 gains `blocked_by #535`.**
 
 The declined option was to make it conditional — a row if
 [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535) has landed, prose if not.
@@ -392,7 +392,7 @@ already the likely one.
 the three tickets queuing rows, calling it *a deadlock dressed as thoroughness*. This is the
 opposite direction — #534 waiting on #535 — and closes no cycle.
 
-**3. The two-direction bind returns, and that is a consequence rather than a new requirement.**
+**11. The two-direction bind returns, and that is a consequence rather than a new requirement.**
 
 The `Done when` had required it, was rewritten hours earlier to drop it as the honest price of a
 prose limit, and gets it back because the row is in an object again. It is ADR 0053 ruling 10's
@@ -421,3 +421,6 @@ somebody read them, and the reason it was withheld is the reason it is worth kee
 was written, and what the clinician ruled in its place. On
 [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
 terms.)*
+
+Correction, 2026-08-30: the second addendum's three rulings formerly restarted at 1–3. They now
+continue the record's sequence at 9–11 under ADR 0075 ruling 3; the ruling text is unchanged.
