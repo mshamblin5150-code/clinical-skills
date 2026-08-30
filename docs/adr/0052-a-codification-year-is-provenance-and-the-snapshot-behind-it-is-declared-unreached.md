@@ -330,6 +330,9 @@ the expiry-field ticket instead of this one.
 
 ## Second addendum, 2026-08-27 — ruling 7's ground expired the same day, and piece B's limit is a row
 
+*Corrected in place 2026-08-30 under ADR 0075 ruling 3: this addendum continues the record's
+ruling sequence at 9 rather than restarting it; the ruling text is unchanged.*
+
 **Ruled by the clinician on 2026-08-27**, during the exhaustive tracker sweep from
 [#538](https://github.com/mshamblin5150-code/clinical-skills/issues/538)'s grilling. **Ruling 7
 stands as ruled and is not rewritten.** What follows is what changed underneath it.
@@ -363,7 +366,7 @@ ground every one of these refusals rests on no longer describes the module.
 
 ### What is ruled
 
-**1. Piece B's limit lands as a row in `research_ledger.DECLARED_LIMITS`, not as prose.**
+**9. Piece B's limit lands as a row in `research_ledger.DECLARED_LIMITS`, not as prose.**
 
 ADR 0053 ruling 1 had already ruled this and named the ticket — *"#498, #500 and **#534's piece B**
 each own a limit that is not true yet [...] each ticket appends its row when it lands [...] piece B
@@ -375,7 +378,7 @@ the whole of that day, and this addendum is what tells it.
 scope was ever in question: do not create the object *for this row*. Appending to one built for the
 module's whole population is the thing the three records were distinguishing all along.
 
-**2. The row is unconditional, and #534 gains `blocked_by #535`.**
+**10. The row is unconditional, and #534 gains `blocked_by #535`.**
 
 The declined option was to make it conditional — a row if
 [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535) has landed, prose if not.
@@ -392,7 +395,7 @@ already the likely one.
 the three tickets queuing rows, calling it *a deadlock dressed as thoroughness*. This is the
 opposite direction — #534 waiting on #535 — and closes no cycle.
 
-**3. The two-direction bind returns, and that is a consequence rather than a new requirement.**
+**11. The two-direction bind returns, and that is a consequence rather than a new requirement.**
 
 The `Done when` had required it, was rewritten hours earlier to drop it as the honest price of a
 prose limit, and gets it back because the row is in an object again. It is ADR 0053 ruling 10's

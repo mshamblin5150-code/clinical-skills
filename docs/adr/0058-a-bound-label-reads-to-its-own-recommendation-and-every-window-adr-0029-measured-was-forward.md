@@ -278,7 +278,10 @@ meets rather than a late reconciliation. Still the clinician's, and still not de
 
 ## Second addendum, 2026-08-28 — the row shape and the registry's owner, ruled by the clinician
 
-**1. The row is three-field.** `guidelines_recs.DECLARED_LIMITS` takes
+*Corrected in place 2026-08-30 under ADR 0075 ruling 3: this addendum continues the record's
+ruling sequence at 12 rather than restarting it; the ruling text is unchanged.*
+
+**12. The row is three-field.** `guidelines_recs.DECLARED_LIMITS` takes
 [ADR 0053](0053-a-declared-limit-is-a-keyed-sentence-and-its-reasoning-stays-at-the-code-point.md)
 ruling 8's `key` / `limit` / `evidence` shape, so ruling 7 stands unqualified and the two tickets
 specified against it are corrected rather than accommodated:
@@ -298,7 +301,7 @@ beside it, and `case_study_scan` already publishes both.
 the object whole, so the shape is the first thing its builder meets. Correcting deliverable 2 is what
 makes the ordering safe rather than merely settled.
 
-**2. The 46 registry cells are [#582](https://github.com/mshamblin5150-code/clinical-skills/issues/582)'s.**
+**13. The 46 registry cells are [#582](https://github.com/mshamblin5150-code/clinical-skills/issues/582)'s.**
 Ruling 1 fixed the *string* and said nothing about the owner; #436's own 2026-08-27 sweep comment had
 ruled #582 and its respec kept item 4 without recording a reason, leaving two open tickets specifying
 one 46-line edit. **Item 4 and its `Done when` bullet are struck in favor of #582**, and ruling 1's

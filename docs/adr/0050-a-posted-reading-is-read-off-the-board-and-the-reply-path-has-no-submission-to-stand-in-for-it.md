@@ -10,9 +10,13 @@ said they were not exclusive.
 Grilled 2026-08-27 against `d3c9f6a`. **Thirteen decisions, ruled by the clinician on that date.**
 Nothing is built here; this is the record the build reads.
 
+## Corrections
+
 **Corrected in place 2026-08-27, after merging and before anything was built against it.** The
 exhaustive tracker sweep that followed the merge found four defects, and every one is in the
 *evidence* rather than in a ruling. ADR 0038's and ADR 0042's correction headers are the precedent.
+**This heading was added in place under ADR 0075 ruling 3 so these numbered corrections cannot be
+read as a second ruling sequence; none of their content changed.**
 
 1. **This line read *Eleven decisions* over thirteen contiguous numbered rulings.** Rulings 12 and 13
    — the late reread of the four entries on disk, and the glossary term — sat outside the count the

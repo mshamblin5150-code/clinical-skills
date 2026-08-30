@@ -20,7 +20,12 @@ Grilled on 2026-08-27, against `origin/main` `fb2892f`. The clinician ruled ever
 12. **What is not graded is declared in one module object**, on `reference_scan.NOT_REACHED`'s arrangement and [ADR 0046](0046-the-scope-summary-is-graded-in-one-direction-and-the-unread-list-is-the-span-table.md) ruling 9's terms — [`docs/agents/issue-tracker.md`](../agents/issue-tracker.md) points at it and copies no row, and a test binds both directions. Whether the **existing** trigger's implicit limits migrate into it is that module's own population question, filed rather than settled here, which is ADR 0046 ruling 9's own scoping reused.
 13. **The module keeps its name.** Both triggers ask one question — *does this text date its relationship to `main`?* — so `branch_scope` is not going stale, and `CLAUDE.md`'s tool-arrival ledger sentence *"`tracker_merge_receipt.py` and `tracker_branch_scope.py` were the two before it — written on one #290 branch on the same terms"* is dated history a rename would falsify. What changes is the report: each finding names **which trigger fired**, since `grade()` already returns a `reason` string and currently distinguishes only two cases.
 14. **Nothing is repaired.** Zero `blob/main` dead links of this class are live; every instance the thread recorded healed by merge, exactly as its 2026-08-26T13:41:43Z comment predicted and measured. The nine surviving qualifier records stay: editing them makes each comment disagree with the state it was posted in, which is #497's own stated reason for leaving its ruling comment as written, and [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212) found that GitHub retains a pre-edit revision of every edited record with no API to delete one.
+
+<!-- unresolved-ruling-citations: 1 -->
+
 15. **The citation-coordinate class is a separate ticket, not a widening.** #510 cites *"ADR 0030 ruling 9"*; that record carries exactly eight numbered rulings. It is not ruling 1's defect — never early, never self-healing, and dating it changes nothing — and ruling 4's placement structurally cannot reach it, because `git ls-tree` returns **paths** and a coordinate needs **contents**. It is the mirror of [#538](https://github.com/mshamblin5150-code/clinical-skills/issues/538)'s ADR 0016 case, and both are tree-content checks while this is the merge-state axis.
+
+*Marker added in place 2026-08-30 under ADR 0075 ruling 7; ruling 15's content is unchanged.*
 
 ## The measurement came first, and it is the first one taken with the ruled predicate
 
