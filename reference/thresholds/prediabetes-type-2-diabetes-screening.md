@@ -33,25 +33,28 @@ list with no clinical prose.
 | recommendation statement | 1 | yes |
 | importance and rationale | 1-2 | yes |
 | practice considerations | 3-4 | yes |
-| supporting evidence, research needs, and recommendations of others | 4-6 | read 2026-08-29 |
+| supporting evidence, research needs, and recommendations of others | 4-6 | read 2026-08-29; blind 2026-08-29 |
 | references | 6-8 | exempt: citation list has no clinical prose |
 
 **Source: `uspstf-2022`**
 
 | span | pages | read |
 | --- | --- | --- |
-| recommendation statement and assessment | 1-2 | read 2026-08-22 |
+| recommendation statement and assessment | 1-2 | yes |
 | practice considerations | 2-3 | yes |
-| supporting evidence | 3-4 | read 2026-08-29 |
-| article information and references | 5 | read 2026-08-23 |
+| supporting evidence | 3-4 | read 2026-08-29; blind 2026-08-29 |
+| article information and references | 5 | read 2026-08-23; blind 2026-08-23 |
 
-**Second read:** a blind independent read dated 2026-08-29 reviewed all five newly
-retired spans and corroborated the current USPSTF decision points recorded below. Its
+**Second read:** a blind independent read dated 2026-08-29 reviewed the three spans
+retired on markers that day and corroborated the current USPSTF decision points recorded below. Its
 separate read of the 2021 supporting-evidence span found no additional row beyond the
 age-35 decision already represented by the recommendation-statement row; its separate
 read of the 2022 supporting-evidence span found no current USPSTF decision point. The
 remaining numeric candidates were epidemiology, trial or evidence results, obsolete
-prior recommendations, or recommendations attributed to other organizations.
+prior recommendations, or recommendations attributed to other organizations. A cold
+read dated 2026-08-30 of the 2022 recommendation statement and assessment found the
+quantity-bearing decision points already represented by its four page-2 rows, so that
+span is positive rather than retired on a null claim.
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-29
 extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/guidelines_extract.py sha256 f8e95baf7e4e74328a752d89e1e7b617217ba1e43c4368fba92f789840e21cf9

@@ -2284,6 +2284,11 @@ class DeclaredLimits(unittest.TestCase):
         "second-read-agreement-unproven",
         "download-address-reachability-unverified",
         "download-basis-evidence-not-replayed",
+        "null-span-token-grades-claim-only",
+        "blind-read-independence-unverified",
+        "blind-read-shared-miss-unverified",
+        "null-span-coverage-auditor-unreached",
+        "transcribed-blind-token-accuracy-unverified",
     }
 
     def test_each_row_is_key_sentence_and_evidence_disposition(self):
@@ -2319,12 +2324,13 @@ class DeclaredLimits(unittest.TestCase):
         keys = {row.key for row in gate.DECLARED_LIMITS}
         self.assertLessEqual(self.QUEUED_KEYS, keys)
 
-    def test_all_five_cited_names_survive(self):
+    def test_all_six_cited_names_survive(self):
         for name in (
             "WHY_NO_WRITE_GUARD",
             "WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED",
             "PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES",
             "SECOND_READ_IS_A_SMOKE_TEST",
+            "BLIND_READ_IS_A_SMOKE_TEST",
             "SCOPE_SUMMARY_NOT_REACHED",
         ):
             with self.subTest(name=name):
@@ -2705,6 +2711,100 @@ class ScopeSpanTable(unittest.TestCase):
         refused = allowed.replace("| references |", "| appendices |")
         self.assertEqual(self.findings(allowed), [])
         self.assertTrue(any("only a references span" in item for item in self.findings(refused)))
+
+
+class NullSpanBlindCorroboration(unittest.TestCase):
+    """ADR 0081's committed corroboration at the public gate seam."""
+
+    def parsed(self, read: str) -> gate.Sheet:
+        text = HEADER.replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            f"| narrative sections and appendices | 51-60 | {read} |",
+        )
+        return gate.parse(text, Path("test-sheet.md"))
+
+    def test_a_dated_blind_token_corroborates_one_span(self):
+        parsed = self.parsed("read 2026-08-23; blind 2026-08-23")
+
+        result = gate.gate_null_span(parsed)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(
+            result.report,
+            (
+                "  NULL SPAN       0 refusing over 1 span(s) retired on a marker, "
+                "1 corroborated",
+            ),
+        )
+
+    def test_zero_null_spans_has_a_distinct_denominator_line(self):
+        result = gate.gate_null_span(self.parsed("no"))
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(
+            result.report,
+            ("  NULL SPAN       0 refusing over 0 span(s) retired on a marker",),
+        )
+
+    def test_an_exemption_is_outside_the_denominator(self):
+        parsed = self.parsed("exempt: citation list has no clinical prose")
+
+        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+
+    def test_an_impossible_blind_date_stays_a_schema_failure(self):
+        parsed = self.parsed("read 2026-08-23; blind 2026-99-99")
+
+        self.assertTrue(
+            any("invalid read value" in item for item in gate.gate_schema(parsed).findings)
+        )
+        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+
+    def test_the_public_survey_refuses_an_uncorroborated_marker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "test-sheet.md"
+            path.write_text(
+                HEADER.replace(
+                    "| narrative sections and appendices | 51-60 | no |",
+                    "| narrative sections and appendices | 51-60 | read 2026-08-23 |",
+                )
+                + "\n## Thresholds\n\n"
+                + "| quantity | population | value | snippet | source | page | rec | class |\n"
+                + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row(),
+                encoding="utf-8",
+            )
+            scan = gate.survey(
+                path,
+                recs_arguments=[],
+                pdf_root=None,
+                recs_root=Path(directory) / "recs",
+                text_root=None,
+                page_counts={"Society/doc": 60},
+                catalog_source_classes={"Society/doc": "guideline"},
+            )
+
+        self.assertEqual(scan.status, 1)
+        self.assertIn(
+            "NULL SPAN       1 refusing over 1 span(s) retired on a marker, 0 corroborated",
+            gate.format_report(scan),
+        )
+
+    def test_every_shipped_blind_token_is_live_under_mutation(self):
+        root = Path(__file__).resolve().parent.parent / "reference" / "thresholds"
+        token = re.compile(r"; blind \d{4}-\d{2}-\d{2}")
+        exercised = 0
+        for path in sorted(root.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            for match in tuple(token.finditer(text)):
+                exercised += 1
+                mutated = text[:match.start()] + text[match.end():]
+                result = gate.gate_null_span(gate.parse(mutated, path))
+                self.assertTrue(
+                    result.findings,
+                    f"{path.name} token at offset {match.start()} did not drive the gate",
+                )
+
+        self.assertEqual(exercised, 7)
 
 
 class TheSourceRowCarriesItsProvenance(unittest.TestCase):
@@ -4993,6 +5093,12 @@ class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
         self.assertIn("--brief", readme)
         self.assertIn("--second-read", readme)
         self.assertIn("--text-root", readme)
+
+    def test_the_span_grammar_and_null_span_gate_are_documented(self):
+        readme = self.readme()
+        self.assertIn("read YYYY-MM-DD; blind YYYY-MM-DD", readme)
+        self.assertIn("NULL SPAN", readme)
+        self.assertIn("``NULL SPAN``", gate.__doc__)
 
     def test_the_readme_states_every_field_the_second_read_grader_requires(self):
         readme = self.readme()

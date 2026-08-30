@@ -42,8 +42,8 @@ that the extraction is a complete recommendation index.
 | recommendation markers | 12-363 | yes |
 | front matter and methodology | 1-11 | yes |
 | chapter narrative, evidence tables, and references | 12-363 | yes |
-| disclosures | 364-368 | read 2026-08-23 |
-| index | 369-377 | read 2026-08-23 |
+| disclosures | 364-368 | read 2026-08-23; blind 2026-08-23 |
+| index | 369-377 | read 2026-08-23; blind 2026-08-23 |
 
 **Second read:** blind reads dated 2026-08-23 covered the front matter and methodology,
 the chapter narrative/evidence/reference span, the disclosures, and the index. The

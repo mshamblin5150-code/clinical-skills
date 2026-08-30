@@ -110,6 +110,13 @@ row needed it.
     records that check with ``RENDERED:``; an incorrect or ambiguous row stays
     refusing until it is corrected.
 
+``NULL SPAN`` refuses
+    A span retired on ``read YYYY-MM-DD`` claims that its read found no decision
+    point. The same cell must carry ``; blind YYYY-MM-DD`` to record the required
+    cold corroboration. The dates may be equal. The gate reports both its retired-span
+    denominator and how many carry corroboration on every run; ``exempt:`` spans are
+    outside that population because retirement by class is not a read.
+
 ``SECOND READ`` refuses on a disagreement, and runs only when one is handed to it
     #83 gate 5: *"A subagent extracts the same table with no access to the sheet;
     the diff is the gate. The only mechanism that catches misreading rather than
@@ -520,7 +527,11 @@ _SPAN_SOURCE = re.compile(
     re.IGNORECASE,
 )
 _SPAN_RANGE = re.compile(r"^p?(?P<first>\d+)(?:\s*-\s*p?(?P<last>\d+))?$", re.I)
-_DATED_SPAN_READ = re.compile(r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})$", re.I)
+_DATED_SPAN_READ = re.compile(
+    r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})"
+    r"(?:;\s*blind\s+(?P<blind_date>\d{4}-\d{2}-\d{2}))?$",
+    re.I,
+)
 _SPAN_EXEMPTION = re.compile(r"^exempt:\s*(?P<reason>\S.+)$", re.I)
 _DATED_DOWNLOAD_BASIS = re.compile(
     r"^(?:digest|gated)\s+(?P<date>\d{4}-\d{2}-\d{2})$"
@@ -615,11 +626,23 @@ class Span:
         match = _DATED_SPAN_READ.fullmatch(self.read)
         if match is None:
             return False
-        try:
-            date.fromisoformat(match.group("date"))
-        except ValueError:
-            return False
+        for group in ("date", "blind_date"):
+            value = match.group(group)
+            if value is None:
+                continue
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return False
         return True
+
+    @property
+    def blind_read_date(self) -> date | None:
+        match = _DATED_SPAN_READ.fullmatch(self.read)
+        if match is None or not self.has_dated_marker:
+            return None
+        value = match.group("blind_date")
+        return date.fromisoformat(value) if value is not None else None
 
     @property
     def exemption_reason(self) -> str | None:
@@ -1244,6 +1267,26 @@ def gate_schema(
         failures,
         report=(f"  SCHEMA          {len(failures)}",),
     )
+
+
+def gate_null_span(sheet: Sheet) -> GateResult:
+    """Refuse a span's null claim until it carries dated corroboration."""
+
+    retired = [span for span in sheet.spans if span.has_dated_marker]
+    uncorroborated = [span for span in retired if span.blind_read_date is None]
+    failures = [
+        f"{sheet.path.name}  span '{span.name}' was retired on a marker without "
+        "a dated blind-read token"
+        for span in uncorroborated
+    ]
+    corroborated = len(retired) - len(uncorroborated)
+    line = (
+        f"  NULL SPAN       {len(failures)} refusing over {len(retired)} "
+        "span(s) retired on a marker"
+    )
+    if retired:
+        line += f", {corroborated} corroborated"
+    return GateResult("NULL SPAN", failures, report=(line,))
 
 
 def gate_extraction_identity(
@@ -2066,6 +2109,11 @@ SECOND_READ_IS_A_SMOKE_TEST = (
     "mangles it the same way, so agreement is cheap"
 )
 
+BLIND_READ_IS_A_SMOKE_TEST = (
+    "a blind read is a smoke test in the clean direction: two readers can miss the "
+    "same decision point"
+)
+
 
 class DeclaredLimit(NamedTuple):
     """One named coverage boundary and how its evidence is maintained."""
@@ -2163,6 +2211,35 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "second-read-agreement-unproven",
         SECOND_READ_IS_A_SMOKE_TEST,
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "null-span-token-grades-claim-only",
+        "NULL SPAN grades the committed token claiming corroboration and never the "
+        "read that token describes.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "blind-read-independence-unverified",
+        "Nothing checks that the blind reader was a second reader, was briefed cold, "
+        "or did not open the threshold sheet.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "blind-read-shared-miss-unverified",
+        BLIND_READ_IS_A_SMOKE_TEST,
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "null-span-coverage-auditor-unreached",
+        "The NULL SPAN refusal is outside threshold_coverage.py, whose threshold-sheet "
+        "report reads gate_schema findings only.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "transcribed-blind-token-accuracy-unverified",
+        "A blind token transcribed from a sheet's prose is only as accurate as the "
+        "reader-authored sentence it copies.",
         EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
@@ -3136,6 +3213,7 @@ def survey(
     records, why_not, recs_errors, missing_records = bound_records
 
     schema = gate_schema(sheet, catalog_source_classes)
+    null_span = gate_null_span(sheet)
     current_extraction, identity_problems = (
         extraction_identity_from_manifest(
             text_root,
@@ -3202,6 +3280,7 @@ def survey(
 
     results = (
         schema,
+        null_span,
         extraction_identity,
         page_coverage,
         tier0,
@@ -3215,6 +3294,7 @@ def survey(
 
     refusals = (
         schema.findings
+        + null_span.findings
         + extraction_identity.findings
         + page_coverage.findings
         + tier0.findings
