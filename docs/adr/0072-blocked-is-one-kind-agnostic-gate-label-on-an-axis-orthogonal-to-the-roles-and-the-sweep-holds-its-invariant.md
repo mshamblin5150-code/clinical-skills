@@ -112,3 +112,17 @@ with a schedule.
 
 What this does not settle: whether a living derived view (#596's shape) wants a role label at all.
 That question is flagged on #596 and stays there.
+
+## Addendum — a piece-split ticket is not wholly blocked
+
+Ruled by the clinician on 2026-08-30 after the implementation review exposed the live dependency
+direction.
+
+**5. #587 carries no `blocked` label and gains no reverse edge.** Its body makes items 1, 2 and 6
+independently startable while the remaining items wait on #483. Ruling 2 therefore excludes the
+whole-ticket label. The tracker already records #483 as blocked by #587; adding the reverse edge
+would create a cycle and would still overstate #587's partial gate. Remove `blocked` from #587,
+keep its `ready-for-agent` role, and leave the dependency graph unchanged.
+
+This supersedes only the Consequences sentence directing the build to record #587's edge on #483.
+The rest of the carrier disposition and every earlier ruling remain unchanged.

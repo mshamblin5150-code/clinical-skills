@@ -14,7 +14,7 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 Defaults kept as-is. **All five exist on the repo**, created on first use.
 
-## One local addition: `grilling`
+## Local role addition: `grilling`
 
 | Label | Meaning |
 | --- | --- |
@@ -26,6 +26,24 @@ Not from the skills — added here because this repo kept producing tickets that
 
 So: if a ticket has a *"Settle before building"* section, an options list, or a question the maintainer has to answer, it gets `grilling` and **not** `ready-for-agent`.
 
+## Orthogonal local labels
+
+| Label | Meaning |
+| --- | --- |
+| `blocked` | An unmet gate exists; do not start any part of the ticket until it clears |
+| `215 follow up` | Retired cohort tag for findings from the clinician's Module 1 case-study review; apply it to nothing new |
+
+`blocked` is orthogonal to the role labels above. It may accompany `ready-for-agent` when the
+work is fully specified but cannot start until its gate clears, or `grilling` when an open
+decision or another gate prevents the whole ticket from starting. Its gate is either an open
+`blocked_by` edge or a gate named in the body that no edge can record. An open `blocked_by` edge
+does not by itself require the label: a ticket with an independently startable piece is not
+wholly blocked.
+
+`in flight` is the tracker workflow's active-work state, not a triage role. Its definition and
+claiming rules live in
+[issue-tracker.md](issue-tracker.md#branch-truth-gets-a-dated-scope-then-a-merge-receipt).
+
 ## Choosing between them
 
 - **`grilling`** — a decision is open. Options with trade-offs, a question only the clinician can settle, or a rule that would have to be invented to proceed.
@@ -34,4 +52,6 @@ So: if a ticket has a *"Settle before building"* section, an options list, or a 
 - **`ready-for-agent`** — every decision made, every input identified, no judgment left. If an agent could get it wrong by choosing reasonably, it is not this.
 - **`ready-for-human`** — needs a signed-in browser session, a clinical judgment, or anything the agent must not do alone.
 
-GitHub's own `bug`, `enhancement` and `documentation` are orthogonal and may be added alongside any of the above.
+GitHub's own `bug`, `documentation`, `duplicate`, `enhancement`, `good first issue`, `help wanted`,
+`invalid`, and `question` are orthogonal and may be added alongside any of the above. `wontfix` is
+already one of the canonical roles in the table above.

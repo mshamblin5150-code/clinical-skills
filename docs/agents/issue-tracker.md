@@ -227,6 +227,11 @@ The vocabulary and how to choose between the labels is in [triage-labels.md](tri
 - **A ticket with an open decision gets `grilling`, never `ready-for-agent`.** `ready-for-agent` is a promise that an unattended agent can build it without guessing.
 - **Record dependencies rather than describing them in prose.** `gh issue edit <n> --add-blocked-by <m>` and `--add-blocking <m>` are supported, and they show up in `gh issue view`.
 
+The sweep also holds the `blocked` invariant: every open ticket carrying `blocked` has an open
+`blocked_by` edge, or its body names a gate that no edge can record. If every gate has cleared and
+the body names none, remove `blocked` and re-triage the ticket. If a recordable gate lives only in
+prose, add the dependency edge instead.
+
 Label at creation time. Coming back to label later is the step that gets skipped.
 
 ## Finishing a ticket means sweeping the tracker, and you are authorized to do it

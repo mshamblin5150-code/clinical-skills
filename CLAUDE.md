@@ -41,7 +41,7 @@ python tools/tracker_freshness.py
 
 ### Triage labels
 
-The five canonical roles, kept at their default strings, plus a local `grilling`. See `docs/agents/triage-labels.md`.
+The repository's complete label vocabulary and the axes its labels occupy live in `docs/agents/triage-labels.md`.
 
 **Label every issue at creation time** — `gh issue create --label "..."`. An unlabeled ticket is one nobody can find. And a ticket with a decision still open gets `grilling`, **never** `ready-for-agent`: that label promises an unattended agent can build the thing without guessing, and #8 carried it while being unbuildable as written.
 
