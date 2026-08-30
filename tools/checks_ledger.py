@@ -206,7 +206,7 @@ DECLARED_LIMITS = (
     # as another graded row would also report a likely typo through MISSING_CHECK.
     DeclaredLimit(
         "outside-table-ungraded",
-        "A heading outside the expected check table is counted but never graded.",
+        "An off-table heading is counted but no expected-check rule grades its content.",
         EvidenceDisposition.BEHAVIOR,
     ),
 )
