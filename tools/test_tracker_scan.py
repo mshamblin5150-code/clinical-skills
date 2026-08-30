@@ -31,6 +31,7 @@ import tempfile
 import unittest
 from collections import Counter
 from contextlib import redirect_stdout
+from datetime import date as CalendarDate
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -429,6 +430,49 @@ class ExitStatusSaysWhichOfThreeThingsHappened(MainInATempRepo):
         status, out = self.run_main("--harvest", path)
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertIn("no finding", out)
+
+    def test_a_completed_harvest_writes_a_dated_counts_only_marker(self):
+        path = self.harvest(
+            "hit.json",
+            [{"number": 9, "title": "t", "body": f"seen by {NAME}"}],
+        )
+
+        status, _ = self.run_main("--harvest", path)
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        marker = json.loads(
+            (self.repo / phi_scan.TRACKER_HARVEST_MARKER).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(marker, {
+            "version": 1,
+            "ran_on": CalendarDate.today().isoformat(),
+            "finding_counts": {"corpus-name": 1},
+        })
+        serialized = json.dumps(marker)
+        self.assertNotIn(NAME, serialized)
+        self.assertNotIn(DATE, serialized)
+
+    def test_the_producing_harvest_reports_the_marker_it_just_wrote(self):
+        path = self.harvest(
+            "ok.json",
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+
+        status, out = self.run_main("--harvest", path)
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("0 day(s)", out)
+        self.assertNotIn("never run", out.lower())
+
+    def test_a_harvest_that_did_not_scan_writes_no_marker(self):
+        gone = str(Path(self.tmp.name) / "gone.json")
+
+        status, _ = self.run_main("--harvest", gone)
+
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
 
     def test_a_finding_exits_one(self):
         path = self.harvest(

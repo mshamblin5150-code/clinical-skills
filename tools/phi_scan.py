@@ -150,6 +150,12 @@ NOT_SCANNED = 2
 ALLOW_NO_CORPUS_FLAG = "--allow-no-corpus"
 ALLOW_NO_CORPUS_CONFIG = "clinical.phiAllowNoCorpus"
 
+# The full tracker harvest owns the write and this scanner owns the read. The
+# path is relative so tests and worktrees read the marker from the tree they are
+# actually checking rather than from the checkout that holds the PHI corpus.
+TRACKER_HARVEST_MARKER = Path("reference/tracker-scan-harvest.json")
+TRACKER_HARVEST_NOTICE = "last full tracker harvest"
+
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"
 PRAGMA_SEARCH_CHARS = 4000
@@ -974,8 +980,46 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     return findings
 
 
+def tracker_harvest_notice(
+    repo: Path | None = None, today: CalendarDate | None = None
+) -> str:
+    """State when the corpus-bearing clone last completed a tracker harvest.
+
+    The marker carries only a date and finding counts. This reader spends only
+    the date: counts remain the producing command's to state, and elapsed days
+    are reported without turning any age into a stale/clean verdict.
+    """
+    root = REPO_ROOT if repo is None else repo
+    marker = root / TRACKER_HARVEST_MARKER
+    if not marker.is_file():
+        return f"  ** {TRACKER_HARVEST_NOTICE}: never run (marker absent). **"
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+        ran_on = CalendarDate.fromisoformat(data["ran_on"])
+        counts = data["finding_counts"]
+        valid_counts = (
+            isinstance(counts, dict)
+            and all(
+                isinstance(rule, str)
+                and rule
+                and isinstance(count, int)
+                and not isinstance(count, bool)
+                and count >= 0
+                for rule, count in counts.items()
+            )
+        )
+        if data.get("version") != 1 or not valid_counts:
+            raise ValueError("unsupported tracker harvest marker")
+        age = ((CalendarDate.today() if today is None else today) - ran_on).days
+        if age < 0:
+            raise ValueError("future tracker harvest marker")
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return f"  ** {TRACKER_HARVEST_NOTICE}: NOT RECORDED -- marker invalid. **"
+    return f"  ** {TRACKER_HARVEST_NOTICE}: {age} day(s) ago ({ran_on.isoformat()}). **"
+
+
 def shortfall_notice(coverage, missing: Sequence[str] = ()) -> list[str]:
-    """The lines saying the harvest's own source does not cover the corpus.
+    """The commit-path notices about corpus and full-harvest coverage.
 
     **Split out of ``layer_report`` because that report is not where a committer
     reads.** The hook runs this scanner bare, so the only callers of
@@ -986,16 +1030,18 @@ def shortfall_notice(coverage, missing: Sequence[str] = ()) -> list[str]:
     lesson exactly, a prose claim no code change fails against, and two
     independent review passes found it before it reached `main`.
 
-    Silent where a source is missing, because ``layer_report`` is already saying
-    PATIENT NAMES ARE NOT CHECKED and there is no coverage to have.
+    The name-index line is silent where a source is missing, because
+    ``layer_report`` is already saying PATIENT NAMES ARE NOT CHECKED and there
+    is no coverage to have. The full-harvest line is independent and remains.
     """
-    if coverage is None or not coverage.uncovered or missing:
-        return []
-    return [
-        f"  ** {coverage.uncovered} encounter(s) have no name-index entry: a patient "
-        "named only there is scanned for by no layer.",
-        "     Close it with `python tools/name_index.py --write`. **",
-    ]
+    lines = [tracker_harvest_notice()]
+    if coverage is not None and coverage.uncovered and not missing:
+        lines.extend([
+            f"  ** {coverage.uncovered} encounter(s) have no name-index entry: a patient "
+            "named only there is scanned for by no layer.",
+            "     Close it with `python tools/name_index.py --write`. **",
+        ])
+    return lines
 
 def scanned_population(all_mode: bool) -> str:
     """The set the run actually read, so a clean result cannot be read wider.

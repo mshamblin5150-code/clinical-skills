@@ -8,10 +8,12 @@ subject to the corpus layer regardless.
 """
 
 import io
+import json
 import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import date as CalendarDate, timedelta
 from pathlib import Path
 from random import Random
 
@@ -1051,22 +1053,28 @@ class TheShortfallReachesTheCommitter(unittest.TestCase):
     which is the distinction the defect turned on.
     """
 
-    def run_main(self, coverage):
+    def run_main(self, coverage, marker=None):
         """``main`` with the corpus present, the scan clean, and coverage stubbed."""
         real = (ps.corpus_identifiers, ps.missing_corpus_sources,
-                ps.corpus_coverage, ps.scan_staged)
+                ps.corpus_coverage, ps.scan_staged, ps.REPO_ROOT)
         ps.corpus_identifiers = lambda: (set(NAMES), set(DATES))
         ps.missing_corpus_sources = lambda: []
         ps.corpus_coverage = lambda: coverage
         ps.scan_staged = lambda index: []
-        try:
-            out, err = io.StringIO(), io.StringIO()
-            with redirect_stdout(out), redirect_stderr(err):
-                code = ps.main([])
-            return code, out.getvalue(), err.getvalue()
-        finally:
-            (ps.corpus_identifiers, ps.missing_corpus_sources,
-             ps.corpus_coverage, ps.scan_staged) = real
+        with tempfile.TemporaryDirectory() as temporary:
+            ps.REPO_ROOT = Path(temporary)
+            if marker is not None:
+                target = ps.REPO_ROOT / ps.TRACKER_HARVEST_MARKER
+                target.parent.mkdir(parents=True)
+                target.write_text(json.dumps(marker), encoding="utf-8")
+            try:
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    code = ps.main([])
+                return code, out.getvalue(), err.getvalue()
+            finally:
+                (ps.corpus_identifiers, ps.missing_corpus_sources,
+                 ps.corpus_coverage, ps.scan_staged, ps.REPO_ROOT) = real
 
     def coverage(self, covered, encounters):
         return ni.Coverage(
@@ -1091,7 +1099,8 @@ class TheShortfallReachesTheCommitter(unittest.TestCase):
         code, out, err = self.run_main(self.coverage(551, 551))
         self.assertEqual(out, "")
         self.assertNotIn("name-index entry", err)
-        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertEqual(len(err.strip().splitlines()), 2, err)
+        self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
 
     def test_the_shortfall_does_not_refuse_the_commit(self):
         """Declared, never enforced. Ruled 2026-08-19."""
@@ -1110,7 +1119,51 @@ class TheShortfallReachesTheCommitter(unittest.TestCase):
         about a different question and always prints."""
         err = self.run_main(None)[2]
         self.assertNotIn("name-index entry", err)
-        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn("never run", err.lower())
+
+    def test_an_absent_marker_reads_as_never_run_on_an_ordinary_commit(self):
+        err = self.run_main(self.coverage(551, 551))[2]
+        self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
+        self.assertIn("never run", err.lower())
+
+    def test_a_marker_states_its_exact_age(self):
+        ran_on = CalendarDate.today() - timedelta(days=37)
+        marker = {
+            "version": 1,
+            "ran_on": ran_on.isoformat(),
+            "finding_counts": {},
+        }
+
+        err = self.run_main(self.coverage(551, 551), marker)[2]
+
+        self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
+        self.assertIn("37 day(s)", err)
+
+    def test_age_is_stated_without_any_threshold_verdict(self):
+        for age in (0, 400):
+            with self.subTest(age=age):
+                marker = {
+                    "version": 1,
+                    "ran_on": (
+                        CalendarDate.today() - timedelta(days=age)
+                    ).isoformat(),
+                    "finding_counts": {},
+                }
+                err = self.run_main(self.coverage(551, 551), marker)[2]
+                self.assertIn(f"{age} day(s)", err)
+                self.assertNotRegex(
+                    err.lower(), r"stale|overdue|threshold|too old"
+                )
+
+    def test_claude_points_at_the_command_that_supplies_the_notice(self):
+        prose = (
+            Path(__file__).resolve().parent.parent / "CLAUDE.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("python tools/tracker_scan.py --harvest", prose)
+        self.assertIn(
+            ps.TRACKER_HARVEST_NOTICE,
+            self.run_main(self.coverage(551, 551))[2],
+        )
 
 class AnAllRunStatesItsCoverage(unittest.TestCase):
     """#258 open question 2: on **every** ``--all`` run, not only a degraded one.
@@ -1195,8 +1248,9 @@ class AnAllRunStatesItsCoverage(unittest.TestCase):
         """
         status, _, err = self.run_main([])
         self.assertEqual(status, 0)
-        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertEqual(len(err.strip().splitlines()), 2, err)
         self.assertIn(ps.scanned_population(False), err)
+        self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
         self.assertNotIn("layer", err)
 
 
@@ -1358,17 +1412,16 @@ class DidNotScan(unittest.TestCase):
         self.assertNotEqual(ps.NOT_SCANNED, 0)
 
     def test_a_live_corpus_with_no_findings_is_still_zero(self):
-        """The ordinary passing commit, which must not have become noisier.
+        """The ordinary passing commit stays zero while declaring harvest age.
 
-        **It costs one line since #258 and the budget is asserted rather than
-        described.** A staged run states the set it walked, because a staged run
-        that said nothing would leave ``--all``'s row the only one; what it must
-        not do is print the whole layer report on every commit, which is the
-        noise `review_hint` already argues against.
+        The staged population and the harvest age are the two commit-path
+        declarations. What it must not do is print the whole layer report on
+        every commit, which is the noise `review_hint` already argues against.
         """
         status, _, err = self.run_main(live=True)
         self.assertEqual(status, 0)
-        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertEqual(len(err.strip().splitlines()), 2, err)
+        self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
 
     def test_the_flag_downgrades_the_status(self):
         status, _, _ = self.run_main([ps.ALLOW_NO_CORPUS_FLAG])
