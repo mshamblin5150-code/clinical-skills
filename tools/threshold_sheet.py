@@ -1346,36 +1346,58 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
     )
 
 
-def load_catalog_page_counts(path: Path = DEFAULT_CATALOG) -> tuple[dict[str, int], list[str]]:
-    """Resolve source document ids to the catalog's independently derived count."""
+@dataclass(frozen=True)
+class CatalogFacts:
+    rows: tuple[guidelines_catalog.Row, ...]
+    page_counts: dict[str, int]
+    source_classes: dict[str, str]
+    parse_problems: tuple[str, ...]
+    page_count_problems: tuple[str, ...]
+
+    @property
+    def problems(self) -> tuple[str, ...]:
+        return self.parse_problems + self.page_count_problems
+
+
+def load_catalog_facts(path: Path = DEFAULT_CATALOG) -> CatalogFacts:
+    """Resolve the catalog facts threshold-sheet gates consume in one parse."""
     try:
         rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
     except OSError as error:
-        return {}, [str(error)]
+        return CatalogFacts((), {}, {}, (str(error),), ())
     counts: dict[str, int] = {}
+    source_classes: dict[str, str] = {}
+    page_count_problems: list[str] = []
     for row in rows:
         document = f"{row.society}/{Path(row.filename).stem}"
+        source_classes[document] = row.cls
         if row.page_count.isdigit():
             counts[document] = int(row.page_count)
         else:
-            problems.append(
+            page_count_problems.append(
                 f"catalog source '{document}' has unresolved page_count '{row.page_count}'"
             )
-    return counts, problems
+    return CatalogFacts(
+        tuple(rows),
+        counts,
+        source_classes,
+        tuple(problems),
+        tuple(page_count_problems),
+    )
+
+
+def load_catalog_page_counts(path: Path = DEFAULT_CATALOG) -> tuple[dict[str, int], list[str]]:
+    """Resolve source document ids to the catalog's independently derived count."""
+    facts = load_catalog_facts(path)
+    return facts.page_counts, list(facts.problems)
 
 
 def load_catalog_source_classes(
     path: Path = DEFAULT_CATALOG,
 ) -> tuple[dict[str, str], list[str]]:
     """Resolve source document ids to the catalog's declared document form."""
-    try:
-        rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
-    except OSError as error:
-        return {}, [str(error)]
-    return {
-        f"{row.society}/{Path(row.filename).stem}": row.cls
-        for row in rows
-    }, problems
+    facts = load_catalog_facts(path)
+    return facts.source_classes, list(facts.parse_problems)
 
 
 def gate_citation_tier1(sheet: Sheet) -> GateResult:
@@ -3041,9 +3063,10 @@ def survey(
     # `why_not` so the report can say which source and which of the two it was.
     catalog_problems: list[str] = []
     if page_counts is None:
-        page_counts, catalog_problems = load_catalog_page_counts()
-        catalog_source_classes, class_problems = load_catalog_source_classes()
-        catalog_problems.extend(class_problems)
+        catalog_facts = load_catalog_facts()
+        page_counts = catalog_facts.page_counts
+        catalog_source_classes = catalog_facts.source_classes
+        catalog_problems = list(catalog_facts.problems)
 
     bound_records = bind_recs(
         sheet,

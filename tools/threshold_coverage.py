@@ -31,10 +31,26 @@ class Entry:
     line: int
 
 
-def catalog_topics(path: Path) -> tuple[list[str], int, list[str]]:
-    rows, _, problems = guidelines_catalog.parse_catalog(path.read_text(encoding="utf-8"))
+def catalog_topics(rows: list[guidelines_catalog.Row]) -> list[str]:
     topics = sorted({" ".join(row.topic.split()) for row in rows}, key=str.casefold)
-    return topics, len(rows), problems
+    return topics
+
+
+def render_source_class_topics(
+    rows: list[guidelines_catalog.Row], source_classes: list[str]
+) -> str:
+    wanted = {source_class.casefold() for source_class in source_classes}
+    matches = sorted(
+        {
+            (row.cls, " ".join(row.topic.split()))
+            for row in rows
+            if row.cls.casefold() in wanted
+        },
+        key=lambda match: (match[0].casefold(), match[1].casefold()),
+    )
+    return "source class\ttopic\n" + "".join(
+        f"{source_class}\t{topic}\n" for source_class, topic in matches
+    )
 
 
 def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
@@ -145,12 +161,18 @@ def audit(
                     if not set(range(1, page_count + 1)) <= read_pages:
                         all_pages_read = False
                         break
+                if not sheet.rows and not all_pages_read:
+                    failures.append(
+                        f"coverage.md:{entry.line} zero-row artifact "
+                        f"'{entry.artifact}' does not cover every catalog page and "
+                        "cannot represent a completed null-sheet state"
+                    )
                 all_declared_non_source = bool(sheet.sources) and all(
                     source.get("source class")
                     in threshold_sheet.DECLARED_NON_SOURCE_CLASSES
                     for source in sheet.sources.values()
                 )
-                if all_declared_non_source:
+                if all_pages_read and all_declared_non_source:
                     derived_state = "non-source"
                 elif all_pages_read and sheet.rows:
                     derived_state = "sheet"
@@ -195,41 +217,52 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE)
     parser.add_argument("--sheet-root", type=Path, default=DEFAULT_SHEET_ROOT)
-    parser.add_argument("--draft", action="store_true")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--draft", action="store_true")
+    output.add_argument(
+        "--source-class",
+        dest="source_classes",
+        action="append",
+        metavar="CLASS",
+        help="print the distinct catalog topics supplied by CLASS; repeatable",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    try:
-        topics, catalog_rows, problems = catalog_topics(args.catalog)
-    except OSError as error:
-        print(error, file=sys.stderr)
-        return 2
-    if problems:
-        for problem in problems:
+    catalog_facts = threshold_sheet.load_catalog_facts(args.catalog)
+    if catalog_facts.parse_problems:
+        for problem in catalog_facts.parse_problems:
             print(problem, file=sys.stderr)
         return 2
+    rows = list(catalog_facts.rows)
+    topics = catalog_topics(rows)
     if args.draft:
         print(render_draft(topics), end="")
+        return 0
+    if args.source_classes:
+        print(render_source_class_topics(rows, args.source_classes), end="")
         return 0
     try:
         entries, parse_problems = parse_registry(args.coverage.read_text(encoding="utf-8"))
     except OSError as error:
         print(error, file=sys.stderr)
         return 2
-    page_counts, catalog_page_problems = threshold_sheet.load_catalog_page_counts(args.catalog)
-    source_classes, catalog_class_problems = threshold_sheet.load_catalog_source_classes(args.catalog)
     failures, counts, artifact_counts = audit(
-        topics, entries, args.sheet_root, page_counts, source_classes
+        topics,
+        entries,
+        args.sheet_root,
+        catalog_facts.page_counts,
+        catalog_facts.source_classes,
     )
-    failures = catalog_page_problems + catalog_class_problems + failures
+    failures = list(catalog_facts.problems) + failures
     failures = parse_problems + failures
     if failures:
         for failure in failures:
             print(f"REFUSING: {failure}", file=sys.stderr)
         return 1
-    print(f"topics     {len(topics)} from {catalog_rows} catalog rows")
+    print(f"topics     {len(topics)} from {len(rows)} catalog rows")
     for state in STATES:
         qualifier = ""
         if state == "none":

@@ -84,7 +84,7 @@ extraction identity: producer 0000000000000000000000000000000000000000; tools/gu
 """
 
 
-def non_source_artifact() -> str:
+def non_source_artifact(pages: str = "1-9") -> str:
     return f"""# Heart failure in chronic kidney disease
 
 <!-- schema: threshold-sheet/2 -->
@@ -105,7 +105,7 @@ extraction identity: producer {'0' * 40}; tools/guidelines_extract.py sha256 {'0
 
 | span | pages | read |
 | --- | --- | --- |
-| scope of work | 1-9 | read 2026-08-29 |
+| scope of work | {pages} | read 2026-08-29 |
 
 ## Thresholds
 
@@ -202,6 +202,43 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertRegex(result.stdout, r"(?m)^non-source\s+1\s+artifacts\s+1")
         self.assertEqual(wrong_state.returncode, 1)
         self.assertIn("derived state 'non-source'", wrong_state.stderr)
+
+    def test_scope_of_work_needs_full_page_coverage_to_derive_non_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "heart-failure.md").write_text(
+                non_source_artifact("1-8"), encoding="utf-8"
+            )
+            result = self.run_cli(
+                NON_SOURCE_CATALOG,
+                registry(
+                    "| cervical cancer | unread |  | pending |\n",
+                    "| heart failure in chronic kidney disease | unread | heart-failure.md | incomplete read |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("zero-row artifact", result.stderr)
+        self.assertIn("does not cover every catalog page", result.stderr)
+
+    def test_source_class_query_rederives_topics_without_a_registry(self):
+        result = self.run_cli(
+            NON_SOURCE_CATALOG,
+            None,
+            "--source-class", "scope-of-work",
+            "--source-class", "draft",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout,
+            "source class\ttopic\n"
+            "scope-of-work\theart failure in chronic kidney disease\n",
+        )
 
     def test_missing_topic_duplicate_topic_and_unknown_state_refuse(self):
         result = self.run_cli(
