@@ -28,8 +28,8 @@ row needed it.
     Structural. Every row has all eight columns, a population key drawn from the
     sheet's own declared vocabulary, no non-ASCII comparison character in its value,
     and a source key that the Sources table defines. Every source carries its catalog
-    source class, a version, a publication date and a URL. The sheet has a ``## Scope``
-    section saying both
+    source class, a version, a publication date, an HTTP(S) Download address, and its
+    ruled Download basis. The sheet has a ``## Scope`` section saying both
     what was read and what was **not**. **And the conflict rule**: two rows sharing a
     quantity key AND a population key with different values must be covered by a
     ``CONFLICT`` block for that quantity. Needs nothing but the sheet, so it runs
@@ -347,6 +347,7 @@ SOURCE_COLUMNS = (
     "version",
     "published",
     "url",
+    "basis",
     "mode",
 )
 SCOPE_HEADING = "## Scope"
@@ -521,6 +522,9 @@ _SPAN_SOURCE = re.compile(
 _SPAN_RANGE = re.compile(r"^p?(?P<first>\d+)(?:\s*-\s*p?(?P<last>\d+))?$", re.I)
 _DATED_SPAN_READ = re.compile(r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})$", re.I)
 _SPAN_EXEMPTION = re.compile(r"^exempt:\s*(?P<reason>\S.+)$", re.I)
+_DATED_DOWNLOAD_BASIS = re.compile(
+    r"^(?:digest|gated)\s+(?P<date>\d{4}-\d{2}-\d{2})$"
+)
 
 _INEQUALITY_WORDS = (
     (r"\b(?:less than or equal to|at or below|no more than)\b", "<="),
@@ -1119,9 +1123,28 @@ def gate_schema(
     # prevent: societies revise, and 2017's number under 2025's heading is wrong in
     # the most expensive way. These three cells were parsed past until they were not.
     for key, source in sheet.sources.items():
-        for column in ("source class", "version", "published", "url"):
+        for column in ("source class", "version", "published", "url", "basis"):
             if not source.get(column):
                 failures.append(f"{sheet.path.name}  source '{key}' has no {column}")
+        url = source.get("url", "")
+        if url and re.fullmatch(r"https?://\S+", url) is None:
+            failures.append(
+                f"{sheet.path.name}  source '{key}' download address must be an HTTP(S) address"
+            )
+        basis = source.get("basis", "")
+        basis_match = _DATED_DOWNLOAD_BASIS.fullmatch(basis)
+        valid_basis = basis in {"stated", "chosen"}
+        if basis_match is not None:
+            try:
+                basis_date = date.fromisoformat(basis_match.group("date"))
+            except ValueError:
+                pass
+            else:
+                valid_basis = basis_date <= date.today()
+        if basis and not valid_basis:
+            failures.append(
+                f"{sheet.path.name}  source '{key}' has invalid download basis '{basis}'"
+            )
         document = source.get("document", "")
         expected_class = (catalog_source_classes or {}).get(document)
         if expected_class is not None and source.get("source class") != expected_class:
@@ -2141,6 +2164,20 @@ DECLARED_LIMITS = (
         "second-read-agreement-unproven",
         SECOND_READ_IS_A_SMOKE_TEST,
         EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "download-address-reachability-unverified",
+        "SCHEMA checks that a Download address is an HTTP(S) address but never opens it, "
+        "so a clean run proves neither reachability nor resistance to link rot.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
+        "download-basis-evidence-not-replayed",
+        "SCHEMA validates the Download basis vocabulary and date shape but does not "
+        "replay a fetch, authenticated-route attempt, or digest comparison. Byte "
+        "identity is sufficient for a match and byte inequality does not prove that "
+        "the content differs.",
+        EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
         "cross-topic-source-membership-unchecked",

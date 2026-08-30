@@ -47,9 +47,9 @@ def artifact(read: str) -> str:
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| first | USPSTF | USPSTF/first | recommendation-statement | 2018 | 2018 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| first | USPSTF | USPSTF/first | recommendation-statement | 2018 | 2018 | https://example.invalid | chosen | exact |
 
 ## Scope
 
@@ -106,9 +106,9 @@ def non_source_artifact(pages: str = "1-9") -> str:
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| scope | KDIGO | KDIGO/scope | scope-of-work | 2026 | 2026 | https://example.invalid | bound |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| scope | KDIGO | KDIGO/scope | scope-of-work | 2026 | 2026 | https://example.invalid | chosen | bound |
 
 ## Scope
 

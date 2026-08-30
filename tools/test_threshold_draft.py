@@ -30,11 +30,13 @@ COMMAND = ROOT / "tools" / "threshold_draft.py"
 COMMITTED_RECS = ROOT / "fixtures" / "threshold-draft-records"
 
 
-def catalog_row(topic: str = "high blood pressure") -> str:
+def catalog_row(
+    topic: str = "high blood pressure", citation: str = "10.1000/example"
+) -> str:
     return (
         "| society | filename | title | topic | population | year | page_count | class | citation |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        f"| AHA ACC | guideline.pdf | Guideline title | {topic} | adult | 2025 | 12 | guideline | ? |\n"
+        f"| AHA ACC | guideline.pdf | Guideline title | {topic} | adult | 2025 | 12 | guideline | {citation} |\n"
     )
 
 
@@ -68,9 +70,9 @@ def seeded_sheet() -> str:
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | chosen | exact |
 
 ## Scope
 
@@ -108,12 +110,15 @@ class ThresholdDraftCli(unittest.TestCase):
         other_files: dict[str, object] | None = None,
         manifest_producer: object | None = None,
         source_available: bool = True,
+        catalog_citation: str = "10.1000/example",
     ) -> subprocess.CompletedProcess[str]:
         catalog = root / "catalog.md"
         recs = root / "recs"
         sheets = root / "sheets"
         text_root = root / "text"
-        catalog.write_text(catalog_row(), encoding="utf-8")
+        catalog.write_text(
+            catalog_row(citation=catalog_citation), encoding="utf-8"
+        )
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
         text_root.mkdir()
@@ -273,6 +278,44 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("scanned", result.stderr)
         self.assertNotIn("recs-broken.json", result.stderr)
 
+    def test_a_catalog_doi_seeds_an_https_download_address_not_the_local_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                catalog_citation="10.1161/HYP.0000000000000249",
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "https://doi.org/10.1161/HYP.0000000000000249 | stated | exact",
+            result.stdout,
+        )
+        self.assertNotIn("file://", result.stdout)
+
+    def test_a_catalog_stated_citation_seeds_the_download_address_verbatim(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                catalog_citation="https://www.cdc.gov/example/document.html",
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "https://www.cdc.gov/example/document.html | stated | exact",
+            result.stdout,
+        )
+
+    def test_a_journal_citation_leaves_research_placeholders_not_a_local_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(
+                Path(directory),
+                catalog_citation="Circulation. 2025;152:e114-e218.",
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("? | ? | exact", result.stdout)
+        self.assertNotIn("file://", result.stdout + result.stderr)
+
     def test_alias_group_rows_are_reported_without_widening_the_seed_set(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -325,9 +368,9 @@ class ThresholdDraftCli(unittest.TestCase):
                 encoding="utf-8",
             )
             seed_text = seeded_sheet().replace(
-                "| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |",
-                "| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |\n"
-                "| uspstf-adults | USPSTF | USPSTF/adults | recommendation-statement | 2024 | 2024 | https://example.invalid/adults | exact |",
+                "| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | chosen | exact |",
+                "| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | chosen | exact |\n"
+                "| uspstf-adults | USPSTF | USPSTF/adults | recommendation-statement | 2024 | 2024 | https://example.invalid/adults | chosen | exact |",
             )
             seeded = threshold_sheet.parse(seed_text, root / "seed.md")
             self.assertTrue(seeded.ok, seeded.why_not)
@@ -478,7 +521,8 @@ class ThresholdDraftCli(unittest.TestCase):
             for line in result.stdout.splitlines()
             if line.startswith("| aha-2025 |") and "AHA ACC/guideline" in line
         )
-        self.assertIn("/source/guideline.pdf", source_row)
+        self.assertIn("https://doi.org/10.1000/example", source_row)
+        self.assertIn("| stated | exact |", source_row)
         scope = result.stdout.split("## Scope", 1)[1].split("## ", 1)[0]
         self.assertNotIn("Read:", scope)
         self.assertNotIn("Not read:", scope)
@@ -599,9 +643,11 @@ class ThresholdDraftCli(unittest.TestCase):
             key="ada-2026",
             society="ADA",
             document="ADA/standards-of-care-2026",
+            source_class="guideline",
             version="2026",
             published="2026",
-            url=str(record.get("source") or ""),
+            download_address=str(record.get("source") or ""),
+            download_basis="chosen",
             mode="bound",
             record=record,
             record_location=guidelines_recs.RecommendationRecordLocation(

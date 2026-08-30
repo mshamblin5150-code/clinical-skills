@@ -10,10 +10,10 @@ restates, and choosing among them is the clinician's. Graded by
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| uspstf-2021 | USPSTF | USPSTF/prediabetes-type2-diabetes-adult-final-recommendation | recommendation-statement | 2021 | 2021 | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes | exact |
-| uspstf-2022 | USPSTF | USPSTF/diabetes-child-final-recommendation | recommendation-statement | 2022 | 2022 | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| uspstf-2021 | USPSTF | USPSTF/prediabetes-type2-diabetes-adult-final-recommendation | recommendation-statement | 2021 | 2021 | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes | chosen | exact |
+| uspstf-2022 | USPSTF | USPSTF/diabetes-child-final-recommendation | recommendation-statement | 2022 | 2022 | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening | chosen | exact |
 
 ## Scope
 

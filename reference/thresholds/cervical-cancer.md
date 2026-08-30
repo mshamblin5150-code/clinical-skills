@@ -13,9 +13,9 @@ ruled in [ADR 0009](../../docs/adr/0009-a-topic-is-swept-on-what-the-guideline-s
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| uspstf-2018 | USPSTF | USPSTF/cervical-cancer-final-rec-statement | recommendation-statement | 2018 | 2018 | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| uspstf-2018 | USPSTF | USPSTF/cervical-cancer-final-rec-statement | recommendation-statement | 2018 | 2018 | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening | chosen | exact |
 
 ## Scope
 

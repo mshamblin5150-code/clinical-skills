@@ -20,9 +20,9 @@ this file by a test, so the figures cannot go stale here.
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| aha-2025 | AHA/ACC | AHA ACC/jones-et-al-2025-2025-aha-acc-aanp-aapa-abc-accp-acpm-ags-ama-aspc-nma-pcna-sgim-guideline-for-the-prevention-detection | guideline | 2025 | 2025 | https://doi.org/10.1161/HYP.0000000000000249 | exact |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| aha-2025 | AHA/ACC | AHA ACC/jones-et-al-2025-2025-aha-acc-aanp-aapa-abc-accp-acpm-ags-ama-aspc-nma-pcna-sgim-guideline-for-the-prevention-detection | guideline | 2025 | 2025 | https://doi.org/10.1161/HYP.0000000000000249 | chosen | exact |
 
 ## Scope
 

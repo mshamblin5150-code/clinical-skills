@@ -228,14 +228,28 @@ reported as **not graded** rather than as clean.
 One row per document, with the key each threshold row cites, the society, the
 document's `doc_id` (which is its path under the corpus root, no suffix), the **source
 class** from `reference/guidelines-catalog.md`, the version, the publication date, the
-URL, and the **mode**. The class records document form and is not the threshold row's
-class of recommendation.
+**Download address**, its **Download basis**, and the **mode**. The class records
+document form and is not the threshold row's class of recommendation.
 
-**Version, publication date and URL are required, and a blank one is refused.** They
-were parsed past until they were not — the grader kept society, document and mode and
-dropped the other three, so a sheet could carry a threshold with no edition behind it
-and grade clean. That is the failure this format exists to prevent: societies revise,
-and 2017's number sitting under a 2025 heading is wrong in the most expensive way.
+**Version, publication date, Download address, and Download basis are required, and a
+blank one is refused.** The Download address must be HTTP(S); a machine-local address
+is refused. The Download basis vocabulary is closed: `stated`, `digest YYYY-MM-DD`,
+`gated YYYY-MM-DD`, or `chosen`.
+
+`stated` means the draft seeded the address from the catalog's audited **Stated
+citation**. A bare DOI is rendered as `https://doi.org/<doi>` and a printed HTTP(S)
+address is copied verbatim. A journal citation seeds nothing. `digest` is recorded
+only after downloaded bytes equal the SHA-256 already committed in the Audit ledger.
+`gated` is recorded only after an authenticated route was attempted and the title
+matched behind the remaining wall. `chosen` records a deliberate human choice of a
+different correct address, including the co-published hypertension DOI. These acts
+stay outside the no-socket grader; its complete coverage boundary remains in the
+declared-limit inventory named below.
+
+When the Stated citation seeds no Download address, the draft leaves `?` in both
+Download cells for the agent to research and replace. The schema gate refuses those
+placeholders; the draft command itself does not refuse or invent a machine-local
+address.
 
 **The columns are read by name against the header row**, not by position, so adding a
 column cannot silently redefine `mode` — which is the cell deciding whether an

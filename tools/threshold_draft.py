@@ -21,7 +21,6 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import quote
 
 import guidelines_catalog
 import guidelines_extract
@@ -47,6 +46,7 @@ from threshold_sheet import (
     POPULATIONS_HEADING,
     QUANTITIES_HEADING,
     ROW_COLUMNS,
+    SOURCE_COLUMNS,
     RECS_ALIAS_ENV,
     SCHEMA_MARKER,
     Sheet,
@@ -92,7 +92,8 @@ class Source:
     source_class: str
     version: str
     published: str
-    url: str
+    download_address: str
+    download_basis: str
     mode: str
     record: dict
     record_location: RecommendationRecordLocation
@@ -199,12 +200,11 @@ def _record_hint_errors(recs_root: Path, key: str, document: str) -> list[str]:
     return messages
 
 
-def _record_locator(record: dict) -> str:
-    raw = str(record.get("source") or "").replace("\\", "/")
-    if re.match(r"^[A-Za-z]:/", raw):
-        return "file:///" + quote(raw, safe="/:")
-    if raw.startswith("/"):
-        return "file://" + quote(raw, safe="/")
+def _stated_citation_download_address(citation: str) -> str:
+    if guidelines_catalog.DOI_RE.fullmatch(citation):
+        return f"https://doi.org/{citation}"
+    if re.fullmatch(r"https?://\S+", citation):
+        return citation
     return ""
 
 
@@ -291,13 +291,11 @@ def resolve_sources(
             errors.extend(_record_hint_errors(recs_root, key, row.filename))
             continue
         metadata = seeded[1] if seeded else {}
-        url = metadata.get("url") or _record_locator(record)
-        if not url:
-            errors.append(
-                f"{row.society}/{row.filename}: {location.description}: "
-                "recommendation record carries no source locator"
-            )
-            continue
+        stated_download_address = _stated_citation_download_address(row.citation)
+        download_address = metadata.get("url") or stated_download_address or "?"
+        download_basis = metadata.get("basis") or (
+            "stated" if stated_download_address else "?"
+        )
         sources.append(
             Source(
                 key=key,
@@ -306,7 +304,8 @@ def resolve_sources(
                 source_class=row.cls,
                 version=metadata.get("version", row.year),
                 published=metadata.get("published", row.year),
-                url=url,
+                download_address=download_address,
+                download_basis=download_basis,
                 mode=str(record.get("mode") or metadata.get("mode", "")),
                 record=record,
                 record_location=location,
@@ -435,7 +434,8 @@ def render(
             source.source_class,
             source.version,
             source.published,
-            source.url,
+            source.download_address,
+            source.download_basis,
             source.mode,
         ]
         for source in sources
@@ -456,10 +456,7 @@ def render(
         SOURCES_HEADING
         + "\n\n"
         + _table(
-            (
-                "key", "society", "document", "source class", "version",
-                "published", "url", "mode",
-            ),
+            SOURCE_COLUMNS,
             source_rows,
         ),
         SCOPE_HEADING

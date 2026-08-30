@@ -16,9 +16,9 @@ and re-derived by a test.
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| ada-2026 | ADA | ADA/standards-of-care-2026 | guideline | 2026 | 2026 | https://diabetesjournals.org/care/issue/49/Supplement_1 | bound |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ada-2026 | ADA | ADA/standards-of-care-2026 | guideline | 2026 | 2026 | https://diabetesjournals.org/care/issue/49/Supplement_1 | chosen | bound |
 
 ## Scope
 

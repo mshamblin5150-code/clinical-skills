@@ -10,9 +10,9 @@ out in [README.md](README.md).
 
 ## Sources
 
-| key | society | document | source class | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| kdigo-scope | KDIGO | KDIGO/KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work | scope-of-work | ? | ? | https://kdigo.org/guidelines/heart-failure-in-ckd/ | bound |
+| key | society | document | source class | version | published | url | basis | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| kdigo-scope | KDIGO | KDIGO/KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work | scope-of-work | ? | ? | https://kdigo.org/guidelines/heart-failure-in-ckd/ | chosen | bound |
 
 ## Scope
 
