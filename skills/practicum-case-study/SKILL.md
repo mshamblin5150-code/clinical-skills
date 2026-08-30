@@ -1294,6 +1294,13 @@ Then walk this list, by eye — none of it is mechanical:
 - Is `<run-directory>/proposed-<date>.md` complete, and is no `PROPOSED (verify before use)`
   heading present in either submitted file?
 
+**The command's declared limits, in `checks_ledger.NOT_REACHED` order:**
+
+- A well-formed verdict cannot prove that its reader opened or read the draft.
+- Alphanumeric substance cannot prove that a reader's findings reflect a substantive review.
+- A clean grader result does not establish that recorded defects were repaired in the draft.
+- An off-table heading is counted but no expected-check rule grades its content.
+
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,
 and it cannot see clipping, overlap, a bad break or a layout that is correct in XML and wrong on the

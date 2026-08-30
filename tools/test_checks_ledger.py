@@ -33,6 +33,7 @@ from pathlib import Path
 
 import checks_ledger as checks
 from grader_conformance import for_module
+from prose_bind import ProseBind, normalized as normalized_prose
 
 GraderConformance = for_module(checks)
 
@@ -163,6 +164,195 @@ class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
 
     def test_the_complete_file_fails_nothing(self):
         self.assertEqual(kinds(whole_file(CLEAN_RECORD, DEFECT_RECORD)), [])
+
+
+class DeclaredLimitsHaveDurableNames(unittest.TestCase):
+    """ADR 0070 ruling 2's public object and derived sentence view."""
+
+    def test_each_row_is_key_sentence_and_evidence_disposition(self):
+        for row in checks.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertIsInstance(row, checks.DeclaredLimit)
+                self.assertTrue(row.key.strip())
+                self.assertTrue(row.limit.strip())
+                self.assertIsInstance(row.evidence, checks.EvidenceDisposition)
+
+    def test_not_reached_is_the_order_preserving_sentence_view(self):
+        self.assertEqual(
+            checks.NOT_REACHED,
+            tuple(row.limit for row in checks.DECLARED_LIMITS),
+        )
+
+    def test_keys_are_distinct(self):
+        keys = [row.key for row in checks.DECLARED_LIMITS]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_the_object_is_live(self):
+        self.assertTrue(checks.DECLARED_LIMITS)
+
+    def test_declared_limits_do_not_print(self):
+        report = checks.format_report(
+            checks.survey(checks.read_records(whole_file())), "checks.md"
+        )
+        for row in checks.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertNotIn(row.key, report)
+                self.assertNotIn(row.limit, report)
+
+
+class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
+    """Bind each behavior row to its blind-spot test and positive control."""
+
+    HANDLERS = {
+        "findings-substance-is-shape": (
+            "DeclaredLimitBehaviorControls.test_one_stock_sentence_satisfies_both_findings_paths",
+            "DeclaredLimitBehaviorControls.test_both_findings_paths_refuse_an_empty_field",
+        ),
+        "repair-unverified": (
+            "DeclaredLimitBehaviorControls.test_a_file_of_well_formed_defects_passes",
+            "TheCommandExitsOnWhatItFound.test_a_failing_record_exits_one",
+        ),
+        "outside-table-ungraded": (
+            "EveryCheckTheTableNamesIsPresent.test_a_heading_outside_the_table_is_counted_and_not_graded",
+            "EveryCheckTheTableNamesIsPresent.test_a_misspelled_heading_is_caught_as_the_missing_one",
+        ),
+    }
+
+    def test_behavior_keys_are_exactly_the_handled_keys(self):
+        behavior = {
+            row.key
+            for row in checks.DECLARED_LIMITS
+            if row.evidence is checks.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(behavior, set(self.HANDLERS))
+
+    def test_every_handler_runs_a_blind_spot_and_positive_control(self):
+        for key, (blind_spot, positive_control) in self.HANDLERS.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(blind_spot, positive_control)
+                for named in (blind_spot, positive_control):
+                    result = unittest.TestResult()
+                    unittest.defaultTestLoader.loadTestsFromName(
+                        f"test_checks_ledger.{named}"
+                    ).run(result)
+                    self.assertTrue(
+                        result.wasSuccessful(),
+                        f"{key}: {named}: {result.errors + result.failures}",
+                    )
+
+
+class DeclaredLimitBehaviorControls(unittest.TestCase):
+    def test_one_stock_sentence_satisfies_both_findings_paths(self):
+        stock = "Review completed."
+        defect = instead_of(
+            "MDM completeness",
+            f"## CHECK: MDM completeness\nVERDICT: defect\nFINDINGS: {stock}\n",
+        )
+        clean = instead_of(
+            "MDM completeness",
+            f"## CHECK: MDM completeness\nVERDICT: clean\nFINDINGS: {stock}\n",
+        )
+        self.assertEqual(kinds(defect), [])
+        self.assertEqual(kinds(clean), [])
+
+    def test_both_findings_paths_refuse_an_empty_field(self):
+        defect = instead_of(
+            "MDM completeness",
+            "## CHECK: MDM completeness\nVERDICT: defect\nFINDINGS:\n",
+        )
+        clean = instead_of(
+            "MDM completeness",
+            "## CHECK: MDM completeness\nVERDICT: clean\nFINDINGS:\n",
+        )
+        self.assertEqual(kinds(defect), [checks.DEFECT_WITHOUT_FINDINGS])
+        self.assertEqual(kinds(clean), [checks.CLEAN_WITHOUT_FINDINGS])
+
+    def test_a_file_of_well_formed_defects_passes(self):
+        records = "\n".join(
+            f"## CHECK: {name}\nVERDICT: defect\nFINDINGS: entry 1 fails the named rule.\n"
+            for name in checks.EXPECTED_CHECKS
+        )
+        self.assertEqual(kinds(records), [])
+
+
+def module_prose_without_inventory() -> str:
+    """The module surface with the canonical rows themselves removed."""
+
+    source = Path(checks.__file__).read_text(encoding="utf-8")
+    start = source.index("DECLARED_LIMITS =")
+    end = source.index("NOT_REACHED =", start)
+    end = source.index("\n", end)
+    return source[:start] + source[end:]
+
+
+class DeclaredLimitProseContract(ProseBind, unittest.TestCase):
+    """ADR 0070 rulings 3 and 4's ownership and prose binds."""
+
+    SHINGLE = 8
+    SKILL_MARKER = "**The command's declared limits, in `checks_ledger.NOT_REACHED` order:**"
+
+    @classmethod
+    def shingles(cls, text: str) -> set[str]:
+        words = normalized_prose(text).split()
+        return {
+            " ".join(words[index : index + cls.SHINGLE])
+            for index in range(len(words) - cls.SHINGLE + 1)
+        }
+
+    @classmethod
+    def copies_in(cls, text: str) -> list[str]:
+        normalized = normalized_prose(text)
+        prose = cls.shingles(normalized)
+        found = []
+        for row in checks.DECLARED_LIMITS:
+            if row.key in normalized:
+                found.append(f"{row.key}: names the key")
+            shared = sorted(cls.shingles(row.limit) & prose)
+            if shared:
+                found.append(f"{row.key}: {shared[0]!r}")
+        return found
+
+    def skill_inventory(self) -> tuple[str, ...]:
+        skill = SKILL.read_text(encoding="utf-8")
+        block = skill.split(self.SKILL_MARKER, 1)[1].lstrip().split("\n\n", 1)[0]
+        return tuple(
+            normalized_prose(line[2:])
+            for line in block.splitlines()
+            if line.startswith("- ")
+        )
+
+    def test_step_nine_enumerates_the_object_in_both_directions(self):
+        self.assertEqual(
+            self.skill_inventory(),
+            tuple(normalized_prose(row.limit) for row in checks.DECLARED_LIMITS),
+        )
+
+    def test_module_and_claude_point_without_copying_rows(self):
+        surfaces = {
+            "the module prose": module_prose_without_inventory(),
+            "CLAUDE.md": (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
+        }
+        for where, prose in surfaces.items():
+            with self.subTest(where=where):
+                self.assertProseIn("checks_ledger.DECLARED_LIMITS", prose)
+                self.assertEqual(self.copies_in(prose), [], where)
+
+    def test_the_copy_detector_fires_on_every_key_and_sentence(self):
+        for row in checks.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertTrue(self.copies_in(f"See the object. {row.key}."))
+                self.assertTrue(self.copies_in(f"See the object. {row.limit}"))
+        self.assertEqual(
+            self.copies_in("See checks_ledger.DECLARED_LIMITS for the limits."),
+            [],
+        )
+
+    def test_keyword_parser_points_to_the_sibling_owned_limit(self):
+        doc = checks.keyword_of.__doc__ or ""
+        self.assertProseIn(
+            "research_ledger.DECLARED_LIMITS['keyword-parser-copy-uncompared']",
+            doc,
+        )
 
 
 class EveryCheckTheTableNamesIsPresent(unittest.TestCase):
@@ -585,7 +775,9 @@ class TheReportCarriesNoFindingTextWithoutShow(unittest.TestCase):
         text = whole_file() + "\n## CHECK: the patient's own words\nVERDICT: clean\n"
         scan = checks.survey(checks.read_records(text))
         self.assertEqual(scan.outside_the_table, 1)
-        self.assertNotIn("the patient", checks.format_report(scan, source="checks.md"))
+        report = checks.format_report(scan, source="checks.md")
+        self.assertNotIn("the patient", report)
+        self.assertIn("outside the table (counted, never graded)", report)
 
     def test_a_duplicate_heading_is_counted_and_not_named_without_show(self):
         """A duplicate's name is read off the file, so it takes the file's rule
