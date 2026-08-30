@@ -912,6 +912,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
         self.assertIn(name, checks.EXPECTED_CHECKS)
         self.assertIn(name, rows)
+        self.assertIn("`tools/differential_scan.py`", rows[name][2])
         self.assertIn("a reader", rows[name][2])
         self.assertFalse(self.table_substantiated()[name])
 
