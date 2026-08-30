@@ -98,17 +98,42 @@ README's claim that somebody looks fails a test instead of standing false.
 
 ### The collision is recorded and no ordering is imposed
 
-Three unbuilt claimants edit `tools/checks_ledger.py` and step 9's table, none previously aware
-of the others: #584's row, [#587](https://github.com/mshamblin5150-code/clinical-skills/issues/587)
-item 6's row (blocked on #483), and
-[#565](https://github.com/mshamblin5150-code/clinical-skills/issues/565)/ADR 0070's build.
-**Ruled: no imposed ordering.** Chaining this ticket behind an unbuilt or blocked one has no
-structural need — every append is name-keyed, and the position lesson is already learned
+**Ruled: no imposed ordering.** Chaining this ticket behind another has no structural need — every
+append is name-keyed, and the position lesson is already learned
 (`test_the_two_reference_rows_are_not_one_check` finds rows by property after an index broke it).
 Each build appends by name, no test keys on count or position, and a textual conflict in the
-shared step 9 region resolves by union — the loud direction;
+shared region resolves by union — the loud direction;
 [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s trap is the silent
 merge.
+
+**Corrected in place 2026-08-30, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ruling is unchanged; two facts it was
+recorded with were wrong, and both were wrong in the direction that under-states the hazard.**
+
+This paragraph first described a **three-way** collision between #584,
+[#587](https://github.com/mshamblin5150-code/clinical-skills/issues/587) item 6 *(blocked on
+[#483](https://github.com/mshamblin5150-code/clinical-skills/issues/483))*, and
+[#565](https://github.com/mshamblin5150-code/clinical-skills/issues/565)/ADR 0070. Re-derived:
+
+1. **#587 item 6 is not blocked.** That ticket's own *Sequencing* reads *"Items 1, 2 and 6 are
+   independent of #483"* — only its items 3, 4, 5 and 7 wait. So the colliding item is **live
+   today**, not deferred, and the parenthetical was the ground the no-ordering ruling leaned on
+   most heavily. The ruling survives on its other ground — name-keyed appends — and the merge-safe
+   discipline matters *more* than recorded, not less.
+2. **#565 touches neither `EXPECTED_CHECKS` nor the check table.** Its body names `EXPECTED_CHECKS`
+   zero times; ADR 0070 names it zero times. Ruling 4's step 9 surface is a **prose enumeration of
+   `NOT_REACHED` sentences** in the checks-ledger block, some 230 lines below the check table, and
+   its module edits are `DECLARED_LIMITS`, the docstring and the `outside the table` report label.
+
+So the textual collision is **two-way — #584 against #587 item 6 — on both files**, and #565 is a
+file-level neighbour with disjoint regions that merges cleanly against either. Checked for a
+silent-merge hazard from #565 landing beside them and found none: its row count is over *prose
+limits*, which an `EXPECTED_CHECKS` member is not, and `SUBSTANTIATED_CLEAN`'s size is stated in no
+prose.
+
+**Both errors were introduced by this record's own author and caught by the finishing sweep the
+same day**, which is the argument for the sweep rather than for the ruling: a collision recorded
+one claimant too wide and one blocker too many reads as *handled* exactly like one recorded
+correctly.
 
 ## What must not come out of this
 
