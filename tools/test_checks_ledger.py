@@ -205,8 +205,8 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
 
     HANDLERS = {
         "findings-substance-is-shape": (
-            "ADefectSaysWhatAndWhere.test_a_findings_field_with_substance_passes",
-            "ADefectSaysWhatAndWhere.test_a_defect_with_no_findings_is_a_finding",
+            "DeclaredLimitBehaviorControls.test_one_stock_sentence_satisfies_both_findings_paths",
+            "DeclaredLimitBehaviorControls.test_both_findings_paths_refuse_an_empty_field",
         ),
         "repair-unverified": (
             "DeclaredLimitBehaviorControls.test_a_file_of_well_formed_defects_passes",
@@ -242,6 +242,31 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
 
 
 class DeclaredLimitBehaviorControls(unittest.TestCase):
+    def test_one_stock_sentence_satisfies_both_findings_paths(self):
+        stock = "Review completed."
+        defect = instead_of(
+            "MDM completeness",
+            f"## CHECK: MDM completeness\nVERDICT: defect\nFINDINGS: {stock}\n",
+        )
+        clean = instead_of(
+            "MDM completeness",
+            f"## CHECK: MDM completeness\nVERDICT: clean\nFINDINGS: {stock}\n",
+        )
+        self.assertEqual(kinds(defect), [])
+        self.assertEqual(kinds(clean), [])
+
+    def test_both_findings_paths_refuse_an_empty_field(self):
+        defect = instead_of(
+            "MDM completeness",
+            "## CHECK: MDM completeness\nVERDICT: defect\nFINDINGS:\n",
+        )
+        clean = instead_of(
+            "MDM completeness",
+            "## CHECK: MDM completeness\nVERDICT: clean\nFINDINGS:\n",
+        )
+        self.assertEqual(kinds(defect), [checks.DEFECT_WITHOUT_FINDINGS])
+        self.assertEqual(kinds(clean), [checks.CLEAN_WITHOUT_FINDINGS])
+
     def test_a_file_of_well_formed_defects_passes(self):
         records = "\n".join(
             f"## CHECK: {name}\nVERDICT: defect\nFINDINGS: entry 1 fails the named rule.\n"

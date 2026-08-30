@@ -1299,7 +1299,7 @@ Then walk this list, by eye — none of it is mechanical:
 - A well-formed verdict cannot prove that its reader opened or read the draft.
 - Alphanumeric substance cannot prove that a reader's findings reflect a substantive review.
 - A clean grader result does not establish that recorded defects were repaired in the draft.
-- A heading outside the expected check table is counted but never graded.
+- An off-table heading is counted but no expected-check rule grades its content.
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,
