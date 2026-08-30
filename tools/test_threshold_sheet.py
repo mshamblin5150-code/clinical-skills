@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tokenize
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -42,6 +43,7 @@ from guidelines_manifest_test_support import (  # noqa: E402
     write_trusted_extraction_manifest,
 )
 import threshold_sheet as gate  # noqa: E402
+from prose_bind import normalized as normalized_prose  # noqa: E402
 
 
 def grade(
@@ -2003,40 +2005,10 @@ class ScopeSummaryTracksTheUnreadList(unittest.TestCase):
                 self.assertEqual(gate.gate_schema(parsed).findings, [])
 
 
-class ScopeSummaryDeclaredLimits(unittest.TestCase):
-    """ADR 0046's single object and its no-copy README pointer."""
+class DeclaredLimits(unittest.TestCase):
+    """ADR 0074's canonical public object and surviving derived views."""
 
-    OBJECT = "SCOPE_SUMMARY_NOT_REACHED"
-
-    def assignment(self) -> ast.Assign:
-        tree = ast.parse(Path(gate.__file__).read_text(encoding="utf-8"))
-        return next(
-            node
-            for node in tree.body
-            if isinstance(node, ast.Assign)
-            and any(isinstance(target, ast.Name) and target.id == self.OBJECT
-                    for target in node.targets)
-        )
-
-    def ast_rows(self) -> list[tuple[str, str]]:
-        value = self.assignment().value
-        self.assertIsInstance(value, ast.Tuple)
-        rows = []
-        for node in value.elts:
-            self.assertIsInstance(node, ast.Tuple)
-            self.assertEqual(len(node.elts), 2)
-            key = ast.literal_eval(node.elts[0])
-            reason_node = node.elts[1]
-            reason = (
-                getattr(gate, reason_node.id)
-                if isinstance(reason_node, ast.Name)
-                else ast.literal_eval(reason_node)
-            )
-            rows.append((key, reason))
-        return rows
-
-    def test_the_object_carries_every_ruled_limit_once(self):
-        expected = {
+    SCOPE_KEYS = {
             "unread spans omitted from Not read",
             "compound span labels",
             "sentences after the first",
@@ -2046,34 +2018,288 @@ class ScopeSummaryDeclaredLimits(unittest.TestCase):
             "null-sheet wording",
             "misdrawn span boundaries",
         }
-        rows = self.ast_rows()
-        self.assertEqual({key for key, _ in rows}, expected)
-        self.assertEqual(len(rows), len(expected))
-        for key, reason in rows:
-            self.assertTrue(key.strip())
-            self.assertGreater(len(reason.split()), 8, key)
 
-    def test_the_boundary_row_points_at_the_existing_constant(self):
-        assignment = self.assignment()
-        boundary = next(
-            row
-            for row in assignment.value.elts
-            if ast.literal_eval(row.elts[0]) == "misdrawn span boundaries"
-        )
-        self.assertIsInstance(boundary.elts[1], ast.Name)
+    QUEUED_KEYS = {
+        "cross-topic-source-membership-unchecked",
+        "recommendation-alias-provenance-unverified",
+        "rowless-source-invisible",
+    }
+
+    EXPECTED_KEYS = SCOPE_KEYS | QUEUED_KEYS | {
+        "row-source-meaning-unverified",
+        "population-key-correctness-unverified",
+        "scope-out-reason-ungraded",
+        "bound-record-membership-ungraded",
+        "duplicate-rec-id-occurrences-ungraded",
+        "source-free-scope-out-membership-ungraded",
+        "second-read-agreement-unproven",
+    }
+
+    def test_each_row_is_key_sentence_and_evidence_disposition(self):
+        self.assertTrue(gate.DECLARED_LIMITS)
+        for row in gate.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertIsInstance(row, gate.DeclaredLimit)
+                self.assertTrue(row.key.strip())
+                self.assertTrue(row.limit.strip())
+                self.assertIsInstance(row.evidence, gate.EvidenceDisposition)
+
+    def test_not_reached_is_the_order_preserving_sentence_view(self):
         self.assertEqual(
-            boundary.elts[1].id,
-            "PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES",
+            gate.NOT_REACHED,
+            tuple(row.limit for row in gate.DECLARED_LIMITS),
         )
 
-    def test_the_readme_points_to_the_object_and_copies_no_row(self):
-        readme = (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8")
-        pointer = f"threshold_sheet.{self.OBJECT}"
-        self.assertEqual(readme.count(pointer), 1)
-        for key, reason in self.ast_rows():
+    def test_keys_are_distinct(self):
+        keys = [row.key for row in gate.DECLARED_LIMITS]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(set(keys), self.EXPECTED_KEYS)
+
+    def test_scope_summary_survives_as_the_order_preserving_derived_view(self):
+        expected = tuple(
+            (row.key, row.limit)
+            for row in gate.DECLARED_LIMITS
+            if row.key in self.SCOPE_KEYS
+        )
+        self.assertEqual(gate.SCOPE_SUMMARY_NOT_REACHED, expected)
+        self.assertEqual({key for key, _ in expected}, self.SCOPE_KEYS)
+
+    def test_all_three_queued_rows_landed_unconditionally(self):
+        keys = {row.key for row in gate.DECLARED_LIMITS}
+        self.assertLessEqual(self.QUEUED_KEYS, keys)
+
+    def test_all_five_cited_names_survive(self):
+        for name in (
+            "WHY_NO_WRITE_GUARD",
+            "WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED",
+            "PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES",
+            "SECOND_READ_IS_A_SMOKE_TEST",
+            "SCOPE_SUMMARY_NOT_REACHED",
+        ):
+            with self.subTest(name=name):
+                self.assertTrue(hasattr(gate, name))
+
+    def test_rows_point_at_all_three_surviving_limit_constants(self):
+        tree = ast.parse(Path(gate.__file__).read_text(encoding="utf-8"))
+        assignment = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "DECLARED_LIMITS"
+                for target in node.targets
+            )
+        )
+        expected = {
+            "misdrawn span boundaries": "PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES",
+            "bound-record-membership-ungraded": "WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED",
+            "second-read-agreement-unproven": "SECOND_READ_IS_A_SMOKE_TEST",
+        }
+        rows = {
+            ast.literal_eval(row.args[0]): row
+            for row in assignment.value.elts
+            if isinstance(row, ast.Call)
+        }
+        for key, constant in expected.items():
             with self.subTest(key=key):
-                self.assertNotIn(key, readme)
-                self.assertNotIn(reason, readme)
+                self.assertIsInstance(rows[key].args[1], ast.Name)
+                self.assertEqual(rows[key].args[1].id, constant)
+
+
+class DeclaredLimitProsePointsWithoutCopying(unittest.TestCase):
+    """ADR 0074's live two-surface pointer and no-copy bind."""
+
+    SHINGLE = 8
+
+    @classmethod
+    def shingles(cls, text: str) -> set[str]:
+        words = normalized_prose(text).split()
+        return {
+            " ".join(words[index:index + cls.SHINGLE])
+            for index in range(len(words) - cls.SHINGLE + 1)
+        }
+
+    @classmethod
+    def copies_in(cls, text: str) -> list[str]:
+        normalized = normalized_prose(text)
+        prose = cls.shingles(normalized)
+        found = []
+        for row in gate.DECLARED_LIMITS:
+            if row.key in normalized:
+                found.append(f"{row.key}: names the key")
+            shared = sorted(cls.shingles(row.limit) & prose)
+            if shared:
+                found.append(f"{row.key}: {shared[0]!r}")
+        return found
+
+    @staticmethod
+    def module_prose() -> str:
+        """Every module, class, function, and comment prose surface."""
+
+        path = Path(gate.__file__)
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        docstrings = [ast.get_docstring(tree, clean=False) or ""]
+        docstrings.extend(
+            docstring
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            if (docstring := ast.get_docstring(node, clean=False)) is not None
+        )
+        with path.open("rb") as handle:
+            comments = [
+                token.string.removeprefix("#")
+                for token in tokenize.tokenize(handle.readline)
+                if token.type == tokenize.COMMENT
+            ]
+        return "\n".join((*docstrings, *comments))
+
+    def test_docstring_and_readme_point_once_and_copy_no_row(self):
+        surfaces = {
+            "module prose": self.module_prose(),
+            "threshold README": (gate.SHEET_ROOT / "README.md").read_text(encoding="utf-8"),
+        }
+        for where, prose in surfaces.items():
+            with self.subTest(where=where):
+                self.assertEqual(prose.count("threshold_sheet.DECLARED_LIMITS"), 1)
+                self.assertEqual(self.copies_in(prose), [], where)
+
+    def test_the_copy_detector_fires_for_every_key_and_sentence(self):
+        for row in gate.DECLARED_LIMITS:
+            with self.subTest(key=row.key):
+                self.assertTrue(self.copies_in(f"See the object. {row.key}."))
+                self.assertTrue(self.copies_in(f"See the object. {row.limit}"))
+
+    def test_the_cross_topic_limit_keeps_all_three_ruled_limbs(self):
+        row = next(
+            row
+            for row in gate.DECLARED_LIMITS
+            if row.key == "cross-topic-source-membership-unchecked"
+        )
+        self.assertIn("No gate checks", row.limit)
+        self.assertIn("at draft time only", row.limit)
+        self.assertIn("unrelated topic", row.limit)
+
+
+class DeclaredLimitBehaviorControls(unittest.TestCase):
+    """Each behavior disposition executes its blind spot and a positive control."""
+
+    HANDLERS = {
+        "unread spans omitted from Not read": (
+            "DeclaredLimitBehaviorControls.test_an_unread_span_omitted_from_the_summary_is_not_compared",
+            "ScopeSummaryTracksTheUnreadList.test_a_retired_span_named_as_unread_is_refused",
+        ),
+        "compound span labels": (
+            "DeclaredLimitBehaviorControls.test_a_compound_span_label_is_split_before_comparison",
+            "ScopeSummaryTracksTheUnreadList.test_a_retired_span_named_as_unread_is_refused",
+        ),
+        "sentences after the first": (
+            "ScopeSummaryTracksTheUnreadList.test_index_does_not_match_prose_after_the_unread_lists_first_sentence",
+            "ScopeSummaryTracksTheUnreadList.test_a_retired_span_named_as_unread_is_refused",
+        ),
+        "items that are not span labels": (
+            "ScopeSummaryTracksTheUnreadList.test_a_span_label_inside_a_longer_list_item_does_not_match",
+            "ScopeSummaryTracksTheUnreadList.test_a_retired_span_named_as_unread_is_refused",
+        ),
+        "row-source-meaning-unverified": (
+            "SecondReadGate.test_the_pairing_is_the_misreading_limb_and_is_never_graded",
+            "SecondReadGate.test_a_value_found_in_a_span_the_sheet_retired_as_null_refuses",
+        ),
+        "population-key-correctness-unverified": (
+            "ConflictRule.test_different_populations_are_not_a_conflict",
+            "SchemaGate.test_an_undeclared_population_key_fails",
+        ),
+        "scope-out-reason-ungraded": (
+            "CoverageIsPerSource.test_a_scope_out_still_discharges_its_recommendation",
+            "CoverageGate.test_an_uncited_unscoped_recommendation_refuses_on_an_exact_source",
+        ),
+        "bound-record-membership-ungraded": (
+            "CoverageGate.test_bound_row_membership_is_deliberately_not_graded",
+            "CoverageGate.test_an_exact_row_citing_an_identifier_its_record_does_not_carry_refuses",
+        ),
+        "duplicate-rec-id-occurrences-ungraded": (
+            "DeclaredLimitBehaviorControls.test_duplicate_identifiers_collapse_to_one_coverage_member",
+            "DeclaredLimitBehaviorControls.test_a_distinct_unaccounted_identifier_refuses",
+        ),
+        "source-free-scope-out-membership-ungraded": (
+            "CoverageGate.test_unknown_scope_out_membership_is_not_graded_for_a_bound_record",
+            "CoverageGate.test_an_unknown_scope_out_refuses_when_every_source_record_is_exact",
+        ),
+    }
+
+    def test_behavior_keys_are_exactly_the_handled_keys(self):
+        behavior = {
+            row.key
+            for row in gate.DECLARED_LIMITS
+            if row.evidence is gate.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(behavior, set(self.HANDLERS))
+
+    def test_every_handler_runs_a_blind_spot_and_positive_control(self):
+        for key, (blind_spot, positive_control) in self.HANDLERS.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(blind_spot, positive_control)
+                for named in (blind_spot, positive_control):
+                    result = unittest.TestResult()
+                    unittest.defaultTestLoader.loadTestsFromName(
+                        f"test_threshold_sheet.{named}"
+                    ).run(result)
+                    self.assertTrue(
+                        result.wasSuccessful(),
+                        f"{key}: {named}: {result.errors + result.failures}",
+                    )
+
+    def test_an_unread_span_omitted_from_the_summary_is_not_compared(self):
+        path = gate.SHEET_ROOT / "cervical-cancer.md"
+        text = path.read_text(encoding="utf-8").replace(
+            "| rationale and clinical considerations | 1-11 | yes |",
+            "| rationale and clinical considerations | 1-11 | no |",
+        )
+        self.assertIn("| rationale and clinical considerations | 1-11 | no |", text)
+        findings = gate.gate_schema(gate.parse(text, path)).findings
+        self.assertFalse(
+            any("rationale and clinical considerations" in item and "Not read" in item
+                for item in findings),
+            findings,
+        )
+
+    def test_a_compound_span_label_is_split_before_comparison(self):
+        path = gate.SHEET_ROOT / "cervical-cancer.md"
+        text = path.read_text(encoding="utf-8").replace(
+            "**Not read:** nothing in the source page range.",
+            "**Not read:** rationale and clinical considerations.",
+        )
+        findings = gate.gate_schema(gate.parse(text, path)).findings
+        self.assertFalse(
+            any("rationale and clinical considerations" in item and "Not read" in item
+                for item in findings),
+            findings,
+        )
+
+    def coverage_for(self, recommendation_ids: list[str]) -> gate.GateResult:
+        sheet = gate.parse(
+            HEADER + "\n## Thresholds\n\n"
+            "| quantity | population | value | snippet | source | page | rec | class |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row(),
+            Path("test-sheet.md"),
+        )
+        record = {
+            "mode": "exact",
+            "doc_id": "Society/doc",
+            "recommendations": [
+                {"rec_id": rec_id, "cor": "1"} for rec_id in recommendation_ids
+            ],
+        }
+        return gate.gate_coverage(sheet, {"src": record})
+
+    def test_duplicate_identifiers_collapse_to_one_coverage_member(self):
+        result = self.coverage_for(["p41/goal/1", "p41/goal/1"])
+        self.assertEqual(result.findings, [])
+
+    def test_a_distinct_unaccounted_identifier_refuses(self):
+        result = self.coverage_for(["p41/goal/1", "p41/goal/2"])
+        self.assertTrue(any("p41/goal/2" in item for item in result.findings), result.findings)
 
 
 class ScopeSpanTable(unittest.TestCase):
@@ -4348,8 +4574,16 @@ class TheSheetReadmeDocumentsTheTwoNewGates(unittest.TestCase):
         for field_name in gate.SECOND_READ_FIELDS + ("read_on", "briefed", "span", "pages"):
             self.assertIn(f'"{field_name}"', readme, f"{field_name} is not documented")
 
-    def test_the_readme_says_a_second_read_is_a_smoke_test(self):
-        self.assertIn("smoke test", self.readme().lower())
+    def test_the_second_read_walkthrough_stays_untouched_and_points_to_limits(self):
+        readme = self.readme()
+        collapsed = " ".join(readme.split())
+        self.assertIn(
+            "The read is written by an agent that has not read the sheet, and that "
+            "independence is the whole instrument.",
+            collapsed,
+        )
+        self.assertNotIn("smoke test", readme.lower())
+        self.assertEqual(readme.count("threshold_sheet.DECLARED_LIMITS"), 1)
 
     def test_the_readme_still_says_the_marker_is_what_a_suspect_row_declares(self):
         self.assertIn(gate.RENDERED_MARKER, self.readme())

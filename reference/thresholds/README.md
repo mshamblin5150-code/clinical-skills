@@ -224,19 +224,8 @@ be counted *exactly* or only *bounded* by matching a marker in running text. An 
 source has its omissions **refused**; a bound source has them **warned**. See #83
 decision 1.
 
-**Recommendation-identifier membership follows the same evidentiary split.** A row
-using a recommendation locator absent from its source's `exact` record is refused. A
-narrative locator is outside that record by definition. The same recommendation
-absence in a `bound` record is not graded: the marker reader can under-report a
-recommendation the sheet author read directly. A source-free `## Coverage` identifier
-absent from every record refuses only when every declared source has a loaded `exact`
-record; otherwise the gate cannot know which incomplete or absent record should have
-carried it.
-
-**This is identifier-level accounting, not occurrence-level accounting.** A real
-record can repeat one `rec_id` for more than one recommendation occurrence, so a set
-membership pass does not prove that every repeated occurrence was separately audited.
-That audit remains outside `COVERAGE`.
+The membership and occurrence boundaries of that evidentiary split live in the
+module-wide inventory named below. They are not copied into this per-gate walkthrough.
 
 **Exact arrives two ways since [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173),
 and the record's `counted_from` says which.** One is a ruled `COR | LOE` table in the
@@ -498,15 +487,11 @@ A machine gate does not fail, it goes silent. The risk is that the ungated major
 starts reading as covered because the gated part is green, so these are named here and
 not left to be discovered:
 
-- **No gate here checks that a row says what its source passage says.** For a
-  recommendation row, tier 0 proves an exact recommendation record states the snippet;
-  for a narrative row, it proves only that same-page recommendation records do not.
-  Tier 2 proves the snippet is on the page. Nothing proves the row's `quantity` is what that sentence
-  was about, and **a sheet whose numbers are all real and all filed under the wrong
-  heading passes every gate in this directory.**
-- **The population key is a judgment.** The grader checks it is declared, never that it
-  is right. A mis-keyed row hides a real conflict by making two rows look like
-  different patients.
+The module-scoped inventory lives in `threshold_sheet.DECLARED_LIMITS`; this file
+points there and copies no row. What remains below belongs to this directory: the
+figures the module defers here for re-derivation, the grading walkthrough, and holes
+whose scope is wider than one grader.
+
 - **On a machine without the recommendation records, COVERAGE skips loudly and the
   hook does not refuse the edit.** `--all` resolves `<doc_id>.json` from the published
   sweep alias first, then `recs-<source key>.json` under `--recs-root`. Both default
@@ -523,13 +508,10 @@ not left to be discovered:
   prerequisite even for a prose typo fix. The visible degradation preserves that
   distinction without teaching committers to bypass the whole hook. The directory
   `README.md` is not a sheet and does not trigger the grader.
-- **A scope-out reason is required and cannot be graded.** `out: not relevant` passes.
-- **A `bound` source is warned about and never refused.** `tools/guidelines_recs.py
-  --json` reports which mode a document yields, and that is the number to look at
-  before trusting a clean run. **This bullet used to close *so most of the corpus can
-  only ever be warned about*, and #173 made that false without touching the sentence**
-  — the majority of the corpus is `exact` now. The standing figure is the table below
-  and is deliberately not restated here.
+- **The live mode distribution is owned here.** `tools/guidelines_recs.py --json`
+  reports which mode a document yields. This passage used to say most of the corpus
+  could only be warned about, and #173 made that false without touching the sentence.
+  The standing figure is the table below and is deliberately not restated elsewhere.
 - **The topic sweep is recorded rather than summarized by a hand-maintained count.**
   [`coverage.md`](coverage.md) names every catalog topic and distinguishes a completed
   sheet, a completed read with no decision point, and an unread source. Its separate
@@ -631,16 +613,6 @@ not left to be discovered:
     d = json.loads((r / 'manifest.json').read_text(encoding='utf-8'))['documents']; \
     print(sum(not g.usable_probes(e, (r / e['output']).read_text(encoding='utf-8', errors='replace')) for e in d), 'of', len(d))"
   ```
-- **Gate 5, the second independent read, is built and it is half a mechanism by
-  design.** #83 describes it as the only thing that catches *misreading* rather than
-  *miscitation*, and says in the same breath that its weakness is correlated error —
-  same model, same PDF, same mangling, same wrong answer — so it *"must be documented
-  as a strong smoke test, never as proof."* **Correlated error weakens the pass and not
-  the fail**, which is why a disagreement refuses while a clean run prints the
-  smoke-test line every time. What the command cannot do is perform the read: there is
-  no code path in `threshold_sheet.py` that produces a `--second-read` record, because
-  one it produced would be the same code over the same page — the check that module's
-  docstring calls worthless by name.
 - **A second read is bound to one declared span.** A reader miss where the sheet has
   a row warns; a value found where the sheet retired the span as null refuses. The
   required `briefed` block makes a null read for one span distinguishable from every
