@@ -51,6 +51,8 @@ The USPSTF suggests annual screening in a different population.
         self.assertEqual(measurement.region_files, 1)
         self.assertEqual(measurement.attributed_files, 1)
         self.assertEqual(measurement.unhedged_files, 1)
+        self.assertEqual(measurement.naive_absence_files, 1)
+        self.assertEqual(measurement.committed_absence_files, 0)
 
     def test_a_phrase_already_carried_by_a_sibling_row_is_not_new(self) -> None:
         rows = (
@@ -63,6 +65,19 @@ The USPSTF suggests annual screening in a different population.
 
         self.assertEqual(measurement.files_with_not_stated, 1)
         self.assertEqual(measurement.naive_files, 0)
+
+    def test_candidate_census_reports_overlap_with_the_committed_reading(self) -> None:
+        named = reach.INTERVAL_ABSENCES[0].filename
+        rows = (reach.TableRow(named, "not stated", "No period here."),)
+        documents = {
+            named: "The USPSTF found no evidence on appropriate screening intervals.",
+            "new.pdf": "The USPSTF found no evidence to determine screening frequency.",
+        }
+
+        measurement = reach.measure(rows, documents)
+
+        self.assertEqual(measurement.naive_absence_files, 2)
+        self.assertEqual(measurement.committed_absence_files, 1)
 
 
 if __name__ == "__main__":

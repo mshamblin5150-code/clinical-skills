@@ -2,7 +2,7 @@
 
 143 recommendation statements from 90 of 90 USPSTF documents in the guideline corpus, one row each. Built by `tools/uspstf_table.py`; see that module for how every column is derived. Issue #82.
 
-**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. `population` is quoted from the statement when possible and otherwise from the document's declared `POPULATION` field. `interval` is derived from the statement sentence alone, a reach ruled permanent rather than awaiting a wider derivation. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. A document may state elsewhere that no interval is established. Where a recommendation offers alternatives, `interval` names every recurrence of a recommended service that its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell. A dose or supplement frequency is not a recurrence and is deliberately outside the column.
+**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. Population field quotations and documents stating that the USPSTF found no interval evidence are listed in sections below. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. Where a recommendation offers alternatives, `interval` names every recurrence of a recommended service that its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell. A dose or supplement frequency is not a recurrence and is deliberately outside the column.
 
 **USPSTF recommendation statements are federal work and public domain**, which is why this half of the corpus ships as a table of its own content while the society documents do not. The source PDFs stay outside this repo and are not redistributed.
 
@@ -172,7 +172,7 @@
 
 ## Statements
 
-**Beyond the columns #82 asked for, and here for a reason.** `population` is quoted from the statement where possible but may instead quote the document's declared `POPULATION` field; `interval` is derived from the statement. The source PDFs stay outside this repo and are not redistributed ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)) — so without the sentence each row was cut from, a reader with no copy of the corpus has no way to check a derived cell at all. These are quotations of public-domain federal text, transcribed rather than written, which is also why the American English rule reads them as reported rather than used.
+**Beyond the columns #82 asked for, and here for a reason.** Population cells that cannot be checked against their statement are named under `## Population cells quoted from the declared field`; `interval` is derived from the statement. The source PDFs stay outside this repo and are not redistributed ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)) — so without the sentence each row was cut from, a reader with no copy of the corpus has no way to check a derived cell at all. These are quotations of public-domain federal text, transcribed rather than written, which is also why the American English rule reads them as reported rather than used.
 
 | Grade | Statement | File | Page |
 | --- | --- | --- | --- |
@@ -319,6 +319,40 @@
 | D | The USPSTF recommends against the use of beta carotene or vitamin E supplements for the prevention of cardiovascular disease or cancer. | `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` | 1 |
 | I | The USPSTF concludes that the current evidence is insufficient to assess the balance of benefits and harms of the use of multivitamin supplements for the prevention of cardiovascular disease or cancer. | `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` | 1 |
 | I | The USPSTF concludes that the current evidence is insufficient to assess the balance of benefits and harms of the use of single- or paired-nutrient supplements (other than beta carotene and vitamin E) for the prevention of cardiovascular disease or cancer. | `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` | 1 |
+
+## Population cells quoted from the declared field
+
+15 recommendation rows form 13 population-and-document pairs. These cells quote the document's declared `POPULATION` field because the recommendation statement does not name a population. A `not stated` cell is excluded: it means neither route supplied a value and therefore cannot be a field quotation. The grade-I pair from `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` is byte-identical across all nine recommendation columns and is separable only through `## Statements`.
+
+| Population | File | Page |
+| --- | --- | --- |
+| Adults 50 years or older without a diagnosis or symptoms of AF and without a history of transient ischemic attack or stroke | `afib-screening-final-recommendation-statement.pdf` | 1 |
+| Adolescents and adults who are pregnant or postpartum, and their infants and children | `breastfeeding-interventions-final-recommendation.pdf` | 1 |
+| adults without a history of transient ischemic attack, stroke, or other neurologic signs or symptoms referable to the carotid arteries | `carotid-artery-stenosis-final-rec-statement.pdf` | 1 |
+| Children and adolescents younger than 18 years who do not have signs or symptoms of or known exposure to maltreatment | `child-maltreatment-interventions-final-rec-statement.pdf` | 1 |
+| Asymptomatic children younger than 5 years | `dental-caries-young children-final-rec-statement.pdf` | 1 |
+| Persons who are planning to or could become pregnant | `folic-acid-supplementation-final-rec-statement.pdf` | 1 |
+| Children, adolescents, and adults | `food-insecurity-screening-final-recommendation.pdf` | 1 |
+| adults 18 years or older with known hypertension or elevated blood pressure, those with dyslipidemia, or those who have mixed or multiple risk factors such as metabolic syndrome or an estimated 10-year CVD risk of 7.5% or greater | `healthy-diet-phys-activity-high-risk-final-rec.pdf` | 1 |
+| adolescents and adults who are pregnant or postpartum, and women of reproductive age | `ipv-screening-final-rec-statement.pdf` | 1 |
+| Asymptomatic adults 18 years or older at increased risk for tuberculosis | `latent-tuberulosis-screening-final-rec-statement.pdf` | 1 |
+| Community-dwelling, nonpregnant adults | `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` | 1 |
+| Asymptomatic adults (18 years or older) and adults with unrecognized symptoms of OSA | `sleep-apnea-screening-final-rec-statement.pdf` | 1 |
+| Adolescents and adults who are pregnant | `syphilis-pregnancy-screening-final-rec-statement.pdf` | 1 |
+
+## Documents stating no interval evidence was found
+
+7 documents state that the USPSTF found no evidence on the screening interval. This is a hand-read class: `limited`, `not well established`, and silence do not earn membership, and absence from this section does not establish that a document is silent. Each quotation keeps the source's whole passage, including any approach offered in the absence of evidence. `RENDERED:` records a passage read from the page because the extracted text is truncated.
+
+| File | Page | Quotation |
+| --- | --- | --- |
+| `anxiety-adults-screening-final-recommendation.pdf` | 4 | The USPSTF found no evidence on the optimal frequency of screening for anxiety disorders. In the absence of evidence, a pragmatic approach might include screening adults who have not been screened previously and using clinical judgment while considering risk factors, comorbid conditions, and life events to determine if additional screening of patients at increased risk is warranted. Ongoing assessment of risks that may develop during pregnancy and the postpartum period is also a reasonable approach. |
+| `depression-suicide-risk-adults-rs.pdf` | 4 | The USPSTF found no evidence on the optimal frequency of screening for depression. In the absence of evidence, a pragmatic approach might include screening adults who have not been screened previously and using clinical judgment while considering risk factors, comorbid conditions, and life events to determine if additional screening of patients at increased risk is warranted. Ongoing assessment of risks that may develop during pregnancy and the postpartum period is also a reasonable approach. |
+| `hepatitis-b-screening-adults-adolescents-final-rec-statement.pdf` | 3 | For patients with negative HBsAg results who have not received the HBV vaccine series, periodic screening may be useful for those who report continued risk for acquiring HBV transmission, such as persons who continue to inject drugs and men who have sex with men. Clinical judgment should be used to determine screening frequency. The USPSTF found no evidence to determine optimal screening intervals. |
+| `ipv-screening-final-rec-statement.pdf` | 3 | The USPSTF found no evidence on appropriate intervals for screening. |
+| `latent-tuberulosis-screening-final-rec-statement.pdf` | 4 | The USPSTF found no evidence on the optimal frequency of screening for LTBI. In the absence of evidence, a reasonable approach is to repeat screening based on specific risk factors; screening frequency could range from 1-time only screening among persons at low risk for future tuberculosis exposure to annual screening among those at continued risk of exposure. |
+| `screening-anxiety-children-final-recommendation.pdf` | 3 | RENDERED: The USPSTF found no evidence on appropriate or recommended screening intervals, and the optimal interval is unknown. Repeated screening may be most productive in adolescents with risk factors for anxiety. Opportunistic screening may be appropriate for adolescents, who may have infrequent health care visits. |
+| `screening-depression-suicide-risk-children-final-recommendation.pdf` | 4 | The USPSTF found no evidence on appropriate or recommended screening intervals for depression, and the optimal interval is unknown. Repeated screening may be most productive in adolescents with risk factors for depression. Opportunistic screening may be appropriate for adolescents, who may have infrequent health care visits. |
 
 ## Documents contributing no rows
 

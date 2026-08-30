@@ -708,6 +708,28 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(rows[0].year, "2024")
         self.assertEqual(rows[0].topic, "Screening for Breast Cancer")
 
+    def test_a_document_population_records_the_field_quotation_decision(self):
+        pages = [
+            "POPULATION Adults 50 years or older.\nRECOMMENDATION The USPSTF "
+            "concludes that the evidence is insufficient to assess screening for AF. "
+            "(I recommendation)"
+        ]
+
+        row = ut.parse_document(pages, "af.pdf").rows[0]
+
+        self.assertEqual(row.population, "Adults 50 years or older")
+        self.assertTrue(row.population_from_declared_field)
+
+    def test_not_stated_is_not_a_field_quotation(self):
+        row = ut.parse_document(
+            ["RECOMMENDATION The USPSTF concludes that the evidence is insufficient to assess AF. "
+             "(I recommendation)"],
+            "af.pdf",
+        ).rows[0]
+
+        self.assertEqual(row.population, ut.NOT_STATED)
+        self.assertFalse(row.population_from_declared_field)
+
 
 class ThresholdSheetJoinTests(unittest.TestCase):
     def test_catalog_filename_joins_to_the_coverage_artifact_through_catalog_topic(self):
@@ -794,25 +816,16 @@ class RenderingTests(unittest.TestCase):
             "the derived pointer must be the only byte changed by a filename match",
         )
 
-    def test_the_header_splits_the_population_fallback_from_the_interval_reach(self):
+    def test_the_header_points_to_the_two_generated_disclosure_sections(self):
         markdown = ut.render_markdown(
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
         )
         self.assertIn(
-            "`population` is quoted from the statement when possible and otherwise from "
-            "the document's declared `POPULATION` field.",
+            "Population field quotations and documents stating that the USPSTF found no "
+            "interval evidence are listed in sections below.",
             markdown,
         )
-        self.assertIn(
-            "`interval` is derived from the statement sentence alone, a reach ruled "
-            "permanent rather than awaiting a wider derivation.",
-            markdown,
-        )
-        self.assertNotIn("`population` and `interval` are", markdown)
-        self.assertIn(
-            "A document may state elsewhere that no interval is established.",
-            markdown,
-        )
+        self.assertNotIn("A document may state elsewhere", markdown)
         self.assertIn(
             "Where a recommendation offers alternatives, `interval` names every recurrence "
             "of a recommended service that its statement names, joined with "
@@ -822,11 +835,10 @@ class RenderingTests(unittest.TestCase):
             markdown,
         )
 
-    def test_the_module_contract_splits_population_from_interval(self):
+    def test_the_module_contract_points_to_the_population_owner(self):
         contract = " ".join(ut.__doc__.split())
         self.assertIn(
-            "The ``population`` column is quoted from the statement when possible and "
-            "otherwise from the document's declared ``POPULATION`` field.",
+            "``derive_population`` owns the population column's source-selection rule.",
             contract,
         )
         self.assertIn(
@@ -834,6 +846,60 @@ class RenderingTests(unittest.TestCase):
             contract,
         )
         self.assertNotIn("``population`` and ``interval`` columns are", contract)
+
+    def test_population_field_quotation_section_derives_both_counts(self):
+        results = [
+            ut.DocumentResult(
+                "field.pdf",
+                rows=[
+                    ut.Row(
+                        "Topic",
+                        "adults",
+                        "B",
+                        "not stated",
+                        "2024",
+                        "field.pdf",
+                        2,
+                        population_from_declared_field=True,
+                    ),
+                    ut.Row(
+                        "Topic",
+                        "adults",
+                        "I",
+                        "not stated",
+                        "2024",
+                        "field.pdf",
+                        2,
+                        population_from_declared_field=True,
+                    ),
+                    ut.Row(
+                        "Topic",
+                        "older adults",
+                        "I",
+                        "not stated",
+                        "2024",
+                        "field.pdf",
+                        2,
+                    ),
+                ],
+            )
+        ]
+
+        markdown = ut.render_markdown(results)
+
+        self.assertIn("## Population cells quoted from the declared field", markdown)
+        self.assertIn("2 recommendation rows form 1 population-and-document pair.", markdown)
+        self.assertEqual(markdown.count("| adults | `field.pdf` | 2 |"), 1)
+
+    def test_interval_absence_section_renders_the_declared_reading(self):
+        markdown = ut.render_markdown([])
+
+        self.assertIn("## Documents stating no interval evidence was found", markdown)
+        for entry in ut.INTERVAL_ABSENCES:
+            self.assertIn(f"`{entry.filename}`", markdown)
+            self.assertIn(str(entry.page), markdown)
+            quotation = f"{'RENDERED: ' if entry.rendered else ''}{entry.quotation}"
+            self.assertIn(quotation, markdown)
 
     def test_a_pipe_in_a_cell_is_escaped_so_it_cannot_break_the_table(self):
         self.assertEqual(ut.escape_cell("a | b"), "a \\| b")
