@@ -15,6 +15,20 @@ The 179 source PDFs stay outside this repo at `C:/codeing/guidelines-src`
 ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)). Nothing a
 consumer runs needs them — they need the derived facts.
 
+## Directory scope
+
+Population and quantity keys are **sheet-local**: no key binds either vocabulary
+across two sheets. `CONFLICT` compares rows within one sheet only, and `python
+tools/threshold_sheet.py --all` runs that sheet-level grading independently over the
+directory. A clean `--all` run is therefore **not** a claim that the directory is
+internally consistent.
+
+The sheet unit is the catalog topic cell, so one clinical subject may span several
+sheets; see [ADR 0064](../../docs/adr/0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md)
+and [CONTEXT.md](../../CONTEXT.md)'s **Topic** and **Catalog topic** entries. The
+practicum case-study check named `the threshold sheets against this patient` is the
+reader that reaches rows from more than one applicable sheet.
+
 ## The quoting posture, ruled against a public repo
 
 **Ruled 2026-08-18 by the clinician, on
@@ -96,6 +110,13 @@ of twenty sheets quoting one society is still a different quantity question, and
 worth re-asking there rather than reading either ruling as settling the class.
 
 ## Grading a sheet
+
+Recommendation records carry the identity of the repository text producers that
+built them. After editing one of those producer files, rebuild the recommendation
+sweep before the next threshold-sheet commit so the records published under the
+`--recs-alias` root carry the current identity. The rebuild is possible only while
+the source PDFs remain available; an untrusted record therefore stays a refusal
+rather than being treated as a missing record or a clean omission check.
 
 ```bash
 # Build the recommendation record first, OUTSIDE the repo -- always. It holds the

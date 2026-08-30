@@ -35,7 +35,8 @@ Harvest first, then scan::
         > "$H/tracker-comments.json"
     gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" \\
         > "$H/tracker-reviews.json"
-    python tools/tracker_scan.py --harvest "$H"/tracker-*.json
+    python tools/tracker_scan.py --harvest "$H/tracker-issues.json" \
+        "$H/tracker-comments.json" "$H/tracker-reviews.json"
 
     git config --add remote.origin.fetch \
         "+refs/pull/*/head:refs/remotes/origin/pr/*"
@@ -136,6 +137,7 @@ import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
+from datetime import date as CalendarDate
 from pathlib import Path
 from typing import Iterable, NamedTuple, Sequence, TypeVar
 
@@ -158,6 +160,11 @@ CONFIGURE_PULL_REFS = (
 )
 FETCH_PULL_REFS = "git fetch origin"
 RULINGS_PATH = Path("reference/tracker-scan-rulings.json")
+FULL_HARVEST_FILES = frozenset({
+    "tracker-issues.json",
+    "tracker-comments.json",
+    "tracker-reviews.json",
+})
 RULING_VERDICTS = {"noise", "accepted-history"}
 COMMIT_FINDING = re.compile(r"^commit ([0-9a-f]{40})$")
 HARVEST_RECORD = re.compile(r"^https://github\.com/\S+ (?:title|body)$")
@@ -683,6 +690,39 @@ def format_report(
     return "\n".join(lines)
 
 
+def write_harvest_marker(
+    repo: Path,
+    findings: Sequence[ScannedFinding],
+    ran_on: CalendarDate | None = None,
+) -> None:
+    """Atomically record one completed full harvest without matched values."""
+    target = repo / phi_scan.TRACKER_HARVEST_MARKER
+    temporary = target.with_name(target.name + ".tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "version": 1,
+        "ran_on": (CalendarDate.today() if ran_on is None else ran_on).isoformat(),
+        "finding_counts": dict(sorted(Counter(f.rule for f in findings).items())),
+    }
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    temporary.replace(target)
+
+
+def is_full_harvest(args: argparse.Namespace) -> bool:
+    """Whether this invocation is only the documented three-surface harvest."""
+    names = [path.name for path in args.harvest]
+    return (
+        len(names) == len(FULL_HARVEST_FILES)
+        and set(names) == FULL_HARVEST_FILES
+        and args.github_event is None
+        and not args.commits
+        and not args.history
+        and not args.paths
+    )
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Scan tracker text, commit messages, blobs and paths for PHI.",
@@ -800,13 +840,24 @@ def main(argv: list[str]) -> int:
             unscanned = True
 
     names, dates = phi_scan.corpus_identifiers()
-    banners.extend(phi_scan.shortfall_notice(phi_scan.corpus_coverage(), missing))
+    coverage = phi_scan.corpus_coverage()
     findings = scan_records(records, phi_scan.build_index(names, dates))
     findings, ruled = partition_ruled_findings(
         findings, rulings, harvest_rulings
     )
     if ruled:
         context.append(("ruled findings", len(ruled)))
+    if is_full_harvest(args) and not missing and not unscanned:
+        try:
+            write_harvest_marker(repo, findings)
+        except OSError as error:
+            banners.append(
+                "DID NOT RECORD the full harvest marker -- " + str(error)
+            )
+            unscanned = True
+    # Assemble this after the write so the producing harvest reports the marker
+    # it just established instead of the state that existed at command start.
+    banners.extend(phi_scan.shortfall_notice(coverage, missing))
     print(format_report(findings, records, context, banners, args.show))
 
     if findings:
