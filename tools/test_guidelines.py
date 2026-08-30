@@ -6,8 +6,8 @@ the other would pass on an index no query could read.
 
 Every test builds a throwaway text directory and a throwaway index in a temp
 directory, the way test_skills_mirror.py builds throwaway checkouts. **Nothing
-here reads the real corpus or the real index** -- the corpus is 179 copyrighted
-PDFs outside the repo and the index is a build artifact that may not exist on
+here reads the real corpus or the real index** -- the corpus is copyrighted PDFs
+outside the repo and the index is a build artifact that may not exist on
 the machine running the tests, so a test that touched either would pass or fail
 on the state of that machine.
 

@@ -35,18 +35,12 @@ in review. Every figure the new prose states is now counted from the artifact, s
 a corpus refresh or a second threshold sheet fails a test instead of quietly
 making a sentence false.
 
-**One figure resists that, and it is marked rather than smoothed over.** The *19
-of 179 documents not omission-gateable* the skill cites is a count over the
-out-of-repo corpus, so nothing committed can re-derive it. The assertion below
-compares the skill's copy to the README's and is a **consistency check between
-two files, not a verification** -- named here because a pinned figure and a
-re-derived one look identical in a passing suite.
-
-**It read 138 until [#173] closed two of the extractor's blind spots**, which is
-the same figure moving for the third time and is why it is pinned on both sides
-rather than in one. The consistency check is what caught the skill's copy and the
-README's needing to move together; nothing here could have told you either was
-stale.
+**The omission-gate distribution is different.** It is a historical measurement
+over the out-of-repo corpus, so its dated values and derivation provenance live
+only in the threshold README. The skill states the decision-bearing distinction
+between refusal, warning, and no gate without copying those values. The test below
+checks both sides of that ownership boundary; it does not call the historical
+measurement mechanically verified.
 
 **Nothing here reads a note or a run directory.** It reads committed Markdown
 only, so it needs no fixtures, touches nothing under ``scratch/`` or ``output/``,
@@ -455,13 +449,13 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         )
 
     def test_the_row_and_document_counts_are_re_derived_not_restated(self):
-        # 143 and 179 are quoted in AGENTS.md and the skill. Neither was pinned
+        # 143 is quoted in AGENTS.md and 180 in the skill. Neither was pinned
         # in the first version of this file, while its docstring claimed every
         # count was -- so both are counted here, from the artifacts.
         #
         # The catalog's society cell reads `AHA ACC`, with a space: it is the
         # corpus subdirectory name, not the society's own styling, and matching
-        # on `AHA/ACC` silently drops 23 of the 179.
+        # on `AHA/ACC` silently drops every AHA ACC row.
         rows = [
             line
             for line in _section(self.uspstf, "## Recommendations").splitlines()
@@ -471,8 +465,8 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         societies = re.findall(
             r"^\| (USPSTF|IDSA|AHA ACC|KDIGO|ACIP|ADA|CDC|GINA|GOLD) \| ", self.catalog, re.M
         )
-        self.assertEqual(len(societies), 179)
-        for figure, where in (("143", self.text), ("179", self.text), ("143", self.agents)):
+        self.assertEqual(len(societies), 180)
+        for figure, where in (("143", self.text), ("180", self.text), ("143", self.agents)):
             self.assertIn(figure, where)
 
     def test_the_hypertension_example_is_a_real_threshold_row(self):
@@ -558,22 +552,26 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         self.assertIn("**Every committed population cell is present**", self.text)
         self.assertIn("does not establish that their content is correct", self.text)
 
-    def test_the_ungated_majority_figure_matches_the_readmes_own(self):
-        # A consistency check between two files, NOT a verification: 138 is a
-        # count over the out-of-repo corpus and nothing committed can re-derive
-        # it. Named in the docstring for the same reason.
-        #
-        # The bare assertIn("138", readme) this replaces matched any 138 in a
-        # 250-line file -- including a page number or a byte count -- so it would
-        # have kept passing after the figure it guards was regraded.
+    def test_the_dated_ungated_distribution_lives_only_in_the_readme(self):
+        # These are historical measurements over an out-of-repo corpus, not
+        # current properties that a committed test can verify. Keep the dated
+        # snapshot in its provenance-bearing home and keep exact copies out of
+        # the skill that consumes only the distinction between gate outcomes.
         readme = (THRESHOLDS / "README.md").read_text(encoding="utf-8")
-        self.assertRegex(readme, r"\| nothing found \| — \| \*\*19\*\* \|")
-        self.assertIn("19 of the 179 documents cannot be omission-gated", self.text)
-        # The second half of the same sentence, and the one a reader acts on: a bound
-        # source IS gated, it just cannot refuse. Collapsing the two would let 19 read
-        # as "everything else is enforced", which is false of 48 documents.
-        self.assertIn("a further 48 can only be warned about", self.text)
-        self.assertRegex(readme, r"\| `bound` \| `text-marker` \| 48 \|")
+        self.assertIn("python tools/guidelines_build.py", readme)
+        self.assertRegex(readme, r"On \d{4}-\d{2}-\d{2},")
+        self.assertRegex(readme, r"\| nothing found \| — \| \*\*\d+\*\* \| \d+ \|")
+        self.assertRegex(
+            readme,
+            r"\| `bound` \| `text-marker` \| \d+ \| [\d,]+ \|",
+        )
+        self.assertNotRegex(
+            self.text,
+            r"\b\d+ of (?:the )?\d+ documents cannot be omission-gated",
+        )
+        self.assertNotRegex(self.text, r"\ba further \d+ can only be warned about")
+        self.assertIn("some documents cannot be omission-gated", self.text)
+        self.assertIn("others can only be warned about", self.text)
 
     def test_the_pediatric_row_the_skill_quotes_is_real(self):
         # Quoted with a grade and a year, both of which were written before they

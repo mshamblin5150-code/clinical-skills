@@ -11,7 +11,7 @@ freely. A dumped guideline PDF is the copyrighted expression, and it also happen
 too large to belong here. The distilled form is both the legally clean artifact and the only one small
 enough to commit.
 
-The 179 source PDFs stay outside this repo at `C:/codeing/guidelines-src`
+The source PDFs stay outside this repo at `C:/codeing/guidelines-src`
 ([#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87)). Nothing a
 consumer runs needs them — they need the derived facts.
 
@@ -102,7 +102,7 @@ page in one move; that jump is the whole reason `page` is a column.
 for the guideline, and it says so in its own opener. Nothing here blesses committing a
 `recs-*.json` — that file holds the society's recommendation text **in full** and is what
 `guidelines_recs.py` refuses to write inside a checkout and `.gitignore` now catches
-anyway. The 179 source PDFs stay outside the repo, unchanged by this ruling.
+anyway. The source PDFs stay outside the repo, unchanged by this ruling.
 
 **No later sheet gets this for free.** Diabetes was re-asked against one 377-page ADA
 standard and answered with 5,063 quoted words across 354 distinct minimal snippets. A directory
@@ -569,17 +569,20 @@ whose scope is wider than one grader.
   artifact column can name partial work without changing that state. Run
   `python tools/threshold_coverage.py` to re-derive the counts. An `unread` row is not
   a negative finding about a guideline.
-- **Most of the corpus can be gated now, and the number is measured.**
-  `tools/guidelines_recs.py` was run over all 179 documents on 2026-08-19, after
+- **Most of the corpus could be gated in the dated snapshot, and the number was measured.**
+  On 2026-08-30, `python tools/guidelines_build.py C:/codeing/guidelines-src`
+  selected the content-addressed recommendation artifact and its 180-document
+  `manifest.json`; aggregating that manifest and its per-document records produced
+  the snapshot below. This superseded the 179-document run from 2026-08-19, after
   [#173](https://github.com/mshamblin5150-code/clinical-skills/issues/173) added the
-  two readings it was filed for. The bound limb was re-derived on 2026-08-28 after
+  two readings it was filed for. The bound limb was re-derived on 2026-08-30 after
   #446 moved its marker pages onto the repaired reader:
 
   | mode | `counted_from` | docs | recommendations | what a gate can do |
   | --- | --- | ---: | ---: | --- |
   | `exact` | `ruled-table` | **22** | 2,969 | omissions **refused**; 22 of 23 AHA/ACC files |
   | `exact` | `curated-table` | **90** | 143 | omissions **refused**; every USPSTF document |
-  | `bound` | `text-marker` | 48 | 4,619 | omissions **warned**; marker hits can over-report changelog and cross-reference prose, with ADA's measured instance recorded in [diabetes.md](diabetes.md); 30 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
+  | `bound` | `text-marker` | 49 | 4,633 | omissions **warned**; marker hits can over-report changelog and cross-reference prose, with ADA's measured instance recorded in [diabetes.md](diabetes.md); 31 IDSA, 16 KDIGO, 1 ADA, 1 GOLD |
   | nothing found | — | **19** | 0 | nothing counted, so nothing gated |
 
   `python tools/guidelines_recs.py <corpus-root> --compare-readers` reports each
@@ -629,9 +632,10 @@ whose scope is wider than one grader.
   halves welded that were never adjacent on the page. Tier 2 catches that one where the
   PDFs are present, because a snippet spanning a removal is not on the raw page; on a
   machine without them nothing catches it. **The exposure figure is what makes that
-  worth knowing**: boilerplate stripping went from 554,372 characters to **921,093**
-  under #83's reader, across 167 of 179 documents, and **#100 widened it again** by
-  42,272 characters and 2,688 lines across a further 27 documents, for 963,365 together
+  worth knowing**: re-derived 2026-08-30 from the selected extraction manifest,
+  boilerplate stripping went from 554,372 characters to **922,501**
+  under #83's reader, across 168 of 180 documents, and **#100 widened it again** by
+  42,272 characters and 2,688 lines across a further 27 documents, for 964,773 together
   — **9,277 of which is
   [#178](https://github.com/mshamblin5150-code/clinical-skills/issues/178)**, which
   fixed the KDIGO transplant footer's spacing and so let the margin rule see a running
@@ -645,7 +649,7 @@ whose scope is wider than one grader.
   `GOLD/GOLD-REPORT-2026`, `IDSA/ciw670` and, since #178,
   `KDIGO/KDIGO-2009-Transplant-Recipient-Guideline-English` — and prose is what
   interleaves.
-- **Not every stripped string is a probe, and 11 of the 179 documents have none.** A
+- **Not every stripped string is a probe, and 11 of the 180 documents have none.** A
   string the extractor strips in one place and keeps in another proves nothing by
   appearing in a snippet, so a probe has to be absent from the document's own extracted
   body — a running head that the body also states is the worked case, and
@@ -653,7 +657,8 @@ whose scope is wider than one grader.
   11 is a sheet gate 4 said nothing about**, and the command names those sources rather
   than printing a zero. Measured 2026-08-19 against a corpus outside this repo, so
   nothing committed re-derives it — which is why the figure is stated here and in no
-  other file. **Re-derive it with the gate's own predicate**, not by reading the
+  other file. Re-derived 2026-08-30 by running the gate's own predicate over the
+  selected extraction manifest and extracted bodies. **Re-derive it with that predicate**, not by reading the
   manifest: the manifest records the stripped strings, and what makes one a probe is
   the body test `usable_probes` applies to it.
 

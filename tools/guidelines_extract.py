@@ -1655,10 +1655,10 @@ def _engine_version() -> str:
 
 
 def require_pymupdf() -> None:
-    """Fail once, up front, rather than 179 times.
+    """Fail once, up front, rather than once per document.
 
     Every per-document failure is caught and recorded, which is what #80 asks for
-    -- so without this an uninstalled ``pymupdf`` reads as 179 unreadable PDFs and a
+    -- so without this an uninstalled ``pymupdf`` reads as an unreadable corpus and a
     manifest full of identical ImportErrors, next to a summary line cheerfully
     reporting the engine as not installed.
     """
@@ -1860,7 +1860,7 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
                 # is no such caller, `sys.stdout.buffer` does not exist on the
                 # `StringIO` a test would redirect into, and one mechanism for the
                 # whole file beats one line that was safe alone. `flush` stays: that
-                # is progress output over 179 documents, and nothing to do with
+                # is progress output over the whole corpus, and nothing to do with
                 # encoding -- and it matters more now, because with a pool the lines
                 # arrive in bursts as the in-order `map` releases completed work.
                 print(f"  {record.source}", flush=True)

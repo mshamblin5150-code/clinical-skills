@@ -475,7 +475,7 @@ MAPPED_CATALOG_TOPICS = frozenset(
         "hepatitis B screening",
         "hepatitis C in chronic kidney disease",
         "hepatitis C screening",
-        "hepatitis C treatment trial, babesiosis treatment tables (corrections)",
+        "babesiosis",
         "hepatitis C virus infection",
         "high blood pressure",
         "high blood pressure screening",

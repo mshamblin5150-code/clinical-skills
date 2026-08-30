@@ -166,8 +166,9 @@ without one. [#551](https://github.com/mshamblin5150-code/clinical-skills/issues
 that the drafter's unseeded path — **this sweep's path** — writes
 `file:///C:/codeing/guidelines-src/...`, a maintainer's local disk.
 
-Re-derived over the extracted corpus, page 1 taken as the text before the first form feed,
-**146 of 179 documents print a DOI on page 1**: USPSTF 86/90, IDSA 38/41, AHA ACC 22/23, and
+Re-derived 2026-08-30 over the extracted corpus selected by `guidelines_build.py`, page 1
+taken as the text before the first form feed,
+**147 of 180 documents print a DOI on page 1**: USPSTF 86/90, IDSA 39/42, AHA ACC 22/23, and
 **KDIGO 0/18, ACIP 0/3, ADA and CDC and GINA and GOLD 0/4**. Joined to the registry,
 **33 topics sit entirely on documents whose page 1 prints nothing.** *(Comment 26 on #429
 published 144/179 and 25 topics from a different DOI pattern; the discrepancy is in the

@@ -1,6 +1,6 @@
 """Turn the USPSTF half of the guideline corpus into a committed Markdown table.
 
-USPSTF is 90 of the 179 source PDFs and is the only society in the corpus that is
+USPSTF's 90 source PDFs are the only society slice in the corpus that is
 already effectively a database: every recommendation statement carries a subject, a
 population, a letter grade and often a screening interval, in a fixed structure. So this
 half needs no retrieval -- it collapses into a few hundred table rows, which is what this

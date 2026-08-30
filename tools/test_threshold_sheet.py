@@ -4024,7 +4024,7 @@ def text_corpus(root: Path, doc_id: str, body: str, boilerplate=(), margin=()) -
     """A throwaway `guidelines_extract.py` output directory: manifest plus one `.txt`.
 
     Built here rather than pointed at `C:/codeing/guidelines-text` on
-    `test_guidelines.py`'s reasoning: the real corpus is 179 copyrighted PDFs'
+    `test_guidelines.py`'s reasoning: the real corpus is copyrighted PDFs'
     extracted text, outside the repo, and a build artifact that may not exist on the
     machine running the tests. Every figure gate 4's design rests on was measured
     against it once and is stated where it was measured, never asserted here.

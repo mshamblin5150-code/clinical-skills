@@ -1814,7 +1814,7 @@ def usable_probes(entry: guidelines_manifest.Record, body: str) -> dict[str, str
     goes wrong, and the value here is that there is no constant to name.
 
     **Those two counts are stated here and deliberately nowhere else.** They are
-    measured against a 179-document corpus outside this repo, so nothing committed
+    measured against a corpus outside this repo, so nothing committed
     re-derives them, and a copy in ``CLAUDE.md`` or in ``reference/thresholds/README.md``
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) --
     which is what the first draft of this change did, in three places each, inside a
@@ -1932,7 +1932,7 @@ def gate_watermark(
     returned in the fourth value and printed, because a sheet citing one is a sheet
     this gate said nothing about. A silent zero there is the shape
     ``differential_scan.py`` and every scanner after it exists to refuse. **How many
-    of the 179 have no usable probe is stated once, in
+    have no usable probe is stated once, in
     ``reference/thresholds/README.md``**, where the command that re-derives it sits
     beside it -- it is measured against a corpus outside this repo, so a second copy
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).

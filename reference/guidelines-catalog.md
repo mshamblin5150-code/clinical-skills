@@ -1,13 +1,13 @@
 # Guideline catalog
 
-One row per document in the guideline corpus: 179 PDFs across nine societies,
-**7,733 pages**, which is the sum of this file's own `page_count` column and
+One row per document in the guideline corpus: 180 PDFs across nine societies,
+**7,749 pages**, which is the sum of this file's own `page_count` column and
 not a separate claim. **The corpus itself is not in this repo** and is not going
 to be — most of it society-copyrighted, and a consumer needs the derived
 facts rather than the sources. It lives at `C:/codeing/guidelines-src`. Issue
 [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87).
 
-This file exists because at 179 documents an agent cannot navigate the corpus by
+This file exists because at this corpus's size an agent cannot navigate it by
 reading it. Something has to choose *which document*, and that is a metadata
 problem rather than a retrieval one — so the table is small enough to read in
 full, and says what each document **is**, never what it says.
@@ -158,8 +158,9 @@ python tools/guidelines_catalog.py
 | IDSA | ajrccm_200_7_e45.pdf | Diagnosis and Treatment of Adults with Community-acquired Pneumonia: An Official Clinical Practice Guideline of the American Thoracic Society and Infectious Diseases Society of America | community-acquired pneumonia | adult | 2019 | 23 | guideline | 10.1164/rccm.201908-1581ST |
 | IDSA | amr-guidance-update.pdf | Infectious Diseases Society of America 2026 Guidance on the Treatment of Antimicrobial-Resistant Gram-Negative Infections | antimicrobial-resistant gram-negative infection | pediatric, adult | 2026 | 140 | guideline | www.idsociety.org/practice-guideline/amr-guidance/ |
 | IDSA | ciaa1215.pdf | Clinical Practice Guidelines by the Infectious Diseases Society of America, American Academy of Neurology, and American College of Rheumatology: Guidelines for the Prevention, Diagnosis and Treatment of Lyme Disease | Lyme disease | pediatric, adult | 2021 | 48 | guideline | 10.1093/cid/ciaa1215 |
+| IDSA | ciaa1216.pdf | Clinical Practice Guidelines by the Infectious Diseases Society of America (IDSA): 2020 Guideline on Diagnosis and Management of Babesiosis | babesiosis | pediatric, adult | 2020 | 16 | guideline | 10.1093/cid/ciaa1216 |
 | IDSA | ciaa241.pdf | Treatment of Nontuberculous Mycobacterial Pulmonary Disease: An Official ATS/ERS/ESCMID/IDSA Clinical Practice Guideline | nontuberculous mycobacterial pulmonary disease | adult | 2020 | 36 | guideline | 10.1093/cid/ciaa241 |
-| IDSA | ciab275.pdf | Errata | hepatitis C treatment trial, babesiosis treatment tables (corrections) | ? | 2021 | 2 | errata | Clinical Infectious Diseases. 2021;73(1):172–4. |
+| IDSA | ciab275.pdf | Errata | babesiosis | ? | 2021 | 2 | errata | Clinical Infectious Diseases. 2021;73(1):172–4. |
 | IDSA | ciab549.pdf | Clinical Practice Guideline by the Infectious Diseases Society of America (IDSA) and Society for Healthcare Epidemiology of America (SHEA): 2021 Focused Update Guidelines on Management of Clostridioides difficile Infection in Adults | Clostridioides difficile infection | adult | 2021 | 16 | guideline | 10.1093/cid/ciab549 |
 | IDSA | ciab953.pdf | Infectious Diseases Society of America Guidelines on Infection Prevention for Healthcare Personnel Caring for Patients With Suspected or Known COVID-19 | COVID-19 infection prevention for healthcare personnel | general | 2021 | 20 | guideline | 10.1093/cid/ciab953 |
 | IDSA | ciac724.pdf | Infectious Diseases Society of America Guidelines on the Treatment and Management of Patients With COVID-19 (September 2022) | COVID-19 treatment | adult | 2022 | 100 | guideline | 10.1093/cid/ciac724 |
@@ -327,7 +328,7 @@ maintained beside it — `tools/guidelines_catalog.py` fails if the two disagree
 - `virani-et-al-2023-2023-aha-acc-accp-aspc-nla-pcna-guideline-for-the-management-of-patients-with-chronic-coronary.pdf` — `population` — the front matter states no population
 - `GOLD-REPORT-2026-v1.3-8Dec2025_WMV2.pdf` — `population` — the front matter states no population
 - `aasld-idsa-practice-guideline-on-treatment-of-chronic.pdf` — `population` — the front matter states no population
-- `ciab275.pdf` — `population` — an errata document, correcting two unrelated articles
+- `ciab275.pdf` — `population` — the errata states no population
 - `ciad527.pdf` — `population` — the front matter states no population
 - `ciae121.pdf` — `population` — the front matter states no population
 - `ciu296.pdf` — `population` — the front matter states no population
