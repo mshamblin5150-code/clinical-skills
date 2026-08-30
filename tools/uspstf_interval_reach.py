@@ -28,7 +28,7 @@ import artifact_provenance
 import guidelines_recs
 from console_codec import use_utf8
 from guidelines_manifest import read_or_raise
-from uspstf_table import INTERVAL_PHRASE, normalize, split_sentences
+from uspstf_table import INTERVAL_ABSENCES, INTERVAL_PHRASE, normalize, split_sentences
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -60,6 +60,10 @@ UNHEDGED_RECOMMENDATION = re.compile(
     r"\bUSPSTF\W+(?:now\W+)?(?:recommends|suggests)\b",
     re.IGNORECASE,
 )
+NAIVE_ABSENCE = re.compile(
+    r"\bfound no evidence\b.{0,160}\b(?:screening )?(?:intervals?|frequency)\b",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 @dataclass(frozen=True)
@@ -79,6 +83,8 @@ class Measurement:
     region_files: int
     attributed_files: int
     unhedged_files: int
+    naive_absence_files: int
+    committed_absence_files: int
 
 
 def interval_phrases(text: str) -> frozenset[str]:
@@ -142,6 +148,13 @@ def measure(rows: tuple[TableRow, ...], documents: dict[str, str]) -> Measuremen
             _new_phrases(_attributed_phrases(text, UNHEDGED_RECOMMENDATION), statements)
         )
 
+    absence_candidates = {
+        filename
+        for filename, text in documents.items()
+        if NAIVE_ABSENCE.search(normalize(text))
+    }
+    committed_absences = {entry.filename for entry in INTERVAL_ABSENCES}
+
     return Measurement(
         rows=len(rows),
         not_stated_rows=len(target_rows),
@@ -154,6 +167,8 @@ def measure(rows: tuple[TableRow, ...], documents: dict[str, str]) -> Measuremen
         region_files=region_files,
         attributed_files=attributed_files,
         unhedged_files=unhedged_files,
+        naive_absence_files=len(absence_candidates),
+        committed_absence_files=len(absence_candidates & committed_absences),
     )
 
 
@@ -195,6 +210,9 @@ def render(measurement: Measurement) -> str:
             f"declined Screening Interval region: {measurement.region_files} of {file_population}",
             f"declined attributed sentence: {measurement.attributed_files} of {file_population}",
             f"declined attributed sentence, unhedged: {measurement.unhedged_files} of {file_population}",
+            f"naive interval-evidence absence candidates: {measurement.naive_absence_files}",
+            "candidates already in the committed reading: "
+            f"{measurement.committed_absence_files} of {measurement.naive_absence_files}",
         )
     )
 
