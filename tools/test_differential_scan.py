@@ -793,7 +793,7 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertIn("source class read for  1 of 1 cited tails", report)
         self.assertIn(
             "declared floor: a draft's numbers ship labeled, not suppressed -- whether this one\n"
-            "  should stand is the step 9 reader's.",
+            "  should stand is the `practicum-case-study` step 9 reader's.",
             report,
         )
 
