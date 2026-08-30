@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -27,7 +30,7 @@ COMMAND = ROOT / "tools" / "threshold_draft.py"
 COMMITTED_RECS = ROOT / "fixtures" / "threshold-draft-records"
 
 
-def catalog_row(topic: str = "hypertension") -> str:
+def catalog_row(topic: str = "high blood pressure") -> str:
     return (
         "| society | filename | title | topic | population | year | page_count | class |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
@@ -270,6 +273,110 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("scanned", result.stderr)
         self.assertNotIn("recs-broken.json", result.stderr)
 
+    def test_alias_group_rows_are_reported_without_widening_the_seed_set(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            recs = root / "recs"
+            recs.mkdir()
+            catalog.write_text(
+                "| society | filename | title | topic | population | year | page_count | class |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| AHA ACC | guideline.pdf | Guideline title | high blood pressure | adult | 2025 | 12 | guideline |\n"
+                "| Synthetic | alias.pdf | Alias title | hypertension | adult | 2025 | 4 | guideline |\n"
+                "| USPSTF | adults.pdf | Screening for Hypertension in Adults | hypertension screening | adult | 2024 | 8 | recommendation-statement |\n"
+                "| USPSTF | children.pdf | High Blood Pressure in Children and Adolescents | high blood pressure screening | pediatric | 2020 | 8 | recommendation-statement |\n",
+                encoding="utf-8",
+            )
+
+            resolutions = [
+                draft.resolve_sources(
+                    topic, catalog, recs, None, root / "recs-alias"
+                )
+                for topic in ("hypertension", "high blood pressure")
+            ]
+
+        for sources, rejected, errors, named_subjects, topic_count in resolutions:
+            self.assertEqual(sources, [])
+            self.assertIn("AHA ACC/guideline.pdf", "\n".join(errors))
+            self.assertEqual(named_subjects, 1)
+            self.assertEqual(topic_count, 4)
+            self.assertEqual(
+                {line.split(":", 1)[0] for line in rejected},
+                {
+                    "Synthetic/alias.pdf",
+                    "USPSTF/adults.pdf",
+                    "USPSTF/children.pdf",
+                },
+            )
+
+    def test_an_accepted_source_is_not_reported_as_a_rejected_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            recs = root / "recs"
+            recs.mkdir()
+            catalog.write_text(
+                "| society | filename | title | topic | population | year | page_count | class |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| AHA ACC | guideline.pdf | Guideline title | high blood pressure | adult | 2025 | 12 | guideline |\n"
+                "| USPSTF | adults.pdf | Screening for Hypertension in Adults | hypertension screening | adult | 2024 | 8 | recommendation-statement |\n"
+                "| USPSTF | children.pdf | High Blood Pressure in Children and Adolescents | high blood pressure screening | pediatric | 2020 | 8 | recommendation-statement |\n",
+                encoding="utf-8",
+            )
+            seed_text = seeded_sheet().replace(
+                "| aha-2025 | AHA/ACC | AHA ACC/guideline | 2025 | 2025 | https://example.invalid | exact |",
+                "| aha-2025 | AHA/ACC | AHA ACC/guideline | 2025 | 2025 | https://example.invalid | exact |\n"
+                "| uspstf-adults | USPSTF | USPSTF/adults | 2024 | 2024 | https://example.invalid/adults | exact |",
+            )
+            seeded = threshold_sheet.parse(seed_text, root / "seed.md")
+            self.assertTrue(seeded.ok, seeded.why_not)
+
+            _, rejected, _, _, _ = draft.resolve_sources(
+                "high blood pressure", catalog, recs, seeded, root / "recs-alias"
+            )
+
+        report = "\n".join(rejected)
+        self.assertNotIn("USPSTF/adults.pdf", report)
+        self.assertIn("USPSTF/children.pdf", report)
+
+    def test_a_third_alias_name_refuses_the_cli_and_names_the_grouping_ticket(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            catalog.write_text(catalog_row(), encoding="utf-8")
+            error_output = io.StringIO()
+            with (
+                mock.patch.object(
+                    draft,
+                    "TOPIC_ALIASES",
+                    {
+                        "hypertension": "high blood pressure",
+                        "high blood pressure": "elevated blood pressure",
+                    },
+                ),
+                redirect_stderr(error_output),
+            ):
+                status = draft.main(
+                    [
+                        "hypertension",
+                        "--catalog",
+                        str(catalog),
+                        "--recs-root",
+                        str(root / "recs"),
+                        "--recs-alias",
+                        str(root / "recs-alias"),
+                        "--sheet-root",
+                        str(root / "sheets"),
+                        "--text-root",
+                        str(root / "text"),
+                    ]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn("third alias name", error_output.getvalue())
+        self.assertIn("#689", error_output.getvalue())
+
     def test_the_sweep_alias_wins_and_the_draft_reports_that_root(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -352,6 +459,13 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("| source | rec | page | class | label |", candidates)
         self.assertNotIn("A drafted bound sheet intentionally fails structure", result.stdout)
         self.assertIn("## Rejected candidates", result.stdout)
+        bound = draft.NEARBY_REPORT_BOUND.format(
+            named_subject_count=1,
+            catalog_topic_count=1,
+        )
+        rejected_section = result.stdout.split("## Rejected candidates", 1)[1]
+        self.assertIn(bound, rejected_section)
+        self.assertNotIn(bound, result.stderr)
         self.assertIn("## Quantities", result.stdout)
         self.assertIn("|  |  |  | \"Adults should have an SBP goal below 130 mm Hg.\"", result.stdout)
         self.assertIn("| aha-2025 | p3 | p3/topic/1 | 1 |", result.stdout)
