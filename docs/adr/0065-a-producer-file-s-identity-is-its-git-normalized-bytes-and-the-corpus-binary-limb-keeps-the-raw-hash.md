@@ -55,8 +55,22 @@ The clinician ruled on 2026-08-29.
 Every figure was re-derived on `a92a271` with the freshness gate reporting `FRESH`, before
 the ruling.
 
-**The reported symptom reproduces, and its cause is not the one the ticket names.** The
-three refusing records resolve from the **sweep alias**, not from the exact-name recs root
+**The reported symptom reproduces from a worktree, and not from the main checkout.**
+Re-measured 2026-08-30 at `caaa571`, same alias and same records: `threshold_sheet.py
+--all --quiet` exits **0** with zero untrusted records in the main checkout, and **2**
+with three in a worktree. That is ruling 1's defect behaving exactly as described rather
+than a contradiction of it — the records carry the main checkout's mixed bytes, so they
+verify there and nowhere else — but the direction of harm is the opposite of #643's
+original framing: **main is the one checkout where the gate passes.** It is still a live
+block, because agents commit from worktrees here. A trust census over all 179 records puts
+the partition exactly on the two floors that name `reference/guidelines-uspstf.md`:
+`curated-table` (90, all USPSTF) and `nothing-found` (19, none USPSTF — ACIP, AHA/ACC,
+CDC, GINA, IDSA, KDIGO) refuse from a worktree; `ruled-table` (22) and `text-marker` (48)
+do not name it and are trusted everywhere. The one-time re-stamp is therefore **109 of 179
+records across seven societies**, not the USPSTF half.
+
+**Its cause is not the one the ticket names.** The three refusing records resolve from the
+**sweep alias**, not from the exact-name recs root
 — so the rebuild already performed into `C:/codeing/guidelines-index` could never have
 fixed it, and that shadowing is correct behavior under ADR 0030 ruling 7 and the alias
 precedence `CLAUDE.md` states, rather than a second defect. All three are `curated-table`;
@@ -113,8 +127,9 @@ repair is to key the inputs on something stable rather than to abandon them.
 
 **Hash the git blob id instead of the file.** Rejected. It is exactly git's own notion of
 identity and would agree across checkouts, but it cannot see an uncommitted edit to a
-producer file — a case `check_producer`'s working-tree limb currently catches — and it
-costs a subprocess per floor file on a path the pre-commit hook runs.
+producer file — a case `check_producer`'s working-tree limb catches, *except* for the one
+class ruling 1 gives up, below — and it costs a subprocess per floor file on a path the
+pre-commit hook runs.
 
 **Repair the outlier and leave the identity alone.** Rejected. `git checkout --` in the
 main checkout plus a rebuild fixes today only; `uspstf_table.py` reintroduces it by
@@ -152,6 +167,12 @@ Declared so the builder does not have to discover it.
 - **The normalization is not a general text-identity rule.** It collapses `\r\n` only. A
   file differing by trailing whitespace, a final newline, or encoding is a different file
   to this check, as it is to git.
+- **An uncommitted edit that changes only line endings becomes invisible.** That is the
+  loosening direction of the same ruling, and it is the trade rather than an oversight: an
+  edit of that shape changes no producer behavior, which is the whole ground for ruling 1.
+  It is named because the `git hash-object` rejection above leans on the working-tree limb
+  catching uncommitted edits, and after ruling 1 that limb catches every class but this
+  one.
 - **A binary producer file would be mis-keyed.** Ruling 2 excludes the corpus limb by
   path; a future floor naming a repo-relative binary would be normalized wrongly and
   nothing here detects that. The exclusion is a declared boundary, not an inferred one.
@@ -184,8 +205,42 @@ discriminating cases before the fix — and `voice_corpus.py`'s UUID-dating proh
 which survived its first mutation because the fixture failed by accident rather than by
 refusal.
 
-**`artifact_provenance.TRUST_FLOOR["recs"]` is dead and is not repaired here.** Nothing
-reads it, in `tools/` or in the tests; ADR 0030 ruling 2 moved that key to
-`guidelines_recs.RECORD_TRUST_FLOOR` and the old copy stayed behind. Two copies of one
-rule where a prose edit to either fails nothing. Filed separately rather than folded in,
-so the deletion is reviewed on its own terms.
+**`artifact_provenance.TRUST_FLOOR["recs"]` is live, and is not a second copy of
+`guidelines_recs.RECORD_TRUST_FLOOR`.** Both facts were established by mutation rather than
+by reading, and neither is touched by this record's rulings.
+
+**It is read.** `guidelines_build._trust_floor_inputs` (`:387`, `:391`) looks the floor up
+by `kind`, and `recs_identity` sets `"kind": "recs"` (`:162`), so the lookup runs on every
+content-addressed recs build and verify. Deleting the key raises `unknown artifact kind
+'recs'` and breaks the documented ordinary production entry point. A `grep` for the literal
+`recs` beside `TRUST_FLOOR` cannot see it, because the lookup is by variable.
+
+**The two have different subjects.** `RECORD_TRUST_FLOOR` is keyed on `counted_from` and is
+**one record's** floor, per limb — `ruled-table` names one file, `curated-table` names two.
+`TRUST_FLOOR["recs"]` is the floor of the **content-addressed sweep artifact**, a directory
+holding records from every limb at once, so its value is the union over the limbs. It is
+also a proper subset of `CACHE_IDENTITY["recs"]`, which is what lets `_trust_floor_inputs`
+select cleanly. Nothing is duplicated and there is nothing to delete.
+
+Correction, 2026-08-30: the Consequences section formerly read
+*"`artifact_provenance.TRUST_FLOOR["recs"]` is dead and is not repaired here — nothing reads it, in
+`tools/` or in the tests … two copies of one rule"*, and
+[#650](https://github.com/mshamblin5150-code/clinical-skills/issues/650) was filed on that premise.
+Both clauses are false. The key is read by `guidelines_build._trust_floor_inputs` through a variable
+`kind`, which the reproduce command's `grep` could not see, and the two floors have different
+subjects rather than being two copies of one rule. Corrected in place under ADR 0016; none of the
+seven rulings changed, and #643's build item instructing the deletion is struck.
+
+Correction, 2026-08-30: the `git hash-object` option formerly said the working-tree limb *currently
+catches* an uncommitted edit to a producer file, unqualified. After ruling 1 it catches every class
+but one, so the sentence is qualified and the class it gives up is declared under *What this does
+not reach*. The rejection stands; only its supporting claim was overstated.
+
+
+Correction, 2026-08-30: *What was measured* formerly reported the symptom as
+`--all --quiet` exiting `2` without naming the checkout it was measured from, and #643's body read
+that as the hook refusing every threshold-sheet commit. Re-measured at `caaa571`: the main checkout
+exits `0` and a worktree exits `2`, on the same alias and the same records. Ruling 1 is unaffected —
+this is the defect behaving as ruled — but the blast radius is every worktree rather than every
+commit, and the one-time re-stamp is 109 of 179 records across seven societies rather than the
+USPSTF half. #643's title and body are corrected to match.
