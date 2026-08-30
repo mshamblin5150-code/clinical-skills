@@ -3341,6 +3341,83 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("COVERAGE        NOT RUN for source 'aha' -- untrusted record:", err)
         self.assertIn("NOT RUN", self.coverage_line(out))
+        self.assertIn("recommendation sweep rebuild", err)
+        self.assertIn(f"--recs-alias {gate.DEFAULT_RECS_ALIAS}", err)
+        self.assertIn("if the source PDF is still available", err)
+        self.assertNotIn("A source with no recommendation record", err)
+
+    def test_all_quiet_keeps_an_alias_record_provenance_refusal_at_two(self):
+        payload = record("p41/goal/1")
+        payload.pop("producer")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "sheets"
+            sheets.mkdir()
+            (sheets / "one.md").write_text(
+                TheExitStatusSaysWhichKindOfNotGraded.CLEAN,
+                encoding="utf-8",
+            )
+            recs_alias = root / "recs-alias"
+            record_path = recs_alias / "Society" / "doc.json"
+            record_path.parent.mkdir(parents=True)
+            record_path.write_text(json.dumps(payload), encoding="utf-8")
+            (recs_alias / "manifest.json").write_text(
+                json.dumps({"documents": [{"doc_id": "Society/doc"}]}),
+                encoding="utf-8",
+            )
+            recs_root = root / "recs-root"
+            recs_root.mkdir()
+            err = io.StringIO()
+            with (
+                mock.patch.object(gate, "SHEET_ROOT", sheets),
+                mock.patch.object(
+                    gate,
+                    "load_catalog_page_counts",
+                    return_value=({"Society/doc": 60}, []),
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(err),
+            ):
+                status = gate.main(
+                    [
+                        "--all",
+                        "--quiet",
+                        "--recs-root",
+                        str(recs_root),
+                        "--recs-alias",
+                        str(recs_alias),
+                        "--pdf-root",
+                        str(root / "pdfs"),
+                        "--text-root",
+                        str(root / "text"),
+                    ]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn(f"sweep alias {record_path}", err.getvalue())
+        self.assertIn("untrusted record", err.getvalue())
+
+    def test_all_keeps_an_earlier_untrusted_status_when_a_later_sheet_is_clean(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = (root / "a-untrusted.md", root / "z-clean.md")
+            for path in paths:
+                path.write_text("selected by --all", encoding="utf-8")
+            scans = {
+                paths[0]: gate.Scan(gate.Sheet(paths[0]), status=2),
+                paths[1]: gate.Scan(gate.Sheet(paths[1]), status=0),
+            }
+            with (
+                mock.patch.object(gate, "SHEET_ROOT", root),
+                mock.patch.object(
+                    gate, "survey", side_effect=lambda path, *_, **__: scans[path]
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                status = gate.main(["--all", "--quiet"])
+
+        self.assertEqual(status, 2)
 
     def test_a_trusted_finding_wins_over_an_untrusted_source(self):
         untrusted = record("p9/kdigo/1")

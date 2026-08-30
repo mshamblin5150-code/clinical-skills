@@ -2823,7 +2823,20 @@ def gate_coverage(
             "COVERAGE pass."
         )
     blocking_ungraded = [key for key in ungraded if key not in missing_records]
-    if blocking_ungraded or recs_errors:
+    untrusted_records = [
+        key
+        for key in blocking_ungraded
+        if why_not.get(key, "").startswith("untrusted record:")
+    ]
+    if untrusted_records:
+        diagnostics.append(
+            "  The ordinary remedy for the untrusted recommendation record(s) above "
+            "is a recommendation sweep rebuild, which publishes to "
+            f"--recs-alias {DEFAULT_RECS_ALIAS}, if the source PDF is still available. "
+            "A rebuild is not guaranteed when the source has left the corpus."
+        )
+    other_blocking = [key for key in blocking_ungraded if key not in untrusted_records]
+    if other_blocking or recs_errors:
         diagnostics.extend(
             (
                 "  Omission was not checked for the source(s) above. A source with no",
