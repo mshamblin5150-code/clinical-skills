@@ -1038,6 +1038,15 @@ def _guideline_floor(
                 )
                 continue
             source = citation.group(1).casefold()
+            if not rows:
+                findings.append(
+                    GuidelineFinding(
+                        item.line,
+                        "null sheet declares no decision point; stop citing a threshold for this topic",
+                        item.text,
+                    )
+                )
+                continue
             strength = citation.group(2).casefold()
             population = citation.group(3).strip()
             value = citation.group(4).strip()

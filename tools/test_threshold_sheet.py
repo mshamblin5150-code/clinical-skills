@@ -144,6 +144,30 @@ def sheet(rows: str, conflicts: str = "", coverage: str = "", mode: str = "exact
     return gate.parse(text, Path("test-sheet.md"))
 
 
+def null_sheet_text() -> str:
+    return (
+        HEADER.replace(
+            "**Not read:** the narrative sections and the appendices.",
+            "**Not read:** nothing in the source page range.",
+        )
+        .replace(
+            "| recommendation tables | 1-50 | yes |",
+            "| recommendation tables | 1-50 | read 2026-08-29 |",
+        )
+        .replace(
+            "| narrative sections and appendices | 51-60 | no |",
+            "| narrative sections and appendices | 51-60 | read 2026-08-29 |",
+        )
+        + "\n## Thresholds\n\n"
+        + gate.NONE_DECLARATION
+        + "\n"
+    )
+
+
+def null_sheet() -> gate.Sheet:
+    return gate.parse(null_sheet_text(), Path("null-sheet.md"))
+
+
 def row(quantity="bp-goal", population="adults", value="<130 mm Hg",
         snippet="an SBP goal of <130 mm Hg", page="p41", rec="p41/goal/1", klass="1",
         source="src") -> str:
@@ -308,6 +332,29 @@ class Parsing(unittest.TestCase):
 
         self.assertTrue(parsed.ok, parsed.why_not)
         self.assertEqual(parsed.rows, [])
+
+    def test_a_populated_threshold_table_that_loses_a_column_is_not_reclassified_as_null(self):
+        malformed = (
+            HEADER
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- |\n"
+            + "| bp-goal | adults | <130 mm Hg | 130 mm Hg | src | p41 | p41/goal/1 |\n"
+        )
+
+        parsed = gate.parse(malformed, Path("x.md"))
+
+        self.assertFalse(parsed.ok)
+        self.assertEqual(parsed.why_not, "no row under a '## Thresholds' heading")
+
+    def test_zero_rows_without_a_declaration_remain_exit_two(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "x.md"
+            path.write_text(HEADER, encoding="utf-8")
+            scan = gate.survey(path, [], None)
+
+        self.assertEqual(scan.status, 2)
+        self.assertEqual(scan.sheet.why_not, "no row under a '## Thresholds' heading")
 
     def test_a_pipe_row_outside_the_thresholds_section_is_not_a_threshold(self):
         """The load-bearing parser choice, and `block_scan.py`'s rule adopted whole.
@@ -1208,6 +1255,60 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
                 self.assertIsInstance(result, gate.GateResult)
                 self.assertEqual(result.gate, name)
                 self.assertIsInstance(result.findings, list)
+
+
+class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
+    def test_the_four_row_keyed_gates_report_no_rows(self):
+        parsed = null_sheet()
+        self.assertTrue(parsed.ok, parsed.why_not)
+
+        results = (
+            gate.gate_citation_tier1(parsed),
+            gate.gate_citation_tier2(parsed, Path("C:/nowhere")),
+            gate.gate_range(parsed),
+            gate.gate_watermark(parsed, None),
+        )
+
+        for result in results:
+            with self.subTest(gate=result.gate):
+                self.assertIn("NO ROWS", result.report[0])
+                self.assertNotIn("NOT RUN", result.report[0])
+
+    def test_an_unread_span_is_exit_one_and_does_not_hide_the_other_gate_reports(self):
+        unread = null_sheet_text().replace(
+            "| narrative sections and appendices | 51-60 | read 2026-08-29 |",
+            "| narrative sections and appendices | 51-60 | no |",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "null-sheet.md"
+            path.write_text(unread, encoding="utf-8")
+            scan = gate.survey(
+                path,
+                [],
+                None,
+                page_counts={"Society/doc": 60},
+                catalog_source_classes={"Society/doc": "guideline"},
+            )
+
+        report = gate.format_report(scan)
+        self.assertEqual(scan.status, 1)
+        self.assertIn("zero-row sheet still has unread span", "\n".join(scan.diagnostics))
+        for label in ("CITATION tier 1", "CITATION tier 2", "RANGE", "WATERMARK"):
+            with self.subTest(gate=label):
+                self.assertRegex(report, rf"(?m)^\s+{re.escape(label)}\s+NO ROWS$")
+
+    def test_the_same_four_gates_keep_ordinary_counts_on_a_populated_sheet(self):
+        parsed = sheet(row())
+        results = (
+            gate.gate_citation_tier1(parsed),
+            gate.gate_citation_tier2(parsed, Path("C:/nowhere")),
+            gate.gate_range(parsed),
+            gate.gate_watermark(parsed, None),
+        )
+
+        for result in results:
+            with self.subTest(gate=result.gate):
+                self.assertNotIn("NO ROWS", result.report[0])
 
 
 class ExtractionIdentityGate(unittest.TestCase):
@@ -4710,6 +4811,19 @@ class TheCommandLineRefusesWhatItCannotBind(unittest.TestCase):
             ])
         self.assertEqual(status, 0)
         self.assertIn("span: recommendation tables", output.getvalue())
+
+    def test_brief_is_reachable_for_a_null_sheet(self):
+        path = self.root / "null-sheet.md"
+        path.write_text(null_sheet_text(), encoding="utf-8")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = gate.main([
+                str(path), "--brief", "--span", "recommendation tables"
+            ])
+
+        self.assertEqual(status, 0)
+        self.assertIn("span: recommendation tables", output.getvalue())
+        self.assertIn("pages: 1-50", output.getvalue())
 
     def test_the_text_root_is_derived_from_the_pdf_root_rather_than_typed(self):
         """A second literal path here is what would let #80's output rule and this

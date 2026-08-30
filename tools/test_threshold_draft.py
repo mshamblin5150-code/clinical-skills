@@ -552,6 +552,35 @@ class ThresholdDraftCli(unittest.TestCase):
         )
         self.assertNotIn("not in its recommendation record", result.stdout)
 
+    def test_a_null_seed_is_reachable_and_preserves_its_scope_outs(self):
+        seed = seeded_sheet()
+        threshold_start = seed.index("## Thresholds")
+        conflicts_start = seed.index("## Conflicts")
+        seed = (
+            seed[:threshold_start]
+            + "## Thresholds\n\n"
+            + threshold_sheet.NONE_DECLARATION
+            + "\n\n"
+            + seed[conflicts_start:]
+        )
+        parsed_seed = threshold_sheet.parse(seed, Path("seed.md"))
+        self.assertTrue(parsed_seed.ok, parsed_seed.why_not)
+        self.assertEqual(parsed_seed.rows, [])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "sheets"
+            sheets.mkdir()
+            (sheets / "hypertension.md").write_text(seed, encoding="utf-8")
+            result = self.run_cli(root)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        drafted = threshold_sheet.parse(result.stdout, Path("draft.md"))
+        self.assertEqual(drafted.rows, [])
+        self.assertEqual(drafted.scoped_out, {"p3/topic/2": "no decision point"})
+        candidates = result.stdout.split("## Candidate set", 1)[1].split("## ", 1)[0]
+        self.assertIn("p3/topic/1", candidates)
+
     def test_the_real_diabetes_bound_sheet_rejects_no_rows_when_its_record_is_trusted(self):
         record_path = Path(threshold_sheet.DEFAULT_RECS_ROOT) / "recs-ada-2026.json"
         if not record_path.is_file():

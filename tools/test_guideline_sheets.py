@@ -161,6 +161,13 @@ class TheSkillCarriesTheObligation(ProseBind, unittest.TestCase):
         self.assertIn("sheet does not settle it", self.section)
         self.assertIn("never `no guideline applies`", self.section)
 
+    def test_a_complete_null_sheet_eliminates_only_the_unread_meaning(self):
+        self.assertProseIn(
+            "A sheet whose `## Scope` reports nothing unread has eliminated meaning 3; "
+            "it has not turned either remaining meaning into a note-body verdict.",
+            self.section,
+        )
+
     def test_no_uspstf_row_is_not_a_clinical_verdict(self):
         # The reading that would do harm: a true fact about a sheet, sitting on
         # an entirely appropriate item. Zoster is the worked case.

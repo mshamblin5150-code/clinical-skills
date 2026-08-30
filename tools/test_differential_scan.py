@@ -41,6 +41,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import differential_scan as ds
 from grader_conformance import for_module
@@ -723,6 +724,20 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
             status = ds.main([str(self.root), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
+    def write_null_threshold_sheet(self, topic: str) -> Path:
+        sheet = self.root / "thresholds" / f"{topic}.md"
+        sheet.parent.mkdir(exist_ok=True)
+        sheet.write_text(
+            """<!-- schema: threshold-sheet/2 -->
+
+## Thresholds
+
+**No decision point.** Every span in `## Scope` has left the unread list and this source states no quantity that changes what is done to a patient.
+""",
+            encoding="utf-8",
+        )
+        return sheet
+
     def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
         status, report, _ = self.run_command(
             "FILLED·proposed   1. HIV screening [uspstf: grade A, adolescents and adults aged 15 to 65 years, 2019]\n"
@@ -858,6 +873,37 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
 
         self.assertEqual(status, 1)
         self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_a_threshold_citation_against_a_null_sheet_names_the_right_remedy(self):
+        threshold_root = self.write_null_threshold_sheet("screening").parent
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            status, report, _ = self.run_command(
+                "FILLED·proposed   1. Screening threshold "
+                "[thresholds/screening: source Class 1, adults, >=5 years]",
+                "--show",
+            )
+
+        self.assertEqual(status, 1)
+        self.assertIn(
+            "null sheet declares no decision point; stop citing a threshold for this topic",
+            report,
+        )
+        self.assertNotIn(
+            "threshold source, strength, population, and value do not match a shipped row",
+            report,
+        )
+
+    def test_sheet_does_not_settle_it_stays_a_candidate_against_a_null_sheet(self):
+        threshold_root = self.write_null_threshold_sheet("screening").parent
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            status, report, _ = self.run_command(
+                "FILLED·proposed   1. Screening threshold "
+                "[thresholds/screening: sheet does not settle it]"
+            )
+
+        self.assertEqual(status, 0, report)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
 
 
 class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):

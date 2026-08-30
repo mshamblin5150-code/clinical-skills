@@ -1408,6 +1408,11 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
     that silently drops to zero there is the same hole `phi_scan.py`'s corpus layer
     documents and that #93 watched fire for real.
     """
+    if not sheet.rows:
+        return GateResult(
+            "CITATION tier 1",
+            report=("  CITATION tier 1 NO ROWS",),
+        )
     failures: list[str] = []
     for row in sheet.rows:
         wanted = _NUMBER.findall(row.value)
@@ -1669,6 +1674,11 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     A skip is returned rather than raised, and the caller prints it as a banner. The
     whole design of decision 2 is that this **must not be readable as passing**.
     """
+    if not sheet.rows:
+        return GateResult(
+            "CITATION tier 2",
+            report=("  CITATION tier 2 NO ROWS",),
+        )
     if pdf_root is None or not pdf_root.is_dir():
         return _hold_tier2_resolution_declaration(
             sheet,
@@ -1904,6 +1914,11 @@ def gate_watermark(
     beside it -- it is measured against a corpus outside this repo, so a second copy
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
     """
+    if not sheet.rows:
+        return GateResult(
+            "WATERMARK",
+            report=("  WATERMARK       NO ROWS",),
+        )
     if text_root is None:
         reason = f"extracted corpus not found at {text_root}"
         return _watermark_not_run(
@@ -2080,8 +2095,8 @@ DECLARED_LIMITS = (
     ),
     DeclaredLimit(
         "null-sheet wording",
-        "The ruled null-sheet wording names no span, so the check is vacuous unless "
-        "that wording changes to name one.",
+        "The ruled null-sheet wording is not a span label and is compared in neither "
+        "direction. On a legal null sheet, any real span named under Not read refuses.",
         EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
@@ -2982,6 +2997,11 @@ def gate_range(sheet: Sheet) -> GateResult:
     #153 caught reading green over 2.4% coverage, and the fix there was the same:
     put the unread count where the verdict is.
     """
+    if not sheet.rows:
+        return GateResult(
+            "RANGE",
+            report=("  RANGE           NO ROWS",),
+        )
     failures: list[str] = []
     ungraded = 0
     for row in sheet.rows:
