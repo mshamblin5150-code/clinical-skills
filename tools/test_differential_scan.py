@@ -407,7 +407,16 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         no_entry = self.root / "no-entry"
         no_numbered_item = self.root / "no-numbered-item"
         bare_mark = self.root / "bare-mark"
-        for directory in (empty, no_entry, no_numbered_item, bare_mark):
+        unreadable_sheet = self.root / "unreadable-sheet"
+        threshold_root = self.root / "thresholds"
+        for directory in (
+            empty,
+            no_entry,
+            no_numbered_item,
+            bare_mark,
+            unreadable_sheet,
+            threshold_root,
+        ):
             directory.mkdir()
         (no_entry / "case-01.md").write_text(
             "S:\n\nPatient reports a cough.\n", encoding="utf-8"
@@ -421,6 +430,15 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
             "1. Acute bronchitis - J20.9: favored. NOT CODED, no code supplied.\n",
             encoding="utf-8",
         )
+        (unreadable_sheet / "case-01.md").write_text(
+            "A:\n\nDifferential:\n1. Acute bronchitis - J20.9: favored.\n\n"
+            "FILLED·proposed   1. Weight target "
+            "[thresholds/damaged: draft-src Class 1, adults-overweight, >=5% of body weight]\n",
+            encoding="utf-8",
+        )
+        (threshold_root / "damaged.md").write_text(
+            "## Thresholds\n\nNo schema marker.\n", encoding="utf-8"
+        )
         cases = (
             ("invalid invocation", ["--unknown"]),
             ("no directory", [str(missing)]),
@@ -428,6 +446,7 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
             ("no differential entry in any note read", [str(no_entry)]),
             ("no numbered item in a labeled block", [str(no_numbered_item)]),
             ("any bare ``NOT CODED`` mark", [str(bare_mark)]),
+            ("a cited threshold sheet did not parse", [str(unreadable_sheet)]),
         )
 
         documented = " ".join((ds.__doc__ or "").split())
@@ -438,15 +457,16 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
             + ", ".join(limbs[:-1])
             + ", and "
             + limbs[-1]
-            + ".** The last three matter most"
+            + ".** The last four matter most"
         )
         self.assertIn(exact_enumeration, documented)
-        for limb, argv in cases:
-            with self.subTest(limb=limb):
-                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                    status = ds.main(argv)
-                self.assertEqual(status, 2)
-                self.assertIn(limb, documented)
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            for limb, argv in cases:
+                with self.subTest(limb=limb):
+                    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                        status = ds.main(argv)
+                    self.assertEqual(status, 2)
+                    self.assertIn(limb, documented)
 
     def test_a_clean_run_is_zero(self):
         self.write("case-01.md", CLEAN_SOAP)
@@ -724,6 +744,28 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
             status = ds.main([str(self.root), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
+    def write_threshold_sheet(self, topic: str, source_class: str) -> Path:
+        sheet = self.root / "thresholds" / f"{topic}.md"
+        sheet.parent.mkdir(exist_ok=True)
+        sheet.write_text(
+            """<!-- schema: threshold-sheet/2 -->
+
+## Sources
+
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| draft-src | Example Society | Public review draft | SOURCE_CLASS | 1 | 2026 | https://example.test/draft | text |
+
+## Thresholds
+
+| quantity | population | value | snippet | source | page | rec | class |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| weight-loss | adults-overweight | >=5% of body weight | lose at least 5% | draft-src | 1 | rec-1 | 1 |
+""".replace("SOURCE_CLASS", source_class),
+            encoding="utf-8",
+        )
+        return sheet
+
     def write_null_threshold_sheet(self, topic: str) -> Path:
         sheet = self.root / "thresholds" / f"{topic}.md"
         sheet.parent.mkdir(exist_ok=True)
@@ -737,6 +779,111 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
             encoding="utf-8",
         )
         return sheet
+
+    def test_a_draft_backed_citation_is_reported_without_changing_exit_status(self):
+        threshold_root = self.write_threshold_sheet("weight", "draft").parent
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            status, report, error = self.run_command(
+                "FILLED·proposed   1. Weight target "
+                "[thresholds/weight: draft-src Class 1, adults-overweight, >=5% of body weight]"
+            )
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("row 24 - draft-backed citations  1", report)
+        self.assertIn("source class read for  1 of 1 cited tails", report)
+        self.assertIn(
+            "declared floor: a draft's numbers ship labeled, not suppressed -- whether this one\n"
+            "  should stand is the step 9 reader's.",
+            report,
+        )
+
+    def test_a_blank_source_class_is_counted_as_unread_not_clean(self):
+        threshold_root = self.write_threshold_sheet("weight", "").parent
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            status, report, error = self.run_command(
+                "FILLED·proposed   1. Weight target "
+                "[thresholds/weight: draft-src Class 1, adults-overweight, >=5% of body weight]"
+            )
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("row 24 - draft-backed citations  0", report)
+        self.assertIn("source class read for  0 of 1 cited tails", report)
+
+    def test_in_force_source_classes_do_not_trip_the_draft_candidate(self):
+        for source_class in ("guideline", "recommendation-statement", "web-capture", "errata"):
+            with self.subTest(source_class=source_class):
+                threshold_root = self.write_threshold_sheet("weight", source_class).parent
+                with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+                    status, report, error = self.run_command(
+                        "FILLED·proposed   1. Weight target "
+                        "[thresholds/weight: draft-src Class 1, adults-overweight, >=5% of body weight]"
+                    )
+
+                self.assertEqual(status, 0, error)
+                self.assertIn("row 24 - draft-backed citations  0", report)
+                self.assertIn("source class read for  1 of 1 cited tails", report)
+
+    def test_an_unreadable_threshold_sheet_is_exit_2_with_its_reason(self):
+        threshold_root = self.root / "thresholds"
+        threshold_root.mkdir()
+        (threshold_root / "weight.md").write_text(
+            "## Thresholds\n\nNo schema marker.\n", encoding="utf-8"
+        )
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            status, report, error = self.run_command(
+                "FILLED·proposed   1. Weight target "
+                "[thresholds/weight: draft-src Class 1, adults-overweight, >=5% of body weight]"
+            )
+
+        self.assertEqual(status, 2, error)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("weight.md", error)
+        self.assertIn("no <!-- schema: threshold-sheet/2 --> marker", error)
+
+    def test_a_real_row_24_finding_wins_over_an_unreadable_other_sheet(self):
+        threshold_root = self.write_threshold_sheet("weight", "guideline").parent
+        (threshold_root / "damaged.md").write_text(
+            "## Thresholds\n\nNo schema marker.\n", encoding="utf-8"
+        )
+        with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
+            status, report, error = self.run_command(
+                "FILLED·proposed   1. Weight target "
+                "[thresholds/weight: draft-src Class 2, adults-overweight, >=5% of body weight]\n"
+                "FILLED·proposed   2. Sodium target "
+                "[thresholds/damaged: draft-src Class 1, adults-overweight, >=5% of body weight]"
+            )
+
+        self.assertEqual(status, 1, error)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+        self.assertIn("source class read for  1 of 1 cited tails", report)
+        self.assertIn("damaged.md", error)
+
+    def test_uspstf_rows_are_read_only_under_recommendations(self):
+        uspstf = self.root / "guidelines-uspstf.md"
+        uspstf.write_text(
+            """## Recommendations
+
+| Topic | Recommendation | Grade | Population | Year | A | B | C | D |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| HIV | Screen | A | adults | 2019 | x | x | x | x |
+
+## Generated disclosure
+
+| Topic | Recommendation | Grade | Population | Year | A | B | C | D |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Vaccination | Do not screen | D | adults | 2020 | x | x | x | x |
+""",
+            encoding="utf-8",
+        )
+        with patch.object(ds, "USPSTF_SHEET", uspstf):
+            with patch.object(ds, "USPSTF_ROWS", ds._uspstf_index()):
+                status, report, error = self.run_command(
+                    "FILLED·proposed   1. Vaccination review "
+                    "[uspstf: grade D, adults, 2020]"
+                )
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
 
     def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
         status, report, _ = self.run_command(
@@ -1415,7 +1562,7 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
 
     **And every row is live**, which is what #241 asks for over a sentence. Each is
     re-derived below rather than stated -- **rows 3 and 4 against runs built in
-    this file, rows 1 and 2 against the committed tree** -- so a limit cannot
+    this file, rows 1, 2 and 5 against the committed tree** -- so a limit cannot
     quietly stop being true. That distinction is written out because the first
     version claimed every row ran against the committed tree while row 3 hand-built
     a ``Scan`` and matched a format string.
@@ -1619,6 +1766,25 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
                 self.assertEqual(
                     ds.main([str(self.FIXTURES / "filled-anchor" / name)]), 2
                 )
+
+    def test_no_committed_sheet_exercises_the_draft_backed_firing_path(self):
+        self.assertIn("the draft-backed citation branch on committed sheets", self.keys())
+        source_classes = set()
+        for path in sorted((REPO_ROOT / "reference" / "thresholds").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            if ds.threshold_sheet.SCHEMA_MARKER not in text.splitlines():
+                continue
+            parsed = ds.threshold_sheet.parse(text, path)
+            self.assertTrue(parsed.ok, parsed.why_not)
+            source_classes.update(
+                source.get("source class", "") for source in parsed.sources.values()
+            )
+        self.assertFalse(
+            ds.DRAFT_SOURCE_CLASSES & source_classes,
+            "a committed threshold sheet now carries a draft source class; re-examine "
+            "NOT_VALIDATED_AGAINST against that sheet and retire this row if the live "
+            "firing path is now covered",
+        )
 
     def test_partial_coverage_is_reported_and_not_graded(self):
         """The third row, and the clinician's 2026-08-19 ruling in one assertion.
