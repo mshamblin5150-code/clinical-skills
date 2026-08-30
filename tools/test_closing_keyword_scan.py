@@ -23,13 +23,13 @@ class GitHubClosingGrammar(unittest.TestCase):
         findings = self.findings("Filed rather than fixed: #180, which stays open.\n")
         self.assertEqual([(row.ticket, row.line) for row in findings], [(180, 1)])
 
-    def test_intervening_prose_does_not_make_a_binding_safe(self):
+    def test_probe_2_intervening_prose_breaks_the_closing_grammar(self):
         text = "The stale citation was resolved in #172.\n"
-        self.assertEqual([row.ticket for row in self.findings(text)], [172])
+        self.assertEqual(self.findings(text), [])
 
-    def test_a_ticket_later_in_the_same_clause_is_a_finding(self):
+    def test_probe_2_a_later_ticket_in_the_clause_is_not_a_hazard(self):
         text = "This fixes the citations #143 warned about.\n"
-        self.assertEqual([row.ticket for row in self.findings(text)], [143])
+        self.assertEqual(self.findings(text), [])
 
     def test_a_finished_sentence_stops_the_keyword(self):
         text = "A fix is planned. See #183 for the decision.\n"
@@ -45,9 +45,42 @@ class GitHubClosingGrammar(unittest.TestCase):
         findings = self.findings("Closes #178's lead 1.\n")
         self.assertEqual([row.ticket for row in findings], [178])
 
-    def test_a_keyword_can_bind_across_a_markdown_list_boundary(self):
+    def test_probe_5_a_markdown_list_marker_breaks_the_closing_grammar(self):
         findings = self.findings("The defects are fixed:\n\n- #180 remains open.\n")
+        self.assertEqual(findings, [])
+
+    def test_probe_3_a_bare_line_wrap_preserves_a_closing_hazard(self):
+        findings = self.findings("The defects are fixed\n#180 remains open.\n")
         self.assertEqual([row.ticket for row in findings], [180])
+
+    def test_colon_and_whitespace_preserve_a_measured_closing_hazard(self):
+        findings = self.findings("The defects are fixed:\n\n#180 remains open.\n")
+        self.assertEqual([row.ticket for row in findings], [180])
+
+    def test_wrapping_the_reference_breaks_the_closing_grammar(self):
+        for text in ("fix (#180)\n", "fix **#180**\n", "fix:\n\n> #180\n"):
+            with self.subTest(text=text):
+                self.assertEqual(self.findings(text), [])
+
+    def test_keywords_are_whole_words_and_the_matcher_stays_live(self):
+        cases = (
+            ("fixtures", "fix"),
+            ("fixture-", "fix"),
+            ("closest", "closes"),
+            ("closed-loop", "closed"),
+            ("resolver", "resolve"),
+            ("resolvers", "resolve"),
+        )
+        for written, keyword in cases:
+            with self.subTest(written=written):
+                self.assertEqual(self.findings(f"{written} #123\n"), [])
+                findings = self.findings(f"{keyword} #123\n")
+                self.assertEqual([row.ticket for row in findings], [123])
+
+    def test_leading_word_boundary_still_rejects_prefix_and_affix(self):
+        for written in ("prefix", "affix"):
+            with self.subTest(written=written):
+                self.assertEqual(self.findings(f"{written} #123\n"), [])
 
     def test_the_standalone_deliberate_form_is_allowed(self):
         self.assertEqual(self.findings("Closes #183\n"), [])
@@ -64,6 +97,52 @@ class GitHubClosingGrammar(unittest.TestCase):
             self.findings("Implements #178's lead 1. See #183 for the rest.\n"),
             [],
         )
+
+    def test_declared_limits_name_the_measured_grammar_and_its_margins(self):
+        keys = [row.key for row in scan.DECLARED_LIMITS]
+        self.assertEqual(
+            keys,
+            [
+                "measured-closing-grammar",
+                "colon-whitespace-margin",
+                "fences-uniform-margin",
+                "non-surfaces-ungraded",
+                "github-parser-unversioned",
+            ],
+        )
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertTrue(all(row.limit.strip() for row in scan.DECLARED_LIMITS))
+        self.assertTrue(all(row.evidence for row in scan.DECLARED_LIMITS))
+        self.assertEqual(
+            scan.NOT_REACHED,
+            tuple(row.limit for row in scan.DECLARED_LIMITS),
+        )
+
+    def test_every_behavior_limit_is_bound_to_live_scanner_controls(self):
+        controls = {
+            "measured-closing-grammar": (
+                ("fixtures #123\n", []),
+                ("fix #123\n", [123]),
+            ),
+        }
+        behavior_keys = {
+            row.key
+            for row in scan.DECLARED_LIMITS
+            if row.evidence is scan.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(set(controls), behavior_keys)
+        for key, (
+            (clean_text, clean_tickets),
+            (hazard_text, hazard_tickets),
+        ) in controls.items():
+            with self.subTest(key=key, control="negative"):
+                self.assertEqual(
+                    [row.ticket for row in self.findings(clean_text)], clean_tickets
+                )
+            with self.subTest(key=key, control="positive"):
+                self.assertEqual(
+                    [row.ticket for row in self.findings(hazard_text)], hazard_tickets
+                )
 
 
 class GitHubPullRequestInput(unittest.TestCase):
@@ -107,6 +186,7 @@ class GitHubPullRequestInput(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("title:1", output.getvalue())
         self.assertIn("#94", output.getvalue())
+        self.assertIn("would close", output.getvalue())
 
 
 class CommitMessageHook(unittest.TestCase):

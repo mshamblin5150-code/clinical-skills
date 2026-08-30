@@ -67,22 +67,29 @@ jobs:
       # #183 has three surfaces. The local hook sees commit messages, while a
       # PR title/body is created later and the final merge message later still.
       # A PR run grades its metadata and every commit message through GitHub's
-      # own JSON; a push to main grades every commit in the pushed range. The
-      # latter is detection after a close, not prevention, and the advisory
-      # label says so instead of presenting this as a gate it cannot be.
-      - name: Closing keyword scan, advisory
-        continue-on-error: true
+      # own JSON. Under ADR 0073's measured grammar its exit status is the step
+      # verdict; no later command consumes or replaces it.
+      - name: Closing keyword scan, pull request
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
+          gh pr view $env:PR_NUMBER --json title,body,commits |
+            Out-File -FilePath $pr -Encoding utf8
+          python tools/closing_keyword_scan.py --github-json $pr
+
+      # A push to main is detection after GitHub may already have acted, so it
+      # keeps the advisory posture. The scanner runs last and its exit status is
+      # the verdict; no later command consumes or replaces it.
+      - name: Closing keyword scan, advisory push or manual run
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
-            $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
-            gh pr view $env:PR_NUMBER --json title,body,commits |
-              Out-File -FilePath $pr -Encoding utf8
-            python tools/closing_keyword_scan.py --github-json $pr
-          } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
             git log --format=%B "$env:BEFORE_SHA..$env:GITHUB_SHA" |
               python tools/closing_keyword_scan.py -
           } else {
