@@ -1012,10 +1012,10 @@ def parse(text: str, path: Path) -> Sheet:
             )
 
     declaration_text = " ".join(sheet.thresholds.split())
-    has_null_declaration = any(
-        " ".join(declaration.split()) in declaration_text
-        for declaration in (NONE_DECLARATION, NON_SOURCE_DECLARATION)
-    )
+    has_null_declaration = declaration_text in {
+        " ".join(NONE_DECLARATION.split()),
+        " ".join(NON_SOURCE_DECLARATION.split()),
+    }
     if not sheet.rows and not has_null_declaration:
         sheet.ok = False
         sheet.why_not = "no row under a '## Thresholds' heading"
@@ -1034,9 +1034,9 @@ def gate_schema(
         f"{sheet.path.name}  {problem}" for problem in sheet.accepted_distrust_problems
     )
     declaration_text = " ".join(sheet.thresholds.split())
-    has_none_declaration = " ".join(NONE_DECLARATION.split()) in declaration_text
-    has_non_source_declaration = (
-        " ".join(NON_SOURCE_DECLARATION.split()) in declaration_text
+    has_none_declaration = declaration_text == " ".join(NONE_DECLARATION.split())
+    has_non_source_declaration = declaration_text == " ".join(
+        NON_SOURCE_DECLARATION.split()
     )
     all_sources_declared_non_source = bool(sheet.sources) and all(
         source.get("source class") in DECLARED_NON_SOURCE_CLASSES

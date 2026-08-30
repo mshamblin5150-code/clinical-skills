@@ -333,6 +333,42 @@ class Parsing(unittest.TestCase):
         self.assertTrue(parsed.ok, parsed.why_not)
         self.assertEqual(parsed.rows, [])
 
+    def test_a_null_declaration_with_appended_prose_is_not_exact(self):
+        parsed = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\n"
+            + gate.NONE_DECLARATION
+            + "\nAdditional ungraded prose.\n",
+            Path("x.md"),
+        )
+
+        self.assertFalse(parsed.ok)
+        self.assertEqual(parsed.why_not, "no row under a '## Thresholds' heading")
+
+    def test_a_null_declaration_with_prepended_prose_is_not_exact(self):
+        parsed = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\nAdditional ungraded prose.\n"
+            + gate.NONE_DECLARATION
+            + "\n",
+            Path("x.md"),
+        )
+
+        self.assertFalse(parsed.ok)
+        self.assertEqual(parsed.why_not, "no row under a '## Thresholds' heading")
+
+    def test_a_null_declaration_embedded_in_a_malformed_row_is_not_exact(self):
+        parsed = gate.parse(
+            HEADER
+            + "\n## Thresholds\n\n| malformed | "
+            + gate.NONE_DECLARATION
+            + " |\n",
+            Path("x.md"),
+        )
+
+        self.assertFalse(parsed.ok)
+        self.assertEqual(parsed.why_not, "no row under a '## Thresholds' heading")
+
     def test_a_populated_threshold_table_that_loses_a_column_is_not_reclassified_as_null(self):
         malformed = (
             HEADER
@@ -1298,17 +1334,37 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
                 self.assertRegex(report, rf"(?m)^\s+{re.escape(label)}\s+NO ROWS$")
 
     def test_the_same_four_gates_keep_ordinary_counts_on_a_populated_sheet(self):
-        parsed = sheet(row())
-        results = (
-            gate.gate_citation_tier1(parsed),
-            gate.gate_citation_tier2(parsed, Path("C:/nowhere")),
-            gate.gate_range(parsed),
-            gate.gate_watermark(parsed, None),
-        )
+        with TierTwoHoldsItsResolutionDeclaration.live_pdf_root() as pdf_root:
+            parsed = TierTwoHoldsItsResolutionDeclaration.parsed(
+                HEADER.replace(TEST_PDF_ROOT, pdf_root.as_posix())
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                text_root = Path(directory)
+                text_corpus(
+                    text_root,
+                    "Society/doc",
+                    "an SBP goal of <130 mm Hg for adults",
+                    boilerplate=["Jones et al"],
+                )
+                reports = tuple(
+                    result.report[0]
+                    for result in (
+                        gate.gate_citation_tier1(parsed),
+                        gate.gate_citation_tier2(parsed, pdf_root),
+                        gate.gate_range(parsed),
+                        gate.gate_watermark(parsed, text_root),
+                    )
+                )
 
-        for result in results:
-            with self.subTest(gate=result.gate):
-                self.assertNotIn("NO ROWS", result.report[0])
+        self.assertEqual(
+            reports,
+            (
+                "  CITATION tier 1 0",
+                "  CITATION tier 2 0",
+                "  RANGE           0  (0 numbers carried no unit this grades)",
+                "  WATERMARK       0 refusing",
+            ),
+        )
 
 
 class ExtractionIdentityGate(unittest.TestCase):
