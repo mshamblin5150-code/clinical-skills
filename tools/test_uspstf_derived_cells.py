@@ -8,9 +8,9 @@ network access.
 
 ## What this cannot reach
 
-**Whether ``population`` content is correct.** Population uses a different grammar and
-can fall back to a document field that the committed table does not carry. This file
-establishes that every committed Population cell is present; it establishes nothing
+**Whether ``population`` content is correct.** Population uses a different grammar, and
+field-quoted cells are named in the committed table's population-quotation section. This
+file establishes that every committed Population cell is present; it establishes nothing
 about whether a cell's content is right.
 
 **Whether a document states a period outside the recommendation sentence.** Issue #435

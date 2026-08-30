@@ -26,12 +26,11 @@ layouts all at once, and it is why a document that changes its section headings 
 parses.
 
 **What this does not do.** It does not read the recommendation; it transcribes it. The
-``population`` column is quoted from the statement when possible and otherwise from the
-document's declared ``POPULATION`` field. The ``interval`` column is derived from the
-statement text alone. Where the applicable rule finds nothing, the cell says so rather
-than guessing. Every row carries ``filename`` and ``page`` so a grade can be checked
-against the source in one jump, and that jump is the check -- the table is an index into
-the corpus, not a substitute for it.
+``derive_population`` owns the population column's source-selection rule. The
+``interval`` column is derived from the statement text alone. Where the applicable rule
+finds nothing, the cell says so rather than guessing. Every row carries ``filename`` and
+``page`` so a grade can be checked against the source in one jump, and that jump is the
+check -- the table is an index into the corpus, not a substitute for it.
 
 Usage::
 
@@ -64,6 +63,94 @@ DEFAULT_COVERAGE_REGISTRY = REPO_ROOT / "reference" / "thresholds" / "coverage.m
 GRADES = ("A", "B", "C", "D", "I")
 
 NOT_STATED = "not stated"
+
+
+@dataclass(frozen=True)
+class IntervalAbsence:
+    """One hand-read passage where the USPSTF states it found no interval evidence."""
+
+    filename: str
+    page: int
+    quotation: str
+    rendered: bool = False
+
+
+# Membership is read, never matched. The vocabulary below can refuse a hand-read row in
+# tier 1; it never proposes one. ``rendered`` records the one passage whose extraction
+# stops at a figure boundary and which was instead read from the rendered page.
+INTERVAL_ABSENCE_VOCABULARY = (
+    "found no evidence on",
+    "found no evidence to determine",
+)
+INTERVAL_ABSENCES = (
+    IntervalAbsence(
+        "anxiety-adults-screening-final-recommendation.pdf",
+        4,
+        "The USPSTF found no evidence on the optimal frequency of screening for anxiety "
+        "disorders. In the absence of evidence, a pragmatic approach might include "
+        "screening adults who have not been screened previously and using clinical "
+        "judgment while considering risk factors, comorbid conditions, and life events "
+        "to determine if additional screening of patients at increased risk is warranted. "
+        "Ongoing assessment of risks that may develop during pregnancy and the postpartum "
+        "period is also a reasonable approach.",
+    ),
+    IntervalAbsence(
+        "depression-suicide-risk-adults-rs.pdf",
+        4,
+        "The USPSTF found no evidence on the optimal frequency of screening for depression. "
+        "In the absence of evidence, a pragmatic approach might include screening adults "
+        "who have not been screened previously and using clinical judgment while considering "
+        "risk factors, comorbid conditions, and life events to determine if additional "
+        "screening of patients at increased risk is warranted. Ongoing assessment of risks "
+        "that may develop during pregnancy and the postpartum period is also a reasonable "
+        "approach.",
+    ),
+    IntervalAbsence(
+        "hepatitis-b-screening-adults-adolescents-final-rec-statement.pdf",
+        3,
+        "For patients with negative HBsAg results who have not received the HBV vaccine "
+        "series, periodic screening may be useful for those who report continued risk for "
+        "acquiring HBV transmission, such as persons who continue to inject drugs and men "
+        "who have sex with men. Clinical judgment should be used to determine screening "
+        "frequency. The USPSTF found no evidence to determine optimal screening intervals.",
+    ),
+    IntervalAbsence(
+        "ipv-screening-final-rec-statement.pdf",
+        3,
+        "The USPSTF found no evidence on appropriate intervals for screening.",
+    ),
+    IntervalAbsence(
+        "latent-tuberulosis-screening-final-rec-statement.pdf",
+        4,
+        "The USPSTF found no evidence on the optimal frequency of screening for LTBI. In "
+        "the absence of evidence, a reasonable approach is to repeat screening based on "
+        "specific risk factors; screening frequency could range from 1-time only screening "
+        "among persons at low risk for future tuberculosis exposure to annual screening "
+        "among those at continued risk of exposure.",
+    ),
+    IntervalAbsence(
+        "screening-anxiety-children-final-recommendation.pdf",
+        3,
+        "The USPSTF found no evidence on appropriate or recommended screening "
+        "intervals, and the optimal interval is unknown. Repeated screening may be most "
+        "productive in adolescents with risk factors for anxiety. Opportunistic screening "
+        "may be appropriate for adolescents, who may have infrequent health care visits.",
+        rendered=True,
+    ),
+    IntervalAbsence(
+        "screening-depression-suicide-risk-children-final-recommendation.pdf",
+        4,
+        "The USPSTF found no evidence on appropriate or recommended screening intervals "
+        "for depression, and the optimal interval is unknown. Repeated screening may be "
+        "most productive in adolescents with risk factors for depression. Opportunistic "
+        "screening may be appropriate for adolescents, who may have infrequent health care "
+        "visits.",
+    ),
+)
+
+
+class _DeclaredFieldQuotation(str):
+    """A fallback value whose identity records that ``derive_population`` selected it."""
 
 
 # --------------------------------------------------------------------------------------
@@ -686,6 +773,7 @@ class Row:
     page: int
     statement: str = ""
     superseded_by: str = ""
+    population_from_declared_field: bool = False
 
 
 @dataclass
@@ -710,19 +798,25 @@ def parse_document(
     topic = derive_topic(pages, filename, metadata_title)
     year = derive_year(pages)
     fallback = document_population(pages)
-    rows = [
-        Row(
-            topic=topic,
-            population=derive_population(statement.text, fallback),
-            grade=statement.grade,
-            interval=derive_interval(statement.text),
-            year=year,
-            filename=Path(filename).name,
-            page=region.page,
-            statement=statement.text,
+    declared_field = _DeclaredFieldQuotation(fallback) if fallback else ""
+    rows = []
+    for statement in statements:
+        population = derive_population(statement.text, declared_field)
+        rows.append(
+            Row(
+                topic=topic,
+                population=str(population),
+                grade=statement.grade,
+                interval=derive_interval(statement.text),
+                year=year,
+                filename=Path(filename).name,
+                page=region.page,
+                statement=statement.text,
+                population_from_declared_field=(
+                    bool(fallback) and population is declared_field
+                ),
+            )
         )
-        for statement in statements
-    ]
     return DocumentResult(filename, rows=rows)
 
 
@@ -832,13 +926,10 @@ def render_markdown(
         "**This is an index into the corpus, not a substitute for it.** Every row carries "
         "the source `filename` and the `page` the grade was read from, so any grade can be "
         "checked against the document in one jump — and a row that matters to a patient "
-        "should be. `population` is quoted from the statement when possible and otherwise "
-        "from the document's declared `POPULATION` field. `interval` is derived from the "
-        "statement sentence alone, a reach ruled permanent rather than awaiting a wider "
-        "derivation. `not stated` means "
+        "should be. Population field quotations and documents stating that the USPSTF "
+        "found no interval evidence are listed in sections below. `not stated` means "
         "the rule found nothing there, which for `interval` is the ordinary case rather than "
-        "a gap. A document may state elsewhere that no interval is established. Where a "
-        "recommendation offers alternatives, "
+        "a gap. Where a recommendation offers alternatives, "
         "`interval` names every recurrence of a recommended service that its statement "
         f"names, joined with `{INTERVAL_ALTERNATIVE_JOIN.strip()}`; the modality that "
         "distinguishes them is in `## Statements` and not in the cell. A dose or supplement "
@@ -929,9 +1020,10 @@ def render_markdown(
     out.append("## Statements")
     out.append("")
     out.append(
-        "**Beyond the columns #82 asked for, and here for a reason.** `population` is "
-        "quoted from the statement where possible but may instead quote the document's "
-        "declared `POPULATION` field; `interval` is derived from the statement. The source "
+        "**Beyond the columns #82 asked for, and here for a reason.** Population cells "
+        "that cannot be checked against their statement are named under "
+        "`## Population cells quoted from the declared field`; `interval` is derived from "
+        "the statement. The source "
         "PDFs stay outside this "
         "repo and are not redistributed ([#87](https://github.com/mshamblin5150-code/"
         "clinical-skills/issues/87)) — so without the sentence each row was cut from, a "
@@ -945,6 +1037,51 @@ def render_markdown(
     out.append("| --- | --- | --- | --- |")
     for row in rows:
         out.append(render_row(row.grade, row.statement, f"`{row.filename}`", str(row.page)))
+    out.append("")
+    out.append("## Population cells quoted from the declared field")
+    out.append("")
+    field_rows = [
+        row
+        for row in rows
+        if row.population_from_declared_field and row.population != NOT_STATED
+    ]
+    field_pairs = sorted(
+        {(row.population, row.filename, row.page) for row in field_rows},
+        key=lambda pair: (pair[1].casefold(), pair[2], pair[0].casefold()),
+    )
+    out.append(
+        f"{plural(len(field_rows), 'recommendation row')} form "
+        f"{plural(len(field_pairs), 'population-and-document pair')}. These cells quote "
+        "the document's declared `POPULATION` field because the recommendation statement "
+        "does not name a population. A `not stated` cell is excluded: it means neither "
+        "route supplied a value and therefore cannot be a field quotation. The grade-I "
+        "pair from `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` "
+        "is byte-identical across all nine recommendation columns and is separable only "
+        "through `## Statements`."
+    )
+    out.append("")
+    out.append("| Population | File | Page |")
+    out.append("| --- | --- | --- |")
+    for population, filename, page in field_pairs:
+        out.append(render_row(population, f"`{filename}`", str(page)))
+    out.append("")
+    out.append("## Documents stating no interval evidence was found")
+    out.append("")
+    out.append(
+        f"{plural(len(INTERVAL_ABSENCES), 'document')} state that the USPSTF found no "
+        "evidence on the screening interval. This is a hand-read class: `limited`, "
+        "`not well established`, and silence do not earn membership, and absence from "
+        "this section does not establish that a document is silent. Each quotation keeps "
+        "the source's whole passage, including any approach offered in the absence of "
+        "evidence. `RENDERED:` records a passage read from the page because the extracted "
+        "text is truncated."
+    )
+    out.append("")
+    out.append("| File | Page | Quotation |")
+    out.append("| --- | --- | --- |")
+    for entry in INTERVAL_ABSENCES:
+        quotation = f"{'RENDERED: ' if entry.rendered else ''}{entry.quotation}"
+        out.append(render_row(f"`{entry.filename}`", str(entry.page), quotation))
     out.append("")
     out.append("## Documents contributing no rows")
     out.append("")
