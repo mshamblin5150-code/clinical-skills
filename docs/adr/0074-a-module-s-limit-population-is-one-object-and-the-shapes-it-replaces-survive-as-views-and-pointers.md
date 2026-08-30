@@ -19,17 +19,24 @@ this is the record the build reads.
 
 ## Measured before ruling, at `6b3c2b5`
 
-The four live shapes, re-derived rather than inherited from the ticket's sweeps: **five docstring
-bullets** under *"What no gate here reaches"* (`tools/threshold_sheet.py:146-176`) followed by two
-prose paragraphs (`:178-190`); **four loose constants** — `WHY_NO_WRITE_GUARD` (`:306`),
-`WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED` (`:321`),
-`PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES` (`:332`), `SECOND_READ_IS_A_SMOKE_TEST` (`:1991`,
-the one that prints, at `:2226` and `:2409`); the **eight-row two-tuple**
-`SCOPE_SUMMARY_NOT_REACHED` (`:1237`), the only shape with a tested no-copy README pointer; and
-**untested README prose copies** (`reference/thresholds/README.md:495-677` and the per-gate
-sections), one of which has already drifted — the README's wrong-heading bullet says *"passes
-every gate in this directory"* where the module's corrected sentence says *"every **automatic**
-gate here"* and adds the SECOND-READ qualifier the README lacks.
+The four live shapes, re-derived rather than inherited from the ticket's sweeps, and named rather
+than pinned to coordinates on
+[ADR 0075](0075-a-ruling-ordinal-has-one-referent-addenda-continue-the-numbering-and-the-citation-resolver-is-a-third-walker-joining-against-the-record-s-own-list.md)
+ruling 8's terms — this ticket's own thread is that ruling's worked instance, ten sweeps reporting
+the body's constant anchors stale after the module moved them by 41 to 358 lines:
+
+**Five docstring bullets** under the heading *"What no gate here reaches, stated the same day the
+gates were built"*, followed by two prose paragraphs — the *deliberately not built, because it
+would pass for the wrong reason* one and the `SECOND READ` independence argument. **Four loose
+constants** — `WHY_NO_WRITE_GUARD`, `WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED`,
+`PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES`, and `SECOND_READ_IS_A_SMOKE_TEST`, which is the one
+of the four that prints, from the `--brief --span` work order and from gate 5's own result. The
+**eight-row two-tuple** `SCOPE_SUMMARY_NOT_REACHED`, the only shape carrying a tested no-copy
+README pointer. And **untested prose copies** in `reference/thresholds/README.md`'s per-gate
+sections and its *"The holes, written down the same day the gates were built"* list, one of which
+has already drifted — the README's wrong-heading bullet says *"passes every gate in this
+directory"* where the module's corrected sentence says *"every **automatic** gate here"* and adds
+the `SECOND READ` qualifier the README lacks.
 
 **Three ratified rows are queued into this population with no home**: ADR 0064's cross-topic
 limit (ratified and unbuilt — the docstring list still holds five bullets, parsed rather than
@@ -48,9 +55,13 @@ correction demanding *eight* become *five*, which the last exhaustive sweep fals
 instrument. And the module's own `SCOPE_SUMMARY_NOT_REACHED` scores zero on every name-keyed
 spelling tried, because its prefix is the scope rather than the word.
 
-One premise of the thread is dead and is recorded so nobody re-derives it: the tier-2 skip
-comment stating ADR 0043's rejected reading, historically at `:1302-1304`, is already gone —
-that repair landed with #501's build, not here.
+One premise of the thread is dead and is recorded so nobody re-derives it: the tier-2 skip comment
+that stated
+[ADR 0043](0043-a-rendered-cell-is-a-page-transcription-and-its-marker-records-the-read-rather-than-an-extraction-failure.md)
+ruling 1's rejected reading — the skip justifying itself as avoiding a citation failure that is
+really an extraction failure — is **already gone**. That repair landed with #501's build; it is
+not this build's to make, and a sweep re-deriving it from the ticket's coordinates will find code
+with no comment there.
 
 ## Ruled 2026-08-29
 
