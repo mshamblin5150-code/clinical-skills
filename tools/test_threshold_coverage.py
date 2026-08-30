@@ -16,16 +16,16 @@ sys.path.insert(0, str(ROOT / "tools"))
 import threshold_sheet  # noqa: E402
 
 
-CATALOG = """| society | filename | title | topic | population | year | page_count | class |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| USPSTF | first.pdf | First | cervical cancer | adults | 2018 | 10 | recommendation-statement |
-| AHA ACC | second.pdf | Second | hypertension | adults | 2025 | 20 | guideline |
-| AHA ACC | third.pdf | Third | hypertension | adults | 2024 | 18 | guideline |
+CATALOG = """| society | filename | title | topic | population | year | page_count | class | citation |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| USPSTF | first.pdf | First | cervical cancer | adults | 2018 | 10 | recommendation-statement | ? |
+| AHA ACC | second.pdf | Second | hypertension | adults | 2025 | 20 | guideline | ? |
+| AHA ACC | third.pdf | Third | hypertension | adults | 2024 | 18 | guideline | ? |
 """
 
 NON_SOURCE_CATALOG = CATALOG + (
     "| KDIGO | scope.pdf | Scope | heart failure in chronic kidney disease | "
-    "adults | 2026 | 9 | scope-of-work |\n"
+    "adults | 2026 | 9 | scope-of-work | ? |\n"
 )
 
 
@@ -82,6 +82,21 @@ extraction identity: producer 0000000000000000000000000000000000000000; tools/gu
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | interval | adults | 3 years | "every 3 years" | first | p1 | p1/rec/1 | B |
 """
+
+
+def null_artifact() -> str:
+    return artifact("yes").replace(
+        "**Not read:** as declared below.",
+        "**Not read:** nothing in the source page range.",
+    ).replace(
+        "| recommendation statement | 1 | yes |",
+        "| recommendation statement | 1 | read 2026-08-29 |",
+    ).replace(
+        "| quantity | population | value | snippet | source | page | rec | class |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        "| interval | adults | 3 years | \"every 3 years\" | first | p1 | p1/rec/1 | B |",
+        threshold_sheet.NONE_DECLARATION,
+    )
 
 
 def non_source_artifact(pages: str = "1-9") -> str:
@@ -224,6 +239,62 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("zero-row artifact", result.stderr)
         self.assertIn("does not cover every catalog page", result.stderr)
+
+    def test_a_full_coverage_null_sheet_derives_none(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(null_artifact(), encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | none | cervical.md | all pages read; no decision point |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout, r"(?m)^none\s+1\s+artifacts\s+1")
+
+    def test_a_null_sheet_stranded_under_unread_refuses_as_derived_none(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(null_artifact(), encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | unread | cervical.md | state not promoted |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("state 'unread'", result.stderr)
+        self.assertIn("derived state 'none'", result.stderr)
+
+    def test_a_none_row_over_a_populated_sheet_refuses_as_derived_sheet(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(artifact("yes"), encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | none | cervical.md | wrong null claim |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("state 'none'", result.stderr)
+        self.assertIn("derived state 'sheet'", result.stderr)
 
     def test_source_class_query_rederives_topics_without_a_registry(self):
         result = self.run_cli(

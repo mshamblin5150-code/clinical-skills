@@ -652,6 +652,9 @@ Absence of a row means different things in the two sheets, and writing one wordi
   2. the recommendation was **scoped out by name** for carrying nothing a decision-point sheet can hold — 50 of hypertension's 103 are, each with its own reason in `## Coverage`, **28 of them reading exactly `no number`** and the rest naming what was missing more precisely: `no numeric trigger`, `no threshold value`, `no dose or duration stated`, and twice a number that exists only in a footnote. `single-pill combination recommended` and `shared decision-making principle` are both in that list,
   3. the section it would be in was **never read** — follow the sheet's `## Scope` to its span table, which is the authoritative unread list.
 
+A sheet whose `## Scope` reports nothing unread has eliminated meaning 3; it has not
+turned either remaining meaning into a note-body verdict.
+
 So a threshold sheet that holds no row for what the note asserts earns `sheet does not settle it` and never `no guideline applies`.
 
 ### The citation

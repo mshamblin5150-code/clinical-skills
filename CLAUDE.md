@@ -139,6 +139,14 @@ if __name__ == "__main__":
 
 **`icd10_lookup.py` was safe, and not for the reason #150 assumed** — it prints tabular notes as well as descriptors, and only the descriptors are ASCII. The counts, the date and the nine code points are in that module's own docstring and **deliberately not restated here**, on `spelling_scan --record`'s terms: [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is one figure that went stale across many files at once, and a number is cheapest to keep true where the code that produces it lives. **The count of places is deliberately not restated here**, because #143's own headline figures have since gone stale twice over — 31 became 34, and 34 is 37 today across six fixture sets — which is the ticket demonstrating its own thesis on itself.
 
+### Grader conformance
+
+`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, and exit precedence. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
+
+The distinction comes from the whole-family shape read recorded in [ADR 0080](docs/adr/0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md). The discussion scanners use booleans to suppress report rows, while `case_study_scan` uses banner flags that append prose and suppress nothing; other riders may have no boolean field at all. Applying the gate walk automatically would therefore grade a correct banner shape as defective. Opting in lets the discussion pair share one report-width rule without asserting that every grader must adopt their boolean-gate arrangement or the nullable-sentinel arrangement refused by [ADR 0071](docs/adr/0071-a-gated-row-set-is-derived-from-its-sentinel-and-guarded-by-a-walk-in-its-own-module.md).
+
+The shared walk proves that each declared gate changes only its declared fields and finding kinds, and that omitted groups say `not graded`. It does not prove command-line reachability or exit status. Each opting-in module owns those through real-fixture positive controls and a `HANDLERS` pair in its test module.
+
 ### Corpus census
 
 Several claims in [clinical-note](skills/clinical-note/SKILL.md) are counts over the clinician's shorthand corpus, and rulings have turned on them. `tools/corpus_census.py` recomputes all of them:
@@ -1184,7 +1192,7 @@ python tools/uspstf_table.py "C:/codeing/guidelines-text"
 
 **The corpus lives outside this repo** at `C:\codeing\guidelines-src` — mostly society-copyrighted PDFs — and stays there. [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is why, and the source PDFs are closed rather than deferred: no consumer needs them, they need the derived facts.
 
-**The redirect onto [#80](https://github.com/mshamblin5150-code/clinical-skills/issues/80)'s output landed on [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108).** Three documents take their topic from the PDF's metadata title because page 1 is browser chrome, opens with the recommendation instead of a title, or extracted without space glyphs. The manifest carries that title for all three, so the handoff preserves them while removing the second PDF reader. A missing manifest is a failure rather than a corpus with blank titles.
+**The redirect onto [#80](https://github.com/mshamblin5150-code/clinical-skills/issues/80)'s output landed on [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108).** Some documents take their recommendation-table `Topic` cell from the PDF's metadata title because page 1 is browser chrome, opens with the recommendation instead of a title, or extracted without space glyphs. `uspstf_table.derive_topic` owns that selection. The manifest carries the title, so the handoff preserves it while removing the second PDF reader. A missing manifest is a failure rather than a corpus with blank titles.
 
 **The grade marker is the anchor, not any section heading.** A USPSTF document states each recommendation two to four times and the renderings differ, so the builder scores every candidate region — structured abstract, summary section, page-1 figure — and picks the one stating the most recommendations, breaking ties on whether extraction kept the space glyphs. Two documents extract a whole paragraph as `TheUSPSTFrecommendsscreening...`; the figure states the same recommendations cleanly and wins.
 
@@ -1194,16 +1202,16 @@ Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in
 
 ### Guideline catalog
 
-`reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
+`reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class, stated citation. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
 
 ```bash
 python tools/guidelines_catalog.py                              # audit the committed catalog
 python tools/guidelines_catalog.py --draft C:/codeing/guidelines-text  # scaffold to curate from
 ```
 
-**The catalog is curated and the tool audits it, which is the opposite of `icd10_build.py`.** `--draft` fills only what a machine can settle — society, filename, page count, class — and takes a run at title and year; it leaves `topic` and `population` blank on purpose, because a rule that reads those off a title page is guessing and **a guessed population is worse than a blank one**: it is the field that decides whether a threshold applies to the patient at all. So the committed Markdown is the source of truth, and the default run re-derives the mechanical columns and refuses a catalog that has drifted — a dropped row, a wrong page count, a row for a file that is gone, a `?` nobody listed in the closing comment.
+**The catalog is curated and the tool audits it, which is the opposite of `icd10_build.py`.** `--draft` fills only what a machine can settle — society, filename, page count, class — and takes a run at title and year. It leaves `topic` and `population` blank on purpose, and offers a page-1 DOI only with an `UNCONFIRMED:` marker; a rule that silently promotes any of those readings is guessing and **a guessed population or citation is worse than a blank one**. So the committed Markdown is the source of truth, and the default run re-derives the mechanical columns and refuses a catalog that has drifted — a dropped row, a wrong page count, a row for a file that is gone, a `?` nobody listed in the closing comment.
 
-**43 cells are `?` today, 36 of them `population`**, and that is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
+An unsettled cell is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
 
 It reports filenames, column names and counts, never document text, so its output is safe to paste. Covered by `tools/test_guidelines_catalog.py`, which runs against fixtures in `tools/testdata/` and **never against the shipped catalog**. Its public-seam fixture builds a one-document #80 artifact and proves the draft reader needs no PDF.
 
@@ -1245,7 +1253,7 @@ The catalog documents a `class` column and `guidelines_search.py --class` filter
 
 **And the reading between the two was a third branch's build.** `manifest.json` and the index sit on one path that multiple worktrees can write, so a rebuild there reported whatever ran last anywhere — for a window on 2026-08-19 that was #178's extractor, publishing the retired vocabulary against a character count belonging to neither branch. **What made it visible rather than silent was #185's own new exit-2 limb**, which named the classes the index actually held. At the time, `SCHEMA_VERSION` guarded the schema while neither artifact recorded its producing commit; #184 now records and checks that identity, while #276 owns the remaining writer race.
 
-**What was re-checked is the `class` column and not the rows.** #185's third *Done when* asks for the three ACIP and 90 USPSTF rows re-checked under the ruling; what that means here is a cell-by-cell comparison of the extractor's answer against the committed catalog, every row agreeing. It is not a reading of those rows' `topic` or `population`, which is [#106](https://github.com/mshamblin5150-code/clinical-skills/issues/106)'s four hand-read columns and stays there.
+**What was re-checked is the `class` column and not the rows.** #185's third *Done when* asks for the three ACIP and 90 USPSTF rows re-checked under the ruling; what that means here is a cell-by-cell comparison of the extractor's answer against the committed catalog, every row agreeing. It is not a reading of those rows' judgment columns, which are the independently audited fields ruled by [#106](https://github.com/mshamblin5150-code/clinical-skills/issues/106) and [#512](https://github.com/mshamblin5150-code/clinical-skills/issues/512).
 
 ### Guideline full-text index
 

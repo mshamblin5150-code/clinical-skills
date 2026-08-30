@@ -53,6 +53,7 @@ from discussion_artifact import (
 )
 import run_grader
 import coursework_run
+from case_study_scan import EvidenceDisposition
 
 
 WORD_FLOOR = "word-floor"
@@ -81,32 +82,72 @@ ROWS = {
 }
 KINDS = tuple(ROWS)
 
-NOT_REACHED = (
+GATED_ROW_SETS = {
+    "docx_graded": ((BOLD_HEADINGS,), ()),
+    "reference_boundary_graded": (
+        (
+            WORD_FLOOR,
+            REFERENCE_MINIMUM,
+            UNTRACED_NUMBER,
+            UNTRACED_CITATION,
+            LEGAL_REFERENCE_NAME,
+        ),
+        (
+            "words",
+            "references",
+            "numeric_claims",
+            "citations",
+            "invoked_sources",
+            "unfilled_invoked_properties",
+            "pre_496_markers",
+        ),
+    ),
+}
+ABSENT_BY_DESIGN_FIELDS = ("word_ceiling",)
+
+DECLARED_LIMITS = (
     (
         "whether the bar transcription is complete",
         "The command can read structured values but cannot compare the quoted bar with the live topic and syllabus pages.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether the topic overrides the syllabus",
         "The command receives one signed result and cannot decide whether an observed topic statement should supersede the syllabus.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a prose bar element is satisfied",
         "A bar element such as including an ISBN has no honest general text pattern and remains an independent reading.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a reference actually supports the required proposition",
         "Counting an entry cannot establish that it supports the proposition required by the signed bar.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a claim record describes the cited sentence",
         "A source-and-year join establishes record presence but cannot decide whether the claim heading faithfully describes that sentence.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether posted replies have posted readings",
         "This command grades only the initial post record; discussion_reply_scan owns every response artifact in the shared reread file.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether named heading styles were graded when --docx was omitted",
+        "Without --docx, the command does not inspect document XML, so the bold-headings row is not graded even when the remaining report exits cleanly.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether reference-dependent rows ran after a refused reference label",
+        "When the reference label is refused, the command does not grade the dependent body and reference rows; their not graded output is coverage refusal, not zero findings.",
+        EvidenceDisposition.BEHAVIOR,
     ),
 )
+NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
 
 FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 REFERENCE_HEADING = re.compile(r"(?mi)^#{1,6}\s+References\s*$")

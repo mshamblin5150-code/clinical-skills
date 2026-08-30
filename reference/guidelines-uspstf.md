@@ -2,7 +2,7 @@
 
 143 recommendation statements from 90 of 90 USPSTF documents in the guideline corpus, one row each. Built by `tools/uspstf_table.py`; see that module for how every column is derived. Issue #82.
 
-**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. Population field quotations and documents stating that the USPSTF found no interval evidence are listed in sections below. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. Where a recommendation offers alternatives, `interval` names every recurrence of a recommended service that its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell. A dose or supplement frequency is not a recurrence and is deliberately outside the column.
+**This is an index into the corpus, not a substitute for it.** Every row carries the source `filename` and the `page` the grade was read from, so any grade can be checked against the document in one jump — and a row that matters to a patient should be. Recommendation-table `Topic` and `Population` field quotations and documents stating that the USPSTF found no interval evidence are listed in sections below. `not stated` means the rule found nothing there, which for `interval` is the ordinary case rather than a gap. Where a recommendation offers alternatives, `interval` names every recurrence of a recommended service that its statement names, joined with `or`; the modality that distinguishes them is in `## Statements` and not in the cell. A dose or supplement frequency is not a recurrence and is deliberately outside the column.
 
 **USPSTF recommendation statements are federal work and public domain**, which is why this half of the corpus ships as a table of its own content while the society documents do not. The source PDFs stay outside this repo and are not redistributed.
 
@@ -339,6 +339,16 @@
 | Community-dwelling, nonpregnant adults | `multivitamin-mineral-suppl-cvd-cancer-prev-final-recommendation.pdf` | 1 |
 | Asymptomatic adults (18 years or older) and adults with unrecognized symptoms of OSA | `sleep-apnea-screening-final-rec-statement.pdf` | 1 |
 | Adolescents and adults who are pregnant | `syphilis-pregnancy-screening-final-rec-statement.pdf` | 1 |
+
+## Topic cells quoted from the declared field
+
+3 documents quote the PDF's declared title field because page 1 does not yield a usable title. The filename-slug route is excluded: it is not a quotation of a field the document declares.
+
+| Topic | File |
+| --- | --- |
+| Screening for Autism Spectrum Disorder in Young Children | `autismfinalrs.pdf` |
+| Screening for Rh (D) Incompatibility | `rhrs.pdf` |
+| Screening for Thyroid Cancer | `Screening for Thyroid Cancer US Preventive Services Task Force Recommendation Statement Cancer Screening, Prevention, Control JAMA JAMA Network.pdf` |
 
 ## Documents stating no interval evidence was found
 

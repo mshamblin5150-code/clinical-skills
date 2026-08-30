@@ -79,6 +79,7 @@ import guidelines_index
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
+CONTEXT = REPO_ROOT / "CONTEXT.md"
 
 
 class TheCatalogPublishesOnlyValuesTheIndexCanAnswer(unittest.TestCase):
@@ -123,6 +124,15 @@ class TheCatalogPublishesOnlyValuesTheIndexCanAnswer(unittest.TestCase):
         the check exists to catch.
         """
         self.assertIs(guidelines_catalog.CLASSES, guidelines_extract.CLASSES)
+
+
+class TheCatalogAndGlossaryPointToTheDeclaredLimits(unittest.TestCase):
+    def test_both_prose_surfaces_point_to_the_module_object(self) -> None:
+        for path in (CATALOG, CONTEXT):
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(text.count("guidelines_catalog.NOT_REACHED"), 1, path)
+            for _, reason in guidelines_catalog.NOT_REACHED:
+                self.assertNotIn(reason, text, path)
 
 
 class TheInstrumentIsLive(unittest.TestCase):

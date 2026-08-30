@@ -150,8 +150,8 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 ``specificity_scan.py``'s arrangement and ``guidelines_search.py``'s before it: 0
 when every reached floor is clean, 1 on a violation, and **2 for every way of not having
 scanned** -- invalid invocation, no directory, no notes in it, no differential entry in
-any note read, no numbered item in a labeled block, and any bare ``NOT CODED``
-mark.** The last three matter most: a run
+any note read, no numbered item in a labeled block, any bare ``NOT CODED`` mark,
+and a cited threshold sheet did not parse.** The last four matter most: a run
 whose differential was written in some shape this parser does not read, or whose
 refusals are written in the form row 22 retired, would otherwise report zero
 violations and look like a pass.
@@ -221,6 +221,7 @@ from pathlib import Path
 
 import run_grader
 import threshold_coverage
+import threshold_sheet
 
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
 # extension -- which is what keeps ``97.3`` and ``4/10`` out.
@@ -331,6 +332,7 @@ REFERENCE_ROOT = Path(__file__).resolve().parent.parent / "reference"
 USPSTF_SHEET = REFERENCE_ROOT / "guidelines-uspstf.md"
 THRESHOLD_ROOT = REFERENCE_ROOT / "thresholds"
 THRESHOLD_COVERAGE = THRESHOLD_ROOT / "coverage.md"
+DRAFT_SOURCE_CLASSES = {"draft"}
 
 
 # **What this scanner's validation set does not reach**, declared rather than
@@ -407,6 +409,13 @@ NOT_VALIDATED_AGAINST = (
         "populations and the reader residue on every report; it never promotes "
         "its clean count to the wide Assessment verdict.",
     ),
+    (
+        "the draft-backed citation branch on committed sheets",
+        "No committed threshold sheet carries a source whose class is ``draft``, "
+        "so the candidate firing path is exercised synthetically. The directory "
+        "walk in the test re-derives that absence and tells the next session to "
+        "re-examine this row when a draft-backed sheet lands.",
+    ),
 )
 
 
@@ -473,13 +482,24 @@ class GuidelineCandidate:
 
 
 @dataclass(frozen=True)
-class ThresholdRow:
-    """One shipped threshold row, kept intact for citation joins."""
+class ThresholdSheetFailure:
+    """One cited threshold sheet the shared parser could not read."""
 
-    source: str
-    strength: str
-    value: str
-    context: str
+    path: Path
+    why_not: str
+
+
+@dataclass(frozen=True)
+class GuidelineFloor:
+    """The row-24 observations produced by one note."""
+
+    checked: int
+    findings: tuple[GuidelineFinding, ...]
+    candidates: tuple[GuidelineCandidate, ...]
+    draft_backed: tuple[GuidelineCandidate, ...]
+    source_classes_read: int
+    source_class_tails: int
+    parse_failures: tuple[ThresholdSheetFailure, ...]
 
 
 @dataclass(frozen=True)
@@ -507,6 +527,10 @@ class Note:
     guideline_tails_checked: int = 0
     guideline_findings: tuple[GuidelineFinding, ...] = ()
     guideline_candidates: tuple[GuidelineCandidate, ...] = ()
+    draft_backed_citations: tuple[GuidelineCandidate, ...] = ()
+    source_classes_read: int = 0
+    source_class_tails: int = 0
+    threshold_sheet_failures: tuple[ThresholdSheetFailure, ...] = ()
 
 
 REFUSED_CODE = "refused-code-in-differential-slot"
@@ -544,6 +568,10 @@ class Scan:
     guideline_tails_checked: int = 0
     guideline_findings: tuple[GuidelineFinding, ...] = ()
     guideline_candidates: tuple[GuidelineCandidate, ...] = ()
+    draft_backed_citations: tuple[GuidelineCandidate, ...] = ()
+    source_classes_read: int = 0
+    source_class_tails: int = 0
+    threshold_sheet_failures: tuple[ThresholdSheetFailure, ...] = ()
     findings: tuple[Finding, ...] = ()
 
 
@@ -737,7 +765,14 @@ def _pipe_cells(line: str) -> list[str]:
 def _uspstf_index() -> tuple[tuple[str, str, str], ...]:
     """Citation tuples from the shipped USPSTF sheet."""
     rows: list[tuple[str, str, str]] = []
+    section: str | None = None
     for line in USPSTF_SHEET.read_text(encoding="utf-8").splitlines():
+        heading = re.match(r"^\s*#{1,6}\s+(.+?)\s*$", line)
+        if heading:
+            section = heading.group(1).strip().casefold()
+            continue
+        if section != "recommendations":
+            continue
         cells = _pipe_cells(line) if line.startswith("|") else []
         if len(cells) != 9 or cells[2] not in {"A", "B", "C", "D", "I"}:
             continue
@@ -842,27 +877,6 @@ def _normalized_value(text: str) -> str:
     )
 
 
-def _threshold_index(path: Path) -> tuple[ThresholdRow, ...]:
-    """Intact citation rows from one shipped threshold sheet."""
-    rows: list[ThresholdRow] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        cells = _pipe_cells(line) if line.startswith("|") else []
-        if len(cells) != 8 or cells[0] in {"quantity", "---"}:
-            continue
-        source, population, value, strength = cells[4], cells[1], cells[2], cells[7]
-        if not source or not population or not value or not strength:
-            continue
-        rows.append(
-            ThresholdRow(
-                source=source.casefold(),
-                strength=strength.casefold(),
-                value=_normalized_value(value),
-                context=" ".join((cells[0], cells[3])),
-            )
-        )
-    return tuple(rows)
-
-
 def _threshold_signals(text: str) -> set[str]:
     """Comparator, ratio, and percent values strong enough for a direct join."""
     return {_normalized_value(signal) for signal in THRESHOLD_SIGNAL.findall(text)}
@@ -900,11 +914,15 @@ def _read_proposed_items(lines: list[str]) -> list[ProposedItem]:
 
 def _guideline_floor(
     items: list[ProposedItem],
-) -> tuple[int, list[GuidelineFinding], list[GuidelineCandidate]]:
+) -> GuidelineFloor:
     """Validate row 24's mechanical limbs and preserve its clinical ceiling."""
     checked = 0
     findings: list[GuidelineFinding] = []
     candidates: list[GuidelineCandidate] = []
+    draft_backed: list[GuidelineCandidate] = []
+    source_classes_read = 0
+    source_class_tails = 0
+    parse_failures: dict[Path, ThresholdSheetFailure] = {}
 
     for item in items:
         opening_tails = list(GUIDELINE_TAIL.finditer(item.text))
@@ -1009,15 +1027,24 @@ def _guideline_floor(
                     )
                 )
                 continue
+            parsed_sheet = threshold_sheet.parse(
+                sheet.read_text(encoding="utf-8"), sheet
+            )
+            if not parsed_sheet.ok:
+                parse_failures.setdefault(
+                    sheet,
+                    ThresholdSheetFailure(sheet, str(parsed_sheet.why_not)),
+                )
+                continue
             checked += 1
-            rows = _threshold_index(sheet)
+            rows = parsed_sheet.rows
             verdict = verdict.strip()
             if verdict.casefold().startswith("sheet does not settle it"):
                 subject_signals = _threshold_signal_values(subject.replace(",", ""))
                 subject_words = _topic_words(subject)
                 contradicts = any(
                     subject_signals & _threshold_signal_values(row.value)
-                    and subject_words & _topic_words(row.context)
+                    and subject_words & _topic_words(" ".join((row.quantity, row.snippet)))
                     for row in rows
                 )
                 if contradicts:
@@ -1037,26 +1064,50 @@ def _guideline_floor(
                     GuidelineFinding(item.line, "malformed threshold verdict", item.text)
                 )
                 continue
+            if not rows:
+                findings.append(
+                    GuidelineFinding(
+                        item.line,
+                        "null sheet declares no decision point; stop citing a threshold for this topic",
+                        item.text,
+                    )
+                )
+                continue
             source = citation.group(1).casefold()
             strength = citation.group(2).casefold()
             population = citation.group(3).strip()
             value = citation.group(4).strip()
             cited_value = _normalized_value(value)
             cited_signals = _threshold_signals(value)
-            matching_row = any(
-                row.source == source
-                and row.strength == strength
+            source_class_tails += 1
+            source_row = next(
+                (
+                    details
+                    for key, details in parsed_sheet.sources.items()
+                    if key.casefold() == source
+                ),
+                None,
+            )
+            source_class = (
+                source_row.get("source class", "").casefold() if source_row else ""
+            )
+            if source_class:
+                source_classes_read += 1
+            matching_rows = [
+                row
+                for row in rows
+                if row.source.casefold() == source
+                and row.klass.casefold() == strength
                 and (
                     cited_signals <= _threshold_signals(row.value)
                     if cited_signals
-                    else cited_value in row.value
+                    else cited_value in _normalized_value(row.value)
                 )
-                for row in rows
-            )
+            ]
             if (
                 not population
                 or not value
-                or not matching_row
+                or not matching_rows
             ):
                 findings.append(
                     GuidelineFinding(
@@ -1065,7 +1116,18 @@ def _guideline_floor(
                         item.text,
                     )
                 )
-    return checked, findings, candidates
+                continue
+            if source_class in DRAFT_SOURCE_CLASSES:
+                draft_backed.append(GuidelineCandidate(item.line, item.text))
+    return GuidelineFloor(
+        checked=checked,
+        findings=tuple(findings),
+        candidates=tuple(candidates),
+        draft_backed=tuple(draft_backed),
+        source_classes_read=source_classes_read,
+        source_class_tails=source_class_tails,
+        parse_failures=tuple(parse_failures.values()),
+    )
 
 
 def read_note(text: str) -> Note:
@@ -1079,9 +1141,7 @@ def read_note(text: str) -> Note:
     lines = [_readable(line) for line in text.splitlines()]
     labeled_blocks, numbered_items, ranking_findings = _labeled_differential_items(lines)
     proposed_items = _read_proposed_items(lines)
-    guideline_checked, guideline_findings, guideline_candidates = _guideline_floor(
-        proposed_items
-    )
+    guideline = _guideline_floor(proposed_items)
     refused, spans = _refusals(lines)
     conclusion = _conclusion_lines(lines)
     unwelded = sum(
@@ -1129,9 +1189,13 @@ def read_note(text: str) -> Note:
         numbered_items=tuple(numbered_items),
         ranking_findings=tuple(ranking_findings),
         proposed_items=tuple(proposed_items),
-        guideline_tails_checked=guideline_checked,
-        guideline_findings=tuple(guideline_findings),
-        guideline_candidates=tuple(guideline_candidates),
+        guideline_tails_checked=guideline.checked,
+        guideline_findings=guideline.findings,
+        guideline_candidates=guideline.candidates,
+        draft_backed_citations=guideline.draft_backed,
+        source_classes_read=guideline.source_classes_read,
+        source_class_tails=guideline.source_class_tails,
+        threshold_sheet_failures=guideline.parse_failures,
     )
 
 
@@ -1181,6 +1245,14 @@ def survey(notes: list[Note]) -> Scan:
     guideline_candidates = [
         candidate for note in notes for candidate in note.guideline_candidates
     ]
+    draft_backed_citations = [
+        candidate for note in notes for candidate in note.draft_backed_citations
+    ]
+    threshold_sheet_failures = {
+        failure.path: failure
+        for note in notes
+        for failure in note.threshold_sheet_failures
+    }
     return Scan(
         notes=len(notes),
         notes_with_differential=sum(
@@ -1205,6 +1277,10 @@ def survey(notes: list[Note]) -> Scan:
         guideline_tails_checked=sum(note.guideline_tails_checked for note in notes),
         guideline_findings=tuple(guideline_findings),
         guideline_candidates=tuple(guideline_candidates),
+        draft_backed_citations=tuple(draft_backed_citations),
+        source_classes_read=sum(note.source_classes_read for note in notes),
+        source_class_tails=sum(note.source_class_tails for note in notes),
+        threshold_sheet_failures=tuple(threshold_sheet_failures.values()),
         findings=tuple(found),
     )
 
@@ -1264,6 +1340,15 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"{len(scan.guideline_candidates)}",
         "  declared floor: whether a recommendation applies to the patient still"
         " needs a reader.",
+        "",
+        "  row 24 - draft-backed citations  "
+        f"{len(scan.draft_backed_citations)}",
+        "  source class read for  "
+        f"{scan.source_classes_read} of {scan.source_class_tails} cited tails",
+        "  declared floor: a tail whose sheet carries no source class cell is unread,"
+        " not clean.",
+        "  declared floor: a draft's numbers ship labeled, not suppressed -- whether this one",
+        "  should stand is the `practicum-case-study` step 9 reader's.",
     ]
     ungraded = scan.notes - scan.notes_with_differential
     if ungraded > 0:
@@ -1326,6 +1411,7 @@ NO_NOTES = "no notes in it"
 NO_DIFFERENTIAL_ENTRY = "no differential entry in any note read"
 NO_NUMBERED_ITEM = "no numbered item in a labeled block"
 BARE_NOT_CODED = "any bare ``NOT CODED`` mark"
+UNREADABLE_THRESHOLD_SHEET = "a cited threshold sheet did not parse"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     NO_DIRECTORY,
@@ -1333,6 +1419,7 @@ EXIT_2_LIMBS = (
     NO_DIFFERENTIAL_ENTRY,
     NO_NUMBERED_ITEM,
     BARE_NOT_CODED,
+    UNREADABLE_THRESHOLD_SHEET,
 )
 
 
@@ -1422,6 +1509,14 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         )
         coverage_failed = True
         coverage_limbs.append(NO_NUMBERED_ITEM)
+    if scan.threshold_sheet_failures:
+        diagnostics.extend(
+            "\nrow 24 was not run for "
+            f"{failure.path.name}: {failure.why_not}"
+            for failure in scan.threshold_sheet_failures
+        )
+        coverage_failed = True
+        coverage_limbs.append(UNREADABLE_THRESHOLD_SHEET)
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,

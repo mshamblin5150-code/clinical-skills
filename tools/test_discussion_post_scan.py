@@ -20,7 +20,7 @@ import coursework_run
 import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
-from grader_conformance import for_module
+from grader_conformance import for_module, gate_conformance
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
     CLAIMS as REPLY_CLAIMS,
@@ -29,6 +29,8 @@ from test_discussion_reply_scan import (
 
 
 GraderConformance = for_module(scan)
+GateConformance = gate_conformance(scan)
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 BAR = """\
@@ -1208,17 +1210,12 @@ class CountedPreferencesNeverBecomeFindings(unittest.TestCase):
 class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
     def test_the_declared_limits_are_one_named_object(self):
         self.assertEqual(
-            {
-                "whether the bar transcription is complete",
-                "whether the topic overrides the syllabus",
-                "whether a prose bar element is satisfied",
-                "whether a reference actually supports the required proposition",
-                "whether a claim record describes the cited sentence",
-                "whether posted replies have posted readings",
-            },
-            {key for key, _reason in scan.NOT_REACHED},
+            tuple((subject, reason) for subject, reason, _ in scan.DECLARED_LIMITS),
+            scan.NOT_REACHED,
         )
         self.assertTrue(all(len(reason.split()) > 8 for _key, reason in scan.NOT_REACHED))
+        for _subject, _reason, disposition in scan.DECLARED_LIMITS:
+            self.assertIsInstance(disposition, scan.EvidenceDisposition)
 
     def test_an_isbn_bar_element_is_not_pattern_matched_into_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1232,6 +1229,50 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("findings: 0", stdout)
+
+
+class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
+    HANDLERS = {
+        "whether named heading styles were graded when --docx was omitted": (
+            "ACompletePostPasses.test_the_docx_row_is_not_graded_when_no_archive_is_supplied",
+            "ACompletePostPasses.test_a_directly_formatted_heading_passes_the_docx_row",
+        ),
+        "whether reference-dependent rows ran after a refused reference label": (
+            "ARecognizedButRefusedLabelStopsTheScan.test_a_bold_references_label_names_the_line_and_ungrades_dependent_rows",
+            "ACompletePostPasses.test_report_is_counts_only_and_excludes_citation_and_statute_numbers",
+        ),
+    }
+
+    def test_behavior_subjects_are_exactly_the_handled_subjects(self):
+        behavior = {
+            subject
+            for subject, _reason, disposition in scan.DECLARED_LIMITS
+            if disposition is scan.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(behavior, set(self.HANDLERS))
+
+    def test_every_handler_runs_a_blind_spot_and_positive_control(self):
+        for subject, (blind_spot, positive_control) in self.HANDLERS.items():
+            with self.subTest(subject=subject):
+                self.assertNotEqual(blind_spot, positive_control)
+                for named in (blind_spot, positive_control):
+                    result = unittest.TestResult()
+                    unittest.defaultTestLoader.loadTestsFromName(
+                        f"test_discussion_post_scan.{named}"
+                    ).run(result)
+                    self.assertTrue(
+                        result.wasSuccessful(),
+                        f"{subject}: {named}: {result.errors + result.failures}",
+                    )
+
+
+class TheSharedConformanceKitStatesItsBoundary(unittest.TestCase):
+    def test_claude_distinguishes_universal_and_opt_in_membership(self):
+        guidance = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+
+        self.assertIn("`for_module` is universal by convention", guidance)
+        self.assertIn("`gate_conformance` is opt-in", guidance)
+        self.assertIn("banner flags", guidance)
 
 
 if __name__ == "__main__":
