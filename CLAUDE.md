@@ -759,10 +759,20 @@ the corpus layer is live; if its name index is present but short,
 `tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
 hook was declined as the trigger: a comment is published without a push, and a
 push can happen before the finishing sweep writes its comments. This is #260's
-ruling, 2026-08-20. The same day, a one-time full harvest was scanned from the
-maintainer clone after #141's completed name index landed. It produced only
-`us-short-date` shape findings -- no corpus-name or corpus-date row -- and no
-`--show` output; the three gitignored harvest files were deleted after the run.
+ruling, 2026-08-20. **A pre-publish `PreToolUse` hook is ruled in and advisory**
+by [ADR 0077](docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md)
+ruling 5, which is not what #260 declined: that reasoning is about a **git**
+hook, and a comment published without a push is still published by a tool call.
+
+**When a full harvest last really ran, and what it found, is what the command
+prints and is deliberately stated nowhere here** -- ADR 0077 ruling 7, on
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
+This paragraph carried that result in prose and it went stale in the direction
+nobody notices: it reported a harvest with **no corpus-name or corpus-date row**,
+and [#646](https://github.com/mshamblin5150-code/clinical-skills/issues/646) is
+the record that falsified it, published four days later and found nine days
+after that. A dated result in prose reads as a current property of the tracker,
+and no edit to a sentence fails.
 
 **It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
