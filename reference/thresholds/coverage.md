@@ -92,7 +92,7 @@
 | healthcare-associated ventriculitis and meningitis | unread |  | bound recommendation record available; full-document read pending |
 | hearing loss screening | unread |  | exact recommendation index available; full-document read pending |
 | heart failure | unread |  | exact recommendation index available; full-document read pending |
-| heart failure in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
+| heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
 | hepatitis B screening | unread |  | exact recommendation index available; full-document read pending |
 | hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
 | hepatitis C screening | unread |  | exact recommendation index available; full-document read pending |

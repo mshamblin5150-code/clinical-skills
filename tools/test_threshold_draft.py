@@ -65,9 +65,9 @@ def seeded_sheet() -> str:
 
 ## Sources
 
-| key | society | document | version | published | url | mode |
-| --- | --- | --- | --- | --- | --- | --- |
-| aha-2025 | AHA/ACC | AHA ACC/guideline | 2025 | 2025 | https://example.invalid | exact |
+| key | society | document | source class | version | published | url | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| aha-2025 | AHA/ACC | AHA ACC/guideline | guideline | 2025 | 2025 | https://example.invalid | exact |
 
 ## Scope
 

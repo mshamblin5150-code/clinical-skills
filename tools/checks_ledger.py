@@ -264,6 +264,7 @@ EXPECTED_CHECKS = (
     "the numbering in context",
     "the rendered document",
     "the faculty's own to-do list",
+    "the draft label on threshold-sheet citations",
 )
 
 # The checks where a ``clean`` has to say what it examined -- how many is this

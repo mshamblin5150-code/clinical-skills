@@ -19,7 +19,7 @@ DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 SCHEMA_MARKER = "<!-- schema: threshold-coverage/2 -->"
-STATES = ("sheet", "none", "unread")
+STATES = ("sheet", "none", "non-source", "unread")
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,7 @@ def render_draft(topics: list[str]) -> str:
 def audit(
     topics: list[str], entries: list[Entry], sheet_root: Path,
     page_counts: dict[str, int] | None = None,
+    source_classes: dict[str, str] | None = None,
 ) -> tuple[list[str], Counter[str], Counter[str]]:
     failures: list[str] = []
     counts = Counter(entry.state for entry in entries if entry.state in STATES)
@@ -82,6 +83,7 @@ def audit(
     )
     by_topic: dict[str, list[Entry]] = {}
     page_counts = page_counts or {}
+    source_classes = source_classes or {}
     for entry in entries:
         by_topic.setdefault(entry.topic.casefold(), []).append(entry)
         if entry.state not in STATES:
@@ -92,9 +94,9 @@ def audit(
             failures.append(
                 f"coverage.md:{entry.line} topic '{entry.topic}' state '{entry.state}' has no record"
             )
-        if entry.state == "sheet" and not entry.artifact:
+        if entry.state in {"sheet", "none", "non-source"} and not entry.artifact:
             failures.append(
-                f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' has no artifact"
+                f"coverage.md:{entry.line} topic '{entry.topic}' state '{entry.state}' has no artifact"
             )
         if entry.artifact:
             artifact = Path(entry.artifact)
@@ -117,7 +119,7 @@ def audit(
                         f"a usable threshold-sheet/2: {sheet.why_not}"
                     )
                     continue
-                schema_findings = threshold_sheet.gate_schema(sheet).findings
+                schema_findings = threshold_sheet.gate_schema(sheet, source_classes).findings
                 if schema_findings:
                     failures.append(
                         f"coverage.md:{entry.line} artifact '{entry.artifact}' fails "
@@ -125,11 +127,6 @@ def audit(
                     )
                     continue
                 unread = [span for span in sheet.spans if span.is_unread]
-                if entry.state == "sheet" and unread:
-                    failures.append(
-                        f"coverage.md:{entry.line} topic '{entry.topic}' state 'sheet' "
-                        f"but artifact '{entry.artifact}' still lists {len(unread)} unread span(s)"
-                    )
                 # An overlapping positive span may cover the same page range as an
                 # unread span. Completion requires both the page union and the
                 # named-span inventory, or neither registry state could be valid.
@@ -148,10 +145,24 @@ def audit(
                     if not set(range(1, page_count + 1)) <= read_pages:
                         all_pages_read = False
                         break
-                if entry.state != "sheet" and all_pages_read:
+                all_declared_non_source = bool(sheet.sources) and all(
+                    source.get("source class")
+                    in threshold_sheet.DECLARED_NON_SOURCE_CLASSES
+                    for source in sheet.sources.values()
+                )
+                if all_declared_non_source:
+                    derived_state = "non-source"
+                elif all_pages_read and sheet.rows:
+                    derived_state = "sheet"
+                elif all_pages_read:
+                    derived_state = "none"
+                else:
+                    derived_state = "unread"
+                if entry.state != derived_state:
                     failures.append(
                         f"coverage.md:{entry.line} topic '{entry.topic}' state "
-                        f"'{entry.state}' but artifact '{entry.artifact}' shows every page read"
+                        f"'{entry.state}' disagrees with derived state '{derived_state}' "
+                        f"from artifact '{entry.artifact}'"
                     )
 
     wanted = {topic.casefold(): topic for topic in topics}
@@ -208,8 +219,11 @@ def main(argv: list[str] | None = None) -> int:
         print(error, file=sys.stderr)
         return 2
     page_counts, catalog_page_problems = threshold_sheet.load_catalog_page_counts(args.catalog)
-    failures, counts, artifact_counts = audit(topics, entries, args.sheet_root, page_counts)
-    failures = catalog_page_problems + failures
+    source_classes, catalog_class_problems = threshold_sheet.load_catalog_source_classes(args.catalog)
+    failures, counts, artifact_counts = audit(
+        topics, entries, args.sheet_root, page_counts, source_classes
+    )
+    failures = catalog_page_problems + catalog_class_problems + failures
     failures = parse_problems + failures
     if failures:
         for failure in failures:
@@ -217,7 +231,21 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"topics     {len(topics)} from {catalog_rows} catalog rows")
     for state in STATES:
-        print(f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}")
+        qualifier = ""
+        if state == "none":
+            qualifier = (
+                "   -- every span retired on a marker or a class exemption; "
+                "no row carries a gated citation"
+            )
+        elif state == "non-source":
+            qualifier = (
+                "   -- every span retired; source form is in the declared "
+                "non-source class set"
+            )
+        print(
+            f"{state:<10} {counts[state]}   artifacts   {artifact_counts[state]}"
+            f"{qualifier}"
+        )
     return 0
 
 
