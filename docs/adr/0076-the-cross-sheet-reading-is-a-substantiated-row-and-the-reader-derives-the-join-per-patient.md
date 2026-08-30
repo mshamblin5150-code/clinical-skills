@@ -125,7 +125,7 @@ This paragraph first described a **three-way** collision between #584,
    its module edits are `DECLARED_LIMITS`, the docstring and the `outside the table` report label.
 
 So the textual collision is **two-way — #584 against #587 item 6 — on both files**, and #565 is a
-file-level neighbour with disjoint regions that merges cleanly against either. Checked for a
+file-level neighbor with disjoint regions that merges cleanly against either. Checked for a
 silent-merge hazard from #565 landing beside them and found none: its row count is over *prose
 limits*, which an `EXPECTED_CHECKS` member is not, and `SUBSTANTIATED_CLEAN`'s size is stated in no
 prose.
