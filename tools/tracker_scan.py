@@ -102,13 +102,17 @@ bounded by nothing, because it reads whatever anybody typed.
 
 **A human ruling on a commit finding is committed without repeating its
 literal.** ``reference/tracker-scan-rulings.json`` keys the verdict on the full
-commit id, line, rule and SHA-256 digest of the match. The full tuple is the
-finding: ruling a commit alone would let one reviewed ratio hide another match
-in the same message, and a copied literal could itself be PHI. A mismatch stays
-in the report; a malformed ledger applies no rulings and makes the run
-not-scanned unless an unruled finding supplies the stronger exit 1. The report
-states how many exact findings the ledger removed, so a clean result never
-silently means *nothing was detected before rulings*.
+commit id, line, rule and SHA-256 digest of the containing line. The digest
+makes a later line edit expire the ruling; it does not conceal a match whose
+keyspace is enumerable, on
+`ADR 0077 ruling 3 <../docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md>`_'s
+terms. The full tuple is the finding: ruling a commit alone would let one
+reviewed ratio hide another match in the same message. Each row clears one
+finding at that line-level key, so repeated findings on one line require
+repeated rows. A mismatch stays in the report; a malformed ledger applies no
+rulings and makes the run not-scanned unless an unruled finding supplies the
+stronger exit 1. The report states how many exact findings the ledger removed,
+so a clean result never silently means *nothing was detected before rulings*.
 
 Exit status distinguishes not having scanned from having found nothing -- 0
 clean, 1 for a finding, **2 for every way of not having scanned**: no surface
@@ -130,6 +134,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, NamedTuple, Sequence
 
@@ -192,7 +197,14 @@ class RulingKey(NamedTuple):
     commit: str
     line: int
     rule: str
-    match_sha256: str
+    line_sha256: str
+
+
+@dataclass(frozen=True)
+class ScannedFinding(Finding):
+    """A finding plus the non-enumerable identity of its containing line."""
+
+    line_sha256: str
 
 
 def _run_git(
@@ -379,29 +391,30 @@ def commit_records(repo: Path) -> list[Record]:
     return records
 
 
-def load_commit_rulings(repo: Path) -> set[RulingKey]:
+def load_commit_rulings(repo: Path) -> Counter[RulingKey]:
     """Read exact, non-revealing verdicts for immutable commit findings."""
     path = repo / RULINGS_PATH
     if not path.is_file():
-        return set()
+        return Counter()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise RulingError(f"{path}: {error}") from error
-    if not isinstance(data, dict) or data.get("version") != 1:
-        raise RulingError(f"{path}: version must be 1")
+    if not isinstance(data, dict) or data.get("version") != 2:
+        raise RulingError(f"{path}: version must be 2")
     rows = data.get("commit_findings")
     if not isinstance(rows, list):
         raise RulingError(f"{path}: commit_findings must be a list")
 
-    rulings: set[RulingKey] = set()
+    rulings: Counter[RulingKey] = Counter()
+    decisions: dict[RulingKey, tuple[str, str]] = {}
     for number, row in enumerate(rows, 1):
         if not isinstance(row, dict):
             raise RulingError(f"{path}: row {number} must be an object")
         commit = row.get("commit")
         line = row.get("line")
         rule = row.get("rule")
-        digest = row.get("match_sha256")
+        digest = row.get("line_sha256")
         verdict = row.get("verdict")
         reason = row.get("reason")
         if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
@@ -411,31 +424,40 @@ def load_commit_rulings(repo: Path) -> set[RulingKey]:
         if not isinstance(rule, str) or not rule:
             raise RulingError(f"{path}: row {number} has an invalid rule")
         if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise RulingError(f"{path}: row {number} has an invalid match_sha256")
+            raise RulingError(f"{path}: row {number} has an invalid line_sha256")
         if verdict not in RULING_VERDICTS:
             raise RulingError(f"{path}: row {number} has an invalid verdict")
         if not isinstance(reason, str) or not reason.strip():
             raise RulingError(f"{path}: row {number} has an invalid reason")
         key = RulingKey(commit, line, rule, digest)
-        if key in rulings:
-            raise RulingError(f"{path}: row {number} duplicates an earlier ruling")
-        rulings.add(key)
+        decision = (verdict, reason)
+        if key in decisions and decisions[key] != decision:
+            raise RulingError(
+                f"{path}: row {number} conflicts with an earlier line ruling"
+            )
+        decisions[key] = decision
+        rulings[key] += 1
     return rulings
 
 
 def partition_ruled_findings(
-    findings: Sequence[Finding], rulings: set[RulingKey]
-) -> tuple[list[Finding], list[Finding]]:
+    findings: Sequence[ScannedFinding], rulings: Counter[RulingKey]
+) -> tuple[list[ScannedFinding], list[ScannedFinding]]:
     """Separate only findings whose immutable commit identity matches exactly."""
-    unruled: list[Finding] = []
-    ruled: list[Finding] = []
+    unruled: list[ScannedFinding] = []
+    ruled: list[ScannedFinding] = []
+    available = rulings.copy()
     for finding in findings:
         match = COMMIT_FINDING.fullmatch(finding.path)
         key = RulingKey(
             match.group(1), finding.line, finding.rule,
-            hashlib.sha256(finding.match.encode("utf-8")).hexdigest(),
+            finding.line_sha256,
         ) if match else None
-        (ruled if key in rulings else unruled).append(finding)
+        if key is not None and available[key] > 0:
+            ruled.append(finding)
+            available[key] -= 1
+        else:
+            unruled.append(finding)
     return unruled, ruled
 
 
@@ -527,7 +549,7 @@ def blob_records(repo: Path) -> list[Record]:
     return records
 
 
-def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[Finding]:
+def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[ScannedFinding]:
     """Both layers over every record; only a **file** may switch the shapes off.
 
     `Record.is_file` decides, and nothing reads the exemption out of a record
@@ -536,19 +558,32 @@ def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[Finding]
     carry a real identifier is exactly the record that would have carried the
     declaration.
     """
-    findings: list[Finding] = []
+    findings: list[ScannedFinding] = []
     for record in records:
         if record.is_file:
-            findings.extend(phi_scan.scan_text(record.text, record.ref, index))
+            record_findings = phi_scan.scan_text(record.text, record.ref, index)
         else:
-            findings.extend(
-                phi_scan.scan_lines(record.text, record.ref, index, True)
+            record_findings = phi_scan.scan_lines(
+                record.text, record.ref, index, True
             )
+        lines = record.text.splitlines()
+        findings.extend(
+            ScannedFinding(
+                finding.path,
+                finding.line,
+                finding.rule,
+                finding.match,
+                hashlib.sha256(
+                    lines[finding.line - 1].encode("utf-8")
+                ).hexdigest(),
+            )
+            for finding in record_findings
+        )
     return findings
 
 
 def format_report(
-    findings: Sequence[Finding],
+    findings: Sequence[ScannedFinding],
     records: Sequence[Record],
     context: Sequence[tuple[str, int]],
     banners: Sequence[str],
@@ -618,7 +653,7 @@ def main(argv: list[str]) -> int:
     banners: list[str] = []
     context: list[tuple[str, int]] = []
     records: list[Record] = []
-    rulings: set[RulingKey] = set()
+    rulings: Counter[RulingKey] = Counter()
     unscanned = False
 
     try:
