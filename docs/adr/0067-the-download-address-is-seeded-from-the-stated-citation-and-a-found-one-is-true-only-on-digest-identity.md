@@ -62,9 +62,9 @@ one document. **That is the whole ground of ruling 1**, and it was measured rath
 5. **A drafted sheet's `url` is never a path on the maintainer's machine.** `threshold_draft`'s
    `file:///` limb is deleted. The value is **seeded** from the document's `Stated citation`: a DOI
    becomes `https://doi.org/<doi>`, a printed URL is used verbatim, and a journal citation line
-   seeds nothing because it is not an address. `_seed_sources` already calls
-   `guidelines_catalog.parse_catalog` and is holding the row at the line the fallback fires, so the
-   seed costs no new read.
+   seeds nothing because it is not an address. `resolve_sources` (`tools/threshold_draft.py:182`)
+   already calls `guidelines_catalog.parse_catalog` at `:189` and is still holding the row when the
+   fallback fires at `:254`, so the seed costs no new read.
 6. **A seed is not a bind, and this record says so in as many words.** ADR 0047 ruling 11 refuses
    *forcing* a sheet onto the corpus copy's DOI, on `hypertension.md`'s measurement. A default a
    person overwrites is what that sheet's author did by hand. Without this sentence the next session
@@ -73,7 +73,15 @@ one document. **That is the whole ground of ruling 1**, and it was measured rath
    bottleneck, which is the cost this whole toolchain exists to remove. **No tool gains a socket** —
    ADR 0047's own words are *the honest form is no tool opens a socket, not no route exists*, and
    [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) established the nine corpus
-   societies were publicly downloadable. It is six lookups, once.
+   societies were publicly downloadable. **Six is the catalog's `?` count and is not the lookup
+   count.** The sixth document is the KDIGO scope-of-work, which
+   [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md)
+   ruling 1 makes the whole of the declared-non-source set, ruling 3 forks before the sheet decision,
+   and ruling 4 gives a null-sheet artifact — which carries no source row for an address to sit in.
+   So it is **six `?` cells and at most five lookups**, and whether the fifth is four is ADR 0061's
+   and [ADR 0066](0066-a-null-sheet-s-re-derivable-clause-is-re-derived-and-the-gate-keys-on-the-zero-row-condition.md)'s
+   to settle rather than this record's. *(Corrected in place 2026-08-29; the original stated one
+   figure for both denominators.)*
 8. **A found address is a true match only on digest identity.** A title match is not enough. The
    agent fetches and compares against the `sha256` the audit ledger already commits, so the evidence
    it leaves is re-derivable by anyone holding the file. **This reverses ADR 0047's decision-reason 1
@@ -115,6 +123,40 @@ position only as a fallback, so a named column appends safely and costs one `nam
 That is the opposite of the catalog, where `corpus_census.CATALOG_CELL_COUNT == 10` matches no row at
 all once a ninth column lands. **The two tables have opposite tolerances and the difference is not
 visible from either one**, which is why it was measured rather than assumed from the sibling.
+
+**That measurement was right about the code and wrong about the tree, and the correction is worth
+more than the paragraph above.** [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md)
+ruling 5 — ratified before this record and never cited by it — already rules that **the positional
+fallback is retired** and adds a `source class` cell **placed beside `document`**, owned by
+[#587](https://github.com/mshamblin5150-code/clinical-skills/issues/587). So the safety argument
+above rests on a fallback another record has scheduled for removal, and it is the wrong argument
+rather than a wrong conclusion: appending `basis` is *safer* once ADR 0061 lands, because an
+unreadable header refuses instead of silently re-reading `mode`.
+
+Two consequences this record did not see and states now.
+
+- **Two ratified records each put a column into one seven-column table, and neither cites the other.**
+  *(This sentence read `five-column` for one commit, copied from #587's build item 2, which says the
+  `source class` cell "adds the fifth column". All four shipped sheets carry
+  `key | society | document | version | published | url | mode` — **seven** — so `source class` is the
+  eighth and `basis` the ninth. Repeating a ticket's arithmetic inside a correction whose subject is
+  not trusting a ticket's own words is this record's own warning arriving at the shortest range it
+  has yet been recorded at, and the sweep caught it rather than a check.)*
+  #587 **inserts** beside `document`; #551 **appends**. They are not independent, and whichever
+  builds second lands on a header the first rewrote. ADR 0061 cites the parser block as
+  `threshold_sheet.py:966-975` and this record cited it as `:964-968` — two coordinates for one
+  thing, both on `main`.
+- **Ruling 5's sequencing omits #587.** `#512 -> #551 -> #429` is right about what it names and
+  incomplete: `#429` and `#641` already record `blocked_by` edges to #587, and #551 now shares a
+  table with it. The sequencing is `#512 -> #551` and `#587` against `#551` in some order the
+  clinician has not been asked for.
+
+*(This section was corrected in place under [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)
+on 2026-08-29, hours after ratification, and the way it was found is the ordinary way: the tracker
+sweep this record's own ticket owed. Two sweep subagents reading different batches found the
+`_seed_sources` name independently of each other, and one of them found ADR 0061. **This record
+warns one section above that a table's tolerance is not visible from the table** — and then read one
+parser and not the tracker, which is the same partial-instrument failure one level out.)*
 
 ## What was refused
 
