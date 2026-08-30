@@ -45,6 +45,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+from case_study_scan import EvidenceDisposition
 
 
 ADDRESSED_NAME = "addressed-name"
@@ -77,6 +78,29 @@ ROWS = {
 }
 KINDS = tuple(ROWS)
 
+GATED_ROW_SETS = {
+    "reference_boundary_graded": (
+        (
+            WORD_FLOOR,
+            REFERENCE_MINIMUM,
+            UNRESOLVED_CITATION,
+            UNTRACED_NUMBER,
+            RESPENT_SOURCE,
+            INVOKED_PROPERTY,
+            LEGAL_REFERENCE_NAME,
+        ),
+        (
+            "words",
+            "references",
+            "citations",
+            "numeric_claims",
+            "invoked_sources",
+            "pre_496_markers",
+        ),
+    ),
+}
+ABSENT_BY_DESIGN_FIELDS = ()
+
 UNMARKED_INVOKED_SOURCE_LIMIT = (
     "whether every invoked source was marked",
     "The command can grade only INVOKED markers that exist and cannot see an invoked source the drafter never marked.",
@@ -85,54 +109,71 @@ INVOKED_PROPERTY_LIMIT = (
     "whether an invoked property is a grammatical behavior clause",
     "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
 )
-NOT_REACHED = (
+DECLARED_LIMITS = (
     (
         "whether every roster post was readable",
         "The command refuses a known unread file but cannot establish that the captured posts directory is the complete live board roster.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a reply source was already spent by the initial post",
         "The respent-source row compares response artifacts with one another and deliberately does not make the initial post's source unavailable.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether the reference label was bold on the board",
         "The artifact states the intended bold source form, while the available board capture flattens formatting and cannot corroborate the posted rendering.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether the posted reply matches the graded artifact",
         "The reply is typed by hand, and no row compares the submitted board text with the response artifact that the command graded.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a bold reference label is rewarded by the rubric",
         "The accepted label follows the clinician's house style; the command does not read faculty grading preferences from the live rubric.",
+        EvidenceDisposition.DECLARED_READING,
     ),
-    UNMARKED_INVOKED_SOURCE_LIMIT,
-    INVOKED_PROPERTY_LIMIT,
+    (*UNMARKED_INVOKED_SOURCE_LIMIT, EvidenceDisposition.DECLARED_READING),
+    (*INVOKED_PROPERTY_LIMIT, EvidenceDisposition.DECLARED_READING),
     (
         "whether a legal citation year matches its reference entry",
         "A legal section intentionally receives an empty-year resolution key, so a citation can resolve without proving that its year agrees with the entry.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a cited legal section supports the reply's claim",
         "Reference-key resolution establishes that an entry exists; it never reads the regulation or decides whether the section supports the prose.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether faculty require the canonical in-text legal spelling",
         "The command accepts resolving name and section forms because no evidence establishes which in-text legal spelling faculty will mark.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a posted reading faithfully reports a careful comparison",
         "The record proves that a located reading was written, not that the reader compared carefully or that the board says what the verdict claims.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether a unique entry id was fabricated",
         "Collision checks refuse locators already on disk, but a plausible invented identifier that collides with nothing remains indistinguishable from a board-read value.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether the initial post has a posted reading",
         "This command grades response artifacts only; discussion_post_scan owns the initial post record in the shared reread file.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether reference-dependent rows ran after a refused reference label",
+        "When the reference label is refused, the command does not grade the dependent reply and reference rows; their not graded output is coverage refusal, not zero findings.",
+        EvidenceDisposition.BEHAVIOR,
     ),
 )
+NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
 
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
 AUTHOR = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<name>[^\n]+?)\s*$")

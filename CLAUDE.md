@@ -139,6 +139,14 @@ if __name__ == "__main__":
 
 **`icd10_lookup.py` was safe, and not for the reason #150 assumed** — it prints tabular notes as well as descriptors, and only the descriptors are ASCII. The counts, the date and the nine code points are in that module's own docstring and **deliberately not restated here**, on `spelling_scan --record`'s terms: [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) is one figure that went stale across many files at once, and a number is cheapest to keep true where the code that produces it lives. **The count of places is deliberately not restated here**, because #143's own headline figures have since gone stale twice over — 31 became 34, and 34 is 37 today across six fixture sets — which is the ticket demonstrating its own thesis on itself.
 
+### Grader conformance
+
+`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, and exit precedence. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
+
+The distinction comes from the whole-family shape read recorded in [ADR 0080](docs/adr/0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md). The discussion scanners use booleans to suppress report rows, while `case_study_scan` uses banner flags that append prose and suppress nothing; other riders may have no boolean field at all. Applying the gate walk automatically would therefore grade a correct banner shape as defective. Opting in lets the discussion pair share one report-width rule without asserting that every grader must adopt their boolean-gate arrangement or the nullable-sentinel arrangement refused by [ADR 0071](docs/adr/0071-a-gated-row-set-is-derived-from-its-sentinel-and-guarded-by-a-walk-in-its-own-module.md).
+
+The shared walk proves that each declared gate changes only its declared fields and finding kinds, and that omitted groups say `not graded`. It does not prove command-line reachability or exit status. Each opting-in module owns those through real-fixture positive controls and a `HANDLERS` pair in its test module.
+
 ### Corpus census
 
 Several claims in [clinical-note](skills/clinical-note/SKILL.md) are counts over the clinician's shorthand corpus, and rulings have turned on them. `tools/corpus_census.py` recomputes all of them:

@@ -52,6 +52,137 @@ def _salted_report_input(module: Any, kind: str) -> Any:
     return module.Scan(**values)
 
 
+def _graded_value(field: dataclasses.Field[Any]) -> Any:
+    """Return a visible, report-safe value for one nullable graded field."""
+
+    annotation = str(field.type)
+    if "tuple" in annotation:
+        return (SimpleNamespace(domain=MARKER, property=MARKER),)
+    return 7
+
+
+def _gate_scan(module: Any, gate: str, enabled: bool) -> Any:
+    """Build one report input with every gate but ``gate`` satisfied."""
+
+    declarations = module.GATED_ROW_SETS
+    fields = {field.name: field for field in dataclasses.fields(module.Scan)}
+    values: dict[str, Any] = {}
+    for name, field in fields.items():
+        annotation = str(field.type)
+        if annotation == "bool":
+            values[name] = True
+        elif "None" in annotation:
+            values[name] = _graded_value(field)
+        else:
+            values[name] = _empty_value(field)
+    for field_name in module.ABSENT_BY_DESIGN_FIELDS:
+        values[field_name] = _empty_value(fields[field_name])
+    values[gate] = enabled
+    for field_name in declarations[gate][1]:
+        values[field_name] = _graded_value(fields[field_name]) if enabled else None
+    return module.Scan(**values)
+
+
+def _report_lines(module: Any, scan: Any) -> tuple[str, ...]:
+    return tuple(module.format_report(scan, "source", show=False).splitlines())
+
+
+def _changed_line_indexes(before: tuple[str, ...], after: tuple[str, ...]) -> set[int]:
+    if len(before) != len(after):
+        raise AssertionError("a gate changed the report's line population")
+    return {index for index, pair in enumerate(zip(before, after)) if pair[0] != pair[1]}
+
+
+def gate_conformance(module: Any) -> type[unittest.TestCase]:
+    """Return the opt-in report-width conformance case for boolean gates.
+
+    Membership is deliberately declared by the caller. This walk cannot discover a
+    third module that adopts the same shape without opting in, and it proves only
+    report behavior; each member's command tests own flag reachability and status.
+    """
+
+    class GateConformance(unittest.TestCase):
+        def test_every_boolean_field_is_a_declared_gate(self):
+            boolean_fields = {
+                field.name
+                for field in dataclasses.fields(module.Scan)
+                if str(field.type) == "bool"
+            }
+            self.assertEqual(boolean_fields, set(module.GATED_ROW_SETS))
+
+        def test_gated_fields_are_nullable_and_no_nullable_field_is_orphaned(self):
+            fields = {field.name: field for field in dataclasses.fields(module.Scan)}
+            declared_fields = {
+                name
+                for _kinds, field_names in module.GATED_ROW_SETS.values()
+                for name in field_names
+            }
+            absent = set(module.ABSENT_BY_DESIGN_FIELDS)
+            self.assertFalse(declared_fields & absent)
+            for name in declared_fields | absent:
+                with self.subTest(field=name):
+                    self.assertIn(name, fields)
+                    self.assertIn("None", str(fields[name].type))
+            nullable_fields = {
+                name for name, field in fields.items() if "None" in str(field.type)
+            }
+            self.assertEqual(nullable_fields, declared_fields | absent)
+
+        def test_each_gate_changes_only_its_declared_report_lines(self):
+            fields = {field.name: field for field in dataclasses.fields(module.Scan)}
+            for gate, (kinds, field_names) in module.GATED_ROW_SETS.items():
+                with self.subTest(gate=gate):
+                    off_scan = _gate_scan(module, gate, False)
+                    on_scan = _gate_scan(module, gate, True)
+                    off = _report_lines(module, off_scan)
+                    on = _report_lines(module, on_scan)
+                    changed = _changed_line_indexes(off, on)
+
+                    declared_indexes: set[int] = set()
+                    for kind in kinds:
+                        matches = {
+                            index
+                            for index, line in enumerate(off)
+                            if line.startswith(f"{kind}:")
+                        }
+                        self.assertEqual(1, len(matches), kind)
+                        index = next(iter(matches))
+                        self.assertIn("not graded", off[index])
+                        self.assertEqual(f"{kind}: 0", on[index])
+                        declared_indexes.add(index)
+
+                    for field_name in field_names:
+                        field = fields[field_name]
+                        values = {
+                            item.name: getattr(on_scan, item.name)
+                            for item in dataclasses.fields(module.Scan)
+                        }
+                        values[field_name] = None
+                        without_field = _report_lines(module, module.Scan(**values))
+                        field_indexes = _changed_line_indexes(without_field, on)
+                        self.assertTrue(field_indexes, field_name)
+                        graded_value = _graded_value(field)
+                        displayed_value = (
+                            len(graded_value)
+                            if isinstance(graded_value, tuple)
+                            else graded_value
+                        )
+                        count_lines = {
+                            index
+                            for index in field_indexes
+                            if "not graded" in off[index]
+                            and str(displayed_value) in on[index]
+                        }
+                        self.assertTrue(count_lines, field_name)
+                        declared_indexes.update(field_indexes)
+
+                    self.assertEqual(changed, declared_indexes)
+
+    GateConformance.__name__ = f"{module.__name__}GateConformance"
+    GateConformance.__qualname__ = GateConformance.__name__
+    return GateConformance
+
+
 def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
     """Return kinds proved by literals or lexically enclosing mapping loops.
 

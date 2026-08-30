@@ -14,10 +14,11 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import discussion_reply_scan as scan
-from grader_conformance import for_module
+from grader_conformance import for_module, gate_conformance
 
 
 GraderConformance = for_module(scan)
+GateConformance = gate_conformance(scan)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DISCUSSION_REPLY_SKILL = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 
@@ -722,25 +723,14 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
 
 
 class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
-    SUBJECTS = {
-        "whether every roster post was readable",
-        "whether a reply source was already spent by the initial post",
-        "whether the reference label was bold on the board",
-        "whether the posted reply matches the graded artifact",
-        "whether a bold reference label is rewarded by the rubric",
-        "whether every invoked source was marked",
-        "whether an invoked property is a grammatical behavior clause",
-        "whether a legal citation year matches its reference entry",
-        "whether a cited legal section supports the reply's claim",
-        "whether faculty require the canonical in-text legal spelling",
-        "whether a posted reading faithfully reports a careful comparison",
-        "whether a unique entry id was fabricated",
-        "whether the initial post has a posted reading",
-    }
-
     def test_the_declared_limits_are_complete_and_substantive(self):
-        self.assertEqual(self.SUBJECTS, {key for key, _reason in scan.NOT_REACHED})
+        self.assertEqual(
+            tuple((subject, reason) for subject, reason, _ in scan.DECLARED_LIMITS),
+            scan.NOT_REACHED,
+        )
         self.assertTrue(all(len(reason.split()) > 8 for _key, reason in scan.NOT_REACHED))
+        for _subject, _reason, disposition in scan.DECLARED_LIMITS:
+            self.assertIsInstance(disposition, scan.EvidenceDisposition)
         self.assertIn(scan.UNMARKED_INVOKED_SOURCE_LIMIT, scan.NOT_REACHED)
         self.assertIn(scan.INVOKED_PROPERTY_LIMIT, scan.NOT_REACHED)
 
@@ -753,6 +743,37 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
             DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8"),
         )
         self.assertIn("``NOT_REACHED``", scan.__doc__ or "")
+
+
+class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
+    HANDLERS = {
+        "whether reference-dependent rows ran after a refused reference label": (
+            "ARecognizedButRefusedLabelStopsTheScan.test_a_plain_references_label_names_the_line_and_ungrades_dependent_rows",
+            "ACompleteRunPasses.test_cli_reports_counts_without_exposing_the_addressed_name",
+        ),
+    }
+
+    def test_behavior_subjects_are_exactly_the_handled_subjects(self):
+        behavior = {
+            subject
+            for subject, _reason, disposition in scan.DECLARED_LIMITS
+            if disposition is scan.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(behavior, set(self.HANDLERS))
+
+    def test_every_handler_runs_a_blind_spot_and_positive_control(self):
+        for subject, (blind_spot, positive_control) in self.HANDLERS.items():
+            with self.subTest(subject=subject):
+                self.assertNotEqual(blind_spot, positive_control)
+                for named in (blind_spot, positive_control):
+                    result = unittest.TestResult()
+                    unittest.defaultTestLoader.loadTestsFromName(
+                        f"test_discussion_reply_scan.{named}"
+                    ).run(result)
+                    self.assertTrue(
+                        result.wasSuccessful(),
+                        f"{subject}: {named}: {result.errors + result.failures}",
+                    )
 
 
 if __name__ == "__main__":
