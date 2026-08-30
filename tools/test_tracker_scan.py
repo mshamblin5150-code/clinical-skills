@@ -410,7 +410,7 @@ class MainInATempRepo(ATempRepo):
         return status, buffer.getvalue()
 
 
-class TrackerScanCommandOutcomes(MainInATempRepo):
+class TrackerScanExitStatuses(MainInATempRepo):
     """0 clean, 1 found, 2 did not scan."""
 
     def test_naming_no_surface_is_not_a_clean_scan(self):
@@ -438,6 +438,10 @@ class TrackerScanCommandOutcomes(MainInATempRepo):
         status, out = self.run_main("--harvest", path)
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertIn("no finding", out)
+
+
+class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
+    """Only the documented, corpus-live three-surface run advances the marker."""
 
     def test_a_completed_harvest_writes_a_dated_counts_only_marker(self):
         paths = self.full_harvest(
@@ -545,6 +549,10 @@ class TrackerScanCommandOutcomes(MainInATempRepo):
 
         self.assertEqual(status, tracker_scan.NOT_SCANNED)
         self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+
+
+class TrackerScanSurfaceOutcomes(MainInATempRepo):
+    """Findings and clean reads retain their public three-status contract."""
 
     def test_a_finding_exits_one(self):
         path = self.harvest(
