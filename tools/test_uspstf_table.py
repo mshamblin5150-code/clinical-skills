@@ -604,6 +604,25 @@ typing and antibody testing for all pregnant women
             "screening for thyroid cancer",
         )
 
+    def test_parse_document_records_the_topic_route_used_at_build_time(self):
+        page_result = ut.parse_document(
+            fixture("jama-abstract-multi"), "page.pdf", "Ignored metadata title"
+        )
+        declared_result = ut.parse_document(
+            fixture("ahrq-sentence-grade"),
+            "declared.pdf",
+            "Screening for Rh (D) Incompatibility - Recommendation Statement",
+        )
+        filename_result = ut.parse_document(
+            fixture("ahrq-sentence-grade"), "filename-route.pdf"
+        )
+
+        self.assertEqual(page_result.topic_route, ut.TOPIC_ROUTE_PAGE)
+        self.assertEqual(
+            declared_result.topic_route, ut.TOPIC_ROUTE_DECLARED_FIELD
+        )
+        self.assertEqual(filename_result.topic_route, ut.TOPIC_ROUTE_FILENAME)
+
     def test_the_year_comes_from_the_journal_citation(self):
         self.assertEqual(ut.derive_year(fixture("jama-abstract-multi")), "2024")
         self.assertEqual(ut.derive_year(fixture("annals-abstract")), "2015")
@@ -816,13 +835,13 @@ class RenderingTests(unittest.TestCase):
             "the derived pointer must be the only byte changed by a filename match",
         )
 
-    def test_the_header_points_to_the_two_generated_disclosure_sections(self):
+    def test_the_header_points_to_the_generated_disclosure_sections(self):
         markdown = ut.render_markdown(
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
         )
         self.assertIn(
-            "Population field quotations and documents stating that the USPSTF found no "
-            "interval evidence are listed in sections below.",
+            "Topic and population field quotations and documents stating that the "
+            "USPSTF found no interval evidence are listed in sections below.",
             markdown,
         )
         self.assertNotIn("A document may state elsewhere", markdown)
@@ -835,8 +854,53 @@ class RenderingTests(unittest.TestCase):
             markdown,
         )
 
-    def test_the_module_contract_points_to_the_population_owner(self):
+    def test_topic_section_includes_declared_fields_and_excludes_filename_slugs(self):
+        declared = ut.DocumentResult(
+            "declared.pdf",
+            rows=[
+                ut.Row(
+                    "Declared Topic",
+                    "adults",
+                    "B",
+                    ut.NOT_STATED,
+                    "2026",
+                    "declared.pdf",
+                    1,
+                )
+            ],
+            topic_route=ut.TOPIC_ROUTE_DECLARED_FIELD,
+        )
+        filename = ut.DocumentResult(
+            "filename-route.pdf",
+            rows=[
+                ut.Row(
+                    "filename route",
+                    "adults",
+                    "B",
+                    ut.NOT_STATED,
+                    "2026",
+                    "filename-route.pdf",
+                    1,
+                )
+            ],
+            topic_route=ut.TOPIC_ROUTE_FILENAME,
+        )
+
+        section = ut.render_markdown([declared, filename]).split(
+            "## Topic cells quoted from the declared field", 1
+        )[1].split("\n## ", 1)[0]
+
+        self.assertIn("| Declared Topic | `declared.pdf` |", section)
+        self.assertNotIn("filename-route.pdf", section)
+        self.assertIn("The filename-slug route is excluded", section)
+
+    def test_the_module_contract_points_to_the_column_owners(self):
         contract = " ".join(ut.__doc__.split())
+        self.assertIn(
+            "When page 1 has no usable title, ``derive_topic`` reads that manifest field",
+            contract,
+        )
+        self.assertNotIn("Three documents have no usable title", contract)
         self.assertIn(
             "``derive_population`` owns the population column's source-selection rule.",
             contract,

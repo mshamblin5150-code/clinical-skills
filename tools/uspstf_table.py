@@ -15,8 +15,8 @@ it, and the committed Markdown is the whole deliverable.
 
 **It is stdlib-only and opens no PDF.** #80 owns PDF decoding, glyph repair and
 boilerplate stripping; this builder reads its per-page text and takes metadata titles
-from its manifest. Three documents have no usable title on page 1, so that manifest
-field is part of the handoff contract rather than optional decoration.
+from its manifest. When page 1 has no usable title, ``derive_topic`` reads that manifest
+field, so it is part of the handoff contract rather than optional decoration.
 
 **Why the grade marker is the anchor.** A USPSTF document states each recommendation two
 to four times -- in the structured abstract, in a summary figure, in the body -- and the
@@ -668,14 +668,25 @@ def derive_topic(pages: list[str], filename: str, metadata_title: str = "") -> s
     first page is browser chrome and whose metadata is the browser's -- those are named
     for their article.
     """
+    return _derive_topic_with_route(pages, filename, metadata_title)[0]
+
+
+TOPIC_ROUTE_PAGE = "page"
+TOPIC_ROUTE_DECLARED_FIELD = "declared-field"
+TOPIC_ROUTE_FILENAME = "filename"
+
+
+def _derive_topic_with_route(
+    pages: list[str], filename: str, metadata_title: str = ""
+) -> tuple[str, str]:
     title = _title_from_page(normalize(pages[0][:800]) if pages else "")
     if _looks_like_a_title(title):
-        return title
+        return title, TOPIC_ROUTE_PAGE
     title = _clean_title(TITLE_STOP.split(normalize(metadata_title))[0])
     if _looks_like_a_title(title):
-        return title
+        return title, TOPIC_ROUTE_DECLARED_FIELD
     slug = re.sub(r"[-_]+", " ", Path(filename).stem)
-    return _clean_title(TITLE_STOP.split(slug)[0])
+    return _clean_title(TITLE_STOP.split(slug)[0]), TOPIC_ROUTE_FILENAME
 
 
 def _title_from_page(head: str) -> str:
@@ -781,6 +792,7 @@ class DocumentResult:
     filename: str
     rows: list[Row] = field(default_factory=list)
     reason: str = ""
+    topic_route: str = ""
 
 
 def parse_document(
@@ -795,7 +807,7 @@ def parse_document(
     if chosen is None:
         return DocumentResult(filename, reason="no grade marker found in any recommendation region")
     region, statements = chosen
-    topic = derive_topic(pages, filename, metadata_title)
+    topic, topic_route = _derive_topic_with_route(pages, filename, metadata_title)
     year = derive_year(pages)
     fallback = document_population(pages)
     declared_field = _DeclaredFieldQuotation(fallback) if fallback else ""
@@ -817,7 +829,7 @@ def parse_document(
                 ),
             )
         )
-    return DocumentResult(filename, rows=rows)
+    return DocumentResult(filename, rows=rows, topic_route=topic_route)
 
 
 def topic_key(topic: str) -> str:
@@ -926,8 +938,8 @@ def render_markdown(
         "**This is an index into the corpus, not a substitute for it.** Every row carries "
         "the source `filename` and the `page` the grade was read from, so any grade can be "
         "checked against the document in one jump — and a row that matters to a patient "
-        "should be. Population field quotations and documents stating that the USPSTF "
-        "found no interval evidence are listed in sections below. `not stated` means "
+        "should be. Topic and population field quotations and documents stating that "
+        "the USPSTF found no interval evidence are listed in sections below. `not stated` means "
         "the rule found nothing there, which for `interval` is the ordinary case rather than "
         "a gap. Where a recommendation offers alternatives, "
         "`interval` names every recurrence of a recommended service that its statement "
@@ -1064,6 +1076,27 @@ def render_markdown(
     out.append("| --- | --- | --- |")
     for population, filename, page in field_pairs:
         out.append(render_row(population, f"`{filename}`", str(page)))
+    out.append("")
+    out.append("## Topic cells quoted from the declared field")
+    out.append("")
+    topic_field_entries = sorted(
+        {
+            (result.rows[0].topic, Path(result.filename).name)
+            for result in results
+            if result.rows and result.topic_route == TOPIC_ROUTE_DECLARED_FIELD
+        },
+        key=lambda entry: (entry[1].casefold(), entry[0].casefold()),
+    )
+    out.append(
+        f"{plural(len(topic_field_entries), 'document')} quote the PDF's declared title "
+        "field because page 1 does not yield a usable title. The filename-slug route is "
+        "excluded: it is not a quotation of a field the document declares."
+    )
+    out.append("")
+    out.append("| Topic | File |")
+    out.append("| --- | --- |")
+    for topic, filename in topic_field_entries:
+        out.append(render_row(topic, f"`{filename}`"))
     out.append("")
     out.append("## Documents stating no interval evidence was found")
     out.append("")
