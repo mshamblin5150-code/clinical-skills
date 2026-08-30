@@ -617,11 +617,11 @@ typing and antibody testing for all pregnant women
             fixture("ahrq-sentence-grade"), "filename-route.pdf"
         )
 
-        self.assertEqual(page_result.topic_route, ut.TOPIC_ROUTE_PAGE)
+        self.assertEqual(page_result.topic_route, ut.TopicRoute.PAGE)
         self.assertEqual(
-            declared_result.topic_route, ut.TOPIC_ROUTE_DECLARED_FIELD
+            declared_result.topic_route, ut.TopicRoute.DECLARED_FIELD
         )
-        self.assertEqual(filename_result.topic_route, ut.TOPIC_ROUTE_FILENAME)
+        self.assertEqual(filename_result.topic_route, ut.TopicRoute.FILENAME)
 
     def test_the_year_comes_from_the_journal_citation(self):
         self.assertEqual(ut.derive_year(fixture("jama-abstract-multi")), "2024")
@@ -840,8 +840,9 @@ class RenderingTests(unittest.TestCase):
             [ut.parse_document(fixture("jama-abstract-multi"), "breast.pdf")]
         )
         self.assertIn(
-            "Topic and population field quotations and documents stating that the "
-            "USPSTF found no interval evidence are listed in sections below.",
+            "Recommendation-table `Topic` and `Population` field quotations and "
+            "documents stating that the USPSTF found no interval evidence are listed "
+            "in sections below.",
             markdown,
         )
         self.assertNotIn("A document may state elsewhere", markdown)
@@ -868,7 +869,7 @@ class RenderingTests(unittest.TestCase):
                     1,
                 )
             ],
-            topic_route=ut.TOPIC_ROUTE_DECLARED_FIELD,
+            topic_route=ut.TopicRoute.DECLARED_FIELD,
         )
         filename = ut.DocumentResult(
             "filename-route.pdf",
@@ -883,7 +884,7 @@ class RenderingTests(unittest.TestCase):
                     1,
                 )
             ],
-            topic_route=ut.TOPIC_ROUTE_FILENAME,
+            topic_route=ut.TopicRoute.FILENAME,
         )
 
         section = ut.render_markdown([declared, filename]).split(

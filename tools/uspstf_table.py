@@ -44,6 +44,7 @@ import argparse
 import re
 import sys
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 import artifact_provenance
@@ -671,22 +672,23 @@ def derive_topic(pages: list[str], filename: str, metadata_title: str = "") -> s
     return _derive_topic_with_route(pages, filename, metadata_title)[0]
 
 
-TOPIC_ROUTE_PAGE = "page"
-TOPIC_ROUTE_DECLARED_FIELD = "declared-field"
-TOPIC_ROUTE_FILENAME = "filename"
+class TopicRoute(Enum):
+    PAGE = "page"
+    DECLARED_FIELD = "declared-field"
+    FILENAME = "filename"
 
 
 def _derive_topic_with_route(
     pages: list[str], filename: str, metadata_title: str = ""
-) -> tuple[str, str]:
+) -> tuple[str, TopicRoute]:
     title = _title_from_page(normalize(pages[0][:800]) if pages else "")
     if _looks_like_a_title(title):
-        return title, TOPIC_ROUTE_PAGE
+        return title, TopicRoute.PAGE
     title = _clean_title(TITLE_STOP.split(normalize(metadata_title))[0])
     if _looks_like_a_title(title):
-        return title, TOPIC_ROUTE_DECLARED_FIELD
+        return title, TopicRoute.DECLARED_FIELD
     slug = re.sub(r"[-_]+", " ", Path(filename).stem)
-    return _clean_title(TITLE_STOP.split(slug)[0]), TOPIC_ROUTE_FILENAME
+    return _clean_title(TITLE_STOP.split(slug)[0]), TopicRoute.FILENAME
 
 
 def _title_from_page(head: str) -> str:
@@ -792,7 +794,7 @@ class DocumentResult:
     filename: str
     rows: list[Row] = field(default_factory=list)
     reason: str = ""
-    topic_route: str = ""
+    topic_route: TopicRoute | None = None
 
 
 def parse_document(
@@ -938,8 +940,9 @@ def render_markdown(
         "**This is an index into the corpus, not a substitute for it.** Every row carries "
         "the source `filename` and the `page` the grade was read from, so any grade can be "
         "checked against the document in one jump — and a row that matters to a patient "
-        "should be. Topic and population field quotations and documents stating that "
-        "the USPSTF found no interval evidence are listed in sections below. `not stated` means "
+        "should be. Recommendation-table `Topic` and `Population` field quotations and "
+        "documents stating that the USPSTF found no interval evidence are listed in sections "
+        "below. `not stated` means "
         "the rule found nothing there, which for `interval` is the ordinary case rather than "
         "a gap. Where a recommendation offers alternatives, "
         "`interval` names every recurrence of a recommended service that its statement "
@@ -1083,7 +1086,7 @@ def render_markdown(
         {
             (result.rows[0].topic, Path(result.filename).name)
             for result in results
-            if result.rows and result.topic_route == TOPIC_ROUTE_DECLARED_FIELD
+            if result.rows and result.topic_route is TopicRoute.DECLARED_FIELD
         },
         key=lambda entry: (entry[1].casefold(), entry[0].casefold()),
     )
