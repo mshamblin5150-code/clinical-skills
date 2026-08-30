@@ -173,14 +173,14 @@ from a proposal reliably. Issue #290.
 
 ### Check closing keywords before merge
 
-GitHub scans a pull request's title, body, and commit messages for closing keywords. It does not honor prose intent or Markdown quoting: a sentence explaining that a form would have settled a ticket can itself settle it. Run the repository scanner over all three fields before merging:
+GitHub scans a pull request's title, body, and commit messages for closing keywords. The repository scanner follows the dated measured grammar and declared margins named in `closing_keyword_scan.DECLARED_LIMITS`; prose intent does not make a matching form safe. Run it over all three fields before merging:
 
 ```bash
 gh pr view <number> --json title,body,commits |
   python tools/closing_keyword_scan.py --github-json -
 ```
 
-The only allowed binding is `Closes #N` alone on its own line, when the whole ticket is done. Use `Implements #N's lead 1` or `Part of #N` for partial work. The local `commit-msg` hook checks commit messages, and CI checks PR text on edits plus every commit in a push to `main`, both advisory; the command above is the pre-merge check that reaches the whole PR artifact. Issue #183.
+The only allowed binding is `Closes #N` alone on its own line, when the whole ticket is done. Use `Implements #N's lead 1` or `Part of #N` for partial work. The local `commit-msg` hook checks commit messages; the pull-request CI check treats the scanner's exit status as its verdict, while the post-action push check stays advisory. In both CI steps the scanner runs last, nothing consumes its output, and its exit status is the verdict. The command above is the pre-merge check that reaches the whole PR artifact. Issues #183 and #574.
 
 **PRs as a request surface: no.**
 

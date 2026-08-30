@@ -187,11 +187,25 @@ class ClosingKeywordSurfacesAreCovered(unittest.TestCase):
         self.assertRegex(text, r"(?m)^\s*fetch-depth:\s*0\s*$")
         self.assertRegex(text, r"closing_keyword_scan\.py\s+-")
 
-    def test_the_check_records_its_advisory_status(self):
+    def test_pull_request_findings_fail_the_check(self):
         text = workflow_text()
         self.assertRegex(
             text,
-            r"(?s)- name: Closing keyword scan, advisory.*continue-on-error:\s*true",
+            r"(?s)- name: Closing keyword scan, pull request.*?"
+            r"if: github\.event_name == 'pull_request'.*?"
+            r"python tools/closing_keyword_scan\.py --github-json \$pr",
+        )
+        pull_request_step = text.partition(
+            "- name: Closing keyword scan, pull request"
+        )[2].partition("\n      - name:")[0]
+        self.assertNotIn("continue-on-error", pull_request_step)
+
+    def test_post_merge_push_findings_stay_advisory(self):
+        self.assertRegex(
+            workflow_text(),
+            r"(?s)- name: Closing keyword scan, advisory push or manual run.*?"
+            r"if: github\.event_name != 'pull_request'.*?"
+            r"continue-on-error:\s*true.*?closing_keyword_scan\.py\s+-",
         )
 
     def test_claude_md_documents_the_same_surfaces(self):

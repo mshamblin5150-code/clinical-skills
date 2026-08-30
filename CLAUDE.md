@@ -901,7 +901,7 @@ It prints a path, a line number for content and its own table's entry — **neve
 
 ### Closing keyword scan
 
-GitHub treats a closing keyword followed by a ticket reference as an instruction even when it appears inside negated prose, backticks, or a sentence explaining why the ticket must stay open. [#183](https://github.com/mshamblin5150-code/clinical-skills/issues/183) records the resulting accidental closes. `tools/closing_keyword_scan.py` grades the artifact text before GitHub acts on it:
+GitHub treats its measured closing grammar as an instruction without reading prose intent. [#183](https://github.com/mshamblin5150-code/clinical-skills/issues/183) records the resulting accidental closes; [ADR 0073](docs/adr/0073-the-closing-scan-grades-the-measured-github-grammar-plus-a-declared-margin.md) records the live parser measurement and the deliberately wider margins. `tools/closing_keyword_scan.py` grades the artifact text before GitHub acts on it, and its full boundary is named in `closing_keyword_scan.DECLARED_LIMITS` rather than copied here:
 
 ```bash
 python tools/closing_keyword_scan.py .git/COMMIT_EDITMSG
@@ -912,7 +912,7 @@ gh pr view <number> --json title,body,commits | python tools/closing_keyword_sca
 
 **Three surfaces, three times.** The local `commit-msg` hook grades the proposed commit message. A pull-request CI run grades the PR title, body, and every commit message returned by `gh pr view`, and an `edited` event reruns it when the PR text changes without a new commit. A push to `main` grades every commit in the pushed range, including a server-created merge message. That final check is detection after GitHub may already have acted; it is not presented as prevention.
 
-**Advisory on the existing hook and CI rulings.** The command returns 1 for a finding, but the hook preserves a successful commit status and the workflow step uses `continue-on-error`. A person can run the command directly as a gate before merging without silently changing the repository's enforcement posture. Findings print the artifact field, line, keyword, and ticket number, never the surrounding text.
+**The enforcement posture follows when the result can still prevent the action.** The command returns 1 for a finding and the local hook preserves a successful commit status. Pull-request CI keeps that nonzero verdict visible; the push-to-`main` step uses `continue-on-error` because GitHub has already acted. Neither is a required status check under ADR 0002. Findings print the artifact field, line, keyword, and ticket number, never the surrounding text.
 
 ### The run record's one exception
 
