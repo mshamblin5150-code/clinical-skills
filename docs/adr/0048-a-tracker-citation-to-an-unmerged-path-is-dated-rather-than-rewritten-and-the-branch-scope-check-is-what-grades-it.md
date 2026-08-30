@@ -25,8 +25,6 @@ Grilled on 2026-08-27, against `origin/main` `fb2892f`. The clinician ruled ever
 
 15. **The citation-coordinate class is a separate ticket, not a widening.** #510 cites *"ADR 0030 ruling 9"*; that record carries exactly eight numbered rulings. It is not ruling 1's defect — never early, never self-healing, and dating it changes nothing — and ruling 4's placement structurally cannot reach it, because `git ls-tree` returns **paths** and a coordinate needs **contents**. It is the mirror of [#538](https://github.com/mshamblin5150-code/clinical-skills/issues/538)'s ADR 0016 case, and both are tree-content checks while this is the merge-state axis.
 
-*Marker added in place 2026-08-30 under ADR 0075 ruling 7; ruling 15's content is unchanged.*
-
 ## The measurement came first, and it is the first one taken with the ruled predicate
 
 Re-derived 2026-08-27 at `origin/main` `fb2892f`, over 46 open issues and every issue comment, with the ruling 8 strip and with `#fragment` and `?query` removed before resolution. The harvest was deleted immediately after.
@@ -98,3 +96,7 @@ The sweep this record's own grilling ran — 47 open tickets, six independent re
 The three body instances were dated to the historical form. The posted comment is left as written, on #497's ground and ruling 14's.
 
 *Addendum written 2026-08-27 on the branch that carries it, merged the same day. Rulings 1–15 and the sections above them are left exactly as ratified; ruling 17 is a correction in place under ADR 0016 and says so where it sits.*
+
+Correction, 2026-08-30: ruling 15's deliberate quotation formerly had no counted marker and was the
+one dangling tree-side citation. The `unresolved-ruling-citations` marker was added under ADR 0075
+ruling 7; ruling 15's content is unchanged.

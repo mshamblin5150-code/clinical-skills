@@ -278,9 +278,6 @@ meets rather than a late reconciliation. Still the clinician's, and still not de
 
 ## Second addendum, 2026-08-28 — the row shape and the registry's owner, ruled by the clinician
 
-*Corrected in place 2026-08-30 under ADR 0075 ruling 3: this addendum continues the record's
-ruling sequence at 12 rather than restarting it; the ruling text is unchanged.*
-
 **12. The row is three-field.** `guidelines_recs.DECLARED_LIMITS` takes
 [ADR 0053](0053-a-declared-limit-is-a-keyed-sentence-and-its-reasoning-stays-at-the-code-point.md)
 ruling 8's `key` / `limit` / `evidence` shape, so ruling 7 stands unqualified and the two tickets
@@ -317,3 +314,6 @@ merely the earlier one: `tools/threshold_coverage.py:91` grades that cell for no
 which is *why nothing caught it*; and `coverage.md:78` — the `diabetes mellitus` **`sheet`** row — is
 the 47th `#436` reference and must not be swept, because it is not a blocker claim, it stays true
 after the build, and *full-document read pending* would be false of a `sheet` row.
+
+Correction, 2026-08-30: the second addendum's two rulings formerly restarted at 1–2. They now
+continue the record's sequence at 12–13 under ADR 0075 ruling 3; the ruling text is unchanged.

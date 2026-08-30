@@ -330,9 +330,6 @@ the expiry-field ticket instead of this one.
 
 ## Second addendum, 2026-08-27 — ruling 7's ground expired the same day, and piece B's limit is a row
 
-*Corrected in place 2026-08-30 under ADR 0075 ruling 3: this addendum continues the record's
-ruling sequence at 9 rather than restarting it; the ruling text is unchanged.*
-
 **Ruled by the clinician on 2026-08-27**, during the exhaustive tracker sweep from
 [#538](https://github.com/mshamblin5150-code/clinical-skills/issues/538)'s grilling. **Ruling 7
 stands as ruled and is not rewritten.** What follows is what changed underneath it.
@@ -424,3 +421,6 @@ somebody read them, and the reason it was withheld is the reason it is worth kee
 was written, and what the clinician ruled in its place. On
 [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
 terms.)*
+
+Correction, 2026-08-30: the second addendum's three rulings formerly restarted at 1–3. They now
+continue the record's sequence at 9–11 under ADR 0075 ruling 3; the ruling text is unchanged.
