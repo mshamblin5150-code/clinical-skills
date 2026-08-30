@@ -8,10 +8,13 @@ convention — an omitted group prints `not graded`, never `0` — with nothing 
 [ADR 0074](0074-a-module-s-limit-population-is-one-object-and-the-shapes-it-replaces-survive-as-views-and-pointers.md)
 ruling 6 names this ticket, settles the width as *the rule is uniform and the container is each
 module's own ruling*, and hands the decision back. Grilled 2026-08-30 against `origin/main` at
-`c4e9fc9`, freshness gate `FRESH`. **Eight decisions, all the clinician's, all on that date.**
+`c4e9fc9`, freshness gate `FRESH` at both checkpoints. `main` advanced to `a2536e7` between the
+ruling and the write-up, and every measurement below was re-derived there rather than carried
+forward: the census reproduces field for field, and the change touched neither scanner, neither
+scanner's tests, `grader_conformance.py`, `case_study_scan.py` nor `differential_scan.py`. **Eight decisions, all the clinician's, all on that date.**
 Nothing is built here.
 
-## Measured before ruling, at `c4e9fc9`
+## Measured before ruling, at `c4e9fc9` and re-derived at `a2536e7`
 
 Every figure below is a dated measurement of a tree at a commit, and the instrument is named beside
 it on ADR 0074 ruling 6's terms.
