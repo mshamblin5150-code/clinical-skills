@@ -1259,11 +1259,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines.append(
             f"  {'evidence topics carried':<32} not graded - no --evidence was given"
         )
+    else:
+        lines.append(f"  {'evidence topics carried':<32} {scan.evidence_topics}")
+    if scan.uptodate_citations is None:
         lines.append(
             f"  {'UpToDate citations read':<32} not graded - no --evidence was given"
         )
     else:
-        lines.append(f"  {'evidence topics carried':<32} {scan.evidence_topics}")
         # What the row read, beside what it read against. Both, because either
         # alone reads as the stronger claim: a count of topics carried says
         # nothing about whether a single citation was joined to them.
@@ -1279,7 +1281,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         shown = count
         if scan.prescriptions is None and kind in DRAFT_ROWS:
             shown = "not graded"
-        if scan.evidence_topics is None and kind in EVIDENCE_ROWS:
+        if (
+            scan.evidence_topics is None or scan.uptodate_citations is None
+        ) and kind in EVIDENCE_ROWS:
             shown = "not graded"
         lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")

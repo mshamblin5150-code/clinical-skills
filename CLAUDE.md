@@ -732,7 +732,7 @@ mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
-python tools/tracker_scan.py --harvest "$H"/tracker-*.json
+python tools/tracker_scan.py --harvest "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json"
 
 git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
 git fetch origin
@@ -764,14 +764,14 @@ by [ADR 0077](docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-l
 ruling 5, which is not what #260 declined: that reasoning is about a **git**
 hook, and a comment published without a push is still published by a tool call.
 
-**When a full harvest last really ran, and what it found, is what the command
-prints and is deliberately stated nowhere here** -- ADR 0077 ruling 7, on
+**When a full harvest last really ran, and what it found, is what
+`python tools/tracker_scan.py --harvest` records and prints; the bare
+`python tools/phi_scan.py` commit path states that marker's age** -- ADR 0077
+ruling 7, on
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
-**The marker that command reads is
-[#671](https://github.com/mshamblin5150-code/clinical-skills/issues/671)'s build
-and does not exist yet; until it lands the figure is re-derived by running a
-full harvest from the maintainer clone.** This paragraph used to carry the
-result itself and it went stale in the direction nobody notices. **The carrying
+The date and finding counts live only in the committed marker and the command's
+report; this paragraph carries neither. This paragraph used to carry the result
+itself and it went stale in the direction nobody notices. **The carrying
 record and the finding ticket are two records four days apart, and a first
 draft of this sentence merged them into one**:
 [#498](https://github.com/mshamblin5150-code/clinical-skills/issues/498) was
