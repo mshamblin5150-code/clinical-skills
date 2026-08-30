@@ -100,10 +100,11 @@ not paste it. Deliberately **not** `reference_scan.py`'s exception -- that
 module's output is bounded by what its code can draw from, and this one's is
 bounded by nothing, because it reads whatever anybody typed.
 
-**A human ruling on a commit finding is committed without repeating its
-literal.** ``reference/tracker-scan-rulings.json`` keys the verdict on the full
-commit id, line, rule and SHA-256 digest of the containing line. The digest
-makes a later line edit expire the ruling; it does not conceal a match whose
+**A human ruling on a published finding is committed without repeating its
+literal.** ``reference/tracker-scan-rulings.json`` keys a commit verdict on the
+full commit id, line, rule and SHA-256 digest of the containing line. A harvest
+verdict replaces the commit id with the public record locator. The digest makes
+a later line edit expire either ruling; it does not conceal a match whose
 keyspace is enumerable, on
 `ADR 0077 ruling 3 <../docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md>`_'s
 terms. The full tuple is the finding: ruling a commit alone would let one
@@ -136,7 +137,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, NamedTuple, Sequence
+from typing import Iterable, NamedTuple, Sequence, TypeVar
 
 import phi_scan
 from console_codec import use_utf8
@@ -159,6 +160,7 @@ FETCH_PULL_REFS = "git fetch origin"
 RULINGS_PATH = Path("reference/tracker-scan-rulings.json")
 RULING_VERDICTS = {"noise", "accepted-history"}
 COMMIT_FINDING = re.compile(r"^commit ([0-9a-f]{40})$")
+HARVEST_RECORD = re.compile(r"^https://github\.com/\S+ (?:title|body)$")
 
 
 class Record(NamedTuple):
@@ -200,11 +202,61 @@ class RulingKey(NamedTuple):
     line_sha256: str
 
 
+class HarvestRulingKey(NamedTuple):
+    record: str
+    line: int
+    rule: str
+    line_sha256: str
+
+
+RulingKeyT = TypeVar("RulingKeyT", RulingKey, HarvestRulingKey)
+
+
 @dataclass(frozen=True)
 class ScannedFinding(Finding):
     """A finding plus the non-enumerable identity of its containing line."""
 
     line_sha256: str
+
+
+def _ruling_fields(
+    path: Path, row: object, number: int, surface: str = ""
+) -> tuple[dict, int, str, str, tuple[str, str]]:
+    """Validate the fields shared by every line-level ruling row."""
+    label = f"{surface + ' ' if surface else ''}row {number}"
+    if not isinstance(row, dict):
+        raise RulingError(f"{path}: {label} must be an object")
+    line = row.get("line")
+    rule = row.get("rule")
+    digest = row.get("line_sha256")
+    verdict = row.get("verdict")
+    reason = row.get("reason")
+    if not isinstance(line, int) or isinstance(line, bool) or line < 1:
+        raise RulingError(f"{path}: {label} has an invalid line")
+    if not isinstance(rule, str) or not rule:
+        raise RulingError(f"{path}: {label} has an invalid rule")
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise RulingError(f"{path}: {label} has an invalid line_sha256")
+    if verdict not in RULING_VERDICTS:
+        raise RulingError(f"{path}: {label} has an invalid verdict")
+    if not isinstance(reason, str) or not reason.strip():
+        raise RulingError(f"{path}: {label} has an invalid reason")
+    return row, line, rule, digest, (verdict, reason)
+
+
+def _add_ruling(
+    path: Path,
+    key: RulingKeyT,
+    decision: tuple[str, str],
+    decisions: dict[RulingKeyT, tuple[str, str]],
+    rulings: Counter[RulingKeyT],
+    conflict: str,
+) -> None:
+    """Add one verdict while refusing contradictory duplicate rows."""
+    if key in decisions and decisions[key] != decision:
+        raise RulingError(f"{path}: {conflict}")
+    decisions[key] = decision
+    rulings[key] += 1
 
 
 def _run_git(
@@ -391,62 +443,68 @@ def commit_records(repo: Path) -> list[Record]:
     return records
 
 
-def load_commit_rulings(repo: Path) -> Counter[RulingKey]:
-    """Read exact, non-revealing verdicts for immutable commit findings."""
+def load_rulings(
+    repo: Path,
+) -> tuple[Counter[RulingKey], Counter[HarvestRulingKey]]:
+    """Read exact verdicts for immutable commits and published records."""
     path = repo / RULINGS_PATH
     if not path.is_file():
-        return Counter()
+        return Counter(), Counter()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise RulingError(f"{path}: {error}") from error
     if not isinstance(data, dict) or data.get("version") != 2:
         raise RulingError(f"{path}: version must be 2")
-    rows = data.get("commit_findings")
-    if not isinstance(rows, list):
+    commit_rows = data.get("commit_findings")
+    if not isinstance(commit_rows, list):
         raise RulingError(f"{path}: commit_findings must be a list")
+    harvest_rows = data.get("harvest_findings")
+    if not isinstance(harvest_rows, list):
+        raise RulingError(f"{path}: harvest_findings must be a list")
 
     rulings: Counter[RulingKey] = Counter()
     decisions: dict[RulingKey, tuple[str, str]] = {}
-    for number, row in enumerate(rows, 1):
-        if not isinstance(row, dict):
-            raise RulingError(f"{path}: row {number} must be an object")
+    for number, row in enumerate(commit_rows, 1):
+        row, line, rule, digest, decision = _ruling_fields(path, row, number)
         commit = row.get("commit")
-        line = row.get("line")
-        rule = row.get("rule")
-        digest = row.get("line_sha256")
-        verdict = row.get("verdict")
-        reason = row.get("reason")
         if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
             raise RulingError(f"{path}: row {number} has an invalid commit")
-        if not isinstance(line, int) or isinstance(line, bool) or line < 1:
-            raise RulingError(f"{path}: row {number} has an invalid line")
-        if not isinstance(rule, str) or not rule:
-            raise RulingError(f"{path}: row {number} has an invalid rule")
-        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise RulingError(f"{path}: row {number} has an invalid line_sha256")
-        if verdict not in RULING_VERDICTS:
-            raise RulingError(f"{path}: row {number} has an invalid verdict")
-        if not isinstance(reason, str) or not reason.strip():
-            raise RulingError(f"{path}: row {number} has an invalid reason")
         key = RulingKey(commit, line, rule, digest)
-        decision = (verdict, reason)
-        if key in decisions and decisions[key] != decision:
+        _add_ruling(
+            path, key, decision, decisions, rulings,
+            f"row {number} conflicts with an earlier line ruling",
+        )
+
+    harvest_rulings: Counter[HarvestRulingKey] = Counter()
+    harvest_decisions: dict[HarvestRulingKey, tuple[str, str]] = {}
+    for number, row in enumerate(harvest_rows, 1):
+        row, line, rule, digest, decision = _ruling_fields(
+            path, row, number, "harvest"
+        )
+        record = row.get("record")
+        if not isinstance(record, str) or not HARVEST_RECORD.fullmatch(record):
             raise RulingError(
-                f"{path}: row {number} conflicts with an earlier line ruling"
+                f"{path}: harvest row {number} has an invalid record"
             )
-        decisions[key] = decision
-        rulings[key] += 1
-    return rulings
+        key = HarvestRulingKey(record, line, rule, digest)
+        _add_ruling(
+            path, key, decision, harvest_decisions, harvest_rulings,
+            f"harvest row {number} conflicts with an earlier line ruling",
+        )
+    return rulings, harvest_rulings
 
 
 def partition_ruled_findings(
-    findings: Sequence[ScannedFinding], rulings: Counter[RulingKey]
+    findings: Sequence[ScannedFinding],
+    rulings: Counter[RulingKey],
+    harvest_rulings: Counter[HarvestRulingKey] | None = None,
 ) -> tuple[list[ScannedFinding], list[ScannedFinding]]:
-    """Separate only findings whose immutable commit identity matches exactly."""
+    """Separate only findings whose commit or record identity matches exactly."""
     unruled: list[ScannedFinding] = []
     ruled: list[ScannedFinding] = []
     available = rulings.copy()
+    available_harvest = (harvest_rulings or Counter()).copy()
     for finding in findings:
         match = COMMIT_FINDING.fullmatch(finding.path)
         key = RulingKey(
@@ -456,6 +514,15 @@ def partition_ruled_findings(
         if key is not None and available[key] > 0:
             ruled.append(finding)
             available[key] -= 1
+        elif not match:
+            harvest_key = HarvestRulingKey(
+                finding.path, finding.line, finding.rule, finding.line_sha256
+            )
+            if available_harvest[harvest_key] > 0:
+                ruled.append(finding)
+                available_harvest[harvest_key] -= 1
+            else:
+                unruled.append(finding)
         else:
             unruled.append(finding)
     return unruled, ruled
@@ -654,6 +721,7 @@ def main(argv: list[str]) -> int:
     context: list[tuple[str, int]] = []
     records: list[Record] = []
     rulings: Counter[RulingKey] = Counter()
+    harvest_rulings: Counter[HarvestRulingKey] = Counter()
     unscanned = False
 
     try:
@@ -706,11 +774,13 @@ def main(argv: list[str]) -> int:
         print(f"tracker-scan: DID NOT SCAN -- {error}", file=sys.stderr)
         return NOT_SCANNED
 
-    if args.commits:
+    if args.commits or args.harvest:
         try:
-            rulings = load_commit_rulings(repo)
+            rulings, harvest_rulings = load_rulings(repo)
         except RulingError as error:
-            banners.append(f"DID NOT APPLY commit rulings -- {error}")
+            banners.append(
+                f"DID NOT APPLY commit rulings or harvest rulings -- {error}"
+            )
             unscanned = True
 
     if not records and not unscanned:
@@ -732,7 +802,9 @@ def main(argv: list[str]) -> int:
     names, dates = phi_scan.corpus_identifiers()
     banners.extend(phi_scan.shortfall_notice(phi_scan.corpus_coverage(), missing))
     findings = scan_records(records, phi_scan.build_index(names, dates))
-    findings, ruled = partition_ruled_findings(findings, rulings)
+    findings, ruled = partition_ruled_findings(
+        findings, rulings, harvest_rulings
+    )
     if ruled:
         context.append(("ruled findings", len(ruled)))
     print(format_report(findings, records, context, banners, args.show))
