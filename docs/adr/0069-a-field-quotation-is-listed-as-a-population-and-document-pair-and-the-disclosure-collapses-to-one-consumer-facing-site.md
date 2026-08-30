@@ -72,11 +72,23 @@ whole row (all 9 cells)             14                 0
 grade-I pair differs only in its `## Statements` entries, beta carotene and vitamin E against
 single or paired nutrients. Nothing in `## Recommendations` separates them.
 
-**3. There is a fifth site stating the population rule, and no count has reached it.**
-ADR 0068 ruling 8 names *"three sites to police"*. There are five: the artifact header at
-`:5`, the `## Statements` preamble at `:175`, the module docstring at `uspstf_table.py:29`,
-**`derive_population`'s own docstring at `:476-478`**, and
+**3. The population rule is stated in five places and no count on #545's thread reached the
+fifth.** The artifact header at `:5`, the `## Statements` preamble at `:175`, the module
+docstring at `uspstf_table.py:29`, **`derive_population`'s own docstring at `:476-478`**, and
 `test_uspstf_derived_cells.py:11-12`.
+
+**ADR 0068 ruling 8's *"three sites to police"* is not undercounting this, and a first draft
+of this record said it was.** That count is about the **interval**-derivation claim — its
+paragraph opens *"There is a third generated copy of the interval-derivation claim"* — and for
+interval the sites are `:5`, `:175` and `uspstf_table.py:29-30`, which is exactly three.
+`derive_interval` at `:534` carries a docstring, but it states which phrases the vocabulary
+collects rather than the boundary, so it is correctly not counted. `derive_population`'s does
+state the boundary, which is why the two columns have different totals over the same files.
+**The error was generalizing one column's count onto the other from the files this session had
+open**, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s
+subject arriving inside a record whose own subject is a claim copied to five places. It was
+caught by re-deriving a finding this session had itself produced, before it reached a sweep
+verdict.
 
 **4. `Topic` has the same shape and is worse.** `derive_topic` at `:574` takes three routes —
 page 1's title, the PDF metadata title (*"missing or reads `JAMA` in twelve of the ninety
