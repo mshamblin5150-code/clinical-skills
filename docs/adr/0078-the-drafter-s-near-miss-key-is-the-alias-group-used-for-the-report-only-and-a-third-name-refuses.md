@@ -35,7 +35,7 @@ most likely second source. No cut point above zero surfaces it.
 seeded row's topic gives `cervical cancer screening` 16 near-misses — every cancer in the catalog —
 and `chronic obstructive pulmonary disease` **34**, including `Lyme disease` and `congenital heart
 disease`. Over the 169 distinct topics, 1,143 topic pairs share at least one significant word and one
-topic has 65 neighbours.
+topic has 65 neighbors.
 
 **So this is a synonym gap and not an overlap gap.** `hypertension` and `high blood pressure` share
 no word, and nothing inferred from society-written wording bridges them. That corroborates
