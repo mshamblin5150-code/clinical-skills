@@ -69,7 +69,7 @@ job is a **shallow** checkout of the default branch with `contents: read` only. 
 **public**.
 
 **The hook surface is ruled in and unbuilt.** `tools/hooks/` holds `commit-msg` and `pre-commit`
-only, `.claude/settings.json` carries no hooks, and the `PreToolUse` work of
+only, no `.claude/settings.json` exists in either checkout to carry a hook, and the `PreToolUse` work of
 [ADR 0077](0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md)
 ruling 5 and [ADR 0083](0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md)
 sits in the map as `P670+706`, on the current frontier.
@@ -100,6 +100,10 @@ CI and continue to need a session running the full helper.
 
 ### 2. The harvest carries issues, plus dependencies for the tickets carrying `blocked`, in two passes
 
+**Narrowed by ruling 10.** The third direction is withdrawn and this ruling's harvest collapses to
+the issues file alone. The text below stands as what was ruled that morning; read ruling 10 for
+what the build implements.
+
 Issues alone cannot reach the third direction: the grader sees the `blocked` label and cannot
 tell a prose gate from a native edge. Harvesting dependencies for **every** mapped ticket would reach
 the edge invariants too, and is refused — those are about **edges**, which is the semantic half this
@@ -107,6 +111,13 @@ ticket rules stays a person's judgment, and the full helper already grades them 
 
 The fetch set is keyed on the **label** rather than on the map, so it costs one call per `blocked`
 ticket rather than a fixed 71.
+
+**Both files land under `scratch/sessions/<key>/` and never at the scratch top level**, which every
+documented harvest in `CLAUDE.md` already does and which this record stated loosely as *under
+`scratch/`* until the sweep priced it: the owning checkout sits **at** its ratchet baseline, so a
+transient at the top level refuses the next commit in every checkout —
+[#700](https://github.com/mshamblin5150-code/clinical-skills/issues/700). On a runner the pair goes
+to `RUNNER_TEMP` instead, because `scratch/` must never reach one.
 
 **Two fixed commands, never one command with a loop.** A first pass over the issues file grades both
 readiness directions and prints an explicit *not graded* line naming the tickets whose gates were not
@@ -207,7 +218,7 @@ is the mechanism that went eighteen ADRs without firing; adding a second one at 
 re-creates the defect rather than closing it.
 
 **A `PreToolUse` hook matching `git push` is the right in-session mechanism and is a different
-ticket.** ADR 0083 ruling 1 measured `additionalContext` as the one spelling that reaches the model,
+ticket.** ADR 0083 finding 1 measured `additionalContext` as the one spelling that reaches the model,
 so the hook would be a mechanism rather than an instruction, and it would narrow the detection window
 from *the next merge* to *this push*. It is deferred because it depends on `P670+706` landing first
 and because it puts a whole-tracker harvest in front of every `git push`; building it here would make
@@ -268,6 +279,22 @@ collides with a word already live in the file's prose is a heading-against-prose
 check does not see it* — so the compound buys precisely the ambiguity the gate would have refused if
 it could read prose, and would have put a clinical word on a tracker tool's filename.
 
+**Corrected 2026-08-31, by the sweep of this record's own session.** The paragraph above argues
+against the compound as though this glossary contained none, and **`CONTEXT.md` has carried
+`Corpus drift` since [ADR 0031](0031-the-corpus-is-the-record-and-the-tree-is-a-derived-view.md)** —
+a second sense of the same word, in the same file, in exactly the compound form refused here. So the
+house precedent ran *toward* `Map drift` and this record did not know it: the reasoning was made from
+the files the session had open, which is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) arriving inside the ruling
+that renames a term to avoid an ambiguity. **The ruling is unchanged** — the clinician chose the name
+and the ground that survives is the first one, that `Drift` is clinical and load-bearing — but the
+compound argument is withdrawn rather than repaired, because a compound is evidently permitted here.
+
+**That also makes the collision count one higher than
+[#702](https://github.com/mshamblin5150-code/clinical-skills/issues/702) records**, and the fourth
+instance predates that ticket entirely. The count is #702's to hold and is deliberately not stated
+here.
+
 ## Derived from precedent rather than ruled
 
 **The report is bounded by construction and there is no `--show`.** A finding names the row kind, the
@@ -281,6 +308,58 @@ else.
 network and changes every time anybody comments, so no count of issues, packets or findings is
 asserted anywhere, on `test_tracker_scan.py`'s position.
 
+## Addendum, 2026-08-31: the third direction is withdrawn
+
+Ruled by the clinician on 2026-08-31, hours after the rulings above, when the exhaustive tracker
+sweep of this record's own session read
+[ADR 0072](0072-blocked-is-one-kind-agnostic-gate-label-on-an-axis-orthogonal-to-the-roles-and-the-sweep-holds-its-invariant.md).
+Numbering continues the sequence on [ADR 0075](0075-a-ruling-ordinal-has-one-referent-addenda-continue-the-numbering-and-the-citation-resolver-is-a-third-walker-joining-against-the-record-s-own-list.md)
+ruling 2.
+
+### 10. The `blocked` direction is dropped, and the harvest is the issues file alone
+
+**ADR 0072 ruling 3 priced and refused this exact tool, and this record never cited it** — *"A
+tracker-family scanner was priced and refused. The tools open no sockets, so a grader would need a
+new documented harvest step feeding a new tool ... Declare the coverage; do not widen the
+instrument."* Ruling 2 above builds precisely that second documented harvest step.
+
+**And ADR 0072's invariant has two disjuncts where ruling 2 read one** — *every open `blocked`
+ticket has an open `blocked_by` edge, **or a body naming a gate no edge can record**.* #87 satisfies
+the second, its gate being `The maintainer says so.`, and ADR 0072 names #87 by number as the
+carrier whose shape is **correct**. So the third direction as ruled would have made a ratified-correct
+ticket a finding on every `push: main` — the false alarm on correct work that ruling 5 refused P1
+over, one ruling later and in the same record.
+
+**The conflict is settled by argument and not by ordinal, which is ruling 9's own principle applied
+to this record rather than to a glossary term.** Ruling 9 records that the tie-break by number is
+what a clinician overrides; letting 0089 beat 0072 here merely because it is higher would be the
+move ruling 9 refused, one section down. ADR 0072 ruling 3 stands: the invariant is the sweep's, in
+prose, and no tool certifies it.
+
+**The measurement runs the same way.** ADR 0072 recorded the ordinary sweeps catching this class
+three times in the week before it ruled. The tool as specced would have fired on the one live
+carrier and been wrong about it — a worse hit rate than the process it replaces.
+
+**What collapses with it.** Nothing else in the design reads `blocked_by`: both readiness
+directions, the obligation limb and the pointer-address check all read the one issues file. So
+`--deps` goes, the second pass goes, the *not graded* line between passes goes, and the harvest
+returns to the **single** documented command already in `CLAUDE.md`. The build is smaller than
+ruling 2 describes, and the procedure no longer has a second step whose input set depends on the
+first step's output.
+
+**The residue moves rather than disappearing.** That a `blocked` label may sit on a prose gate, and
+that neither direction of ADR 0072's invariant is mechanically certified, belongs in
+`DECLARED_LIMITS` — which is ADR 0072's own *declare the coverage* discharged by the module this
+record builds.
+
+**What it cost to find is the part worth keeping.** Ruling 2 was put to the clinician and accepted
+on a scope proposal in #679's first comment, and neither the proposal nor this record's measurement
+pass read ADR 0072 — a ratified record on exactly the label the direction keys on. That is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) a second time in one
+record: ruling 9's ground was generalized from the files the session had open, and so was ruling 2's
+scope. Both were caught by the exhaustive sweep rather than by the grilling, which is the argument
+for sweeping every ticket rather than the related-looking ones.
+
 ## What must not come out of this
 
 **A machine that writes packets.** The helper's refusal to infer an edge from prose or shared
@@ -289,7 +368,7 @@ map that is current and wrong, which is strictly worse than one that is stale an
 here places work; the grader reports and the delta stays a person's.
 
 **A second copy of the state.** The map is one issue body and the rendered views are derived. The
-harvest is a disposable file under `scratch/`, `reconciled_through` is a fact about the map's own
+harvest is a disposable file under `scratch/sessions/<key>/`, `reconciled_through` is a fact about the map's own
 reconciliation, and the declared limits live in the module with a pointer in the map.
 
 **A count of packets, ADRs or tickets written into prose outside this record.** Every figure above is
