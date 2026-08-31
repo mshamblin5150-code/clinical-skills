@@ -25,7 +25,7 @@
 | asthma | unread |  | no recommendation record; full-document read pending |
 | asymptomatic bacteriuria screening | sheet | asymptomatic-bacteriuria-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | atrial fibrillation | unread |  | exact recommendation index available; full-document read pending |
-| atrial fibrillation screening | unread |  | exact recommendation index available; full-document read pending |
+| atrial fibrillation screening | sheet | atrial-fibrillation-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | autism spectrum disorder screening | sheet | autism-spectrum-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | autosomal dominant polycystic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | bacterial vaginosis screening, preterm delivery prevention | sheet | bacterial-vaginosis-screening-preterm-delivery-prevention.md | source pages accounted for on 2026-08-30; independent checks passed |
@@ -35,7 +35,7 @@
 | blood pressure in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | bradycardia and cardiac conduction delay | sheet | bradycardia-and-cardiac-conduction-delay.md | source pages accounted for on 2026-08-30; independent checks passed |
 | BRCA-related cancer risk assessment and genetic testing | sheet | brca-related-cancer-risk-assessment-and-genetic-testing.md | source pages accounted for on 2026-08-30; independent checks passed |
-| breast cancer risk-reducing medication | unread |  | exact recommendation index available; full-document read pending |
+| breast cancer risk-reducing medication | sheet | breast-cancer-risk-reducing-medication.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | breast cancer screening | sheet | breast-cancer-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | breastfeeding support counseling | sheet | breastfeeding-support-counseling.md | source pages accounted for on 2026-08-30; independent checks passed |
 | Candida auris infection prevention and control | unread |  | no recommendation record; full-document read pending |
@@ -50,10 +50,10 @@
 | celiac disease screening | sheet | celiac-disease-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cervical cancer screening | sheet | cervical-cancer.md | all 13 source pages accounted for on 2026-08-29; references retired by class |
 | chest pain evaluation | unread |  | exact recommendation index available; full-document read pending |
-| child maltreatment prevention | unread |  | exact recommendation index available; full-document read pending |
+| child maltreatment prevention | sheet | child-maltreatment-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | childhood and adolescent immunization schedule | unread |  | no recommendation record; full-document read pending |
 | childhood immunization schedule | unread |  | no recommendation record; full-document read pending |
-| chlamydia and gonorrhea screening | unread |  | exact recommendation index available; full-document read pending |
+| chlamydia and gonorrhea screening | sheet | chlamydia-and-gonorrhea-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | chronic coronary disease | unread |  | exact recommendation index available; full-document read pending |
 | chronic hepatitis B | unread |  | no recommendation record; full-document read pending |
 | chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
