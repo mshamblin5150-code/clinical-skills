@@ -74,10 +74,24 @@ INLINE_FLAGS = {
     "-t": "title",
     "--body": "body",
     "-b": "body",
-    "--comment": "body",
 }
 FILE_FLAGS = {"--body-file": "body", "-F": "body"}
 API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
+TARGET_VALUE_FLAGS = {
+    "--add-assignee",
+    "--add-label",
+    "--add-project",
+    "--add-reviewer",
+    "--base",
+    "--milestone",
+    "--reason",
+    "--remove-assignee",
+    "--remove-label",
+    "--remove-project",
+    "--remove-reviewer",
+    "--repo",
+    "-R",
+}
 API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls?)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
@@ -199,7 +213,9 @@ def _record_number(route: tuple[str, ...], arguments: list[str]) -> int | None:
     if route in (("issue", "create"), ("pr", "create")) or not arguments:
         return None
     index = 0
-    value_flags = set(INLINE_FLAGS) | set(FILE_FLAGS) | {"--input"}
+    value_flags = set(INLINE_FLAGS) | set(FILE_FLAGS) | TARGET_VALUE_FLAGS
+    if route == ("issue", "close"):
+        value_flags |= {"--comment", "-c"}
     while index < len(arguments):
         token = arguments[index]
         if token in value_flags:
@@ -286,12 +302,19 @@ def extract(command: str) -> Extraction:
             or token in FILE_FLAGS
             or (route == ("api",) and token in API_VALUE_FLAGS)
             or (route == ("api",) and token == "--input")
-            or (route == ("issue", "close") and token == "-c")
+            or (
+                route == ("issue", "close")
+                and token in ("--comment", "-c")
+            )
         )
         if body_flag and index + 1 >= len(arguments):
             unreadable = Unreadable("body", "missing-value", token)
             return Extraction(route, number, tuple(publications), (unreadable,), grade_route)
-        if route == ("issue", "close") and token == "-c" and index + 1 < len(arguments):
+        if (
+            route == ("issue", "close")
+            and token in ("--comment", "-c")
+            and index + 1 < len(arguments)
+        ):
             read = _resolve_plain_value(
                 "body", arguments[index + 1], assignments, substitutions
             )

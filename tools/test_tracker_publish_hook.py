@@ -108,6 +108,24 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(option_first.number, 670)
         self.assertEqual(pull_url.number, 706)
 
+    def test_numeric_option_values_are_not_record_targets(self) -> None:
+        result = hook.extract(
+            "gh issue edit --milestone 123 670 --body 'Edited body'"
+        )
+
+        self.assertEqual(result.number, 670)
+
+    def test_pr_review_comment_switch_is_not_read_as_comment_text(self) -> None:
+        result = hook.extract(
+            "gh pr review --comment 706 --body 'Review body'"
+        )
+
+        self.assertEqual(result.number, 706)
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Review body")],
+        )
+
     def test_api_endpoint_preserves_the_record_operation_for_grading(self) -> None:
         result = hook.extract(
             "gh api --method PATCH repos/example/project/issues/670 "
