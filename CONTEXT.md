@@ -582,5 +582,5 @@ The reviewed judgment that places changed work into the map — written as a del
 _Avoid_: update, refresh, sync, rebuild
 
 **Map disagreement**:
-A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, a packeted ticket that has stopped being ready, and a `blocked` label whose gate is not a native edge. A gate that grades one direction certifies nothing about the others.
+A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
 _Avoid_: staleness, mismatch, error, out of date
