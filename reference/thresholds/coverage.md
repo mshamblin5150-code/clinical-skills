@@ -49,9 +49,9 @@
 | carotid artery stenosis screening | none | carotid-artery-stenosis-screening.md | complete source read found no patient-action decision point; null span blindly corroborated 2026-08-31 |
 | celiac disease screening | sheet | celiac-disease-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cervical cancer screening | sheet | cervical-cancer.md | all 13 source pages accounted for on 2026-08-29; references retired by class |
-| chest pain evaluation | unread |  | exact recommendation index available; full-document read pending |
+| chest pain evaluation | sheet | chest-pain-evaluation.md | exact recommendation index fully accounted; full document read |
 | child maltreatment prevention | sheet | child-maltreatment-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| childhood and adolescent immunization schedule | unread |  | no recommendation record; full-document read pending |
+| childhood and adolescent immunization schedule | sheet | childhood-and-adolescent-immunization-schedule.md | recommendation sweep reported `nothing-found`; full document read |
 | childhood immunization schedule | unread |  | no recommendation record; full-document read pending |
 | chlamydia and gonorrhea screening | sheet | chlamydia-and-gonorrhea-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | chronic coronary disease | unread |  | exact recommendation index available; full-document read pending |
