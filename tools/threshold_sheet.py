@@ -515,6 +515,7 @@ QUANTITY_UNIT_BOUNDS = {
     ("acute-coronary-syndromes.md", "chronic-colchicine-dose", "mg"): (0.5, 6000.0),
     ("acute-pulmonary-embolism.md", "normotensive-shock-creatinine-increase", "mg"): (0.3, 6000.0),
     ("anemia-in-chronic-kidney-disease.md", "severe-reaction-epinephrine", "mg"): (0.5, 6000.0),
+    ("atrial-fibrillation.md", "rate-control-dose", "mg"): (0.25, 6000.0),
     ("hypertrophic-cardiomyopathy.md", "historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
     ("hypertrophic-cardiomyopathy.md", "lvoto-present-gradient", "mm hg"): (30.0, 250.0),
     ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult", "mg"): (0.1, 6000.0),

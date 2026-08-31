@@ -21,13 +21,13 @@
 | antimicrobial-resistant gram-negative infection | sheet | antimicrobial-resistant-gram-negative-infection.md | recommendation sweep reported `nothing-found`; full document read |
 | anxiety disorder screening | sheet | anxiety-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | anxiety screening | sheet | anxiety-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
-| aortic disease | unread |  | exact recommendation index available; full-document read pending |
-| asthma | unread |  | no recommendation record; full-document read pending |
+| aortic disease | sheet | aortic-disease.md | exact recommendation index fully accounted; full document read |
+| asthma | sheet | asthma.md | recommendation sweep reported `nothing-found`; full document read |
 | asymptomatic bacteriuria screening | sheet | asymptomatic-bacteriuria-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
-| atrial fibrillation | unread |  | exact recommendation index available; full-document read pending |
+| atrial fibrillation | sheet | atrial-fibrillation.md | exact recommendation index fully accounted; full document read |
 | atrial fibrillation screening | sheet | atrial-fibrillation-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | autism spectrum disorder screening | sheet | autism-spectrum-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
-| autosomal dominant polycystic kidney disease | unread |  | bound recommendation record available; full-document read pending |
+| autosomal dominant polycystic kidney disease | sheet | autosomal-dominant-polycystic-kidney-disease.md | bound recommendation record fully accounted; full document read |
 | bacterial vaginosis screening, preterm delivery prevention | sheet | bacterial-vaginosis-screening-preterm-delivery-prevention.md | source pages accounted for on 2026-08-30; independent checks passed |
 | beta-lactam antibiotic dosing | unread |  | no recommendation record; full-document read pending |
 | bladder cancer screening | none | bladder-cancer-screening.md | complete source read found no patient-action decision point; null span blindly corroborated |
