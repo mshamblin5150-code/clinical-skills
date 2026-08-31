@@ -155,7 +155,7 @@ ALLOW_NO_CORPUS_CONFIG = "clinical.phiAllowNoCorpus"
 # actually checking rather than from the checkout that holds the PHI corpus.
 TRACKER_HARVEST_MARKER = Path("reference/tracker-scan-harvest.json")
 TRACKER_HARVEST_NOTICE = "last full tracker harvest"
-TRACKER_PUBLISH_MARKER = SCRATCH / "tracker-publish-hook.json"
+TRACKER_PUBLISH_MARKER = SCRATCH / "runs" / "tracker-publish-hook.json"
 TRACKER_PUBLISH_NOTICE = "last tracker pre-publish hook run"
 
 # A file declaring this near its top is exempt from the SHAPE layer only.

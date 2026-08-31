@@ -1184,6 +1184,11 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
 
         self.assertIn("never run", notice.lower())
 
+    def test_the_pre_publish_marker_stays_under_the_accounted_runs_root(self):
+        relative = ps.TRACKER_PUBLISH_MARKER.relative_to(ps.SCRATCH)
+
+        self.assertEqual(relative.parts[0], "runs")
+
 class AnAllRunStatesItsCoverage(unittest.TestCase):
     """#258 open question 2: on **every** ``--all`` run, not only a degraded one.
 

@@ -797,8 +797,11 @@ prose reported absent, and
 it nine days after the harvest rather than four. A dated result in prose reads
 as a current property of the tracker, and no edit to a sentence fails.
 
-**The pre-publish hook writes a separate counts-free marker under `scratch/`,
-and the same bare `python tools/phi_scan.py` commit path states its exact age.**
+**The pre-publish hook writes a separate counts-free marker at
+`scratch/runs/tracker-publish-hook.json`, and the same bare
+`python tools/phi_scan.py` commit path states its exact age.** The accounted
+`runs` root is deliberate: creating a new top-level scratch entry would move
+the global scratch census and could refuse every checkout's commits.
 No age becomes a stale verdict: publication volume, not elapsed days, decides
 what an old marker means. An absent or invalid marker is distinct from a clean
 scan, which is ADR 0083 ruling 5's non-registration limb.
