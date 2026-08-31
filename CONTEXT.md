@@ -136,6 +136,10 @@ _Avoid_: expiration, sunset, shelf life, validity window
 The pair of a normalized author phrase and a year that a citation and a reference entry must both produce before the citation counts as resolved. It is a name rather than an identity — one entry may yield several, and a yearless one resolves against any year.
 _Avoid_: reference id, source id, match key
 
+**Grouping key**:
+The single word a reference entry is alphabetized and letter-disambiguated by. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
+_Avoid_: entry key, author key, sort key, match key
+
 **Legal reference entry**:
 A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
 _Avoid_: statute reference, citation entry, regulation cite
@@ -460,6 +464,10 @@ _Avoid_: historical figure, legacy number, dated result
 **Declared limit**:
 A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. What may go in one is a sentence telling a reader that a clean result covers less than it appears to. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives. Distinct from a **declared rationale**, which is the same shape holding a different sentence.
 _Avoid_: caveat, known issue, disclaimer, rationale
+
+**Form coverage**:
+The set of source classes a rule sheet carries a written entry form for. A class outside it is looked up at the published authority rather than recalled, so the sheet's silence about a class is an absence and never a rule. It is a **Declared limit** about a document instead of about a mechanism, and it is stated and gated for the same reason: a sheet that covers one class in six reads, to whoever opens it, exactly like one that covers all six.
+_Avoid_: scope, completeness, sheet coverage, supported types
 
 **Declared rationale**:
 A named object beside a mechanism holding why it is built as it is — why an option was declined, or why a refusal refuses. The same shape as a **declared limit** and never a member of one, because it states a why rather than an unreached what. Which it is, is decided on the sentence and never on the constant's name: a `WHY_`-named constant carrying a coverage sentence is a limit, and a plainly-named one carrying reasoning is not.
