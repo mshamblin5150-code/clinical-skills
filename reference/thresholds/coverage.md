@@ -46,7 +46,7 @@
 | cardiovascular disease risk assessment, nontraditional risk factors | sheet | cardiovascular-disease-risk-assessment-nontraditional-risk-factors.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular disease risk screening, electrocardiography | sheet | cardiovascular-disease-risk-screening-electrocardiography.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular-kidney-metabolic syndrome | unread |  | exact recommendation index available; full-document read pending |
-| carotid artery stenosis screening | unread |  | exact recommendation index available; full-document read pending |
+| carotid artery stenosis screening | none | carotid-artery-stenosis-screening.md | complete source read found no patient-action decision point; null span blindly corroborated 2026-08-31 |
 | celiac disease screening | sheet | celiac-disease-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cervical cancer screening | sheet | cervical-cancer.md | all 13 source pages accounted for on 2026-08-29; references retired by class |
 | chest pain evaluation | unread |  | exact recommendation index available; full-document read pending |
@@ -64,11 +64,11 @@
 | Clostridioides difficile infection | unread |  | bound recommendation record available; full-document read pending |
 | Clostridium difficile infection | unread |  | bound recommendation record available; full-document read pending |
 | coccidioidomycosis | unread |  | bound recommendation record available; full-document read pending |
-| cognitive impairment screening | unread |  | exact recommendation index available; full-document read pending |
+| cognitive impairment screening | sheet | cognitive-impairment-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | colorectal cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | community-acquired pneumonia | unread |  | bound recommendation record available; full-document read pending |
 | congenital heart disease | unread |  | exact recommendation index available; full-document read pending |
-| COPD screening | unread |  | exact recommendation index available; full-document read pending |
+| COPD screening | sheet | copd-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | COVID-19 infection prevention for healthcare personnel | unread |  | bound recommendation record available; full-document read pending |
 | COVID-19 serologic testing | unread |  | bound recommendation record available; full-document read pending |
 | COVID-19 treatment | unread |  | bound recommendation record available; full-document read pending |
@@ -79,7 +79,7 @@
 | diabetes-related foot infection | unread |  | bound recommendation record available; full-document read pending |
 | drug-susceptible tuberculosis treatment | unread |  | bound recommendation record available; full-document read pending |
 | dyslipidemia | unread |  | exact recommendation index available; full-document read pending |
-| eating disorder screening | unread |  | exact recommendation index available; full-document read pending |
+| eating disorder screening | sheet | eating-disorder-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | falls prevention | unread |  | exact recommendation index available; full-document read pending |
 | food insecurity screening | unread |  | exact recommendation index available; full-document read pending |
 | fracture prevention, vitamin D and calcium supplementation | unread |  | exact recommendation index available; full-document read pending |
