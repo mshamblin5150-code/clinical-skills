@@ -345,6 +345,13 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             self.assertIn("Unreadable body", report)
             self.assertNotIn("0 findings", report)
 
+    def test_an_invalid_malformed_route_is_not_promoted_to_a_publish_route(self) -> None:
+        response = hook.handle(
+            self.payload("gh issue review 670 --body 'unfinished")
+        )
+
+        self.assertEqual(response, {})
+
     def test_a_clean_publish_is_allowed_and_names_what_was_read(self) -> None:
         index = phi_scan.build_index(set(), set())
         with (

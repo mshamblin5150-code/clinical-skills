@@ -80,8 +80,7 @@ FILE_FLAGS = {"--body-file": "body", "-F": "body"}
 API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
 API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
-    r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|(issue|pr)\s+"
-    r"(create|comment|edit|close|review)\b)"
+    r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
 )
 PLAIN_ASSIGNMENT = re.compile(
     r"(?:\A|[;&|\n]\s*)(?P<name>[A-Za-z_][A-Za-z0-9_]*)="
@@ -152,7 +151,8 @@ def _raw_publish_route(command: str) -> tuple[str, ...] | None:
         return None
     if match.group(1) == "api":
         return ("api",)
-    return (match.group(2), match.group(3))
+    route = (match.group(2), match.group(3))
+    return route if route in PUBLISH_ROUTES else None
 
 
 def _api_grade_route(arguments: list[str]) -> tuple[str, ...]:
