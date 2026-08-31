@@ -45,17 +45,17 @@
 | cardiovascular disease prevention, statins | sheet | cardiovascular-disease-prevention-statins.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular disease risk assessment, nontraditional risk factors | sheet | cardiovascular-disease-risk-assessment-nontraditional-risk-factors.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular disease risk screening, electrocardiography | sheet | cardiovascular-disease-risk-screening-electrocardiography.md | source pages accounted for on 2026-08-30; independent checks passed |
-| cardiovascular-kidney-metabolic syndrome | unread |  | exact recommendation index available; full-document read pending |
+| cardiovascular-kidney-metabolic syndrome | sheet | cardiovascular-kidney-metabolic-syndrome.md | exact recommendation index fully accounted; full document read |
 | carotid artery stenosis screening | none | carotid-artery-stenosis-screening.md | complete source read found no patient-action decision point; null span blindly corroborated 2026-08-31 |
 | celiac disease screening | sheet | celiac-disease-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cervical cancer screening | sheet | cervical-cancer.md | all 13 source pages accounted for on 2026-08-29; references retired by class |
 | chest pain evaluation | sheet | chest-pain-evaluation.md | exact recommendation index fully accounted; full document read |
 | child maltreatment prevention | sheet | child-maltreatment-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | childhood and adolescent immunization schedule | sheet | childhood-and-adolescent-immunization-schedule.md | recommendation sweep reported `nothing-found`; full document read |
-| childhood immunization schedule | unread |  | no recommendation record; full-document read pending |
+| childhood immunization schedule | sheet | childhood-immunization-schedule.md | recommendation sweeps reported `nothing-found`; full documents read |
 | chlamydia and gonorrhea screening | sheet | chlamydia-and-gonorrhea-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| chronic coronary disease | unread |  | exact recommendation index available; full-document read pending |
-| chronic hepatitis B | unread |  | no recommendation record; full-document read pending |
+| chronic coronary disease | sheet | chronic-coronary-disease.md | exact recommendation index fully accounted; full document read |
+| chronic hepatitis B | sheet | chronic-hepatitis-b.md | recommendation sweep reported `nothing-found`; manual recommendation inventory fully accounted; full document read |
 | chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | chronic kidney disease in HIV infection | unread |  | bound recommendation record available; full-document read pending |
 | chronic kidney disease-mineral and bone disorder | unread |  | bound recommendation record available; full-document read pending |

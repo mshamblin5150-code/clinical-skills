@@ -519,6 +519,7 @@ QUANTITY_UNIT_BOUNDS = {
     ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-inflation", "mm hg"): (20.0, 250.0),
     ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-deflation", "mm hg"): (2.0, 250.0),
     ("blood-pressure-in-chronic-kidney-disease.md", "combination-therapy-distance", "mm hg"): (20.0, 250.0),
+    ("cardiovascular-kidney-metabolic-syndrome.md", "pulmonary-pressure", "mm hg"): (35.0, 250.0),
     ("hypertrophic-cardiomyopathy.md", "historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
     ("hypertrophic-cardiomyopathy.md", "lvoto-present-gradient", "mm hg"): (30.0, 250.0),
     ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult", "mg"): (0.1, 6000.0),
