@@ -56,10 +56,10 @@
 | chlamydia and gonorrhea screening | sheet | chlamydia-and-gonorrhea-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | chronic coronary disease | sheet | chronic-coronary-disease.md | exact recommendation index fully accounted; full document read |
 | chronic hepatitis B | sheet | chronic-hepatitis-b.md | recommendation sweep reported `nothing-found`; manual recommendation inventory fully accounted; full document read |
-| chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
-| chronic kidney disease in HIV infection | unread |  | bound recommendation record available; full-document read pending |
-| chronic kidney disease-mineral and bone disorder | unread |  | bound recommendation record available; full-document read pending |
-| chronic obstructive pulmonary disease | unread |  | bound recommendation record available; full-document read pending |
+| chronic kidney disease | sheet | chronic-kidney-disease.md | full-document read complete; bound recommendation record accounted |
+| chronic kidney disease in HIV infection | sheet | chronic-kidney-disease-in-hiv-infection.md | full-document read complete; bound recommendation record accounted |
+| chronic kidney disease-mineral and bone disorder | sheet | chronic-kidney-disease-mineral-and-bone-disorder.md | full-document read complete; bound recommendation record accounted |
+| chronic obstructive pulmonary disease | sheet | chronic-obstructive-pulmonary-disease.md | full-document read complete; bound recommendation record accounted |
 | chronic pain in HIV infection | unread |  | bound recommendation record available; full-document read pending |
 | Clostridioides difficile infection | unread |  | bound recommendation record available; full-document read pending |
 | Clostridium difficile infection | unread |  | bound recommendation record available; full-document read pending |

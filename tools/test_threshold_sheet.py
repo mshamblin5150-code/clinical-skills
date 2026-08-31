@@ -1908,6 +1908,7 @@ class RangeGate(unittest.TestCase):
             ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-deflation", "2 mm Hg"),
             ("blood-pressure-in-chronic-kidney-disease.md", "combination-therapy-distance", "20 mm Hg"),
             ("cardiovascular-kidney-metabolic-syndrome.md", "pulmonary-pressure", "35 mm Hg"),
+            ("chronic-kidney-disease.md", "acute-gout-dose", "1.2 mg then 0.6 mg an hour later"),
         }
         for filename, quantity, value in accepted:
             with self.subTest(filename=filename, quantity=quantity, value=value):
