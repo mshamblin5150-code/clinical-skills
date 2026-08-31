@@ -30,6 +30,7 @@ NOT_SCANNED = 2
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 LIMITS_POINTER = "map_scan.DECLARED_LIMITS"
+MAP_ISSUE = 596
 
 
 class DeclaredLimit(NamedTuple):
@@ -193,6 +194,10 @@ def scan(rows: Sequence[dict], repo_root: Path) -> ScanResult:
     map_number = map_row.get("number")
     if not isinstance(map_number, int):
         raise ScanError("map issue has no integer ticket number")
+    if map_number != MAP_ISSUE:
+        raise ScanError(
+            f"implementation map state is on ticket #{map_number}, not #{MAP_ISSUE}"
+        )
     state, prose = extract_state(str(map_row.get("body") or ""))
 
     ready_labels = tuple(

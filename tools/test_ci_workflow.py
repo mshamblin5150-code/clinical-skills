@@ -201,6 +201,12 @@ class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
     def test_claude_documents_the_same_command(self):
         self.assertIn(MAP_COMMAND, CLAUDE_MD.read_text(encoding="utf-8"))
 
+    def test_the_continuous_integration_inventory_names_the_gate(self):
+        section = CLAUDE_MD.read_text(encoding="utf-8").partition(
+            "### Continuous integration"
+        )[2].partition("\n### ")[0]
+        self.assertIn("map_scan.py", section)
+
 
 class ClosingKeywordSurfacesAreCovered(unittest.TestCase):
     """#183: PR text and the landed merge message are different artifacts."""

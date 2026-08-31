@@ -239,6 +239,16 @@ class PointerAndStatus(ScannerCase):
         code, _, _ = self.run_scan([self.map_issue(value)], "--advisory")
         self.assertEqual(code, map_scan.NOT_SCANNED)
 
+    def test_advisory_converts_a_mixed_result_because_findings_win(self):
+        value = state("not-a-commit")
+        code, stdout, stderr = self.run_scan(
+            [self.map_issue(value), issue(42, labels=["ready-for-agent"])],
+            "--advisory",
+        )
+        self.assertEqual(code, map_scan.CLEAN)
+        self.assertIn("unmapped-ready", stdout)
+        self.assertIn("git log", stderr)
+
     def test_a_finding_wins_when_git_could_not_run(self):
         value = state("not-a-commit")
         code, stdout, stderr = self.run_scan(
@@ -292,6 +302,12 @@ class InvalidHarvests(ScannerCase):
                 with contextlib.redirect_stderr(io.StringIO()):
                     code = map_scan.main([str(path)], repo_root=self.root)
                 self.assertEqual(code, map_scan.NOT_SCANNED)
+
+    def test_a_state_marker_on_an_issue_other_than_596_is_not_the_map(self):
+        path = self.write_harvest([self.map_issue(state(self.anchor), number=597)])
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = map_scan.main([str(path)], repo_root=self.root)
+        self.assertEqual(code, map_scan.NOT_SCANNED)
 
 
 class DeclaredLimitsAreBound(unittest.TestCase):
