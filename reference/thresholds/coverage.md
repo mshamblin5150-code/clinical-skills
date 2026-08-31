@@ -7,7 +7,7 @@
 | abdominal aortic aneurysm screening | sheet | abdominal-aortic-aneurysm-screening.md | all 8 source pages accounted for on 2026-08-30; references retired by class |
 | acute bacterial arthritis | sheet | acute-bacterial-arthritis.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | acute coronary syndromes | sheet | acute-coronary-syndromes.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| acute hematogenous osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
+| acute hematogenous osteomyelitis | sheet | acute-hematogenous-osteomyelitis.md | bound recommendation record fully accounted; full document read |
 | acute ischemic stroke, early management | sheet | acute-ischemic-stroke-early-management.md | all 196 source pages accounted for on 2026-08-30; exact omissions reconciled per source |
 | acute kidney injury and acute kidney disease | sheet | acute-kidney-injury-and-acute-kidney-disease.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | acute pulmonary embolism | sheet | acute-pulmonary-embolism.md | all source pages accounted for on 2026-08-31; independent checks passed |
@@ -29,16 +29,16 @@
 | autism spectrum disorder screening | sheet | autism-spectrum-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | autosomal dominant polycystic kidney disease | sheet | autosomal-dominant-polycystic-kidney-disease.md | bound recommendation record fully accounted; full document read |
 | bacterial vaginosis screening, preterm delivery prevention | sheet | bacterial-vaginosis-screening-preterm-delivery-prevention.md | source pages accounted for on 2026-08-30; independent checks passed |
-| beta-lactam antibiotic dosing | unread |  | no recommendation record; full-document read pending |
+| beta-lactam antibiotic dosing | sheet | beta-lactam-antibiotic-dosing.md | recommendation sweep reported `nothing-found`; full document read |
 | bladder cancer screening | none | bladder-cancer-screening.md | complete source read found no patient-action decision point; null span blindly corroborated |
 | blood cholesterol | sheet | blood-cholesterol.md | source pages accounted for on 2026-08-30; independent checks passed |
-| blood pressure in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
+| blood pressure in chronic kidney disease | sheet | blood-pressure-in-chronic-kidney-disease.md | bound recommendation record fully accounted; full document read |
 | bradycardia and cardiac conduction delay | sheet | bradycardia-and-cardiac-conduction-delay.md | source pages accounted for on 2026-08-30; independent checks passed |
 | BRCA-related cancer risk assessment and genetic testing | sheet | brca-related-cancer-risk-assessment-and-genetic-testing.md | source pages accounted for on 2026-08-30; independent checks passed |
 | breast cancer risk-reducing medication | sheet | breast-cancer-risk-reducing-medication.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | breast cancer screening | sheet | breast-cancer-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | breastfeeding support counseling | sheet | breastfeeding-support-counseling.md | source pages accounted for on 2026-08-30; independent checks passed |
-| Candida auris infection prevention and control | unread |  | no recommendation record; full-document read pending |
+| Candida auris infection prevention and control | sheet | candida-auris-infection-prevention-and-control.md | recommendation sweep reported `nothing-found`; full document read |
 | cardiac arrest and life-threatening toxicity due to poisoning | sheet | cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular disease prevention, aspirin | sheet | cardiovascular-disease-prevention-aspirin.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular disease prevention, diet and physical activity counseling | sheet | cardiovascular-disease-prevention-diet-and-physical-activity-counseling.md | all 15 source pages accounted for on 2026-08-30; seven null spans blindly corroborated |

@@ -1904,6 +1904,9 @@ class RangeGate(unittest.TestCase):
             ("acute-pulmonary-embolism.md", "normotensive-shock-creatinine-increase", "0.3 mg"),
             ("anemia-in-chronic-kidney-disease.md", "severe-reaction-epinephrine", "0.5 mg"),
             ("atrial-fibrillation.md", "rate-control-dose", "0.25-0.5 mg"),
+            ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-inflation", "20-30 mm Hg"),
+            ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-deflation", "2 mm Hg"),
+            ("blood-pressure-in-chronic-kidney-disease.md", "combination-therapy-distance", "20 mm Hg"),
         }
         for filename, quantity, value in accepted:
             with self.subTest(filename=filename, quantity=quantity, value=value):
