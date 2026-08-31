@@ -245,8 +245,16 @@ The rich-text field a graded post is submitted through, as distinct from a file 
 _Avoid_: editor, text field, LMS box
 
 **Clipboard courier**:
-A rendered `.docx` that exists only to be opened and copied from, never uploaded and never graded. Its own layout is inspected by a person and reaches no reader.
+A rendered `.docx` that exists only to be opened and copied from, never uploaded and never marked by the course. Its own layout is inspected by a person and reaches no reader, and a grader here may still read it -- what it is never graded by is the course. Distinct from a **Submission**, which is the document a course marks: a re-render costs a courier and costs a submission the thing that was handed in, which is why the same **recovered edit** rule prices differently on the two paths.
 _Avoid_: submission copy, output document, export
+
+**Destination guard**:
+The refusal that stops the renderer overwriting a document it did not write. It has two signals and neither names the whole: the **owner-file signal**, Word's `~$` file beside the document, which means it is open right now, and the **part-set signal**, an archive whose parts are not the ones this renderer writes. It reports what it saw and never diagnoses -- a changed part set may be an editor's save, another writer, or an older version of this renderer, and since 2026-08-30 the first of those is the ordinary case rather than the exotic one.
+_Avoid_: part-set guard, foreign-archive guard, overwrite check
+
+**Recovered edit**:
+A change the clinician made in a rendered document and saved, read back out of it and written into the Markdown the graders read, before any re-render may overwrite it. The Markdown is the authoritative artifact on every path, so a **destination guard** refusal means there may be an unrecovered edit, and the flag that proceeds anyway is available once it is recovered rather than instead of recovering it. Not the act of merging two documents: it moves one way, out of the document and into the source.
+_Avoid_: sync, merge, round-trip, reconcile, transcription
 
 **Direct formatting**:
 A run or paragraph property written onto the element itself rather than inherited from a named style. The only form that survives the clipboard, because a style is carried by reference and the reference is what a paste target drops.
