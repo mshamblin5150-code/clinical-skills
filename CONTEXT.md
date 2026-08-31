@@ -144,6 +144,14 @@ _Avoid_: statute reference, citation entry, regulation cite
 An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
 _Avoid_: statute citation, section reference
 
+**Section number**:
+The locator inside a legal citation — the provision the regulation's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
+_Avoid_: section, cite number, paragraph number
+
+**Subsection suffix**:
+The lettered or numbered tail of a section number — `(c)(3)-1` in `26 C.F.R. § 1.501(c)(3)-1`. Part of the locator rather than punctuation around it, so a reader that drops it has not read a shorter form of the same provision; it has read a different one.
+_Avoid_: subsection, paragraph, suffix, subdivision
+
 **Codification year**:
 The year in a legal citation, naming the edition of the code the writer consulted. **It is provenance and never currency** — accurate the day it was written and accurate a decade later, because it says which snapshot was read rather than that the snapshot still holds. What can go stale is the unstated claim beneath it, that the text quoted is still in force, and that is a different question with a different answer: the publisher's reissue schedule is not a stated expiry, and the snapshot behind the year is reached by nothing here.
 _Avoid_: edition year, currency date, as-of year, publication year
