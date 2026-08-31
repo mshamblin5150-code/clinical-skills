@@ -1828,7 +1828,12 @@ class RangeGate(unittest.TestCase):
     """
 
     @staticmethod
-    def run_public_cli(value: str, *, quantity: str = "bp-goal") -> tuple[int, str, str]:
+    def run_public_cli(
+        value: str,
+        *,
+        quantity: str = "bp-goal",
+        filename: str = "weight-based-dose.md",
+    ) -> tuple[int, str, str]:
         text = (
             HEADER
             + "\n## Thresholds\n\n"
@@ -1837,7 +1842,7 @@ class RangeGate(unittest.TestCase):
             + row(quantity=quantity, value=value, snippet=f"threshold {value}")
         )
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "weight-based-dose.md"
+            path = Path(directory) / filename
             path.write_text(text, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -1857,9 +1862,35 @@ class RangeGate(unittest.TestCase):
                 self.assertIn("RANGE           1", report)
                 self.assertIn(value, findings)
 
+    def test_small_resuscitation_doses_use_quantity_specific_mg_floors_at_the_cli(self):
+        accepted = {
+            ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult"): "0.5 mg",
+            ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "digoxin-fab-acute"): "0.5 mg",
+            ("bradycardia-and-cardiac-conduction-delay.md", "digoxin-fab-vial-binding"): "0.5 mg",
+            ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "flumazenil-initial-adult"): "0.2 mg",
+            ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "naloxone-initial-adult"): "0.4 mg",
+        }
+        for (filename, quantity), value in accepted.items():
+            with self.subTest(filename=filename, quantity=quantity, value=value):
+                _, report, findings = self.run_public_cli(
+                    value, quantity=quantity, filename=filename
+                )
+                self.assertIn("RANGE           0", report)
+                self.assertNotIn("RANGE", findings)
+
+        _, report, findings = self.run_public_cli(
+            "0.5 mg",
+            quantity="digoxin-fab-acute",
+            filename="another-sheet.md",
+        )
+        self.assertIn("RANGE           1", report)
+        self.assertIn("0.5 mg", findings)
+
     def test_lvoto_gradient_has_a_narrow_quantity_specific_pressure_floor_at_the_cli(self):
         _, report, findings = self.run_public_cli(
-            "30 mm Hg", quantity="lvoto-present-gradient"
+            "30 mm Hg",
+            quantity="lvoto-present-gradient",
+            filename="hypertrophic-cardiomyopathy.md",
         )
         self.assertIn("RANGE           0", report)
         self.assertNotIn("RANGE", findings)
@@ -1870,7 +1901,9 @@ class RangeGate(unittest.TestCase):
 
     def test_historical_exercise_bp_response_accepts_20_mm_hg_at_the_cli(self):
         _, report, findings = self.run_public_cli(
-            "20 mm Hg", quantity="historical-exercise-bp-response"
+            "20 mm Hg",
+            quantity="historical-exercise-bp-response",
+            filename="hypertrophic-cardiomyopathy.md",
         )
         self.assertIn("RANGE           0", report)
         self.assertNotIn("RANGE", findings)

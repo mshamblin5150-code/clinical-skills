@@ -46,8 +46,13 @@ CONCRETE_FIXTURE_PATH = re.compile(
 NUMBERED_CASE_OR_RUN = re.compile(r"(?i)\b(?:case|run)\s*-?\d+\b")
 # These strings are ordinary clinical notation as well as assertion identifiers.
 # Ignoring them avoids treating vitamin B12, heart sounds S1/S2, oxygen O2, and
-# fibrosis stages F3/F4 as leaks.
+# fibrosis stages F3/F4 as leaks. C1 and S4 are exempt only in their clinical or
+# guideline-section contexts so a standalone fixture row still refuses.
 CLINICAL_ROW_HOMONYMS = {"B12", "F3", "F4", "O2", "S1", "S2"}
+CLINICAL_ROW_CONTEXTS = (
+    re.compile(r"\bC1(?=\s+esterase\b)"),
+    re.compile(r"\bS4(?=\.\d)"),
+)
 
 
 def concrete_fixture_names() -> list[str]:
@@ -59,6 +64,12 @@ def concrete_assertion_rows() -> list[str]:
     for path in FIXTURES.glob("*/assertions.md"):
         rows.update(ROW_ID.findall(path.read_text(encoding="utf-8")))
     return sorted(rows - CLINICAL_ROW_HOMONYMS)
+
+
+def without_clinical_row_contexts(line: str) -> str:
+    for pattern in CLINICAL_ROW_CONTEXTS:
+        line = pattern.sub("", line)
+    return line
 
 
 def findings(path: Path) -> list[str]:
@@ -74,11 +85,12 @@ def findings(path: Path) -> list[str]:
     found = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         normalized = line.replace("\\", "/")
+        row_checked = without_clinical_row_contexts(normalized)
         if (
             CONCRETE_FIXTURE_PATH.search(normalized)
             or name_pattern.search(normalized)
             or NUMBERED_CASE_OR_RUN.search(normalized)
-            or row_pattern.search(normalized)
+            or row_pattern.search(row_checked)
         ):
             found.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
     return found
@@ -121,6 +133,10 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
         )
         self.assertIsNotNone(row_pattern.search("B18 carried the answer"))
         self.assertIsNone(row_pattern.search("vitamin B12 level"))
+
+    def test_clinical_row_contexts_do_not_exempt_standalone_fixture_rows(self):
+        self.assertEqual(without_clinical_row_contexts("C1 esterase and S4.2.2"), " esterase and .2.2")
+        self.assertEqual(without_clinical_row_contexts("C1 carried S4"), "C1 carried S4")
 
     def test_the_general_policy_link_is_not_a_concrete_fixture_path(self):
         self.assertIsNone(

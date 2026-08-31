@@ -499,8 +499,13 @@ UNIT_BOUNDS = {
 # source-valid values below its 40 mm Hg floor. Keep the semantic exceptions
 # explicit so ordinary pressure rows retain the wider gate's bound.
 QUANTITY_UNIT_BOUNDS = {
-    ("historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
-    ("lvoto-present-gradient", "mm hg"): (30.0, 250.0),
+    ("hypertrophic-cardiomyopathy.md", "historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
+    ("hypertrophic-cardiomyopathy.md", "lvoto-present-gradient", "mm hg"): (30.0, 250.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult", "mg"): (0.1, 6000.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "digoxin-fab-acute", "mg"): (0.1, 6000.0),
+    ("bradycardia-and-cardiac-conduction-delay.md", "digoxin-fab-vial-binding", "mg"): (0.1, 6000.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "flumazenil-initial-adult", "mg"): (0.1, 6000.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "naloxone-initial-adult", "mg"): (0.1, 6000.0),
 }
 
 # A run of numbers sharing one trailing unit. The separators are what make
@@ -3135,7 +3140,7 @@ def gate_range(sheet: Sheet) -> GateResult:
             graded_spans.append(match.span("numbers"))
             unit = re.sub(r"\s+", " ", match.group("unit").strip().lower())
             bounds = QUANTITY_UNIT_BOUNDS.get(
-                (row.quantity, unit), UNIT_BOUNDS.get(unit)
+                (sheet.path.name, row.quantity, unit), UNIT_BOUNDS.get(unit)
             )
             if bounds is None:
                 # A recognized unit with no bound -- hours, days, weeks. Matching it

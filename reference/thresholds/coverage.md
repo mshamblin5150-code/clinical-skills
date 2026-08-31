@@ -11,7 +11,7 @@
 | acute ischemic stroke, early management | sheet | acute-ischemic-stroke-early-management.md | all 196 source pages accounted for on 2026-08-30; exact omissions reconciled per source |
 | acute kidney injury and acute kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | acute pulmonary embolism | unread |  | exact recommendation index available; full-document read pending |
-| adolescent idiopathic scoliosis screening | unread |  | exact recommendation index available; full-document read pending |
+| adolescent idiopathic scoliosis screening | sheet | adolescent-idiopathic-scoliosis-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | adult immunization schedule | unread |  | no recommendation record; full-document read pending |
 | ANCA-associated vasculitis | unread |  | bound recommendation record available; full-document read pending |
 | anemia in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
@@ -19,35 +19,35 @@
 | antimicrobial prophylaxis in cancer-related immunosuppression | unread |  | bound recommendation record available; full-document read pending |
 | antimicrobial stewardship leadership | unread |  | no recommendation record; full-document read pending |
 | antimicrobial-resistant gram-negative infection | unread |  | no recommendation record; full-document read pending |
-| anxiety disorder screening | unread |  | exact recommendation index available; full-document read pending |
-| anxiety screening | unread |  | exact recommendation index available; full-document read pending |
+| anxiety disorder screening | sheet | anxiety-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
+| anxiety screening | sheet | anxiety-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | aortic disease | unread |  | exact recommendation index available; full-document read pending |
 | asthma | unread |  | no recommendation record; full-document read pending |
-| asymptomatic bacteriuria screening | unread |  | exact recommendation index available; full-document read pending |
+| asymptomatic bacteriuria screening | sheet | asymptomatic-bacteriuria-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | atrial fibrillation | unread |  | exact recommendation index available; full-document read pending |
 | atrial fibrillation screening | unread |  | exact recommendation index available; full-document read pending |
-| autism spectrum disorder screening | unread |  | exact recommendation index available; full-document read pending |
+| autism spectrum disorder screening | sheet | autism-spectrum-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | autosomal dominant polycystic kidney disease | unread |  | bound recommendation record available; full-document read pending |
-| bacterial vaginosis screening, preterm delivery prevention | unread |  | exact recommendation index available; full-document read pending |
+| bacterial vaginosis screening, preterm delivery prevention | sheet | bacterial-vaginosis-screening-preterm-delivery-prevention.md | source pages accounted for on 2026-08-30; independent checks passed |
 | beta-lactam antibiotic dosing | unread |  | no recommendation record; full-document read pending |
-| bladder cancer screening | unread |  | exact recommendation index available; full-document read pending |
-| blood cholesterol | unread |  | exact recommendation index available; full-document read pending |
+| bladder cancer screening | none | bladder-cancer-screening.md | complete source read found no patient-action decision point; null span blindly corroborated |
+| blood cholesterol | sheet | blood-cholesterol.md | source pages accounted for on 2026-08-30; independent checks passed |
 | blood pressure in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
-| bradycardia and cardiac conduction delay | unread |  | exact recommendation index available; full-document read pending |
-| BRCA-related cancer risk assessment and genetic testing | unread |  | exact recommendation index available; full-document read pending |
+| bradycardia and cardiac conduction delay | sheet | bradycardia-and-cardiac-conduction-delay.md | source pages accounted for on 2026-08-30; independent checks passed |
+| BRCA-related cancer risk assessment and genetic testing | sheet | brca-related-cancer-risk-assessment-and-genetic-testing.md | source pages accounted for on 2026-08-30; independent checks passed |
 | breast cancer risk-reducing medication | unread |  | exact recommendation index available; full-document read pending |
-| breast cancer screening | unread |  | exact recommendation index available; full-document read pending |
-| breastfeeding support counseling | unread |  | exact recommendation index available; full-document read pending |
+| breast cancer screening | sheet | breast-cancer-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
+| breastfeeding support counseling | sheet | breastfeeding-support-counseling.md | source pages accounted for on 2026-08-30; independent checks passed |
 | Candida auris infection prevention and control | unread |  | no recommendation record; full-document read pending |
-| cardiac arrest and life-threatening toxicity due to poisoning | unread |  | exact recommendation index available; full-document read pending |
-| cardiovascular disease prevention, aspirin | unread |  | exact recommendation index available; full-document read pending |
+| cardiac arrest and life-threatening toxicity due to poisoning | sheet | cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md | source pages accounted for on 2026-08-30; independent checks passed |
+| cardiovascular disease prevention, aspirin | sheet | cardiovascular-disease-prevention-aspirin.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular disease prevention, diet and physical activity counseling | sheet | cardiovascular-disease-prevention-diet-and-physical-activity-counseling.md | all 15 source pages accounted for on 2026-08-30; seven null spans blindly corroborated |
-| cardiovascular disease prevention, statins | unread |  | exact recommendation index available; full-document read pending |
-| cardiovascular disease risk assessment, nontraditional risk factors | unread |  | exact recommendation index available; full-document read pending |
-| cardiovascular disease risk screening, electrocardiography | unread |  | exact recommendation index available; full-document read pending |
+| cardiovascular disease prevention, statins | sheet | cardiovascular-disease-prevention-statins.md | source pages accounted for on 2026-08-30; independent checks passed |
+| cardiovascular disease risk assessment, nontraditional risk factors | sheet | cardiovascular-disease-risk-assessment-nontraditional-risk-factors.md | source pages accounted for on 2026-08-30; independent checks passed |
+| cardiovascular disease risk screening, electrocardiography | sheet | cardiovascular-disease-risk-screening-electrocardiography.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cardiovascular-kidney-metabolic syndrome | unread |  | exact recommendation index available; full-document read pending |
 | carotid artery stenosis screening | unread |  | exact recommendation index available; full-document read pending |
-| celiac disease screening | unread |  | exact recommendation index available; full-document read pending |
+| celiac disease screening | sheet | celiac-disease-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | cervical cancer screening | sheet | cervical-cancer.md | all 13 source pages accounted for on 2026-08-29; references retired by class |
 | chest pain evaluation | unread |  | exact recommendation index available; full-document read pending |
 | child maltreatment prevention | unread |  | exact recommendation index available; full-document read pending |
