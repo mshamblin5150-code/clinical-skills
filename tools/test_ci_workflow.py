@@ -37,6 +37,8 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 SUITE_COMMAND = "python -m unittest discover -s tools -t tools"
 THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
 THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
+MAP_COMMAND = "python tools/map_scan.py $harvest --advisory"
+MAP_STEP_NAME = "Implementation map disagreement, advisory after merge"
 
 RUNNER = "windows-latest"
 PYTHON_VERSION = "3.14"
@@ -161,6 +163,43 @@ class BothMergeRoutesAreCovered(unittest.TestCase):
         """A merge that has already landed is the one moment somebody wants to
         re-run the check against a tree neither parent had."""
         self.assertRegex(workflow_text(), r"(?m)^\s*workflow_dispatch:")
+
+
+class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
+    def map_step(self):
+        text = workflow_text()
+        return text.partition(f"- name: {MAP_STEP_NAME}")[2].partition(
+            "\n      - name:"
+        )[0]
+
+    def test_the_step_is_pinned_to_push_and_manual_runs(self):
+        step = self.map_step()
+        self.assertTrue(step, "implementation-map step is absent")
+        self.assertIn(
+            "if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'",
+            step,
+        )
+        self.assertNotIn("pull_request", step.partition("run:")[0])
+
+    def test_it_harvests_the_whole_issue_surface_into_runner_temp(self):
+        step = self.map_step()
+        self.assertIn("RUNNER_TEMP", step)
+        self.assertIn("issues?state=all&per_page=100", step)
+        self.assertIn("gh api --paginate", step)
+
+    def test_the_tool_owns_the_advisory_conversion(self):
+        step = self.map_step()
+        self.assertIn(MAP_COMMAND, step)
+        self.assertNotIn("continue-on-error", step)
+
+    def test_the_report_reaches_the_step_summary(self):
+        self.assertIn("GITHUB_STEP_SUMMARY", self.map_step())
+
+    def test_the_job_can_read_issues(self):
+        self.assertRegex(workflow_text(), r"(?m)^\s*issues:\s*read\s*$")
+
+    def test_claude_documents_the_same_command(self):
+        self.assertIn(MAP_COMMAND, CLAUDE_MD.read_text(encoding="utf-8"))
 
 
 class ClosingKeywordSurfacesAreCovered(unittest.TestCase):
