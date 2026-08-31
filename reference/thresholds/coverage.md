@@ -80,17 +80,17 @@
 | drug-susceptible tuberculosis treatment | unread |  | bound recommendation record available; full-document read pending |
 | dyslipidemia | unread |  | exact recommendation index available; full-document read pending |
 | eating disorder screening | sheet | eating-disorder-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| falls prevention | unread |  | exact recommendation index available; full-document read pending |
-| food insecurity screening | unread |  | exact recommendation index available; full-document read pending |
-| fracture prevention, vitamin D and calcium supplementation | unread |  | exact recommendation index available; full-document read pending |
-| genital herpes serologic screening | unread |  | exact recommendation index available; full-document read pending |
+| falls prevention | sheet | falls-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
+| food insecurity screening | sheet | food-insecurity-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
+| fracture prevention, vitamin D and calcium supplementation | sheet | fracture-prevention-vitamin-d-and-calcium-supplementation.md | all source pages accounted for on 2026-08-31; independent checks passed |
+| genital herpes serologic screening | sheet | genital-herpes-serologic-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | gestational diabetes screening | unread |  | exact recommendation index available; full-document read pending |
 | gestational weight gain counseling | unread |  | exact recommendation index available; full-document read pending |
 | glomerular disease | unread |  | bound recommendation record available; full-document read pending |
 | gonococcal ophthalmia neonatorum prophylaxis | unread |  | exact recommendation index available; full-document read pending |
 | group A streptococcal pharyngitis | unread |  | bound recommendation record available; full-document read pending |
 | healthcare-associated ventriculitis and meningitis | unread |  | bound recommendation record available; full-document read pending |
-| hearing loss screening | unread |  | exact recommendation index available; full-document read pending |
+| hearing loss screening | sheet | hearing-loss-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | heart failure | unread |  | exact recommendation index available; full-document read pending |
 | heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
 | hepatitis B screening | sheet | hepatitis-b-screening.md | all 14 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
@@ -103,13 +103,13 @@
 | high body mass index intervention | unread |  | exact recommendation index available; full-document read pending |
 | HIV preexposure prophylaxis | unread |  | exact recommendation index available; full-document read pending |
 | HIV primary care | unread |  | no recommendation record; full-document read pending |
-| HIV screening | unread |  | exact recommendation index available; full-document read pending |
+| HIV screening | sheet | hiv-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hospital-acquired and ventilator-associated pneumonia | unread |  | bound recommendation record available; full-document read pending |
-| hypertension screening | unread |  | exact recommendation index available; full-document read pending |
-| hypertensive disorders of pregnancy screening | unread |  | exact recommendation index available; full-document read pending |
+| hypertension screening | sheet | hypertension-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
+| hypertensive disorders of pregnancy screening | sheet | hypertensive-disorders-of-pregnancy-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hypertrophic cardiomyopathy | sheet | hypertrophic-cardiomyopathy.md | all 172 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
 | IgA nephropathy and IgA vasculitis | unread |  | bound recommendation record available; full-document read pending |
-| illicit drug use prevention | unread |  | exact recommendation index available; full-document read pending |
+| illicit drug use prevention | sheet | illicit-drug-use-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | impaired visual acuity screening | unread |  | exact recommendation index available; full-document read pending |
 | infectious diarrhea | unread |  | bound recommendation record available; full-document read pending |
 | intimate partner violence and elder abuse screening | unread |  | exact recommendation index available; full-document read pending |
