@@ -10,10 +10,10 @@
 | acute hematogenous osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
 | acute ischemic stroke, early management | sheet | acute-ischemic-stroke-early-management.md | all 196 source pages accounted for on 2026-08-30; exact omissions reconciled per source |
 | acute kidney injury and acute kidney disease | sheet | acute-kidney-injury-and-acute-kidney-disease.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| acute pulmonary embolism | unread |  | exact recommendation index available; full-document read pending |
+| acute pulmonary embolism | sheet | acute-pulmonary-embolism.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | adolescent idiopathic scoliosis screening | sheet | adolescent-idiopathic-scoliosis-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | adult immunization schedule | sheet | adult-immunization-schedule.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| ANCA-associated vasculitis | unread |  | bound recommendation record available; full-document read pending |
+| ANCA-associated vasculitis | sheet | anca-associated-vasculitis.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | anemia in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | antibiotic stewardship program implementation | unread |  | bound recommendation record available; full-document read pending |
 | antimicrobial prophylaxis in cancer-related immunosuppression | unread |  | bound recommendation record available; full-document read pending |
