@@ -78,6 +78,33 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             [("body", "Closing comment")],
         )
 
+    def test_plain_inline_variables_are_resolved_before_scanning(self) -> None:
+        result = hook.extract(
+            "BODY='Expanded tracker text'; "
+            'gh issue comment 670 --body "$BODY"'
+        )
+
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Expanded tracker text")],
+        )
+
+    def test_numeric_create_fields_are_not_guessed_to_be_record_numbers(self) -> None:
+        result = hook.extract(
+            "gh issue create --title 670 --body 'A new issue body'"
+        )
+
+        self.assertIsNone(result.number)
+
+    def test_api_endpoint_preserves_the_record_operation_for_grading(self) -> None:
+        result = hook.extract(
+            "gh api --method PATCH repos/example/project/issues/670 "
+            "-f body='Built on a branch.'"
+        )
+
+        self.assertEqual(result.route, ("api",))
+        self.assertEqual(result.grade_route, ("issue", "edit"))
+
 
 class FileBackedTrackerTextIsRead(unittest.TestCase):
     def test_a_literal_body_file_is_read_and_named(self) -> None:
@@ -305,6 +332,19 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             {},
         )
 
+    def test_recognized_malformed_publications_are_loud(self) -> None:
+        missing_value = hook.handle(
+            self.payload("gh issue comment 670 --body")
+        )
+        broken_quote = hook.handle(
+            self.payload("gh issue comment 670 --body 'unfinished")
+        )
+
+        for response in (missing_value, broken_quote):
+            report = response["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("Unreadable body", report)
+            self.assertNotIn("0 findings", report)
+
     def test_a_clean_publish_is_allowed_and_names_what_was_read(self) -> None:
         index = phi_scan.build_index(set(), set())
         with (
@@ -327,6 +367,29 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("body read from inline", specific["additionalContext"])
         self.assertIn("0 findings", specific["additionalContext"])
         write_marker.assert_called_once_with()
+
+    def test_an_api_issue_edit_uses_issue_body_not_comment_rules(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_issue",
+                return_value={"number": 670, "labels": [], "url": "draft record"},
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh api --method PATCH repos/example/project/issues/670 "
+                    "-f body='Built on a branch.'"
+                )
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn("0 findings", specific["additionalContext"])
 
     def test_an_in_flight_scope_finding_denies_but_phi_only_advises(self) -> None:
         invented = "Jordan Vance"
@@ -385,7 +448,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("--text <path>", unreadable_report)
         self.assertNotIn("HOOK FAILURE", unreadable_report)
         self.assertIn("HOOK FAILURE", crashed_report)
-        self.assertIn("not scanned", crashed_report)
+        self.assertIn("Unreadable body", crashed_report)
 
     def test_the_hook_marker_is_dated_and_contains_no_tracker_text(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

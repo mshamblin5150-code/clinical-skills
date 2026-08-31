@@ -54,6 +54,7 @@ class Extraction(NamedTuple):
     number: int | None
     publications: tuple[Publication, ...]
     unreadable: tuple[Unreadable, ...]
+    grade_route: tuple[str, ...] | None = None
 
 
 class Finding(NamedTuple):
@@ -78,6 +79,10 @@ INLINE_FLAGS = {
 FILE_FLAGS = {"--body-file": "body", "-F": "body"}
 API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
 API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls)/(?P<number>[0-9]+)(?:/|\Z)")
+RAW_PUBLISH_ROUTE = re.compile(
+    r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|(issue|pr)\s+"
+    r"(create|comment|edit|close|review)\b)"
+)
 PLAIN_ASSIGNMENT = re.compile(
     r"(?:\A|[;&|\n]\s*)(?P<name>[A-Za-z_][A-Za-z0-9_]*)="
     r"(?:\"(?P<double>[^\"]*)\"|'(?P<single>[^']*)'|(?P<bare>[^\s;&|]+))"
@@ -125,6 +130,71 @@ def _written_before_publish(command: str, source: str) -> bool:
     return re.search(r">\s*['\"]?" + re.escape(source) + r"['\"]?", prefix) is not None
 
 
+def _resolve_plain_value(
+    field: str,
+    value: str,
+    assignments: dict[str, str],
+    substitutions: frozenset[str],
+) -> Publication | Unreadable:
+    variable = VARIABLE.match(value)
+    if variable is None:
+        return Publication(field, value)
+    name = variable.group("braced") or variable.group("plain")
+    if name in assignments:
+        return Publication(field, assignments[name])
+    kind = "command-substitution" if name in substitutions else "external-variable"
+    return Unreadable(field, kind, value)
+
+
+def _raw_publish_route(command: str) -> tuple[str, ...] | None:
+    match = RAW_PUBLISH_ROUTE.search(command)
+    if match is None:
+        return None
+    if match.group(1) == "api":
+        return ("api",)
+    return (match.group(2), match.group(3))
+
+
+def _api_grade_route(arguments: list[str]) -> tuple[str, ...]:
+    endpoint = next(
+        (
+            token
+            for token in arguments
+            if re.search(r"/(?:issues|pulls)/[0-9]+(?:/|\Z)", token)
+        ),
+        "",
+    )
+    if re.search(r"/issues/[0-9]+/comments(?:\Z|\?)", endpoint):
+        return ("issue", "comment")
+    if re.search(r"/pulls/[0-9]+/reviews(?:\Z|\?)", endpoint):
+        return ("pr", "review")
+    if re.search(r"/pulls/[0-9]+(?:\Z|\?)", endpoint):
+        return ("pr", "edit")
+    if re.search(r"/issues/[0-9]+(?:\Z|\?)", endpoint):
+        return ("issue", "edit")
+    return ("issue", "comment")
+
+
+def _record_number(route: tuple[str, ...], arguments: list[str]) -> int | None:
+    if route == ("api",):
+        match = next(
+            (
+                found
+                for token in arguments
+                if (found := API_RECORD_NUMBER.search(token)) is not None
+            ),
+            None,
+        )
+        return None if match is None else int(match.group("number"))
+    if route in (("issue", "create"), ("pr", "create")) or not arguments:
+        return None
+    target = arguments[0]
+    if target.isdecimal():
+        return int(target)
+    match = API_RECORD_NUMBER.search(target)
+    return None if match is None else int(match.group("number"))
+
+
 def _read_file_field(
     field: str,
     source: str,
@@ -161,7 +231,11 @@ def extract(command: str) -> Extraction:
     try:
         tokens = shlex.split(command, posix=True)
     except ValueError:
-        return Extraction(None, None, (), ())
+        route = _raw_publish_route(command)
+        if route is None:
+            return Extraction(None, None, (), ())
+        unreadable = Unreadable("body", "invalid-command", "inline")
+        return Extraction(route, None, (), (unreadable,), route)
     try:
         start = tokens.index("gh")
     except ValueError:
@@ -174,29 +248,31 @@ def extract(command: str) -> Extraction:
         return Extraction(None, None, (), ())
     route_width = len(route)
     arguments = tail[route_width:]
-    number = next(
-        (int(token) for token in arguments if token.isdecimal()),
-        None,
-    )
-    if number is None:
-        record_number = next(
-            (
-                match
-                for token in arguments
-                if (match := API_RECORD_NUMBER.search(token)) is not None
-            ),
-            None,
-        )
-        if record_number is not None:
-            number = int(record_number.group("number"))
+    number = _record_number(route, arguments)
+    grade_route = _api_grade_route(arguments) if route == ("api",) else route
     publications: list[Publication] = []
     assignments = _plain_assignments(command)
     substitutions = _substitution_assignments(command)
     index = 0
     while index < len(arguments):
         token = arguments[index]
+        body_flag = (
+            token in INLINE_FLAGS
+            or token in FILE_FLAGS
+            or (route == ("api",) and token in API_VALUE_FLAGS)
+            or (route == ("api",) and token == "--input")
+            or (route == ("issue", "close") and token == "-c")
+        )
+        if body_flag and index + 1 >= len(arguments):
+            unreadable = Unreadable("body", "missing-value", token)
+            return Extraction(route, number, tuple(publications), (unreadable,), grade_route)
         if route == ("issue", "close") and token == "-c" and index + 1 < len(arguments):
-            publications.append(Publication("body", arguments[index + 1]))
+            read = _resolve_plain_value(
+                "body", arguments[index + 1], assignments, substitutions
+            )
+            if isinstance(read, Unreadable):
+                return Extraction(route, number, tuple(publications), (read,), grade_route)
+            publications.append(read)
             index += 2
             continue
         if route == ("api",) and token in API_VALUE_FLAGS and index + 1 < len(arguments):
@@ -210,11 +286,22 @@ def extract(command: str) -> Extraction:
                         return Extraction(route, number, tuple(publications), (read,))
                     publications.append(read)
                 else:
-                    publications.append(Publication(key, value))
+                    read = _resolve_plain_value(key, value, assignments, substitutions)
+                    if isinstance(read, Unreadable):
+                        return Extraction(route, number, tuple(publications), (read,), grade_route)
+                    publications.append(read)
             index += 2
             continue
         if route == ("api",) and token == "--input" and index + 1 < len(arguments):
             source = arguments[index + 1]
+            variable = VARIABLE.match(source)
+            if variable is not None:
+                name = variable.group("braced") or variable.group("plain")
+                if name not in assignments:
+                    kind = "command-substitution" if name in substitutions else "external-variable"
+                    unreadable = Unreadable("body", kind, source)
+                    return Extraction(route, number, tuple(publications), (unreadable,), grade_route)
+                source = assignments[name]
             try:
                 if source == "-":
                     heredoc = HEREDOC.search(command)
@@ -243,7 +330,12 @@ def extract(command: str) -> Extraction:
             index += 2
             continue
         if token in INLINE_FLAGS and index + 1 < len(arguments):
-            publications.append(Publication(INLINE_FLAGS[token], arguments[index + 1]))
+            read = _resolve_plain_value(
+                INLINE_FLAGS[token], arguments[index + 1], assignments, substitutions
+            )
+            if isinstance(read, Unreadable):
+                return Extraction(route, number, tuple(publications), (read,), grade_route)
+            publications.append(read)
             index += 2
             continue
         if token in FILE_FLAGS and index + 1 < len(arguments):
@@ -274,10 +366,15 @@ def extract(command: str) -> Extraction:
         for flag, field in INLINE_FLAGS.items():
             prefix = flag + "="
             if token.startswith(prefix):
-                publications.append(Publication(field, token[len(prefix) :]))
+                read = _resolve_plain_value(
+                    field, token[len(prefix) :], assignments, substitutions
+                )
+                if isinstance(read, Unreadable):
+                    return Extraction(route, number, tuple(publications), (read,), grade_route)
+                publications.append(read)
                 break
         index += 1
-    return Extraction(route, number, tuple(publications), ())
+    return Extraction(route, number, tuple(publications), (), grade_route)
 
 
 def _branch_rule(report: str) -> str:
@@ -481,6 +578,14 @@ UNREADABLE_REMEDIES = {
         "repair the JSON input and run `python tools/tracker_publish_hook.py "
         "--text <path>` before retrying"
     ),
+    "invalid-command": (
+        "repair the command quoting, save the tracker text to a file, and run "
+        "`python tools/tracker_publish_hook.py --text <path>` before retrying"
+    ),
+    "missing-value": (
+        "supply the flag value, or save the tracker text to a file and run "
+        "`python tools/tracker_publish_hook.py --text <path>` before retrying"
+    ),
 }
 
 
@@ -504,7 +609,7 @@ def handle(payload: dict) -> dict:
             return {}
         if extracted.unreadable:
             lines = [
-                f"tracker pre-publish: could not read {row.field} "
+                f"tracker pre-publish: Unreadable {row.field} "
                 f"({row.kind}); {UNREADABLE_REMEDIES[row.kind]}"
                 for row in extracted.unreadable
             ]
@@ -533,7 +638,7 @@ def handle(payload: dict) -> dict:
                 index=index,
                 issue=issue,
                 remote_fresh=remote_fresh,
-                route=extracted.route,
+                route=extracted.grade_route or extracted.route,
             )
             for publication in extracted.publications
         ]
@@ -560,7 +665,7 @@ def handle(payload: dict) -> dict:
         return _hook_response(
             None,
             "tracker pre-publish HOOK FAILURE: "
-            f"{type(exc).__name__}; publication was not scanned",
+            f"Unreadable body ({type(exc).__name__})",
         )
 
 
@@ -578,7 +683,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except (OSError, UnicodeError, subprocess.SubprocessError, ValueError) as exc:
             print(
-                "tracker pre-publish: DID NOT SCAN: " + type(exc).__name__,
+                "tracker pre-publish: Unreadable body: " + type(exc).__name__,
                 file=sys.stderr,
             )
             return 2
@@ -596,7 +701,7 @@ def main(argv: list[str] | None = None) -> int:
         response = _hook_response(
             None,
             "tracker pre-publish HOOK FAILURE: "
-            f"{type(exc).__name__}; publication was not scanned",
+            f"Unreadable body ({type(exc).__name__})",
         )
     else:
         response = handle(payload)
