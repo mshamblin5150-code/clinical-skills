@@ -99,7 +99,7 @@ APA's pattern takes any code as its Source, and its chosen nursing example is `1
 
 ## Ruling 7 — the sheet's coverage is a separate ticket, and it is gated rather than promised
 
-Measured over the same 161 entries in flight: **six source classes, and `apa7.md` gives an entry form for exactly one of them.**
+Measured minutes after the read above, when the same walk returned 161 entries: **six source classes, and `apa7.md` gives an entry form for exactly one of them.**
 
 | entries | class | form in the sheet |
 | ---: | --- | --- |
@@ -109,6 +109,8 @@ Measured over the same 161 entries in flight: **six source classes, and `apa7.md
 | 16 (9%) | government web page | no |
 | 9 (5%) | other web source | no |
 | 6 (3%) | legal | no |
+
+**Corrected 2026-08-31.** This section read *"the same 161 entries"* against the 159 stated above, and *same* was false: they are two reads minutes apart against a **gitignored corpus that grows**, so neither figure re-derives and the pair never described one population. That is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving inside the record citing #143, caught by the sweep of this record's own session. **The class split above is dated evidence, not a current figure** — [#715](https://github.com/mshamblin5150-code/clinical-skills/issues/715) carries the re-measurement and owns the census that makes it re-derivable. What does not decay is the qualitative half, which is read off the sheet's own headings and needs no corpus: **`apa7.md` gives an entry form for §2 alone.**
 
 So 77% of every entry written is written from recall, against a sheet whose own opening forbids it: *an APA rule is looked up, never recalled.* The sheet's other six sections are rules *about* a list rather than forms for an entry.
 
