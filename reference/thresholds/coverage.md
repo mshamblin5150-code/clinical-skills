@@ -65,14 +65,14 @@
 | Clostridium difficile infection | unread |  | bound recommendation record available; full-document read pending |
 | coccidioidomycosis | unread |  | bound recommendation record available; full-document read pending |
 | cognitive impairment screening | sheet | cognitive-impairment-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| colorectal cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| colorectal cancer screening | sheet | colorectal-cancer-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | community-acquired pneumonia | unread |  | bound recommendation record available; full-document read pending |
 | congenital heart disease | unread |  | exact recommendation index available; full-document read pending |
 | COPD screening | sheet | copd-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | COVID-19 infection prevention for healthcare personnel | unread |  | bound recommendation record available; full-document read pending |
 | COVID-19 serologic testing | unread |  | bound recommendation record available; full-document read pending |
 | COVID-19 treatment | unread |  | bound recommendation record available; full-document read pending |
-| dental caries prevention | unread |  | exact recommendation index available; full-document read pending |
+| dental caries prevention | sheet | dental-caries-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | depression and suicide risk screening | sheet | depression-and-suicide-risk-screening.md | all 20 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
 | diabetes in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | diabetes mellitus | sheet | diabetes.md | all 377 source pages accounted for on 2026-08-23; recommendation accounting remains bound under #436 |
@@ -84,7 +84,7 @@
 | food insecurity screening | sheet | food-insecurity-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | fracture prevention, vitamin D and calcium supplementation | sheet | fracture-prevention-vitamin-d-and-calcium-supplementation.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | genital herpes serologic screening | sheet | genital-herpes-serologic-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| gestational diabetes screening | unread |  | exact recommendation index available; full-document read pending |
+| gestational diabetes screening | sheet | gestational-diabetes-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | gestational weight gain counseling | unread |  | exact recommendation index available; full-document read pending |
 | glomerular disease | unread |  | bound recommendation record available; full-document read pending |
 | gonococcal ophthalmia neonatorum prophylaxis | unread |  | exact recommendation index available; full-document read pending |
