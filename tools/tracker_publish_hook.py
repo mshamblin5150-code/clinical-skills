@@ -78,7 +78,7 @@ INLINE_FLAGS = {
 }
 FILE_FLAGS = {"--body-file": "body", "-F": "body"}
 API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
-API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls)/(?P<number>[0-9]+)(?:/|\Z)")
+API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls?)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
 )
@@ -160,7 +160,7 @@ def _api_grade_route(arguments: list[str]) -> tuple[str, ...]:
         (
             token
             for token in arguments
-            if re.search(r"/(?:issues|pulls)/[0-9]+(?:/|\Z)", token)
+            if re.search(r"/(?:issues|pulls)(?:/|\?|\Z)", token)
         ),
         "",
     )
@@ -168,11 +168,21 @@ def _api_grade_route(arguments: list[str]) -> tuple[str, ...]:
         return ("issue", "comment")
     if re.search(r"/pulls/[0-9]+/reviews(?:\Z|\?)", endpoint):
         return ("pr", "review")
+    if re.search(r"/pulls/[0-9]+/comments(?:\Z|\?)", endpoint):
+        return ("pr", "comment")
     if re.search(r"/pulls/[0-9]+(?:\Z|\?)", endpoint):
         return ("pr", "edit")
     if re.search(r"/issues/[0-9]+(?:\Z|\?)", endpoint):
         return ("issue", "edit")
-    return ("issue", "comment")
+    if re.search(r"/issues/comments/[0-9]+(?:\Z|\?)", endpoint):
+        return ("issue", "comment")
+    if re.search(r"/pulls/comments/[0-9]+(?:\Z|\?)", endpoint):
+        return ("pr", "comment")
+    if re.search(r"/pulls(?:\Z|\?)", endpoint):
+        return ("pr", "create")
+    if re.search(r"/issues(?:\Z|\?)", endpoint):
+        return ("issue", "create")
+    return ("issue", "edit")
 
 
 def _record_number(route: tuple[str, ...], arguments: list[str]) -> int | None:
@@ -188,11 +198,26 @@ def _record_number(route: tuple[str, ...], arguments: list[str]) -> int | None:
         return None if match is None else int(match.group("number"))
     if route in (("issue", "create"), ("pr", "create")) or not arguments:
         return None
-    target = arguments[0]
-    if target.isdecimal():
-        return int(target)
-    match = API_RECORD_NUMBER.search(target)
-    return None if match is None else int(match.group("number"))
+    index = 0
+    value_flags = set(INLINE_FLAGS) | set(FILE_FLAGS) | {"--input"}
+    while index < len(arguments):
+        token = arguments[index]
+        if token in value_flags:
+            index += 2
+            continue
+        if any(
+            token.startswith(flag + "=")
+            for flag in set(INLINE_FLAGS) | set(FILE_FLAGS)
+        ):
+            index += 1
+            continue
+        if token.isdecimal():
+            return int(token)
+        match = API_RECORD_NUMBER.search(token)
+        if match is not None:
+            return int(match.group("number"))
+        index += 1
+    return None
 
 
 def _read_file_field(

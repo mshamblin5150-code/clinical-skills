@@ -96,6 +96,18 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertIsNone(result.number)
 
+    def test_option_first_targets_and_pull_request_urls_are_read(self) -> None:
+        option_first = hook.extract(
+            "gh issue comment --repo example/project 670 --body 'A comment'"
+        )
+        pull_url = hook.extract(
+            "gh pr edit https://github.com/example/project/pull/706 "
+            "--body 'A pull request body'"
+        )
+
+        self.assertEqual(option_first.number, 670)
+        self.assertEqual(pull_url.number, 706)
+
     def test_api_endpoint_preserves_the_record_operation_for_grading(self) -> None:
         result = hook.extract(
             "gh api --method PATCH repos/example/project/issues/670 "
@@ -104,6 +116,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertEqual(result.route, ("api",))
         self.assertEqual(result.grade_route, ("issue", "edit"))
+
+    def test_api_collection_endpoints_use_create_semantics(self) -> None:
+        issue = hook.extract(
+            "gh api repos/example/project/issues "
+            "-f title='Issue' -f body='Built on a branch.'"
+        )
+        pull = hook.extract(
+            "gh api repos/example/project/pulls "
+            "-f title='Pull request' -f body='Built on a branch.'"
+        )
+
+        self.assertEqual(issue.grade_route, ("issue", "create"))
+        self.assertEqual(pull.grade_route, ("pr", "create"))
 
 
 class FileBackedTrackerTextIsRead(unittest.TestCase):
