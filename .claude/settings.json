@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh *)",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/tracker_publish_hook.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

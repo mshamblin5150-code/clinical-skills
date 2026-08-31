@@ -1099,7 +1099,7 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
         code, out, err = self.run_main(self.coverage(551, 551))
         self.assertEqual(out, "")
         self.assertNotIn("name-index entry", err)
-        self.assertEqual(len(err.strip().splitlines()), 2, err)
+        self.assertEqual(len(err.strip().splitlines()), 3, err)
         self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
 
     def test_the_shortfall_does_not_refuse_the_commit(self):
@@ -1154,6 +1154,35 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
                 self.assertNotRegex(
                     err.lower(), r"stale|overdue|threshold|too old"
                 )
+
+    def test_the_pre_publish_hook_marker_states_its_exact_age(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "tracker-publish-hook.json"
+            marker.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "ran_on": (
+                            CalendarDate.today() - timedelta(days=37)
+                        ).isoformat(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            notice = ps.tracker_publish_notice(marker=marker)
+
+        self.assertIn(ps.TRACKER_PUBLISH_NOTICE, notice)
+        self.assertIn("37 day(s)", notice)
+        self.assertNotRegex(notice.lower(), r"stale|overdue|threshold|too old")
+
+    def test_an_absent_pre_publish_marker_is_distinct_from_a_clean_scan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "absent.json"
+
+            notice = ps.tracker_publish_notice(marker=marker)
+
+        self.assertIn("never run", notice.lower())
 
 class AnAllRunStatesItsCoverage(unittest.TestCase):
     """#258 open question 2: on **every** ``--all`` run, not only a degraded one.
@@ -1238,7 +1267,7 @@ class AnAllRunStatesItsCoverage(unittest.TestCase):
         """
         status, _, err = self.run_main([])
         self.assertEqual(status, 0)
-        self.assertEqual(len(err.strip().splitlines()), 2, err)
+        self.assertEqual(len(err.strip().splitlines()), 3, err)
         self.assertIn(ps.scanned_population(False), err)
         self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
         self.assertNotIn("layer", err)
@@ -1410,7 +1439,7 @@ class DidNotScan(unittest.TestCase):
         """
         status, _, err = self.run_main(live=True)
         self.assertEqual(status, 0)
-        self.assertEqual(len(err.strip().splitlines()), 2, err)
+        self.assertEqual(len(err.strip().splitlines()), 3, err)
         self.assertIn(ps.TRACKER_HARVEST_NOTICE, err)
 
     def test_the_flag_downgrades_the_status(self):
