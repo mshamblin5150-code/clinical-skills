@@ -15,8 +15,8 @@
 | adult immunization schedule | sheet | adult-immunization-schedule.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | ANCA-associated vasculitis | sheet | anca-associated-vasculitis.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | anemia in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
-| antibiotic stewardship program implementation | unread |  | bound recommendation record available; full-document read pending |
-| antimicrobial prophylaxis in cancer-related immunosuppression | unread |  | bound recommendation record available; full-document read pending |
+| antibiotic stewardship program implementation | sheet | antibiotic-stewardship-program-implementation.md | bound recommendation record fully accounted; full document read |
+| antimicrobial prophylaxis in cancer-related immunosuppression | sheet | antimicrobial-prophylaxis-in-cancer-related-immunosuppression.md | bound recommendation record fully accounted; full document read |
 | antimicrobial stewardship leadership | unread |  | no recommendation record; full-document read pending |
 | antimicrobial-resistant gram-negative infection | unread |  | no recommendation record; full-document read pending |
 | anxiety disorder screening | sheet | anxiety-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
