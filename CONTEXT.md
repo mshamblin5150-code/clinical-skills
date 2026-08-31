@@ -574,7 +574,7 @@ An open ticket carrying `ready-for-agent`: a promise that an unattended agent ca
 _Avoid_: ready, startable, claimable, unblocked
 
 **Startable packet**:
-A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor and nothing in flight. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, because the map renders startability and checks readiness nowhere.
+A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor and nothing in flight. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, so the map derives readiness separately and refuses the disagreement at its claim, check and frontier surfaces.
 _Avoid_: ready, available, open, next
 
 **Reconciliation**:
