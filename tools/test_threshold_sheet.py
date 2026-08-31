@@ -1886,6 +1886,47 @@ class RangeGate(unittest.TestCase):
         self.assertIn("RANGE           1", report)
         self.assertIn("0.5 mg", findings)
 
+    def test_ticket_429_source_valid_low_values_use_sheet_and_quantity_specific_bounds(self):
+        accepted = {
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "aki-scr-absolute-definition", "0.3 mg"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "aki-scr-stage-c1", "0.3 mg"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "neonatal-aki-scr-absolute", "0.3 mg"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "neonatal-scr-stage-c1", "0.3 mg"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "terlipressin-bolus", "0.5 mg"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "norepinephrine-hrs", "0.5 mg and 10 mm Hg"),
+            ("acute-coronary-syndromes.md", "nitroglycerin-sl-dose", "0.3 or 0.4 mg"),
+            ("acute-coronary-syndromes.md", "nitroglycerin-iv-dose", "30 mm Hg"),
+            ("acute-coronary-syndromes.md", "pericarditis-treatment-dose", "0.5 or 0.6 mg"),
+            ("acute-coronary-syndromes.md", "chronic-colchicine-dose", "0.5 or 0.6 mg"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-modality-parameters", "300-500 ml/min"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "irrt-dialysate-flow", "300 ml/min"),
+            ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-catheter-flow", "200-250 ml/min"),
+            ("acute-pulmonary-embolism.md", "normotensive-shock-markers", "0.3 mg"),
+        }
+        for filename, quantity, value in accepted:
+            with self.subTest(filename=filename, quantity=quantity, value=value):
+                _, report, findings = self.run_public_cli(
+                    value, quantity=quantity, filename=filename
+                )
+                self.assertIn("RANGE           0", report)
+                self.assertNotIn("RANGE", findings)
+
+        _, report, findings = self.run_public_cli(
+            "0.3 mg",
+            quantity="nitroglycerin-sl-dose",
+            filename="another-sheet.md",
+        )
+        self.assertIn("RANGE           1", report)
+        self.assertIn("0.3 mg", findings)
+
+        _, report, findings = self.run_public_cli(
+            "500 ml/min",
+            quantity="adult-rrt-modality-parameters",
+            filename="another-sheet.md",
+        )
+        self.assertIn("RANGE           1", report)
+        self.assertIn("500 ml/min", findings)
+
     def test_lvoto_gradient_has_a_narrow_quantity_specific_pressure_floor_at_the_cli(self):
         _, report, findings = self.run_public_cli(
             "30 mm Hg",

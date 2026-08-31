@@ -499,6 +499,21 @@ UNIT_BOUNDS = {
 # source-valid values below its 40 mm Hg floor. Keep the semantic exceptions
 # explicit so ordinary pressure rows retain the wider gate's bound.
 QUANTITY_UNIT_BOUNDS = {
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "aki-scr-absolute-definition", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "aki-scr-stage-c1", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "neonatal-aki-scr-absolute", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "neonatal-scr-stage-c1", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "terlipressin-bolus", "mg"): (0.5, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "norepinephrine-hrs", "mg"): (0.5, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "norepinephrine-hrs", "mm hg"): (10.0, 250.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-modality-parameters", "ml/min"): (1.0, 500.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "irrt-dialysate-flow", "ml/min"): (1.0, 300.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-catheter-flow", "ml/min"): (1.0, 250.0),
+    ("acute-coronary-syndromes.md", "nitroglycerin-sl-dose", "mg"): (0.3, 6000.0),
+    ("acute-coronary-syndromes.md", "nitroglycerin-iv-dose", "mm hg"): (30.0, 250.0),
+    ("acute-coronary-syndromes.md", "pericarditis-treatment-dose", "mg"): (0.5, 6000.0),
+    ("acute-coronary-syndromes.md", "chronic-colchicine-dose", "mg"): (0.5, 6000.0),
+    ("acute-pulmonary-embolism.md", "normotensive-shock-markers", "mg"): (0.3, 6000.0),
     ("hypertrophic-cardiomyopathy.md", "historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
     ("hypertrophic-cardiomyopathy.md", "lvoto-present-gradient", "mm hg"): (30.0, 250.0),
     ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult", "mg"): (0.1, 6000.0),

@@ -5,8 +5,8 @@
 | topic | state | artifact | record |
 | --- | --- | --- | --- |
 | abdominal aortic aneurysm screening | sheet | abdominal-aortic-aneurysm-screening.md | all 8 source pages accounted for on 2026-08-30; references retired by class |
-| acute bacterial arthritis | unread |  | bound recommendation record available; full-document read pending |
-| acute coronary syndromes | unread |  | exact recommendation index available; full-document read pending |
+| acute bacterial arthritis | sheet | acute-bacterial-arthritis.md | all source pages accounted for on 2026-08-31; independent checks passed |
+| acute coronary syndromes | sheet | acute-coronary-syndromes.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | acute hematogenous osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
 | acute ischemic stroke, early management | sheet | acute-ischemic-stroke-early-management.md | all 196 source pages accounted for on 2026-08-30; exact omissions reconciled per source |
 | acute kidney injury and acute kidney disease | unread |  | bound recommendation record available; full-document read pending |
@@ -67,7 +67,7 @@
 | cognitive impairment screening | sheet | cognitive-impairment-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | colorectal cancer screening | sheet | colorectal-cancer-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | community-acquired pneumonia | unread |  | bound recommendation record available; full-document read pending |
-| congenital heart disease | unread |  | exact recommendation index available; full-document read pending |
+| congenital heart disease | sheet | congenital-heart-disease.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | COPD screening | sheet | copd-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | COVID-19 infection prevention for healthcare personnel | unread |  | bound recommendation record available; full-document read pending |
 | COVID-19 serologic testing | unread |  | bound recommendation record available; full-document read pending |
