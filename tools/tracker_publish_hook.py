@@ -396,6 +396,26 @@ def extract(command: str) -> Extraction:
             publications.append(read)
             index += 2
             continue
+        if route == ("issue", "close"):
+            close_equals = next(
+                (
+                    token[len(flag) + 1 :]
+                    for flag in ("--comment", "-c")
+                    if token.startswith(flag + "=")
+                ),
+                None,
+            )
+            if close_equals is not None:
+                read = _resolve_plain_value(
+                    "body", close_equals, assignments, substitutions
+                )
+                if isinstance(read, Unreadable):
+                    return Extraction(
+                        route, number, tuple(publications), (read,), grade_route
+                    )
+                publications.append(read)
+                index += 1
+                continue
         if route != ("api",):
             for flag, field in FILE_FLAGS.items():
                 prefix = flag + "="

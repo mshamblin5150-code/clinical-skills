@@ -78,6 +78,23 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             [("body", "Closing comment")],
         )
 
+    def test_issue_close_comment_equals_forms_are_read(self) -> None:
+        long_form = hook.extract(
+            "gh issue close 670 --comment='Closing text'"
+        )
+        short_form = hook.extract(
+            "gh issue close 670 -c='Other closing text'"
+        )
+
+        self.assertEqual(
+            [(row.field, row.text) for row in long_form.publications],
+            [("body", "Closing text")],
+        )
+        self.assertEqual(
+            [(row.field, row.text) for row in short_form.publications],
+            [("body", "Other closing text")],
+        )
+
     def test_plain_inline_variables_are_resolved_before_scanning(self) -> None:
         result = hook.extract(
             "BODY='Expanded tracker text'; "
