@@ -1901,7 +1901,7 @@ class RangeGate(unittest.TestCase):
             ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-modality-parameters", "300-500 ml/min"),
             ("acute-kidney-injury-and-acute-kidney-disease.md", "irrt-dialysate-flow", "300 ml/min"),
             ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-catheter-flow", "200-250 ml/min"),
-            ("acute-pulmonary-embolism.md", "normotensive-shock-markers", "0.3 mg"),
+            ("acute-pulmonary-embolism.md", "normotensive-shock-creatinine-increase", "0.3 mg"),
         }
         for filename, quantity, value in accepted:
             with self.subTest(filename=filename, quantity=quantity, value=value):
