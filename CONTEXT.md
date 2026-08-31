@@ -564,3 +564,23 @@ _Avoid_: publish command, gh call, write, surface
 **Unreadable body**:
 Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. Distinct from a route carrying no body at all, which is silent rather than reported.
 _Avoid_: no body, empty, skipped, not scanned
+
+**Packet**:
+The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
+_Avoid_: task, item, issue, ticket, story
+
+**Ready ticket**:
+An open ticket carrying `ready-for-agent`: a promise that an unattended agent can build it without guessing. A claim about the **specification**, made by whoever respec'd it, and revocable — a ticket relabeled `grilling` stops being one. Distinct from a **startable packet**, which is a claim about sequencing and never reads this label.
+_Avoid_: ready, startable, claimable, unblocked
+
+**Startable packet**:
+A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor and nothing in flight. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, because the map renders startability and checks readiness nowhere.
+_Avoid_: ready, available, open, next
+
+**Reconciliation**:
+The reviewed judgment that places changed work into the map — written as a delta, reviewed against the ADR's rulings, then applied. It is semantic and cannot be derived: placement needs judgments no rule produces. Distinct from a **publish**, which re-renders the derived views from unchanged state and reconciles nothing, which is why the obligation to have reconciled is anchored on a field the delta sets rather than on the rendered snapshot a publish rewrites.
+_Avoid_: update, refresh, sync, rebuild
+
+**Map disagreement**:
+A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, a packeted ticket that has stopped being ready, and a `blocked` label whose gate is not a native edge. A gate that grades one direction certifies nothing about the others.
+_Avoid_: staleness, mismatch, error, out of date
