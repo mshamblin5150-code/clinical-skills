@@ -281,7 +281,7 @@ it could read prose, and would have put a clinical word on a tracker tool's file
 
 **Corrected 2026-08-31, by the sweep of this record's own session.** The paragraph above argues
 against the compound as though this glossary contained none, and **`CONTEXT.md` has carried
-`Corpus drift` since [ADR 0031](0031-the-corpus-is-the-record-and-the-tree-is-a-derived-view.md)** —
+`Corpus drift` since [ADR 0031](0031-corpus-drift-is-reported-at-the-commit-and-the-cheap-limb-reads-the-audit-ledger.md)** —
 a second sense of the same word, in the same file, in exactly the compound form refused here. So the
 house precedent ran *toward* `Map drift` and this record did not know it: the reasoning was made from
 the files the session had open, which is
