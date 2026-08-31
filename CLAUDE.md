@@ -767,10 +767,18 @@ the corpus layer is live; if its name index is present but short,
 `tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
 hook was declined as the trigger: a comment is published without a push, and a
 push can happen before the finishing sweep writes its comments. This is #260's
-ruling, 2026-08-20. **A pre-publish `PreToolUse` hook is ruled in and advisory**
-by [ADR 0077](docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md)
-ruling 5, which is not what #260 declined: that reasoning is about a **git**
-hook, and a comment published without a push is still published by a tool call.
+ruling, 2026-08-20. **The pre-publish `PreToolUse` hook is registered in
+`.claude/settings.json` and implemented by `tools/tracker_publish_hook.py`.**
+`PUBLISH_ROUTES` owns the recognized command families; the settings `if` is a
+cost guard and never a second verb list. The hook scans each title and body
+through `phi_scan` and `tracker_branch_scope`, reports counts and rule names
+without matched values, keeps PHI findings advisory, and refuses the local
+branch-scope triggers ruled by
+[ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
+That is [ADR 0077](docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md)
+ruling 5's build, and not what #260 declined: that reasoning is about a **git**
+hook, while a comment published without a push is still published by a tool
+call.
 
 **When a full harvest last really ran, and what it found, is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
@@ -789,7 +797,13 @@ prose reported absent, and
 it nine days after the harvest rather than four. A dated result in prose reads
 as a current property of the tracker, and no edit to a sentence fails.
 
-**It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
+**The pre-publish hook writes a separate counts-free marker under `scratch/`,
+and the same bare `python tools/phi_scan.py` commit path states its exact age.**
+No age becomes a stale verdict: publication volume, not elapsed days, decides
+what an old marker means. An absent or invalid marker is distinct from a clean
+scan, which is ADR 0083 ruling 5's non-registration limb.
+
+**`tracker_scan` opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
 **The refspec configuration is once per clone, and it is persistent on purpose.** A one-off fetch creates `refs/remotes/origin/pr/*` without teaching the remote where they came from, so `git fetch --prune` deletes every one and an ordinary fetch never refreshes them. With the refspec in `remote.origin.fetch`, prune preserves live pull heads and every ordinary fetch refreshes them. `tracker_scan` refuses the git surface when the configuration is absent even if old pull-head refs remain, because presence alone cannot distinguish current refs from stale ones. [#294](https://github.com/mshamblin5150-code/clinical-skills/issues/294).
 

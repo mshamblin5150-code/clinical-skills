@@ -173,6 +173,29 @@ class AWorktreeIsNotPartOfItsParent(unittest.TestCase):
         artifact it exists to protect."""
         self.assertFalse(_check_ignore("reference/thresholds/hypertension.md"))
 
+    def test_the_local_settings_file_is_covered_by_the_tracked_boundary(self) -> None:
+        self._assert_gitignore_covers(".claude/settings.local.json")
+
+    def test_the_retrieval_log_is_covered_by_the_tracked_boundary(self) -> None:
+        """The log is written by machinery outside this repository's control.
+
+        Ignoring it is a publication boundary, not a claim about what the file
+        contains or about whether another scanner could interpret it.
+        """
+        self._assert_gitignore_covers(".claude/live-retrieval-log.jsonl")
+
+    def test_a_future_claude_file_is_covered_without_enumerating_it(self) -> None:
+        self._assert_gitignore_covers(".claude/future-tool-output.bin")
+
+    def test_the_committed_project_settings_exception_stays_visible(self) -> None:
+        """The tracked-file walk below is vacuous until this file is committed.
+
+        This direct assertion holds the forward-looking negation before then;
+        once the file exists, ``TheNetDoesNotSwallowWhatIsCommitted`` holds it
+        again as part of the repository's complete tracked population.
+        """
+        self.assertFalse(_check_ignore(".claude/settings.json"))
+
 
 class TheGuidelineBuildArtifactsAreIgnored(unittest.TestCase):
     def test_the_extractor_default_output_directory(self) -> None:

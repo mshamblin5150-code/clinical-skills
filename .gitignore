@@ -19,15 +19,14 @@ patients/
 # Public CDC reference data committed for the pediatric BMI calculator (#123).
 !reference/cdc-bmi-for-age-2022.csv
 
-# Local agent wiring (see README: junction setup)
-.claude/skills
+# Local Claude state is default-denied. The retrieval log is written by
+# machinery outside this repository's control, so this is a publication
+# boundary rather than a claim about what that file contains. Project hook
+# settings are the one committed exception. Until that file exists, the
+# tracked-file walk is vacuous and the direct ignore-source test holds it.
+.claude/*
+!.claude/settings.json
 .codex/
-
-# Worktrees. A worktree is a checkout and never belongs in its parent; the only
-# thing keeping one out of `git status` was `.git/info/exclude`, which git does
-# not clone -- so on a fresh clone the tooling scratch under here was visible and
-# committable. #178.
-.claude/worktrees/
 
 # OS / editor
 Thumbs.db

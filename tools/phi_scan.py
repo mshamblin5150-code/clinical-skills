@@ -155,6 +155,8 @@ ALLOW_NO_CORPUS_CONFIG = "clinical.phiAllowNoCorpus"
 # actually checking rather than from the checkout that holds the PHI corpus.
 TRACKER_HARVEST_MARKER = Path("reference/tracker-scan-harvest.json")
 TRACKER_HARVEST_NOTICE = "last full tracker harvest"
+TRACKER_PUBLISH_MARKER = SCRATCH / "tracker-publish-hook.json"
+TRACKER_PUBLISH_NOTICE = "last tracker pre-publish hook run"
 
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"
@@ -1018,6 +1020,26 @@ def tracker_harvest_notice(
     return f"  ** {TRACKER_HARVEST_NOTICE}: {age} day(s) ago ({ran_on.isoformat()}). **"
 
 
+def tracker_publish_notice(
+    marker: Path | None = None, today: CalendarDate | None = None
+) -> str:
+    """State the pre-publish hook marker's age without inventing a threshold."""
+    target = TRACKER_PUBLISH_MARKER if marker is None else marker
+    if not target.is_file():
+        return f"  ** {TRACKER_PUBLISH_NOTICE}: never run (marker absent). **"
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+        ran_on = CalendarDate.fromisoformat(data["ran_on"])
+        if data.get("version") != 1:
+            raise ValueError("unsupported tracker publish marker")
+        age = ((CalendarDate.today() if today is None else today) - ran_on).days
+        if age < 0:
+            raise ValueError("future tracker publish marker")
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return f"  ** {TRACKER_PUBLISH_NOTICE}: NOT RECORDED -- marker invalid. **"
+    return f"  ** {TRACKER_PUBLISH_NOTICE}: {age} day(s) ago ({ran_on.isoformat()}). **"
+
+
 def shortfall_notice(coverage, missing: Sequence[str] = ()) -> list[str]:
     """The commit-path notices about corpus and full-harvest coverage.
 
@@ -1309,10 +1331,12 @@ def main(argv: list[str]) -> int:
     if dead_corpus or all_mode:
         for line in layer_report(names, dates, all_mode, missing, coverage):
             print(line, file=sys.stderr)
+        print(tracker_publish_notice(), file=sys.stderr)
     else:
         print(f"phi-scan: scanned {scanned_population(all_mode)}", file=sys.stderr)
         for line in shortfall_notice(coverage, missing):
             print(line, file=sys.stderr)
+        print(tracker_publish_notice(), file=sys.stderr)
 
     index = build_index(names, dates)
     findings = scan_all(index) if all_mode else scan_staged(index)
