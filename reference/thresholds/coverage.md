@@ -14,11 +14,11 @@
 | adolescent idiopathic scoliosis screening | sheet | adolescent-idiopathic-scoliosis-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | adult immunization schedule | sheet | adult-immunization-schedule.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | ANCA-associated vasculitis | sheet | anca-associated-vasculitis.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| anemia in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
+| anemia in chronic kidney disease | sheet | anemia-in-chronic-kidney-disease.md | bound recommendation record fully accounted; full document read |
 | antibiotic stewardship program implementation | sheet | antibiotic-stewardship-program-implementation.md | bound recommendation record fully accounted; full document read |
 | antimicrobial prophylaxis in cancer-related immunosuppression | sheet | antimicrobial-prophylaxis-in-cancer-related-immunosuppression.md | bound recommendation record fully accounted; full document read |
-| antimicrobial stewardship leadership | unread |  | no recommendation record; full-document read pending |
-| antimicrobial-resistant gram-negative infection | unread |  | no recommendation record; full-document read pending |
+| antimicrobial stewardship leadership | sheet | antimicrobial-stewardship-leadership.md | recommendation sweep reported `nothing-found`; full document read |
+| antimicrobial-resistant gram-negative infection | sheet | antimicrobial-resistant-gram-negative-infection.md | recommendation sweep reported `nothing-found`; full document read |
 | anxiety disorder screening | sheet | anxiety-disorder-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | anxiety screening | sheet | anxiety-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
 | aortic disease | unread |  | exact recommendation index available; full-document read pending |
