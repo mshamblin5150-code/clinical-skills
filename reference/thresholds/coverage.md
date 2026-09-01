@@ -111,7 +111,7 @@
 | IgA nephropathy and IgA vasculitis | unread |  | bound recommendation record available; full-document read pending |
 | illicit drug use prevention | sheet | illicit-drug-use-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | impaired visual acuity screening | sheet | impaired-visual-acuity-screening.md | full-document read complete; exact recommendation index accounted |
-| infectious diarrhea | unread |  | bound recommendation record available; full-document read pending |
+| infectious diarrhea | sheet | infectious-diarrhea.md | full-document read complete |
 | intimate partner violence and elder abuse screening | sheet | intimate-partner-violence-and-elder-abuse-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening | sheet | iron-deficiency-anemia-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening and supplementation | sheet | iron-deficiency-anemia-screening-and-supplementation.md | exact recommendation index available; full document distilled |
@@ -133,10 +133,10 @@
 | neural tube defect prevention, folic acid | sheet | neural-tube-defect-prevention-folic-acid.md | full-document read complete; exact recommendation index accounted |
 | neurocysticercosis | sheet | neurocysticercosis.md | bound recommendation record available; full document distilled |
 | new fever in the intensive care unit | sheet | new-fever-in-intensive-care-unit.md | bound recommendation record available; full document distilled |
-| nontuberculous mycobacterial pulmonary disease | unread |  | bound recommendation record available; full-document read pending |
+| nontuberculous mycobacterial pulmonary disease | sheet | nontuberculous-mycobacterial-pulmonary-disease.md | full-document read complete |
 | obesity, behavioral weight loss intervention | sheet | obesity-behavioral-weight-loss-intervention.md | exact recommendation index available; full document distilled |
 | obstructive sleep apnea screening | sheet | obstructive-sleep-apnea-screening.md | full-document read complete; exact recommendation index accounted |
-| opioid prescribing for pain | unread |  | no recommendation record; full-document read pending |
+| opioid prescribing for pain | sheet | opioid-prescribing-for-pain.md | full-document read complete; no recommendation record |
 | oral cancer screening | sheet | oral-cancer-screening.md | exact recommendation index available; full document distilled |
 | oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | osteoporosis screening, fracture prevention | sheet | osteoporosis-screening-and-fracture-prevention.md | exact recommendation index available; full document distilled |
@@ -155,7 +155,7 @@
 | secondary stroke prevention | unread |  | exact recommendation index available; full-document read pending |
 | sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
 | sexually transmitted infection prevention counseling | sheet | sexually-transmitted-infection-prevention-counseling.md | exact recommendation index available; full document distilled |
-| skin and soft tissue infection | unread |  | bound recommendation record available; full-document read pending |
+| skin and soft tissue infection | sheet | skin-and-soft-tissue-infection.md | full-document read complete |
 | skin cancer prevention counseling | sheet | skin-cancer-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin cancer screening | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | speech and language delay screening | sheet | speech-language-delay-screening.md | full-document read complete; exact recommendation index accounted |
