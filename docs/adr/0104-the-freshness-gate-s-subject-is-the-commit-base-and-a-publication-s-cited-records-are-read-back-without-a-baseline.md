@@ -42,6 +42,13 @@ tickets read, one at a time."* 166 comments cite none.
 occurrences in comments, 149 sit inside a fenced block, 646 inside inline code and 154 inside a
 blockquote line; 3,427 are the tail of an `issues/` or `pull/` URL and 3 are `owner/repo#N`.
 
+**Two of these figures are instrument-dependent and the amount is stated rather than resolved.** An
+independent re-derivation the same day, with a differently written pattern, returned **167** for the
+cite-nothing count and **13,431** for the occurrence total against the 166 and 13,445 above. Neither
+is wrong: `#N` has no pinned boundary definition until ruling 4's citation set is built, so the two
+walks disagree at the margin by about one part in a thousand. **Nothing in the rulings turns on the
+difference**, and pinning a winner here would fix a definition the build has not written yet.
+
 **7. One batched GraphQL request covers the worst case measured.** `issueOrPullRequest(number:)`
 resolves both kinds, so the `gh issue list` trap #130 records — that command excludes pull requests —
 does not apply. Five citations returned in 0.87 s; **42 citations returned in one request in 2.55 s**,
@@ -147,9 +154,12 @@ nothing to adjudicate — while an under-included one loses a staleness flag sil
 whole subject of the ticket.
 
 So the set is **every `#N` and every `issues/N` or `pull/N` URL tail, wherever it sits**, unioned with
-`Extraction.number` — which covers class (a), the record the body may never name. Finding 6's 7% is
-admitted deliberately, and the blockquote share matters most: **a blockquote is where this repository
-puts branch state**, which is a claim about the world that goes stale.
+`Extraction.number` **where there is one** — which covers class (a), the record the body may never
+name. On `('issue','create')` and `('pr','create')` that field is `None`, because a create is not
+posted *on* any record, so class (a) is empty there rather than unnamed; ruling 9 settles what
+happens then. Finding 6's 7% is admitted deliberately, and the blockquote share matters most:
+**a blockquote is where this repository puts branch state**, which is a claim about the world that
+goes stale.
 
 **The reason is recorded beside the rule because the next author will read its absence as an
 oversight**: the mention rule belongs to a checker that refuses, and this one only reports.
@@ -235,6 +245,20 @@ asymmetry with the sibling is stated, or the next author reads it as an oversigh
 **A text-free publication is silent and never reported as clean.** ADR 0083 ruling 2's three outcomes
 already carry the vocabulary; this is a fourth member of the silent class, and it belongs there rather
 than in a report, because *no stale citations* on a label edit reads as a checked publication.
+
+**A publication that carries text and cites nothing is reported, and its line names ruling 1's class
+(c).** The two cases part on whether the readback *ran*: a label-only edit gave it nothing to read, so
+it is silent; a body that names no record was read and yielded an empty citation set, which is the
+`scanned` outcome and must be legible as one. Measured, this is not an edge case — **166 of 3,159
+comments cite no record**, about one publication in twenty, and `Extraction.number` is `None` on both
+create routes, so a new ticket naming no `#N` reaches it too.
+
+**It is the most useful line the mechanism emits, which is why it is not silence.** Class (c) is *a
+verdict that names no record*, ruled unreachable by anything; a body citing nothing is that class in
+its purest form. Ruling 1 declares (c) by name because the declaration is an instruction a writer can
+act on — *write the number, or nothing will check you* — and the moment that instruction is worth most
+is the moment a writer is publishing a claim naming no number. Silence there would spend, one route
+over, exactly the silence ruling 9 has just refused.
 
 **10. The boundary is one owned object and the prose points at it.**
 
