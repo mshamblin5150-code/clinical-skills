@@ -30,13 +30,20 @@ NON_SOURCE_CATALOG = CATALOG + (
 
 
 def registry(*rows: str) -> str:
+    upgraded = []
+    for row in rows:
+        cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+        if len(cells) == 4:
+            cells.insert(1, "?")
+            row = "| " + " | ".join(cells) + " |\n"
+        upgraded.append(row)
     return """# Threshold-sheet coverage
 
-<!-- schema: threshold-coverage/2 -->
+<!-- schema: threshold-coverage/3 -->
 
-| topic | state | artifact | record |
-| --- | --- | --- | --- |
-""" + "".join(rows)
+| topic | subject | state | artifact | record |
+| --- | --- | --- | --- | --- |
+""" + "".join(upgraded)
 
 
 def artifact(read: str) -> str:
@@ -167,7 +174,63 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.count("| cervical cancer |"), 1)
         self.assertEqual(result.stdout.count("| hypertension |"), 1)
-        self.assertIn("<!-- schema: threshold-coverage/2 -->", result.stdout)
+        self.assertIn("<!-- schema: threshold-coverage/3 -->", result.stdout)
+        self.assertIn("| cervical cancer | ? |  |  |  |", result.stdout)
+
+    def test_subject_is_required_and_must_name_catalog_topics(self):
+        result = self.run_cli(
+            CATALOG,
+            registry(
+                "| cervical cancer |  | unread |  | pending |\n",
+                "| hypertension | not a catalog topic | unread |  | pending |\n",
+            ),
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("topic 'cervical cancer' has no subject", result.stderr)
+        self.assertIn(
+            "topic 'hypertension' has unknown subject 'not a catalog topic'",
+            result.stderr,
+        )
+
+    def test_subject_accepts_multiple_catalog_topics_and_requires_elected_name_membership(self):
+        accepted = self.run_cli(
+            CATALOG,
+            registry(
+                "| cervical cancer | cervical cancer, hypertension | unread |  | pending |\n",
+                "| hypertension | cervical cancer, hypertension | unread |  | pending |\n",
+            ),
+        )
+        missing_elected_member = self.run_cli(
+            CATALOG,
+            registry(
+                "| cervical cancer | hypertension | unread |  | pending |\n",
+                "| hypertension | ? | unread |  | pending |\n",
+            ),
+        )
+
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertEqual(missing_elected_member.returncode, 1)
+        self.assertIn(
+            "elected subject 'hypertension' is not carried by its own topic row",
+            missing_elected_member.stderr,
+        )
+
+    def test_a_comma_inside_one_catalog_topic_is_not_a_subject_separator(self):
+        comma_catalog = CATALOG + (
+            "| AHA ACC | fourth.pdf | Fourth | acute ischemic stroke, early management | "
+            "adults | 2026 | 12 | guideline | ? |\n"
+        )
+        result = self.run_cli(
+            comma_catalog,
+            registry(
+                "| acute ischemic stroke, early management | acute ischemic stroke, early management | unread |  | pending |\n",
+                "| cervical cancer | ? | unread |  | pending |\n",
+                "| hypertension | ? | unread |  | pending |\n",
+            ),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_a_complete_registry_reports_rederived_state_counts(self):
         result = self.run_cli(

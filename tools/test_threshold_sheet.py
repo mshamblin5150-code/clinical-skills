@@ -1261,7 +1261,7 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
         paths = sorted(
             path
             for path in gate.SHEET_ROOT.glob("*.md")
-            if path.name.casefold() not in {"readme.md", "coverage.md"}
+            if path.name.casefold() not in {"readme.md", "coverage.md", "subjects.md"}
         )
         self.assertTrue(paths)
         mixed_sheets = []
@@ -2130,12 +2130,13 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
 
         self.assertEqual(len(loud.splitlines()) - len(quiet.splitlines()), 31)
 
-    def test_all_excludes_the_topic_coverage_registry(self):
+    def test_all_excludes_the_topic_coverage_registry_and_subject_ledger(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             sheet_path = root / "topic.md"
             sheet_path.write_text("sheet", encoding="utf-8")
             (root / "coverage.md").write_text("registry", encoding="utf-8")
+            (root / "subjects.md").write_text("subject ledger", encoding="utf-8")
             scan = gate.Scan(gate.Sheet(sheet_path))
             with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
                 gate, "survey", return_value=scan
@@ -2464,7 +2465,7 @@ class ScopeSummaryTracksTheUnreadList(unittest.TestCase):
         paths = sorted(
             path
             for path in gate.SHEET_ROOT.glob("*.md")
-            if path.name.casefold() not in {"readme.md", "coverage.md"}
+            if path.name.casefold() not in {"readme.md", "coverage.md", "subjects.md"}
         )
         self.assertTrue(paths)
         for path in paths:
@@ -4218,6 +4219,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             )
             marker = root / "threshold-ran"
             coverage_marker = root / "coverage-ran"
+            subject_marker = root / "subject-ran"
             for name in (
                 "skills_mirror.py",
                 "spelling_scan.py",
@@ -4236,6 +4238,11 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "pathlib.Path(os.environ['COVERAGE_HOOK_MARKER']).write_text('ran')\n",
                 encoding="utf-8",
             )
+            (root / "tools" / "subject_ledger.py").write_text(
+                "import os, pathlib\n"
+                "pathlib.Path(os.environ['SUBJECT_HOOK_MARKER']).write_text('ran')\n",
+                encoding="utf-8",
+            )
             subprocess.run([git, "init", "--quiet"], cwd=root, check=True)
             subprocess.run([git, "config", "user.email", "test@example.invalid"], cwd=root, check=True)
             subprocess.run([git, "config", "user.name", "Threshold Test"], cwd=root, check=True)
@@ -4248,10 +4255,29 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 **os.environ,
                 "THRESHOLD_HOOK_MARKER": str(marker),
                 "COVERAGE_HOOK_MARKER": str(coverage_marker),
+                "SUBJECT_HOOK_MARKER": str(subject_marker),
             }
             subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
             self.assertFalse(marker.exists(), "README.md invoked the sheet grader")
             self.assertFalse(coverage_marker.exists(), "README.md invoked the coverage auditor")
+            self.assertFalse(subject_marker.exists(), "README.md invoked the subject ledger")
+
+            coverage = root / "reference" / "thresholds" / "coverage.md"
+            coverage.write_text("coverage registry\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(coverage)], cwd=root, check=True)
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertFalse(marker.exists(), "coverage.md invoked the sheet grader")
+            self.assertTrue(subject_marker.exists(), "coverage.md did not invoke the subject grader")
+            subprocess.run([git, "commit", "--quiet", "-m", "coverage"], cwd=root, check=True)
+            coverage_marker.unlink()
+            subject_marker.unlink()
+
+            subjects = root / "reference" / "thresholds" / "subjects.md"
+            subjects.write_text("subject ledger\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(subjects)], cwd=root, check=True)
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertFalse(marker.exists(), "subjects.md invoked the sheet grader")
+            self.assertTrue(subject_marker.exists(), "subjects.md did not invoke its grader")
 
             actual_sheet = root / "reference" / "thresholds" / "hypertension.md"
             actual_sheet.write_text("a sheet\n", encoding="utf-8")

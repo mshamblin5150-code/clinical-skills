@@ -40,6 +40,9 @@ GraderConformance = for_module(checks)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 THRESHOLDS_README = REPO_ROOT / "reference" / "thresholds" / "README.md"
+ADR_0076 = REPO_ROOT / "docs" / "adr" / (
+    "0076-the-cross-sheet-reading-is-a-substantiated-row-and-the-reader-derives-the-join-per-patient.md"
+)
 
 # A record that passes every row, so a test can change one field and know the
 # finding it gets back belongs to that field. **It carries a ``FINDINGS`` because
@@ -926,11 +929,19 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         """
         name = "the threshold sheets against this patient"
         readme = THRESHOLDS_README.read_text(encoding="utf-8")
+        rows = {row[0]: row for row in self.table_rows()}
+        adr = ADR_0076.read_text(encoding="utf-8")
 
         self.assertIn(name, readme)
         self.assertIn(name, self.table_checks())
         self.assertIn(name, checks.EXPECTED_CHECKS)
         self.assertIn(name, checks.SUBSTANTIATED_CLEAN)
+        self.assertIn("`subject` column", rows[name][1])
+        self.assertIn("group the registry's rows by subject", rows[name][2])
+        self.assertIn("`?` means nobody has ruled", rows[name][2])
+        self.assertIn("including its `subject` column", adr)
+        self.assertIn("group the registry's rows by subject", adr)
+        self.assertIn("`?` means nobody has ruled", adr)
 
         bare = instead_of(name, f"## CHECK: {name}\nVERDICT: clean\n")
         self.assertEqual(kinds(bare), [checks.CLEAN_WITHOUT_FINDINGS])

@@ -70,11 +70,13 @@ read against — and deliberately not in this ticket's own vocabulary: *cross-sh
 the mechanism's words, not a reader's. The step 9 table row:
 
 > **What it reads:** the whole draft, the faculty material's patient, and `reference/thresholds/`
-> via `coverage.md`.
-> **How:** a reader: identify every threshold sheet whose topic this patient's problems touch,
-> and where the draft rests on rows from more than one sheet, whether each sheet's own population
-> wording holds for **this** patient — population and quantity keys are sheet-local, `CONFLICT`
-> is within-sheet, and no command compares two sheets, so this pair is seen by nobody else.
+> via `coverage.md`, including its `subject` column.
+> **How:** a reader: group the registry's rows by subject, and where the patient's problems touch
+> any cell in a subject, open every sheet in that subject; `?` means nobody has ruled whether that
+> cell has siblings, never that it has none. Where the draft rests on rows from more than one sheet,
+> decide whether each sheet's own population wording holds for **this** patient — population and
+> quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so
+> this pair is seen by nobody else.
 > **A `clean` says what it walked:** yes.
 
 Scope is the join. Single-sheet threshold applicability in general is a different reading and is
@@ -166,3 +168,5 @@ discharged (`CONTEXT.md`'s entries carried the sheet-local wording from ADR 0057
 `66ba77f`), the stale 149/407 figures become the command's to state, and the two moved line
 anchors are replaced with symbol-level ones. Cross-reference comments on #587 and #565 record the
 collision.
+
+*(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. ADR 0102 and #689 added the registry's authored `subject` column after this row was ratified. Ruling 3's quoted reader contract now includes the column, its group-expansion walk, and the meaning of `?`; the row name, reader, population judgment, and other rulings are unchanged.)*

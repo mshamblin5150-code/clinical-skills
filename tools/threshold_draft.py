@@ -24,6 +24,7 @@ from pathlib import Path
 
 import guidelines_catalog
 import guidelines_extract
+import threshold_coverage
 from console_codec import use_utf8
 from guidelines_recs import (
     RECS_PREFIX,
@@ -64,19 +65,14 @@ from threshold_sheet import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
+DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
-
-# The catalog uses the guideline's wording while the clinician names the clinical
-# topic. This is a vocabulary bridge, not a fuzzy match: a request for hypertension
-# must not silently absorb the separate "hypertension screening" topic.
-TOPIC_ALIASES = {"hypertension": "high blood pressure"}
 
 NEARBY_REPORT_BOUND = (
     "This list is bounded. A catalog row is reported only where one of the "
-    "drafted topic's own names appears in that row's topic or title; "
-    "{named_subject_count} of the catalog's {catalog_topic_count} topics has a "
-    "second name recorded, and for the rest the only key is the name that was "
-    "typed. An empty list is not a checked topic join."
+    "drafted topic's ruled subject names appears in that row's topic or title; "
+    "{ruled_cell_count} of the catalog's {catalog_topic_count} topics has a "
+    "subject ruling. {subject_status}"
 )
 
 # Deliberately no --allow-untrusted-provenance: this command turns a transient
@@ -112,25 +108,45 @@ def _normalized_topic(value: str) -> str:
     return " ".join(value.casefold().replace("-", " ").split())
 
 
-def _topic(value: str) -> str:
+def _registry_topic(
+    value: str, entries: list[threshold_coverage.Entry]
+) -> str:
+    """Resolve a typed catalog topic or its one registered sheet filename."""
     normalized = _normalized_topic(value)
-    return TOPIC_ALIASES.get(normalized, normalized)
+    for entry in entries:
+        artifact_name = _normalized_topic(Path(entry.artifact).stem)
+        if entry.artifact and artifact_name == normalized:
+            return _normalized_topic(entry.topic)
+    for entry in entries:
+        if _normalized_topic(entry.topic) == normalized:
+            return _normalized_topic(entry.topic)
+    return normalized
 
 
-def _topic_alias_groups() -> dict[str, frozenset[str]]:
-    groups: dict[str, frozenset[str]] = {}
-    for raw_name, raw_alias in TOPIC_ALIASES.items():
-        pair = frozenset(
-            (_normalized_topic(raw_name), _normalized_topic(raw_alias))
-        )
-        for name in pair:
-            if name in groups:
-                raise ValueError(
-                    "TOPIC_ALIASES gives one subject a third alias name; "
-                    "record that grouping in ticket #689"
-                )
-            groups[name] = pair
-    return groups
+def _subject_report_names(
+    topic: str, entries: list[threshold_coverage.Entry]
+) -> tuple[frozenset[str], bool]:
+    entry = next(
+        (item for item in entries if _normalized_topic(item.topic) == topic), None
+    )
+    if entry is None or entry.subject == "?":
+        return frozenset((topic,)), False
+    topics = [item.topic for item in entries]
+    subject_keys = {
+        _normalized_topic(subject)
+        for subject in threshold_coverage.parse_subject_cell(entry.subject, topics) or ()
+    }
+    names = {
+        _normalized_topic(item.topic)
+        for item in entries
+        if item.subject != "?"
+        and subject_keys
+        & {
+            _normalized_topic(subject)
+            for subject in threshold_coverage.parse_subject_cell(item.subject, topics) or ()
+        }
+    }
+    return frozenset(names or (topic,)), True
 
 
 def _source_key(row: guidelines_catalog.Row) -> str:
@@ -214,20 +230,20 @@ def resolve_sources(
     recs_root: Path,
     seeded_sheet: Sheet | None,
     recs_alias: Path | None = None,
-) -> tuple[list[Source], list[str], list[str], int, int]:
+    registry_entries: list[threshold_coverage.Entry] | None = None,
+) -> tuple[list[Source], list[str], list[str], int, int, bool]:
     catalog_rows, _, problems = guidelines_catalog.parse_catalog(
         catalog_path.read_text(encoding="utf-8")
     )
     if problems:
         return [], [], problems, 0, 0
 
-    alias_groups = _topic_alias_groups()
-    wanted = _topic(topic)
+    registry_entries = registry_entries or []
+    wanted = _registry_topic(topic, registry_entries)
     candidates = [
         row for row in catalog_rows if _normalized_topic(row.topic) == wanted
     ]
-    raw_topic = _normalized_topic(topic)
-    report_names = alias_groups.get(raw_topic, frozenset((raw_topic,)))
+    report_names, subject_ruled = _subject_report_names(wanted, registry_entries)
     seeded_sources = seeded_sheet.sources if seeded_sheet else {}
     seeded_documents = {
         source.get("document", "").casefold()
@@ -313,11 +329,18 @@ def resolve_sources(
         )
     if not candidates:
         errors.append(f"no catalog row has topic '{wanted}'")
-    named_subject_count = len(set(alias_groups.values()))
+    ruled_cell_count = sum(entry.subject != "?" for entry in registry_entries)
     catalog_topic_count = len(
         {_normalized_topic(row.topic) for row in catalog_rows}
     )
-    return sources, rejected, errors, named_subject_count, catalog_topic_count
+    return (
+        sources,
+        rejected,
+        errors,
+        ruled_cell_count,
+        catalog_topic_count,
+        subject_ruled,
+    )
 
 
 def _recommendations(sources: list[Source]) -> dict[tuple[str, str], dict]:
@@ -409,8 +432,10 @@ def render(
     scoped_out: dict[str, str],
     rejected: list[str],
     extraction_identity: ExtractionIdentity,
-    named_subject_count: int,
+    ruled_cell_count: int,
     catalog_topic_count: int,
+    subject_ruled: bool,
+    subject_topic: str,
 ) -> str:
     known = _recommendations(sources)
     cited = {row.rec for row in rows}
@@ -476,8 +501,14 @@ def render(
         + "\n".join(f"- `{rec}` - {reason}" for rec, reason in scoped_out.items()),
         "## Rejected candidates\n\n"
         + NEARBY_REPORT_BOUND.format(
-            named_subject_count=named_subject_count,
+            ruled_cell_count=ruled_cell_count,
             catalog_topic_count=catalog_topic_count,
+            subject_status=(
+                "An empty list is not a checked topic join."
+                if subject_ruled
+                else f"The subject for '{subject_topic}' is unruled (`?`), so an empty list "
+                "does not mean nothing further to consider."
+            ),
         )
         + "\n\n"
         + _table(("candidate", "reason"), rejected_rows),
@@ -494,6 +525,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
     parser.add_argument("topic")
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
+    parser.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE)
     parser.add_argument(
         "--recs-root",
         type=Path,
@@ -531,7 +563,26 @@ def main(argv: list[str] | None = None) -> int:
     if len(SECTION_HEADINGS) != 7:
         print("threshold-sheet section interface is incomplete", file=sys.stderr)
         return 2
+    try:
+        registry_entries, registry_problems = threshold_coverage.parse_registry(
+            args.coverage.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError) as error:
+        print(
+            "threshold coverage registry cannot be read: "
+            f"{error}; run python tools/threshold_coverage.py",
+            file=sys.stderr,
+        )
+        return 2
+    if registry_problems:
+        print(
+            "threshold coverage registry cannot be read: "
+            f"{'; '.join(registry_problems)}; run python tools/threshold_coverage.py",
+            file=sys.stderr,
+        )
+        return 2
     seed_path = args.sheet_root / f"{args.topic.casefold().replace(' ', '-')}.md"
+    subject_topic = _registry_topic(args.topic, registry_entries)
     seed_text = seed_path.read_text(encoding="utf-8") if seed_path.is_file() else None
     seeded_sheet = parse(seed_text, seed_path) if seed_text is not None else None
     if seeded_sheet is not None and not seeded_sheet.ok:
@@ -542,10 +593,16 @@ def main(argv: list[str] | None = None) -> int:
             sources,
             source_rejections,
             source_errors,
-            named_subject_count,
+            ruled_cell_count,
             catalog_topic_count,
+            subject_ruled,
         ) = resolve_sources(
-            args.topic, args.catalog, args.recs_root, seeded_sheet, args.recs_alias
+            args.topic,
+            args.catalog,
+            args.recs_root,
+            seeded_sheet,
+            args.recs_alias,
+            registry_entries,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(error, file=sys.stderr)
@@ -565,8 +622,10 @@ def main(argv: list[str] | None = None) -> int:
             scoped_out,
             rejected,
             extraction_identity,
-            named_subject_count,
+            ruled_cell_count,
             catalog_topic_count,
+            subject_ruled,
+            subject_topic,
         ),
         end="",
     )

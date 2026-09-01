@@ -508,6 +508,12 @@ The `artifact` column names a shipped sheet and is required for `sheet`, `none`,
 the sheet contains verified decision points but the full-document read is incomplete;
 that artifact does not promote the topic to `sheet` or make its omissions meaningful.
 
+The `subject` column records authored clinical-subject memberships. `?` means nobody
+has ruled whether that topic has siblings, never that it has none. A cell may carry a
+comma-separated list because maximal subject cliques can overlap. Multi-member groups
+are justified in [`subjects.md`](subjects.md), and `python tools/subject_ledger.py`
+grades that ledger and its two-way bind to the column.
+
 Run `python tools/threshold_coverage.py` from the repository root to re-derive the topic
 and state counts and to refuse missing, duplicate, or orphaned rows and artifacts.
 `--draft` prints the catalog-derived topic column. An `unread` row is not a clinical finding, and a
