@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+from case_study_scan import EvidenceDisposition
 
 
 CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5})"
@@ -46,6 +47,43 @@ MISSING_SUBSTITUTE = "missing proposed instead"
 MISSING_BLOCK = "missing refusal block"
 PROPOSED_AND_REFUSED = "proposed and refused"
 MALFORMED_MARK = "malformed NOT CODED mark"
+
+DECLARED_LIMITS = (
+    (
+        "whether a code that should have been refused was refused at all",
+        "The scanner reads only the refusal block, so a code carried in the coded "
+        "section with nothing establishing it is outside every row and a run that "
+        "refuses one such code while coding four reads clean.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a needs clause names something that would establish the code",
+        "The row tests that the clause is present and nonempty, so a bare `needs: "
+        "more` satisfies it; specificity_scan enforces substance on its own flag "
+        "and this scanner deliberately does not.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the proposed substitute is the right code for the encounter",
+        "The row tests that a substitute is named, and an unrelated code in that "
+        "position is a clinical reading rather than a shape a pattern can settle.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the refused descriptor is the official tabular text",
+        "Comparing a descriptor to the tabular belongs to icd10_lookup; the row "
+        "here is that a refusal says something rather than that what it says is right.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the refusal itself is correct",
+        "A refusal whose own needs clause concedes the encounter documents the "
+        "finding still parses, so a code wrongly withheld is invisible to every row.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+)
+NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
+
 
 ROWS = {
     MISSING_NEEDS: "icd10-cpt step 4 - needs",

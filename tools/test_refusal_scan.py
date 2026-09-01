@@ -241,3 +241,67 @@ class TheSkillStillStatesTheRow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
+    """#743's section claimed this module had nothing to declare. It was wrong.
+
+    Each row below is a shape the scanner returns clean on, driven rather than
+    asserted, so a row cannot enter the object without a live case behind it.
+    That is #323's positive-control rule: a declared limit nobody can reproduce
+    goes stale in the direction nobody notices.
+    """
+
+    BLOCK = (
+        "# Worksheet\n\n"
+        "--- CODED, ANCHOR WAS GIVEN ---\n\n"
+        "ICD-10 J06.9 Acute upper respiratory infection, unspecified\n"
+        "ICD-10 I10 Essential (primary) hypertension\n"
+        "ICD-10 E11.9 Type 2 diabetes mellitus without complications\n\n"
+        "--- NOT CODED, NOTHING ESTABLISHED IT ---\n\n"
+        "NOT CODED: J45.909 Unspecified asthma, uncomplicated\n"
+        "  needs: a documented wheeze or a prior diagnosis\n"
+        "  proposed instead: J06.9, which the encounter supports\n"
+    )
+
+    CASES = {
+        "whether a code that should have been refused was refused at all": BLOCK,
+        "whether a needs clause names something that would establish the code":
+            BLOCK.replace("a documented wheeze or a prior diagnosis", "more"),
+        "whether the proposed substitute is the right code for the encounter":
+            BLOCK.replace("J06.9, which the encounter supports", "S72.001A, a femur fracture"),
+        "whether the refused descriptor is the official tabular text":
+            BLOCK.replace("Unspecified asthma, uncomplicated", "A completely made up descriptor"),
+        "whether the refusal itself is correct":
+            BLOCK.replace("a documented wheeze or a prior diagnosis",
+                          "nothing, the note documents expiratory wheeze"),
+    }
+
+    def test_every_declared_subject_has_a_case(self):
+        self.assertEqual(
+            {subject for subject, _reason, _disposition in scan.DECLARED_LIMITS},
+            set(self.CASES),
+        )
+
+    def test_each_declared_limit_returns_clean(self):
+        for subject, text in self.CASES.items():
+            with self.subTest(subject=subject):
+                sheet = scan.read_worksheet(text)
+                self.assertEqual(scan.worksheet_findings(sheet), [])
+                self.assertEqual(len(sheet.refusals), 1)
+
+    def test_the_instrument_is_live(self):
+        """A worksheet the rows DO catch, so a clean result above means something."""
+
+        missing = self.BLOCK.replace("  needs: a documented wheeze or a prior diagnosis\n", "")
+        sheet = scan.read_worksheet(missing)
+
+        self.assertTrue(scan.worksheet_findings(sheet))
+
+    def test_the_section_points_at_the_object_and_copies_no_row(self):
+        text = (Path(__file__).resolve().parent.parent / "CLAUDE.md").read_text(encoding="utf-8")
+        section = text.partition("### Refusal scan\n")[2].partition("\n### ")[0]
+
+        self.assertIn("refusal_scan.DECLARED_LIMITS", section)
+        for _subject, reason, _disposition in scan.DECLARED_LIMITS:
+            self.assertNotIn(reason, section)
