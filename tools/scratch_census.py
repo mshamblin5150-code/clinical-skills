@@ -114,6 +114,17 @@ def worktree_roots(checkout: Path) -> tuple[Path, ...]:
     return roots
 
 
+def enclosing_worktree(invocation: Path, roots: tuple[Path, ...]) -> Path:
+    matches = [
+        root
+        for root in roots
+        if invocation == root or invocation.is_relative_to(root)
+    ]
+    if not matches:
+        raise CensusNotRun("current directory is outside every registered worktree")
+    return max(matches, key=lambda root: len(root.parts))
+
+
 def accounted_names(checkout: Path) -> frozenset[str]:
     finished = run_git(checkout, "grep", "-h", "-I", "-e", "scratch/", "--", ".")
     if finished.returncode not in (0, 1):
@@ -209,9 +220,10 @@ def main(argv: list[str]) -> int:
         print("usage: scratch_census.py [--worktrees]", file=sys.stderr)
         return 2
 
-    checkout = Path.cwd().resolve()
+    invocation = Path.cwd().resolve()
     try:
-        roots = worktree_roots(checkout)
+        roots = worktree_roots(invocation)
+        checkout = enclosing_worktree(invocation, roots)
     except CensusNotRun as error:
         print("coverage: 0 worktrees enumerated; 0 unreadable")
         print(f"NOT SCANNED: {error}", file=sys.stderr)
@@ -246,12 +258,29 @@ def main(argv: list[str]) -> int:
         f"scratch roots: {len(counts)} checkouts own a scratch root; "
         f"{sum(item.files for item in counts)} files beneath"
     )
-    if accounted_error is not None:
-        print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
-        if unreadable:
-            print("NOT SCANNED: one or more required roots could not be read")
-        return 2
     owning = roots[0]
+    if accounted_error is not None:
+        gating_roots = {owning, checkout}
+        peer_reported = False
+        for root in roots:
+            if root in unreadable:
+                state = "unreadable"
+            elif root in absent:
+                state = "absent"
+            else:
+                state = "not scanned"
+            if root in gating_roots:
+                print(f"GATING: {root / 'scratch'}: {state}")
+            else:
+                peer_reported = True
+                print(
+                    f"REPORT ONLY: {root / 'scratch'}: {state}; never graded"
+                )
+        if not peer_reported:
+            print("REPORT ONLY: none")
+        print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
+        print("NOT SCANNED: the accounted set could not be derived")
+        return 2
     if argv == ["--worktrees"]:
         try:
             measured_roots = tuple(item.root for item in counts if item.root != owning)

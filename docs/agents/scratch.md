@@ -36,7 +36,7 @@ session's residue is dropping one directory rather than ruling on files one at a
 
 `scratch/runs/<run key>/` is the precedent and is **not** the same thing. A run directory is a
 graded artifact's provenance record, keyed by course, module and artifact, and it outlives every
-sitting. A Ticket directory holds one agent Session's working material. `CONTEXT.md` defines both — see
+sitting. A Ticket directory holds one ticket's working material and is reused by its Sessions. `CONTEXT.md` defines both — see
 **Session** and **Run directory** there, and note that `Sitting`'s `_Avoid_: session` rejects the
 word as a name for *a sitting*, not as a name for a pass.
 
@@ -101,16 +101,14 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
 **It runs on the hook and never in CI.** `.github/workflows/checks.yml` cannot run it — the scratch root is
 gitignored PHI and must never reach a runner — so this check is permanently dead there.
 
-### The remedy for a failing worktree is a drain
+### The remedy for a gating rise is relocation
 
-**Move the entries to the owning checkout's scratch root.** Not into that worktree's own
-`sessions/`, which buries them inside a directory this document calls disposable as one unit — the
-two captures [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417) ruling 10
-rescued, put straight back in the bin. Not by citing them, for the reason below. A drain reads
-nothing, classifies nothing, publishes nothing and deletes nothing, and it moves material out of a
-root that vanishes on `git worktree remove` into the one that does not. **The owning checkout's
-baseline is then re-recorded in a diff** by however many arrived — a visible loosening, argued for
-in a diff rather than typed.
+**Move the rise under the owning checkout's Ticket directory.** `tools/scratch_work.py` resolves
+that child through `repo_root.scratch_root()`, so a committing worktree moves material out of a root
+that vanishes on `git worktree remove` and into the durable owning root without leaving it at the
+top level. The relocation reads nothing, classifies nothing, publishes nothing and deletes nothing.
+**Never raise or re-record `OWNING_BASELINE` to meet the disk** — nesting the rise under the
+accounted `sessions/` entry clears it without loosening the ratchet.
 
 ### Why the baseline is a count, and the reply to the obvious improvement
 

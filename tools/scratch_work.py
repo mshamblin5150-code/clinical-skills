@@ -1,4 +1,4 @@
-"""Create one agent session's accounted working directory under scratch.
+"""Create an accounted working directory under scratch.
 
 This producer deduplicates the destination used by documented commands.  It is
 not enforcement: ``scratch_census.py`` remains the gate for material written at

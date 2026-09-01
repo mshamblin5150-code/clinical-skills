@@ -76,7 +76,8 @@ lived in worktree roots rather than in the one `repo_root.scratch_root()` resolv
 above is maintained **per root, in every registered checkout**: the owning checkout keeps a
 grandfathered integer baseline, and every other checkout has a zero ratchet from day one. A commit
 grades only the owning root and the committing root; every peer root reports and is never graded.
-A failing committing worktree is **drained** to the owning checkout — a move, never a delete.
+A failing gating root is **drained** under the owning checkout's Ticket directory — a move, never a
+delete.
 
 **The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
 unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
@@ -867,7 +868,7 @@ Covered by `tools/test_discussion_reply_scan.py`.
 
 ### Scratch work
 
-`tools/scratch_work.py` is the one producer for agent working material under the `scratch/sessions/` namespace. A ticketed Session calls `python tools/scratch_work.py ticket "$TICKET_NUMBER"`; ticketless work calls `python tools/scratch_work.py sweep "$(date +%F)"`. Both forms resolve through `repo_root.scratch_root()`, create the child, and print its Ticket directory. They cannot return a path at the scratch top level.
+`tools/scratch_work.py` is the one producer for agent working material under the `scratch/sessions/` namespace. A ticketed Session calls `python tools/scratch_work.py ticket "$TICKET_NUMBER"`; ticketless work calls `python tools/scratch_work.py sweep "$(date +%F)"`. Both forms resolve through `repo_root.scratch_root()`, create the selected child, and print its path. The ticket form prints a Ticket directory; the sweep form prints its named sibling. Neither can return a path at the scratch top level.
 
 **It deduplicates a destination and enforces nothing.** Every documented tracker harvest calls it so none computes a mutable branch key; `scratch_census.py` remains the gate for material written outside the accounted namespace. A follow-up Session on one ticket deliberately reopens its predecessor's Ticket directory and finds the work. The unresolved concurrency and worktree-removal boundaries live in `scratch_census.DECLARED_LIMITS` rather than being copied here.
 
@@ -1828,30 +1829,29 @@ unconditionally on every commit.
 python tools/scratch_census.py
 ```
 
-**It counts unaccounted top-level entries across every registered checkout that owns a scratch root**
-— the owning checkout against its grandfathered integer baseline, and every other checkout held at
-zero. `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor
-of documented entries; neither is restated here.
+**It counts unaccounted top-level entries across every registered checkout that owns a scratch root.**
+The owning checkout is compared with its grandfathered integer baseline, the committing checkout
+with its zero ratchet, and every peer checkout reports and is never graded.
+`scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor of
+documented entries; neither is restated here.
 
 **It never reads a scratch file's contents and never prints an unaccounted entry's name.** That is
 not tidiness: a `scratch/` filename may itself carry PHI and this repository is public, which is the
 whole reason [ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
 made the baseline an integer and refused a list.
 
-**Deletion is outside its authority.** A failing worktree is **drained** to the owning checkout — a
-move, never a delete — and the command classifies nothing about what moves. Disposing of an
-unaccounted entry is the clinician's word, per file.
+**Deletion is outside its authority.** A rise is moved under the owning checkout's Ticket directory,
+never deleted, and the command classifies nothing about what moves. Disposing of an unaccounted
+entry is the clinician's word, per file.
 
-**Three limits are properties of the mechanism rather than gaps to be closed**, and they live in
-`scratch_census.DECLARED_LIMITS`: the integer baseline's one-entry swap hole, material written
-outside every checkout, and a separate clone's own worktree registry. This section points at that
-object and copies no row.
+**The mechanism's declared limits live in `scratch_census.DECLARED_LIMITS`.** This section points at
+that object and copies no row.
 
 **It can refuse a commit**, and it is one of the two that do so unconditionally. Its status is OR-ed
 into the hook's, so nothing above it can suppress it.
 
-**Exit status** — 0 clean, 1 for a rise above baseline or any unaccounted entry in another
-checkout, 2 for every way of not having counted.
+**Exit status** — 0 clean, 1 for a rise in the owning or committing checkout, 2 when a gating root
+or the accounted set was not scanned. A peer root never changes status.
 
 Covered by `tools/test_scratch_census.py`.
 

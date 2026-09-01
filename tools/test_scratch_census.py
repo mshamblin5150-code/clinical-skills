@@ -198,6 +198,25 @@ class ScratchCensusCommandTests(ScratchRepository):
             finished.stdout,
         )
 
+    def test_a_nested_invocation_keeps_its_worktree_gating(self) -> None:
+        other = self.add_worktree()
+        (other / "scratch").mkdir()
+        (other / "scratch" / "private-entry").touch()
+        nested = other / "nested" / "directory"
+        nested.mkdir(parents=True)
+
+        finished = self.run_census(cwd=nested)
+
+        self.assertEqual(finished.returncode, 1, finished.stderr)
+        self.assertIn(
+            f"GATING: {other / 'scratch'}: 1 unaccounted, 1 above baseline",
+            finished.stdout,
+        )
+        self.assertNotIn(
+            f"REPORT ONLY: {other / 'scratch'}",
+            finished.stdout,
+        )
+
     def test_two_drones_in_one_checkout_share_one_gating_root(self) -> None:
         self.assertIn(census.SHARED_CHECKOUT_LIMIT, census.DECLARED_LIMITS)
         other = self.add_worktree()
@@ -434,6 +453,8 @@ class AccountedSetTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("1 worktrees enumerated", output.getvalue())
         self.assertIn("scratch roots:", output.getvalue())
+        self.assertIn(f"GATING: {root / 'scratch'}: not scanned", output.getvalue())
+        self.assertIn("REPORT ONLY: none", output.getvalue())
         self.assertIn("forced grep failure", error.getvalue())
 
 

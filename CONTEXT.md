@@ -61,7 +61,7 @@ The clone a worktree belongs to — what `repo_root.main_repo_root()` walks up t
 _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clone
 
 **Ticket directory**:
-One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **sittings** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
+One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **Sessions** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
 _Avoid_: session directory, temp directory, workspace
 
 **Accounted**:
@@ -81,7 +81,7 @@ The rule that a **scratch root**'s unaccounted count may fall and may not rise. 
 _Avoid_: threshold, limit, cap, budget
 
 **Drain**:
-Moving a failing worktree's top-level entries into the **owning checkout**'s scratch root. The only authorized remedy for a worktree, and a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. It runs *to* the owning checkout and never out of one, so it is not available to a session blocked by the owning root's own count.
+Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Run key**:
