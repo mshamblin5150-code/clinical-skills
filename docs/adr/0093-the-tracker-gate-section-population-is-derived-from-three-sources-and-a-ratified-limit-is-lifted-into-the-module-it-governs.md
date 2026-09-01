@@ -3,7 +3,9 @@
 [#707](https://github.com/mshamblin5150-code/clinical-skills/issues/707) was filed because
 `CLAUDE.md` gives no `###` section to three tracker gates, and because the person building the
 neighboring tracker tools described one of them wrongly, twice, in one thread — naming one of its
-four triggers each time.
+five triggers each time.
+(ADR 0083 said *four* until 2026-09-01; its own posture table always listed five, and `grade`
+refuses five distinct ways. Corrected there.)
 
 Grilled 2026-09-01 at `origin/main` `ca318be`, freshness gate `FRESH` at both checkpoints.
 **Six decisions, ruled by the clinician on that date.** Nothing is built here; this is the record
