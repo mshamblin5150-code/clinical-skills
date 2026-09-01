@@ -98,10 +98,39 @@ class TheCommittedWordMeasurement(unittest.TestCase):
     def test_the_word_save_guard_limit_is_recorded_from_the_same_instrument(self):
         record = json.loads(self.RECORD.read_text(encoding="utf-8"))
         guard = record["word_save_guard"]
-        self.assertEqual(guard["measured_on"], "2026-08-22")
+        self.assertEqual(guard["measured_on"], "2026-09-01")
         self.assertEqual(guard["word_version"], "16.0")
-        self.assertTrue(guard["original_and_saved_part_sets_equal"])
-        self.assertFalse(guard["destination_guard_would_refuse"])
+        self.assertTrue(guard["word_build"])
+        self.assertFalse(guard["original_and_saved_part_sets_equal"])
+        self.assertTrue(guard["destination_guard_would_refuse"])
+        self.assertTrue(guard["observed_added_parts"])
+        self.assertTrue(guard["comparison_observation_added_parts"])
+        self.assertIn("probe edits the document", guard["observation"])
+        self.assertIn("unedited-but-dirty", guard["observation"])
+
+    def test_the_declined_word_part_allowlist_disagrees_with_its_second_observation(self):
+        """Executable record of ADR 0086's refused predicate.
+
+        The candidate recognizes a saved document when it is a superset of the
+        renderer's parts and every extra part appeared in the calibration probe. Its
+        second recorded observation falsifies that known-extra set.
+        """
+        record = json.loads(self.RECORD.read_text(encoding="utf-8"))
+        guard = record["word_save_guard"]
+        known_word_parts = frozenset(guard["observed_added_parts"])
+
+        def declined_allowlist(added_parts):
+            saved_parts = docx_write.PART_NAMES | frozenset(added_parts)
+            return (
+                saved_parts.issuperset(docx_write.PART_NAMES)
+                and saved_parts - docx_write.PART_NAMES <= known_word_parts
+            )
+
+        first = declined_allowlist(guard["observed_added_parts"])
+        second = declined_allowlist(guard["comparison_observation_added_parts"])
+        self.assertTrue(first)
+        self.assertFalse(second)
+        self.assertNotEqual(first, second)
 
     def test_the_heading_clipboard_measurements_are_dated_and_versioned(self):
         record = json.loads(self.RECORD.read_text(encoding="utf-8"))

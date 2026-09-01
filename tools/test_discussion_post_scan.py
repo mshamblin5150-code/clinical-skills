@@ -140,6 +140,7 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("bold-headings: not graded", stdout)
         self.assertIn("rendered-comments: not graded", stdout)
+        self.assertIn("rendered-text: not graded", stdout)
 
 
     def test_a_named_heading_style_fails_the_docx_row(self):
@@ -161,6 +162,21 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("bold-headings: 0", stdout)
+        self.assertIn("rendered-text: 0", stdout)
+
+    def test_a_document_whose_paragraph_text_differs_from_the_draft_reports(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(
+                BODY.replace("Access becomes meaningful", "Availability becomes meaningful"),
+                document,
+                bold_headings=True,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertIn("rendered-text: 1 (reported, not graded)", stdout)
 
     def test_a_rendered_mid_line_comment_fails_the_docx_row(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1313,6 +1329,25 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("findings: 0", stdout)
+
+
+class TheRenderedDocumentContractIsPublished(unittest.TestCase):
+    def skill_text(self):
+        return (REPO_ROOT / "skills" / "discussion-post" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_the_skill_names_every_rendered_document_report_row(self):
+        text = self.skill_text()
+        for row in (scan.BOLD_HEADINGS, scan.RENDERED_COMMENTS, scan.RENDERED_TEXT):
+            with self.subTest(row=row):
+                self.assertIn(f"`{row}`", text)
+
+    def test_the_skill_recovers_an_editor_change_before_force(self):
+        text = self.skill_text()
+        self.assertIn("Markdown is the authoritative artifact", text)
+        self.assertIn("recover the edit", text)
+        self.assertIn("claim ledger", text)
 
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):

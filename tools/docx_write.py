@@ -76,7 +76,7 @@ the other's:
   clinician on 2026-08-19 over warning. Two signals live in ``refusal`` below: Word's
   ``~$`` owner file beside the document, which means it is open *right now*, and an
   archive whose part list is not ``PART_NAMES``. The first ``NOT_GUARDED`` row records
-  the measured limit: the recorded Word save preserved that exact set.
+  the surviving limit: an editor that preserves the exact set remains invisible.
 
 **The ticket's own signal 2 -- the ``.docx`` being newer than the ``.md`` -- is not
 implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``, so
@@ -91,7 +91,8 @@ review, and a prose edit to either would have failed nothing, so the reader misl
 have been whichever one checked the file nearer to hand. That is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a
 change whose own subject is a second copy of a rule. **``--force`` is a promise and not a
-backup**: there is still nothing to recover from.
+backup**: after a refusal, follow the calling skill's recovered-edit procedure before
+forcing a render.
 
 Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
 horizontal rules rather than a grid -- both #220, and both carved out where APA carves
@@ -204,12 +205,10 @@ NOT_APPLIED = (
 # the row is here.
 NOT_GUARDED = (
     (
-        "a closed Word save that preserves exactly these parts",
-        "The committed Word calibration records that Word "
-        "saved the renderer's probe with the same part set, and this guard therefore "
-        "read the edited document as ours. The owner-file signal covers an open Word "
-        "session; it says nothing after Word closes the document. Another editor that "
-        "preserves the set has the same limit.",
+        "an editor that preserves exactly these parts",
+        "The part-set signal cannot distinguish this renderer from another editor that "
+        "writes the same archive names. The owner-file signal covers an open Word "
+        "session; it says nothing after an editor closes the document.",
     ),
     (
         "a part added here refuses every document already written",
@@ -219,7 +218,7 @@ NOT_GUARDED = (
         "``--force``. That is not hypothetical and it is live in the tree today: "
         "``word/header1.xml`` arrived on #217, so the 2026-08-18 case study reads as "
         "foreign for the version reason alone. The refusal message names that cause "
-        "without claiming a Word save necessarily changes the set.",
+        "alongside the editor-save and other-writer causes.",
     ),
     (
         "an owner file belonging to a different document",
@@ -1218,6 +1217,19 @@ def written_by_this_renderer(destination: Path) -> bool:
         return False
 
 
+def part_set_delta(destination: Path) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Archive-only and renderer-only part names, or ``None`` when it is unreadable."""
+    try:
+        with zipfile.ZipFile(destination) as archive:
+            archive_parts = frozenset(archive.namelist())
+    except (OSError, zipfile.BadZipFile):
+        return None
+    return (
+        tuple(sorted(archive_parts - PART_NAMES)),
+        tuple(sorted(PART_NAMES - archive_parts)),
+    )
+
+
 def refusal(destination: Path) -> str:
     """Why writing to ``destination`` would destroy work, or ``""`` if it would not.
 
@@ -1229,12 +1241,11 @@ def refusal(destination: Path) -> str:
     end rather than a guard, and the run that meets one is a legitimate re-render often
     enough that it has to be.
 
-    **The part-set message names two causes and the second one is not hypothetical.**
+    **The part-set message names three causes and the third is not hypothetical.**
     ``word/header1.xml`` arrived on #217, so **every document rendered before that reads
-    as foreign** -- the claim *not written by this renderer* is exactly true of it, and
-    ``a Word save, most likely``, which is what this said first, is the wrong guess. Word
-    16.0 was measured on #424 preserving the exact part set after a save, so the message
-    cannot diagnose Word from a changed set at all. The older-version cause was found
+    as foreign** -- the claim *not written by this renderer* is exactly true of it. A
+    no-op probe on #424 caused the editor-save diagnosis to be removed; #675 repaired
+    the probe and recovered that cause. The older-version cause was found
     by pointing the guard at the real ``output/case-studies/`` rather than by a fixture:
     of the two documents there, the one #279 was filed over reads as **ours** -- so the
     clinician had in fact not saved it, which is what he told the session that asked --
@@ -1244,16 +1255,32 @@ def refusal(destination: Path) -> str:
     for lock in lock_files(destination):
         if lock.exists():
             return (
-                "{d} is open in Word right now -- {l} is beside it. Close the document, "
-                "or pass --force to overwrite it anyway.".format(d=destination, l=lock.name)
+                "{d} is open in Word right now -- {l} is beside it. Close Word, read "
+                "the document, recover the edit, then pass --force; forcing first can "
+                "destroy work that output/ cannot recover.".format(
+                    d=destination, l=lock.name
+                )
             )
     if destination.exists() and not written_by_this_renderer(destination):
+        delta = part_set_delta(destination)
+        if delta is None:
+            delta_text = "archive parts: unreadable"
+        else:
+            extra, missing = delta
+            delta_text = (
+                "parts only in the archive: {extra}; current renderer parts missing "
+                "from the archive: {missing}"
+            ).format(
+                extra=", ".join(extra) or "(none)",
+                missing=", ".join(missing) or "(none)",
+            )
         return (
-            "{d} does not carry this renderer's current part set -- another writer may "
-            "have changed it, or an older version of this renderer wrote it before the "
-            "set changed. Rendering over it destroys whatever is in it, and output/ "
-            "is gitignored so there is no recovery. Pass --force if that is what you "
-            "want.".format(d=destination)
+            "{d} does not carry this renderer's current part set; an editor saved it "
+            "(for example, Word), another writer produced it, or an older version of this renderer wrote "
+            "it. {delta}. Read it, recover the edit, then pass --force; forcing first "
+            "can destroy work that output/ cannot recover.".format(
+                d=destination, delta=delta_text
+            )
         )
     return ""
 
