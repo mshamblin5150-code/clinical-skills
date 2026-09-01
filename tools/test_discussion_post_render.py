@@ -136,11 +136,11 @@ class TheRenderCommand(unittest.TestCase):
         self.assertIn("render/pass-1", first_out.replace("\\", "/"))
         self.assertIn("render/pass-2", second_out.replace("\\", "/"))
         self.assertEqual(
-            ["page-1.png", "page-2.png"],
+            ["page-1.png", "page-2.png", "post.pdf"],
             sorted(path.name for path in (self.root / "render" / "pass-1").iterdir()),
         )
         self.assertEqual(
-            ["page-1.png", "page-2.png"],
+            ["page-1.png", "page-2.png", "post.pdf"],
             sorted(path.name for path in (self.root / "render" / "pass-2").iterdir()),
         )
 
@@ -158,10 +158,24 @@ class TheRenderCommand(unittest.TestCase):
         self.assertIn("Word refused export", stderr.getvalue())
         self.assertEqual([], list((self.root / "render").iterdir()))
 
-    def test_a_clinician_image_covers_only_the_page_automation_cannot_reach(self):
-        clinician_page = self.root / "clinician-page-2.png"
-        clinician_page.write_bytes(PNG)
+    def test_xps_replaces_every_pdf_pixel_when_the_pdf_route_is_incomplete(self):
         stdout = io.StringIO()
+
+        class PdfPage(FakePage):
+            def get_pixmap(self, *, dpi: int):
+                if self.number == 2:
+                    raise RuntimeError("unreachable page")
+
+                class Pixmap:
+                    @staticmethod
+                    def save(path):
+                        Path(path).write_bytes(b"pdf page 1")
+
+                return Pixmap()
+
+        class PdfDocument(FakeDocument):
+            def __iter__(self):
+                return iter((PdfPage(1), PdfPage(2)))
 
         class PartialPyMuPDF(FakePyMuPDF):
             @staticmethod
@@ -169,7 +183,9 @@ class TheRenderCommand(unittest.TestCase):
                 artifact = Path(path)
                 if artifact.suffix.lower() == ".png":
                     return FakePyMuPDF.open(path)
-                return FakeDocument(failing_pages=(2,))
+                if artifact.suffix.lower() == ".pdf":
+                    return PdfDocument()
+                return FakeDocument()
 
         with (
             mock.patch.dict(sys.modules, {"pymupdf": PartialPyMuPDF()}),
@@ -181,25 +197,19 @@ class TheRenderCommand(unittest.TestCase):
                     str(self.root),
                     "--docx",
                     str(self.docx),
-                    "--expected-pages",
-                    "2",
-                    "--clinician-page",
-                    f"2={clinician_page}",
                 ]
             )
 
         self.assertEqual(0, status)
-        self.assertIn("SOURCE: clinician", stdout.getvalue())
+        self.assertIn("SOURCE: word-xps", stdout.getvalue())
         retained = self.root / "render" / "pass-1"
         self.assertEqual(b"page 1", (retained / "page-1.png").read_bytes())
-        self.assertEqual(PNG, (retained / "page-2.png").read_bytes())
+        self.assertEqual(b"page 2", (retained / "page-2.png").read_bytes())
+        self.assertTrue((retained / "post.xps").is_file())
 
-    def test_clinician_images_can_supply_the_whole_pass_after_both_exports_fail(self):
-        clinician_pages = []
-        for number in (1, 2):
-            image = self.root / f"clinician-page-{number}.png"
-            image.write_bytes(PNG)
-            clinician_pages.extend(("--clinician-page", f"{number}={image}"))
+    def test_a_clinician_export_can_supply_the_whole_pass_after_both_exports_fail(self):
+        clinician_export = self.root / "clinician.pdf"
+        clinician_export.write_bytes(b"synthetic clinician PDF")
         failed = SimpleNamespace(returncode=1, stdout="", stderr="Word refused export")
         stdout = io.StringIO()
         with (
@@ -212,9 +222,8 @@ class TheRenderCommand(unittest.TestCase):
                     str(self.root),
                     "--docx",
                     str(self.docx),
-                    "--expected-pages",
-                    "2",
-                    *clinician_pages,
+                    "--clinician-export",
+                    str(clinician_export),
                 ]
             )
 
@@ -222,17 +231,12 @@ class TheRenderCommand(unittest.TestCase):
         self.assertIn("SOURCE: clinician", stdout.getvalue())
         retained = self.root / "render" / "pass-1"
         self.assertEqual(
-            ["page-1.png", "page-2.png"],
+            ["page-1.png", "page-2.png", "post.pdf"],
             sorted(path.name for path in retained.iterdir()),
         )
+        self.assertEqual(clinician_export.read_bytes(), (retained / "post.pdf").read_bytes())
 
-    def test_clinician_count_cannot_override_words_larger_denominator(self):
-        clinician_pages = []
-        for number in (1, 2):
-            image = self.root / f"clinician-page-{number}.png"
-            image.write_bytes(PNG)
-            clinician_pages.extend(("--clinician-page", f"{number}={image}"))
-
+    def test_expected_count_cannot_override_words_larger_denominator(self):
         class ThreePagePyMuPDF(FakePyMuPDF):
             @staticmethod
             def open(path):
@@ -254,17 +258,16 @@ class TheRenderCommand(unittest.TestCase):
                     str(self.docx),
                     "--expected-pages",
                     "2",
-                    *clinician_pages,
                 ]
             )
 
         self.assertEqual(2, status)
-        self.assertIn("Word reports 3 pages", stderr.getvalue())
+        self.assertIn("reports 3 pages", stderr.getvalue())
         self.assertEqual([], list((self.root / "render").iterdir()))
 
-    def test_a_renamed_non_image_is_refused_as_clinician_pixel_evidence(self):
-        image = self.root / "not-an-image.png"
-        image.write_bytes(b"plain text")
+    def test_a_non_pdf_or_xps_is_refused_as_a_clinician_export(self):
+        export = self.root / "not-an-export.png"
+        export.write_bytes(PNG)
         stderr = io.StringIO()
         with (
             mock.patch.dict(sys.modules, {"pymupdf": FakePyMuPDF()}),
@@ -275,15 +278,13 @@ class TheRenderCommand(unittest.TestCase):
                     str(self.root),
                     "--docx",
                     str(self.docx),
-                    "--expected-pages",
-                    "1",
-                    "--clinician-page",
-                    f"1={image}",
+                    "--clinician-export",
+                    str(export),
                 ]
             )
 
         self.assertEqual(2, status)
-        self.assertIn("not a readable PNG", stderr.getvalue())
+        self.assertIn("existing PDF or XPS", stderr.getvalue())
         self.assertFalse((self.root / "render").exists())
 
     def test_xps_covers_a_page_the_pdf_cannot_rasterize_before_clinician_escalation(self):
