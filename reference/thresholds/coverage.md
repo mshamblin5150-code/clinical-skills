@@ -141,10 +141,10 @@
 | oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | osteoporosis screening, fracture prevention | unread |  | exact recommendation index available; full-document read pending |
 | outpatient parenteral antimicrobial therapy | unread |  | bound recommendation record available; full-document read pending |
-| ovarian cancer screening | unread |  | exact recommendation index available; full-document read pending |
-| pancreatic cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| ovarian cancer screening | sheet | ovarian-cancer-screening.md | full-document read complete; exact recommendation index accounted |
+| pancreatic cancer screening | sheet | pancreatic-cancer-screening.md | exact recommendation index available; full document distilled |
 | perinatal depression prevention | unread |  | exact recommendation index available; full-document read pending |
-| peripheral artery disease screening, ankle-brachial index | unread |  | exact recommendation index available; full-document read pending |
+| peripheral artery disease screening, ankle-brachial index | sheet | peripheral-artery-disease-screening-ankle-brachial-index.md | exact recommendation index available; full document distilled |
 | postmenopausal hormone therapy for chronic disease prevention | unread |  | exact recommendation index available; full-document read pending |
 | prediabetes and type 2 diabetes screening | sheet | prediabetes-type-2-diabetes-screening.md | full source page coverage recorded in artifact |
 | preeclampsia prevention, low-dose aspirin | sheet | preeclampsia-prevention-low-dose-aspirin.md | full-document read complete; exact recommendation index accounted |
@@ -158,7 +158,7 @@
 | skin and soft tissue infection | unread |  | bound recommendation record available; full-document read pending |
 | skin cancer prevention counseling | unread |  | exact recommendation index available; full-document read pending |
 | skin cancer screening | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
-| speech and language delay screening | unread |  | exact recommendation index available; full-document read pending |
+| speech and language delay screening | sheet | speech-language-delay-screening.md | full-document read complete; exact recommendation index accounted |
 | stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
 | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
 | testicular cancer screening | sheet | testicular-cancer-screening.md | full-document read complete; exact recommendation index accounted |
