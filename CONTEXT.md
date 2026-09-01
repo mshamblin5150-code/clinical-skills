@@ -49,7 +49,7 @@ One occasion of working on a graded artifact. An artifact is usually written ove
 _Avoid_: session (in the agent sense — see **Session**), attempt, revision
 
 **Session**:
-One agent's working pass over this repo — the unit that opens a branch, sweeps the tracker, and writes residue into a **scratch root**. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
+One agent's working pass over this repo — it sweeps the tracker and writes residue into a **scratch root**. **It is not the unit that opens a branch, and it does not own a checkout**: several drones can share one checkout and therefore one branch, and one branch can carry several tickets. That clause read *the unit that opens a branch* until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md), which is why the session directory is keyed by the **ticket** and never by the branch. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
 _Avoid_: run, pass, sweep
 
 **Scratch root**:
@@ -59,6 +59,30 @@ _Avoid_: the scratch directory, scratch/, scratch dir
 **Owning checkout**:
 The clone a worktree belongs to — what `repo_root.main_repo_root()` walks up to through the worktree's `.git` pointer file. It is where account-owned gitignored state lives, because it is the checkout that outlives every worktree. **Not "the main checkout" as a synonym for "the branch `main`"**: it names a place on disk, never a ref.
 _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clone
+
+**Ticket directory**:
+One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **sittings** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
+_Avoid_: session directory, temp directory, workspace
+
+**Accounted**:
+Said of a top-level entry in a **scratch root**: some tracked file names it as `scratch/<name>`. Derived on every run and never a hand-kept list. The property is about the *name* alone — nothing reads what an entry contains, and an accounted entry is not thereby known to be harmless.
+_Avoid_: known, allowed, whitelisted, exempt
+
+**Unaccounted entry**:
+A top-level entry in a **scratch root** that no tracked file names. Its own two readings are the thing to keep apart: **residue**, which predates the rule and needs the clinician's word per file, and a **rise**, which is a session having written outside the **ticket directory** and is remedied by moving it. One number covered both until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md) split the delta from the population. **Never litter**: two entries were the raw captures behind tracked reference sheets, caught by opening them rather than by reading their names.
+_Avoid_: orphan, stray, litter, junk
+
+**Standing artifact**:
+One of the documented top-level entries a tool or a skill writes at a named path, or that the PHI firewall reads as an input. Asserted as a **floor** on the accounted set and never as the set, so a legitimate new one does not go red and a rename that orphans an old one does.
+_Avoid_: known-good list, allowlist, the exempt set
+
+**Ratchet**:
+The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout is held at zero from day one. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
+_Avoid_: threshold, limit, cap, budget
+
+**Drain**:
+Moving a failing worktree's top-level entries into the **owning checkout**'s scratch root. The only authorized remedy for a worktree, and a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. It runs *to* the owning checkout and never out of one, so it is not available to a session blocked by the owning root's own count.
+_Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Run key**:
 The identity of a graded artifact, as course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed. It names the directory holding that artifact's whole provenance record, and prefixes the filename of every submission made from it.
