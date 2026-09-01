@@ -30,6 +30,9 @@ instruction needs a written rule behind it, or *"fix the reference list"* is a w
 check. **Ruled 2026-08-18**, and the words that settled it were the clinician's: *ordering the
 differential is very important, but that shouldn't take the place of tidiness.*
 
+**Readers:** the `practicum-case-study` and `discussion-post` skills. The former links this sheet
+directly; the latter links it from its own workflow because the reference scanner is shared.
+
 ---
 
 ## 1. The reference list, mechanically
@@ -57,7 +60,7 @@ differential is very important, but that shouldn't take the place of tidiness.*
 [style.md](style.md) §10 described the corpus as roughly alphabetical, which was an accurate
 description of ten submitted documents and was never a statement of the standard. Sorted is sorted.
 
-## 2. UpToDate reference form
+## 2. UpToDate article reference form
 
 APA publishes a reference example for this database specifically, which is worth knowing before
 inventing a form for it. *Publication Manual* §10.1.
@@ -81,8 +84,9 @@ Four rules carry it, and **two of them the corpus does not currently follow**:
   mechanism behind [style.md](style.md) §10's observation that one topic appears in the corpus
   under three different years — the topic really was revised three times, and the entries were
   right to differ.
-- **A retrieval date is required**, because the content is designed to change and versions of it
-  are not archived. See §4.
+- **Retrieval-date behavior is declared by `reference_scan.APA_SOURCE_CLASSES`'s
+  `takes_retrieval_date` column.** This form includes the date because the content is designed to
+  change and versions of it are not archived. See §4.
 
 ## 3. Same author, same year — the `a`/`b` rule
 
@@ -127,7 +131,9 @@ here**, and it is ordinary rather than exotic.
 inherently designed to change over time, **and** an unarchived version of it is what is being
 cited.
 
-- **UpToDate always takes one** — the APA Style page reproduced in §2 states it outright.
+- **The per-class answer lives only in `reference_scan.APA_SOURCE_CLASSES`'s
+  `takes_retrieval_date` column.** A class section points to that column rather than restating a
+  second mapping here.
 - A society guideline PDF, a journal article, a USPSTF statement and a textbook **do not**. Adding
   one there is a defect in the other direction, and a run that puts retrieval dates on everything
   is wrong on most of the list.
@@ -315,7 +321,7 @@ over four standing unqualified.
 sweep had open, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
 again. Found by the merge rather than by either branch.
 
-## 8. Legal reference entries
+## 8. Legal reference entries — State nursing practice act (NPA)
 
 **Provenance:** APA Style's *Nursing Student References* page, item 14, read 2026-08-30.
 

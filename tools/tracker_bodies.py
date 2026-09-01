@@ -25,7 +25,10 @@ the tracker: the rule is written out there **and** a command grades it.
 Those three rows ask one question three ways -- did text land. #155 adds the
 fourth row: did text land with UTF-8 decoded through cp1252, or with a literal
 ``\\uXXXX`` escape left undecoded. The row counts affected records, not damaged
-sequences, so a report can be compared across both mechanisms.
+sequences, so a report can be compared across both mechanisms. #723 adds the
+fifth row: does the raw body contain a C0 control other than tab, line feed, or
+carriage return. It deliberately reads the unstripped body and does not remove
+code spans, because a raw control character cannot be a mention.
 
 Harvest first, then scan::
 
@@ -77,15 +80,9 @@ never the body, so **its output is safe to paste**. The encoding row inspects
 prose but reports none of it; a shape inside inline or fenced code is a mention
 and does not fire.
 
-**What it cannot reach**, named rather than left to be discovered:
-
-- **A body that landed and is wrong in any other way.** Truncated at a shell
-  metacharacter, half a heredoc, the right words about the wrong ticket -- every
-  one of those has text and matches no mechanically bounded row here.
-- **A harvest goes stale the moment anybody files**, which is `tracker_scan.py`'s
-  limit inherited whole.
-- **A record edited to remove its body after filing** reads identically to one
-  that never had one.
+**What it cannot reach is owned by ``NOT_REACHED`` below.** The object includes
+the wider escape-collapse class and the two character exclusions ADR 0099
+requires; this docstring deliberately copies no row or dated tracker figure.
 
 **It is also the read-back, and ``-`` is how.** ``records_from_github`` takes a
 single JSON object as well as a list, so ``gh issue view <n> --json
@@ -94,27 +91,21 @@ moment it is filed -- which catches what ``--jq '.body | length'`` does not,
 since a lost body has a length of 2 and reads as a number rather than as a
 failure.
 
-**No publication-time control runs this module's body-grading check, and that
-limit is declared rather than left to be found.** #130's decision 2 asked
-whether the documented step is enough or needs enforcing, and comment 16
-grounded it at the time: *nothing mechanical checks a body*, and
-``tools/hooks/`` held only ``pre-commit``. The repository now holds
-both ``commit-msg`` and ``pre-commit``, and ``tracker_publish_hook.py`` grades
-tracker title and body text at the publication event. ``tracker_bodies`` is not
-among that hook's checks. The surviving limit is therefore that a publish-time
-host exists and this module is not registered on it: *a check exists and
-somebody has to run it*. **A command nobody runs is a written instruction with
-extra steps**, which is #214's own thesis pointed back at this module. Whether
-this module should join the publish hook is #723's decision, not this module's.
+**The predicate runs at both publication hosts, with deliberately asymmetric
+posture.** ``tracker_publish_hook.py`` imports it and refuses a damaged title or
+body from the Claude Code publisher. ``.github/workflows/tracker.yml`` calls
+this command's ``--github-event`` mode for a changed body from either known
+publisher and reports after publication. The hook's remaining publisher limit
+is owned by ``tracker_publish_hook.NOT_REACHED`` rather than restated here.
 
 **A clean scan is not a body worth reading**, ``docs/agents/issue-tracker.md``
 says so beside the command, and a test asserts that sentence is still there.
 
 Exit status distinguishes not having scanned from having found nothing -- 0
 clean, 1 for a failed body, **2 for every way of not having scanned**: no
-argument, **an argument this module does not have**, a harvest file absent or
-unreadable, a payload that is neither a JSON list nor a JSON object, and **no
-record in any file read**. That last limb is the one that matters and it is
+argument, an unsupported argument or incomplete event pair, a harvest or event
+file absent or unreadable, a payload that is neither a JSON list nor a JSON
+object, and **no record in any file read**. That last limb is the one that matters and it is
 `differential_scan.py`'s reasoning: an empty payload would otherwise report zero
 lost bodies and read exactly like a tracker that has none. **One unreadable file
 among several is a 2 and not a partial scan**, which is the same rule one level
@@ -147,6 +138,7 @@ LOST_AT_DASH = "lost-at-dash"
 EMPTY_BODY = "empty-body"
 LITERAL_AT_PATH = "literal-at-path"
 DOUBLE_ENCODED = "double-encoded"
+C0_CONTROL_CHARACTER = "c0-control-character"
 
 # Every row, in report order. One tuple, so the report, the counter and the
 # ticket map cannot drift into listing different sets.
@@ -155,6 +147,7 @@ KINDS = (
     EMPTY_BODY,
     LITERAL_AT_PATH,
     DOUBLE_ENCODED,
+    C0_CONTROL_CHARACTER,
 )
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and
@@ -166,12 +159,48 @@ ROW_TICKET = {
     EMPTY_BODY: "#130",
     LITERAL_AT_PATH: "#130",
     DOUBLE_ENCODED: "#155",
+    C0_CONTROL_CHARACTER: "#723",
 }
+
+NOT_REACHED = (
+    (
+        "other escape-collapse damage without a C0 control character",
+        "An escape collapse that leaves only lost backticks, a literal newline "
+        "escape, or doubled path separators is outside this row. ADR 0099 owns "
+        "the dated measurement of that wider class.",
+    ),
+    (
+        "DEL U+007F",
+        "U+007F is not a C0 control, no escape in the measured collapsing table "
+        "produces it, and ADR 0099 did not measure it.",
+    ),
+    (
+        "replacement character U+FFFD",
+        "A U+FFFD in a loaded harvest may be this scanner's own substitution "
+        "for an undecodable byte, so the published record and input decoding "
+        "cannot be distinguished by this row.",
+    ),
+    (
+        "a body that landed with another bounded defect",
+        "Truncation at a shell metacharacter, half a heredoc, and the right text "
+        "on the wrong ticket can all carry text without matching a row here.",
+    ),
+    (
+        "a harvest that became stale after publication",
+        "A saved harvest stops representing the current tracker as soon as "
+        "another record is created or edited.",
+    ),
+    (
+        "an edited empty body versus one filed empty",
+        "The current GitHub record cannot establish whether an empty body was "
+        "empty at filing time or was edited empty afterward.",
+    ),
+)
 
 # Wide enough for the longest kind and the longest surface, so both stay
 # columns. ``research_ledger.py`` learned this the hard way: a row one
 # character over the pad went ragged in the one output meant to be pasted.
-KIND_COLUMN = 18
+KIND_COLUMN = 21
 SURFACE_COLUMN = 13
 # The report's own label column, wide enough for the longest surface plural.
 COUNT_COLUMN = 29
@@ -194,6 +223,12 @@ FENCED_CODE = re.compile(
     r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$"
 )
 CODE_SPAN = re.compile(r"`+[^`\n]*`+")
+
+
+def has_c0_control_character(text: str) -> bool:
+    """Whether raw tracker text contains C0 except tab, LF, and CR."""
+    return any(ord(character) < 0x20 and character not in "\t\n\r"
+               for character in text)
 
 
 def _has_cp1252_mojibake(text: str) -> bool:
@@ -365,6 +400,61 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
     return records
 
 
+EVENT_RECORD_KEYS = {
+    "issues": "issue",
+    "issue_comment": "comment",
+    "pull_request_target": "pull_request",
+    "pull_request_review": "review",
+    "pull_request_review_comment": "comment",
+}
+
+
+def records_from_github_event(
+    data: object, event_name: str, source: str
+) -> list[Record]:
+    """The body created or edited by one GitHub tracker event."""
+    if not isinstance(data, dict):
+        raise HarvestError(f"{source}: not a JSON object")
+    key = EVENT_RECORD_KEYS.get(event_name)
+    if key is None:
+        raise HarvestError(f"{source}: unsupported GitHub event {event_name!r}")
+    item = data.get(key)
+    if not isinstance(item, dict):
+        raise HarvestError(f"{source}: event has no {key!r} record")
+
+    if data.get("action") == "edited":
+        changes = data.get("changes")
+        if not isinstance(changes, dict):
+            raise HarvestError(f"{source}: edited event has no changes object")
+        if "body" not in changes:
+            return []
+        item = {
+            field: item[field]
+            for field in ("html_url", "url", "number", "id", "body")
+            if field in item
+        }
+    else:
+        item = dict(item)
+
+    if event_name == "pull_request_target":
+        item["pull_request"] = {}
+    return records_from_github(item, source)
+
+
+def load_github_event(path: Path, event_name: str) -> list[Record]:
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as error:
+        raise HarvestError(
+            f"{path.name}: {error.strerror or 'unreadable'}"
+        ) from error
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise HarvestError(f"{path.name}: {error.msg}") from error
+    return records_from_github_event(data, event_name, path.name)
+
+
 def grade(records: Sequence[Record]) -> list[Finding]:
     """One finding per failed body, at most one per record.
 
@@ -393,6 +483,10 @@ def grade(records: Sequence[Record]) -> list[Finding]:
         elif (_has_cp1252_mojibake(prose)
               or LITERAL_UNICODE_ESCAPE.search(prose)):
             found.append(Finding(DOUBLE_ENCODED, record.label, record.surface))
+        elif has_c0_control_character(record.body or ""):
+            found.append(Finding(
+                C0_CONTROL_CHARACTER, record.label, record.surface
+            ))
     return found
 
 
@@ -444,7 +538,10 @@ def format_report(scan: Scan, source: str) -> str:
     return "\n".join(lines)
 
 
-USAGE = "usage: tracker_bodies.py <a gh api harvest .json> [more ...] | -"
+USAGE = (
+    "usage: tracker_bodies.py <a gh api harvest .json> [more ...] | - | "
+    "--github-event <event.json> --event-name <name>"
+)
 
 
 def main(argv: list[str], stdin=None) -> int:
@@ -456,14 +553,39 @@ def main(argv: list[str], stdin=None) -> int:
     # believing it had asked for something. On a module whose central claim is
     # that no such flag exists, a silent no-op is the one behavior worse than
     # an error.
+    event_mode = "--github-event" in argv or "--event-name" in argv
+    if event_mode:
+        if (len(argv) != 4 or argv.count("--github-event") != 1
+                or argv.count("--event-name") != 1):
+            print(f"--github-event and --event-name are required together\n{USAGE}",
+                  file=sys.stderr)
+            return NOT_SCANNED
+        event_path = Path(argv[argv.index("--github-event") + 1])
+        event_name = argv[argv.index("--event-name") + 1]
+        if not event_path.is_file():
+            print(f"no event file named {event_path.name}", file=sys.stderr)
+            return NOT_SCANNED
+        source = f"{event_name} event {event_path.name}"
+        try:
+            records = load_github_event(event_path, event_name)
+        except HarvestError as error:
+            print(str(error), file=sys.stderr)
+            return NOT_SCANNED
+    else:
+        records = []
+
     unknown = [a for a in argv if a.startswith("-") and a != STDIN]
+    if event_mode:
+        unknown = []
     if unknown:
         print(f"unknown option {' '.join(unknown)}\n{USAGE}", file=sys.stderr)
         return NOT_SCANNED
     if not argv:
         print(USAGE, file=sys.stderr)
         return NOT_SCANNED
-    if STDIN in argv:
+    if event_mode:
+        pass
+    elif STDIN in argv:
         if len(argv) > 1:
             print(f"- reads one payload and takes no other argument\n{USAGE}",
                   file=sys.stderr)
