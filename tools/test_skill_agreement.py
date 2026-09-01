@@ -63,6 +63,7 @@ FILLED_ANCHOR_ASSERTIONS = REPO_ROOT / "fixtures" / "filled-anchor" / "assertion
 FIXTURES_README = REPO_ROOT / "fixtures" / "README.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
 AGENTS = REPO_ROOT / "AGENTS.md"
+README = REPO_ROOT / "README.md"
 MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
 DAY_A_ASSERTIONS = REPO_ROOT / "fixtures" / "day-a" / "assertions.md"
 BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
@@ -275,6 +276,31 @@ def skill_names() -> list[str]:
     """
     names = [path.name for path in SKILLS_DIR.iterdir() if (path / "SKILL.md").is_file()]
     return sorted(names, key=lambda name: (-len(name), name))
+
+
+README_SKILL_ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|")
+
+
+def readme_skill_names() -> set[str]:
+    """Skill names in the tables under README.md's consumer skill index."""
+    section = read(README).split("## The skills", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    return {
+        found.group(1)
+        for line in section.splitlines()
+        for found in [README_SKILL_ROW.match(line)]
+        if found
+    }
+
+
+class TheReadmeNamesEveryShippedSkill(unittest.TestCase):
+    """#401: the public landing page and shipped skill tree stay complete."""
+
+    def test_every_skill_directory_appears_in_the_readme_table(self):
+        self.assertEqual(set(skill_names()) - readme_skill_names(), set())
+
+    def test_every_readme_skill_row_has_a_skill_directory(self):
+        self.assertEqual(readme_skill_names() - set(skill_names()), set())
 
 
 def declared_steps(name: str) -> set[int]:
