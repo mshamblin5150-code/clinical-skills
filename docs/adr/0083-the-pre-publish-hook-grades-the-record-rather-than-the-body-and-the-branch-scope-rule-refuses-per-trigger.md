@@ -46,7 +46,7 @@ and pull requests, 2,854 comments, 3,559 records, counts only:
 **A body-only check is clean on 239 of those 353 — 68% — and fires where the authoritative grade is
 clean exactly zero times.** `grade_text` is purely permissive: it misses, it never false-alarms.
 
-**4. The module has four triggers and this thread named one.** The repo-relative Markdown link rule
+**4. The module has five triggers and this thread named one.** The repo-relative Markdown link rule
 is the second largest at 87 records, it fires **before any git call**, and it is the other half of
 the defect #670's first comment describes — the form #672's pull request body carried. Every account
 of that module in the ticket omits it.
@@ -163,7 +163,22 @@ may go unread*. A refusing pre-publish hook retires both; an advisory one retire
 and row 2 is what the ticket's first comment is a report of, eight red runs unread, found by a person
 saying the pull request had an error.
 
-The four triggers split along whether they need the remote, and that falls out of `grade`'s control
+**Corrected 2026-09-01 on [#743](https://github.com/mshamblin5150-code/clinical-skills/issues/743)'s
+branch, ruled by the clinician.** This sentence and ruling 4's title both read *four triggers*, while
+the table directly below lists **five** and `grade` refuses five distinct ways. Re-derived by driving
+the module: a repo-relative Markdown link, an unresolved path **with** a same-directory near miss, an
+unresolved path **without** one, text that self-declares completion, and the `in flight` label each
+return status 1 with its own reason, and a resolved path with no trigger returns 0. The two prose
+counts were wrong; the table was right. **Ratified prose disagreeing with its own adjacent table is
+the shape worth recording** — nothing failed, because no check bound the sentence to the module.
+`tools/test_tracker_workflow.py` binds it now.
+
+**Ruling 3's measurement table above is left exactly as it stands.** It classifies 353 measured
+firings four ways and reports the near-miss subset; it is a dated measurement of a tracker that has
+moved, not a claim about how many triggers the module has, and re-deriving it needs a whole-tracker
+harvest this correction did not run.
+
+The five triggers split along whether they need the remote, and that falls out of `grade`'s control
 flow rather than being arranged:
 
 | trigger | needs `origin/main` | posture |

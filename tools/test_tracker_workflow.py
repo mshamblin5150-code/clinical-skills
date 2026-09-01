@@ -129,6 +129,78 @@ class EveryTrackerGateHasASection(unittest.TestCase):
         self.assertFalse(hasattr(tracker_freshness, "NOT_REACHED"))
 
 
+class TheTriggerCountIsBoundToTheModule(unittest.TestCase):
+    """ADR 0083's prose said four triggers while its own table listed five.
+
+    Nothing failed, because no check bound the sentence to the module. The count
+    is derived here by driving every shape rather than by reading the file, so a
+    sixth trigger has to move the record with it.
+    """
+
+    BLOB = "https://github.com/mshamblin5150-code/clinical-skills/blob/main/"
+    RESOLVED = "docs/adr/0001-fixture-asserts-on-named-findings.md"
+
+    @classmethod
+    def grade_body(cls, body, labels=()):
+        document = {
+            "issue": {
+                "number": 1,
+                "labels": [{"name": name} for name in labels],
+                "html_url": "https://example.invalid/1",
+            },
+            "comment": {"body": body, "html_url": "https://example.invalid/1#c"},
+        }
+        return tracker_branch_scope.grade(document, "issue_comment")
+
+    def trigger_cases(self):
+        near_miss = self.RESOLVED[:-3] + "-typo.md"
+        return {
+            "repo-relative Markdown link": (f"See [x](../{self.RESOLVED}).", ()),
+            "unresolved path with a near miss": (f"See [x]({self.BLOB}{near_miss}).", ()),
+            "unresolved path without a near miss": (
+                f"See [x]({self.BLOB}tools/nothing_like_this_exists.py).",
+                (),
+            ),
+            "self-declares completion": ("Implemented locally and verified.", ()),
+            "in flight label": ("Nothing here trips a path rule.", ("in flight",)),
+        }
+
+    def test_every_declared_trigger_refuses_on_its_own(self):
+        for name, (body, labels) in self.trigger_cases().items():
+            with self.subTest(trigger=name):
+                self.assertEqual(self.grade_body(body, labels).status, 1)
+
+    def test_each_trigger_refuses_for_its_own_stated_reason(self):
+        reports = {
+            name: self.grade_body(body, labels).report
+            for name, (body, labels) in self.trigger_cases().items()
+        }
+
+        self.assertEqual(len(set(reports.values())), len(reports))
+
+    def test_the_instrument_is_live(self):
+        """A resolved citation with no trigger must pass, or the cases prove nothing."""
+
+        clean = self.grade_body(f"See [x]({self.BLOB}{self.RESOLVED}).")
+
+        self.assertEqual(clean.status, 0)
+        self.assertIn("no branch-state trigger", clean.report)
+
+    def test_the_ratified_posture_table_lists_exactly_these_triggers(self):
+        adr = next((REPO_ROOT / "docs" / "adr").glob("0083-*.md"))
+        text = adr.read_text(encoding="utf-8")
+        rows = re.findall(r"(?m)^\| (.+?) \| (?:no|yes) \| ", text)
+
+        self.assertEqual(len(rows), len(self.trigger_cases()))
+        # Keyed on the two claims, never on the bare phrase: the correction note
+        # quotes `four triggers` in order to say it was wrong, and a substring
+        # test failed on that quotation. `spelling_scan`'s mention-versus-use
+        # rule and #153's `describing the rule broke the tool that checks the
+        # rule`, arriving on this record while it was being repaired.
+        self.assertNotIn("The module has four triggers", text)
+        self.assertNotIn("The four triggers split", text)
+
+
 class DeclaredLimitsAreBound(unittest.TestCase):
     CASES = (
         ("Tracker branch scope", "tracker_branch_scope", tracker_branch_scope, False),
