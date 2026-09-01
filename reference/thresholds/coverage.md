@@ -135,7 +135,7 @@
 | new fever in the intensive care unit | unread |  | bound recommendation record available; full-document read pending |
 | nontuberculous mycobacterial pulmonary disease | unread |  | bound recommendation record available; full-document read pending |
 | obesity, behavioral weight loss intervention | unread |  | exact recommendation index available; full-document read pending |
-| obstructive sleep apnea screening | unread |  | exact recommendation index available; full-document read pending |
+| obstructive sleep apnea screening | sheet | obstructive-sleep-apnea-screening.md | full-document read complete; exact recommendation index accounted |
 | opioid prescribing for pain | unread |  | no recommendation record; full-document read pending |
 | oral cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
@@ -147,8 +147,8 @@
 | peripheral artery disease screening, ankle-brachial index | unread |  | exact recommendation index available; full-document read pending |
 | postmenopausal hormone therapy for chronic disease prevention | unread |  | exact recommendation index available; full-document read pending |
 | prediabetes and type 2 diabetes screening | sheet | prediabetes-type-2-diabetes-screening.md | full source page coverage recorded in artifact |
-| preeclampsia prevention, low-dose aspirin | unread |  | exact recommendation index available; full-document read pending |
-| primary open-angle glaucoma screening | unread |  | exact recommendation index available; full-document read pending |
+| preeclampsia prevention, low-dose aspirin | sheet | preeclampsia-prevention-low-dose-aspirin.md | full-document read complete; exact recommendation index accounted |
+| primary open-angle glaucoma screening | sheet | primary-open-angle-glaucoma-screening.md | full-document read complete; exact recommendation index accounted |
 | prostate cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | Rh(D) incompatibility screening | sheet | rhd-incompatibility-screening.md | full-document read complete; exact recommendation index accounted |
 | seasonal influenza | unread |  | no recommendation record; full-document read pending |
@@ -157,7 +157,7 @@
 | sexually transmitted infection prevention counseling | unread |  | exact recommendation index available; full-document read pending |
 | skin and soft tissue infection | unread |  | bound recommendation record available; full-document read pending |
 | skin cancer prevention counseling | unread |  | exact recommendation index available; full-document read pending |
-| skin cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| skin cancer screening | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | speech and language delay screening | unread |  | exact recommendation index available; full-document read pending |
 | stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
 | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
