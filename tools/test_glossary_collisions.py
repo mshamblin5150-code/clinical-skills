@@ -38,6 +38,17 @@ class Candidate:
             raise TypeError("candidate verdict must be a Verdict")
 
 
+@dataclass(frozen=True)
+class HeadingCoverage:
+    headings: tuple[str, ...]
+    avoid_row_count: int
+    unread_count: int
+
+    @property
+    def parsed_count(self) -> int:
+        return len(self.headings)
+
+
 DECLARED_CANDIDATES = (
     Candidate(
         "Declared",
@@ -114,25 +125,30 @@ DECLARED_LIMITS = (
     "A required distinction clause can be present and still be wrong.",
     "A glossary term that collides only with prose does not fire; Form coverage is the live instance.",
     "Only CONTEXT.md is inspected; a glossary in another file is outside this population.",
-    "The independent coverage floor sees lines that begin with bold markup; a future heading form without that marker can remain unread.",
+    "The independent coverage floor counts _Avoid_ rows; a future glossary entry without one can remain unread.",
 )
 
 
-def glossary_headings(text: str) -> list[str]:
-    """Return parsed headings after refusing a partial read of bold-leading lines."""
+def heading_coverage(text: str) -> HeadingCoverage:
+    """Report the parsed population, independent denominator, and unread remainder."""
     matches = list(TERM_HEADING.finditer(text))
-    parsed_lines = {text.count("\n", 0, match.start()) + 1 for match in matches}
-    heading_like_lines = {
-        number
-        for number, line in enumerate(text.splitlines(), start=1)
-        if line.lstrip().startswith("**")
-    }
-    unread = sorted(heading_like_lines - parsed_lines)
-    if unread:
+    avoid_row_count = sum(line.startswith("_Avoid_:") for line in text.splitlines())
+    return HeadingCoverage(
+        headings=tuple(match.group("term") for match in matches),
+        avoid_row_count=avoid_row_count,
+        unread_count=max(avoid_row_count - len(matches), 0),
+    )
+
+
+def glossary_headings(text: str) -> list[str]:
+    """Return parsed headings after refusing a partial coverage report."""
+    coverage = heading_coverage(text)
+    if coverage.unread_count:
+        noun = "entry" if coverage.unread_count == 1 else "entries"
         raise AssertionError(
-            "unread heading-like lines: " + ", ".join(str(number) for number in unread)
+            f"{coverage.unread_count} glossary {noun} unread by TERM_HEADING"
         )
-    return [match.group("term") for match in matches]
+    return list(coverage.headings)
 
 
 def candidate_headings(text: str) -> set[str]:
@@ -190,19 +206,29 @@ def markdown_section(text: str, heading: str) -> str:
 
 
 class CandidatePopulationIsDerived(unittest.TestCase):
+    def test_the_context_inventory_reports_its_denominator_and_unread_remainder(self) -> None:
+        coverage = heading_coverage(CONTEXT.read_text(encoding="utf-8"))
+        self.assertGreater(coverage.avoid_row_count, 0)
+        self.assertEqual(coverage.parsed_count, coverage.avoid_row_count)
+        self.assertEqual(coverage.unread_count, 0)
+
     def test_a_bare_heading_fires_when_another_heading_uses_its_word(self) -> None:
         text = """\
 **Alpha**:
 The bare sense.
+_Avoid_: first
 
 **Alpha detail**:
 The compound sense.
+_Avoid_: second
 
 **Binding**:
 The bare sense.
+_Avoid_: third
 
 **Declared no-binding**:
 The hyphenated shape is one word and does not fire Binding.
+_Avoid_: fourth
 """
 
         self.assertEqual(candidate_headings(text), {"Alpha"})
@@ -211,14 +237,37 @@ The hyphenated shape is one word and does not fire Binding.
         partial = """\
 **Alpha**:
 The bare sense.
+_Avoid_: first
 
 **Alpha detail**:
 The compound sense.
+_Avoid_: second
 
 **Unread**: trailing text hides this line from the glossary grammar.
+The intended entry still carries its structural denominator row.
+_Avoid_: third
 """
-        with self.assertRaisesRegex(AssertionError, r"unread heading-like lines.*7"):
+        coverage = heading_coverage(partial)
+        self.assertEqual(
+            (coverage.parsed_count, coverage.avoid_row_count, coverage.unread_count),
+            (2, 3, 1),
+        )
+        with self.assertRaisesRegex(AssertionError, r"1 glossary entry unread"):
             candidate_headings(partial)
+
+    def test_bold_leading_prose_outside_the_heading_grammar_is_not_a_gate(self) -> None:
+        text = """\
+**Alpha**:
+The bare sense.
+_Avoid_: first
+
+**Alpha detail**:
+The compound sense.
+_Avoid_: second
+
+**Note**: emphasized prose, not a TERM_HEADING.
+"""
+        self.assertEqual(candidate_headings(text), {"Alpha"})
 
 
 class DeclaredCandidatePopulationIsBound(unittest.TestCase):
