@@ -95,13 +95,13 @@
 | heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
 | hepatitis B screening | sheet | hepatitis-b-screening.md | all 14 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
-| hepatitis C screening | unread |  | exact recommendation index available; full-document read pending |
+| hepatitis C screening | sheet | hepatitis-c-screening.md | full-document read complete; exact recommendation index accounted |
 | babesiosis | unread |  | no recommendation record; full-document read pending |
 | hepatitis C virus infection | unread |  | no recommendation record; full-document read pending |
 | high blood pressure | sheet | hypertension.md | clinical-content spans on pp. 1-74 read 2026-08-29 |
-| high blood pressure screening | unread |  | exact recommendation index available; full-document read pending |
-| high body mass index intervention | unread |  | exact recommendation index available; full-document read pending |
-| HIV preexposure prophylaxis | unread |  | exact recommendation index available; full-document read pending |
+| high blood pressure screening | sheet | high-blood-pressure-screening.md | full-document read complete; exact recommendation index accounted |
+| high body mass index intervention | sheet | high-body-mass-index-intervention.md | full-document read complete; exact recommendation index accounted |
+| HIV preexposure prophylaxis | sheet | hiv-preexposure-prophylaxis.md | full-document read complete; exact recommendation index accounted |
 | HIV primary care | unread |  | no recommendation record; full-document read pending |
 | HIV screening | sheet | hiv-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hospital-acquired and ventilator-associated pneumonia | unread |  | bound recommendation record available; full-document read pending |
