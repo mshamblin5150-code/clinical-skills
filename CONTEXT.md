@@ -181,15 +181,15 @@ The narrowest source shape a reference entry's own signals support, declaring ev
 _Avoid_: source class, reference type, guessed class, citation kind
 
 **Legal reference entry**:
-A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
-_Avoid_: statute reference, citation entry, regulation cite
+A reference for codified law, including a statute or regulation. Its name is the name of the legal source and its section is the locator, so an entry carrying only a section names nothing and is not one.
+_Avoid_: citation entry, code cite, regulation cite
 
 **Legal citation**:
-An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
-_Avoid_: statute citation, section reference
+An in-text reference to codified law, spelled with the legal source's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
+_Avoid_: code citation, section reference
 
 **Section number**:
-The locator inside a legal citation — the provision the regulation's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
+The locator inside a legal citation — the provision the legal source's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
 _Avoid_: section, cite number, paragraph number
 
 **Subsection suffix**:
