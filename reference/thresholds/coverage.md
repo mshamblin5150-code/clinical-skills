@@ -134,7 +134,7 @@
 | neurocysticercosis | unread |  | bound recommendation record available; full-document read pending |
 | new fever in the intensive care unit | unread |  | bound recommendation record available; full-document read pending |
 | nontuberculous mycobacterial pulmonary disease | unread |  | bound recommendation record available; full-document read pending |
-| obesity, behavioral weight loss intervention | unread |  | exact recommendation index available; full-document read pending |
+| obesity, behavioral weight loss intervention | sheet | obesity-behavioral-weight-loss-intervention.md | exact recommendation index available; full document distilled |
 | obstructive sleep apnea screening | sheet | obstructive-sleep-apnea-screening.md | full-document read complete; exact recommendation index accounted |
 | opioid prescribing for pain | unread |  | no recommendation record; full-document read pending |
 | oral cancer screening | sheet | oral-cancer-screening.md | exact recommendation index available; full document distilled |
@@ -143,7 +143,7 @@
 | outpatient parenteral antimicrobial therapy | unread |  | bound recommendation record available; full-document read pending |
 | ovarian cancer screening | sheet | ovarian-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | pancreatic cancer screening | sheet | pancreatic-cancer-screening.md | exact recommendation index available; full document distilled |
-| perinatal depression prevention | unread |  | exact recommendation index available; full-document read pending |
+| perinatal depression prevention | sheet | perinatal-depression-prevention.md | exact recommendation index available; full document distilled |
 | peripheral artery disease screening, ankle-brachial index | sheet | peripheral-artery-disease-screening-ankle-brachial-index.md | exact recommendation index available; full document distilled |
 | postmenopausal hormone therapy for chronic disease prevention | sheet | postmenopausal-hormone-therapy-for-chronic-disease-prevention.md | exact recommendation index available; full document distilled |
 | prediabetes and type 2 diabetes screening | sheet | prediabetes-type-2-diabetes-screening.md | full source page coverage recorded in artifact |
@@ -154,7 +154,7 @@
 | seasonal influenza | unread |  | no recommendation record; full-document read pending |
 | secondary stroke prevention | unread |  | exact recommendation index available; full-document read pending |
 | sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
-| sexually transmitted infection prevention counseling | unread |  | exact recommendation index available; full-document read pending |
+| sexually transmitted infection prevention counseling | sheet | sexually-transmitted-infection-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin and soft tissue infection | unread |  | bound recommendation record available; full-document read pending |
 | skin cancer prevention counseling | unread |  | exact recommendation index available; full-document read pending |
 | skin cancer screening | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
@@ -171,5 +171,5 @@
 | unhealthy drug use screening | unread |  | exact recommendation index available; full-document read pending |
 | valvular heart disease | unread |  | exact recommendation index available; full-document read pending |
 | vision screening, amblyopia | unread |  | exact recommendation index available; full-document read pending |
-| vitamin and mineral supplementation for cardiovascular disease and cancer prevention | unread |  | exact recommendation index available; full-document read pending |
+| vitamin and mineral supplementation for cardiovascular disease and cancer prevention | sheet | vitamin-and-mineral-supplementation-for-cardiovascular-disease-and-cancer-prevention.md | exact recommendation index available; full document distilled |
 | vitamin D deficiency screening | sheet | vitamin-d-deficiency-screening.md | exact recommendation index available; full document distilled |
