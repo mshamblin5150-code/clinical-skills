@@ -1767,8 +1767,7 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
                     ds.main([str(self.FIXTURES / "filled-anchor" / name)]), 2
                 )
 
-    def test_no_committed_sheet_exercises_the_draft_backed_firing_path(self):
-        self.assertIn("the draft-backed citation branch on committed sheets", self.keys())
+    def test_a_committed_sheet_exercises_the_draft_backed_firing_path(self):
         source_classes = set()
         for path in sorted((REPO_ROOT / "reference" / "thresholds").glob("*.md")):
             text = path.read_text(encoding="utf-8")
@@ -1779,12 +1778,12 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
             source_classes.update(
                 source.get("source class", "") for source in parsed.sources.values()
             )
-        self.assertFalse(
+        self.assertTrue(
             ds.DRAFT_SOURCE_CLASSES & source_classes,
-            "a committed threshold sheet now carries a draft source class; re-examine "
-            "NOT_VALIDATED_AGAINST against that sheet and retire this row if the live "
-            "firing path is now covered",
+            "no committed threshold sheet carries a draft source class; restore the "
+            "declared-limit row if the live firing path is no longer covered",
         )
+        self.assertNotIn("the draft-backed citation branch on committed sheets", self.keys())
 
     def test_partial_coverage_is_reported_and_not_graded(self):
         """The third row, and the clinician's 2026-08-19 ruling in one assertion.

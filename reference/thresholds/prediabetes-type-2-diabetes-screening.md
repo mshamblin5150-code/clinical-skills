@@ -45,15 +45,15 @@ list with no clinical prose.
 | supporting evidence | 3-4 | read 2026-08-29; blind 2026-08-29 |
 | article information and references | 5 | read 2026-08-23; blind 2026-08-23 |
 
-**Second read:** a blind independent read dated 2026-08-29 reviewed the three spans
-retired on markers that day and corroborated the current USPSTF decision points recorded below. Its
+**Second read:** a blind independent read dated 2026-08-29 reviewed the 2021 and
+2022 supporting-evidence spans and corroborated the current USPSTF decision points recorded below. Its
 separate read of the 2021 supporting-evidence span found no additional row beyond the
 age-35 decision already represented by the recommendation-statement row; its separate
 read of the 2022 supporting-evidence span found no current USPSTF decision point. The
 remaining numeric candidates were epidemiology, trial or evidence results, obsolete
 prior recommendations, or recommendations attributed to other organizations. A cold
 read dated 2026-08-30 of the 2022 recommendation statement and assessment found the
-quantity-bearing decision points already represented by its four page-2 rows, so that
+quantity-bearing decision points already represented by its page-2 rows, so that
 span is positive rather than retired on a null claim.
 
 citations resolved against C:/codeing/guidelines-src on 2026-08-29

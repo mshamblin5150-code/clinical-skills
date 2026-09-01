@@ -460,8 +460,8 @@ FORBIDDEN_IN_VALUE = {
     },
 }
 
-# Sanity bounds, keyed on the UNIT a number is written in and never on the row's
-# quantity name. These are deliberately WIDE: the gate exists to catch a decimal
+# Sanity bounds are normally keyed only on the UNIT a number is written in. These
+# are deliberately WIDE: the gate exists to catch a decimal
 # point in the wrong place and a unit confusion, not to second-guess a society. 1300
 # for a systolic pressure and 450 for an eGFR are the failures #83 names, and both
 # are an order of magnitude out.
@@ -484,6 +484,7 @@ UNIT_BOUNDS = {
     "mg/d": (1.0, 6000.0),
     "mg/day": (1.0, 6000.0),
     "mg/g": (1.0, 6000.0),
+    "mg/kg": (0.01, 1000.0),
     "mg": (1.0, 6000.0),
     "ml/min": (1.0, 150.0),
     "kg/m2": (10.0, 70.0),
@@ -492,6 +493,60 @@ UNIT_BOUNDS = {
     "drinks/d": (0.0, 10.0),
     "year": (0.0, 120.0),
     "years": (0.0, 120.0),
+}
+
+# These quantities use the same pressure unit as blood pressure but have
+# source-valid values below its 40 mm Hg floor. Keep the semantic exceptions
+# explicit so ordinary pressure rows retain the wider gate's bound.
+QUANTITY_UNIT_BOUNDS = {
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "aki-scr-absolute-definition", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "aki-scr-stage-c1", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "neonatal-aki-scr-absolute", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "neonatal-scr-stage-c1", "mg"): (0.3, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "terlipressin-bolus", "mg"): (0.5, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "norepinephrine-hrs", "mg"): (0.5, 6000.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "norepinephrine-hrs", "mm hg"): (10.0, 250.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-modality-parameters", "ml/min"): (1.0, 500.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "irrt-dialysate-flow", "ml/min"): (1.0, 300.0),
+    ("acute-kidney-injury-and-acute-kidney-disease.md", "adult-rrt-catheter-flow", "ml/min"): (1.0, 250.0),
+    ("acute-coronary-syndromes.md", "nitroglycerin-sl-dose", "mg"): (0.3, 6000.0),
+    ("acute-coronary-syndromes.md", "nitroglycerin-iv-dose", "mm hg"): (30.0, 250.0),
+    ("acute-coronary-syndromes.md", "pericarditis-treatment-dose", "mg"): (0.5, 6000.0),
+    ("acute-coronary-syndromes.md", "chronic-colchicine-dose", "mg"): (0.5, 6000.0),
+    ("acute-pulmonary-embolism.md", "normotensive-shock-creatinine-increase", "mg"): (0.3, 6000.0),
+    ("anemia-in-chronic-kidney-disease.md", "severe-reaction-epinephrine", "mg"): (0.5, 6000.0),
+    ("atrial-fibrillation.md", "rate-control-dose", "mg"): (0.25, 6000.0),
+    ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-inflation", "mm hg"): (20.0, 250.0),
+    ("blood-pressure-in-chronic-kidney-disease.md", "standardized-bp-deflation", "mm hg"): (2.0, 250.0),
+    ("blood-pressure-in-chronic-kidney-disease.md", "combination-therapy-distance", "mm hg"): (20.0, 250.0),
+    ("cardiovascular-kidney-metabolic-syndrome.md", "pulmonary-pressure", "mm hg"): (35.0, 250.0),
+    ("chronic-kidney-disease.md", "acute-gout-dose", "mg"): (0.6, 6000.0),
+    ("diabetes-related-foot-infection.md", "severe-grade", "mm hg"): (32.0, 250.0),
+    ("diabetes-in-chronic-kidney-disease.md", "rasi-trandolapril-dose", "mg/day"): (0.5, 6000.0),
+    ("healthcare-associated-ventriculitis-and-meningitis.md", "intraventricular-dose-intraventricular-doses", "mg"): (0.01, 6000.0),
+    ("hepatitis-c-in-chronic-kidney-disease.md", "hepatic-venous-pressure", "mm hg"): (10.0, 250.0),
+    ("hepatitis-c-in-chronic-kidney-disease.md", "transplant-liver-severity", "mm hg"): (10.0, 250.0),
+    ("heart-failure.md", "digoxin-dose-level", "mg"): (0.125, 6000.0),
+    ("heart-failure.md", "oral-loop-diuretic-dose", "mg"): (0.5, 6000.0),
+    ("heart-failure.md", "cardiogenic-shock-hemodynamic-definition", "mm hg"): (15.0, 250.0),
+    ("heart-failure.md", "hfpef-score-inputs", "mm hg"): (35.0, 250.0),
+    ("heart-failure.md", "structural-ventricular-thresholds", "mm hg"): (35.0, 250.0),
+    ("heart-failure.md", "cardiogenic-shock-scai-stage-b", "mm hg"): (30.0, 250.0),
+    ("heart-failure.md", "cardiogenic-shock-scai-stage-c", "mm hg"): (15.0, 250.0),
+    ("kidney-transplant-recipient-care.md", "formal-165", "mm hg"): (35.0, 250.0),
+    ("hypertrophic-cardiomyopathy.md", "historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
+    ("hypertrophic-cardiomyopathy.md", "lvoto-present-gradient", "mm hg"): (30.0, 250.0),
+    ("lower-extremity-peripheral-artery-disease.md", "toe-pressure-severe-ischemia", "mm hg"): (30.0, 250.0),
+    ("lower-extremity-peripheral-artery-disease.md", "tcpo2-healing-threshold", "mm hg"): (30.0, 250.0),
+    ("valvular-heart-disease.md", "as-severity-definition", "mm hg"): (20.0, 250.0),
+    ("valvular-heart-disease.md", "ms-severity-definition", "mm hg"): (5.0, 250.0),
+    ("valvular-heart-disease.md", "indexed-p23-timing-of-intervention-of-as-6", "mm hg"): (10.0, 250.0),
+    ("valvular-heart-disease.md", "indexed-p45-intervention-for-rheumatic-ms-5", "mm hg"): (15.0, 250.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult", "mg"): (0.1, 6000.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "digoxin-fab-acute", "mg"): (0.1, 6000.0),
+    ("bradycardia-and-cardiac-conduction-delay.md", "digoxin-fab-vial-binding", "mg"): (0.1, 6000.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "flumazenil-initial-adult", "mg"): (0.1, 6000.0),
+    ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "naloxone-initial-adult", "mg"): (0.1, 6000.0),
 }
 
 # A run of numbers sharing one trailing unit. The separators are what make
@@ -503,7 +558,7 @@ UNIT_BOUNDS = {
 # matching `24 to 48 hours` is what stops those numbers being attributed to the mm Hg
 # that appears earlier in the same value.
 _UNIT_ALTERNATION = (
-    r"mm\s*Hg|mg/d(?:ay)?|mg/g|mg|mL\s*/\s*min|kg/m2|kg|%|drinks?/d|"
+    r"mm\s*Hg|mg/d(?:ay)?|mg/g|mg/kg|mg|mL\s*/\s*min|kg/m2|kg|%|drinks?/d|"
     r"days?|weeks?|months?|years?|hours?|h|min(?:utes)?"
 )
 _MEASURED = re.compile(
@@ -1551,7 +1606,8 @@ def gate_citation_tier0(
                     f"{len(recommendation_rows)} cite a recommendation identifier and lose "
                     "its membership pin, and their class cell is ungraded because a bound "
                     f"record carries no class; all {len(source_rows)} keep tier 1, and tier 2 "
-                    f"grades all but the {len(rendered_rows)} that declare {RENDERED_MARKER} -- "
+                    f"grades all but the {len(rendered_rows)} bound-source row(s) that "
+                    f"declare {RENDERED_MARKER} -- "
                     f"{len(rendered_recommendations)} of those {len(recommendation_rows)})"
                 )
             continue
@@ -1667,7 +1723,8 @@ def gate_citation_tier0(
         report = [f"  CITATION tier 0 {len(failures)}"]
     if rendered:
         report.append(
-            f"                  {rendered} row(s) declared {RENDERED_MARKER} "
+            f"                  {rendered} row(s) on graded exact source(s) declared "
+            f"{RENDERED_MARKER} "
             "and were read off the rendered page; recommendation rows skipped tier 0 "
             "and narrative rows ran its same-page negative check"
         )
@@ -3122,7 +3179,10 @@ def gate_range(sheet: Sheet) -> GateResult:
         graded_spans: list[tuple[int, int]] = []
         for match in _MEASURED.finditer(row.value):
             graded_spans.append(match.span("numbers"))
-            bounds = UNIT_BOUNDS.get(re.sub(r"\s+", " ", match.group("unit").strip().lower()))
+            unit = re.sub(r"\s+", " ", match.group("unit").strip().lower())
+            bounds = QUANTITY_UNIT_BOUNDS.get(
+                (sheet.path.name, row.quantity, unit), UNIT_BOUNDS.get(unit)
+            )
             if bounds is None:
                 # A recognized unit with no bound -- hours, days, weeks. Matching it
                 # is the point: it stops those numbers being attributed to whatever

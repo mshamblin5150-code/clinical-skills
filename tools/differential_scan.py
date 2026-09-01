@@ -409,13 +409,6 @@ NOT_VALIDATED_AGAINST = (
         "populations and the reader residue on every report; it never promotes "
         "its clean count to the wide Assessment verdict.",
     ),
-    (
-        "the draft-backed citation branch on committed sheets",
-        "No committed threshold sheet carries a source whose class is ``draft``, "
-        "so the candidate firing path is exercised synthetically. The directory "
-        "walk in the test re-derives that absence and tells the next session to "
-        "re-examine this row when a draft-backed sheet lands.",
-    ),
 )
 
 
