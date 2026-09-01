@@ -7,9 +7,9 @@ counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
 and 2 means the run could not be completely scanned.
 
-``--docx`` names the rendered handoff and grades its heading style, comment residue,
-and paragraph-text parity with the Markdown. Without the option, those rows report
-``not graded``; an absent input never masquerades as a passing count.
+``--docx`` names the rendered handoff, grades its heading style and comment residue,
+and reports paragraph-text parity with the Markdown. Without the option, those rows
+report ``not graded``; an absent input never masquerades as a passing count.
 
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
