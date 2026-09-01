@@ -60,10 +60,10 @@
 | chronic kidney disease in HIV infection | sheet | chronic-kidney-disease-in-hiv-infection.md | full-document read complete; bound recommendation record accounted |
 | chronic kidney disease-mineral and bone disorder | sheet | chronic-kidney-disease-mineral-and-bone-disorder.md | full-document read complete; bound recommendation record accounted |
 | chronic obstructive pulmonary disease | sheet | chronic-obstructive-pulmonary-disease.md | full-document read complete; bound recommendation record accounted |
-| chronic pain in HIV infection | unread |  | bound recommendation record available; full-document read pending |
-| Clostridioides difficile infection | unread |  | bound recommendation record available; full-document read pending |
-| Clostridium difficile infection | unread |  | bound recommendation record available; full-document read pending |
-| coccidioidomycosis | unread |  | bound recommendation record available; full-document read pending |
+| chronic pain in HIV infection | sheet | chronic-pain-in-hiv-infection.md | full-document read complete; bound recommendation record accounted |
+| Clostridioides difficile infection | sheet | clostridioides-difficile-infection.md | full-document read complete; bound recommendation record accounted |
+| Clostridium difficile infection | sheet | clostridium-difficile-infection.md | full-document read complete; bound recommendation record accounted |
+| coccidioidomycosis | sheet | coccidioidomycosis.md | full-document read complete; bound recommendation record accounted |
 | cognitive impairment screening | sheet | cognitive-impairment-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | colorectal cancer screening | sheet | colorectal-cancer-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | community-acquired pneumonia | unread |  | bound recommendation record available; full-document read pending |
