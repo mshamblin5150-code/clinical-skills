@@ -136,9 +136,15 @@ keeps its posture and only the escape degrades.
 with a true on-main claim and a failed fetch would have no publishable sentence at all — they cannot
 write the negative form either, because there is no branch to name — and ADR 0083 finding 6 already
 establishes that the staleness error runs in the restrictive direction, so it would be a false
-refusal of true text. **The hook's unused `ask` value was rejected separately**: the work on this
-tracker is done by unattended agents, and an `ask` in an unattended run is a stall rather than a
-decision.
+refusal of true text. **An `ask` decision was rejected separately, and on a ground that does not
+depend on whether `ask` exists**: the work on this tracker is done by unattended agents, and an
+`ask` in an unattended run is a stall rather than a decision. That the value is available at all is
+itself disputed — [#795](https://github.com/mshamblin5150-code/clinical-skills/issues/795), opened
+during #728's grilling on 2026-09-01, records that ADR 0083 finding 1's four-value option space
+disagrees with the live hooks reference for the same release, which gives three states for
+`PreToolUse` and names neither `ask` nor `defer`. **This ruling is deliberately not built on the
+contested half**: `ask` is refused because an unattended agent cannot answer one, which holds under
+either account.
 
 **4. The label is discharged at the merge, and teaching one reader to discount it is refused.**
 
