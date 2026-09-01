@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import phi_scan
+import test_module_sections
 import tracker_branch_scope
 import tracker_freshness
 import tracker_merge_receipt
@@ -50,12 +51,28 @@ class EveryTrackerGateHasASection(unittest.TestCase):
 
     @staticmethod
     def sectioned_modules(text=None):
+        """Modules with a declared section, plus any whose title names them.
+
+        #743: this normalized a section's **title** into a module name, which is
+        right for the eighteen sections titled after their module and wrong for
+        the house's dominant style. `map_scan` owns *Implementation map
+        disagreement scan* and normalizes to nothing, so it passed here only
+        because no source reached it -- a false alarm waiting for the day
+        `tools/map_scan.py` is named in `docs/agents/issue-tracker.md` or in
+        `tracker.yml`. The declared map in `test_module_sections` is the
+        authority; the title fallback stays so a gate that is not a command
+        module is still reachable.
+        """
+
         source = CLAUDE_MD.read_text(encoding="utf-8") if text is None else text
         sections = re.split(r"(?m)^### ", source)[1:]
-        return {
+        titles = {
             section.partition("\n")[0].strip().lower().replace(" ", "_")
             for section in sections
         }
+        if text is not None:
+            return titles
+        return titles | set(test_module_sections.DECLARED_SECTIONS)
 
     @staticmethod
     def missing_gates(contributions, sectioned):

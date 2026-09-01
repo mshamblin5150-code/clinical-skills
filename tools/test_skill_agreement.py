@@ -191,6 +191,13 @@ RULING_SECTION = re.compile(
     re.IGNORECASE,
 )
 RULING_ITEM = re.compile(r"^(?:\*\*)?(\d+)\.\s")
+#: A fenced block is a specimen rather than document structure, and the record
+#: whose ruling shows a record shape puts a literal ``## `` line inside one.
+#: ADR 0087's ruling 2 does exactly that, and reading it as an H2 took the
+#: section marker down and hid rulings 3 to 9 from every citation in the tree.
+#: ``spelling_scan``'s mention-versus-use rule, which ``differential_scan``
+#: already adopted for the same reason.
+CODE_FENCE = re.compile(r"^\s*(```|~~~)")
 RULING_CITATION = re.compile(
     r"\bADR\s+0*(\d+)(?:\]\([^\r\n]+?\))?(?:'s)?\s+"
     r"(ruling|point|decision|rule)\s+(\d+)\b",
@@ -287,7 +294,18 @@ def ruling_ordinals(text: str) -> list[int]:
     # distinguishes the sections that follow, including correction lists.
     in_ruling_section = True
     accepts_items = True
+    fence = None
     for line in text.splitlines():
+        opener = CODE_FENCE.match(line)
+        if fence is not None:
+            # Only the marker that opened the block closes it, so a nested
+            # fence of the other kind stays specimen text.
+            if opener and line.strip().startswith(fence):
+                fence = None
+            continue
+        if opener:
+            fence = opener.group(1)
+            continue
         heading = ADR_HEADING.match(line)
         if heading:
             level, title = len(heading.group(1)), heading.group(2)
@@ -2014,6 +2032,53 @@ class EveryCitedRulingResolvesToADeclaredRuling(unittest.TestCase):
     def test_the_gate_and_resolver_share_the_record_parser(self) -> None:
         declared = declared_rulings()
         self.assertEqual(declared[49], set(range(1, 12)))
+
+    def test_a_fenced_specimen_heading_does_not_close_the_ruling_section(self) -> None:
+        """A ``## `` line inside a fence is a specimen, not document structure.
+
+        ADR 0087's ruling 2 shows a record shape whose first line is
+        ``## RENDERED: post.md``. Read as an H2 it took the ruling section down
+        and hid rulings 3 to 9, so every tree-side citation of them failed while
+        nothing exercised one. The live record is asserted beside the synthetic
+        case because the synthetic one cannot go stale into agreement.
+        """
+
+        record = "\n".join(
+            (
+                "# A record",
+                "",
+                "## Ruled 2026-01-01",
+                "",
+                "### 1. The first",
+                "",
+                "```text",
+                "## SPECIMEN: a shape a ruling shows",
+                "```",
+                "",
+                "### 2. The second",
+                "",
+                "## What this does not reach",
+                "",
+                "### 3. Not a ruling",
+            )
+        )
+        self.assertEqual(ruling_ordinals(record), [1, 2])
+        self.assertEqual(declared_rulings()[87], set(range(1, 10)))
+
+    def test_only_the_opening_marker_closes_a_fence(self) -> None:
+        record = "\n".join(
+            (
+                "## Ruled 2026-01-01",
+                "",
+                "~~~text",
+                "```",
+                "## SPECIMEN: still inside the outer fence",
+                "~~~",
+                "",
+                "### 1. The first",
+            )
+        )
+        self.assertEqual(ruling_ordinals(record), [1])
 
     def test_every_tree_side_coordinate_resolves(self) -> None:
         declared = declared_rulings()

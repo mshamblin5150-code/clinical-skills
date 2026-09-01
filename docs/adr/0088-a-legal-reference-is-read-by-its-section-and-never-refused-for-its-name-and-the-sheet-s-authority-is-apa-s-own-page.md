@@ -93,7 +93,15 @@ Professional and Vocational Regulations, 16 CCR § 1481 (2023). https://...
 
 **The name is the first element of APA's own pattern**, so ADR 0039 ruling 1 and ruling 5 are confirmed from the source rather than from guide consensus. §8 is written from this page.
 
-### §8 declares the federal-only limit
+### §8 declares the `C.F.R.`-only limit
+
+**Corrected 2026-09-01 on [#751](https://github.com/mshamblin5150-code/clinical-skills/issues/751).**
+This heading read *"§8 declares the federal-only limit"*. **The body below was always right and the
+heading was always wrong**, which is the whole of that ticket: the reader is hardcoded to `C.F.R.`,
+and a federal **statute** — `29 U.S.C. § 794`, say — is as invisible to it as a state code. So
+*federal-only* names a limit wider than the one that exists, and it is the half a skim reads. The
+label was in five places, and the fifth was a test asserting `"federal" in section.lower()`, which
+would have refused this correction.
 
 APA's pattern takes any code as its Source, and its chosen nursing example is `16 CCR` — a **state** code. `discussion_artifact.LEGAL_AUTHOR` is hardcoded to `C.F.R.`, so a state nursing practice act is invisible to every legal reader in this repository. Widening that grammar is a change to a module with three consumers and carries its own false-match risk — ADR 0085 measured `§ 5` and `Section 3 of the plan` as the danger — so it is [#716](https://github.com/mshamblin5150-code/clinical-skills/issues/716), and §8 states the limit rather than documenting a form nothing here can read.
 
