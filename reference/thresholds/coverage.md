@@ -66,12 +66,12 @@
 | coccidioidomycosis | sheet | coccidioidomycosis.md | full-document read complete; bound recommendation record accounted |
 | cognitive impairment screening | sheet | cognitive-impairment-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | colorectal cancer screening | sheet | colorectal-cancer-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| community-acquired pneumonia | unread |  | bound recommendation record available; full-document read pending |
+| community-acquired pneumonia | sheet | community-acquired-pneumonia.md | full-document read complete; bound recommendation record accounted |
 | congenital heart disease | sheet | congenital-heart-disease.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | COPD screening | sheet | copd-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| COVID-19 infection prevention for healthcare personnel | unread |  | bound recommendation record available; full-document read pending |
-| COVID-19 serologic testing | unread |  | bound recommendation record available; full-document read pending |
-| COVID-19 treatment | unread |  | bound recommendation record available; full-document read pending |
+| COVID-19 infection prevention for healthcare personnel | sheet | covid-19-infection-prevention-for-healthcare-personnel.md | full-document read complete; bound recommendation record accounted |
+| COVID-19 serologic testing | sheet | covid-19-serologic-testing.md | full-document read complete; bound recommendation record accounted |
+| COVID-19 treatment | sheet | covid-19-treatment.md | full-document read complete; bound recommendation record accounted |
 | dental caries prevention | sheet | dental-caries-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | depression and suicide risk screening | sheet | depression-and-suicide-risk-screening.md | all 20 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
 | diabetes in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
