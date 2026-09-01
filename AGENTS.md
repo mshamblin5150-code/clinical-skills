@@ -1,6 +1,6 @@
 # Clinical skills
 
-A set of agent-agnostic skills for converting ER-style clinical shorthand into documentation. Each skill is a folder under `skills/` holding a `SKILL.md` — plain Markdown with YAML frontmatter, readable by any agent.
+Agent-agnostic skills for a nurse practitioner student's written work — clinical documentation from ER-style shorthand, and graded coursework from faculty material and live course boards. Each skill is a folder under `skills/` holding a `SKILL.md` — plain Markdown with YAML frontmatter, readable by any agent.
 
 ## How to use a skill
 
