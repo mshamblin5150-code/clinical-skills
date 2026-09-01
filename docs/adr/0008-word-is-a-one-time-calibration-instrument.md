@@ -33,11 +33,12 @@ calibration identity and record.
 ## What the calibration changed
 
 The committed Word record confirmed every applied row and declared limit in section 6.
-It also settled a separate destination-guard premise: a closed Word save of the probe
-preserved the renderer's exact archive part set, so the part-set guard did **not** refuse
-it. `docx_write.NOT_GUARDED` now records that measured limit. A Word owner file still
-protects a document while it is open; after Word closes it, the current part-set signal
-cannot prove that it was edited.
+It also settled a separate destination-guard premise after #675 repaired the probe to
+edit before saving: Word changed the archive part set and the guard refused the saved
+document. The original no-op was not a measurement of a save. `docx_write.NOT_GUARDED`
+now records the surviving limit generically: an editor that preserves exactly the
+renderer part names is not detected. A Word owner file still protects a document while
+it is open.
 
 ## Rejected alternatives
 
@@ -52,3 +53,7 @@ reducing uncertainty.
 **Use a simulator as evidence.** Rejected. A simulator written from the same OOXML rules
 as the renderer has the same correlated-error problem. It may help inspect a shape; it
 cannot promote a row to applied.
+
+Correction, 2026-09-01: #675 and ADR 0086 established that the earlier destination-guard
+probe performed no edit. The repaired probe edits before saving, and the Word save changes
+the part set and is refused. The one-time calibration ruling is unchanged.

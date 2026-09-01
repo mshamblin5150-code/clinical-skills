@@ -92,6 +92,7 @@ SINGULAR = "# Clinical Case\n\nBody paragraph.\n\n# Reference\n\nOnly, O. (2025)
 RUN_IN = "#### Follow-up\n\nThe plan continues.\n"
 HARD_WRAP = "# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n"
 TITLE = "# Clinical Case\n\nBody paragraph.\n"
+WORD_SAVE_EDIT = "Calibration edit."
 
 PROBES = {
     "body-defaults": COMMON,
@@ -439,6 +440,8 @@ def word_report() -> dict:
                 str(script),
                 "-ProbeDirectory",
                 str(root),
+                "-EditText",
+                WORD_SAVE_EDIT,
             ],
             check=False,
             capture_output=True,
@@ -459,6 +462,7 @@ def word_report() -> dict:
             "added": sorted(set(saved_parts) - set(original_parts)),
             "removed": sorted(set(original_parts) - set(saved_parts)),
             "destination_guard_would_refuse": set(saved_parts) != set(original_parts),
+            "probe_edit": WORD_SAVE_EDIT,
         }
     report["renderer_shapes"] = renderer_shapes()
     report["paste_renderer_shapes"] = paste_renderer_shapes()
