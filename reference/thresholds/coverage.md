@@ -110,7 +110,7 @@
 | hypertrophic cardiomyopathy | sheet | hypertrophic-cardiomyopathy.md | all 172 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
 | IgA nephropathy and IgA vasculitis | unread |  | bound recommendation record available; full-document read pending |
 | illicit drug use prevention | sheet | illicit-drug-use-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| impaired visual acuity screening | unread |  | exact recommendation index available; full-document read pending |
+| impaired visual acuity screening | sheet | impaired-visual-acuity-screening.md | full-document read complete; exact recommendation index accounted |
 | infectious diarrhea | unread |  | bound recommendation record available; full-document read pending |
 | intimate partner violence and elder abuse screening | unread |  | exact recommendation index available; full-document read pending |
 | iron deficiency anemia screening | unread |  | exact recommendation index available; full-document read pending |
@@ -130,7 +130,7 @@
 | microbiology laboratory utilization for infectious disease diagnosis | unread |  | no recommendation record; full-document read pending |
 | native vertebral osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
 | nephrotic syndrome | unread |  | bound recommendation record available; full-document read pending |
-| neural tube defect prevention, folic acid | unread |  | exact recommendation index available; full-document read pending |
+| neural tube defect prevention, folic acid | sheet | neural-tube-defect-prevention-folic-acid.md | full-document read complete; exact recommendation index accounted |
 | neurocysticercosis | unread |  | bound recommendation record available; full-document read pending |
 | new fever in the intensive care unit | unread |  | bound recommendation record available; full-document read pending |
 | nontuberculous mycobacterial pulmonary disease | unread |  | bound recommendation record available; full-document read pending |
@@ -150,7 +150,7 @@
 | preeclampsia prevention, low-dose aspirin | unread |  | exact recommendation index available; full-document read pending |
 | primary open-angle glaucoma screening | unread |  | exact recommendation index available; full-document read pending |
 | prostate cancer screening | unread |  | exact recommendation index available; full-document read pending |
-| Rh(D) incompatibility screening | unread |  | exact recommendation index available; full-document read pending |
+| Rh(D) incompatibility screening | sheet | rhd-incompatibility-screening.md | full-document read complete; exact recommendation index accounted |
 | seasonal influenza | unread |  | no recommendation record; full-document read pending |
 | secondary stroke prevention | unread |  | exact recommendation index available; full-document read pending |
 | sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
@@ -161,7 +161,7 @@
 | speech and language delay screening | unread |  | exact recommendation index available; full-document read pending |
 | stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
 | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
-| testicular cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| testicular cancer screening | sheet | testicular-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | thyroid cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | thyroid dysfunction screening | unread |  | exact recommendation index available; full-document read pending |
 | tobacco smoking cessation | unread |  | exact recommendation index available; full-document read pending |
