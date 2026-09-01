@@ -4279,6 +4279,24 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             self.assertFalse(marker.exists(), "subjects.md invoked the sheet grader")
             self.assertTrue(subject_marker.exists(), "subjects.md did not invoke its grader")
 
+            subprocess.run([git, "commit", "--quiet", "-m", "subjects"], cwd=root, check=True)
+            subject_marker.unlink()
+            subprocess.run([git, "rm", "--quiet", "--", str(subjects)], cwd=root, check=True)
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertTrue(subject_marker.exists(), "deleting subjects.md did not invoke its grader")
+
+            subprocess.run([git, "commit", "--quiet", "-m", "delete subjects"], cwd=root, check=True)
+            subjects.write_text("subject ledger\n", encoding="utf-8")
+            subprocess.run([git, "add", "--", str(subjects)], cwd=root, check=True)
+            subprocess.run([git, "commit", "--quiet", "-m", "restore subjects"], cwd=root, check=True)
+            subject_marker.unlink()
+            renamed_subjects = subjects.with_name("subject-groups.md")
+            subprocess.run(
+                [git, "mv", "--", str(subjects), str(renamed_subjects)], cwd=root, check=True
+            )
+            subprocess.run([shell, str(hook)], cwd=root, env=environment, check=True)
+            self.assertTrue(subject_marker.exists(), "renaming subjects.md did not invoke its grader")
+
             actual_sheet = root / "reference" / "thresholds" / "hypertension.md"
             actual_sheet.write_text("a sheet\n", encoding="utf-8")
             subprocess.run([git, "add", "--", str(actual_sheet)], cwd=root, check=True)
