@@ -1,16 +1,15 @@
 # A tool's show output is unpasteable by default and its own docstring is the only authority
 
 Found while grilling [#708](https://github.com/mshamblin5150-code/clinical-skills/issues/708),
-2026-09-01, at `origin/main` `2dcbf69`, freshness gate `FRESH` at both checkpoints. **Eight
-decisions, ruled by the clinician on that date.** Nothing is built here; this is the record the
-build reads.
+2026-09-01, at `origin/main` `2dcbf69`, freshness gate `FRESH` at both checkpoints. **Ruled by
+the clinician on that date.** Nothing is built here; this is the record the build reads.
 
 **#708 is about a file outside this repository and this record is not.** That ticket concerns one
 machine's `autoMode.environment` brief, which no tool here may write. What the grilling turned up on
 the way is a rule about `tools/` — where it belongs, where a tool author reads, and where it is
-subject to a check. Splitting them is ruling 6 of that grilling: the brief may state the rule, and
-the rule may not live only in the brief, because a rule held solely in a file outside every checkout
-is the decay the ticket itself is about.
+subject to a check. Splitting them was settled in that grilling on this ground: the brief may state
+the rule, and the rule may not live only in the brief, because a rule held solely in a file outside
+every checkout is the decay the ticket itself is about.
 
 ## Measured before ruling, at `2dcbf69`
 
@@ -83,7 +82,7 @@ case, for two reasons.
 **An inverted default is the one arrangement where silence is the safe answer.** A module that
 declares nothing is refused, which is the correct verdict for both modules that declare nothing
 today. A check would compel a sentence to be written where its absence already produces the right
-behaviour: ceremony, not a gate. That is precisely the asymmetry ruling 1 buys, and building a gate
+behavior: ceremony, not a gate. That is precisely the asymmetry ruling 1 buys, and building a gate
 on top of it spends the thing it bought.
 
 **And the instrument would be a prose matcher, which failed twice in this record's own
