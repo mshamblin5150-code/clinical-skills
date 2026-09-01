@@ -1,10 +1,7 @@
 """Count unaccounted top-level entries across this repository's scratch roots.
 
-The ratchet deliberately has three limits which are properties of the mechanism:
-
-* its integer baseline has a one-entry swap hole in the owning checkout;
-* material written outside every checkout is outside the walk and any producer;
-* a separate clone has its own worktree registry and is invisible here.
+The ratchet's complete boundary lives in ``DECLARED_LIMITS``.  Each row names a
+mechanical path the census or the directory producer does not close.
 
 The command never reads scratch-file contents and never prints an unaccounted
 entry's name. Deletion is outside its authority; a failing worktree is drained
@@ -42,10 +39,31 @@ STANDING_ARTIFACTS = frozenset(
     }
 )
 
+OWNING_SWAP_LIMIT = "the owning-checkout integer baseline has a one-entry swap hole"
+OUTSIDE_CHECKOUT_LIMIT = (
+    "material outside every checkout is outside this walk and any producer"
+)
+SEPARATE_CLONE_LIMIT = (
+    "a separate clone has its own worktree registry and is invisible"
+)
+ABANDONED_WORKTREE_LIMIT = (
+    "an abandoned worktree's loose entry is gated by no later commit and its "
+    "removal can discard unrecoverable material without warning"
+)
+SHARED_TICKET_DIRECTORY_LIMIT = (
+    "two drones on one ticket at the same time share one ticket directory"
+)
+SHARED_CHECKOUT_LIMIT = (
+    "two drones sharing one checkout are one gating root to the census"
+)
+
 DECLARED_LIMITS = (
-    "the owning-checkout integer baseline has a one-entry swap hole",
-    "material outside every checkout is outside this walk and any producer",
-    "a separate clone has its own worktree registry and is invisible",
+    OWNING_SWAP_LIMIT,
+    OUTSIDE_CHECKOUT_LIMIT,
+    SEPARATE_CLONE_LIMIT,
+    ABANDONED_WORKTREE_LIMIT,
+    SHARED_TICKET_DIRECTORY_LIMIT,
+    SHARED_CHECKOUT_LIMIT,
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -246,21 +264,56 @@ def main(argv: list[str]) -> int:
         owning_count is not None and owning_count.unaccounted > OWNING_BASELINE
     )
     other_counts = [item for item in counts if item.root != owning]
-    other_finding = any(item.unaccounted > 0 for item in other_counts)
-    finding = owning_finding or other_finding
+    committing_count = next(
+        (item for item in other_counts if item.root == checkout), None
+    )
+    committing_finding = (
+        committing_count is not None and committing_count.unaccounted > 0
+    )
+    peer_counts = [item for item in other_counts if item.root != checkout]
+    finding = owning_finding or committing_finding
     not_scanned = owning_count is None or bool(unreadable) or state_not_scanned
 
-    print(
-        "top levels: {owning} owning-checkout unaccounted; "
-        "{other} other-checkout unaccounted across {roots} roots".format(
-            owning=owning_count.unaccounted if owning_count else 0,
-            other=sum(item.unaccounted for item in other_counts),
-            roots=len(other_counts),
+    if owning_count is not None:
+        print(
+            f"GATING: {owning_count.root / 'scratch'}: "
+            f"{owning_count.unaccounted} unaccounted, "
+            f"{max(0, owning_count.unaccounted - OWNING_BASELINE)} above baseline"
         )
-    )
+    if committing_count is not None:
+        print(
+            f"GATING: {committing_count.root / 'scratch'}: "
+            f"{committing_count.unaccounted} unaccounted, "
+            f"{committing_count.unaccounted} above baseline"
+        )
+    for item in peer_counts:
+        print(
+            f"REPORT ONLY: {item.root / 'scratch'}: "
+            f"{item.unaccounted} unaccounted; never graded"
+        )
+    if not peer_counts:
+        print("REPORT ONLY: none")
 
+    if owning_finding and owning_count is not None:
+        above = owning_count.unaccounted - OWNING_BASELINE
+        noun = "entry" if above == 1 else "entries"
+        print(
+            f"FINDING: {above} top-level {noun} above "
+            "the owning checkout's ratchet"
+        )
+    if committing_finding and committing_count is not None:
+        above = committing_count.unaccounted
+        noun = "entry" if above == 1 else "entries"
+        print(
+            f"FINDING: {above} top-level {noun} above "
+            "the committing checkout's ratchet"
+        )
     if finding:
-        print("FINDING: one or more scratch top-level ratchets were exceeded")
+        print("REMEDY: move it under scratch/sessions/ticket-<n>/")
+        print(
+            "        do not raise OWNING_BASELINE -- the ratchet's only value "
+            "is that it cannot be moved to meet the disk"
+        )
     elif not not_scanned:
         print("CLEAN: scratch top levels are within their ratchets")
     if not_scanned:

@@ -864,12 +864,19 @@ when the run could not be completely scanned.
 
 Covered by `tools/test_discussion_reply_scan.py`.
 
+### Session directory
+
+`tools/session_directory.py` is the one producer for agent working material under the `scratch/sessions/` namespace. A ticketed pass calls `python tools/session_directory.py ticket "$TICKET_NUMBER"`; ticketless work calls `python tools/session_directory.py sweep "$(date +%F)"`. Both forms resolve through `repo_root.scratch_root()`, create the child, and print its path. They cannot return a path at the scratch top level.
+
+**It deduplicates a destination and enforces nothing.** The five tracker-harvest copies call it so none computes a mutable branch key; `scratch_census.py` remains the gate for material written outside the accounted namespace. Two sittings on one ticket deliberately reopen the same Ticket directory, and the unresolved concurrency and worktree-removal boundaries live in `scratch_census.DECLARED_LIMITS` rather than being copied here.
+
 ### Tracker scan
 
 Every tool above reads a file somebody can point at. This one reads **what a public flip publishes that a file scanner does not**, and it is [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s remaining surface made runnable. `phi_scan --all` walks `git ls-files`, which is the tip and nothing else; #212's ruling comment was blocked on issue and pull-request text, pull-request diffs, and commit messages, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records the last of those as scanned by nothing.
 
 ```bash
-H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+: "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
@@ -1092,7 +1099,8 @@ scanner's own offline boundary.
 The tracker scan reads the tracker's PHI shapes. This one reads **whether a body landed intact**, and it covers [#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130)'s lost bodies plus [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s two encoding mechanisms. **How many there are is what the command prints**, and is deliberately stated nowhere in prose: nothing committed re-derives it, the harvest it is counted from is gitignored, and the next one to arrive moves it. That the #130 count *was* eight on 2026-08-19 is stated once below, because the finding beside it needs the denominator.
 
 ```bash
-H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+: "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"

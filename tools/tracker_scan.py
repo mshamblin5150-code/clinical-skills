@@ -27,7 +27,8 @@ the last of those as scanned by nothing.
 
 Harvest first, then scan::
 
-    H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+    : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+    H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
     mkdir -p "$H"
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"
