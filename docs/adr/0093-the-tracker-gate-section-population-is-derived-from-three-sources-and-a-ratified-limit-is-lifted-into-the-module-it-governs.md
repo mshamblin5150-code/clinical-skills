@@ -2,7 +2,7 @@
 
 [#707](https://github.com/mshamblin5150-code/clinical-skills/issues/707) was filed because
 `CLAUDE.md` gives no `###` section to three tracker gates, and because the person building the
-neighbouring tracker tools described one of them wrongly, twice, in one thread — naming one of its
+neighboring tracker tools described one of them wrongly, twice, in one thread — naming one of its
 four triggers each time.
 
 Grilled 2026-09-01 at `origin/main` `ca318be`, freshness gate `FRESH` at both checkpoints.
