@@ -5,6 +5,20 @@ JSON from stdin and writes one hook response as JSON to stdout. It never prints
 the text it scans. Counts, rule names, and the field to edit are the complete
 reporting surface.
 
+**A publication whose text cannot be read is refused rather than allowed**, on
+every kind in ``UNREADABLE_REMEDIES``, and only on a route in
+``PUBLISH_ROUTES`` -- an unrecognized command is never touched. #745: the gate
+returned *allow* whenever it could not parse its own input, so the one limb
+that refuses evaporated exactly when the hook was least able to vouch for the
+text. Each kind's remedy names the by-hand command that grades the file.
+
+**What it reads is the command as typed, not the shell's expansion of it**, so
+resolution is reconstructed rather than observed: assignments made in the same
+command are substituted, including where a variable names only the leading part
+of a path, and a Git Bash ``/c/...`` path is also tried in its Windows
+spelling. What is left -- a variable from the environment, a command
+substitution, a pipe -- is unreadable by construction and is refused above.
+
 What a clean run does not establish is owned by ``NOT_REACHED`` below rather
 than copied into this docstring or ``CLAUDE.md``.
 """
@@ -59,6 +73,18 @@ NOT_REACHED = (
         "workspace trust can silently suppress registration",
         "An unaccepted workspace trust prompt can silently prevent the project "
         "hook from registering in a new worktree.",
+    ),
+    (
+        "a file rewritten after the scan is graded on its earlier text",
+        "The body is read when the hook runs. A command that rewrites that "
+        "file between the scan and the publication publishes text this hook "
+        "never saw.",
+    ),
+    (
+        "expansion is reconstructed and reaches only the same command",
+        "A variable assigned in an earlier command, an exported one, and "
+        "anything a subshell computes are not resolvable here. Each is refused "
+        "rather than guessed at, so the floor does not become a silent pass.",
     ),
 )
 
@@ -128,8 +154,10 @@ PLAIN_ASSIGNMENT = re.compile(
 )
 VARIABLE = re.compile(
     r"\A\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
-    r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))\Z"
+    r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))(?P<rest>/.*)?\Z",
+    re.DOTALL,
 )
+MSYS_PATH = re.compile(r"\A/(?P<drive>[A-Za-z])/(?P<rest>.*)\Z", re.DOTALL)
 HEREDOC = re.compile(
     r"<<-?\s*['\"]?(?P<tag>[A-Za-z_][A-Za-z0-9_]*)['\"]?[ \t]*\r?\n"
     r"(?P<body>.*?)\r?\n(?P=tag)(?:\r?\n|\Z)",
@@ -169,20 +197,67 @@ def _written_before_publish(command: str, source: str) -> bool:
     return re.search(r">\s*['\"]?" + re.escape(source) + r"['\"]?", prefix) is not None
 
 
+def _expand(
+    value: str,
+    assignments: dict[str, str],
+    substitutions: frozenset[str],
+) -> tuple[str | None, str | None]:
+    """Return the shell-expanded value, or the kind that makes it unreadable.
+
+    The hook runs before the shell does, so there is no expanded argument to
+    read -- ``tool_input.command`` is the text as typed. Expansion is therefore
+    reconstructed from assignments made in the same command, which is the only
+    source available at this point. A variable naming a path *prefix* expands
+    here as the shell would expand it; #745 is what happened while only a value
+    that was entirely one variable did.
+    """
+    variable = VARIABLE.match(value)
+    if variable is None:
+        return value, None
+    name = variable.group("braced") or variable.group("plain")
+    rest = variable.group("rest") or ""
+    if name in assignments:
+        return assignments[name] + rest, None
+    return None, (
+        "command-substitution" if name in substitutions else "external-variable"
+    )
+
+
+def _candidate_paths(source: str) -> tuple[str, ...]:
+    """Return the spellings of one path this platform may have to try.
+
+    A Git Bash command line writes ``/c/Users/...`` where Windows resolves
+    ``C:/Users/...``. MSYS rewrites it when it launches a native executable, so
+    the shell's own argument is fine and the hook's copy -- taken before that
+    rewrite -- is not. Reading it here is not a guess about the caller: either
+    spelling names one file, and only one of them opens.
+    """
+    match = MSYS_PATH.match(source)
+    if match is None or sys.platform != "win32":
+        return (source,)
+    drive = match.group("drive").upper()
+    return (source, f"{drive}:/{match.group('rest')}")
+
+
+def _read_candidate(source: str) -> str | None:
+    for candidate in _candidate_paths(source):
+        try:
+            return Path(candidate).read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+    return None
+
+
 def _resolve_plain_value(
     field: str,
     value: str,
     assignments: dict[str, str],
     substitutions: frozenset[str],
 ) -> Publication | Unreadable:
-    variable = VARIABLE.match(value)
-    if variable is None:
-        return Publication(field, value)
-    name = variable.group("braced") or variable.group("plain")
-    if name in assignments:
-        return Publication(field, assignments[name])
-    kind = "command-substitution" if name in substitutions else "external-variable"
-    return Unreadable(field, kind, value)
+    expanded, kind = _expand(value, assignments, substitutions)
+    if kind is not None:
+        return Unreadable(field, kind, value)
+    return Publication(field, expanded)
 
 
 def _raw_publish_route(command: str) -> tuple[str, ...] | None:
@@ -269,21 +344,17 @@ def _read_file_field(
     assignments: dict[str, str],
     substitutions: frozenset[str],
 ) -> Publication | Unreadable:
-    variable = VARIABLE.match(source)
-    if variable is not None:
-        name = variable.group("braced") or variable.group("plain")
-        if name not in assignments:
-            kind = "command-substitution" if name in substitutions else "external-variable"
-            return Unreadable(field, kind, source)
-        source = assignments[name]
+    expanded, kind = _expand(source, assignments, substitutions)
+    if kind is not None:
+        return Unreadable(field, kind, source)
+    source = expanded
     if source == "-":
         heredoc = HEREDOC.search(command)
         if heredoc is None:
             return Unreadable(field, "pipe", source)
         return Publication(field, heredoc.group("body"), "inline heredoc")
-    try:
-        text = Path(source).read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
+    text = _read_candidate(source)
+    if text is None:
         kind = (
             "written-before-publish"
             if _written_before_publish(command, source)
@@ -387,7 +458,9 @@ def extract(command: str) -> Extraction:
                     request_text = heredoc.group("body")
                     source = "inline heredoc"
                 else:
-                    request_text = Path(source).read_text(encoding="utf-8")
+                    request_text = _read_candidate(source)
+                    if request_text is None:
+                        raise OSError(source)
                 request = json.loads(request_text)
                 if not isinstance(request, dict):
                     raise ValueError("API input is not an object")
@@ -634,7 +707,19 @@ def write_marker() -> None:
     )
 
 
-def _hook_response(decision: str | None, report: str) -> dict:
+BRANCH_SCOPE_REFUSAL = (
+    "tracker branch-scope text must be corrected before publication"
+)
+UNSCANNED_REFUSAL = (
+    "tracker text could not be read, so this publication was not scanned"
+)
+
+
+def _hook_response(
+    decision: str | None,
+    report: str,
+    reason: str = BRANCH_SCOPE_REFUSAL,
+) -> dict:
     specific = {
         "hookEventName": "PreToolUse",
         "additionalContext": report,
@@ -642,9 +727,7 @@ def _hook_response(decision: str | None, report: str) -> dict:
     if decision is not None:
         specific["permissionDecision"] = decision
     if decision == "deny":
-        specific["permissionDecisionReason"] = (
-            "tracker branch-scope text must be corrected before publication"
-        )
+        specific["permissionDecisionReason"] = reason
     return {"hookSpecificOutput": specific}
 
 
@@ -703,11 +786,11 @@ def handle(payload: dict) -> dict:
             return {}
         if extracted.unreadable:
             lines = [
-                f"tracker pre-publish: Unreadable {row.field} "
+                f"tracker pre-publish: NOT SCANNED -- unreadable {row.field} "
                 f"({row.kind}); {UNREADABLE_REMEDIES[row.kind]}"
                 for row in extracted.unreadable
             ]
-            return _hook_response(None, "\n".join(lines))
+            return _hook_response("deny", "\n".join(lines), UNSCANNED_REFUSAL)
         if not extracted.publications:
             return {}
 

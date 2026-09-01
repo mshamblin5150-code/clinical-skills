@@ -783,6 +783,26 @@ push can happen before the finishing sweep writes its comments. This is #260's
 ruling, 2026-08-20. The separate pre-publication path is documented under
 **Tracker publish hook** below; it is not the git hook #260 declined.
 
+**A publication whose text the hook cannot read is refused**, on every kind in
+`UNREADABLE_REMEDIES` and only on a route in `PUBLISH_ROUTES` -- an
+unrecognized command is untouched. That is
+[ADR 0096](docs/adr/0096-an-unreadable-publication-is-refused-and-expansion-is-reconstructed-from-the-command-as-typed.md),
+ruled on [#745](https://github.com/mshamblin5150-code/clinical-skills/issues/745):
+the gate returned *allow* whenever it could not parse its own input, so the one
+limb that refuses was absent exactly when the hook could least vouch for the
+text, and the message read as advice about a missing file rather than as **this
+publication was not scanned**. **It cost two recorded escapes** -- a
+non-conforming branch-state block on #745's own sweep, and a dead citation on
+#708's, four publications going out ungraded in that second session alone.
+
+**What it reads is the command as typed rather than the shell's expansion of
+it**, so resolution is reconstructed: assignments made in the same command are
+substituted, including where a variable names only the leading part of a path,
+and a Git Bash `/c/...` path is also tried in its Windows spelling. **A form it
+cannot reconstruct is refused rather than guessed at.** The kinds and their
+remedies are `UNREADABLE_REMEDIES`'s to say, and what a clean run does not
+establish is `NOT_REACHED`'s; neither is listed here.
+
 **When a full harvest last really ran, and what it found, is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
 `python tools/phi_scan.py` commit path states that marker's age** -- ADR 0077
