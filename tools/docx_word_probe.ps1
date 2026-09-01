@@ -1,6 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ProbeDirectory
+    [string]$ProbeDirectory,
+
+    [Parameter(Mandatory = $true)]
+    [string]$EditText
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +151,7 @@ try {
     $saveProbe = $null
     try {
         $saveProbe = $word.Documents.Open($savedCopy, $false, $false, $false)
+        $saveProbe.Content.InsertAfter($EditText)
         $saveProbe.Save()
     }
     finally {

@@ -1,12 +1,33 @@
 {
   "command": "python tools/docx_word_probe.py --word",
   "word_save_guard": {
-    "measured_on": "2026-08-22",
+    "measured_on": "2026-09-01",
     "word_version": "16.0",
-    "word_build": "16.0.20228",
-    "original_and_saved_part_sets_equal": true,
-    "destination_guard_would_refuse": false,
-    "observation": "Word saved a closed renderer probe while preserving the exact archive part set. The part-set guard therefore read the saved document as this renderer's own."
+    "word_build": "16.0.20326",
+    "original_and_saved_part_sets_equal": false,
+    "destination_guard_would_refuse": true,
+    "observed_added_parts": [
+      "docProps/app.xml",
+      "docProps/core.xml",
+      "word/endnotes.xml",
+      "word/fontTable.xml",
+      "word/footnotes.xml",
+      "word/settings.xml",
+      "word/theme/theme1.xml",
+      "word/webSettings.xml"
+    ],
+    "comparison_observation_added_parts": [
+      "docProps/app.xml",
+      "docProps/core.xml",
+      "docProps/custom.xml",
+      "word/endnotes.xml",
+      "word/fontTable.xml",
+      "word/footnotes.xml",
+      "word/settings.xml",
+      "word/theme/theme1.xml",
+      "word/webSettings.xml"
+    ],
+    "observation": "The probe edits the document before saving, and Word changes the archive part set, so the destination guard refuses it. An unedited-but-dirty save adds the same observed set. A live discussion-post save on the same machine five days earlier added one further part, docProps/custom.xml, so the added set varies."
   },
   "paste_rows": {
     "named-heading-clipboard": {

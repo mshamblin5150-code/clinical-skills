@@ -6,7 +6,7 @@ Decision points only, distilled from the source below. **Not a substitute for th
 guideline** and not a clinical instruction: every row is a fact this repo restates,
 and choosing among them is the clinician's. Graded by `tools/threshold_sheet.py`;
 what that grader cannot see is written out in
-[README.md](../../../../reference/thresholds/README.md).
+[README.md](README.md).
 
 ## Sources
 

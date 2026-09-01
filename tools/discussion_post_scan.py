@@ -7,9 +7,9 @@ counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
 and 2 means the run could not be completely scanned.
 
-``--docx`` names the rendered handoff and grades that its document XML carries no
-``Heading{N}`` paragraph style. Without the option, that row reports ``not graded``;
-an absent input never masquerades as a passing count.
+``--docx`` names the rendered handoff, grades its heading style and comment residue,
+and reports paragraph-text parity with the Markdown. Without the option, those rows
+report ``not graded``; an absent input never masquerades as a passing count.
 
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
@@ -33,6 +33,7 @@ from discussion_artifact import (
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
     Citation,
+    LEGAL_SECTION_NUMBER,
     NUMBER,
     INVOKED,
     InvokedSource,
@@ -54,6 +55,7 @@ from discussion_artifact import (
 import run_grader
 import coursework_run
 from case_study_scan import EvidenceDisposition
+import docx_write
 
 
 WORD_FLOOR = "word-floor"
@@ -61,6 +63,8 @@ REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
 BOLD_HEADINGS = "bold-headings"
+RENDERED_COMMENTS = "rendered-comments"
+RENDERED_TEXT = "rendered-text"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
 MISSING_POSTED_READING = "missing-posted-reading"
 UNKNOWN_VERDICT = "unknown-verdict"
@@ -73,6 +77,7 @@ ROWS = {
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
+    RENDERED_COMMENTS: "the rendered document carries no HTML comment delimiter",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
     MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
     UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
@@ -83,7 +88,10 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 GATED_ROW_SETS = {
-    "docx_graded": ((BOLD_HEADINGS,), ()),
+    "docx_graded": (
+        (BOLD_HEADINGS, RENDERED_COMMENTS),
+        ("rendered_text_mismatches",),
+    ),
     "reference_boundary_graded": (
         (
             WORD_FLOOR,
@@ -137,9 +145,19 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether named heading styles were graded when --docx was omitted",
-        "Without --docx, the command does not inspect document XML, so the bold-headings row is not graded even when the remaining report exits cleanly.",
+        "whether rendered-document rows were graded when --docx was omitted",
+        "Without --docx, the command does not inspect document XML, so the bold-headings, rendered-comments, and rendered-text rows are not graded even when the remaining report exits cleanly.",
         EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether matching paragraph text proves the rendered structure is unchanged",
+        "Paragraph-text parity cannot establish table structure, list markers, hyperlink destinations, header fields, or visual layout; those remain rendered-document readings.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a paragraph-text difference is a graded document defect",
+        "A real rendered post measured on 2026-09-01 differed only after the shared prefix, with one fewer blank paragraph in the archive; because that false-alarm shape is not classified generally, rendered-text reports without changing exit status.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether reference-dependent rows ran after a refused reference label",
@@ -152,9 +170,13 @@ NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
 FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 REFERENCE_HEADING = re.compile(r"(?mi)^#{1,6}\s+References\s*$")
 MARKDOWN_HEADING = re.compile(r"(?m)^\s*#{1,6}\s+.*$")
+# This stays looser than the citation reader: over-stripping a number is cheaper
+# than manufacturing a citation from ordinary prose such as ``§ 5``.
 STATUTE = re.compile(
-    r"(?i)(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)?\s*\d+(?:\.\d+)*"
-    r"|§+\s*\d+(?:\.\d+)*"
+    r"(?i)(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)?\s*"
+    + LEGAL_SECTION_NUMBER
+    + r"|§+\s*"
+    + LEGAL_SECTION_NUMBER
 )
 PAGE_LOCATOR = re.compile(
     r"(?i)\b(?:p{1,2}\.|pages?)\s*\d+(?:\s*[-–]\s*\d+)?"
@@ -184,6 +206,9 @@ class RunSource:
     bar: Bar
     docx: Path | None
     named_heading_styles: tuple[str, ...]
+    rendered_comment_paragraphs: int
+    rendered_paragraph_texts: tuple[str, ...]
+    expected_paragraph_texts: tuple[str, ...]
     refused_label: str | None
     post_url: str | None
     post_posted: str | None
@@ -239,6 +264,7 @@ class Scan:
     invoked_sources: tuple[InvokedSource, ...] | None
     unfilled_invoked_properties: int | None
     pre_496_markers: int | None
+    rendered_text_mismatches: int | None
     docx_graded: bool
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
@@ -355,7 +381,19 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 HEADING_STYLE = re.compile(r"Heading\d+")
 
 
-def _docx_heading_styles(path: Path) -> tuple[str, ...]:
+def _paragraph_texts(document: ElementTree.Element) -> tuple[str, ...]:
+    return tuple(
+        "".join(node.text or "" for node in paragraph.iter(W + "t"))
+        for paragraph in document.iter(W + "p")
+    )
+
+
+def _expected_paragraph_texts(markdown: str) -> tuple[str, ...]:
+    """Paragraph text from the renderer's own ``blocks`` path, not a second parser."""
+    return _paragraph_texts(ElementTree.fromstring(docx_write.document_xml(markdown)))
+
+
+def _docx_properties(path: Path) -> tuple[tuple[str, ...], int, tuple[str, ...]]:
     if not path.is_file():
         raise run_grader.SourceError(f"no rendered document at {path}")
     try:
@@ -365,12 +403,18 @@ def _docx_heading_styles(path: Path) -> tuple[str, ...]:
         raise run_grader.SourceError(
             f"could not read the rendered document: {failure}"
         ) from failure
-    return tuple(
+    heading_styles = tuple(
         value
         for node in document.iter(W + "pStyle")
         if (value := node.get(W + "val")) is not None
         and HEADING_STYLE.fullmatch(value)
     )
+    comment_paragraphs = sum(
+        "<!--" in text or "-->" in text
+        for paragraph in document.iter(W + "p")
+        if (text := "".join(node.text or "" for node in paragraph.iter(W + "t")))
+    )
+    return heading_styles, comment_paragraphs, _paragraph_texts(document)
 
 
 def load(parsed: run_grader.Parsed) -> RunSource:
@@ -428,7 +472,9 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
-    named_heading_styles = _docx_heading_styles(docx) if docx is not None else ()
+    named_heading_styles, rendered_comment_paragraphs, rendered_paragraph_texts = (
+        _docx_properties(docx) if docx is not None else ((), 0, ())
+    )
     return RunSource(
         root,
         draft,
@@ -438,6 +484,9 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         bar,
         docx,
         named_heading_styles,
+        rendered_comment_paragraphs,
+        rendered_paragraph_texts,
+        _expected_paragraph_texts(draft_text) if docx is not None else (),
         section.refused_label,
         post_fields.get("POST-URL"),
         post_fields.get("POSTED"),
@@ -492,6 +541,20 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     return tuple(findings)
 
 
+def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
+    if not source.rendered_comment_paragraphs:
+        return ()
+    assert source.docx is not None
+    return tuple(
+        Finding(
+            RENDERED_COMMENTS,
+            source.docx.name,
+            "paragraph carries an HTML comment delimiter",
+        )
+        for _ in range(source.rendered_comment_paragraphs)
+    )
+
+
 def survey(source: RunSource) -> Scan:
     if source.refused_label is not None:
         findings = (
@@ -504,7 +567,7 @@ def survey(source: RunSource) -> Scan:
             )
             if source.named_heading_styles
             else ()
-        )
+        ) + _rendered_comment_findings(source)
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -516,9 +579,14 @@ def survey(source: RunSource) -> Scan:
             invoked_sources=None,
             unfilled_invoked_properties=None,
             pre_496_markers=None,
+            rendered_text_mismatches=(
+                int(source.rendered_paragraph_texts != source.expected_paragraph_texts)
+                if source.docx is not None
+                else None
+            ),
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
-        findings=findings + _posted_reading_findings(source),
+            findings=findings + _posted_reading_findings(source),
         )
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
@@ -556,6 +624,7 @@ def survey(source: RunSource) -> Scan:
                 "named heading styles: " + ", ".join(source.named_heading_styles),
             )
         )
+    findings.extend(_rendered_comment_findings(source))
     requirements: list[tuple[str, str, tuple[int, ...]]] = []
     number_occurrences: Counter[str] = Counter()
     for value in numbers:
@@ -607,6 +676,11 @@ def survey(source: RunSource) -> Scan:
             for invoked_source in read_invoked_sources(source.body)
         ),
         pre_496_markers=len(AMPLIFICATION.findall(source.body)),
+        rendered_text_mismatches=(
+            int(source.rendered_paragraph_texts != source.expected_paragraph_texts)
+            if source.docx is not None
+            else None
+        ),
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         findings=tuple(findings),
@@ -656,11 +730,17 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if scan.reference_boundary_graded
             else "pre-#496 markers: not graded"
         ),
+        (
+            f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, not graded)"
+            if scan.docx_graded
+            else f"{RENDERED_TEXT}: not graded"
+        ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
         if kind not in {
             BOLD_HEADINGS,
+            RENDERED_COMMENTS,
             MISSING_POSTED_READING,
             UNKNOWN_VERDICT,
             BARE_VERDICT,
@@ -668,7 +748,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
-        elif kind == BOLD_HEADINGS and not scan.docx_graded:
+        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS} and not scan.docx_graded:
             lines.append(f"{kind}: not graded")
         else:
             lines.append(

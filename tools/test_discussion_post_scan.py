@@ -9,6 +9,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -138,6 +139,8 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("bold-headings: not graded", stdout)
+        self.assertIn("rendered-comments: not graded", stdout)
+        self.assertIn("rendered-text: not graded", stdout)
 
 
     def test_a_named_heading_style_fails_the_docx_row(self):
@@ -159,6 +162,55 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("bold-headings: 0", stdout)
+        self.assertIn("rendered-text: 0", stdout)
+
+    def test_a_document_whose_paragraph_text_differs_from_the_draft_reports(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(
+                BODY.replace("Access becomes meaningful", "Availability becomes meaningful"),
+                document,
+                bold_headings=True,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertIn("rendered-text: 1 (reported, not graded)", stdout)
+
+    def test_a_rendered_mid_line_comment_fails_the_docx_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(
+                BODY.replace(
+                    "The practical test",
+                    "<!-- INVOKED: gravity | attracts mass --> The practical test",
+                ),
+                document,
+                bold_headings=True,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-comments: 1", stdout)
+
+    def test_both_lines_of_a_rendered_multi_line_comment_are_counted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(
+                BODY.replace(
+                    "The practical test",
+                    "<!-- INVOKED: gravity\n| attracts mass -->\nThe practical test",
+                ),
+                document,
+                bold_headings=True,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-comments: 2", stdout)
 
     def test_an_nd_citation_and_reference_are_traced(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -365,6 +417,38 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual("(42 C.F.R. § 482.13, 2024)", body[citations[0].start:citations[0].end])
         self.assertEqual((), scan._numeric_values(body))
 
+    def test_the_shared_section_grammar_reads_subsections_without_taking_a_spaced_year(self):
+        section = re.compile(artifact.LEGAL_SECTION_NUMBER)
+
+        for written in ("1.501(c)(3)-1", "164.512(b)(1)(v)", "414.56"):
+            with self.subTest(written=written):
+                self.assertIsNotNone(section.fullmatch(written))
+        self.assertEqual("414.56", section.match("414.56 (2025)").group())
+
+    def test_subsectioned_section_forms_drive_both_readers_independently(self):
+        cases = (
+            (
+                "The rule applies (26 C.F.R. § 1.501(c)(3)-1, 2026).",
+                "(26 C.F.R. § 1.501(c)(3)-1, 2026)",
+            ),
+            (
+                "Under 26 C.F.R. § 1.501(c)(3)-1 (2026), the rule applies.",
+                "26 C.F.R. § 1.501(c)(3)-1 (2026)",
+            ),
+            ("Under § 1.501(c)(3)-1, the rule applies.", None),
+        )
+
+        for body, legal_span in cases:
+            with self.subTest(body=body):
+                citations = artifact.read_citations(body)
+                self.assertEqual(1 if legal_span else 0, len(citations))
+                if legal_span is not None:
+                    self.assertEqual(
+                        legal_span,
+                        body[citations[0].start : citations[0].end],
+                    )
+                self.assertEqual((), scan._numeric_values(body, citations))
+
     def test_a_section_only_legal_record_is_a_post_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -372,6 +456,22 @@ class ACompletePostPasses(unittest.TestCase):
                 CLAIMS.replace(
                     "Patient rights, 42 C.F.R. § 482.13 (2024).",
                     "42 C.F.R. § 482.13 (2024). Patient rights.",
+                ),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout)
+
+    def test_a_subsectioned_section_only_legal_record_is_a_post_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Patient rights, 42 C.F.R. § 482.13 (2024).",
+                    "26 C.F.R. § 1.501(c)(3)-1 (2026).",
                 ),
                 encoding="utf-8",
             )
@@ -1231,9 +1331,28 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
         self.assertIn("findings: 0", stdout)
 
 
+class TheRenderedDocumentContractIsPublished(unittest.TestCase):
+    def skill_text(self):
+        return (REPO_ROOT / "skills" / "discussion-post" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_the_skill_names_every_rendered_document_report_row(self):
+        text = self.skill_text()
+        for row in (scan.BOLD_HEADINGS, scan.RENDERED_COMMENTS, scan.RENDERED_TEXT):
+            with self.subTest(row=row):
+                self.assertIn(f"`{row}`", text)
+
+    def test_the_skill_recovers_an_editor_change_before_force(self):
+        text = self.skill_text()
+        self.assertIn("Markdown is the authoritative artifact", text)
+        self.assertIn("recover the edit", text)
+        self.assertIn("claim ledger", text)
+
+
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
-        "whether named heading styles were graded when --docx was omitted": (
+        "whether rendered-document rows were graded when --docx was omitted": (
             "ACompletePostPasses.test_the_docx_row_is_not_graded_when_no_archive_is_supplied",
             "ACompletePostPasses.test_a_directly_formatted_heading_passes_the_docx_row",
         ),

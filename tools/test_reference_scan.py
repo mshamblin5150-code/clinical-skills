@@ -42,6 +42,7 @@ GraderConformance = for_module(scan)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 APA7 = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "apa7.md"
+DISCUSSION_POST_SKILL = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
 
 AS_OF = date(2026, 8, 19)
 
@@ -53,6 +54,10 @@ UPTODATE = (
     "Gupta, K., & Hooton, T. M. (2025). Acute simple cystitis in adult females. "
     "*UpToDate*. Retrieved August 19, 2026, from https://www.uptodate.com/contents/cystitis"
 )
+LEGAL_NAME = "Payment for nurse practitioners' and clinical nurse specialists' services"
+LEGAL_SECTION = "42 C.F.R. § 414.56"
+NAMELESS_LEGAL = f"{LEGAL_SECTION} (2026)."
+NAMED_LEGAL = f"{LEGAL_NAME}, {LEGAL_SECTION} (2026)."
 
 BODY = """\
 # Case Study
@@ -404,6 +409,62 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
         self.assertEqual(kinds(draft(a, b, body=body)), [])
 
 
+class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
+    """ADR 0088's legal entry/citation matrix at the finished-draft seam."""
+
+    CITATIONS = {
+        "parenthetical section": f"({LEGAL_SECTION}, 2026)",
+        "narrative section": f"{LEGAL_SECTION} (2026)",
+        "yearless section": LEGAL_SECTION,
+        "parenthetical name": f"({LEGAL_NAME}, 2026)",
+        "narrative name": f"{LEGAL_NAME} (2026)",
+    }
+
+    def body(self, citation: str) -> str:
+        return f"# Case\n\nThe regulation supplies the rule {citation}.\n"
+
+    def test_the_full_entry_and_citation_matrix_has_no_false_pairing_finding(self):
+        for entry in (NAMELESS_LEGAL, NAMED_LEGAL):
+            for shape, citation in self.CITATIONS.items():
+                with self.subTest(entry=entry, citation=shape):
+                    found = kinds(draft(entry, body=self.body(citation)))
+                    expected = []
+                    if entry == NAMELESS_LEGAL:
+                        expected.append("legal-reference-lacks-name")
+                    if entry == NAMELESS_LEGAL and shape == "parenthetical name":
+                        expected.append(scan.UNLISTED_CITATION)
+                    self.assertEqual(found, expected)
+
+    def test_only_the_nameless_legal_entry_fires_the_entry_row(self):
+        self.assertIn("legal-reference-lacks-name", kinds(draft(NAMELESS_LEGAL, body="# Case\n")))
+        self.assertNotIn("legal-reference-lacks-name", kinds(draft(NAMED_LEGAL, body="# Case\n")))
+
+    def test_the_nameless_entry_row_does_not_join_the_body_rows(self):
+        self.assertNotIn("legal-reference-lacks-name", scan.BODY_ROWS)
+
+    def test_section_forms_resolve_while_the_named_narrative_is_excluded(self):
+        section_document = scan.read_document(
+            draft(NAMED_LEGAL, body=self.body(self.CITATIONS["narrative section"]))
+        )
+        name_document = scan.read_document(
+            draft(NAMED_LEGAL, body=self.body(self.CITATIONS["narrative name"]))
+        )
+
+        self.assertTrue(section_document.citations)
+        self.assertFalse(name_document.citations)
+        self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body=name_document.body)))
+
+    def test_ordinary_author_year_controls_stay_clean(self):
+        single = ACOG
+        single_body = "# Case\n\nGuidance applies (American College of Obstetricians and Gynecologists, 2023).\n"
+        pair_body = "# Case\n\nThe review agrees (Gupta & Hooton, 2025).\n"
+        narrative_body = "# Case\n\nGupta and Hooton (2025) agree.\n"
+
+        self.assertEqual(kinds(draft(single, body=single_body)), [])
+        self.assertEqual(kinds(draft(UPTODATE, body=pair_body)), [])
+        self.assertEqual(kinds(draft(UPTODATE, body=narrative_body)), [])
+
+
 class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
     """Every shape here was found by pointing the parser at real APA prose rather
     than at the fixtures written for it, and each one had been read as **no
@@ -473,6 +534,12 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
         for kind in scan.KINDS:
             with self.subTest(row=kind):
                 self.assertIn(kind, report)
+
+    def test_legal_scope_prints_even_when_the_draft_has_no_legal_entry(self):
+        report = scan.format_report(self.scan, source="case.md")
+        self.assertIn("legal entries", report)
+        self.assertIn("legal entries                  0", report)
+        self.assertIn("A legal entry is outside uncited-entry.", report)
 
 
 class EntriesAtFaultCountsEntries(unittest.TestCase):
@@ -673,6 +740,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.MALFORMED_DATE: "A missing space in a date",
         scan.UPTODATE_ITALICS: "database name unitalicized",
         scan.INTEXT_YEAR_MISMATCH: "In-text year not matching the reference list year",
+        scan.LEGAL_REFERENCE_LACKS_NAME: (
+            "A federal-regulation entry carrying only its C.F.R. section"
+        ),
         scan.UNCITED_ENTRY: "An entry in the list that is cited nowhere in the body",
         scan.UNLISTED_CITATION: "A citation in the body with no entry in the list",
     }
@@ -1148,6 +1218,9 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
         """
         self.assertIn("unwarranted retrieval date", dict(scan.NOT_REACHED))
 
+    def test_the_legal_entry_exclusion_is_one_of_them(self):
+        self.assertIn("whether a legal entry is cited", dict(scan.NOT_REACHED))
+
 
 
 class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
@@ -1163,6 +1236,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
+            "whether a legal entry is cited": self.whether_a_legal_entry_is_cited,
         }
         self.assertEqual(set(handlers), set(dict(scan.NOT_REACHED)))
         for key, handler in handlers.items():
@@ -1210,6 +1284,40 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         # Removing the entry still fires the structural direction, so the silence
         # above measures existence and content rather than a dead citation parser.
         self.assertIn(scan.UNLISTED_CITATION, kinds(draft(UPTODATE, body=unsupported)))
+
+    def whether_a_legal_entry_is_cited(self):
+        self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
+        self.assertIn(scan.UNCITED_ENTRY, kinds(draft(ACOG, body="# Case\n")))
+
+
+class LegalReferenceRulesArePublished(unittest.TestCase):
+    def section_eight(self) -> str:
+        text = APA7.read_text(encoding="utf-8")
+        return text[text.index("## 8.") :]
+
+    def test_the_scanner_docstring_names_section_eight(self):
+        self.assertIn("section 8", scan.__doc__)
+
+    def test_section_eight_names_apa_provenance_and_the_read_date(self):
+        section = self.section_eight()
+        self.assertIn("Nursing Student References", section)
+        self.assertIn("2026-08-30", section)
+
+    def test_section_eight_carries_the_official_form_and_cfr_only_limit(self):
+        section = self.section_eight()
+        self.assertIn("Professional and Vocational Regulations, 16 CCR § 1481 (2023)", section)
+        self.assertIn("Name of the Statute, Title number Source § Section number(s) (Year)", section)
+        self.assertIn("C.F.R.", section)
+        # #751: the limit is C.F.R.-only, not federal-only. A federal *statute*
+        # in the U.S.C. is as invisible to the reader as a state code, so the
+        # label must not say "federal" -- and this assertion used to require it.
+        self.assertNotIn("federal", section.lower())
+
+    def test_discussion_post_points_to_the_apa_sheet(self):
+        self.assertIn(
+            "../practicum-case-study/reference/apa7.md",
+            DISCUSSION_POST_SKILL.read_text(encoding="utf-8"),
+        )
 
 
 class TheDeclinedOptionIsPinnedToTheClassesItWasRuledOver(unittest.TestCase):

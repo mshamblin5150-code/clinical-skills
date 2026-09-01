@@ -20,6 +20,9 @@ means the input could not establish a completed merge into ``main``. Use
 ``--check-plan`` before merge to grade bindings without requiring merge data.
 The command opens no socket and mutates nothing; its JSON-lines output is the
 bounded plan consumed by ``.github/workflows/tracker.yml``.
+
+What a clean run does not establish is owned by ``NOT_REACHED`` below rather
+than copied into this docstring or ``CLAUDE.md``.
 """
 
 from __future__ import annotations
@@ -32,6 +35,40 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from console_codec import use_utf8
+
+
+NOT_REACHED = (
+    (
+        "a well-formed binding can name the wrong ticket",
+        "A well-formed binding can still name the wrong ticket; a clean run "
+        "establishes grammar rather than semantic correctness.",
+    ),
+    (
+        "the pre-merge check cannot watch a local merge",
+        "The advisory pre-merge check is never invoked by a local merge and "
+        "push; the merge-time workflow can only report that route afterward.",
+    ),
+    (
+        "a no-ticket declaration is graded for shape, not truth",
+        "A no-ticket declaration is checked for its owned-line shape and "
+        "reason, not for the truth of that reason.",
+    ),
+    (
+        "a receipt makes only its bounded relation current",
+        "An immutable receipt makes only the explicit bounded relation "
+        "current; it does not refresh any other claim on the ticket.",
+    ),
+    (
+        "a declaration line is not the three-bucket measurement",
+        "The three-bucket rate is derived from assessment status and bindings, "
+        "never from the presence of a declaration line alone.",
+    ),
+    (
+        "publication ordering is outside the message-scope change",
+        "Message scoping does not change the ruled publish-before-status "
+        "ordering; valid receipts are still emitted before a finding is enforced.",
+    ),
+)
 
 
 class ReferenceAlternative(NamedTuple):

@@ -135,7 +135,8 @@ noun or increase the rate. The domain stays open: do not create a list of permit
 scanner counts an empty property or a lexical restatement of the domain noun for clinician review
 without failing; it does not parse English or prove that other words state the real behavior, because
 every retained invoked source here is the clinician's. It still strips and separately reports a retired
-`AMPLIFICATION` marker as a pre-#496 marker that is not graded. The comments never reach the LMS.
+`AMPLIFICATION` marker as a pre-#496 marker that is not graded. Keep these own-line comments in the
+Markdown; `docx_write.py` drops own-line HTML comments when it renders the Word document.
 
 Write the prompt-shaped working draft to `post.md`, including its in-text citations and reference
 list. This is not the finished artifact. Now derive the required claim set from the document
@@ -149,8 +150,10 @@ A factual claim without a citation still receives a record when it is new rather
 clinician's own reasoning. The mechanical `untraced-number` row is a floor, not permission to leave
 uncited prose unresearched.
 
-Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per derived claim. Use the full
-record shape:
+Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per derived claim. Write each
+reference entry from the applicable form in
+[apa7.md](../practicum-case-study/reference/apa7.md), including its legal-entry form and declared
+`C.F.R.`-only limit; do not recall a form the sheet does not cover. Use the full record shape:
 
 ```text
 ## CLAIM: <the drafted claim, including its exact numeric token where applicable>
@@ -236,10 +239,11 @@ walk. A new factual sentence is researched and independently refuted on the same
 ## 6. Write and independently grade the finished Markdown
 
 Copy the approved working text to `output/discussions/<course>-<module>-discussion-<date>.md`. Keep the
-`INVOKED` comments in the Markdown working artifact so the count remains auditable; omit them
-from the LMS. End with the Markdown heading `## References`. This is the form the post grader and
-reference scanner both read, and `docx_write.py --bold-headings` renders it as direct bold formatting
-without a named heading style before the document is pasted into the LMS.
+`INVOKED` comments in the Markdown working artifact so the count remains auditable. End with the Markdown heading `## References`. This is the form the post grader and reference scanner both read.
+`docx_write.py --bold-headings` drops the own-line comments and renders the heading as direct bold
+formatting without a named heading style before the document is pasted into the LMS. This differs
+from `discussion-reply`, which pastes from Markdown directly and therefore still requires a person
+to omit its working comments.
 
 Fresh, non-authoring contexts run each artifact grader. One context never grades an artifact it
 authored, and a repair is checked by another fresh context:
@@ -255,8 +259,9 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 body-number occurrence and every in-text citation occurrence to have its own claim record. It
 counts the word ceiling, invoked sources, and unfilled invoked properties without grading them. Its default output is
 counts only; `--show` includes private finding detail and must not be pasted.
-The `bold-headings` row reports `not graded` at this stage because the document does not exist yet;
-step 7 renders it and reruns this grader with `--docx`.
+The `bold-headings`, `rendered-comments`, and `rendered-text` rows report `not graded` at this
+stage because the document does not exist yet; step 7 renders it and reruns this grader with
+`--docx`.
 
 Exit 0 means the scanner's rows pass, 1 means a finding, and 2 means it did not completely scan.
 Preserve the original checker result, fix findings through the drafting context, and have a new
@@ -274,8 +279,19 @@ python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date
 python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --docx output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-If the renderer refuses an existing document, do not use `--force` without the clinician's
-permission; the refusal can mean Word or a person owns changes that Git cannot restore. A
+The `rendered-comments` row must be 0. It reads the Word artifact for either HTML-comment
+delimiter, so residue from a mid-line or multi-line form fails even though the renderer warns and
+continues. The Markdown keeps the own-line audit comments; the document does not.
+
+The `rendered-text` row reports whether the draft and document paragraph text differ. It is
+reported, not graded: a nonzero result must be read and reconciled, but does not change the
+scanner's exit status because list markers, fields, and other document structure can make the
+paragraph streams differ without losing prose.
+
+The Markdown is the authoritative artifact. If the renderer refuses an existing document, the
+refusal can mean Word or a person owns changes that Git cannot restore. Read the document and
+recover the edit into the Markdown and its claim ledger, and only then ask the clinician before passing
+`--force`. The flag is available after recovery; it is never a substitute for recovery. A
 vision-capable, non-authoring context then compares every rendered page with the Markdown and
 reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
 headings. A text-only reread does not substitute for the visual check.
@@ -287,9 +303,11 @@ properties remain in the document because the visual check above still needs a p
 ## 8. Approve, paste, and reread
 
 Show the final post and the clean-check summary to the clinician. Wait for an explicit go-ahead.
-Paste from Word into the LMS, omit every `INVOKED` comment, and inspect the paste box before
-submitting. Submit only after that inspection, then reread the posted
-board version.
+That approval includes confirming that every edit implicated by a destination-guard refusal was
+recovered into the authoritative Markdown and, where it changes a factual claim, the claim ledger
+before any forced render.
+Paste from Word into the LMS and inspect the paste box before submitting. Submit only after that
+inspection, then reread the posted board version.
 
 The graders read the Markdown and ledger, not the LMS editor. A clean pre-post scan is not a
 checked post in the box. The reread owns lost headings, broken paragraphs, missing references, and

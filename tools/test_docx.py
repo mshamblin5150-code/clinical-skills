@@ -31,6 +31,114 @@ from repo_root import ForeignCheckout
 SOURCE = Path(__file__).resolve().parent / "docx_write.py"
 
 
+class OwnLineHtmlCommentsAreMarkup(unittest.TestCase):
+    """#673: working comments stay in Markdown and never become Word paragraphs."""
+
+    def rendered_lines(self, markdown: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "post.docx"
+            docx_write.write_docx(markdown, path)
+            lines = docx_read.read_docx(path)
+            return lines[:-1] if lines and lines[-1] == "" else lines
+
+    def test_an_own_line_comment_is_not_a_rendered_paragraph(self):
+        lines = self.rendered_lines(
+            "Before.\n\n<!-- INVOKED: gravity | attracts mass -->\n\nAfter.\n"
+        )
+
+        self.assertEqual(lines, ["Before.", "", "After."])
+
+    def test_a_line_carrying_only_multiple_comments_is_dropped(self):
+        lines = self.rendered_lines("Before.\n<!-- first --><!-- second -->\nAfter.\n")
+
+        self.assertEqual(lines, ["Before.", "After."])
+
+    def test_mid_line_and_multi_line_comments_remain_visible(self):
+        markdown = (
+            "<!-- one --> visible words <!-- two -->\n"
+            "<!-- INVOKED: gravity\n"
+            "| attracts mass -->\n"
+        )
+
+        self.assertEqual(
+            self.rendered_lines(markdown),
+            [
+                "<!-- one --> visible words <!-- two -->",
+                "<!-- INVOKED: gravity",
+                "| attracts mass -->",
+            ],
+        )
+
+    def test_the_command_reports_dropped_lines_and_warns_about_visible_residue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "post.md"
+            destination = root / "post.docx"
+            source.write_text(
+                "<!-- dropped -->\n"
+                "Visible <!-- mid-line --> words.\n"
+                "<!-- multi-line\n"
+                "comment -->\n",
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = docx_write.main([str(source), str(destination)])
+
+        self.assertEqual(0, status)
+        self.assertIn("1 own-line HTML comment line(s) omitted", stdout.getvalue())
+        self.assertIn("1 mid-line HTML comment", stderr.getvalue())
+        self.assertIn("1 multi-line HTML comment", stderr.getvalue())
+        self.assertNotIn("Visible", stderr.getvalue())
+
+    def test_a_mid_line_form_after_a_multi_line_close_is_also_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "post.md"
+            destination = root / "post.docx"
+            source.write_text(
+                "<!-- first\n"
+                "ends --> visible <!-- second --> prose\n",
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = docx_write.main([str(source), str(destination)])
+
+        self.assertEqual(0, status)
+        self.assertIn("1 mid-line HTML comment", stderr.getvalue())
+        self.assertIn("1 multi-line HTML comment", stderr.getvalue())
+
+
+class CommentStrippingDeclaredLimits(unittest.TestCase):
+    def test_the_residue_has_two_coverage_rows(self):
+        keys = {key for key, _reason in docx_write.NOT_STRIPPED}
+
+        self.assertEqual(keys, {"mid-line HTML comments", "multi-line HTML comments"})
+
+    def test_every_residue_row_still_reaches_the_page(self):
+        controls = {
+            "mid-line HTML comments": "Words <!-- note --> remain.\n",
+            "multi-line HTML comments": "<!-- note\ncontinues -->\n",
+        }
+
+        self.assertEqual(set(controls), {key for key, _ in docx_write.NOT_STRIPPED})
+        for key, markdown in controls.items():
+            with self.subTest(key=key):
+                self.assertIn("&lt;!--", docx_write.body_xml(markdown))
+
+    def test_the_fenced_block_cost_is_a_rationale_not_a_limit(self):
+        reasons = " ".join(reason for _key, reason in docx_write.NOT_STRIPPED)
+
+        self.assertIn("fenced", docx_write.WHY_FENCED_COMMENTS_ARE_STRIPPED)
+        self.assertNotIn(docx_write.WHY_FENCED_COMMENTS_ARE_STRIPPED, reasons)
+
+    def test_the_docstring_and_claude_md_point_at_the_limit_object(self):
+        self.assertIn("NOT_STRIPPED", docx_write.__doc__)
+        claude = (SOURCE.parent.parent / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("NOT_STRIPPED", claude)
+
+
 class TheArchiveHasTheRequiredParts(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -1041,8 +1149,8 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
 
     Ruled by the clinician on 2026-08-19 -- refuse, with ``--force``. This renderer
     writes a fixed set of parts, so a different set is evidence of another writer or an
-    older renderer. #424 measured the limit: a committed closed-Word save preserved the
-    same set and pass this guard.
+    older renderer. #675 established that #424's no-op probe was not a save measurement;
+    an editor that preserves the same set remains the declared limit.
     """
 
     def setUp(self):
@@ -1096,8 +1204,12 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
     def test_words_lock_file_refuses_even_over_our_own_document(self):
         docx_write.write_docx("# Ours\n", self.path)
         (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
-        with self.assertRaises(docx_write.RefusedToOverwrite):
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
+        self.assertIn(
+            "Close Word, read the document, recover the edit, then pass --force",
+            str(caught.exception),
+        )
 
     def test_the_truncated_lock_name_word_actually_wrote_is_recognized(self):
         """#279 quotes the pair: ``nur5144-...`` locked by ``~$r5144-...``.
@@ -1144,19 +1256,27 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         with self.assertRaises(docx_write.RefusedToOverwrite):
             docx_write.write_docx("# New\n", self.path)
 
-    def test_the_part_set_refusal_names_both_causes_without_diagnosing_word(self):
-        """A message guessing Word reads as a diagnosis, and #424 proved it wrong.
-
-        A changed set can come from another writer or an older renderer. The committed Word measurement shows Word can
-        save while preserving the set, so it is deliberately not named as the cause.
-        """
+    def test_the_part_set_refusal_names_all_causes_and_the_recovery_order(self):
         self._archive_with_foreign_parts()
         with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
-        message = str(caught.exception)
+        message = str(caught.exception).casefold()
+        self.assertIn("an editor saved it (for example, word)", message)
         self.assertIn("another writer", message)
         self.assertIn("older version of this renderer", message)
-        self.assertNotIn("most likely Word", message)
+        self.assertIn("read it, recover the edit, then pass --force", message)
+
+    def test_the_part_set_refusal_reports_parts_on_both_sides_of_the_delta(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in docx_write.parts("# Changed\n").items():
+                if name != "word/header1.xml":
+                    archive.writestr(name, content)
+            archive.writestr("docProps/core.xml", "<x/>")
+
+        message = docx_write.refusal(self.path)
+
+        self.assertIn("parts only in the archive: docProps/core.xml", message)
+        self.assertIn("current renderer parts missing from the archive: word/header1.xml", message)
 
     def test_the_command_line_refusal_is_two_and_writes_nothing(self):
         before = self._archive_with_foreign_parts()
@@ -1339,6 +1459,12 @@ class TheRefusalClaimsInStepEight(unittest.TestCase):
 
     def test_the_step_still_names_the_flag(self):
         self.assertIn("--force", self.skill_text())
+
+    def test_the_step_recovers_an_editor_change_into_the_authoritative_markdown(self):
+        text = self.skill_text()
+        self.assertIn("Markdown is the authoritative artifact", text)
+        self.assertIn("recover the edit", text)
+        self.assertIn("claim ledger", text)
 
     def test_the_command_really_exits_two_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as directory:

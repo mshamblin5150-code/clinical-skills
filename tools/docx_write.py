@@ -20,7 +20,13 @@ why three tools here are allowed a dependency and the rest are not: all three op
 ``*italic*``            italic run
 blank line              paragraph break
 ``---``                 ignored -- a Markdown rule is not a Word construct
+own-line HTML comment   ignored -- markup is not document content
 ======================  ====================================================
+
+The comment rule is deliberately narrower than HTML parsing. What remains visible is
+declared by ``NOT_STRIPPED`` below rather than copied into this prose. A fenced comment
+is still dropped; ``WHY_FENCED_COMMENTS_ARE_STRIPPED`` records why that cost is a
+declared rationale rather than a coverage limit.
 
 **The References heading switches the body style, and that is APA 7 rather than a
 nicety.** Every paragraph after a heading whose text begins ``References`` -- or the
@@ -70,7 +76,7 @@ the other's:
   clinician on 2026-08-19 over warning. Two signals live in ``refusal`` below: Word's
   ``~$`` owner file beside the document, which means it is open *right now*, and an
   archive whose part list is not ``PART_NAMES``. The first ``NOT_GUARDED`` row records
-  the measured limit: the recorded Word save preserved that exact set.
+  the surviving limit: an editor that preserves the exact set remains invisible.
 
 **The ticket's own signal 2 -- the ``.docx`` being newer than the ``.md`` -- is not
 implemented, and it cannot be.** A render writes the ``.docx`` after the ``.md``, so
@@ -85,7 +91,8 @@ review, and a prose edit to either would have failed nothing, so the reader misl
 have been whichever one checked the file nearer to hand. That is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a
 change whose own subject is a second copy of a rule. **``--force`` is a promise and not a
-backup**: there is still nothing to recover from.
+backup**: after a refusal, follow the calling skill's recovered-edit procedure before
+forcing a render.
 
 Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
 horizontal rules rather than a grid -- both #220, and both carved out where APA carves
@@ -198,12 +205,10 @@ NOT_APPLIED = (
 # the row is here.
 NOT_GUARDED = (
     (
-        "a closed Word save that preserves exactly these parts",
-        "The committed Word calibration records that Word "
-        "saved the renderer's probe with the same part set, and this guard therefore "
-        "read the edited document as ours. The owner-file signal covers an open Word "
-        "session; it says nothing after Word closes the document. Another editor that "
-        "preserves the set has the same limit.",
+        "an editor that preserves exactly these parts",
+        "The part-set signal cannot distinguish this renderer from another editor that "
+        "writes the same archive names. The owner-file signal covers an open Word "
+        "session; it says nothing after an editor closes the document.",
     ),
     (
         "a part added here refuses every document already written",
@@ -213,7 +218,7 @@ NOT_GUARDED = (
         "``--force``. That is not hypothetical and it is live in the tree today: "
         "``word/header1.xml`` arrived on #217, so the 2026-08-18 case study reads as "
         "foreign for the version reason alone. The refusal message names that cause "
-        "without claiming a Word save necessarily changes the set.",
+        "alongside the editor-save and other-writer causes.",
     ),
     (
         "an owner file belonging to a different document",
@@ -238,6 +243,35 @@ NOT_GUARDED = (
         "assumed -- see ``TheDestinationHeldOpen`` in ``tools/test_docx.py``. On POSIX "
         "it succeeds, and the holder keeps the old inode.",
     ),
+)
+
+
+# What the own-line comment rule does **not** strip. These are coverage sentences: a
+# clean render covers less than a reader might infer from "HTML comments are ignored."
+# Each row has a positive control in ``tools/test_docx.py`` proving the form still
+# reaches ``word/document.xml``. Mid-line stripping would edit an author's sentence;
+# multi-line stripping would require a second, stateful HTML parser at this boundary.
+NOT_STRIPPED = (
+    (
+        "mid-line HTML comments",
+        "A comment sharing a line with visible prose remains on the rendered page, "
+        "because removing it would reach inside and edit an author's paragraph.",
+    ),
+    (
+        "multi-line HTML comments",
+        "A comment whose delimiters occupy different lines remains on the rendered "
+        "page, because the renderer recognizes only a complete comment-only line.",
+    ),
+)
+
+
+# A rationale for a declined option, not a claim that a clean result covers less than
+# it appears to. ``blocks`` deliberately has no fenced-code mode, so exempting a comment
+# inside a fence would invent one solely for this rule and make scanners disagree with
+# the renderer about the block stream.
+WHY_FENCED_COMMENTS_ARE_STRIPPED = (
+    "A fenced comment is stripped because blocks deliberately does not recognize fenced "
+    "code as a separate mode; adding that exemption would create a second block grammar."
 )
 
 
@@ -816,6 +850,50 @@ HEADING = re.compile(r"(#{1,4})\s+(.*)")
 BULLET = re.compile(r"([ \t]*)[-*+]\s+(.*)")
 NUMBERED = re.compile(r"([ \t]*)(\d+)[.)]\s+(.*)")
 SEPARATORS = ("---", "***", "___")
+OWN_LINE_COMMENT = re.compile(
+    r"^(?:\s*<!--(?:(?!-->|<!--).)*-->\s*)+$"
+)
+
+
+def comment_report(markdown: str) -> tuple[int, int, int]:
+    """Return ``(stripped lines, mid-line forms, multi-line forms)``.
+
+    Counts and fixed form names are the command's whole reporting surface; no source
+    text is returned, so a patient-bearing draft cannot leak through diagnostics.
+    """
+    stripped = mid_line = multi_line = 0
+    in_multi_line = False
+    for line in markdown.replace("\r\n", "\n").split("\n"):
+        if OWN_LINE_COMMENT.fullmatch(line):
+            stripped += 1
+            continue
+        cursor = 0
+        while cursor < len(line):
+            if in_multi_line:
+                closing = line.find("-->", cursor)
+                if closing < 0:
+                    break
+                in_multi_line = False
+                cursor = closing + 3
+                continue
+            opening = line.find("<!--", cursor)
+            closing = line.find("-->", cursor)
+            if closing >= 0 and (opening < 0 or closing < opening):
+                # A closing delimiter without an opener is the artifact-side shape of
+                # a multi-line comment whose opening line was outside this read.
+                multi_line += 1
+                cursor = closing + 3
+                continue
+            if opening < 0:
+                break
+            closing = line.find("-->", opening + 4)
+            if closing < 0:
+                multi_line += 1
+                in_multi_line = True
+                break
+            mid_line += 1
+            cursor = closing + 3
+    return stripped, mid_line, multi_line
 
 
 class Block:
@@ -865,8 +943,24 @@ def blocks(markdown: str):
     for one, where ``spelling_scan.py`` reading a skill file does.
     """
     lines = markdown.replace("\r\n", "\n").split("\n")
+    omitted = {
+        index for index, line in enumerate(lines) if OWN_LINE_COMMENT.fullmatch(line)
+    }
+    # A removed comment takes one adjacent blank with it. Prefer the following blank,
+    # so ``paragraph / blank / comment / blank / paragraph`` retains the first and
+    # produces the one paragraph break the source intended. No other blank run moves.
+    for comment_index in tuple(sorted(omitted)):
+        following = comment_index + 1
+        preceding = comment_index - 1
+        if following < len(lines) and not lines[following].strip():
+            omitted.add(following)
+        elif preceding >= 0 and not lines[preceding].strip():
+            omitted.add(preceding)
     index = 0
     while index < len(lines):
+        if index in omitted:
+            index += 1
+            continue
         line = lines[index]
         stripped = line.strip()
         number = index + 1
@@ -1123,6 +1217,19 @@ def written_by_this_renderer(destination: Path) -> bool:
         return False
 
 
+def part_set_delta(destination: Path) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Archive-only and renderer-only part names, or ``None`` when it is unreadable."""
+    try:
+        with zipfile.ZipFile(destination) as archive:
+            archive_parts = frozenset(archive.namelist())
+    except (OSError, zipfile.BadZipFile):
+        return None
+    return (
+        tuple(sorted(archive_parts - PART_NAMES)),
+        tuple(sorted(PART_NAMES - archive_parts)),
+    )
+
+
 def refusal(destination: Path) -> str:
     """Why writing to ``destination`` would destroy work, or ``""`` if it would not.
 
@@ -1134,12 +1241,11 @@ def refusal(destination: Path) -> str:
     end rather than a guard, and the run that meets one is a legitimate re-render often
     enough that it has to be.
 
-    **The part-set message names two causes and the second one is not hypothetical.**
+    **The part-set message names three causes and the third is not hypothetical.**
     ``word/header1.xml`` arrived on #217, so **every document rendered before that reads
-    as foreign** -- the claim *not written by this renderer* is exactly true of it, and
-    ``a Word save, most likely``, which is what this said first, is the wrong guess. Word
-    16.0 was measured on #424 preserving the exact part set after a save, so the message
-    cannot diagnose Word from a changed set at all. The older-version cause was found
+    as foreign** -- the claim *not written by this renderer* is exactly true of it. A
+    no-op probe on #424 caused the editor-save diagnosis to be removed; #675 repaired
+    the probe and recovered that cause. The older-version cause was found
     by pointing the guard at the real ``output/case-studies/`` rather than by a fixture:
     of the two documents there, the one #279 was filed over reads as **ours** -- so the
     clinician had in fact not saved it, which is what he told the session that asked --
@@ -1149,16 +1255,32 @@ def refusal(destination: Path) -> str:
     for lock in lock_files(destination):
         if lock.exists():
             return (
-                "{d} is open in Word right now -- {l} is beside it. Close the document, "
-                "or pass --force to overwrite it anyway.".format(d=destination, l=lock.name)
+                "{d} is open in Word right now -- {l} is beside it. Close Word, read "
+                "the document, recover the edit, then pass --force; forcing first can "
+                "destroy work that output/ cannot recover.".format(
+                    d=destination, l=lock.name
+                )
             )
     if destination.exists() and not written_by_this_renderer(destination):
+        delta = part_set_delta(destination)
+        if delta is None:
+            delta_text = "archive parts: unreadable"
+        else:
+            extra, missing = delta
+            delta_text = (
+                "parts only in the archive: {extra}; current renderer parts missing "
+                "from the archive: {missing}"
+            ).format(
+                extra=", ".join(extra) or "(none)",
+                missing=", ".join(missing) or "(none)",
+            )
         return (
-            "{d} does not carry this renderer's current part set -- another writer may "
-            "have changed it, or an older version of this renderer wrote it before the "
-            "set changed. Rendering over it destroys whatever is in it, and output/ "
-            "is gitignored so there is no recovery. Pass --force if that is what you "
-            "want.".format(d=destination)
+            "{d} does not carry this renderer's current part set; an editor saved it "
+            "(for example, Word), another writer produced it, or an older version of this renderer wrote "
+            "it. {delta}. Read it, recover the edit, then pass --force; forcing first "
+            "can destroy work that output/ cannot recover.".format(
+                d=destination, delta=delta_text
+            )
         )
     return ""
 
@@ -1276,6 +1398,25 @@ def main(argv: list) -> int:
         )
         return 2
     print("wrote {p} ({n} bytes)".format(p=written, n=written.stat().st_size))
+    stripped_comments, mid_line_comments, multi_line_comments = comment_report(markdown)
+    if stripped_comments:
+        print(
+            "{n} own-line HTML comment line(s) omitted from the document".format(
+                n=stripped_comments
+            )
+        )
+    for count, form in (
+        (mid_line_comments, "mid-line HTML comment"),
+        (multi_line_comments, "multi-line HTML comment"),
+    ):
+        if count:
+            sys.stdout.flush()
+            print(
+                "warning: {n} {form} form(s) remain visible in the document".format(
+                    n=count, form=form
+                ),
+                file=sys.stderr,
+            )
     # **Warn, never refuse** -- ruled by the clinician on 2026-08-19. #280's second
     # comment is why the command warns at all rather than the suite alone binding the
     # sheet: ``style.md`` section 8 is copied by *runs*, and a run executes commands.

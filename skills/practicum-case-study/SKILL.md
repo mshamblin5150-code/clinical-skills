@@ -832,6 +832,7 @@ what this exists to replace.
 **APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
 form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
+It also carries the legal-entry form and its `C.F.R.`-only limit.
 An APA question it does not answer is looked up at apastyle.apa.org, never guessed.
 
 **`Roughly alphabetical` was a description of the corpus and never the standard.** Sorted is
@@ -854,6 +855,7 @@ sorted.
 | Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
+| A federal-regulation entry carrying only its C.F.R. section | add the regulation name in [apa7.md](reference/apa7.md) §8's form |
 | An entry in the list that is cited nowhere in the body | delete it |
 | A citation in the body with no entry in the list | add it |
 | A missing space in a date | `February 19, 2026` |
@@ -927,15 +929,17 @@ flag that proceeds anyway:
 python tools/docx_write.py output/case-studies/<course>-<module>-case-study-<date>.md output/case-studies/<course>-<module>-case-study-<date>.docx --force
 ```
 
-**Ask him before passing it, and that is this step's rule rather than part of his ruling.** What
-he ruled on #279 is the mechanism — refuse, with a flag — not that an agent must confirm each
-override. The reason to ask anyway is narrower and is about who is running the command: a refusal
-on the second signal means hand-edits exist in that `.docx`, re-rendering destroys them, and
-`output/` is gitignored so there is nothing to restore from. An irreversible write over the
-clinician's own work is not a call a run makes for him. The flag is right where the Markdown is
-the newer draft, and he is the one who knows that. **The check is the command's and not this step's** — #279's
-decision 2 is that a written instruction to look first is exactly what the ticket exists to
-reject — so there is nothing here to run before the render.
+**The Markdown is the authoritative artifact.** A destination-guard refusal can mean the
+clinician changed the Word document. Read that document, recover the edit into the Markdown and,
+where it changes a supported factual claim, the claim ledger before any forced render. Then ask
+him before passing `--force`, and that is this step's rule rather than part of his ruling. What he
+ruled on #279 is the mechanism — refuse, with a flag — not that an agent must confirm each
+override. The reason to ask anyway is narrower and is about who is running the command:
+re-rendering destroys the `.docx`, and `output/` is gitignored so there is nothing to restore
+from. An irreversible write over the clinician's own work is not a call a run makes for him. The
+flag is available after recovery; it is never a substitute for recovery. **The check is the
+command's and not this step's** — #279's decision 2 is that a written instruction to look first is
+exactly what the ticket exists to reject — so there is nothing here to run before the render.
 
 **A `warning:` line from that command means a table row put a cell separator into its own
 text.** That is the shape

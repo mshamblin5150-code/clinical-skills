@@ -382,5 +382,20 @@ class CommandLineOutputIsMachineReadable(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("Binds no ticket", report.getvalue())
 
+class DeclaredLimitsHaveOneOwner(unittest.TestCase):
+    def test_the_ratified_population_is_present_in_both_directions(self):
+        self.assertEqual(
+            set(dict(receipt.NOT_REACHED)),
+            {
+                "a well-formed binding can name the wrong ticket",
+                "the pre-merge check cannot watch a local merge",
+                "a no-ticket declaration is graded for shape, not truth",
+                "a receipt makes only its bounded relation current",
+                "a declaration line is not the three-bucket measurement",
+                "publication ordering is outside the message-scope change",
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

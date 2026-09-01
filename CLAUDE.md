@@ -29,7 +29,10 @@ GitHub issues on `mshamblin5150-code/clinical-skills`, via the `gh` CLI. See `do
 python tools/tracker_freshness.py
 ```
 
-It fetches `origin/main` rather than trusting the local remote-tracking ref, then exits 2 unless `HEAD` contains that fetched commit. Bring the branch forward by rebasing or merging, resolve any conflict, rerun the work's checks, and repeat the command until it reports `FRESH`. It never changes the branch itself.
+The **Tracker freshness** section below owns what this gate reads and what its
+statuses distinguish. If it stops, bring the branch forward by rebasing or
+merging, resolve any conflict, rerun the work's checks, and repeat the command
+until it reports `FRESH`. It never changes the branch itself.
 
 **Immediately before posting** any sweep finding, run the gate again:
 
@@ -48,6 +51,14 @@ The repository's complete label vocabulary and the axes its labels occupy live i
 ### Domain docs
 
 Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily by `/domain-modeling` rather than scaffolded upfront. See `docs/agents/domain.md`.
+
+### Glossary sense collisions
+
+`tools/test_glossary_collisions.py` derives the candidate population from the
+term headings in `CONTEXT.md`. The human verdicts and their reasons live only in
+`test_glossary_collisions.DECLARED_CANDIDATES`; the complete boundary lives in
+`test_glossary_collisions.DECLARED_LIMITS`. This is an inventory, never a gate:
+a new fire is unruled until a person classifies it.
 
 ### The scratch root
 
@@ -315,6 +326,39 @@ python tools/block_scan.py <a run directory>
 
 Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that file and a temp directory — **there is no committed `clinical-note` *run* whose tier block this could be tested against, and there will not be one**, so `fixtures/filled-anchor/notes` is the one real set it is pointed at. Two shapes are pinned deliberately, because the whole reading rests on telling them apart: an entry that **opens** with a field name, and a wrapped line that merely mentions one. One class reads `skills/clinical-note/SKILL.md` and asserts the rules it checks are still written there, on `test_spelling_scan.py`'s reasoning.
 
+### Refusal scan
+
+The block scan reads a `clinical-note` run's tier block. This one reads an **`icd10-cpt` run's
+refusal record**, and it is the mechanical half of the rule that a refused code has to say what it
+would have taken.
+
+```bash
+python tools/refusal_scan.py <a run directory>
+```
+
+**It reads one block and nothing else** — `--- NOT CODED, NOTHING ESTABLISHED IT ---`. A refusal
+inside it must weld `NOT CODED` to its code and a nonempty descriptor, state what would establish the
+code, and name what the encounter supports instead. **Codes in the differential are outside the block
+and do not inflate the count**, which is the narrowing that keeps the denominator honest: a note that
+proposes ten codes and refuses one is not a note with eleven refusals.
+
+**What it cannot reach is whether the descriptor text is official.** That is a comparison to the
+tabular and belongs to `icd10_lookup.py`; the row here is that a refusal says something rather than
+that what it says is right. `refusal_scan.ROWS` owns the row vocabulary and this section copies no
+row from it. **The module carries no declared-limits object**, so unlike its siblings the sentence
+above is the whole of what a clean run does not establish — stated here because an absent object is
+easy to read as an oversight when it has simply never been written.
+
+**Counts only by default, and `--show` is PHI** on `specificity_scan.py`'s terms and for its reason:
+a refused code with its reason is a diagnosis considered and rejected for one encounter.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a
+finding, 2 for every way of not having scanned, including **no worksheet refusal in the run**. That
+last limb matters for the usual reason: a run whose refusals landed in some other shape would
+otherwise report zero and read as a set with nothing to refuse.
+
+Covered by `tools/test_refusal_scan.py`.
+
 ### Word documents, both directions
 
 `practicum-case-study` reads faculty material that arrives as a `.docx` and submits a `.docx`, so the pair exists. **Both are stdlib only** — a `.docx` is a zip of XML parts, which `zipfile` and `xml.etree` open for nothing.
@@ -337,6 +381,8 @@ never on the consumer or CI path.
 
 **The writer's Markdown subset is small on purpose**, and the one rule in it that is not cosmetic is that a heading beginning `References` — or the singular `Reference` — switches every following paragraph to a 0.5 inch hanging indent, and itself centers and opens a new page. That is APA 7, and the rubric gives APA format 5 of 100 points. **The rule and its manual section live in [apa7.md](skills/practicum-case-study/reference/apa7.md), not here** — that sheet is verified against apastyle.apa.org and carries the caveat that the *Publication Manual*'s own section numbers are pointers rather than checked claims, because the manual is not in this repo. Restating a section number here would drop the caveat and leave a citation nothing re-derives, which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). Page setup is Times New Roman 12 pt, double spaced, one inch margins, with a page number top right from `word/header1.xml`, and every heading level at body size distinguished the way APA distinguishes them.
 
+**An own-line HTML comment is markup rather than document content.** `docx_write.blocks` drops a line carrying only comments and one adjacent blank, reports how many lines it removed, and warns without refusing when a narrower form remains visible. The coverage boundary lives only in `docx_write.NOT_STRIPPED`, and the fenced-block tradeoff lives in `docx_write.WHY_FENCED_COMMENTS_ARE_STRIPPED`; neither list is copied here. `discussion_post_scan --docx` independently grades the rendered artifact for either comment delimiter, because an old or hand-saved document can bypass the current renderer. [#673](https://github.com/mshamblin5150-code/clinical-skills/issues/673).
+
 **That table held nine rows then, and five of them landed on [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217), which was filed asking for three.** That historical count is bound to #217's own table on purpose; the current state belongs to the calibration table and record. The other two are the ones worth keeping: the singular `Reference` was **a gap the APA sheet created** — `apa7.md` §1 blesses it for a one-entry list while the renderer matched `references\b` and silently dropped the indent — and the heading-size row was filed as *worth a decision rather than a fix*, went to the clinician, and came back wider than the row. **The first-check discipline was useful and incomplete**: every row was taken by rendering a document and reading its XML rather than by reading the renderer source. That confirms the renderer's shape, not what Word draws from it; #424 replaces those verdicts with dated Word measurements and keeps the XML reads as per-row tripwires. What the renderer still does not do is written down in the same two places — because *"Page setup is APA 7 student paper"* standing unqualified in a docstring is what let three rows sit unnoticed.
 
 **[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) closed both halves of that on 2026-08-19, and the second half is the reusable one.** Its two mechanical rows landed — a 0.5 inch first-line indent on body paragraphs and nowhere else, and APA's horizontal rules on a table instead of a grid, ruled unconditional by the clinician rather than switchable because the only consumer of this renderer is an APA document. But *"the same two places"* was the defect: a code regression fails a behavior test, and **a prose edit to either copy failed nothing**, so the two could disagree silently and the reader misled was whichever one checked the file nearer to hand. The list is `docx_write.NOT_APPLIED` now, one object, on `REFERENCE_HEADING`'s precedent, and a test asserts `apa7.md` §6 names the same items in both directions. #323 runs every declared limit against the rendered archive; #424 adds the missing independent limb by recording what Word drew and making every current XML shape stay inside its dated measurement. **The count of what is left is deliberately not stated here**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms: it is `NOT_APPLIED`'s to say, and this paragraph is a fourth place for it to go stale in.
@@ -346,13 +392,13 @@ never on the consumer or CI path.
 **The writer refuses to overwrite a document it did not write, and that is [#279](https://github.com/mshamblin5150-code/clinical-skills/issues/279).** `output/` is gitignored, so a destructive write here has no recovery, and the `.docx` is **the one file this repo produces that a human opens in an editor** — which is decision 3 of that ticket surviving. Two failures landed, and the reason they are worth telling apart is that only one of them was filed:
 
 - **A render that raises destroyed the previous document with nobody having touched it.** `ZipFile(destination, "w")` truncates, and `document_xml` was called *inside* the `with`, so a good archive became one with `word/document.xml` absent. **None of the ticket's three signals reaches it and `--force` would not have either**, because the author did intend to write. The archive is built into a sibling and `os.replace`d now — `guidelines_index.build`'s arrangement and its reason, with the process id in the name because #279's own parenthetical asks for what [#276](https://github.com/mshamblin5150-code/clinical-skills/issues/276) found missing.
-- **A detectable hand edit is refused, with `--force`** — ruled by the clinician on 2026-08-19 over warning. An owner file catches Word while the document is open, and a changed archive part set catches another writer or renderer version. #424 measured the boundary the original prose overstated: the recorded Word save preserved the same part set, so a later re-render would not require the flag and could overwrite that edit.
+- **A detectable hand edit is refused, with `--force`** — ruled by the clinician on 2026-08-19 over warning. An owner file catches Word while the document is open, and a changed archive part set catches another writer or renderer version. #675 repaired the calibration probe so it edits before saving: the recorded Word save changed the part set, the guard refused it, and the diagnostic named both sides of the package delta. The refusal is the cue to recover the edit into the authoritative Markdown before forcing a render.
 
-**The ticket's own signal 2 was specified and is not implemented, because it cannot work.** A render writes the `.docx` **after** the `.md`, so *`.docx` newer than `.md`* is the ordinary post-render state — the test fires on every legitimate re-render and never once distinguishes a Word save from a render. What replaced it is cheaper and exact only in one direction: this renderer writes a fixed part set, so **an archive whose parts differ was written by something else or by another renderer version.** An equal set proves neither, as the measured Word save demonstrates. The set is derived from the writer rather than typed beside it, on `REFERENCE_HEADING`'s precedent, so a further part cannot arrive with the guard still passing — `word/header1.xml` is the recorded instance of one arriving late, on #217. **How many parts there are is `PART_NAMES`'s to say and is deliberately counted nowhere in prose**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms; the first draft of this section stated it in three places.
+**The ticket's own signal 2 was specified and is not implemented, because it cannot work.** A render writes the `.docx` **after** the `.md`, so *`.docx` newer than `.md`* is the ordinary post-render state — the test fires on every legitimate re-render and never once distinguishes a Word save from a render. What replaced it is cheaper and exact only in one direction: this renderer writes a fixed part set, so **an archive whose parts differ was written by something else or by another renderer version.** An equal set still proves neither; the surviving declared limit is any editor that preserves exactly those part names. The set is derived from the writer rather than typed beside it, on `REFERENCE_HEADING`'s precedent, so a further part cannot arrive with the guard still passing — `word/header1.xml` is the recorded instance of one arriving late, on #217. **How many parts there are is `PART_NAMES`'s to say and is deliberately counted nowhere in prose**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms; the first draft of this section stated it in three places.
 
 **Two mutations survived the first version and both indicted the same line**, which is worth more than either fix. `payload = parts(markdown)` sat outside the archive, reading as a guard; with the write going to a sibling the ordering is unobservable, so moving it back inside left the whole suite green. Worse, it made the cleanup `except` **unreachable from the one test aimed at it** — the raise happened before the sibling existed, so nothing exercised the limb, and removing that limb was also green. One mechanism now, and both mutations fail. **A second mechanism that cannot fail is not a belt and braces; it is a line that costs a test.**
 
-**What the guard does not reach is `docx_write.NOT_GUARDED`, and it is deliberately not restated here** — this paragraph was a second prose copy of that list for the length of one review, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a change whose own subject is a second copy of a rule. A test asserts both this file and the module's docstring name the object instead of listing it. #424 re-adjudicated its Word row with the installed application: the part-set guard missed the closed save, so the row remains a real declared limit on measured evidence. **The row worth knowing from here is the one the spec axis found stated only in the past tense**: keying on the part set means that **the day a further part lands, every `.docx` already in `output/` reads as foreign** and every re-render of one refuses until `--force`. That is the standing price of the replacement for signal 2, not a fact about #217 — though #217 is why it is live in the tree today. **`--force` is a promise and not a backup**: there is still nothing to recover from.
+**What the guard does not reach is `docx_write.NOT_GUARDED`, and it is deliberately not restated here** — this paragraph was a second prose copy of that list for the length of one review, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a change whose own subject is a second copy of a rule. A test asserts both this file and the module's docstring name the object instead of listing it. #675 established that #424's no-op probe was not a save measurement: the repaired probe edits first, Word changes the part set, and the guard refuses. The remaining editor limit is therefore stated generically in the owned object. **The row worth knowing from here is the one the spec axis found stated only in the past tense**: keying on the part set means that **the day a further part lands, every `.docx` already in `output/` reads as foreign** and every re-render of one refuses until `--force`. That is the standing price of the replacement for signal 2, not a fact about #217 — though #217 is why it is live in the tree today. **`--force` is a promise and not a backup**: after a refusal, recover any edit into the authoritative Markdown before using it.
 
 **Exit status distinguishes not having read from having found nothing** — 0 for text, **2 for every way of not having read**: no argument, no file, a file that is not a zip, a zip with no `word/document.xml`. A document whose text lived in a part the reader does not know about would otherwise print nothing and read as an empty document. **The writer's refusal is 2 on the same terms and there is no 1**, because a writer has no *found nothing* to report — **and that sentence stood unqualified for one review while being false of the process.** `main` caught only its own refusal, so `os.replace` failing left an uncaught `PermissionError`: a traceback and **exit 1**, on the ticket's own headline scenario, Word holding the document open. The claim is about what the function *returns*; an `OSError` is converted to 2 with a legible message now, and the qualifier travels with it. **Both axes of `/code-review` found this independently**, which is the strongest signal either has given here since [#141](https://github.com/mshamblin5150-code/clinical-skills/issues/141).
 
@@ -730,6 +776,85 @@ python tools/voice_corpus.py <export> --pairs --match "improve this"
 
 Covered by `tools/test_voice_corpus.py`, which builds synthetic exports in that file and a temp directory. **The real export is deliberately not a fixture and there will not be one** — it is one file on one machine, it carries patient material, and its mined output is gitignored, which is `test_differential_scan.py`'s position exactly. **No count taken against it is asserted anywhere in that file.** Both of the module's load-bearing rules were driven red by mutation before they were believed: the one-hop walk, and the UUID dating fallback.
 
+### Voice model shape
+
+The section above reads the corpus a voice model is built **from**. This one reads the **model**,
+and it grades shape alone.
+
+```bash
+python tools/voice_model_scan.py [<voice-model.md>] [--show]
+```
+
+**With no path it reads the account-owned model through `repo_root.scratch_root()`**, which is the
+owning checkout's — a worktree has no model of its own and asking for one there is how the corpus
+census used to fail before #93.
+
+**It grades whether the model has the shape a model must have, and never whether it sounds like its
+clinician.** That second question has no mechanical form and the module says so rather than
+approximating it; `voice_model_scan.NOT_REACHED` owns the complete inventory and this section copies
+no row from it.
+
+**Counts only by default. `--show` prints finding detail from private working material and must not
+be pasted.**
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 for clean reached
+rows, 1 for a shape finding, 2 for every way of not having scanned, which the module enumerates in
+`EXIT_2_LIMBS` rather than in prose. **A finding wins over incomplete coverage**, on
+`differential_scan.py`'s ordering, so a malformed tail cannot hide a defect already established in a
+register the command could read.
+
+Covered by `tools/test_voice_model_scan.py`.
+
+### Discussion post grading
+
+`discussion-post` produces one graded initial post. This grades it against the bar that post was
+signed to.
+
+```bash
+python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [--docx <the render>]
+```
+
+**The source is a run directory and the draft is named separately**, because the two live apart: the
+provenance record under `scratch/runs/<course>-<module>-discussion/` and the handoff under
+`output/discussions/`. The rows, their vocabulary and their gated sets are
+`discussion_post_scan.ROWS`, `KINDS` and `GATED_ROW_SETS`; the coverage boundary is
+`DECLARED_LIMITS`. **This section points at all four and copies no row.**
+
+**`--docx` is a gate rather than an extra.** With it, the command grades the rendered document's
+heading styles and comment residue and reports paragraph-text parity with the Markdown. Without it
+those rows print `not graded` rather than `0`, which is [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
+ruling: an absent input never masquerades as a passing count.
+
+**Counts only by default; `--show` includes finding detail and is private working material.**
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 for passing
+mechanical rows, 1 for a finding, 2 when the run could not be completely scanned.
+
+Covered by `tools/test_discussion_post_scan.py` and `tools/test_discussion_post_skill.py`.
+
+### Discussion reply grading
+
+The post grader reads one initial post. This reads a run's **replies**, and the difference that
+matters is the roster: a reply is addressed to a named classmate and the grader checks that the name
+is one the run actually read.
+
+```bash
+python tools/discussion_reply_scan.py <a run directory>
+```
+
+**Its coverage ceiling is stated rather than implied**: every `posts/*.md` carrying one `AUTHOR:`
+line. Another post layout is unread, and the module says so. The rows and the complete inventory of
+what a clean run does not establish are `discussion_reply_scan.ROWS` and `NOT_REACHED`.
+
+**`--show` may name classmates**, so its output is private working material and must not be pasted —
+a stricter reason than the sibling's, and one `reference_scan.py`'s pasteable exception does not
+reach, because what this command can draw on is not bounded.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0, 1 for a finding, 2
+when the run could not be completely scanned.
+
+Covered by `tools/test_discussion_reply_scan.py`.
+
 ### Tracker scan
 
 Every tool above reads a file somebody can point at. This one reads **what a public flip publishes that a file scanner does not**, and it is [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s remaining surface made runnable. `phi_scan --all` walks `git ls-files`, which is the tip and nothing else; #212's ruling comment was blocked on issue and pull-request text, pull-request diffs, and commit messages, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records the last of those as scanned by nothing.
@@ -767,10 +892,28 @@ the corpus layer is live; if its name index is present but short,
 `tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
 hook was declined as the trigger: a comment is published without a push, and a
 push can happen before the finishing sweep writes its comments. This is #260's
-ruling, 2026-08-20. **A pre-publish `PreToolUse` hook is ruled in and advisory**
-by [ADR 0077](docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md)
-ruling 5, which is not what #260 declined: that reasoning is about a **git**
-hook, and a comment published without a push is still published by a tool call.
+ruling, 2026-08-20. The separate pre-publication path is documented under
+**Tracker publish hook** below; it is not the git hook #260 declined.
+
+**A publication whose text the hook cannot read is refused**, on every kind in
+`UNREADABLE_REMEDIES` and only on a route in `PUBLISH_ROUTES` -- an
+unrecognized command is untouched. That is
+[ADR 0096](docs/adr/0096-an-unreadable-publication-is-refused-and-expansion-is-reconstructed-from-the-command-as-typed.md),
+ruled on [#745](https://github.com/mshamblin5150-code/clinical-skills/issues/745):
+the gate returned *allow* whenever it could not parse its own input, so the one
+limb that refuses was absent exactly when the hook could least vouch for the
+text, and the message read as advice about a missing file rather than as **this
+publication was not scanned**. **It cost two recorded escapes** -- a
+non-conforming branch-state block on #745's own sweep, and a dead citation on
+#708's, four publications going out ungraded in that second session alone.
+
+**What it reads is the command as typed rather than the shell's expansion of
+it**, so resolution is reconstructed: assignments made in the same command are
+substituted, including where a variable names only the leading part of a path,
+and a Git Bash `/c/...` path is also tried in its Windows spelling. **A form it
+cannot reconstruct is refused rather than guessed at.** The kinds and their
+remedies are `UNREADABLE_REMEDIES`'s to say, and what a clean run does not
+establish is `NOT_REACHED`'s; neither is listed here.
 
 **When a full harvest last really ran, and what it found, is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
@@ -789,7 +932,7 @@ prose reported absent, and
 it nine days after the harvest rather than four. A dated result in prose reads
 as a current property of the tracker, and no edit to a sentence fails.
 
-**It opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
+**`tracker_scan` opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
 **The refspec configuration is once per clone, and it is persistent on purpose.** A one-off fetch creates `refs/remotes/origin/pr/*` without teaching the remote where they came from, so `git fetch --prune` deletes every one and an ordinary fetch never refreshes them. With the refspec in `remote.origin.fetch`, prune preserves live pull heads and every ordinary fetch refreshes them. `tracker_scan` refuses the git surface when the configuration is absent even if old pull-head refs remain, because presence alone cannot distinguish current refs from stale ones. [#294](https://github.com/mshamblin5150-code/clinical-skills/issues/294).
 
@@ -808,6 +951,132 @@ as a current property of the tracker, and no edit to a sentence fails.
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a finding, **2 for every way of not having scanned**: no surface named, a harvest file absent or not a JSON list, no record in any surface, a git command that failed, no persistent pull-head refspec, no pull-head ref without the acknowledgment, and no corpus without `--allow-no-corpus` or `clinical.phiAllowNoCorpus`. **Where a finding and a not-scanned limb both hold, 1 wins**, on `phi_scan.py`'s own ordering — and **the first version got that backwards for the corpus limb**, returning 2 before scanning at all, so a real `dob` hit was suppressed and reported as *did not scan*. Its own test class stubbed the corpus check out, so nothing in the suite could see it; `/code-review` found it. A `git` failure gets its own exception for the same reason: `for-each-ref` returning nothing because it failed reads exactly like a repository nobody has fetched the pull heads into.
 
 Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files and throwaway checkouts in a temp directory on `test_skills_mirror.py`'s arrangement. **The real tracker is deliberately not a fixture** — it is fetched over the network and changes every time anybody comments, and #212 carries three sweeps whose surface figures disagree with each other for exactly that reason. A test keyed on it would be measuring the day it ran, so no count of issues, pull requests or blobs is asserted anywhere in it.
+
+### Tracker branch scope
+
+`tools/tracker_branch_scope.py` reads one GitHub event record and the checked-out
+default-branch tree. It grades the dated branch provenance and repository-path
+citations required by `docs/agents/issue-tracker.md` without printing the
+record body. Exit 0 means the record is scoped or outside the gate, 1 means a
+branch-state or path-citation rule failed, and 2 means the event could not be
+graded.
+
+A clean run establishes only what that bounded event and tree can establish.
+The complete boundary belongs to `tracker_branch_scope.NOT_REACHED`; this
+section points to the object and copies none of its rows.
+
+Covered by `tools/test_tracker_branch_scope.py`, which drives synthetic issue,
+pull-request, comment, and review events through the public grader and uses
+throwaway trees for path resolution. It opens no live tracker record.
+
+### Tracker merge receipt
+
+`tools/tracker_merge_receipt.py` reads the pull-request JSON already fetched by
+the workflow, grades the explicitly authored ticket plan, and emits one bounded
+receipt row per accepted binding. In normal mode, exit 0 means a binding or a
+reasoned no-ticket declaration was found, 1 means the plan is empty or contains
+a declined reference-shaped line, and 2 means the input cannot establish a
+completed merge into `main`; `--check-plan` applies the same plan verdict before
+merge.
+
+A clean run establishes only the bounded plan verdict above. The full boundary
+belongs to `tracker_merge_receipt.NOT_REACHED`; this section points to the
+object and copies none of its rows.
+
+Covered by `tools/test_tracker_merge_receipt.py`, which builds synthetic pull
+request and commit JSON and round-trips the canonical receipt grammar. It
+publishes no tracker comment.
+
+### Tracker freshness
+
+`tools/tracker_freshness.py` fetches `origin/main` without trusting a cached
+remote-tracking reference, then asks whether the current `HEAD` contains the
+fetched commit. The complete workflow contract remains in
+`docs/agents/issue-tracker.md`, and #728 owns the still-open question of this
+gate's coverage boundary.
+
+**Exit status distinguishes not having checked from having checked and found
+nothing wrong**, on the convention every graded command here states — 0
+`FRESH`, **1 `STALE`**, 2 `DID NOT CHECK`. A stale base is the gate having run
+and found the one thing it exists to find, so it is a finding and not a failure
+to look. [#744](https://github.com/mshamblin5150-code/clinical-skills/issues/744)
+ruled the earlier collapse of both non-zero limbs into 2 a defect: a caller
+following the house rule would read a genuinely stale base as *the check could
+not run, proceed with a banner*, which is what
+[#320](https://github.com/mshamblin5150-code/clinical-skills/issues/320) built
+this gate to prevent, reached through the status rather than through the fetch.
+
+**Every route to 2 checked nothing, and splitting the statuses is what made
+that load-bearing.** A failed fetch is the documented route; an unrunnable
+`git`, a `rev-parse` that fails after a successful fetch, and a `merge-base
+--is-ancestor` that neither confirms nor denies ancestry all reach it too.
+Before #744 those three escaped as an uncaught traceback and exited **1** —
+harmless while 1 was unused, and indistinguishable from `STALE` the moment it
+was not. Repairing only the `STALE` limb would have made the module worse,
+which is why the two edits are one change.
+
+A clean run neither rebases the branch nor reruns evidence gathered before the
+check. It establishes the base relationship only at the moment it runs, which
+is why the tracker sweep invokes it again immediately before publishing.
+
+Covered by `tools/test_tracker_freshness.py`, which uses throwaway Git
+repositories to exercise fresh, stale, and failed-fetch states without reading
+the live tracker.
+
+### Tracker publish hook
+
+The pre-publication `PreToolUse` hook is registered in
+`.claude/settings.json` and implemented by
+`tools/tracker_publish_hook.py`. It extracts publishable title and body fields
+from one `gh` command, reads record context when available, and sends each field
+through `phi_scan` and `tracker_branch_scope` without returning matched values.
+`PUBLISH_ROUTES` owns command classification; the settings condition is only a
+cost guard.
+
+The hook protocol returns exit 0 with an allow-or-deny decision in its JSON
+response. Its manual `--text` mode returns 0 when no refusing finding exists, 1
+when one does, and 2 when the input cannot be read. PHI findings remain
+advisory; the branch-scope posture follows
+[ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
+A clean response establishes only the verdicts reported for that run. The
+complete boundary belongs to `tracker_publish_hook.NOT_REACHED`; this section
+points to the object and copies none of its rows.
+
+The hook writes a separate counts-free marker at
+`scratch/runs/tracker-publish-hook.json`, and the bare
+`python tools/phi_scan.py` commit path states its exact age. The accounted
+`runs` root avoids creating a new top-level scratch entry. No age becomes a
+stale verdict: publication volume rather than elapsed time decides what an old
+marker means, and an absent or invalid marker remains distinct from a clean
+scan.
+
+Covered by `tools/test_tracker_publish_hook.py`, which drives synthetic command
+strings and hook payloads through the extractor, grader, and JSON protocol with
+temporary body files. It performs no publication.
+
+### Implementation map disagreement scan
+
+`map_scan.py` reads the complete issues REST harvest offline and grades both
+readiness directions, the reconciliation anchor against committed ADRs, and
+the coordination issue's pointer back to the grader. The fetch remains the
+caller's operation; the scanner opens no socket:
+
+```powershell
+$harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
+gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
+  Out-File -FilePath $harvest -Encoding utf8
+python tools/map_scan.py $harvest --advisory
+```
+
+The flag makes findings advisory after a merge while leaving every did-not-scan
+result failing. The full boundary is `map_scan.DECLARED_LIMITS`; this section
+points to that object and copies none of its rows. A clean scan is a clean
+readiness-and-obligation gate, not a checked implementation map.
+
+Covered by `tools/test_map_scan.py`, which builds synthetic issue harvests and
+throwaway checkouts in a temp directory. **The real tracker is deliberately not
+a fixture** — the suite reads no live tracker state and opens no socket, on the
+scanner's own offline boundary.
 
 ### Tracker bodies
 
@@ -1178,6 +1447,36 @@ Run `python tools/split_census.py "C:/codeing/guidelines-src"` for the current s
 Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. `rebuild_text` is testable there too because it takes PyMuPDF's `rawdict` **dictionary** rather than a page, so the suite still opens nothing.
 
 **The ACIP excerpt has now been wrong in both directions, and the reason is the same one both times: the shape is the test.** It first put the browser print timestamp on a line of its own; that was corrected to the folded form because `pypdf` welds the page title in after the stamp, and the classifier had been passing the fixture while finding zero print-captures in the corpus. #83 moved the extractor to PyMuPDF, the four header parts land on four lines again, and the fixture was corrected back — **rebuilt from the real file on 2026-08-16 rather than edited into the shape expected**, which is precisely what the previous round failed to do. All three ACIP files re-checked as `print-capture` afterwards — the name that class carried until #185 renamed it `web-capture`, and re-checked under the new name on 2026-08-19.
+### Split census
+
+The extractor above infers a space where the geometry says a word ends. This audits those
+inferences with the extractor's **current** rule rather than with a saved verdict.
+
+```bash
+python tools/split_census.py "C:/codeing/guidelines-src"
+python tools/split_census.py "C:/codeing/guidelines-src" --classify
+```
+
+**Maintainer-only, and it needs PyMuPDF** — it opens the society PDF corpus, so it is one of the
+commands the *Corpus census* section names as exceptions to stdlib-only.
+
+**Two modes over one input.** The default prints `run -> pieces` shapes and the five digit-adjacent
+boundary classes. `--classify` rebuilds a lexicon from real PDF space glyphs — no outside dictionary,
+so the inference under test does not define its own ground truth — and separates `wrong`, `fix`,
+`ambiguous` and `undecidable`.
+
+**It consumes `guidelines_extract.walk_line_glyphs` rather than a copy**, which is what makes it an
+audit rather than a second opinion: it answers the live question about the rule in the tree, and a
+change to the extractor moves this command's answer without anyone editing it.
+
+**Its historical figures are `split_census.HISTORICAL_SHAPE_FIGURES`'s to state and are deliberately
+not repeated here**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+terms — they are dated measurements against a corpus outside this repository, and the *Guideline text
+extraction* section above already records why the safety reading they came from covered one narrow
+population.
+
+Covered by `tools/test_split_census.py`.
+
 ### USPSTF recommendation table
 
 `reference/guidelines-uspstf.md` is **committed**, and for a different reason than the ICD-10 database: USPSTF recommendation statements are federal work and genuinely public domain, so unlike the other eight societies in the guideline corpus their content may be redistributed in full. 143 recommendations from all 90 USPSTF documents, one row each — topic, population, grade, interval, year, superseded-by pointer, derived threshold-sheet pointer, source file, page.
@@ -1388,6 +1687,82 @@ python tools/threshold_sheet.py --all
 
 **What no gate here reaches is written in the README and in the module docstring, the same day they were built.** The largest, and it is now narrowed rather than closed: **a sheet whose numbers are all real and all filed under the wrong heading passes every *automatic* gate in the directory.** Gate 5 sets the row's own heading beside an independent reader's description of what the number was about and **grades neither**, because comparing two free-text descriptions is a reading. So a green gate 5 is not a read pairing list, and the hole closes only where somebody runs a second read and looks at the pairs.
 
+### Threshold coverage registry
+
+The sheets above are the artifact. This is the **denominator** — one row per catalog topic, so a
+topic nobody has read is visible as unread rather than absent.
+
+```bash
+python tools/threshold_coverage.py
+```
+
+**It drafts or audits `reference/thresholds/coverage.md`**, whose states are
+`threshold_coverage.STATES`. The registry is the answer to the question a directory of sheets cannot
+answer: *which topics have been looked at*. A row in state `unread` is not a negative finding about a
+guideline — it is the registry doing its job.
+
+**It can refuse a commit.** Since #429 the pre-commit hook runs it when the catalog, the registry or
+a threshold sheet is staged, and it refuses a missing or duplicate topic, an unrecorded state, or an
+orphaned sheet. **That makes it one of the checks that can turn a commit away**, alongside standing
+rule 1, the local scratch census and `threshold_sheet.py`.
+
+**Exit status** — 0, 1 for a registry finding, 2 for every way of not having audited.
+
+Covered by `tools/test_threshold_coverage.py`.
+
+### Threshold sheet drafting
+
+The coverage registry says which topic to read next. This prints the skeleton for one.
+
+```bash
+python tools/threshold_draft.py <a catalog topic>
+```
+
+**It never writes a sheet, and that is the whole design.** The committed Markdown stays curated
+source of truth; this lifts the machine-settleable citation cells out of the recommendation records
+and prints them to stdout. A person places them.
+
+**A bound source deliberately drafts blank snippets, and the non-zero result that follows is the
+workflow rather than a broken draft.** `threshold_sheet.py`'s structure gate then refuses every row
+until a reader fills those cells from the rendered source pages — which is the two-tier arrangement
+that section already describes, arriving at the point where the sheet is created rather than where it
+is graded.
+
+**`threshold_draft.TOPIC_ALIASES` is where a catalog topic and a sheet name that differ are joined**,
+and a third alias name refuses the command and names
+[#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689) as the place to record the
+grouping — a limit that schedules its own review rather than growing quietly.
+
+**Exit status** — 0 for a printed skeleton, 2 for every way of not having drafted one. **There is no
+1**, because a draft has no *found nothing* to report.
+
+Covered by `tools/test_threshold_draft.py`.
+
+### USPSTF interval reach
+
+The table above derives `interval` from one recommendation statement per document. This measures
+what that choice does not read, and it exists because
+[ADR 0028](docs/adr/0028-the-uspstf-interval-derivation-reaches-one-sentence-and-that-reach-is-ruled-permanent.md) ruled
+the reach permanent rather than provisional.
+
+```bash
+python tools/uspstf_interval_reach.py
+```
+
+**Maintainer-only, counts only, and no source text crosses the command boundary** — the guideline
+corpus stays outside the repository, so this reports integers about documents it may not quote.
+
+**Its narrow reads are declined discriminators rather than candidate parsers.** Their false positives
+are part of ADR 0028's ruling, and they live here so that a corpus refresh or a change to
+`uspstf_table.INTERVAL_PHRASE` re-derives the measurement the ruling rests on instead of leaving it a
+dated sentence. That is a limit that recomputes itself, which is the arrangement
+[#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) asks for over a docstring.
+
+**Exit status** — 0 for a completed measurement, 2 for every way of not having measured. There is no
+1: nothing here is a finding about a document, only a count.
+
+Covered by `tools/test_uspstf_interval_reach.py`.
+
 ### Build artifacts stay out of the tree, and now there are two nets
 
 Four tools write outside every checkout and they share one guard — [#176](https://github.com/mshamblin5150-code/clinical-skills/issues/176). `.gitignore` now covers the same artifacts by name, and the split of labor is the point: **a guard refuses the write, and the ignore rule only stops the result being committed if a guard is missed.** Neither replaces the other.
@@ -1426,9 +1801,45 @@ recs-*.json
 
 **One rule that is deliberately absent**: a bare `*.sqlite`. It would catch a stray index anywhere and it would also hide `reference/icd10cm-2026.sqlite`, which is committed on purpose. `TheNetDoesNotSwallowWhatIsCommitted` walks `git ls-files` and asserts no tracked file is ignored, so a wider pattern fails rather than quietly hiding one.
 
+### Scratch census
+
+*The scratch root* above states the rule. This is the rule made runnable, and since #466 it runs
+unconditionally on every commit.
+
+```bash
+python tools/scratch_census.py
+```
+
+**It counts unaccounted top-level entries across every registered checkout that owns a scratch root**
+— the owning checkout against its grandfathered integer baseline, and every other checkout held at
+zero. `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor
+of documented entries; neither is restated here.
+
+**It never reads a scratch file's contents and never prints an unaccounted entry's name.** That is
+not tidiness: a `scratch/` filename may itself carry PHI and this repository is public, which is the
+whole reason [ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
+made the baseline an integer and refused a list.
+
+**Deletion is outside its authority.** A failing worktree is **drained** to the owning checkout — a
+move, never a delete — and the command classifies nothing about what moves. Disposing of an
+unaccounted entry is the clinician's word, per file.
+
+**Three limits are properties of the mechanism rather than gaps to be closed**, and they live in
+`scratch_census.DECLARED_LIMITS`: the integer baseline's one-entry swap hole, material written
+outside every checkout, and a separate clone's own worktree registry. This section points at that
+object and copies no row.
+
+**It can refuse a commit**, and it is one of the two that do so unconditionally. Its status is OR-ed
+into the hook's, so nothing above it can suppress it.
+
+**Exit status** — 0 clean, 1 for a rise above baseline or any unaccounted entry in another
+checkout, 2 for every way of not having counted.
+
+Covered by `tools/test_scratch_census.py`.
+
 ### Continuous integration
 
-`.github/workflows/checks.yml`, one job, on `windows-latest` at Python `3.14` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md). It runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check, and it installs nothing. The threshold step puts its gate report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
+`.github/workflows/checks.yml`, one job, on `windows-latest` at Python `3.14` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md). It runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, the advisory closing-keyword check, and the post-merge `map_scan.py` gate, and it installs nothing. The threshold and map steps put their reports in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
 
 **The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way**, both recorded under *Console codec* above: `anchor_scan.py` against #150's rule, and `block_scan.py` one merge later against the mechanism built to stop it. A third came close — #179's merged tree ran tests neither side had run and was green, and nothing required anyone to look. That near-miss is recorded in [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s comments and **not** in *Console codec*; this sentence claimed it was, one commit after being written, which is the cross-reference going stale faster than the figure beside it.
 

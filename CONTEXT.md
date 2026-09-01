@@ -49,7 +49,7 @@ One occasion of working on a graded artifact. An artifact is usually written ove
 _Avoid_: session (in the agent sense — see **Session**), attempt, revision
 
 **Session**:
-One agent's working pass over this repo — the unit that opens a branch, sweeps the tracker, and writes residue into a **scratch root**. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
+One agent's working pass over this repo — it sweeps the tracker and writes residue into a **scratch root**. **It is not the unit that opens a branch, and it does not own a checkout**: several drones can share one checkout and therefore one branch, and one branch can carry several tickets. That clause read *the unit that opens a branch* until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md), which is why the session directory is keyed by the **ticket** and never by the branch. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
 _Avoid_: run, pass, sweep
 
 **Scratch root**:
@@ -59,6 +59,30 @@ _Avoid_: the scratch directory, scratch/, scratch dir
 **Owning checkout**:
 The clone a worktree belongs to — what `repo_root.main_repo_root()` walks up to through the worktree's `.git` pointer file. It is where account-owned gitignored state lives, because it is the checkout that outlives every worktree. **Not "the main checkout" as a synonym for "the branch `main`"**: it names a place on disk, never a ref.
 _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clone
+
+**Ticket directory**:
+One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **sittings** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
+_Avoid_: session directory, temp directory, workspace
+
+**Accounted**:
+Said of a top-level entry in a **scratch root**: some tracked file names it as `scratch/<name>`. Derived on every run and never a hand-kept list. The property is about the *name* alone — nothing reads what an entry contains, and an accounted entry is not thereby known to be harmless.
+_Avoid_: known, allowed, whitelisted, exempt
+
+**Unaccounted entry**:
+A top-level entry in a **scratch root** that no tracked file names. Its own two readings are the thing to keep apart: **residue**, which predates the rule and needs the clinician's word per file, and a **rise**, which is a session having written outside the **ticket directory** and is remedied by moving it. One number covered both until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md) split the delta from the population. **Never litter**: two entries were the raw captures behind tracked reference sheets, caught by opening them rather than by reading their names.
+_Avoid_: orphan, stray, litter, junk
+
+**Standing artifact**:
+One of the documented top-level entries a tool or a skill writes at a named path, or that the PHI firewall reads as an input. Asserted as a **floor** on the accounted set and never as the set, so a legitimate new one does not go red and a rename that orphans an old one does.
+_Avoid_: known-good list, allowlist, the exempt set
+
+**Ratchet**:
+The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout is held at zero from day one. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
+_Avoid_: threshold, limit, cap, budget
+
+**Drain**:
+Moving a failing worktree's top-level entries into the **owning checkout**'s scratch root. The only authorized remedy for a worktree, and a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. It runs *to* the owning checkout and never out of one, so it is not available to a session blocked by the owning root's own count.
+_Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Run key**:
 The identity of a graded artifact, as course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed. It names the directory holding that artifact's whole provenance record, and prefixes the filename of every submission made from it.
@@ -97,7 +121,7 @@ A filled forward action, such as a drug started, a test ordered, or a referral m
 _Avoid_: recommendation, suggestion
 
 **Declared**:
-A value fixed by a stated rule rather than observed. Either a constant, which always holds, or a default, which is overridable on sight.
+A value fixed by a stated rule rather than observed. Either a constant, which always holds, or a default, which is overridable on sight. Distinct from **Declared non-source**, **Declared limit**, **Declared rationale**, and **Declared no-binding**: each is something stated on purpose and held as a named thing, and none is a value in a note.
 _Avoid_: assumed, hardcoded
 
 ### Defects
@@ -128,6 +152,14 @@ _Avoid_: draft, local copy
 The record of every new factual claim a graded document makes, one entry per claim, each naming what was searched, what was found, the page read and the date it was read on, and the result of an independent attempt to refute it. Written before the document that rests on it.
 _Avoid_: sources file, bibliography, notes
 
+**Claim record**:
+One entry in a claim ledger. It is the unit a citation spends and the unit a number is traced against, and those are different relations: a citation consumes a record so that no other citation may consume the same one, while a number only has to appear somewhere in the ledger. So one record can answer a figure and the citation beside it in the same sentence, and a source cited twice needs two.
+_Avoid_: claim, entry, source record
+
+**Spend**:
+To consume a finite thing so that nothing else may consume it. A citation spends a claim record; a reply spends a source an earlier reply may then not spend again. Distinct from the looser sense of a load-bearing invocation, where a domain's real behavior is spent as the argument and nothing is used up.
+_Avoid_: use, claim, take
+
 **Stated expiry**:
 The date a source prints on itself as the day it ceases to have effect. Read off the document, never derived from how often its publisher reissues — a source with a known replacement schedule and no printed date has none, and a claim ledger records that it has none rather than leaving the question unasked.
 _Avoid_: expiration, sunset, shelf life, validity window
@@ -136,6 +168,10 @@ _Avoid_: expiration, sunset, shelf life, validity window
 The pair of a normalized author phrase and a year that a citation and a reference entry must both produce before the citation counts as resolved. It is a name rather than an identity — one entry may yield several, and a yearless one resolves against any year.
 _Avoid_: reference id, source id, match key
 
+**Grouping key**:
+The single word a reference entry is alphabetized and letter-disambiguated by. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
+_Avoid_: entry key, author key, sort key, match key
+
 **Legal reference entry**:
 A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
 _Avoid_: statute reference, citation entry, regulation cite
@@ -143,6 +179,14 @@ _Avoid_: statute reference, citation entry, regulation cite
 **Legal citation**:
 An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
 _Avoid_: statute citation, section reference
+
+**Section number**:
+The locator inside a legal citation — the provision the regulation's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
+_Avoid_: section, cite number, paragraph number
+
+**Subsection suffix**:
+The lettered or numbered tail of a section number — `(c)(3)-1` in `26 C.F.R. § 1.501(c)(3)-1`. Part of the locator rather than punctuation around it, so a reader that drops it has not read a shorter form of the same provision; it has read a different one.
+_Avoid_: subsection, paragraph, suffix, subdivision
 
 **Codification year**:
 The year in a legal citation, naming the edition of the code the writer consulted. **It is provenance and never currency** — accurate the day it was written and accurate a decade later, because it says which snapshot was read rather than that the snapshot still holds. What can go stale is the unstated claim beneath it, that the text quoted is still in force, and that is a different question with a different answer: the publisher's reissue schedule is not a stated expiry, and the snapshot behind the year is reached by nothing here.
@@ -245,8 +289,16 @@ The rich-text field a graded post is submitted through, as distinct from a file 
 _Avoid_: editor, text field, LMS box
 
 **Clipboard courier**:
-A rendered `.docx` that exists only to be opened and copied from, never uploaded and never graded. Its own layout is inspected by a person and reaches no reader.
+A rendered `.docx` that exists only to be opened and copied from, never uploaded and never marked by the course. Its own layout is inspected by a person and reaches no reader, and a grader here may still read it -- what it is never graded by is the course. Distinct from a **Submission**, which is the document a course marks: a re-render costs a courier and costs a submission the thing that was handed in, which is why the same **recovered edit** rule prices differently on the two paths.
 _Avoid_: submission copy, output document, export
+
+**Destination guard**:
+The refusal that stops the renderer overwriting a document it did not write. It has two signals and neither names the whole: the **owner-file signal**, Word's `~$` file beside the document, which means it is open right now, and the **part-set signal**, an archive whose parts are not the ones this renderer writes. It reports what it saw and never diagnoses -- a changed part set may be an editor's save, another writer, or an older version of this renderer, and since 2026-08-30 the first of those is the ordinary case rather than the exotic one.
+_Avoid_: part-set guard, foreign-archive guard, overwrite check
+
+**Recovered edit**:
+A change the clinician made in a rendered document and saved, read back out of it and written into the Markdown the graders read, before any re-render may overwrite it. The Markdown is the authoritative artifact on every path, so a **destination guard** refusal means there may be an unrecovered edit, and the flag that proceeds anyway is available once it is recovered rather than instead of recovering it. Not the act of merging two documents: it moves one way, out of the document and into the source.
+_Avoid_: sync, merge, round-trip, reconcile, transcription
 
 **Direct formatting**:
 A run or paragraph property written onto the element itself rather than inherited from a named style. The only form that survives the clipboard, because a style is carried by reference and the reference is what a paste target drops.
@@ -284,7 +336,7 @@ What a Download address rests on, one of four: `stated`, seeded from the documen
 _Avoid_: confidence, verification, provenance, mode
 
 **Corpus drift**:
-The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened.
+The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened. Distinct from **Drift**, the clinical finding carried into the Objective and absent from the Assessment and the Plan.
 _Avoid_: staleness, desync, corpus change, mismatch
 
 **Threshold sheet**:
@@ -296,7 +348,7 @@ The subject a threshold sheet is keyed to, such as hypertension. The unit a clin
 _Avoid_: condition, subject, area
 
 **Catalog topic**:
-The guideline catalog's `topic` cell — the subject *that document* states it is about, in the society's wording, one cell per document. It is the population every per-topic figure in this repo is counted over: the coverage registry's rows, the sweep's denominator, and the set a threshold-sheet draft is seeded from. It is **not** the clinical topic and does not group: a subject a clinician names once is routinely several cells, and most cells own exactly one document. **Nothing in this tree derives which cells are one clinical topic**, which is why no gate joins a sheet's sources to its own topic ([ADR 0064](docs/adr/0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md)) and why the only bridge between the two senses is a hand-kept alias table with one entry.
+The guideline catalog's `topic` cell — the subject *that document* states it is about, in the society's wording, one cell per document. It is the population every per-topic figure in this repo is counted over: the coverage registry's rows, the sweep's denominator, and the set a threshold-sheet draft is seeded from. It is **not** the clinical topic and does not group: a subject a clinician names once is routinely several cells, and most cells own exactly one document. The relation runs both ways and is not a hierarchy: a cell may name one condition inside another, so `blood pressure in chronic kidney disease` is a document of high blood pressure's and of chronic kidney disease's at once, and a cell belongs to as many clinical topics as its document addresses. An equivalence over cells therefore cannot hold the grouping — transitivity would merge every subject a shared cell touches — so if the grouping is ever authored it is named subjects listing their member cells ([#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689)). **Nothing in this tree derives which cells are one clinical topic**, which is why no gate joins a sheet's sources to its own topic ([ADR 0064](docs/adr/0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md)) and why the only bridge between the two senses is a hand-kept alias table with one entry.
 _Avoid_: topic — unqualified, that word means the clinical subject here; say which.
 
 **Recommendation record**:
@@ -461,6 +513,10 @@ _Avoid_: historical figure, legacy number, dated result
 A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. What may go in one is a sentence telling a reader that a clean result covers less than it appears to. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives. Distinct from a **declared rationale**, which is the same shape holding a different sentence.
 _Avoid_: caveat, known issue, disclaimer, rationale
 
+**Form coverage**:
+The set of source classes a rule sheet carries a written entry form for. A class outside it is looked up at the published authority rather than recalled, so the sheet's silence about a class is an absence and never a rule. It is a **Declared limit** about a document instead of about a mechanism, and it is stated and gated for the same reason: a sheet that covers one class in six reads, to whoever opens it, exactly like one that covers all six.
+_Avoid_: scope, completeness, sheet coverage, supported types
+
 **Declared rationale**:
 A named object beside a mechanism holding why it is built as it is — why an option was declined, or why a refusal refuses. The same shape as a **declared limit** and never a member of one, because it states a why rather than an unreached what. Which it is, is decided on the sentence and never on the constant's name: a `WHY_`-named constant carrying a coverage sentence is a limit, and a plainly-named one carrying reasoning is not.
 _Avoid_: declared limit, caveat, note, comment
@@ -503,6 +559,14 @@ _Avoid_: browser access, logged-in fetch, subscription access, real session
 A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
 _Avoid_: citation, URL, cross-reference
 
+**Disclosure class**:
+What a tool's `--show` output may do once it leaves the process. Declared by that tool's own module docstring and by nothing else, so a roster of classes kept anywhere but the modules is a second copy rather than a record. Four are in use: *patient data*, read and never pasted; *private working material*, which names real people who are not patients and is equally unpasteable, though the PHI firewall will never flag it; *copyright-restrained*, a third party's expression where a line may be quoted into a ticket and a table may not; and *pasteable*, which is only ever a ruling and never an inference from silence. Where a module declares nothing the class is unpasteable, so forgetting refuses an output rather than clearing one. It is a property of an **output** and not of the data behind it, which is why it stopped tracking patient-data-or-not the moment a tool began naming people the firewall does not know.
+_Avoid_: PHI, sensitivity, redaction, safe to paste, output policy
+
+**Render pass**:
+One rasterization of a submission, kept whole — the page-faithful export and one image per page of it, written together under the run directory. It is the unit coverage is measured over, and keeping both halves is what stops either half being a claim: the images are the numerator and the export's own page count is the denominator, where the `.docx` archive has neither. A run has as many as it has renders and only the last must be whole, because a pass abandoned on a defect found at page 2 did what it should. Distinct from a **sitting**, which is a person's occasion of working on a graded artifact, and from the check's own verdict, which records what a reader looked for rather than which pages exist.
+_Avoid_: render, screenshot, page dump, pass
+
 ### Tracker
 
 **Binding**:
@@ -510,7 +574,7 @@ A statement in a merged pull request's artifact text that the merge changes a na
 _Avoid_: reference, link, mention, tag
 
 **Citation**:
-A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything.
+A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything. Distinct from **Citation key**, **Legal citation**, and **Stated citation**, which are bibliographic rather than tracker references.
 _Avoid_: reference, mention, cross-reference
 
 **Closing hazard**:
@@ -538,5 +602,25 @@ One command form that puts text on the tracker. Named per invocation rather than
 _Avoid_: publish command, gh call, write, surface
 
 **Unreadable body**:
-Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. Distinct from a route carrying no body at all, which is silent rather than reported.
+Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all, which is silent rather than reported. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
 _Avoid_: no body, empty, skipped, not scanned
+
+**Packet**:
+The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
+_Avoid_: task, item, issue, ticket, story
+
+**Ready ticket**:
+An open ticket carrying `ready-for-agent`: a promise that an unattended agent can build it without guessing. A claim about the **specification**, made by whoever respec'd it, and revocable — a ticket relabeled `grilling` stops being one. Distinct from a **startable packet**, which is a claim about sequencing and never reads this label.
+_Avoid_: ready, startable, claimable, unblocked
+
+**Startable packet**:
+A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor and nothing in flight. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, so the map derives readiness separately and refuses the disagreement at its claim, check and frontier surfaces.
+_Avoid_: ready, available, open, next
+
+**Reconciliation**:
+The reviewed judgment that places changed work into the map — written as a delta, reviewed against the ADR's rulings, then applied. It is semantic and cannot be derived: placement needs judgments no rule produces. Distinct from a **publish**, which re-renders the derived views from unchanged state and reconciles nothing, which is why the obligation to have reconciled is anchored on a field the delta sets rather than on the rendered snapshot a publish rewrites.
+_Avoid_: update, refresh, sync, rebuild
+
+**Map disagreement**:
+A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
+_Avoid_: staleness, mismatch, error, out of date
