@@ -104,7 +104,7 @@
 | HIV preexposure prophylaxis | sheet | hiv-preexposure-prophylaxis.md | full-document read complete; exact recommendation index accounted |
 | HIV primary care | unread |  | no recommendation record; full-document read pending |
 | HIV screening | sheet | hiv-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| hospital-acquired and ventilator-associated pneumonia | unread |  | bound recommendation record available; full-document read pending |
+| hospital-acquired and ventilator-associated pneumonia | sheet | hospital-acquired-and-ventilator-associated-pneumonia.md | full-document read complete |
 | hypertension screening | sheet | hypertension-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hypertensive disorders of pregnancy screening | sheet | hypertensive-disorders-of-pregnancy-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hypertrophic cardiomyopathy | sheet | hypertrophic-cardiomyopathy.md | all 172 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
@@ -125,11 +125,11 @@
 | lower extremity peripheral artery disease | unread |  | exact recommendation index available; full-document read pending |
 | lung cancer screening | sheet | lung-cancer-screening.md | exact recommendation index available; full document distilled |
 | lupus nephritis | unread |  | bound recommendation record available; full-document read pending |
-| Lyme disease | unread |  | bound recommendation record available; full-document read pending |
+| Lyme disease | sheet | lyme-disease.md | full-document read complete |
 | maternal immunization | sheet | maternal-immunization.md | no recommendation record; full document distilled |
 | microbiology laboratory utilization for infectious disease diagnosis | unread |  | no recommendation record; full-document read pending |
 | native vertebral osteomyelitis | sheet | native-vertebral-osteomyelitis.md | bound recommendation record available; full document distilled |
-| nephrotic syndrome | unread |  | bound recommendation record available; full-document read pending |
+| nephrotic syndrome | sheet | nephrotic-syndrome.md | full-document read complete |
 | neural tube defect prevention, folic acid | sheet | neural-tube-defect-prevention-folic-acid.md | full-document read complete; exact recommendation index accounted |
 | neurocysticercosis | sheet | neurocysticercosis.md | bound recommendation record available; full document distilled |
 | new fever in the intensive care unit | sheet | new-fever-in-intensive-care-unit.md | bound recommendation record available; full document distilled |
@@ -151,7 +151,7 @@
 | primary open-angle glaucoma screening | sheet | primary-open-angle-glaucoma-screening.md | full-document read complete; exact recommendation index accounted |
 | prostate cancer screening | sheet | prostate-cancer-screening.md | exact recommendation index available; full document distilled |
 | Rh(D) incompatibility screening | sheet | rhd-incompatibility-screening.md | full-document read complete; exact recommendation index accounted |
-| seasonal influenza | unread |  | no recommendation record; full-document read pending |
+| seasonal influenza | sheet | seasonal-influenza.md | full-document read complete; no recommendation record |
 | secondary stroke prevention | unread |  | exact recommendation index available; full-document read pending |
 | sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
 | sexually transmitted infection prevention counseling | sheet | sexually-transmitted-infection-prevention-counseling.md | exact recommendation index available; full document distilled |
