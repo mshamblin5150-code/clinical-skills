@@ -1912,6 +1912,10 @@ class RangeGate(unittest.TestCase):
             ("diabetes-related-foot-infection.md", "severe-grade", "PaCO2 <4.3 kPa (32 mm Hg)"),
             ("diabetes-in-chronic-kidney-disease.md", "rasi-trandolapril-dose", "0.5 mg/day"),
             ("healthcare-associated-ventriculitis-and-meningitis.md", "intraventricular-dose-intraventricular-doses", "0.01-0.5 mg"),
+            ("hepatitis-c-in-chronic-kidney-disease.md", "hepatic-venous-pressure", "10 mm Hg"),
+            ("hepatitis-c-in-chronic-kidney-disease.md", "transplant-liver-severity", "10 mm Hg"),
+            ("lower-extremity-peripheral-artery-disease.md", "toe-pressure-severe-ischemia", "30 mm Hg"),
+            ("lower-extremity-peripheral-artery-disease.md", "tcpo2-healing-threshold", "30 mm Hg"),
         }
         for filename, quantity, value in accepted:
             with self.subTest(filename=filename, quantity=quantity, value=value):

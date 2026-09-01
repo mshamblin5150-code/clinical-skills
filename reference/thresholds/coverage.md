@@ -94,7 +94,7 @@
 | heart failure | unread |  | exact recommendation index available; full-document read pending |
 | heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
 | hepatitis B screening | sheet | hepatitis-b-screening.md | all 14 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
-| hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
+| hepatitis C in chronic kidney disease | sheet | hepatitis-c-in-chronic-kidney-disease.md | full-document read complete; no recommendation record |
 | hepatitis C screening | sheet | hepatitis-c-screening.md | full-document read complete; exact recommendation index accounted |
 | babesiosis | sheet | babesiosis.md | bound recommendation record available; full document distilled |
 | hepatitis C virus infection | sheet | hepatitis-c-virus-infection.md | no recommendation record; full document distilled |
@@ -122,7 +122,7 @@
 | lipid disorder screening | sheet | lipid-disorder-screening.md | exact recommendation index available; full document distilled |
 | lipid management in chronic kidney disease | sheet | lipid-management-in-chronic-kidney-disease.md | full-document read complete |
 | living kidney donor evaluation and care | unread |  | bound recommendation record available; full-document read pending |
-| lower extremity peripheral artery disease | unread |  | exact recommendation index available; full-document read pending |
+| lower extremity peripheral artery disease | sheet | lower-extremity-peripheral-artery-disease.md | exact recommendation index available; full document distilled |
 | lung cancer screening | sheet | lung-cancer-screening.md | exact recommendation index available; full document distilled |
 | lupus nephritis | sheet | lupus-nephritis.md | full-document read complete |
 | Lyme disease | sheet | lyme-disease.md | full-document read complete |
@@ -152,14 +152,14 @@
 | prostate cancer screening | sheet | prostate-cancer-screening.md | exact recommendation index available; full document distilled |
 | Rh(D) incompatibility screening | sheet | rhd-incompatibility-screening.md | full-document read complete; exact recommendation index accounted |
 | seasonal influenza | sheet | seasonal-influenza.md | full-document read complete; no recommendation record |
-| secondary stroke prevention | unread |  | exact recommendation index available; full-document read pending |
+| secondary stroke prevention | sheet | secondary-stroke-prevention.md | exact recommendation index available; full document distilled |
 | sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
 | sexually transmitted infection prevention counseling | sheet | sexually-transmitted-infection-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin and soft tissue infection | sheet | skin-and-soft-tissue-infection.md | full-document read complete |
 | skin cancer prevention counseling | sheet | skin-cancer-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin cancer screening | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | speech and language delay screening | sheet | speech-language-delay-screening.md | full-document read complete; exact recommendation index accounted |
-| stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
+| stroke primary prevention | sheet | stroke-primary-prevention.md | exact recommendation index available; full document distilled |
 | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
 | testicular cancer screening | sheet | testicular-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | thyroid cancer screening | sheet | thyroid-cancer-screening.md | exact recommendation index available; full document distilled |
