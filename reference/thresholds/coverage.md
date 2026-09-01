@@ -139,7 +139,7 @@
 | opioid prescribing for pain | unread |  | no recommendation record; full-document read pending |
 | oral cancer screening | sheet | oral-cancer-screening.md | exact recommendation index available; full document distilled |
 | oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
-| osteoporosis screening, fracture prevention | unread |  | exact recommendation index available; full-document read pending |
+| osteoporosis screening, fracture prevention | sheet | osteoporosis-screening-and-fracture-prevention.md | exact recommendation index available; full document distilled |
 | outpatient parenteral antimicrobial therapy | unread |  | bound recommendation record available; full-document read pending |
 | ovarian cancer screening | sheet | ovarian-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | pancreatic cancer screening | sheet | pancreatic-cancer-screening.md | exact recommendation index available; full document distilled |
@@ -149,7 +149,7 @@
 | prediabetes and type 2 diabetes screening | sheet | prediabetes-type-2-diabetes-screening.md | full source page coverage recorded in artifact |
 | preeclampsia prevention, low-dose aspirin | sheet | preeclampsia-prevention-low-dose-aspirin.md | full-document read complete; exact recommendation index accounted |
 | primary open-angle glaucoma screening | sheet | primary-open-angle-glaucoma-screening.md | full-document read complete; exact recommendation index accounted |
-| prostate cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| prostate cancer screening | sheet | prostate-cancer-screening.md | exact recommendation index available; full document distilled |
 | Rh(D) incompatibility screening | sheet | rhd-incompatibility-screening.md | full-document read complete; exact recommendation index accounted |
 | seasonal influenza | unread |  | no recommendation record; full-document read pending |
 | secondary stroke prevention | unread |  | exact recommendation index available; full-document read pending |
@@ -162,9 +162,9 @@
 | stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
 | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
 | testicular cancer screening | sheet | testicular-cancer-screening.md | full-document read complete; exact recommendation index accounted |
-| thyroid cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| thyroid cancer screening | sheet | thyroid-cancer-screening.md | exact recommendation index available; full document distilled |
 | thyroid dysfunction screening | sheet | thyroid-dysfunction-screening.md | exact recommendation index available; full document distilled |
-| tobacco smoking cessation | unread |  | exact recommendation index available; full-document read pending |
+| tobacco smoking cessation | sheet | tobacco-smoking-cessation.md | exact recommendation index available; full document distilled |
 | tobacco use prevention and cessation | sheet | tobacco-use-prevention-and-cessation.md | exact recommendation index available; full document distilled |
 | tuberculosis diagnosis | unread |  | bound recommendation record available; full-document read pending |
 | unhealthy alcohol use screening and counseling | sheet | unhealthy-alcohol-use-screening-and-counseling.md | exact recommendation index available; full document distilled |
