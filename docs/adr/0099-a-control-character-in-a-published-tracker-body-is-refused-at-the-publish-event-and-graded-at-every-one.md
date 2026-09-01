@@ -112,6 +112,58 @@ the comment agree with what its author asserted. Its second reason, the retained
 the original holds something that should never have been public. Here the original holds corruption
 that is already public, so an edit publishes nothing that is not already served.
 
+## Corrected 2026-09-01, by the exhaustive tracker sweep of this record's own grilling
+
+**Four figures above are wrong. No ruling below moves, and one of them gains a residue it did not
+name.** Re-derived the same day against a fresh harvest of 3,849 issue, pull request and comment
+bodies, by four independent readers.
+
+**1. There is no `U+FFFD` record. Finding 2's table row is false, and so is ruling 1's *"in the
+`U+FFFD` case"* clause.** Zero records across the population carry one; the two doubled-separator
+bodies carry an em dash and no other non-ASCII code point. **The figure was read off a terminal
+rendering rather than out of the harvest** — a `U+FFFD` printed by a cp1252 console standing in for
+that em dash. That is [#150](https://github.com/mshamblin5150-code/clinical-skills/issues/150)'s
+defect arriving on the instrument, and it is the exact ambiguity **ruling 3 exists to warn about**:
+the ruling was written, and then its own instance was manufactured by the one surface nobody
+checked. Ruling 3's `U+FFFD` paragraph is strengthened rather than weakened, and it now has a worked
+case. The separate ticket loses that shape as a subject; the caution survives on its own.
+
+**2. Finding 4's *"16 of them have intact backticks and no backslash at all"* is 13.** Over the same
+20 bare-carriage-return records: 17 carry a backtick, 13 carry no backslash, **13** carry both. 16 is
+not a near miss of any of them — it was counted by eye off a printed listing rather than computed.
+
+**3. Finding 2's headline *"fourteen records over three days"* contradicts its own table, which
+names four dates, and omits a fifth.** #9's comment was published **2026-08-11**, nineteen days
+before the earliest date the sentence names. The class spans 2026-08-11 to 2026-08-30. **The clause
+*"every one from a `codex/*` branch"* does not cover it either** — that record carries 84 intact
+backticks and no backslash, so it is not the backtick-loss route at all, and a comment carries no
+branch to attribute. The two remain distinct causes, which finding 5 already said.
+
+**4. Ruling 3's carriage-return exclusion is correct and its residue was never stated. It is four
+records, one of which nothing grades.** Finding 4 presented the 20 as one population and they are
+two, separable with no false alarms:
+
+| | records | carries a C0 character |
+| --- | ---: | ---: |
+| a lone carriage return used as a line terminator — cosmetic | 17 | 0 |
+| a carriage return **flanked by non-space**, backslash immediately before | 3 | 2 |
+
+All four such occurrences across those three records sit directly after a backslash: the escape
+collapse's `\r` half, the same route as the `\b` half this record is about. Two are caught anyway
+because their bodies also carry a `U+0008`. **The third,
+[#662's comment 5471101892](https://github.com/mshamblin5150-code/clinical-skills/issues/662#issuecomment-5471101892),
+carries the damage and no control character, so no row here reaches it and none is proposed to.**
+
+**A naked carriage-return test would fire on the 17 and the exclusion stands.** A test keyed on the
+flanking non-space fires on 3 and on nothing else. **That option was not available to the clinician
+when ruling 3 was made, because finding 4 offered him one undifferentiated population** — so it is
+recorded here as an open question routed to the separate ticket, and **ruling 3 is not amended by
+this correction.**
+
+**What this says about the record.** Three of the four errors are figures, and each was published in
+a record whose own subject is a figure nobody re-derives. The one that matters is the first: the
+instrument that produced it was a console, and no gate in this repository reads a console.
+
 ## Ruled 2026-09-01
 
 **1. This ticket is a control character and not a family, and the coverage is declared rather than
