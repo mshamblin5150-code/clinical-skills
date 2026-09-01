@@ -74,11 +74,11 @@
 | COVID-19 treatment | sheet | covid-19-treatment.md | full-document read complete; bound recommendation record accounted |
 | dental caries prevention | sheet | dental-caries-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | depression and suicide risk screening | sheet | depression-and-suicide-risk-screening.md | all 20 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
-| diabetes in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
+| diabetes in chronic kidney disease | sheet | diabetes-in-chronic-kidney-disease.md | full-document read complete; bound recommendation record accounted |
 | diabetes mellitus | sheet | diabetes.md | all 377 source pages accounted for on 2026-08-23; recommendation accounting remains bound under #436 |
-| diabetes-related foot infection | unread |  | bound recommendation record available; full-document read pending |
-| drug-susceptible tuberculosis treatment | unread |  | bound recommendation record available; full-document read pending |
-| dyslipidemia | unread |  | exact recommendation index available; full-document read pending |
+| diabetes-related foot infection | sheet | diabetes-related-foot-infection.md | full-document read complete; bound recommendation record accounted |
+| drug-susceptible tuberculosis treatment | sheet | drug-susceptible-tuberculosis-treatment.md | full-document read complete; bound recommendation record accounted |
+| dyslipidemia | sheet | dyslipidemia.md | full-document read complete; exact recommendation index accounted |
 | eating disorder screening | sheet | eating-disorder-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | falls prevention | sheet | falls-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | food insecurity screening | sheet | food-insecurity-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |

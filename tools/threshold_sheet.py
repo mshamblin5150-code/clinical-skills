@@ -521,6 +521,8 @@ QUANTITY_UNIT_BOUNDS = {
     ("blood-pressure-in-chronic-kidney-disease.md", "combination-therapy-distance", "mm hg"): (20.0, 250.0),
     ("cardiovascular-kidney-metabolic-syndrome.md", "pulmonary-pressure", "mm hg"): (35.0, 250.0),
     ("chronic-kidney-disease.md", "acute-gout-dose", "mg"): (0.6, 6000.0),
+    ("diabetes-related-foot-infection.md", "severe-grade", "mm hg"): (32.0, 250.0),
+    ("diabetes-in-chronic-kidney-disease.md", "rasi-trandolapril-dose", "mg/day"): (0.5, 6000.0),
     ("hypertrophic-cardiomyopathy.md", "historical-exercise-bp-response", "mm hg"): (20.0, 250.0),
     ("hypertrophic-cardiomyopathy.md", "lvoto-present-gradient", "mm hg"): (30.0, 250.0),
     ("cardiac-arrest-and-life-threatening-toxicity-due-to-poisoning.md", "atropine-brady-initial-adult", "mg"): (0.1, 6000.0),
