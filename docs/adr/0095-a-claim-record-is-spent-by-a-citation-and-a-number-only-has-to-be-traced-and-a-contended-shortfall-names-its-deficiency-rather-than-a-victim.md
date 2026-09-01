@@ -188,6 +188,27 @@ takes away.
 a later pass will re-propose because it is simpler; it buys a declared limit nobody can write a test
 for.
 
+## What this hands to ADR 0092's object
+
+[ADR 0092](0092-a-glossary-sense-collision-is-recorded-on-the-entry-standing-alone-and-the-candidate-population-is-a-declared-object.md)
+merged while this session was open and rules the shape of the two glossary entries added here. Both
+are named now rather than left for that build to meet unruled, since its ruling 4 fails the suite on
+a fire with no row.
+
+**`Claim record` against `Claim ledger` is a narrowing, not a collision.** They share a first word,
+so 0092's predicate derives the pair as a candidate; the senses are compositional -- a record is one
+entry in the ledger -- so the ruled word is **narrowing**, which ruling 5 says is the majority case
+and is not a defect.
+
+**`Spend` is outside that predicate's reach and its clause is placed by 0092's rule anyway.** The
+second sense sits in the body of `Invoked source`, where a domain's behavior is spent as the
+argument and nothing is used up. That is a term against a usage rather than two entries sharing a
+first word, so candidacy derived by name cannot see it. Ruling 2's fallback governs the placement --
+neither term stands alone, so the clause goes on the newer -- and the newer is `Spend`, where it
+sits. **This is a declared gap in that predicate and not a claim that the pair is safe:** a sense
+divergence between an entry and another entry's prose is invisible to a name-keyed derivation, and
+0092's ruling 5 already states its tally is a floor.
+
 ## Consequences
 
 The build is [#713](https://github.com/mshamblin5150-code/clinical-skills/issues/713). The affected
