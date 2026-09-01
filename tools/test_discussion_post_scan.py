@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import io
 import re
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -37,6 +38,45 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
+
+
+class FakePage:
+    @staticmethod
+    def get_pixmap(*, dpi: int):
+        if dpi != artifact.RENDERED_RASTER_DPI:
+            raise AssertionError(dpi)
+        return object()
+
+
+class FakeDocument:
+    def __init__(self, pages: int):
+        self.pages = pages
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return None
+
+    def __len__(self):
+        return self.pages
+
+    def __iter__(self):
+        return iter(FakePage() for _ in range(self.pages))
+
+
+class FakePyMuPDF:
+    @staticmethod
+    def open(path):
+        source = Path(path)
+        if source.suffix.lower() == ".png":
+            if not source.read_bytes().startswith(artifact.PNG_SIGNATURE):
+                raise ValueError("not PNG data")
+            return FakeDocument(1)
+        marker = source.read_text(encoding="ascii")
+        if not marker.startswith("pages:"):
+            raise ValueError("not synthetic export data")
+        return FakeDocument(int(marker.removeprefix("pages:")))
 
 
 BAR = """\
@@ -120,7 +160,11 @@ class Run:
 
     def grade(self, *extra: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
+        with (
+            mock.patch.dict(sys.modules, {"pymupdf": FakePyMuPDF()}),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
             status = scan.main([str(self.root), "--draft", str(self.draft), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
@@ -148,13 +192,9 @@ class Run:
         )
         pass_directory = self.root / "render" / f"pass-{render_pass}"
         pass_directory.mkdir(parents=True)
-        import pymupdf
-
-        export = pymupdf.open()
-        for _ in range(max(1, expected)):
-            export.new_page()
-        export.save(pass_directory / "post.pdf")
-        export.close()
+        (pass_directory / "post.pdf").write_text(
+            f"pages:{max(1, expected)}", encoding="ascii"
+        )
         for page in range(1, seen + 1):
             (pass_directory / f"page-{page}.png").write_bytes(PNG)
 
@@ -234,15 +274,8 @@ class ACompletePostPasses(unittest.TestCase):
             document = run.root / "post.docx"
             docx_write.write_docx(BODY, document, bold_headings=True)
             run.record_render()
-            import pymupdf
-
             export_path = run.root / "render" / "pass-1" / "post.pdf"
-            replacement = pymupdf.open()
-            for _ in range(3):
-                replacement.new_page()
-            replacement.save(export_path.with_suffix(".building"))
-            replacement.close()
-            export_path.with_suffix(".building").replace(export_path)
+            export_path.write_text("pages:3", encoding="ascii")
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(1, status)
