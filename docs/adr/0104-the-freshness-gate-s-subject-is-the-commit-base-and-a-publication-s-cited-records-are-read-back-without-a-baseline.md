@@ -54,7 +54,18 @@ exactly that case.
 
 **9. `tools/tracker_publish_hook.py` is the only module in `tools/` that shells `gh`.** The seam it
 established is that `phi_scan.scan_text` and `tracker_branch_scope.grade` are offline graders taking
-data and returning findings, and the hook owns the socket and feeds them.
+data and returning findings, and the hook owns the `gh` call and feeds them.
+
+**The narrower claim is deliberate and the wider one is false.** *No tool here opens a socket* is
+this repository's own phrasing and it does not survive a grep that can see a subprocess: at the base
+this was written on, `tracker_freshness.py:81` shells `git fetch` and
+`tracker_publish_hook.py:674` shells another, so **two committed `tools/` modules already reach the
+network by delegating to `git` or `gh`.** The policy that does hold is narrower — no committed
+*scanner* fetches a *content* source, and the `guidelines_*` family is offline — and it is the one
+[ADR 0083](0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md)
+ruling 1 relied on when it blessed the fetch at a hook. Recorded here because the wider sentence has
+already been re-derived as true twice by an import-grep that structurally cannot see a delegation,
+which is this repository's partial-instrument shape arriving on its own no-socket rule.
 
 **10. `tools/tracker_freshness.py` carries no limits object.** 111 lines, a docstring, no
 `NOT_REACHED` and no `DECLARED_LIMITS`.
