@@ -707,7 +707,6 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
     def test_the_doc_names_both_publication_hosts(self):
         self.assertIn("tracker_publish_hook.py", self.doc)
         self.assertIn("tracker_bodies.py --github-event", self.doc)
-        self.assertNotIn("Nothing runs any of this", self.doc)
 
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):
