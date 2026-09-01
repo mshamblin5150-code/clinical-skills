@@ -241,6 +241,7 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
                 render_status = docx_write.main(
                     [str(run.draft), str(document), "--bold-headings"]
                 )
+                run.record_render()
                 rendered_post_status = discussion_post_scan.main(
                     [
                         str(run.root),

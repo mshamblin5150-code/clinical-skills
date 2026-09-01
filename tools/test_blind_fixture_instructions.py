@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
 FIXTURES = ROOT / "fixtures"
 REFERENCE = ROOT / "reference"
+THRESHOLDS = REFERENCE / "thresholds"
 
 # Every Markdown file shipped inside a skill can become part of that skill's
 # required instructions.  The repo-wide agent rules and clinical-note's
@@ -36,7 +37,7 @@ REQUIRED_INSTRUCTIONS = sorted(
         REFERENCE / "guidelines-uspstf.md",
         REFERENCE / "medatrax-fields.md",
         *SKILLS.rglob("*.md"),
-        *(REFERENCE / "thresholds").glob("*.md"),
+        *THRESHOLDS.glob("*.md"),
     }
 )
 
@@ -46,8 +47,13 @@ CONCRETE_FIXTURE_PATH = re.compile(
 NUMBERED_CASE_OR_RUN = re.compile(r"(?i)\b(?:case|run)\s*-?\d+\b")
 # These strings are ordinary clinical notation as well as assertion identifiers.
 # Ignoring them avoids treating vitamin B12, heart sounds S1/S2, oxygen O2, and
-# fibrosis stages F3/F4 as leaks.
+# fibrosis stages F3/F4 as leaks. C1 and S4 are exempt only in their clinical or
+# guideline-section contexts so a standalone fixture row still refuses.
 CLINICAL_ROW_HOMONYMS = {"B12", "F3", "F4", "O2", "S1", "S2"}
+CLINICAL_ROW_CONTEXTS = (
+    re.compile(r"\bC1(?=\s+esterase\b)"),
+    re.compile(r"\bS4(?=\.\d)"),
+)
 
 
 def concrete_fixture_names() -> list[str]:
@@ -59,6 +65,25 @@ def concrete_assertion_rows() -> list[str]:
     for path in FIXTURES.glob("*/assertions.md"):
         rows.update(ROW_ID.findall(path.read_text(encoding="utf-8")))
     return sorted(rows - CLINICAL_ROW_HOMONYMS)
+
+
+def without_clinical_row_contexts(line: str) -> str:
+    for pattern in CLINICAL_ROW_CONTEXTS:
+        line = pattern.sub("", line)
+    return line
+
+
+def row_checked_line(path: Path, line: str) -> str:
+    """Return the surface on which fixture assertion identifiers are meaningful.
+
+    Threshold sheets carry clinical stage and category identifiers such as A1,
+    C1, D2, F2, and G1 as source vocabulary. Those strings collide with fixture
+    row identifiers by construction, so the row-identity limb cannot distinguish
+    them there. The other identity limbs still scan every threshold-sheet line.
+    """
+    if path.parent == THRESHOLDS:
+        return ""
+    return without_clinical_row_contexts(line)
 
 
 def findings(path: Path) -> list[str]:
@@ -74,11 +99,12 @@ def findings(path: Path) -> list[str]:
     found = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         normalized = line.replace("\\", "/")
+        row_checked = row_checked_line(path, normalized)
         if (
             CONCRETE_FIXTURE_PATH.search(normalized)
             or name_pattern.search(normalized)
             or NUMBERED_CASE_OR_RUN.search(normalized)
-            or row_pattern.search(normalized)
+            or row_pattern.search(row_checked)
         ):
             found.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
     return found
@@ -121,6 +147,16 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
         )
         self.assertIsNotNone(row_pattern.search("B18 carried the answer"))
         self.assertIsNone(row_pattern.search("vitamin B12 level"))
+
+    def test_clinical_row_contexts_do_not_exempt_standalone_fixture_rows(self):
+        self.assertEqual(without_clinical_row_contexts("C1 esterase and S4.2.2"), " esterase and .2.2")
+        self.assertEqual(without_clinical_row_contexts("C1 carried S4"), "C1 carried S4")
+
+    def test_threshold_clinical_codes_do_not_widen_the_skill_instruction_exemption(self):
+        threshold = THRESHOLDS / "example.md"
+        skill = SKILLS / "example" / "SKILL.md"
+        self.assertEqual(row_checked_line(threshold, "A1 C1 G1"), "")
+        self.assertEqual(row_checked_line(skill, "B18 carried the answer"), "B18 carried the answer")
 
     def test_the_general_policy_link_is_not_a_concrete_fixture_path(self):
         self.assertIsNone(

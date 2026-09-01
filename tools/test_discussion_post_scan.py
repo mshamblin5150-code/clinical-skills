@@ -8,6 +8,7 @@ phi-scan: synthetic
 
 from __future__ import annotations
 
+import base64
 import io
 import re
 import tempfile
@@ -17,6 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 import discussion_post_scan as scan
+import discussion_post_render as render
 import coursework_run
 import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
@@ -32,6 +34,9 @@ from test_discussion_reply_scan import (
 GraderConformance = for_module(scan)
 GateConformance = gate_conformance(scan)
 REPO_ROOT = Path(__file__).resolve().parents[1]
+PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 
 BAR = """\
@@ -119,6 +124,33 @@ class Run:
             status = scan.main([str(self.root), "--draft", str(self.draft), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
+    def record_render(
+        self,
+        *,
+        seen: int = 2,
+        expected: int = 2,
+        source: str = "word-pdf",
+        unseen: str = "none",
+        verdict: str = "clean - both pages compared with the Markdown",
+        render_pass: int = 1,
+    ) -> None:
+        post = self.root / "post.md"
+        prior = post.read_text(encoding="utf-8") if post.is_file() else BODY
+        post.write_text(
+            prior
+            + "\n\n## RENDERED: post.md\n"
+            + f"PAGES: {seen} of {expected} imaged\n"
+            + f"SOURCE: {source}\n"
+            + f"UNSEEN: {unseen}\n"
+            + "READ: 2026-09-01\n"
+            + f"VERDICT: {verdict}\n",
+            encoding="utf-8",
+        )
+        pass_directory = self.root / "render" / f"pass-{render_pass}"
+        pass_directory.mkdir(parents=True)
+        for page in range(1, seen + 1):
+            (pass_directory / f"page-{page}.png").write_bytes(PNG)
+
 
 class ACompletePostPasses(unittest.TestCase):
     def test_report_is_counts_only_and_excludes_citation_and_statute_numbers(self):
@@ -141,6 +173,7 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertIn("bold-headings: not graded", stdout)
         self.assertIn("rendered-comments: not graded", stdout)
         self.assertIn("rendered-text: not graded", stdout)
+        self.assertIn("rendered-pages: not graded", stdout)
 
 
     def test_a_named_heading_style_fails_the_docx_row(self):
@@ -158,11 +191,123 @@ class ACompletePostPasses(unittest.TestCase):
             run = Run(Path(temp))
             document = run.root / "post.docx"
             docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(0, status)
         self.assertIn("bold-headings: 0", stdout)
         self.assertIn("rendered-text: 0", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_a_docx_without_a_render_record_fails_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_an_unimaged_page_fails_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(seen=1, expected=2, unseen="2")
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_zero_pages_cannot_be_a_complete_render(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(seen=0, expected=0)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_a_named_path_that_is_not_a_decodable_png_is_not_pixel_evidence(self):
+        for replacement in ("directory", "text"):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                document = run.root / "post.docx"
+                docx_write.write_docx(BODY, document, bold_headings=True)
+                run.record_render(seen=1, expected=1)
+                page = run.root / "render" / "pass-1" / "page-1.png"
+                page.unlink()
+                if replacement == "directory":
+                    page.mkdir()
+                else:
+                    page.write_bytes(b"plain text")
+                status, stdout, _ = run.grade("--docx", str(document))
+
+            self.assertEqual(1, status)
+            self.assertIn("rendered-pages: 1", stdout)
+
+    def test_every_render_record_has_its_own_pixels_and_the_last_must_be_clean(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(render_pass=1)
+            run.record_render(
+                verdict="defect - the reference heading is clipped",
+                render_pass=2,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_each_malformed_render_record_is_a_finding(self):
+        replacements = (
+            ("PAGES: 2 of 2 imaged", "PAGES: two pages"),
+            ("SOURCE: word-pdf", "SOURCE: pymupdf-docx"),
+            ("READ: 2026-09-01", "READ: yesterday"),
+            (
+                "VERDICT: clean - both pages compared with the Markdown",
+                "VERDICT: clean",
+            ),
+        )
+        for old, new in replacements:
+            with self.subTest(field=old.split(":", 1)[0]), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                document = run.root / "post.docx"
+                docx_write.write_docx(BODY, document, bold_headings=True)
+                run.record_render()
+                post = run.root / "post.md"
+                post.write_text(
+                    post.read_text(encoding="utf-8").replace(old, new),
+                    encoding="utf-8",
+                )
+                status, stdout, _ = run.grade("--docx", str(document))
+
+            self.assertEqual(1, status)
+            self.assertGreaterEqual(
+                int(re.search(r"rendered-pages: (\d+)", stdout).group(1)), 1
+            )
+
+    def test_unknown_fields_and_free_prose_make_the_render_record_malformed(self):
+        for residue in ("EXTRA: silently accepted", "arbitrary free prose"):
+            with self.subTest(residue=residue), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                document = run.root / "post.docx"
+                docx_write.write_docx(BODY, document, bold_headings=True)
+                run.record_render()
+                post = run.root / "post.md"
+                post.write_text(
+                    post.read_text(encoding="utf-8") + residue + "\n",
+                    encoding="utf-8",
+                )
+                status, stdout, _ = run.grade("--docx", str(document))
+
+            self.assertEqual(1, status)
+            self.assertIn("rendered-pages: 1", stdout)
 
     def test_a_document_whose_paragraph_text_differs_from_the_draft_reports(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -173,6 +318,7 @@ class ACompletePostPasses(unittest.TestCase):
                 document,
                 bold_headings=True,
             )
+            run.record_render()
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(0, status)
@@ -896,7 +1042,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                 self.assertIn(f"{row}: not graded", stdout)
         self.assertIn("bold-headings: not graded", stdout)
 
-    def test_a_refused_label_keeps_exit_two_when_the_docx_row_also_fails(self):
+    def test_a_render_finding_keeps_exit_one_when_the_reference_boundary_is_refused(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             run.draft.write_text(
@@ -907,7 +1053,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
             docx_write.write_docx(BODY, document)
             status, stdout, _ = run.grade("--docx", str(document))
 
-        self.assertEqual(2, status)
+        self.assertEqual(1, status)
         self.assertIn("bold-headings: 1", stdout)
 
 
@@ -1339,9 +1485,25 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
     def test_the_skill_names_every_rendered_document_report_row(self):
         text = self.skill_text()
-        for row in (scan.BOLD_HEADINGS, scan.RENDERED_COMMENTS, scan.RENDERED_TEXT):
+        for row in (
+            scan.BOLD_HEADINGS,
+            scan.RENDERED_COMMENTS,
+            scan.RENDERED_TEXT,
+            scan.RENDERED_PAGES,
+        ):
             with self.subTest(row=row):
                 self.assertIn(f"`{row}`", text)
+
+    def test_the_skill_publishes_the_counted_render_route(self):
+        text = self.skill_text()
+        self.assertIn("discussion_post_render.py", text)
+        self.assertIn("render/pass-N/", text)
+        self.assertIn(f"{render.RASTER_DPI}-dpi", text)
+        self.assertIn("## RENDERED: post.md", text)
+        for source in artifact.RENDERED_SOURCES:
+            with self.subTest(source=source):
+                self.assertIn(source, text)
+        self.assertIn("Re-renders append", text)
 
     def test_the_skill_recovers_an_editor_change_before_force(self):
         text = self.skill_text()

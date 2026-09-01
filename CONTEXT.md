@@ -605,6 +605,10 @@ _Avoid_: publish command, gh call, write, surface
 Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all, which is silent rather than reported. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
 _Avoid_: no body, empty, skipped, not scanned
 
+**Escape collapse**:
+A published body whose backslash escapes were interpreted by some stage of its **publish route** rather than preserved, so the text on the page is not the text its author wrote. One cause with several visible symptoms — a control character standing where `\b` or `\r` was written, a backtick replaced by a backslash, a literal `\n` where a line break belonged, a doubled path separator. Only the control-character symptom is recognizable without firing on correct text, because a Windows path and a doubled separator are both things an author legitimately writes, so a check named for the cause and a check that can be built are different widths. Distinct from an **unreadable body**, which a checker never obtained, and from a lost body, which never landed: this one landed and is wrong.
+_Avoid_: corruption, mojibake, encoding error, mangled, damage
+
 **Packet**:
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
 _Avoid_: task, item, issue, ticket, story
