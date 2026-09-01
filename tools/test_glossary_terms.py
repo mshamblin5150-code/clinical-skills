@@ -7,11 +7,12 @@ file position.
 What this cannot reach
 ----------------------
 
-A term heading that collides with a word already live in the file's prose is a
-heading-against-prose collision, not a heading-against-heading collision, and
-this check does not see it. It also does not decide whether a unique definition
-is correct, protect this module from deletion, or inspect any glossary other
-than ``CONTEXT.md``.
+A single-word heading whose word appears in another heading is narrowed by
+``test_glossary_collisions.py``. A term heading that collides with a word live
+only in the file's prose remains a heading-against-prose collision, and neither
+check sees it; ADR 0088's ``Form coverage`` entry is the live instance. This
+check also does not decide whether a unique definition is correct, protect this
+module from deletion, or inspect any glossary other than ``CONTEXT.md``.
 """
 
 from __future__ import annotations
