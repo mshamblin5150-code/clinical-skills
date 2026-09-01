@@ -1258,6 +1258,7 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
             docx_write.write_docx("# New\n", self.path)
         message = str(caught.exception).casefold()
         self.assertIn("an editor saved it", message)
+        self.assertIn("word", message)
         self.assertIn("another writer", message)
         self.assertIn("older version of this renderer", message)
         self.assertIn("read it, recover the edit, then pass --force", message)

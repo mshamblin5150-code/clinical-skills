@@ -1271,8 +1271,8 @@ def refusal(destination: Path) -> str:
                 missing=", ".join(missing) or "(none)",
             )
         return (
-            "{d} does not carry this renderer's current part set; an editor saved it, "
-            "another writer produced it, or an older version of this renderer wrote "
+            "{d} does not carry this renderer's current part set; an editor saved it "
+            "(for example, Word), another writer produced it, or an older version of this renderer wrote "
             "it. {delta}. Read it, recover the edit, then pass --force; forcing first "
             "can destroy work that output/ cannot recover.".format(
                 d=destination, delta=delta_text
