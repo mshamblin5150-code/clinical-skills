@@ -841,8 +841,9 @@ python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [-
 ```
 
 **The render command creates the page evidence the scan grades.** It asks an owned Word process for
-PDF pixels, tries XPS when that route cannot reach every page, and accepts clinician PNGs only for
-the remainder after both automated routes. Each successful run retains a new consecutive
+a PDF and starts a fresh XPS rasterization when that route cannot reach every page. If neither
+export succeeds, a clinician-supplied PDF or XPS is the escalation. Each successful run retains one
+page-faithful export and one image per page of that same export in a new consecutive
 `render/pass-N/`; a failed run retains no pass. The exact page resolution and source vocabulary are
 owned by `discussion_artifact`, and the full route and escalation contract is published in
 `skills/discussion-post/SKILL.md` rather than copied here.

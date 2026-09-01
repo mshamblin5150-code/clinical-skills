@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import io
 import re
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -37,6 +38,45 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
+
+
+class FakePage:
+    @staticmethod
+    def get_pixmap(*, dpi: int):
+        if dpi != artifact.RENDERED_RASTER_DPI:
+            raise AssertionError(dpi)
+        return object()
+
+
+class FakeDocument:
+    def __init__(self, pages: int):
+        self.pages = pages
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return None
+
+    def __len__(self):
+        return self.pages
+
+    def __iter__(self):
+        return iter(FakePage() for _ in range(self.pages))
+
+
+class FakePyMuPDF:
+    @staticmethod
+    def open(path):
+        source = Path(path)
+        if source.suffix.lower() == ".png":
+            if not source.read_bytes().startswith(artifact.PNG_SIGNATURE):
+                raise ValueError("not PNG data")
+            return FakeDocument(1)
+        marker = source.read_text(encoding="ascii")
+        if not marker.startswith("pages:"):
+            raise ValueError("not synthetic export data")
+        return FakeDocument(int(marker.removeprefix("pages:")))
 
 
 BAR = """\
@@ -120,7 +160,11 @@ class Run:
 
     def grade(self, *extra: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
+        with (
+            mock.patch.dict(sys.modules, {"pymupdf": FakePyMuPDF()}),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
             status = scan.main([str(self.root), "--draft", str(self.draft), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
@@ -148,6 +192,9 @@ class Run:
         )
         pass_directory = self.root / "render" / f"pass-{render_pass}"
         pass_directory.mkdir(parents=True)
+        (pass_directory / "post.pdf").write_text(
+            f"pages:{max(1, expected)}", encoding="ascii"
+        )
         for page in range(1, seen + 1):
             (pass_directory / f"page-{page}.png").write_bytes(PNG)
 
@@ -207,6 +254,42 @@ class ACompletePostPasses(unittest.TestCase):
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(1, status)
+        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
+
+    def test_a_pass_without_its_page_faithful_export_fails_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
+            (run.root / "render" / "pass-1" / "post.pdf").unlink()
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
+
+    def test_the_retained_export_supplies_the_page_count_denominator(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
+            export_path = run.root / "render" / "pass-1" / "post.pdf"
+            export_path.write_text("pages:3", encoding="ascii")
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_the_recorded_automated_source_must_match_the_retained_export(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(source="word-xps")
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
         self.assertIn("rendered-pages: 1", stdout)
 
     def test_an_unimaged_page_fails_coverage(self):
@@ -249,7 +332,27 @@ class ACompletePostPasses(unittest.TestCase):
             self.assertEqual(1, status)
             self.assertIn("rendered-pages: 1", stdout)
 
-    def test_every_render_record_has_its_own_pixels_and_the_last_must_be_clean(self):
+    def test_an_incomplete_historical_pass_does_not_fail_a_complete_final_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(
+                verdict="defect - the reference heading is clipped",
+                seen=1,
+                expected=2,
+                unseen="2",
+                render_pass=1,
+            )
+            run.record_render(
+                render_pass=2,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_the_last_render_pass_must_be_complete_and_clean(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             document = run.root / "post.docx"
@@ -257,12 +360,15 @@ class ACompletePostPasses(unittest.TestCase):
             run.record_render(render_pass=1)
             run.record_render(
                 verdict="defect - the reference heading is clipped",
+                seen=1,
+                expected=2,
+                unseen="2",
                 render_pass=2,
             )
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(1, status)
-        self.assertIn("rendered-pages: 1", stdout)
+        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
 
     def test_each_malformed_render_record_is_a_finding(self):
         replacements = (
