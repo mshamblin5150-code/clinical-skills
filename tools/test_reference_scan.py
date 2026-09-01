@@ -410,7 +410,7 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
 
 
 class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
-    """ADR 0088's 2x5 matrix at the finished-draft seam."""
+    """ADR 0088's legal entry/citation matrix at the finished-draft seam."""
 
     CITATIONS = {
         "parenthetical section": f"({LEGAL_SECTION}, 2026)",
@@ -740,7 +740,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.MALFORMED_DATE: "A missing space in a date",
         scan.UPTODATE_ITALICS: "database name unitalicized",
         scan.INTEXT_YEAR_MISMATCH: "In-text year not matching the reference list year",
-        scan.LEGAL_REFERENCE_LACKS_NAME: "A federal-regulation entry carrying only its C.F.R. section",
+        scan.LEGAL_REFERENCE_LACKS_NAME: (
+            "A federal-regulation entry carrying only its C.F.R. section"
+        ),
         scan.UNCITED_ENTRY: "An entry in the list that is cited nowhere in the body",
         scan.UNLISTED_CITATION: "A citation in the body with no entry in the list",
     }

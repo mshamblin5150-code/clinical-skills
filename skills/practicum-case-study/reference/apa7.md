@@ -6,9 +6,9 @@ rules a practicum case study rests on, each carrying the manual section it comes
 can go to the source rather than trust this file.
 
 **Sections 1 through 7 were verified against apastyle.apa.org on 2026-08-18.** Every rule in those
-sections was read from that site on that date, not recalled. A rule this sheet does not cover is looked up the same way — **an APA rule
-is looked up, never recalled**, which is [SKILL.md](../SKILL.md)'s anchor discipline arriving at
-the reference list.
+sections was read from that site on that date, not recalled. A rule this sheet does not cover is
+looked up the same way — **an APA rule is looked up, never recalled**, which is
+[SKILL.md](../SKILL.md)'s anchor discipline arriving at the reference list.
 
 **The two fenced examples are APA's own, and they stay.** Ruled 2026-08-18 on
 [#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223), against a public

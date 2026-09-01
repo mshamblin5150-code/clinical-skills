@@ -561,6 +561,12 @@ def year_key(token: str) -> str:
     return normalize(token).replace(" ", "")
 
 
+def _legal_section_text(match: re.Match[str]) -> str:
+    """The C.F.R. locator captured by the shared legal-citation grammar."""
+
+    return match.group("parenthesized_author") or match.group("author") or ""
+
+
 def citation_key(author: str) -> str:
     """The author key of an in-text citation, or ``""`` where it is not one.
 
@@ -619,8 +625,7 @@ class Entry:
         keys = [(self.key, year_key(self.year))] if self.key and self.year else []
         legal = self._legal_match
         if legal is not None:
-            author = legal.group("parenthesized_author") or legal.group("author") or ""
-            section_key = normalize(author)
+            section_key = normalize(_legal_section_text(legal))
             if section_key:
                 keys.extend(((section_key, year_key(self.year)), (section_key, "")))
         return tuple(dict.fromkeys(keys))
@@ -794,9 +799,8 @@ def read_citations(body: str) -> tuple[Citation, ...]:
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for match in LEGAL_CITATION.finditer(body):
-        author = match.group("parenthesized_author") or match.group("author") or ""
         token = match.group("parenthesized_year") or match.group("year") or ""
-        pair = (normalize(author), year_key(token))
+        pair = (normalize(_legal_section_text(match)), year_key(token))
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for block in PAREN_BLOCK.finditer(body):
