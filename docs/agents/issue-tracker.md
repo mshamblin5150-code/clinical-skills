@@ -51,7 +51,8 @@ A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit
 **The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for four shapes: the literal `@-`, an empty or whitespace-only body, a body that is one bare `@token` — what `--body @notes.md` writes — and [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s double-encoded body.
 
 ```bash
-H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+: "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
