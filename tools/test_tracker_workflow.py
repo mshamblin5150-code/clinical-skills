@@ -10,17 +10,140 @@ import unittest
 from pathlib import Path
 
 import phi_scan
+import tracker_branch_scope
+import tracker_freshness
 import tracker_merge_receipt
+import tracker_publish_hook
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 ISSUE_TRACKER = REPO_ROOT / "docs" / "agents" / "issue-tracker.md"
+SETTINGS = REPO_ROOT / ".claude" / "settings.json"
 
 
 def workflow_text():
     return WORKFLOW.read_text(encoding="utf-8")
+
+
+class EveryTrackerGateHasASection(unittest.TestCase):
+    """Derive a floor from three sources and require a ``CLAUDE.md`` section.
+
+    A tracker gate reachable by none of the module-prefix, documented-command,
+    or configured-invocation sources is outside this walk.
+    """
+
+    @staticmethod
+    def module_prefix_contribution():
+        return {path.stem for path in (REPO_ROOT / "tools").glob("tracker_*.py")}
+
+    @staticmethod
+    def documented_command_contribution():
+        text = ISSUE_TRACKER.read_text(encoding="utf-8")
+        return set(re.findall(r"tools/([a-z0-9_]+)\.py", text))
+
+    @staticmethod
+    def configured_invocation_contribution():
+        text = workflow_text() + "\n" + SETTINGS.read_text(encoding="utf-8")
+        return set(re.findall(r"tools/([a-z0-9_]+)\.py", text))
+
+    @staticmethod
+    def sectioned_modules(text=None):
+        source = CLAUDE_MD.read_text(encoding="utf-8") if text is None else text
+        sections = re.split(r"(?m)^### ", source)[1:]
+        return {
+            section.partition("\n")[0].strip().lower().replace(" ", "_")
+            for section in sections
+        }
+
+    @staticmethod
+    def missing_gates(contributions, sectioned):
+        return set().union(*contributions.values()) - sectioned
+
+    def source_contributions(self):
+        return {
+            "module prefix": self.module_prefix_contribution(),
+            "documented command": self.documented_command_contribution(),
+            "configured invocation": self.configured_invocation_contribution(),
+        }
+
+    def test_every_derived_gate_has_a_section(self):
+        contributions = self.source_contributions()
+        missing = self.missing_gates(contributions, self.sectioned_modules())
+        report = "; ".join(
+            f"{source}: {', '.join(sorted(modules)) or '(none)'}"
+            for source, modules in contributions.items()
+        )
+
+        self.assertFalse(
+            missing,
+            f"derived tracker gates without CLAUDE.md sections: "
+            f"{', '.join(sorted(missing))}; source contributions: {report}",
+        )
+
+    def test_each_declared_source_contributes_to_the_extraction(self):
+        for source, modules in self.source_contributions().items():
+            with self.subTest(source=source):
+                self.assertTrue(modules, f"{source} contributed no tracker gate")
+
+    def test_a_derived_gate_without_a_section_is_a_finding(self):
+        contributions = {
+            "module prefix": {"synthetic_tracker_gate"},
+            "documented command": set(),
+            "configured invocation": set(),
+        }
+        prose_with_only_a_cross_section_mention = (
+            "### Existing scan\n\n"
+            "This section mentions `tools/synthetic_tracker_gate.py` but does "
+            "not give that gate its own section.\n"
+        )
+
+        self.assertEqual(
+            self.missing_gates(
+                contributions,
+                self.sectioned_modules(prose_with_only_a_cross_section_mention),
+            ),
+            {"synthetic_tracker_gate"},
+        )
+
+    def test_a_section_does_not_require_a_limits_object(self):
+        self.assertIn("tracker_freshness", self.sectioned_modules())
+        self.assertFalse(hasattr(tracker_freshness, "NOT_REACHED"))
+
+
+class DeclaredLimitsAreBound(unittest.TestCase):
+    CASES = (
+        ("Tracker branch scope", "tracker_branch_scope", tracker_branch_scope, False),
+        ("Tracker merge receipt", "tracker_merge_receipt", tracker_merge_receipt, True),
+        ("Tracker publish hook", "tracker_publish_hook", tracker_publish_hook, True),
+    )
+
+    @staticmethod
+    def section(heading):
+        text = CLAUDE_MD.read_text(encoding="utf-8")
+        marker = f"### {heading}\n"
+        _before, found, after = text.partition(marker)
+        if not found:
+            return ""
+        return after.partition("\n### ")[0]
+
+    def test_each_section_points_at_one_object_and_copies_no_row(self):
+        for heading, module_name, module, module_points_at_object in self.CASES:
+            with self.subTest(heading=heading):
+                section = self.section(heading)
+                module_doc = module.__doc__ or ""
+                self.assertTrue(section, f"missing CLAUDE.md section {heading!r}")
+                self.assertIn(f"{module_name}.NOT_REACHED", section)
+                if module_points_at_object:
+                    self.assertIn("NOT_REACHED", module_doc)
+                for key, reason in module.NOT_REACHED:
+                    self.assertNotIn(key, section)
+                    self.assertNotIn(reason, section)
+                    if module_points_at_object:
+                        self.assertNotIn(key, module_doc)
+                        self.assertNotIn(reason, module_doc)
+                    self.assertGreater(len(reason.split()), 8)
 
 
 class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):

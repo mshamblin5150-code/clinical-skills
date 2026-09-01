@@ -9,12 +9,12 @@ hook's public command and JSON boundaries; they do not publish tracker text.
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 import tempfile
 import io
 import json
 import contextlib
 import sys
-from pathlib import Path
 from unittest import mock
 
 import tracker_publish_hook as hook
@@ -595,6 +595,19 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
             [("body", "Assigned body", str(body))],
         )
         self.assertEqual(result.unreadable, ())
+
+
+class DeclaredLimitsHaveOneOwner(unittest.TestCase):
+    def test_the_ratified_population_is_present_in_both_directions(self):
+        self.assertEqual(
+            set(dict(hook.NOT_REACHED)),
+            {
+                "the GitHub web UI bypasses the hook",
+                "disabled or overridden hooks bypass the check",
+                "retained pre-edit revisions remain readable",
+                "workspace trust can silently suppress registration",
+            },
+        )
 
 
 if __name__ == "__main__":
