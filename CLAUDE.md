@@ -879,10 +879,29 @@ publishes no tracker comment.
 
 `tools/tracker_freshness.py` fetches `origin/main` without trusting a cached
 remote-tracking reference, then asks whether the current `HEAD` contains the
-fetched commit. Exit 0 means that containment check is fresh; exit 2 means the
-fetch failed or the branch is stale. The complete workflow contract remains in
+fetched commit. The complete workflow contract remains in
 `docs/agents/issue-tracker.md`, and #728 owns the still-open question of this
 gate's coverage boundary.
+
+**Exit status distinguishes not having checked from having checked and found
+nothing wrong**, on the convention every graded command here states — 0
+`FRESH`, **1 `STALE`**, 2 `DID NOT CHECK`. A stale base is the gate having run
+and found the one thing it exists to find, so it is a finding and not a failure
+to look. [#744](https://github.com/mshamblin5150-code/clinical-skills/issues/744)
+ruled the earlier collapse of both non-zero limbs into 2 a defect: a caller
+following the house rule would read a genuinely stale base as *the check could
+not run, proceed with a banner*, which is what
+[#320](https://github.com/mshamblin5150-code/clinical-skills/issues/320) built
+this gate to prevent, reached through the status rather than through the fetch.
+
+**Every route to 2 checked nothing, and splitting the statuses is what made
+that load-bearing.** A failed fetch is the documented route; an unrunnable
+`git`, a `rev-parse` that fails after a successful fetch, and a `merge-base
+--is-ancestor` that neither confirms nor denies ancestry all reach it too.
+Before #744 those three escaped as an uncaught traceback and exited **1** —
+harmless while 1 was unused, and indistinguishable from `STALE` the moment it
+was not. Repairing only the `STALE` limb would have made the module worse,
+which is why the two edits are one change.
 
 A clean run neither rebases the branch nor reruns evidence gathered before the
 check. It establishes the base relationship only at the moment it runs, which
