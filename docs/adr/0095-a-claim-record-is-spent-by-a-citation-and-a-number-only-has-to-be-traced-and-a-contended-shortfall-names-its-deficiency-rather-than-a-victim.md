@@ -60,7 +60,7 @@ scanners' rows under the one name `untraced-number`, and both of those say *trac
 the post scanner's **citation** row, `discussion_post_scan.py:76`. The contrast that is real is
 inside the post scanner: `untraced-citation` says *own* and `untraced-number` says *traces to*, which
 is what ruling 1 splits and what ruling 4 holds the number row to. Left legible rather than deleted
-because a ratified evidence sentence naming the wrong row is what a builder reads as licence to edit
+because a ratified evidence sentence naming the wrong row is what a builder reads as license to edit
 a row description that is already correct.
 
 **The ruling is unaffected and re-derives.** The reply scanner implements the post scanner's
