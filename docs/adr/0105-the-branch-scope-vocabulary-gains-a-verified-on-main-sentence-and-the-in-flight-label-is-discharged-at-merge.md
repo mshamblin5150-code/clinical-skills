@@ -50,14 +50,37 @@ command-reference bullet and a flag-argument-skipping table in the hook's own pa
 `.github/workflows/tracker.yml` holds `issues: write` and never calls `gh issue edit`.
 
 **5. The population is mostly stale and it moved twice during the grilling.** At the session's start
-24 issues carried `in flight` — 20 closed, 4 open. #713 lost the label mid-session **while open**,
-after its work merged, leaving **23 — 20 closed, 3 open**. Of the three, #715 and #717 are covered by
-open pull request #797 on branch `codex/tickets-715-717` and are genuinely in flight.
+24 issues carried `in flight` — 20 closed, 4 open. The figure moved three times before this record
+was finished; at ratification it read **24 — 20 closed, 4 open (#689, #716, #725, #779)**. These are
+dated floors and they move on the next publication.
 
-**6. The discharge event is the merge, not the close.** #713 is the counterexample and it happened
-during this session: work merged, ticket still open, label stale, removed by hand. It is the third
-recorded hand-removal, after #714 on #725's session and #676 during a reopen. A close-time rule would
-have reached none of them.
+**Corrected 2026-09-01, before merge, from an adversarial audit of this record.** Findings 5 and 6
+and ruling 4 originally said *"#713 lost the label mid-session while open, after its work merged"*
+and named #715 and #717 as genuinely in flight. **Both were wrong**, and the first was the sentence
+doing the persuading. Re-derived from the GitHub timeline:
+
+```
+#713  labeled 'in flight' 21:12:52   closed 22:10:02   unlabeled 22:12:15
+#714  labeled 'in flight' 21:13:35   unlabeled 22:08:24   closed 22:21:00
+```
+
+**#713 was closed when its label came off**, two minutes after the merge auto-closed it; its labels
+were read without its state, and *open* was carried over from a stale earlier list. #714 is the one
+unlabeled while open. And #715 and #717 merged as PR #797 during the session and are now closed, so
+the named pair is gone. **The correction is recorded rather than the sentence quietly replaced**,
+because the false version is what ruling 4's argument leaned on.
+
+**6. The discharge event is the merge, not the close, and the structural case is a `Part of` binding
+rather than a race.** A PR that writes `Closes #N` auto-closes its ticket **within a second** of
+merging — #713's close is one second after PR #793 landed — so for that shape the stale-label window
+is negligible. **A PR that writes `Part of #N` does not close its ticket at all.** PR #736 merged
+2026-09-01T03:47:42Z binding `Part of #689`, and #689 is open and carrying `in flight` as this is
+written. That is merged work on a ticket that stays open **by design**, which is the same residue
+ruling 4 names for the receipt: a merge claim naming #689 discharges nothing on any other ticket, and
+a ticket left open by its own claim keeps its label with no close to hang a rule on.
+
+Three hand-removals are recorded, all by a person and none by a bot: #714 while open, #713 after
+close, and #676 one second after a reopen. **A close-time rule reaches only one of the three.**
 
 **7. The label has a second consumer and it is out of tree.** `in_flight_labels` is a **dead key in
 this repository** — `map_scan.py` reads only `ready_labels` and says so in `DECLARED_LIMITS`, and
@@ -156,12 +179,21 @@ exactly the moment the claim is discharged. The closed carriers are cleared once
 **Having `grade` consult issue state was refused rather than deferred, and it is the option the next
 session will reach for because it is one line.** It is the wrong model twice. It teaches one reader
 to discount a label instead of correcting a false one, and the label has a second consumer where the
-same staleness still bites. And **#713 is the case it cannot reach at all**: open ticket, merged
-work, stale label, refusing every publication — `state == "open"` is true, so a state-aware grader
-grades it exactly as today. The shape that bit this session is the one the cheap fix misses.
+same staleness still bites. And **a `Part of #N` ticket is the case it cannot reach at all**: the
+merge discharges the branch, the binding deliberately leaves the ticket open, so `state == "open"`
+stays true and a state-aware grader grades it exactly as today. #689 is the live instance — PR #736
+merged under `Part of #689` and the ticket is open and labeled as this is written.
 
-**Ruling 4 shrinks how often ruling 2's sentence is needed and never removes the need.** #715 and
-#717 are genuinely in flight, and a sweep verdict resting on `main` still has to reach them.
+**This paragraph originally cited #713 and the citation was false**, corrected above from an
+adversarial audit before merge: #713 was closed two minutes before its label came off, so a
+state-aware grader **would** have reached it. The repair is worth more than the erratum. **A
+`Closes #N` merge auto-closes its ticket within a second, so for that shape the cheap fix very nearly
+works** — the case against it is not a race that a state check loses, it is the binding that never
+closes anything. Ruling 4's other two grounds never depended on either instance.
+
+**Ruling 4 shrinks how often ruling 2's sentence is needed and never removes the need.** Four tickets
+carry `in flight` and are open as this is written, and a sweep verdict resting on `main` still has to
+reach them.
 
 **5. The blockquote marker stays required and the diagnostic is repaired instead.**
 
