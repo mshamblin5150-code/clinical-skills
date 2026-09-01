@@ -79,6 +79,7 @@ DECLARED_SECTIONS = {
     "phi_scan": "PHI pre-commit hook",
     "reference_scan": "Reference scan",
     "refusal_scan": "Refusal scan",
+    "render_scan": "Render scan",
     "research_ledger": "Research ledger",
     "scratch_census": "Scratch census",
     "scratch_work": "Scratch work",

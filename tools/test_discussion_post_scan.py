@@ -109,16 +109,6 @@ RESOLVED: https://example.org/usable-access - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the article masthead.
 REFUTATION: stands - the results table reports the same measure.
 
-## CLAIM: Quill supports the combined-program proposition.
-STATUS: sourced
-SOURCE: peer-reviewed
-REFERENCE: Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.
-RESTATEMENT: The source reports an outcome for the combined program.
-RECENCY: current
-RESOLVED: https://example.org/usable-access - read 2026-08-22
-PAGE-YEAR: 2024 - stated on the article masthead.
-REFUTATION: stands - the article addresses the cited proposition.
-
 ## CLAIM: The regulation supplies legal context.
 STATUS: sourced
 SOURCE: guideline in force
@@ -208,6 +198,7 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual("", stderr)
         self.assertIn("references: 1", stdout)
         self.assertIn("numeric claims: 1", stdout)
+        self.assertIn("claim records: 2", stdout)
         self.assertIn("untraced-number: 0", stdout)
         self.assertNotIn("Quill", stdout)
         self.assertNotIn("482.13", stdout)
@@ -537,10 +528,25 @@ class ACompletePostPasses(unittest.TestCase):
                 organization,
             )
             run.draft.write_text(draft, encoding="utf-8")
+            second_record = """\
+## CLAIM: The later section restates the organization source.
+STATUS: sourced
+SOURCE: government
+REFERENCE: Centers for Disease Control and Prevention. (2024). Measuring usable access.
+RESTATEMENT: The same source supports the later section.
+RECENCY: current
+RESOLVED: https://example.org/usable-access - read 2026-08-22
+PAGE-YEAR: 2024 - stated on the page.
+REFUTATION: stands - the page addresses the cited proposition.
+"""
             (run.root / "claims.md").write_text(
                 CLAIMS.replace(
                     "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
                     organization,
+                ).replace(
+                    "## CLAIM: The regulation supplies legal context.",
+                    second_record
+                    + "\n## CLAIM: The regulation supplies legal context.",
                 ),
                 encoding="utf-8",
             )
@@ -712,10 +718,11 @@ class ACompletePostPasses(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            status, stdout, _ = run.grade()
+            status, stdout, _ = run.grade("--show")
 
         self.assertEqual(1, status)
         self.assertIn("legal-reference-name: 1", stdout)
+        self.assertIn("legal-reference-name: claims.md:", stdout)
 
     def test_a_subsectioned_section_only_legal_record_is_a_post_finding(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1146,6 +1153,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
         ):
             with self.subTest(row=row):
                 self.assertIn(f"{row}: not graded", stdout)
+        self.assertIn("claim records: not graded", stdout)
         self.assertIn("bold-headings: not graded", stdout)
 
     def test_a_render_finding_keeps_exit_one_when_the_reference_boundary_is_refused(self):
@@ -1282,7 +1290,7 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("untraced-number: 1", stdout)
 
-    def test_two_claims_using_the_same_number_need_two_records(self):
+    def test_repeated_numeric_values_need_one_tracing_record(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             run.draft.write_text(
@@ -1294,19 +1302,18 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
             )
             status, stdout, _ = run.grade()
 
-        self.assertEqual(1, status)
-        self.assertIn("numeric claims: 2", stdout)
-        self.assertIn("untraced-number: 1", stdout)
+        self.assertEqual(0, status)
+        self.assertIn("numeric claims: 1", stdout)
+        self.assertIn("untraced-number: 0", stdout)
 
-    def test_one_record_cannot_discharge_two_numbers_and_a_citation(self):
+    def test_one_record_can_trace_two_numbers_and_carry_its_citation(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
-            one_record = CLAIMS.split("\n## CLAIM: Quill supports", 1)[0]
-            one_record = one_record.replace(
+            claims = CLAIMS.replace(
                 "Completed visits improved by 12%",
                 "Completed visits improved by 12% across 500 visits",
             )
-            (run.root / "claims.md").write_text(one_record, encoding="utf-8")
+            (run.root / "claims.md").write_text(claims, encoding="utf-8")
             run.draft.write_text(
                 BODY.replace(
                     "The result does not prove",
@@ -1316,9 +1323,9 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
             )
             status, stdout, _ = run.grade()
 
-        self.assertEqual(1, status)
-        self.assertIn("untraced-number: 1", stdout)
-        self.assertIn("untraced-citation: 2", stdout)
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout)
+        self.assertIn("untraced-citation: 0", stdout)
 
     def test_a_nonnumeric_citation_needs_its_own_claim_record(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1330,6 +1337,67 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("citations: 2", stdout)
         self.assertIn("untraced-citation: 2", stdout)
+        self.assertIn("respent-record: 0", stdout)
+
+    def test_two_citations_of_one_source_cannot_spend_one_claim_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace(
+                    "The result does not prove",
+                    "Quill (2024) reports the same result. The result does not prove",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-citation: 0", stdout)
+        self.assertIn("respent-record: 1", stdout)
+        self.assertIn(
+            "2 citations of Quill (2024) share 1 claim record — 1 short",
+            stdout,
+        )
+
+    def test_a_contended_shortfall_reports_the_maximal_deficiency(self):
+        second_quill_record = """\
+## CLAIM: Quill also supports the combined-program proposition.
+STATUS: sourced
+SOURCE: peer-reviewed
+REFERENCE: Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.
+RESTATEMENT: The source reports the same combined-program outcome.
+RECENCY: current
+RESOLVED: https://example.org/usable-access - read 2026-08-22
+PAGE-YEAR: 2024 - stated on the article masthead.
+REFUTATION: stands - the article addresses the cited proposition.
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "## CLAIM: The regulation supplies legal context.",
+                    second_quill_record
+                    + "\n## CLAIM: The regulation supplies legal context.",
+                ),
+                encoding="utf-8",
+            )
+            run.draft.write_text(
+                BODY.replace(
+                    "The result does not prove",
+                    "Quill (2024) reports the result twice (Quill, 2024). "
+                    "The result does not prove",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-citation: 0", stdout)
+        self.assertIn("respent-record: 1", stdout)
+        self.assertIn(
+            "3 citations of Quill (2024) share 2 claim records — 1 short",
+            stdout,
+        )
 
     def test_a_multiword_organizational_author_matches_its_claim_reference(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1600,6 +1668,16 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
             with self.subTest(row=row):
                 self.assertIn(f"`{row}`", text)
 
+    def test_the_skill_names_every_claim_record_report_row(self):
+        text = self.skill_text()
+        for row in (
+            scan.UNTRACED_NUMBER,
+            scan.UNTRACED_CITATION,
+            scan.RESPENT_RECORD,
+        ):
+            with self.subTest(row=row):
+                self.assertIn(f"`{row}`", text)
+
     def test_the_skill_publishes_the_counted_render_route(self):
         text = self.skill_text()
         self.assertIn("discussion_post_render.py", text)
@@ -1620,6 +1698,10 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether equal numeric values always describe one fact": (
+            "TheMechanicalBarRowsAreGraded.test_repeated_numeric_values_need_one_tracing_record",
+            "TheMechanicalBarRowsAreGraded.test_an_untraced_body_number_fails",
+        ),
         "whether rendered-document rows were graded when --docx was omitted": (
             "ACompletePostPasses.test_the_docx_row_is_not_graded_when_no_archive_is_supplied",
             "ACompletePostPasses.test_a_directly_formatted_heading_passes_the_docx_row",
