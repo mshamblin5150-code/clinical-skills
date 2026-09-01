@@ -281,6 +281,26 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
 
 
 class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
+    def test_a_c0_control_character_denies_a_body_and_a_title(self) -> None:
+        index = phi_scan.build_index(set(), set())
+
+        for field in ("body", "title"):
+            with self.subTest(field=field):
+                result = hook.analyze(
+                    hook.Publication(field, "damaged\btext"),
+                    index=index,
+                    issue=None,
+                    remote_fresh=True,
+                )
+                controls = [
+                    row for row in result.findings
+                    if row.rule == "body:c0-control-character"
+                ]
+                self.assertEqual(
+                    [(row.field, row.posture) for row in controls],
+                    [(field, "deny")],
+                )
+
     def test_phi_findings_are_advisory_counts_with_rule_and_field(self) -> None:
         invented = "Jordan Vance"
         index = phi_scan.build_index({invented}, set())
@@ -499,6 +519,30 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("phi:corpus-name", advised_report)
         self.assertNotIn(invented, advised_report)
 
+    def test_a_control_character_in_title_or_body_refuses_the_publication(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_issue",
+                return_value={"number": 723, "labels": [], "url": "draft record"},
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    'gh issue edit 723 --title "damaged\btitle" '
+                    '--body "damaged\bbody"'
+                )
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("body:c0-control-character", specific["additionalContext"])
+        self.assertNotIn("damaged", specific["additionalContext"])
+
     def test_unreadable_and_crashed_runs_are_loud_and_distinct(self) -> None:
         unreadable = hook.handle(
             self.payload('gh issue comment 670 --body-file "$OUTSIDE"')
@@ -617,6 +661,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "workspace trust can silently suppress registration",
                 "a file rewritten after the scan is graded on its earlier text",
                 "expansion is reconstructed and reaches only the same command",
+                "the refusing hook covers one of two publishers",
             },
         )
 
