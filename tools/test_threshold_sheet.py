@@ -1911,6 +1911,7 @@ class RangeGate(unittest.TestCase):
             ("chronic-kidney-disease.md", "acute-gout-dose", "1.2 mg then 0.6 mg an hour later"),
             ("diabetes-related-foot-infection.md", "severe-grade", "PaCO2 <4.3 kPa (32 mm Hg)"),
             ("diabetes-in-chronic-kidney-disease.md", "rasi-trandolapril-dose", "0.5 mg/day"),
+            ("healthcare-associated-ventriculitis-and-meningitis.md", "intraventricular-dose-intraventricular-doses", "0.01-0.5 mg"),
         }
         for filename, quantity, value in accepted:
             with self.subTest(filename=filename, quantity=quantity, value=value):
@@ -1927,6 +1928,14 @@ class RangeGate(unittest.TestCase):
         )
         self.assertIn("RANGE           1", report)
         self.assertIn("0.3 mg", findings)
+
+        _, report, findings = self.run_public_cli(
+            "0.01 mg",
+            quantity="intraventricular-dose-intraventricular-doses",
+            filename="another-sheet.md",
+        )
+        self.assertIn("RANGE           1", report)
+        self.assertIn("0.01 mg", findings)
 
         _, report, findings = self.run_public_cli(
             "500 ml/min",

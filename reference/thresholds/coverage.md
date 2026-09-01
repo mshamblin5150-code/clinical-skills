@@ -89,7 +89,7 @@
 | glomerular disease | unread |  | bound recommendation record available; full-document read pending |
 | gonococcal ophthalmia neonatorum prophylaxis | sheet | gonococcal-ophthalmia-neonatorum-prophylaxis.md | full-document read complete; exact recommendation index accounted |
 | group A streptococcal pharyngitis | sheet | group-a-streptococcal-pharyngitis.md | full-document read complete; bound recommendation record accounted |
-| healthcare-associated ventriculitis and meningitis | unread |  | bound recommendation record available; full-document read pending |
+| healthcare-associated ventriculitis and meningitis | sheet | healthcare-associated-ventriculitis-and-meningitis.md | bound recommendation record available; full document distilled |
 | hearing loss screening | sheet | hearing-loss-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | heart failure | unread |  | exact recommendation index available; full-document read pending |
 | heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
@@ -97,7 +97,7 @@
 | hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
 | hepatitis C screening | sheet | hepatitis-c-screening.md | full-document read complete; exact recommendation index accounted |
 | babesiosis | sheet | babesiosis.md | bound recommendation record available; full document distilled |
-| hepatitis C virus infection | unread |  | no recommendation record; full-document read pending |
+| hepatitis C virus infection | sheet | hepatitis-c-virus-infection.md | no recommendation record; full document distilled |
 | high blood pressure | sheet | hypertension.md | clinical-content spans on pp. 1-74 read 2026-08-29 |
 | high blood pressure screening | sheet | high-blood-pressure-screening.md | full-document read complete; exact recommendation index accounted |
 | high body mass index intervention | sheet | high-body-mass-index-intervention.md | full-document read complete; exact recommendation index accounted |
@@ -140,7 +140,7 @@
 | oral cancer screening | sheet | oral-cancer-screening.md | exact recommendation index available; full document distilled |
 | oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | osteoporosis screening, fracture prevention | sheet | osteoporosis-screening-and-fracture-prevention.md | exact recommendation index available; full document distilled |
-| outpatient parenteral antimicrobial therapy | unread |  | bound recommendation record available; full-document read pending |
+| outpatient parenteral antimicrobial therapy | sheet | outpatient-parenteral-antimicrobial-therapy.md | bound recommendation record available; full document distilled |
 | ovarian cancer screening | sheet | ovarian-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | pancreatic cancer screening | sheet | pancreatic-cancer-screening.md | exact recommendation index available; full document distilled |
 | perinatal depression prevention | sheet | perinatal-depression-prevention.md | exact recommendation index available; full document distilled |
@@ -166,7 +166,7 @@
 | thyroid dysfunction screening | sheet | thyroid-dysfunction-screening.md | exact recommendation index available; full document distilled |
 | tobacco smoking cessation | sheet | tobacco-smoking-cessation.md | exact recommendation index available; full document distilled |
 | tobacco use prevention and cessation | sheet | tobacco-use-prevention-and-cessation.md | exact recommendation index available; full document distilled |
-| tuberculosis diagnosis | unread |  | bound recommendation record available; full-document read pending |
+| tuberculosis diagnosis | sheet | tuberculosis-diagnosis.md | bound recommendation record available; full document distilled |
 | unhealthy alcohol use screening and counseling | sheet | unhealthy-alcohol-use-screening-and-counseling.md | exact recommendation index available; full document distilled |
 | unhealthy drug use screening | sheet | unhealthy-drug-use-screening.md | exact recommendation index available; full document distilled |
 | valvular heart disease | unread |  | exact recommendation index available; full-document read pending |
