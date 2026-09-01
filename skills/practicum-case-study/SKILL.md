@@ -832,7 +832,7 @@ what this exists to replace.
 **APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
 form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
-It also carries the legal-entry form and its federal-only limit.
+It also carries the legal-entry form and its `C.F.R.`-only limit.
 An APA question it does not answer is looked up at apastyle.apa.org, never guessed.
 
 **`Roughly alphabetical` was a description of the corpus and never the standard.** Sorted is

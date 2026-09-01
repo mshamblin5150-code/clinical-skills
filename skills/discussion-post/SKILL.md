@@ -153,7 +153,7 @@ uncited prose unresearched.
 Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per derived claim. Write each
 reference entry from the applicable form in
 [apa7.md](../practicum-case-study/reference/apa7.md), including its legal-entry form and declared
-federal-only limit; do not recall a form the sheet does not cover. Use the full record shape:
+`C.F.R.`-only limit; do not recall a form the sheet does not cover. Use the full record shape:
 
 ```text
 ## CLAIM: <the drafted claim, including its exact numeric token where applicable>
