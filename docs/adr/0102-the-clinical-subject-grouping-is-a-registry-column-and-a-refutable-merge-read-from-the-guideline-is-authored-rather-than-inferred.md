@@ -28,9 +28,11 @@ base** rather than carried across, on
 **The park's stated instrument did not survive, and that is the first finding.** The ground for
 parking was that every draft prints a `## Rejected candidates` list, so a completed sweep *"hands
 over a recorded list of the subjects where a sibling document sat under another name"*. **Zero of
-the 169 committed sheets carry that section.** Those lists were transient stdout; the sweep consumed
-them and they are gone. A park whose release condition is another ticket's *console output* is a
-park on evidence nothing preserves.
+the 169 committed sheets carry that section**, so no *aggregate* list of the subjects the report
+could not bridge was preserved anywhere. Each per-topic list does regenerate on demand —
+`python tools/threshold_draft.py hypertension` prints one at HEAD from committed inputs alone — so
+what the park was waiting for was never destroyed, only never assembled. A park whose release
+condition is another ticket's *console output* is a park on evidence nothing preserves.
 
 **What arrived instead is stronger and is not a report — it is the sheet directory.** The synonym
 splits the ticket could only name three of are committed files now, and the catalog's `population`
@@ -74,12 +76,13 @@ names as the one sanctioned consumer.
    reader concluding they have covered blood pressure after reading one of three sheets, one of
    which is about children.
 
-2. **It is a fourth column on `reference/thresholds/coverage.md`, schema `threshold-coverage/3`,
-   multi-valued.**
+2. **It is a `subject` column on `reference/thresholds/coverage.md`, between `topic` and `state`,
+   schema `threshold-coverage/3`, multi-valued.**
    The registry is keyed 1:1 on the unit the grouping is over — `catalog_topics()` derives its 169
    keys from the catalog and `audit()` refuses `missing topic`, `duplicate topic` and
-   `unknown topic`. The catalog is keyed on **documents**, so a column there would state 11 subjects
-   twice with nothing forcing the copies to agree. A standalone file was refused as a fourth
+   `unknown topic`. The catalog is keyed on **documents**: 10 of its 169 topics own more than one
+   row, so a column there would restate those subjects across 11 extra rows — one of them three
+   times, not twice — with nothing forcing the copies to agree. A standalone file was refused as a fourth
    hand-kept list bound to the catalog by nothing. **This does not reopen
    [#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689)'s decision 1**: that
    ruling killed the *unnamed equivalence*, and a comma-separated column **names** subjects, the
@@ -124,7 +127,7 @@ names as the one sanctioned consumer.
    wording.
 
 7. **`?` is the unruled value, and it never claims a cell is alone.**
-   The catalog's own convention, which carries 45 such cells today. The three legal values are a
+   The catalog's own convention, which carries 50 such cells across 45 rows today. The three legal values are a
    subject name, a comma-list of subject names, and `?`; there is no blank and **no implicit
    identity** — `Lyme disease` carrying its own name is a ruling, not a default. A `?` is read as
    *nobody has ruled whether this has siblings*, which is
@@ -221,14 +224,17 @@ unreadable registry, distinguishable from `unknown topic` and naming
 so the bound stops being permanently *1 of 169* and becomes a live figure that **drains**. And a `?`
 topic must not produce a clean-looking empty list: ADR 0078 ruling 4 made an empty near-miss list mean
 *nothing further to consider*, which on an unruled subject is false, so the bound sentence says the
-subject is unruled for that topic. The drafter still drafts; it cannot claim the join. No cycle —
-`threshold_coverage.py` already imports both modules `threshold_draft.py` imports.
+subject is unruled for that topic. The drafter still drafts; it cannot claim the join. No cycle, because nothing
+`threshold_coverage.py` imports reaches `threshold_draft.py`, which nothing but its own test imports.
 
 **This record supersedes in part.** ADR 0064's Consequences sentence stops being true, and ruling 1's
 refusal of a topic-keyed gate stands. ADR 0076 ruling 3's row text is superseded in part; rulings 1,
 2 and 4 stand. ADR 0078 rulings 1, 2 and 5 are superseded — the report key moves to the column, the
 bound sentence is re-derived, and the third-name refusal is deleted with the dict it guarded; rulings
-3 and 4 stand, ruling 3 by a different mechanism.
+3, 4 and 6 stand, ruling 3 by a different mechanism. **Ruling 6 in particular is untouched and
+binding on the build**: the `?`-topic sentence extends the existing module-level template rather
+than starting a second constant or a limits object, because that ruling settled how such a sentence
+is held and this record starts no inventory either.
 
 ## What must not come out of this
 
@@ -264,3 +270,17 @@ mitigation is that the key need not be guessable, and the limit is that it is st
 column groups on.
 
 **The bind proves the column and the ledger agree, never that any merge is true.**
+
+---
+
+**Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms, by the adversarial pass of this record's own session. No ruling moves; five facts it was recorded with were wrong, and every one is a count or a reason rather than a decision.**
+
+Re-derived at `origin/main` `b8d3936`, freshness gate `FRESH`:
+
+1. **Ruling 2 said *a fourth column*.** `coverage.md` carries four columns — `topic | state | artifact | record` — so the new one is the **fifth**, and ruling 9's own five-name enumeration said so four rulings later. The ordinal is now dropped entirely in favor of the position, which is what #689's body already stated and is the form that cannot go wrong again.
+2. **Ruling 2 said a catalog column *would state 11 subjects twice*.** **10** topics own more than one row and the redundancy is **11 extra rows**; the sentence had the count of one unit wearing the label of the other, and *twice* is wrong for the three-document topic.
+3. **Ruling 7 said the catalog *carries 45 such cells*.** 45 is the count of **rows containing a `?`**; there are **50** `?` cells, and the `## Unsettled cells` list carries 50 bullets. ADR 0047 ruling 6 fixes the unit as the cell.
+4. **The Consequences said `threshold_coverage.py` *already imports both modules `threshold_draft.py` imports*.** False — `threshold_draft.py` imports five first-party modules and `threshold_coverage.py` carries neither `guidelines_extract` nor `guidelines_recs`. The conclusion holds by a different fact, now stated: nothing `threshold_coverage.py` imports reaches `threshold_draft.py`, which nothing but its own test imports.
+5. **The park's-instrument finding said those lists were *gone*.** No aggregate list was preserved, which is the finding; but each per-topic list regenerates in one command from committed inputs, so *gone* claimed more than the measurement. The ruling is unaffected — the sheet directory was always the stronger evidence.
+
+**Three of the five are a count of the wrong unit**, which is the defect this repository names most often, arriving inside the record that rules on it — and it is the *second* time on this ticket, its own 2026-09-01 footer having recorded the same species one record earlier. **All five survived the drafting, the ruling and the first read**, and were found only by a pass briefed to attack rather than to confirm — which is ruling 4's argument holding on the record that makes it.
