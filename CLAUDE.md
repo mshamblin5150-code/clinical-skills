@@ -52,6 +52,14 @@ The repository's complete label vocabulary and the axes its labels occupy live i
 
 Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, created lazily by `/domain-modeling` rather than scaffolded upfront. See `docs/agents/domain.md`.
 
+### Glossary sense collisions
+
+`tools/test_glossary_collisions.py` derives the candidate population from the
+term headings in `CONTEXT.md`. The human verdicts and their reasons live only in
+`test_glossary_collisions.DECLARED_CANDIDATES`; the complete boundary lives in
+`test_glossary_collisions.DECLARED_LIMITS`. This is an inventory, never a gate:
+a new fire is unruled until a person classifies it.
+
 ### The scratch root
 
 Everything under `scratch/` is a patient record and none of it is recoverable. **A top-level entry
