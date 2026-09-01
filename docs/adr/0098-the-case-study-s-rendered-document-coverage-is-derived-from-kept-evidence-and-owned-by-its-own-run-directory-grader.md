@@ -10,9 +10,9 @@ images five of nine pages and writes a fluent sentence about hanging indents pas
 Grilled 2026-09-01. **Seven decisions, ruled by the clinician on that date.** Nothing is built
 here; this is the record the build reads.
 
-## Measured before ruling, at `40bc2b1`
+## Measured before ruling, at `8c8696b`
 
-Freshness gate `FRESH` at both checkpoints. `main` moved three times during the session and every figure
+Freshness gate `FRESH` at both checkpoints. `main` moved five times during the session and every figure
 below was re-derived at the final base. **The last measurement falsifies the rationale this ticket
 was going to lift wholesale**, and two more move a decision.
 
@@ -38,9 +38,13 @@ pre-render pass there is no render directory to count.
 `<a run directory>`: `anchor_scan`, `block_scan`, `differential_scan`, `filled_vitals_census` and
 `specificity_scan`.
 
-**#676 is ruled and unbuilt.** `UNSEEN:` and `PAGES:` appear in exactly one tracked file, and it is
-ADR 0087 itself — not the skill, not any tool. What a builder would find by going to look at the
-sibling's shipped record is a specimen block in a record.
+**#676 is ruled and unbuilt.** Before this record, `UNSEEN:` and `PAGES:` appeared in exactly one
+tracked file, and it was ADR 0087 itself — not the skill, not any tool. What a builder would find by
+going to look at the sibling's shipped record is a specimen block in a record. *(This sentence is
+written in the past tense because committing this record made the count two: it names those fields
+in ruling 2 in order to retire them. The measurement was taken while it was still untracked, which
+is [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254)'s window and the same
+window that hid this branch's parser defect for one run.)*
 
 ### ADR 0087 ruling 5's route does not return on this machine
 
