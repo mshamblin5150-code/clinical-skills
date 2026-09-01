@@ -152,6 +152,14 @@ _Avoid_: draft, local copy
 The record of every new factual claim a graded document makes, one entry per claim, each naming what was searched, what was found, the page read and the date it was read on, and the result of an independent attempt to refute it. Written before the document that rests on it.
 _Avoid_: sources file, bibliography, notes
 
+**Claim record**:
+One entry in a claim ledger. It is the unit a citation spends and the unit a number is traced against, and those are different relations: a citation consumes a record so that no other citation may consume the same one, while a number only has to appear somewhere in the ledger. So one record can answer a figure and the citation beside it in the same sentence, and a source cited twice needs two.
+_Avoid_: claim, entry, source record
+
+**Spend**:
+To consume a finite thing so that nothing else may consume it. A citation spends a claim record; a reply spends a source an earlier reply may then not spend again. Distinct from the looser sense of a load-bearing invocation, where a domain's real behavior is spent as the argument and nothing is used up.
+_Avoid_: use, claim, take
+
 **Stated expiry**:
 The date a source prints on itself as the day it ceases to have effect. Read off the document, never derived from how often its publisher reissues — a source with a known replacement schedule and no printed date has none, and a claim ledger records that it has none rather than leaving the question unasked.
 _Avoid_: expiration, sunset, shelf life, validity window
