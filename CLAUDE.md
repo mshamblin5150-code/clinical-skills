@@ -783,6 +783,26 @@ push can happen before the finishing sweep writes its comments. This is #260's
 ruling, 2026-08-20. The separate pre-publication path is documented under
 **Tracker publish hook** below; it is not the git hook #260 declined.
 
+**A publication whose text the hook cannot read is refused**, on every kind in
+`UNREADABLE_REMEDIES` and only on a route in `PUBLISH_ROUTES` -- an
+unrecognized command is untouched. That is
+[ADR 0096](docs/adr/0096-an-unreadable-publication-is-refused-and-expansion-is-reconstructed-from-the-command-as-typed.md),
+ruled on [#745](https://github.com/mshamblin5150-code/clinical-skills/issues/745):
+the gate returned *allow* whenever it could not parse its own input, so the one
+limb that refuses was absent exactly when the hook could least vouch for the
+text, and the message read as advice about a missing file rather than as **this
+publication was not scanned**. **It cost two recorded escapes** -- a
+non-conforming branch-state block on #745's own sweep, and a dead citation on
+#708's, four publications going out ungraded in that second session alone.
+
+**What it reads is the command as typed rather than the shell's expansion of
+it**, so resolution is reconstructed: assignments made in the same command are
+substituted, including where a variable names only the leading part of a path,
+and a Git Bash `/c/...` path is also tried in its Windows spelling. **A form it
+cannot reconstruct is refused rather than guessed at.** The kinds and their
+remedies are `UNREADABLE_REMEDIES`'s to say, and what a clean run does not
+establish is `NOT_REACHED`'s; neither is listed here.
+
 **When a full harvest last really ran, and what it found, is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
 `python tools/phi_scan.py` commit path states that marker's age** -- ADR 0077
@@ -859,10 +879,29 @@ publishes no tracker comment.
 
 `tools/tracker_freshness.py` fetches `origin/main` without trusting a cached
 remote-tracking reference, then asks whether the current `HEAD` contains the
-fetched commit. Exit 0 means that containment check is fresh; exit 2 means the
-fetch failed or the branch is stale. The complete workflow contract remains in
+fetched commit. The complete workflow contract remains in
 `docs/agents/issue-tracker.md`, and #728 owns the still-open question of this
 gate's coverage boundary.
+
+**Exit status distinguishes not having checked from having checked and found
+nothing wrong**, on the convention every graded command here states — 0
+`FRESH`, **1 `STALE`**, 2 `DID NOT CHECK`. A stale base is the gate having run
+and found the one thing it exists to find, so it is a finding and not a failure
+to look. [#744](https://github.com/mshamblin5150-code/clinical-skills/issues/744)
+ruled the earlier collapse of both non-zero limbs into 2 a defect: a caller
+following the house rule would read a genuinely stale base as *the check could
+not run, proceed with a banner*, which is what
+[#320](https://github.com/mshamblin5150-code/clinical-skills/issues/320) built
+this gate to prevent, reached through the status rather than through the fetch.
+
+**Every route to 2 checked nothing, and splitting the statuses is what made
+that load-bearing.** A failed fetch is the documented route; an unrunnable
+`git`, a `rev-parse` that fails after a successful fetch, and a `merge-base
+--is-ancestor` that neither confirms nor denies ancestry all reach it too.
+Before #744 those three escaped as an uncaught traceback and exited **1** —
+harmless while 1 was unused, and indistinguishable from `STALE` the moment it
+was not. Repairing only the `STALE` limb would have made the module worse,
+which is why the two edits are one change.
 
 A clean run neither rebases the branch nor reruns evidence gathered before the
 check. It establishes the base relationship only at the moment it runs, which

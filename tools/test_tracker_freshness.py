@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import tracker_freshness
 
 
 MODULE = Path(__file__).with_name("tracker_freshness.py")
@@ -46,7 +49,7 @@ class TrackerFreshnessCommand(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def run_command(self) -> subprocess.CompletedProcess[str]:
+    def run_command(self, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(MODULE)],
             cwd=self.reader,
@@ -55,6 +58,7 @@ class TrackerFreshnessCommand(unittest.TestCase):
             errors="replace",
             capture_output=True,
             check=False,
+            env=env,
         )
 
     def advance_main(self) -> str:
@@ -76,8 +80,9 @@ class TrackerFreshnessCommand(unittest.TestCase):
 
         result = self.run_command()
 
-        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("STALE", result.stderr)
+        self.assertNotIn("DID NOT CHECK", result.stderr)
         self.assertIn(latest_main, result.stderr)
         self.assertIn("git rebase origin/main", result.stderr)
         self.assertEqual(
@@ -95,6 +100,51 @@ class TrackerFreshnessCommand(unittest.TestCase):
         self.assertIn("fetch", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_an_unrunnable_git_binary_did_not_check_rather_than_found_something(self) -> None:
+        """#744: before the split this route exited 1 through an uncaught OSError.
+
+        With STALE now 1, a crash that reaches the same status is worse than the
+        collapse the ticket was filed about -- it is indistinguishable from the
+        one finding this gate exists to report.
+        """
+
+        stripped = dict(os.environ)
+        stripped["PATH"] = str(self.root / "no-git-here")
+
+        result = self.run_command(env=stripped)
+
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("DID NOT CHECK", result.stderr)
+        self.assertNotIn("STALE", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_a_git_failure_after_a_successful_fetch_did_not_check(self) -> None:
+        """The fetch succeeds and a later command fails, which used to traceback."""
+
+        git("remote", "set-url", "origin", str(self.remote), cwd=self.reader)
+        # An unborn HEAD fetches fine and cannot be resolved by rev-parse.
+        git("checkout", "--orphan", "unborn", cwd=self.reader)
+        git("rm", "-rf", "--cached", ".", cwd=self.reader)
+
+        result = self.run_command()
+
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("DID NOT CHECK", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_only_a_stale_base_reaches_status_one(self) -> None:
+        """Every route this suite can drive, gathered so the partition is visible."""
+
+        fresh = self.run_command()
+        self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
+
+        unreachable = dict(os.environ)
+        unreachable["PATH"] = str(self.root / "no-git-here")
+        self.assertEqual(self.run_command(env=unreachable).returncode, 2)
+
+        self.advance_main()
+        self.assertEqual(self.run_command().returncode, 1)
+
     def test_feature_branch_ahead_of_main_passes_when_it_contains_main(self) -> None:
         git("config", "user.name", "Test Reader", cwd=self.reader)
         git("config", "user.email", "reader@example.invalid", cwd=self.reader)
@@ -106,6 +156,50 @@ class TrackerFreshnessCommand(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("FRESH", result.stdout)
+
+
+class AnAncestryQuestionGitDeclinesToAnswer(unittest.TestCase):
+    """#744: `merge-base --is-ancestor` answers 0 or 1 and errors otherwise.
+
+    The subprocess cases above cannot reach this branch -- every route that
+    corrupts the ancestry query also fails the `rev-parse` before it -- so it is
+    driven directly rather than declared unreached. Reading a git error as
+    `IS_NOT_ANCESTOR` would report `STALE` about a base nothing measured, which
+    is the ticket's own defect with the sign flipped.
+    """
+
+    def setUp(self) -> None:
+        self.calls: list[tuple[str, ...]] = []
+
+    def fake_run_git(self, status: int):
+        def run_git(*args: str) -> subprocess.CompletedProcess[str]:
+            self.calls.append(args)
+            if args[0] == "merge-base":
+                return subprocess.CompletedProcess(args, status, "", "fatal: bad object")
+            return subprocess.CompletedProcess(args, 0, "0" * 40 + "\n", "")
+
+        return run_git
+
+    def statuses_for(self, ancestry_status: int) -> int:
+        original = tracker_freshness.run_git
+        tracker_freshness.run_git = self.fake_run_git(ancestry_status)
+        try:
+            return tracker_freshness.main()
+        finally:
+            tracker_freshness.run_git = original
+
+    def test_a_declined_ancestry_question_did_not_check(self) -> None:
+        self.assertEqual(self.statuses_for(128), tracker_freshness.DID_NOT_CHECK)
+
+    def test_the_two_documented_answers_still_mean_what_they_say(self) -> None:
+        self.assertEqual(self.statuses_for(0), tracker_freshness.FRESH)
+        self.assertEqual(self.statuses_for(1), tracker_freshness.STALE)
+
+    def test_the_stub_is_live(self) -> None:
+        """A stub that never ran would let all three assertions above pass."""
+
+        self.statuses_for(0)
+        self.assertIn(("merge-base", "--is-ancestor", tracker_freshness.REMOTE_REF, "HEAD"), self.calls)
 
 
 class DocumentationRequiresBothCheckpoints(unittest.TestCase):

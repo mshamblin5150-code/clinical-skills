@@ -401,9 +401,11 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         )
 
         for response in (missing_value, broken_quote):
-            report = response["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("Unreadable body", report)
+            specific = response["hookSpecificOutput"]
+            report = specific["additionalContext"]
+            self.assertIn("NOT SCANNED", report)
             self.assertNotIn("0 findings", report)
+            self.assertEqual(specific["permissionDecision"], "deny")
 
     def test_an_invalid_malformed_route_is_not_promoted_to_a_publish_route(self) -> None:
         response = hook.handle(
@@ -599,6 +601,13 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):
     def test_the_ratified_population_is_present_in_both_directions(self):
+        """Two rulings own this object, and each row belongs to exactly one.
+
+        ADR 0089 ratified the four bypass rows -- ways the hook never runs at
+        all. ADR 0096 added the two that describe what a run it *did* perform
+        does not establish, on the rule this object already carried: a limit
+        lives here rather than in the docstring or ``CLAUDE.md``.
+        """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
             {
@@ -606,8 +615,130 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "disabled or overridden hooks bypass the check",
                 "retained pre-edit revisions remain readable",
                 "workspace trust can silently suppress registration",
+                "a file rewritten after the scan is graded on its earlier text",
+                "expansion is reconstructed and reaches only the same command",
             },
         )
+
+
+
+class AnUnreadableBodyIsRefused(unittest.TestCase):
+    """#745. The gate returned *allow* whenever it could not read its input.
+
+    The branch-scope limb is a refusal, so a gate that steps aside exactly when
+    it cannot vouch for the text is not one. Every kind in
+    ``UNREADABLE_REMEDIES`` denies, and the reason says the publication was not
+    scanned rather than repeating the branch-scope sentence.
+    """
+
+    @staticmethod
+    def payload(command: str) -> dict:
+        return {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+        }
+
+    def test_an_unresolvable_variable_denies_and_names_the_reason(self) -> None:
+        response = self.payload('gh issue comment 670 --body-file "$NOWHERE/b.md"')
+        specific = hook.handle(response)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertEqual(
+            specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+        )
+        self.assertNotIn("branch-scope", specific["permissionDecisionReason"])
+
+    def test_a_branch_scope_refusal_keeps_its_own_reason(self) -> None:
+        """The reason became a parameter here; the other caller must not inherit."""
+        response = hook._hook_response("deny", "report")
+
+        self.assertEqual(
+            response["hookSpecificOutput"]["permissionDecisionReason"],
+            hook.BRANCH_SCOPE_REFUSAL,
+        )
+
+    def test_an_unrecognized_command_is_still_untouched(self) -> None:
+        """The refusal is bounded by the publish routes and nothing wider."""
+        self.assertEqual(hook.handle(self.payload("ls -la")), {})
+        self.assertEqual(
+            hook.handle(self.payload("gh issue view 670 --json body")), {}
+        )
+
+
+class ThePathFormsThatEscapedAreResolved(unittest.TestCase):
+    """#745. The hook reads the command as typed, before the shell runs.
+
+    There is no expanded argument to observe, so expansion is reconstructed
+    from assignments in the same command. Only a value that was *entirely* one
+    variable was substituted, so the ordinary ``$VAR/name.md`` form reached the
+    filesystem check as an unexpanded literal, missed, and was reported as a
+    missing file -- which was advisory, so the publication proceeded ungraded.
+    """
+
+    def setUp(self) -> None:
+        self.directory = Path(tempfile.mkdtemp())
+        self.body = self.directory / "body.md"
+        self.body.write_text("recorded text\n", encoding="utf-8")
+        self.windows = str(self.body).replace("\\", "/")
+
+    def read(self, argument: str, prefix: str = "") -> hook.Extraction:
+        return hook.extract(
+            prefix + f"gh issue comment 670 --body-file {argument}"
+        )
+
+    def assertReadTheFile(self, got: hook.Extraction) -> None:
+        self.assertEqual(got.unreadable, ())
+        self.assertEqual(got.publications[0].text, "recorded text\n")
+
+    def test_a_variable_naming_the_whole_path_still_resolves(self) -> None:
+        self.assertReadTheFile(
+            self.read('"$S"', prefix=f'S="{self.windows}"; ')
+        )
+
+    def test_a_variable_naming_a_path_prefix_resolves(self) -> None:
+        self.assertReadTheFile(
+            self.read(
+                '"$S/body.md"', prefix=f'S="{self.directory.as_posix()}"; '
+            )
+        )
+
+    def test_the_braced_spelling_resolves_too(self) -> None:
+        self.assertReadTheFile(
+            self.read(
+                '"${S}/body.md"', prefix=f'S="{self.directory.as_posix()}"; '
+            )
+        )
+
+    def test_a_literal_path_resolves(self) -> None:
+        self.assertReadTheFile(self.read(f'"{self.windows}"'))
+
+    @unittest.skipUnless(sys.platform == "win32", "MSYS spelling is Windows-only")
+    def test_a_git_bash_path_resolves_in_its_windows_spelling(self) -> None:
+        """MSYS rewrites this when it launches a native command, so the
+        argument the shell used opens and the hook's earlier copy does not."""
+        drive, rest = self.windows.split(":", 1)
+
+        self.assertReadTheFile(self.read(f'"/{drive.lower()}{rest}"'))
+
+    def test_a_variable_from_the_environment_is_classified_as_one(self) -> None:
+        """It reported ``missing-file``, so the remedy printed was the wrong
+        one -- create the file, for a path the hook could never have built."""
+        got = self.read('"$NOWHERE/body.md"')
+
+        self.assertEqual(got.unreadable[0].kind, "external-variable")
+
+    def test_a_command_substitution_prefix_is_classified_as_one(self) -> None:
+        got = self.read('"$D/body.md"', prefix='D="$(pwd)"; ')
+
+        self.assertEqual(got.unreadable[0].kind, "command-substitution")
+
+    def test_an_inline_body_expands_the_same_way(self) -> None:
+        """``_expand`` serves the inline field too, where the value is the text
+        rather than a path, so the two cannot drift apart."""
+        got = hook.extract('S="text"; gh issue comment 670 --body "$S/tail"')
+
+        self.assertEqual(got.publications[0].text, "text/tail")
 
 
 if __name__ == "__main__":
