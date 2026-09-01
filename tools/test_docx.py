@@ -91,6 +91,24 @@ class OwnLineHtmlCommentsAreMarkup(unittest.TestCase):
         self.assertIn("1 multi-line HTML comment", stderr.getvalue())
         self.assertNotIn("Visible", stderr.getvalue())
 
+    def test_a_mid_line_form_after_a_multi_line_close_is_also_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "post.md"
+            destination = root / "post.docx"
+            source.write_text(
+                "<!-- first\n"
+                "ends --> visible <!-- second --> prose\n",
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = docx_write.main([str(source), str(destination)])
+
+        self.assertEqual(0, status)
+        self.assertIn("1 mid-line HTML comment", stderr.getvalue())
+        self.assertIn("1 multi-line HTML comment", stderr.getvalue())
+
 
 class CommentStrippingDeclaredLimits(unittest.TestCase):
     def test_the_residue_has_two_coverage_rows(self):

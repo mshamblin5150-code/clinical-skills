@@ -509,6 +509,20 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     return tuple(findings)
 
 
+def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
+    if not source.rendered_comment_paragraphs:
+        return ()
+    assert source.docx is not None
+    return tuple(
+        Finding(
+            RENDERED_COMMENTS,
+            source.docx.name,
+            "paragraph carries an HTML comment delimiter",
+        )
+        for _ in range(source.rendered_comment_paragraphs)
+    )
+
+
 def survey(source: RunSource) -> Scan:
     if source.refused_label is not None:
         findings = (
@@ -521,14 +535,7 @@ def survey(source: RunSource) -> Scan:
             )
             if source.named_heading_styles
             else ()
-        ) + tuple(
-            Finding(
-                RENDERED_COMMENTS,
-                source.docx.name,
-                "paragraph carries an HTML comment delimiter",
-            )
-            for _ in range(source.rendered_comment_paragraphs)
-        )
+        ) + _rendered_comment_findings(source)
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -580,14 +587,7 @@ def survey(source: RunSource) -> Scan:
                 "named heading styles: " + ", ".join(source.named_heading_styles),
             )
         )
-    findings.extend(
-        Finding(
-            RENDERED_COMMENTS,
-            source.docx.name,
-            "paragraph carries an HTML comment delimiter",
-        )
-        for _ in range(source.rendered_comment_paragraphs)
-    )
+    findings.extend(_rendered_comment_findings(source))
     requirements: list[tuple[str, str, tuple[int, ...]]] = []
     number_occurrences: Counter[str] = Counter()
     for value in numbers:

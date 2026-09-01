@@ -868,19 +868,32 @@ def comment_report(markdown: str) -> tuple[int, int, int]:
         if OWN_LINE_COMMENT.fullmatch(line):
             stripped += 1
             continue
-        opens = line.count("<!--")
-        closes = line.count("-->")
-        if in_multi_line:
-            if closes:
+        cursor = 0
+        while cursor < len(line):
+            if in_multi_line:
+                closing = line.find("-->", cursor)
+                if closing < 0:
+                    break
                 in_multi_line = False
-            continue
-        if opens > closes:
-            multi_line += 1
-            in_multi_line = True
-        elif closes > opens:
-            multi_line += 1
-        elif opens:
+                cursor = closing + 3
+                continue
+            opening = line.find("<!--", cursor)
+            closing = line.find("-->", cursor)
+            if closing >= 0 and (opening < 0 or closing < opening):
+                # A closing delimiter without an opener is the artifact-side shape of
+                # a multi-line comment whose opening line was outside this read.
+                multi_line += 1
+                cursor = closing + 3
+                continue
+            if opening < 0:
+                break
+            closing = line.find("-->", opening + 4)
+            if closing < 0:
+                multi_line += 1
+                in_multi_line = True
+                break
             mid_line += 1
+            cursor = closing + 3
     return stripped, mid_line, multi_line
 
 
