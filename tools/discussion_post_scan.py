@@ -33,6 +33,7 @@ from discussion_artifact import (
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
     Citation,
+    LEGAL_SECTION_NUMBER,
     NUMBER,
     INVOKED,
     InvokedSource,
@@ -152,9 +153,13 @@ NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
 FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 REFERENCE_HEADING = re.compile(r"(?mi)^#{1,6}\s+References\s*$")
 MARKDOWN_HEADING = re.compile(r"(?m)^\s*#{1,6}\s+.*$")
+# This stays looser than the citation reader: over-stripping a number is cheaper
+# than manufacturing a citation from ordinary prose such as ``§ 5``.
 STATUTE = re.compile(
-    r"(?i)(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)?\s*\d+(?:\.\d+)*"
-    r"|§+\s*\d+(?:\.\d+)*"
+    r"(?i)(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)?\s*"
+    + LEGAL_SECTION_NUMBER
+    + r"|§+\s*"
+    + LEGAL_SECTION_NUMBER
 )
 PAGE_LOCATOR = re.compile(
     r"(?i)\b(?:p{1,2}\.|pages?)\s*\d+(?:\s*[-–]\s*\d+)?"
