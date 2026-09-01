@@ -5,8 +5,8 @@ repo. What is freely published is APA Style's own rule pages, and this sheet is 
 rules a practicum case study rests on, each carrying the manual section it comes from so a reader
 can go to the source rather than trust this file.
 
-**Verified against apastyle.apa.org on 2026-08-18.** Every rule below was read from that site on
-that date, not recalled. A rule this sheet does not cover is looked up the same way — **an APA rule
+**Sections 1 through 7 were verified against apastyle.apa.org on 2026-08-18.** Every rule in those
+sections was read from that site on that date, not recalled. A rule this sheet does not cover is looked up the same way — **an APA rule
 is looked up, never recalled**, which is [SKILL.md](../SKILL.md)'s anchor discipline arriving at
 the reference list.
 
@@ -281,6 +281,7 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only where the entry carries a **DOI** — the work stating an archived version of itself exists, which is §4's own test failing. Nothing in a URL distinguishes a stable PDF from a page designed to change |
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
+| A check of **whether a legal entry is cited** | A legal entry is outside `uncited-entry`: the canonical narrative name needs a whole-phrase key the command does not have, so a clean result cannot prove the entry is cited anywhere |
 
 **That table is `reference_scan.NOT_REACHED` and this is not a second copy of it**, which is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one
@@ -313,3 +314,26 @@ over four standing unqualified.
 `CLAUDE.md` were both fixed when #218 and #231 met; a sheet under `skills/` was outside what that
 sweep had open, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
 again. Found by the merge rather than by either branch.
+
+## 8. Legal reference entries
+
+**Provenance:** APA Style's *Nursing Student References* page, item 14, read 2026-08-30.
+
+APA's published example is a state nursing regulation:
+
+```text
+Professional and Vocational Regulations, 16 CCR § 1481 (2023). https://...
+```
+
+Its parenthetical citation is `(Professional and Vocational Regulations, 2023)`, and its
+narrative citation is `Professional and Vocational Regulations (2023)`. The entry form is:
+
+```text
+Name of the Statute, Title number Source § Section number(s) (Year)
+```
+
+The regulation name is required; a section-only entry is not this form.
+
+**Federal-only limit.** APA's `Source` slot can hold any code, including the example's state
+`CCR`. This repository's legal readers currently recognize `C.F.R.` alone, so this sheet does not
+claim that the scanner reaches state or foreign codes.

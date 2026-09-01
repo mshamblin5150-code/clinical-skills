@@ -832,6 +832,7 @@ what this exists to replace.
 **APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
 form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
+It also carries the legal-entry form and its federal-only limit.
 An APA question it does not answer is looked up at apastyle.apa.org, never guessed.
 
 **`Roughly alphabetical` was a description of the corpus and never the standard.** Sorted is
@@ -854,6 +855,7 @@ sorted.
 | Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
+| A federal-regulation entry carrying only its C.F.R. section | add the regulation name in [apa7.md](reference/apa7.md) §8's form |
 | An entry in the list that is cited nowhere in the body | delete it |
 | A citation in the body with no entry in the list | add it |
 | A missing space in a date | `February 19, 2026` |

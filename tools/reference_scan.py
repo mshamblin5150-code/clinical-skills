@@ -103,6 +103,14 @@ list would otherwise be found by neither.
 - **Every entry is cited in the body**, and the ruling is delete rather than cite.
 - **Every citation is listed.**
 
+*Legal reference entries, section 8:*
+
+- **A federal-regulation entry carries the regulation name.** A section alone is
+  reported as a malformed entry.
+- **A legal entry resolves on its C.F.R. section, with or without a citation year.**
+  It is outside ``uncited-entry`` because the canonical narrative name needs a
+  whole-phrase key this module does not have.
+
 **What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
 used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to
 either failed nothing --
@@ -233,6 +241,7 @@ from datetime import date
 from pathlib import Path
 
 import run_grader
+from discussion_artifact import LEGAL_CITATION, legal_reference_lacks_name
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
 from docx_write import blocks as renderer_blocks
 
@@ -369,6 +378,7 @@ UPTODATE_ITALICS = "uptodate-italics"
 INTEXT_YEAR_MISMATCH = "intext-year-mismatch"
 UNCITED_ENTRY = "uncited-entry"
 UNLISTED_CITATION = "unlisted-citation"
+LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
 
 # The rows that read the draft's **body** rather than its reference list, declared
 # so that a fifth one cannot arrive quietly. #218's decision 1 was ruled on a
@@ -421,6 +431,7 @@ ROWS = {
     MALFORMED_DATE: "apa7 4",
     UPTODATE_ITALICS: "apa7 2",
     INTEXT_YEAR_MISMATCH: "apa7 3",
+    LEGAL_REFERENCE_LACKS_NAME: "apa7 8",
     UNCITED_ENTRY: "apa7 5",
     UNLISTED_CITATION: "apa7 5",
 }
@@ -513,6 +524,13 @@ NOT_REACHED = (
         "resolving locator whose title and authors match the entry is evidence the "
         "document exists even when that route cannot reach its body.",
     ),
+    (
+        "whether a legal entry is cited",
+        "A legal entry is outside ``uncited-entry`` because the canonical narrative "
+        "name citation needs a whole-phrase key this module does not have. Section "
+        "citations resolve where they are readable, but a clean result cannot prove "
+        "that a legal entry is cited anywhere in the draft.",
+    ),
 )
 
 
@@ -585,6 +603,27 @@ class Entry:
     @property
     def key(self) -> str:
         return first_word(self.text)
+
+    @property
+    def _legal_match(self) -> re.Match[str] | None:
+        return LEGAL_CITATION.search(self.text)
+
+    @property
+    def is_legal(self) -> bool:
+        return self._legal_match is not None
+
+    @property
+    def resolution_keys(self) -> tuple[tuple[str, str], ...]:
+        """Citation-pairing keys without changing ``key``'s grouping contract."""
+
+        keys = [(self.key, year_key(self.year))] if self.key and self.year else []
+        legal = self._legal_match
+        if legal is not None:
+            author = legal.group("parenthesized_author") or legal.group("author") or ""
+            section_key = normalize(author)
+            if section_key:
+                keys.extend(((section_key, year_key(self.year)), (section_key, "")))
+        return tuple(dict.fromkeys(keys))
 
     @property
     def authors(self) -> str:
@@ -713,6 +752,7 @@ class Scan:
     entries: int
     uptodate: int
     with_doi: int
+    legal: int
     citations: int
     counts: tuple[tuple[str, int], ...]
     entries_at_fault: int
@@ -751,6 +791,12 @@ def read_citations(body: str) -> tuple[Citation, ...]:
         if not key:
             return
         pair = (key, year_key(token))
+        seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
+
+    for match in LEGAL_CITATION.finditer(body):
+        author = match.group("parenthesized_author") or match.group("author") or ""
+        token = match.group("parenthesized_year") or match.group("year") or ""
+        pair = (normalize(author), year_key(token))
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for block in PAREN_BLOCK.finditer(body):
@@ -874,6 +920,8 @@ def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
         found.append(Finding(ENTRY_HAS_NO_YEAR, where, entry.text, at))
     if CANVAS.search(entry.text):
         found.append(Finding(CANVAS_ARTIFACT, where, entry.text, at))
+    if legal_reference_lacks_name(entry.text):
+        found.append(Finding(LEGAL_REFERENCE_LACKS_NAME, where, entry.text, at))
 
     stamp, _present, malformed = _retrieval(entry)
     if malformed:
@@ -968,8 +1016,8 @@ def _citation_findings(document: Document) -> list[Finding]:
     found: list[Finding] = []
     listed: dict[str, set[str]] = {}
     for entry in document.entries:
-        if entry.key and entry.year:
-            listed.setdefault(entry.key, set()).add(year_key(entry.year))
+        for key, year in entry.resolution_keys:
+            listed.setdefault(key, set()).add(year)
     cited = {citation.key for citation in document.citations}
 
     for citation in document.citations:
@@ -984,7 +1032,7 @@ def _citation_findings(document: Document) -> list[Finding]:
                 )
             )
     for entry in document.entries:
-        if entry.key and entry.year and entry.key not in cited:
+        if entry.key and entry.year and not entry.is_legal and entry.key not in cited:
             found.append(Finding(UNCITED_ENTRY, f"entry on line {entry.line}", entry.text, entry.line))
     return found
 
@@ -1022,6 +1070,7 @@ def survey(document: Document, as_of: date | None) -> Scan:
         entries=len(document.entries),
         uptodate=sum(1 for e in document.entries if e.is_uptodate),
         with_doi=sum(1 for e in document.entries if DOI.search(e.text)),
+        legal=sum(1 for e in document.entries if e.is_legal),
         citations=len(document.citations),
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
         entries_at_fault=len(at_fault),
@@ -1042,7 +1091,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  reference entries read           {scan.entries}",
         f"    UpToDate entries               {scan.uptodate}",
         f"    entries carrying a DOI         {scan.with_doi}",
+        f"    legal entries                  {scan.legal}",
         f"  in-text citations read           {scan.citations}",
+        "",
+        "  A legal entry is outside uncited-entry.",
         "",
     ]
     for kind, count in scan.counts:
