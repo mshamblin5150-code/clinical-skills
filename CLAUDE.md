@@ -680,6 +680,18 @@ python tools/reference_scan.py <a draft .md> --as-of <YYYY-MM-DD>
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a defect, **2 for every way of not having scanned**: no argument, no file, an unreadable `--as-of`, **no reference list found in the document**, and **a heading with nothing under it**. Those last two are the limbs that matter, and they are `differential_scan.py`'s reasoning: a draft whose list was headed something this cannot recognize would otherwise report zero defects and read as a clean list.
 
+### Reference-class census
+
+The account-wide companion to *Reference scan* measures which declared APA source-class buckets appear in working and finished coursework. It imports that scanner's document reader and classifier, so the per-run row and the corpus report cannot assign one entry to different buckets.
+
+```bash
+python tools/reference_class_census.py
+```
+
+**Its population follows ownership, not the checkout the command happens to stand in.** It reads `scratch/` under every checkout returned by `scratch_census.worktree_roots()` and reads `output/` only from the owning checkout returned by `repo_root.output_root()`. A separate clone has a separate registry and is invisible, and material outside every checkout is outside the walk. The report always states checkouts enumerated, roots read, roots unreadable, and the entry denominator.
+
+**It has no `--show`.** The report contains only declared bucket names, the derived `clean`/`finding`/`undecidable` state, and integers; no corpus entry, filename, or path is printed. Exit 0 means no populated finding-state bucket, 1 means at least one appeared, and 2 means the complete registered population was not scanned. An undecidable bucket is counted and never becomes a finding.
+
 **`--as-of` is the exam date and a missing one is exit 2**, which is `research_ledger.py`'s dateless-ledger arrangement rather than a new rule. One row needs it — the retrieval date must be on or after the day the paper is written — and the window is measured against that day and never against the clock, so a draft graded twice a year apart grades the same both times. **Where a defect and a missing exam date both hold, 1 wins**, on `differential_scan.py`'s ordering, and the banner prints beside it so the finding reads as a floor.
 
 Covered by `tools/test_reference_scan.py`, which builds synthetic drafts in that file and a temp directory — **there is no committed case study and there will not be one**, because a finished draft lives under `output/` and is written about a patient, which is `differential_scan.py`'s position exactly. The one thing it reads from the tree is **the skill's own worked reference list, which it runs the scanner over**: a documented list the scanner would refuse teaches the next run to write one that fails, and every substring test in that class would still be green.

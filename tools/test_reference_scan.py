@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ast
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -43,6 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 APA7 = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "apa7.md"
 DISCUSSION_POST_SKILL = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
+CONTEXT = REPO_ROOT / "CONTEXT.md"
 
 AS_OF = date(2026, 8, 19)
 
@@ -53,6 +55,16 @@ ACOG = (
 UPTODATE = (
     "Gupta, K., & Hooton, T. M. (2025). Acute simple cystitis in adult females. "
     "*UpToDate*. Retrieved August 19, 2026, from https://www.uptodate.com/contents/cystitis"
+)
+STATPEARLS = (
+    "Alyafei, A. (2024). The health belief model of behavior change. "
+    "*StatPearls*. https://www.statpearls.com/point-of-care/161679"
+)
+COCHRANE = (
+    "Laver, K. E., Lange, B., George, S., Deutsch, J. E., Saposnik, G., "
+    "Chapman, M., & Crotty, M. (2025). Virtual reality for stroke rehabilitation. "
+    "*Cochrane Database of Systematic Reviews*. "
+    "https://doi.org/10.1002/14651858.CD008349.pub5"
 )
 LEGAL_NAME = "Payment for nurse practitioners' and clinical nurse specialists' services"
 LEGAL_SECTION = "42 C.F.R. § 414.56"
@@ -302,7 +314,7 @@ class SameAuthorSameYearTakesALetter(unittest.TestCase):
 class ARetrievalDateBelongsWhereAPAPutsOne(unittest.TestCase):
     def test_an_uptodate_entry_without_one_is_a_finding(self):
         stripped = UPTODATE.replace("Retrieved August 19, 2026, from ", "")
-        self.assertIn(scan.UPTODATE_NO_RETRIEVAL_DATE, kinds(draft(ACOG, stripped)))
+        self.assertIn(scan.REQUIRES_RETRIEVAL_DATE, kinds(draft(ACOG, stripped)))
 
     def test_a_retrieval_date_on_a_doi_entry_is_a_finding(self):
         dated = ACOG.replace("https://doi.org", "Retrieved August 19, 2026, from https://doi.org")
@@ -349,7 +361,7 @@ class ADateElementIsWellFormed(unittest.TestCase):
         text = draft(ACOG, UPTODATE.replace("Retrieved August 19, 2026, from", "Retrieved from"))
         found = kinds(text)
         self.assertNotIn(scan.MALFORMED_DATE, found)
-        self.assertIn(scan.UPTODATE_NO_RETRIEVAL_DATE, found)
+        self.assertIn(scan.REQUIRES_RETRIEVAL_DATE, found)
 
 
 class TheDatabaseNameIsItalicizedInExactlyOnePlace(unittest.TestCase):
@@ -734,7 +746,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.LIST_NOT_SORTED: "Two entries out of alphabetical order",
         scan.MISSING_AB: "Two entries with the same authors and year and no `a`/`b`",
         scan.AB_OUT_OF_TITLE_ORDER: "the letters are assigned by **title order**",
-        scan.UPTODATE_NO_RETRIEVAL_DATE: "An UpToDate entry with no retrieval date",
+        scan.REQUIRES_RETRIEVAL_DATE: "An entry whose declared source class requires a retrieval date",
         scan.RETRIEVAL_DATE_ON_ARCHIVED: "The command reaches this only where the entry carries a DOI",
         scan.RETRIEVAL_DATE_BEFORE_EXAM: "Retrieval year behind the exam year",
         scan.MALFORMED_DATE: "A missing space in a date",
@@ -1318,6 +1330,282 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
             "../practicum-case-study/reference/apa7.md",
             DISCUSSION_POST_SKILL.read_text(encoding="utf-8"),
         )
+
+
+class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
+    EXPECTED_CLASSES = (
+        "Journal article",
+        "Journal article with an article number",
+        "UpToDate article",
+        "Cochrane review",
+        "StatPearls",
+        "Authored or edited book",
+        "Chapter in an edited book",
+        "Report by a government agency or other group author",
+        "Clinical practice guideline with a group author",
+        "Clinical practice guideline by individual authors at a government agency, published as part of a series",
+        "Ethics code",
+        "Position statement",
+        "Fact sheet",
+        "State nursing practice act (NPA)",
+        "Drug information",
+        "Lab or diagnostic manual",
+        "Medical dictionary",
+        "Entry in a medical dictionary",
+        "YouTube video",
+        "Podcast or podcast episode",
+        "Doctor of nursing practice (DNP) project",
+        "PowerPoint slides or lecture notes",
+        "Webpage on a website",
+    )
+
+    def test_the_table_is_the_published_nursing_source_class_vocabulary(self):
+        self.assertEqual(
+            tuple((item.item, item.name) for item in scan.APA_SOURCE_CLASSES),
+            tuple(enumerate(self.EXPECTED_CLASSES, 1)),
+        )
+
+    def assert_form_headings_bind(self, sheet: str) -> None:
+        headings = tuple(
+            line.removeprefix("## ")
+            for line in sheet.splitlines()
+            if line.startswith("## ")
+        )
+        form_headings = tuple(
+            heading
+            for heading in headings
+            if "reference form" in heading.casefold()
+            or "reference entries" in heading.casefold()
+        )
+        matched = {
+            heading: tuple(
+                item.name
+                for item in scan.APA_SOURCE_CLASSES
+                if item.name.casefold() in heading.casefold()
+            )
+            for heading in form_headings
+        }
+        self.assertTrue(all(len(names) == 1 for names in matched.values()))
+        classes_named_by_a_heading = {names[0] for names in matched.values()}
+        classes_claiming_a_form = {
+            item.name for item in scan.APA_SOURCE_CLASSES if item.has_form
+        }
+        self.assertEqual(classes_claiming_a_form, classes_named_by_a_heading)
+
+    def test_has_form_is_bound_to_the_sheet_headings_in_both_directions(self):
+        self.assert_form_headings_bind(APA7.read_text(encoding="utf-8"))
+
+    def test_an_unknown_form_heading_breaks_the_bind(self):
+        mutant = APA7.read_text(encoding="utf-8") + "\n## 24. Unknown reference form\n"
+        with self.assertRaises(AssertionError):
+            self.assert_form_headings_bind(mutant)
+
+    def test_retrieval_date_requirement_is_one_column_not_a_second_mapping(self):
+        self.assertEqual(
+            scan.RETRIEVAL_DATE_REQUIRED_CLASSES,
+            frozenset(
+                item.name
+                for item in scan.APA_SOURCE_CLASSES
+                if item.takes_retrieval_date
+            ),
+        )
+        self.assertEqual(
+            scan.RETRIEVAL_DATE_REQUIRED_CLASSES,
+            frozenset({"UpToDate article", "StatPearls"}),
+        )
+
+    def test_the_sheet_names_exactly_the_skills_that_link_it(self):
+        sheet = APA7.read_text(encoding="utf-8")
+        reader_line = next(
+            line for line in sheet.splitlines() if line.startswith("**Readers:**")
+        )
+        skill_files = tuple((REPO_ROOT / "skills").glob("*/SKILL.md"))
+        named = set(re.findall(r"`([^`]+)`", reader_line))
+        linked = {
+            path.parent.name
+            for path in skill_files
+            if "apa7.md" in path.read_text(encoding="utf-8")
+        }
+        self.assertEqual(named, linked)
+
+    def test_an_unknown_named_reader_breaks_the_bind(self):
+        sheet = APA7.read_text(encoding="utf-8")
+        reader_line = next(
+            line for line in sheet.splitlines() if line.startswith("**Readers:**")
+        )
+        named = set(re.findall(r"`([^`]+)`", reader_line + " and `unknown-skill`"))
+        linked = {
+            path.parent.name
+            for path in (REPO_ROOT / "skills").glob("*/SKILL.md")
+            if "apa7.md" in path.read_text(encoding="utf-8")
+        }
+        self.assertNotEqual(named, linked)
+
+    def test_the_sheet_points_to_the_table_that_owns_retrieval_behavior(self):
+        sheet = APA7.read_text(encoding="utf-8")
+        self.assertIn("APA_SOURCE_CLASSES", sheet)
+        self.assertIn("takes_retrieval_date", sheet)
+
+    def test_context_names_the_bucket_vocabulary_and_all_three_states(self):
+        glossary = CONTEXT.read_text(encoding="utf-8")
+        for bucket in scan.REFERENCE_BUCKETS:
+            self.assertIn(f"`{bucket.name}`", glossary)
+        for state in (
+            scan.COVERAGE_CLEAN,
+            scan.COVERAGE_FINDING,
+            scan.COVERAGE_UNDECIDABLE,
+        ):
+            self.assertIn(f"**{state}**", glossary)
+
+
+class RequiredRetrievalDatesComeFromTheClassTable(unittest.TestCase):
+    def test_statpearls_without_a_retrieval_date_is_a_graded_finding(self):
+        self.assertIn(
+            scan.REQUIRES_RETRIEVAL_DATE,
+            kinds(draft(STATPEARLS, body="# Case\n")),
+        )
+
+    def test_statpearls_with_a_retrieval_date_passes_the_row(self):
+        dated = STATPEARLS.replace(
+            "https://www.statpearls.com",
+            "Retrieved August 19, 2026, from https://www.statpearls.com",
+        )
+        self.assertNotIn(
+            scan.REQUIRES_RETRIEVAL_DATE,
+            kinds(draft(dated, body="# Case\n")),
+        )
+
+    def test_the_retired_uptodate_specific_kind_is_gone(self):
+        self.assertNotIn("uptodate-no-retrieval-date", scan.KINDS)
+
+
+class ReferenceCoverageIsClassifiedByDeclaredBuckets(unittest.TestCase):
+    def test_specific_buckets_span_declared_classes_without_guessing(self):
+        cases = (
+            (UPTODATE, "uptodate", ("UpToDate article",), scan.COVERAGE_CLEAN),
+            (STATPEARLS, "statpearls", ("StatPearls",), scan.COVERAGE_FINDING),
+            (NAMED_LEGAL, "legal", ("State nursing practice act (NPA)",), scan.COVERAGE_CLEAN),
+            (COCHRANE, "cochrane", ("Cochrane review",), scan.COVERAGE_FINDING),
+        )
+        for text, name, classes, state in cases:
+            with self.subTest(bucket=name):
+                bucket = scan.classify_entry(scan.Entry(10, text, True))
+                self.assertEqual(bucket.name, name)
+                self.assertEqual(bucket.classes, classes)
+                self.assertEqual(bucket.state, state)
+
+    def test_an_entry_without_a_decisive_signal_is_undecidable(self):
+        bucket = scan.classify_entry(
+            scan.Entry(10, "Unknown Organization. (2026). *Unknown work*.", True)
+        )
+        self.assertEqual(bucket.name, "unresolved")
+        self.assertEqual(bucket.state, scan.COVERAGE_UNDECIDABLE)
+
+    def test_a_generic_url_does_not_guess_that_the_work_is_a_webpage(self):
+        bucket = scan.classify_entry(
+            scan.Entry(
+                10,
+                "Unknown Organization. (2026). *Unknown work*. https://example.org/work",
+                True,
+            )
+        )
+        self.assertEqual(bucket.name, "identified-web")
+        self.assertEqual(
+            bucket.classes,
+            tuple(item.name for item in scan.APA_SOURCE_CLASSES),
+        )
+        self.assertEqual(bucket.state, scan.COVERAGE_UNDECIDABLE)
+
+    def test_generic_buckets_remain_undecidable_because_they_span_outside_the_set(self):
+        for name in ("doi-work", "identified-web", "unresolved"):
+            with self.subTest(bucket=name):
+                bucket = next(item for item in scan.REFERENCE_BUCKETS if item.name == name)
+                self.assertTrue(bucket.spans_outside_set)
+                self.assertEqual(bucket.state, scan.COVERAGE_UNDECIDABLE)
+
+    def test_a_statpearls_title_in_a_journal_does_not_trigger_the_database_rule(self):
+        text = (
+            "Smith, A. (2026). StatPearls adoption in nursing education. "
+            "*Journal of Nursing Education, 65*(1), 1–8. https://doi.org/10.0000/example"
+        )
+        self.assertNotEqual(
+            scan.classify_entry(scan.Entry(10, text, True)).name,
+            "statpearls",
+        )
+        self.assertNotIn(
+            scan.REQUIRES_RETRIEVAL_DATE,
+            kinds(draft(text, body="# Case\n\nSmith (2026).\n")),
+        )
+
+    def test_a_lookalike_domain_does_not_trigger_a_database_rule(self):
+        for host in ("notstatpearls.com", "notuptodate.com"):
+            with self.subTest(host=host):
+                text = f"Example Author. (2026). *Example work*. https://{host}/work"
+                entry = scan.Entry(10, text, True)
+                self.assertNotIn(
+                    scan.classify_entry(entry).name,
+                    {"statpearls", "uptodate"},
+                )
+                self.assertNotIn(
+                    scan.REQUIRES_RETRIEVAL_DATE,
+                    kinds(draft(text, body="# Case\n")),
+                )
+
+    def test_an_author_named_cochrane_and_a_generic_video_do_not_guess_classes(self):
+        author = scan.Entry(
+            10,
+            "Cochrane, A. (2026). *A book about evidence*. Example Press.",
+            True,
+        )
+        video = scan.Entry(
+            10,
+            "Example Author. (2026). Example work [Video]. Example Studio.",
+            True,
+        )
+        self.assertEqual(scan.classify_entry(author).name, "unresolved")
+        self.assertEqual(scan.classify_entry(video).name, "unresolved")
+
+    def test_uncovered_class_is_advisory_and_not_a_body_or_graded_row(self):
+        self.assertNotIn(scan.UNCOVERED_CLASS, scan.BODY_ROWS)
+        self.assertNotIn(scan.UNCOVERED_CLASS, scan.KINDS)
+        text = draft(
+            COCHRANE,
+            body="# Case\n\nLaver et al. (2025).\n",
+            heading="## Reference",
+        )
+        document = scan.read_document(text)
+        result = scan.survey(document, AS_OF)
+        self.assertEqual(result.findings, ())
+        self.assertEqual(len(result.coverage_findings), 1)
+        self.assertEqual(result.coverage_findings[0].kind, scan.UNCOVERED_CLASS)
+        self.assertEqual(result.coverage_findings[0].detail, "cochrane")
+        self.assertEqual(result.coverage_findings[0].line, document.entries[0].line)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.md"
+            path.write_text(text, encoding="utf-8")
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(scan.main([str(path), "--as-of", AS_OF.isoformat()]), 0)
+
+    def test_every_report_prints_bucket_populations_states_and_the_remainder(self):
+        report = shown_report(CLEAN)
+        for bucket in scan.REFERENCE_BUCKETS:
+            with self.subTest(bucket=bucket.name):
+                self.assertIn(bucket.name, report)
+                self.assertIn(bucket.state, report)
+        self.assertIn("uncovered-class", report)
+        self.assertIn("undecidable remainder", report)
+
+    def test_show_reports_only_the_bucket_name_and_line_for_coverage(self):
+        marker = "private-entry-marker"
+        text = draft(
+            COCHRANE + marker,
+            body="# Case\n\nLaver et al. (2025).\n",
+            heading="## Reference",
+        )
+        report = shown_report(text)
+        self.assertIn("cochrane", report)
+        self.assertNotIn(marker, report)
 
 
 class TheDeclinedOptionIsPinnedToTheClassesItWasRuledOver(unittest.TestCase):
