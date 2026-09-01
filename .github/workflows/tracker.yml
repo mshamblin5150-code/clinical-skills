@@ -76,7 +76,11 @@ jobs:
       - name: Changed tracker body integrity
         if: >-
           always() &&
-          (github.event.action != 'edited' || github.event.changes.body != null)
+          (github.event.action == 'opened' ||
+           github.event.action == 'created' ||
+           github.event.action == 'submitted' ||
+           (github.event.action == 'edited' &&
+            github.event.changes.body != null))
         run: |
           $report = python tools/tracker_bodies.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
           $status = $LASTEXITCODE

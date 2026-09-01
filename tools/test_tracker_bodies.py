@@ -704,6 +704,11 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("fifth row", self.doc)
         self.assertIn("raw body", self.doc)
 
+    def test_the_doc_names_both_publication_hosts(self):
+        self.assertIn("tracker_publish_hook.py", self.doc)
+        self.assertIn("tracker_bodies.py --github-event", self.doc)
+        self.assertNotIn("Nothing runs any of this", self.doc)
+
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):
     def test_the_ruled_exclusions_and_wider_class_are_declared(self):

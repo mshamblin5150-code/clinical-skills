@@ -292,6 +292,10 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
         self.assertIn("GITHUB_STEP_SUMMARY", step)
         self.assertIn("### Tracker body integrity", step)
         self.assertIn("github.event.changes.body", step)
+        for action in ("opened", "created", "submitted", "edited"):
+            self.assertIn(f"github.event.action == '{action}'", step)
+        self.assertNotIn("github.event.action != 'edited'", step)
+        self.assertNotIn("github.event.action == 'labeled'", step)
         self.assertNotIn("gh api", step)
 
     def test_the_body_shape_workflow_uses_the_public_event_mode(self):
