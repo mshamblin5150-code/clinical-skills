@@ -259,8 +259,9 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 body-number occurrence and every in-text citation occurrence to have its own claim record. It
 counts the word ceiling, invoked sources, and unfilled invoked properties without grading them. Its default output is
 counts only; `--show` includes private finding detail and must not be pasted.
-The `bold-headings` and `rendered-comments` rows report `not graded` at this stage because the
-document does not exist yet; step 7 renders it and reruns this grader with `--docx`.
+The `bold-headings`, `rendered-comments`, and `rendered-text` rows report `not graded` at this
+stage because the document does not exist yet; step 7 renders it and reruns this grader with
+`--docx`.
 
 Exit 0 means the scanner's rows pass, 1 means a finding, and 2 means it did not completely scan.
 Preserve the original checker result, fix findings through the drafting context, and have a new
@@ -282,8 +283,15 @@ The `rendered-comments` row must be 0. It reads the Word artifact for either HTM
 delimiter, so residue from a mid-line or multi-line form fails even though the renderer warns and
 continues. The Markdown keeps the own-line audit comments; the document does not.
 
-If the renderer refuses an existing document, do not use `--force` without the clinician's
-permission; the refusal can mean Word or a person owns changes that Git cannot restore. A
+The `rendered-text` row reports whether the draft and document paragraph text differ. It is
+reported, not graded: a nonzero result must be read and reconciled, but does not change the
+scanner's exit status because list markers, fields, and other document structure can make the
+paragraph streams differ without losing prose.
+
+The Markdown is the authoritative artifact. If the renderer refuses an existing document, the
+refusal can mean Word or a person owns changes that Git cannot restore. Read the document and
+recover the edit into the Markdown and its claim ledger, and only then ask the clinician before passing
+`--force`. The flag is available after recovery; it is never a substitute for recovery. A
 vision-capable, non-authoring context then compares every rendered page with the Markdown and
 reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
 headings. A text-only reread does not substitute for the visual check.
@@ -295,6 +303,9 @@ properties remain in the document because the visual check above still needs a p
 ## 8. Approve, paste, and reread
 
 Show the final post and the clean-check summary to the clinician. Wait for an explicit go-ahead.
+That approval includes confirming that every edit implicated by a destination-guard refusal was
+recovered into the authoritative Markdown and, where it changes a factual claim, the claim ledger
+before any forced render.
 Paste from Word into the LMS and inspect the paste box before submitting. Submit only after that
 inspection, then reread the posted board version.
 
