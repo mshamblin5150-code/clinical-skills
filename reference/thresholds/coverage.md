@@ -112,7 +112,7 @@
 | illicit drug use prevention | sheet | illicit-drug-use-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | impaired visual acuity screening | sheet | impaired-visual-acuity-screening.md | full-document read complete; exact recommendation index accounted |
 | infectious diarrhea | unread |  | bound recommendation record available; full-document read pending |
-| intimate partner violence and elder abuse screening | unread |  | exact recommendation index available; full-document read pending |
+| intimate partner violence and elder abuse screening | sheet | intimate-partner-violence-and-elder-abuse-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening | sheet | iron-deficiency-anemia-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening and supplementation | sheet | iron-deficiency-anemia-screening-and-supplementation.md | exact recommendation index available; full document distilled |
 | kidney transplant recipient care | unread |  | bound recommendation record available; full-document read pending |
@@ -123,7 +123,7 @@
 | lipid management in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | living kidney donor evaluation and care | unread |  | bound recommendation record available; full-document read pending |
 | lower extremity peripheral artery disease | unread |  | exact recommendation index available; full-document read pending |
-| lung cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| lung cancer screening | sheet | lung-cancer-screening.md | exact recommendation index available; full document distilled |
 | lupus nephritis | unread |  | bound recommendation record available; full-document read pending |
 | Lyme disease | unread |  | bound recommendation record available; full-document read pending |
 | maternal immunization | sheet | maternal-immunization.md | no recommendation record; full document distilled |
@@ -156,7 +156,7 @@
 | sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
 | sexually transmitted infection prevention counseling | sheet | sexually-transmitted-infection-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin and soft tissue infection | unread |  | bound recommendation record available; full-document read pending |
-| skin cancer prevention counseling | unread |  | exact recommendation index available; full-document read pending |
+| skin cancer prevention counseling | sheet | skin-cancer-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin cancer screening | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | speech and language delay screening | sheet | speech-language-delay-screening.md | full-document read complete; exact recommendation index accounted |
 | stroke primary prevention | unread |  | exact recommendation index available; full-document read pending |
@@ -170,6 +170,6 @@
 | unhealthy alcohol use screening and counseling | unread |  | exact recommendation index available; full-document read pending |
 | unhealthy drug use screening | unread |  | exact recommendation index available; full-document read pending |
 | valvular heart disease | unread |  | exact recommendation index available; full-document read pending |
-| vision screening, amblyopia | unread |  | exact recommendation index available; full-document read pending |
+| vision screening, amblyopia | sheet | vision-screening-amblyopia.md | exact recommendation index available; full document distilled |
 | vitamin and mineral supplementation for cardiovascular disease and cancer prevention | sheet | vitamin-and-mineral-supplementation-for-cardiovascular-disease-and-cancer-prevention.md | exact recommendation index available; full document distilled |
 | vitamin D deficiency screening | sheet | vitamin-d-deficiency-screening.md | exact recommendation index available; full document distilled |
