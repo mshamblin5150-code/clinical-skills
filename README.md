@@ -88,7 +88,7 @@ You need Git and Python 3.10 or newer. No package installation is needed to use 
 
    Check the package name before accepting it: `Python.Python.2` appears in the same search results and is the obsolete major version. Close the terminal completely and reopen it after installation so the new PATH is loaded.
 
-   **macOS:** install Python unconditionally. Apple's command-line tools ship Python 3.9.6, below this repository's 3.10 floor. Install [Homebrew](https://brew.sh/) if needed, run the `shellenv` commands its installer prints to add Homebrew to your shell, and then run:
+   **macOS:** install Python unconditionally. The [2026-09-01 setup ruling](https://github.com/mshamblin5150-code/clinical-skills/issues/401#issuecomment-5499117118) measured Apple's command-line-tools Python at 3.9.6, below this repository's 3.10 floor. Install [Homebrew](https://brew.sh/) if needed, run the `shellenv` commands its installer prints to add Homebrew to your shell, and then run:
 
    ```bash
    brew install python@3.13
@@ -96,16 +96,22 @@ You need Git and Python 3.10 or newer. No package installation is needed to use 
 
    Close and reopen Terminal after installation.
 
-2. Clone the repository and enter it:
+2. Install Git and verify it.
+
+   **Windows:** run `winget install --id Git.Git -e --source winget`, close and reopen the terminal, then run `git --version`.
+
+   **macOS:** run `xcode-select --install`, complete the installer, close and reopen Terminal, then run `git --version`.
+
+3. Clone the repository and enter it:
 
    ```bash
    git clone https://github.com/mshamblin5150-code/clinical-skills.git
    cd clinical-skills
    ```
 
-3. Confirm Python is visible. On Windows use `python --version`; on macOS use `python3 --version`. If neither `python`, `python3`, nor `py` is on PATH, the pre-commit hook silently degrades the PHI refusal to a warning and allows the commit.
+4. Confirm Python is visible. On Windows use `python --version`; on macOS use `python3 --version`. If neither `python`, `python3`, nor `py` is on PATH, the pre-commit hook silently degrades the PHI refusal to a warning and allows the commit.
 
-4. Wire the skills before invoking setup:
+5. Wire the skills before invoking setup:
 
    ```bash
    python tools/skills_mirror.py --repair
@@ -113,7 +119,7 @@ You need Git and Python 3.10 or newer. No package installation is needed to use 
 
    On macOS, use `python3` in place of `python` if that is the installed command. This ordering matters for Claude Code: `/setup-clinical-skills` is not available there until the mirror exists. Codex, Cursor, Copilot, and other agents that read `AGENTS.md` need no separate skill installation, but running the repair is safe.
 
-5. Start your agent in the repository and invoke:
+6. Start your agent in the repository and invoke:
 
    ```text
    /setup-clinical-skills
@@ -123,7 +129,7 @@ You need Git and Python 3.10 or newer. No package installation is needed to use 
 
 ## PHI
 
-You cannot push to this repository unless the maintainer has granted you access. A commit in your local clone stays on your machine and is harmless by itself. A public fork is different: anything pushed there is public and may be impossible to retract from Git history or downstream copies.
+You cannot push to this repository unless the maintainer has granted you access. A commit in your local clone stays on your machine and is harmless by itself. A public fork is different: anything pushed there is public and permanent in Git history and downstream copies.
 
 Work in two gitignored folders. `scratch/` holds live working material such as day files, the patient identity map, the account profile, and writing samples. `output/` holds finished notes and coursework. Both can contain protected health information; the split is by stage, not sensitivity.
 
@@ -187,3 +193,9 @@ python tools/threshold_coverage.py
 ### Tools
 
 `tools/` contains repository maintenance scripts, deterministic graders, hook entry points, and their tests. They use the Python standard library unless their own maintainer section says otherwise. The skill instructions state their workflows in full; a named command is a reproducible check or shortcut, not permission to skip reading the instruction it supports.
+
+A tracked file that genuinely needs PHI-shaped test data declares `phi-scan: synthetic` near its top, alone on its own line. That declaration exempts only the shape rules; it never exempts a patient name or a date found in the local corpus.
+
+On a clone with no local patient corpus, `phi_scan.py` refuses rather than presenting a partial scan as clean. A clone that genuinely has no corpus and never will can record that fact once with `git config clinical.phiAllowNoCorpus true`; a one-time run can use `--allow-no-corpus` instead.
+
+The hook also runs the spelling scan over staged Markdown, Python, and filenames, and checks the proposed commit message for spelling and GitHub closing keywords. Those message and spelling findings are advisory; the PHI and other refusing checks retain their own exit status.

@@ -293,6 +293,40 @@ def readme_skill_names() -> set[str]:
     }
 
 
+def catalog_societies() -> set[str]:
+    """Society values derived from the committed catalog's document rows."""
+    rows = read(CATALOG).split("| society | filename |", 1)[1]
+    return {
+        line.split("|")[1].strip()
+        for line in rows.splitlines()
+        if line.startswith("| ") and not line.startswith("| ---")
+    }
+
+
+NUMBER_WORDS = (
+    "zero", "one", "two", "three", "four", "five", "six",
+    "seven", "eight", "nine", "ten", "eleven", "twelve",
+)
+
+
+def readme_societies() -> tuple[set[str], int]:
+    """Societies and claimed count in README.md's shipped-reference paragraph."""
+    paragraph = next(
+        block
+        for block in read(README).split("\n\n")
+        if "covering material from" in block and "societies:" in block
+    )
+    claim = re.search(r"covering material from (\w+) societies:", paragraph)
+    if claim is None or claim.group(1) not in NUMBER_WORDS:
+        raise AssertionError("README.md's society count is absent or unreadable")
+    names = paragraph.split(claim.group(0), 1)[1]
+    names = names.split(".", 1)[0].replace(", and ", ", ")
+    return (
+        {name.strip().replace("/", " ") for name in names.split(",")},
+        NUMBER_WORDS.index(claim.group(1)),
+    )
+
+
 class TheReadmeNamesEveryShippedSkill(unittest.TestCase):
     """#401: the public landing page and shipped skill tree stay complete."""
 
@@ -301,6 +335,17 @@ class TheReadmeNamesEveryShippedSkill(unittest.TestCase):
 
     def test_every_readme_skill_row_has_a_skill_directory(self):
         self.assertEqual(readme_skill_names() - set(skill_names()), set())
+
+
+
+class TheReadmeSocietyStatementMatchesTheCatalog(unittest.TestCase):
+    """#401: the published society list and figure derive from the catalog."""
+
+    def test_the_shipped_societies_are_derived_from_the_catalog(self):
+        names, claimed_count = readme_societies()
+        societies = catalog_societies()
+        self.assertEqual(names, societies)
+        self.assertEqual(claimed_count, len(societies))
 
 
 def declared_steps(name: str) -> set[int]:
