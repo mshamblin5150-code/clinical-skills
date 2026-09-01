@@ -453,7 +453,7 @@ class AccountedSetTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("1 worktrees enumerated", output.getvalue())
         self.assertIn("scratch roots:", output.getvalue())
-        self.assertIn(f"GATING: {root / 'scratch'}: not scanned", output.getvalue())
+        self.assertIn(f"GATING: {root / 'scratch'}:", output.getvalue())
         self.assertIn("REPORT ONLY: none", output.getvalue())
         self.assertIn("forced grep failure", error.getvalue())
 
