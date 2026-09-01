@@ -37,6 +37,7 @@ MEMBERS: set[str] = {
     "discussion_reply_scan",
     "reference_scan",
     "refusal_scan",
+    "render_scan",
     "research_ledger",
     "specificity_scan",
     "voice_model_scan",

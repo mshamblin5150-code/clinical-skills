@@ -997,9 +997,53 @@ check that was never run is not.
 | the threshold sheets against this patient | the whole draft, the faculty material's patient, and `reference/thresholds/` via `coverage.md` | a reader: identify every threshold sheet whose topic this patient's problems touch, and where the draft rests on rows from more than one sheet, whether each sheet's own population wording holds for **this** patient — population and quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so this pair is seen by nobody else | yes |
 | the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; and against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the numbering in context | `<numbering-readback>` produced by `python tools/docx_read.py "<the case study document>" --numbering`, and the Markdown draft | a reader: read the reconstructed numerals in context, never the raw `.docx`; does each section start where it should, does each MDM entry discuss **by name** the diagnosis at the same position in the differential, and does every restart or deliberate continuation suit the section | yes |
-| the rendered document | the Markdown draft and the rendered `.docx`, page by page | a vision-capable reader: open or render every page, compare it page by page with the Markdown, and report clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
+| the rendered document | the Markdown draft, the rendered `.docx`, and the final retained render, page by page | coverage: `tools/render_scan.py` below; then a vision-capable reader opens every retained page image, compares it page by page with the Markdown, and reports clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
 | the faculty's own to-do list | the faculty material, the draft's headings, and `bar.md` on a routed board run | a reader: does every faculty item have a section that answers it, and on a routed run does every signed bar element — including word floor, reference minimum, ISBN, and every prose element — hold in the finished draft | no |
 | the draft label on threshold-sheet citations | the whole draft and every cited row's `## Sources` entry in `reference/thresholds/` | `tools/differential_scan.py` labels every citation backed by a `draft` source; a reader: where a cited threshold row's `source class` is `draft`, does the draft identify that number as coming from a public-review draft and avoid presenting it as guidance in force; never suppress the citation solely because the source is a draft | no |
+
+**The visual row begins with a retained render pass.** For each attempt, create the next
+`<run-directory>/render/pass-N/`; never replace or overwrite an earlier pass. One pass keeps one
+page-faithful PDF or XPS and one 120-dpi PNG per page beside it. Use a filename such as
+`case-study.pdf` or `case-study.xps`, never a patient identifier. The exported file is the page
+count; the PNG files are the pages the reader can inspect. Pixels without the export leave the
+denominator unmeasurable, and an export without its page images leaves the pages unchecked.
+
+**Run the bounded automated route first.** Spawn a fresh Word application, open the `.docx`
+read-only with conversion confirmation disabled, and attempt a PDF export under a process bound;
+if that route returns a failure, attempt XPS under the same bound. Never use or quit a shared Word
+instance, never make the spawned instance visible, and never let an export call wait without a
+bound. Rasterize the returned export with PyMuPDF at 120 dpi into the pass directory.
+
+If the bounded automated route does not return successfully, ask the clinician to use
+`File > Export > Create PDF/XPS` in Word and place that export in the new pass directory. The
+clinician supplies the export, not the verdict. The agent still rasterizes and compares every page;
+the escalation never replaces the visual reader. If no page-faithful export is returned, this row
+did not run and the submission stops.
+
+**Only the last pass must be complete.** Earlier passes are counted and reported, but may stop
+after a reader finds a defect on page 2 and sends the document back for repair. The next render uses
+a new pass number. The final pass must keep at least one PNG for every page in its retained export,
+and all render passes remain in the run directory as evidence after the private checker paths are
+removed.
+
+Hand the completed run directory to a fresh checker:
+
+```bash
+python tools/render_scan.py <run-directory>
+```
+
+The command derives coverage from the files rather than from a check-record field. A final pass
+with fewer PNGs than exported pages is exit 1. No `render/` directory, no numbered pass, or any
+pass with no measurable retained export is exit 2. When both occur across passes, exit 1 wins.
+Re-run with `--show` to name the pass at fault. The complete walk without Python is: find every
+`pass-N/`; confirm each holds exactly one readable PDF or XPS; count that export's pages and the PNG
+files beside it; report incomplete earlier passes without failing them; and require the final PNG
+count to reach the final exported page count.
+
+Coverage does not replace the substantiated `the rendered document` verdict. `render_scan.py`
+grades which pages were imaged; `checks_ledger.py` still grades that a reader recorded what was
+looked for. A run needs both. A complete pixel count cannot prove the reader opened every image or
+read it carefully.
 
 **The orchestrating context produces `<numbering-readback>` before the fan-out** and is its sole
 writer. Run `python tools/docx_read.py "<the case study document>" --numbering` and redirect its
@@ -1108,10 +1152,11 @@ command** cannot decide, not what the workflow ignores.
 **The two new checks are separate and both substantiate a `clean`.** Clinical judgment and visual
 layout read different evidence and need different capabilities, so one reader never discharges
 both. The clinical reader states which continuing and PRN orders and which wrapper instructions it
-walked. The vision-capable reader states that every rendered page was compared with the Markdown
-and names the layout surfaces it inspected. If the harness cannot render or view the `.docx`, that
-reader returns no verdict; the prewritten heading remains incomplete and the document is not
-submitted. A text-only reread of the Markdown cannot substitute for the visual check.
+walked. After `render_scan.py` establishes complete final-pass coverage, the vision-capable reader
+states that every retained page image was compared with the Markdown and names the layout surfaces
+it inspected. If the harness cannot view the retained pixels, that reader returns no verdict; the
+prewritten heading remains incomplete and the document is not submitted. A text-only reread of the
+Markdown cannot substitute for the visual check.
 
 **One reader per row, all of them at once, and none of them is the context that wrote the draft.**
 Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
@@ -1281,8 +1326,9 @@ Then walk this list, by eye — none of it is mechanical:
   above are.
 - Did the clinical-decisions reader compare the faculty material with the whole draft and account
   for every continuing or PRN endpoint and every wrapper-only section?
-- Did a vision-capable reader compare every page of the rendered `.docx` with the Markdown draft,
-  with a substantiated verdict recorded under `the rendered document`?
+- Did `python tools/render_scan.py <run-directory>` exit 0, and did a vision-capable reader compare
+  every retained page image with the Markdown draft, with a substantiated verdict recorded under
+  `the rendered document`?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
@@ -1309,5 +1355,6 @@ Then walk this list, by eye — none of it is mechanical:
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,
 and it cannot see clipping, overlap, a bad break or a layout that is correct in XML and wrong on the
-page. The `the rendered document` reader is what turns the rendered file into a visually checked
-one; its substantiated verdict is required before submission.
+page. `tools/render_scan.py` guarantees only that the final exported page count has retained pixels.
+The `the rendered document` reader is what turns those pixels into a visually checked document;
+its substantiated verdict is required before submission.
