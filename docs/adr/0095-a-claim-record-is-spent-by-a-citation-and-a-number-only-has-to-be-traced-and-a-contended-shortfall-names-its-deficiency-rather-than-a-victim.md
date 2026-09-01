@@ -264,17 +264,24 @@ checklist this record hands the build. Four things the original list did not car
 in-text citation **occurrence** to have its own claim record."* Ruling 4 retires the first
 `occurrence` and ruling 1 splits the second into existence and distinctness.
 
-**Nothing binds that sentence to the code, so missing it fails nothing.**
-`tools/test_discussion_post_scan.py` contains no reference to `ROWS`, `KINDS` or `SKILL.md`, and
-`tools/test_discussion_post_skill.py` binds only the label and the `--docx` invocation. There is no
-`ROW_PHRASES`-style bind of the kind `case_study_scan` has. The build adds one, or it ships a rule
-only the scanner knows -- [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)
-with no test between the two copies.
+**Nothing binds *these* rows to that sentence, and the precedent to extend now exists.**
+When this correction was first written, `tools/test_discussion_post_scan.py` referenced neither
+`ROWS` nor `KINDS` nor `SKILL.md`, and the claim was that no bind existed at all. **That was true for
+about an hour.** `TheRenderedDocumentContractIsPublished` arrived with
+[#675](https://github.com/mshamblin5150-code/clinical-skills/issues/675)'s build and asserts the
+skill names `bold-headings`, `rendered-comments` and `rendered-text` by name. It covers the
+rendered-document rows and reaches neither citation row nor the number row, so the exposure this
+paragraph describes is unchanged -- what changed is that the build now **extends** a bind in the same
+file rather than inventing one. Without that extension, `respent-record` ships as a rule only the
+scanner knows: [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) with no test
+between the two copies.
 
 **Two tests encode the retired rule in their names, not only in their fixtures.**
-`test_two_claims_using_the_same_number_need_two_records` (`:1017`) and
-`test_one_record_cannot_discharge_two_numbers_and_a_citation` (`:1033`). Ruling 4 makes the first
-name false and ruling 2 makes the second's premise false. Renaming both is part of the edit.
+`test_two_claims_using_the_same_number_need_two_records` and
+`test_one_record_cannot_discharge_two_numbers_and_a_citation`, both in
+`TheMechanicalBarRowsAreGraded`. Ruling 4 makes the first name false and ruling 2 makes the second's
+premise false. Renaming both is part of the edit. **They are named without line numbers on purpose**
+-- the first draft of this paragraph cited two, and #675's build moved both within the hour.
 
 **`claim records` must be a nullable field, and that moves a census row.**
 `tools/grader_conformance.py:126-129` asserts `nullable_fields == declared_fields | absent`, so a
