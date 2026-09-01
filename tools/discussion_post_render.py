@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Render one discussion-post DOCX into a new retained page-image pass.
+"""Render one discussion-post DOCX into a new retained render pass.
 
 The command asks a freshly spawned Microsoft Word instance for a PDF, falling
 back to XPS, then rasterizes every page with PyMuPDF. It never edits
 ``post.md``: the independent visual reader appends the ``RENDERED`` record only
 after comparing these pixels with the Markdown.
 
-Exit 0 means a complete new pass was retained. Exit 2 means rendering did not
-complete; a partial pass is removed and never presented as evidence.
+Exit 0 means the page-faithful export and all of its page images were retained.
+Exit 2 means rendering did not complete; a partial pass is removed and never
+presented as evidence.
 """
 
 from __future__ import annotations
@@ -25,7 +26,6 @@ from console_codec import use_utf8
 from discussion_artifact import (
     AUTOMATED_RENDERED_SOURCES,
     RENDERED_RASTER_DPI as RASTER_DPI,
-    png_read_error,
 )
 
 
@@ -120,59 +120,53 @@ def _word_attempt(
     return source, output
 
 
-def _clinician_pages(values: list[str]) -> dict[int, Path]:
-    pages: dict[int, Path] = {}
-    for value in values:
-        number_text, separator, path_text = value.partition("=")
-        if not separator or not number_text.isdigit() or int(number_text) < 1:
-            raise RenderError("--clinician-page must be PAGE=PNG with a positive page number")
-        number = int(number_text)
-        image = Path(path_text)
-        if number in pages:
-            raise RenderError(f"clinician page {number} was given twice")
-        if image.suffix.lower() != ".png" or not image.is_file():
-            raise RenderError(f"clinician page {number} is not an existing PNG: {image}")
-        pages[number] = image
-    return pages
-
-
-def _validate_clinician_pages(pymupdf, pages: dict[int, Path]) -> None:
-    for number, image in pages.items():
-        if failure := png_read_error(pymupdf, image):
-            raise RenderError(f"clinician page {number} is not a readable PNG: {failure}")
-
-
-def _automated_pages(
+def _pages_from_exports(
     pymupdf,
     docx: Path,
     conversion_directory: Path,
     staging: Path,
     expected_pages: int | None,
-) -> tuple[str | None, int | None, tuple[str, ...]]:
-    source: str | None = None
+    clinician_export: Path | None,
+) -> tuple[str | None, int | None, Path | None, tuple[str, ...]]:
     pages: int | None = None
     failures: list[str] = []
-    for mode in ("pdf", "xps"):
+    routes: list[tuple[str, str, Path | None]] = [
+        ("word-pdf", "pdf", None),
+        ("word-xps", "xps", None),
+    ]
+    if clinician_export is not None:
+        routes.append(
+            (
+                "clinician",
+                clinician_export.suffix.lower().lstrip("."),
+                clinician_export,
+            )
+        )
+    for route_source, mode, supplied_export in routes:
+        for prior_pixel in staging.glob("*.png"):
+            prior_pixel.unlink()
         try:
-            route_source, converted = _word_attempt(docx, conversion_directory, mode)
+            converted = supplied_export
+            if converted is None:
+                route_source, converted = _word_attempt(docx, conversion_directory, mode)
             with pymupdf.open(str(converted)) as document:
                 route_pages = len(document)
                 if route_pages < 1:
-                    raise RenderError(f"Word {mode} export contains no pages")
+                    raise RenderError(f"{route_source} export contains no pages")
                 if pages is not None and route_pages != pages:
                     raise RenderError(
-                        f"Word {mode} reports {route_pages} pages after the earlier route reported {pages}"
+                        f"{route_source} reports {route_pages} pages after the earlier "
+                        f"route reported {pages}"
                     )
                 pages = route_pages
                 if expected_pages is not None and route_pages != expected_pages:
                     raise RenderError(
-                        f"Word reports {route_pages} pages, not --expected-pages {expected_pages}"
+                        f"{route_source} reports {route_pages} pages, not "
+                        f"--expected-pages {expected_pages}"
                     )
                 missed: list[int] = []
                 for number, page in enumerate(document, start=1):
                     target = staging / f"page-{number}.png"
-                    if target.is_file():
-                        continue
                     partial = staging / f".page-{number}.{mode}.building.png"
                     try:
                         page.get_pixmap(dpi=RASTER_DPI).save(partial)
@@ -180,25 +174,24 @@ def _automated_pages(
                     except Exception:
                         partial.unlink(missing_ok=True)
                         missed.append(number)
-                source = route_source
                 if not missed:
-                    return source, pages, tuple(failures)
+                    return route_source, pages, converted, tuple(failures)
                 failures.append(
-                    f"Word {mode} could not rasterize page(s) "
+                    f"{route_source} could not rasterize page(s) "
                     + ", ".join(str(number) for number in missed)
                 )
         except RenderError as failure:
             failures.append(str(failure))
         except Exception as failure:
-            failures.append(f"could not read the Word {mode} export: {failure}")
-    return source, pages, tuple(failures)
+            failures.append(f"could not read the {route_source} export: {failure}")
+    return None, pages, None, tuple(failures)
 
 
 def render(
     run: Path,
     docx: Path,
-    clinician_pages: dict[int, Path] | None = None,
     expected_pages: int | None = None,
+    clinician_export: Path | None = None,
 ) -> tuple[str, Path, int]:
     if not run.is_dir():
         raise RenderError(f"no run directory at {run}")
@@ -209,13 +202,14 @@ def render(
     except ImportError as failure:
         raise RenderError("pymupdf is not installed") from failure
 
-    clinician_pages = clinician_pages or {}
     if expected_pages is not None and expected_pages < 1:
         raise RenderError("--expected-pages must be a positive integer")
-    if clinician_pages and expected_pages is None:
-        raise RenderError("--clinician-page requires --expected-pages")
-    _validate_clinician_pages(pymupdf, clinician_pages)
-
+    if clinician_export is not None:
+        if (
+            clinician_export.suffix.lower() not in {".pdf", ".xps"}
+            or not clinician_export.is_file()
+        ):
+            raise RenderError("--clinician-export must be an existing PDF or XPS")
     render_root = run / "render"
     render_root.mkdir(exist_ok=True)
     pass_number = _next_pass(render_root)
@@ -223,41 +217,20 @@ def render(
     staging = Path(tempfile.mkdtemp(prefix=f".pass-{pass_number}-", dir=render_root))
     try:
         with tempfile.TemporaryDirectory() as conversion_directory:
-            source, pages, failures = _automated_pages(
+            source, pages, retained_export, failures = _pages_from_exports(
                 pymupdf,
                 docx.resolve(),
                 Path(conversion_directory),
                 staging,
                 expected_pages,
+                clinician_export,
             )
-            if pages is None:
-                pages = expected_pages
-            if pages is None:
+            if source is None or pages is None or retained_export is None:
                 raise RenderError("; ".join(failures))
-            missing = {
-                number
-                for number in range(1, pages + 1)
-                if not (staging / f"page-{number}.png").is_file()
-            }
-            unused = set(clinician_pages) - missing
-            if unused:
-                listed = ", ".join(str(number) for number in sorted(unused))
-                raise RenderError(
-                    f"clinician page(s) {listed} were not needed by the automated routes"
-                )
-            unavailable = missing - set(clinician_pages)
-            if unavailable:
-                detail = "; ".join(failures)
-                listed = ", ".join(str(number) for number in sorted(unavailable))
-                raise RenderError(f"{detail}; page(s) {listed} need clinician images")
-            for number in missing:
-                shutil.copy2(
-                    clinician_pages[number], staging / f"page-{number}.png"
-                )
-            if missing:
-                source = "clinician"
-            if source is None:
-                raise RenderError("; ".join(failures))
+            shutil.copy2(
+                retained_export,
+                staging / f"post{retained_export.suffix.lower()}",
+            )
         retained = tuple(staging.glob("*.png"))
         if len(retained) != pages:
             raise RenderError(
@@ -277,14 +250,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("run")
     parser.add_argument("--docx", required=True)
     parser.add_argument("--expected-pages", type=int)
-    parser.add_argument("--clinician-page", action="append", default=[])
+    parser.add_argument("--clinician-export")
     try:
         args = parser.parse_args(argv)
         source, destination, pages = render(
             Path(args.run),
             Path(args.docx),
-            _clinician_pages(args.clinician_page),
             args.expected_pages,
+            Path(args.clinician_export) if args.clinician_export else None,
         )
     except (RenderError, OSError) as failure:
         print(f"render did not complete: {failure}", file=sys.stderr)
