@@ -220,10 +220,27 @@ class ScratchCensusCommandTests(ScratchRepository):
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 2, finished.stderr)
+        self.assertIn(
+            f"GATING: {self.root / 'scratch'}: absent; not scanned",
+            finished.stdout,
+        )
         self.assertIn("NOT SCANNED", finished.stdout)
         self.assertNotIn("CLEAN", finished.stdout)
 
-    def test_an_unreadable_root_wins_over_a_peer_report(self) -> None:
+    def test_an_absent_committing_scratch_root_is_not_a_clean_scan(self) -> None:
+        other = self.add_worktree()
+
+        finished = self.run_census(cwd=other)
+
+        self.assertEqual(finished.returncode, 2, finished.stderr)
+        self.assertIn(
+            f"GATING: {other / 'scratch'}: absent; not scanned",
+            finished.stdout,
+        )
+        self.assertIn("NOT SCANNED", finished.stdout)
+        self.assertNotIn("CLEAN", finished.stdout)
+
+    def test_an_unreadable_peer_root_reports_without_refusing(self) -> None:
         failing = self.add_worktree("failing")
         (failing / "scratch").mkdir()
         (failing / "scratch" / "private-entry").touch()
@@ -232,11 +249,16 @@ class ScratchCensusCommandTests(ScratchRepository):
 
         finished = self.run_census()
 
-        self.assertEqual(finished.returncode, 2, finished.stderr)
+        self.assertEqual(finished.returncode, 0, finished.stderr)
         self.assertIn("1 unreadable", finished.stdout)
         self.assertIn(str(unreadable), finished.stdout)
         self.assertNotIn("FINDING", finished.stdout)
-        self.assertIn("NOT SCANNED", finished.stdout)
+        self.assertIn(
+            f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded",
+            finished.stdout,
+        )
+        self.assertIn("CLEAN", finished.stdout)
+        self.assertNotIn("NOT SCANNED", finished.stdout)
 
     def test_worktree_state_is_measured_only_when_requested(self) -> None:
         (self.root / "README.md").write_text(

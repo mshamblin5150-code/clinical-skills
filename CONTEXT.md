@@ -49,7 +49,7 @@ One occasion of working on a graded artifact. An artifact is usually written ove
 _Avoid_: session (in the agent sense — see **Session**), attempt, revision
 
 **Session**:
-One agent's working pass over this repo — it sweeps the tracker and writes residue into a **scratch root**. **It is not the unit that opens a branch, and it does not own a checkout**: several drones can share one checkout and therefore one branch, and one branch can carry several tickets. That clause read *the unit that opens a branch* until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md), which is why the session directory is keyed by the **ticket** and never by the branch. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
+One agent's working pass over this repo — it sweeps the tracker and writes residue into a **scratch root**. **It is not the unit that opens a branch, and it does not own a checkout**: several drones can share one checkout and therefore one branch, and one branch can carry several tickets. That clause read *the unit that opens a branch* until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md), which is why the **Ticket directory** is keyed by the ticket and never by the branch. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
 _Avoid_: run, pass, sweep
 
 **Scratch root**:
@@ -77,7 +77,7 @@ One of the documented top-level entries a tool or a skill writes at a named path
 _Avoid_: known-good list, allowlist, the exempt set
 
 **Ratchet**:
-The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout is held at zero from day one. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
+The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout has a zero ratchet from day one. A commit grades only the owning and committing roots; peer roots report and are never graded. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
 _Avoid_: threshold, limit, cap, budget
 
 **Drain**:

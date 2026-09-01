@@ -52,7 +52,7 @@ A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit
 
 ```bash
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
-H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"

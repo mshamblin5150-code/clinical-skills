@@ -15,16 +15,20 @@ import repo_root
 from console_codec import use_utf8
 
 
-def ticket_directory(ticket: int) -> Path:
-    if ticket < 1:
-        raise ValueError("ticket number must be a positive integer")
+def _create(child: str) -> Path:
     scratch = repo_root.scratch_root().resolve()
     sessions = scratch / "sessions"
-    target = sessions / f"ticket-{ticket}"
+    target = (sessions / child).resolve()
     if target.parent != sessions or sessions.parent != scratch:
         raise ValueError("refusing to create a path at the scratch top level")
     target.mkdir(parents=True, exist_ok=True)
     return target
+
+
+def ticket_directory(ticket: int) -> Path:
+    if ticket < 1:
+        raise ValueError("ticket number must be a positive integer")
+    return _create(f"ticket-{ticket}")
 
 
 def sweep_directory(day: str) -> Path:
@@ -34,19 +38,13 @@ def sweep_directory(day: str) -> Path:
         raise ValueError("sweep date must use YYYY-MM-DD") from None
     if parsed.isoformat() != day:
         raise ValueError("sweep date must use YYYY-MM-DD")
-    scratch = repo_root.scratch_root().resolve()
-    sessions = scratch / "sessions"
-    target = sessions / f"sweep-{day}"
-    if target.parent != sessions or sessions.parent != scratch:
-        raise ValueError("refusing to create a path at the scratch top level")
-    target.mkdir(parents=True, exist_ok=True)
-    return target
+    return _create(f"sweep-{day}")
 
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2 or argv[0] not in ("ticket", "sweep"):
         print(
-            "usage: session_directory.py (ticket <n> | sweep <YYYY-MM-DD>)",
+            "usage: scratch_work.py (ticket <n> | sweep <YYYY-MM-DD>)",
             file=sys.stderr,
         )
         return 2

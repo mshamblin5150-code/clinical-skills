@@ -36,7 +36,7 @@ session's residue is dropping one directory rather than ruling on files one at a
 
 `scratch/runs/<run key>/` is the precedent and is **not** the same thing. A run directory is a
 graded artifact's provenance record, keyed by course, module and artifact, and it outlives every
-sitting. A session directory is one agent's working pass. `CONTEXT.md` defines both — see
+sitting. A Ticket directory holds one agent Session's working material. `CONTEXT.md` defines both — see
 **Session** and **Run directory** there, and note that `Sitting`'s `_Avoid_: session` rejects the
 word as a name for *a sitting*, not as a name for a pass.
 
@@ -69,14 +69,13 @@ worktree that has a `scratch/` of its own is a root that resolution points away 
 accounted-for set in **one** `git grep` pass over tracked files, and reports the remainder.
 
 - **0** clean, **1** when the owning checkout's unaccounted count has risen above the recorded
-  baseline **or any other checkout's is not zero**, **2** for every way of not having scanned —
-  including an absent scratch root, which is `phi_scan --layers`' arrangement and its reason. A
-  clone with no scratch root says *did not scan*, never *clean*. **Where a finding and a
-  not-scanned limb both hold, 1 wins**, on `differential_scan.py`'s ordering.
-- **Two halves, graded differently.** The **owning checkout** keeps a grandfathered integer
-  baseline, because its residue predates the rule and clearing it needs the clinician's word.
-  **Every other checkout is held at zero unaccounted, from day one** — a worktree is created after
-  the rule, so it has no residue predating it and nothing about it needs a person's word.
+  baseline or the committing checkout's count has risen above zero, and **2** when either gating
+  root was not scanned. A clone with no owning scratch root says *did not scan*, never *clean*.
+  **Where a finding and a not-scanned limb both hold, 1 wins**, on `differential_scan.py`'s
+  ordering.
+- **Two gating roots.** The **owning checkout** keeps a grandfathered integer baseline, because its
+  residue predates the rule and clearing it needs the clinician's word. The committing checkout
+  has a zero ratchet from day one. Every peer worktree reports its count and is never graded.
 - **The baseline is the module's to state and appears in no prose, including here.** Not a list,
   not hashes, and not a digit in this document or in either ADR. `EXEMPT_CEILING` is the precedent:
   a figure restated in prose goes stale one short of the ceiling, which is the one window where
@@ -87,8 +86,9 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
   precisely the one that might carry a patient's name.
 - **An unreadable registered checkout root is named.** `git worktree list --porcelain` already
   supplies that root, and ADR 0059 requires the report to identify every enumerated checkout it
-  could not read. This is coverage of the Git registry, not disclosure of a scratch-entry path;
-  the count-only rule above still governs every entry under the root.
+  could not read. An unreadable owning or committing root is not scanned; an unreadable peer is
+  report-only and never changes status. This is coverage of the Git registry, not disclosure of a
+  scratch-entry path; the count-only rule above still governs every entry under the root.
 - **It reports the worktree-root hazard on every run and grades it never.** How many checkouts own
   a scratch root and how many files sit beneath them prints beside every verdict, on
   [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling: a reader who

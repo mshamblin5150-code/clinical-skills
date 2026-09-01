@@ -73,9 +73,10 @@ and [ADR 0059](docs/adr/0059-the-scratch-census-walks-every-checkout-that-owns-a
 **There is one scratch root per checkout that has one, not one per repository**, and that is ADR
 0059 ruling 1 — a worktree can own its own, and most of this repository's scratch material has
 lived in worktree roots rather than in the one `repo_root.scratch_root()` resolves to. So the rule
-above is applied **per root, in every registered checkout**: the owning checkout keeps a
-grandfathered integer baseline, and **every other checkout is held at zero unaccounted, from day
-one**. A failing worktree is **drained** to the owning checkout — a move, never a delete.
+above is maintained **per root, in every registered checkout**: the owning checkout keeps a
+grandfathered integer baseline, and every other checkout has a zero ratchet from day one. A commit
+grades only the owning root and the committing root; every peer root reports and is never graded.
+A failing committing worktree is **drained** to the owning checkout — a move, never a delete.
 
 **The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
 unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
@@ -864,11 +865,11 @@ when the run could not be completely scanned.
 
 Covered by `tools/test_discussion_reply_scan.py`.
 
-### Session directory
+### Scratch work
 
-`tools/session_directory.py` is the one producer for agent working material under the `scratch/sessions/` namespace. A ticketed pass calls `python tools/session_directory.py ticket "$TICKET_NUMBER"`; ticketless work calls `python tools/session_directory.py sweep "$(date +%F)"`. Both forms resolve through `repo_root.scratch_root()`, create the child, and print its path. They cannot return a path at the scratch top level.
+`tools/scratch_work.py` is the one producer for agent working material under the `scratch/sessions/` namespace. A ticketed Session calls `python tools/scratch_work.py ticket "$TICKET_NUMBER"`; ticketless work calls `python tools/scratch_work.py sweep "$(date +%F)"`. Both forms resolve through `repo_root.scratch_root()`, create the child, and print its Ticket directory. They cannot return a path at the scratch top level.
 
-**It deduplicates a destination and enforces nothing.** The five tracker-harvest copies call it so none computes a mutable branch key; `scratch_census.py` remains the gate for material written outside the accounted namespace. Two sittings on one ticket deliberately reopen the same Ticket directory, and the unresolved concurrency and worktree-removal boundaries live in `scratch_census.DECLARED_LIMITS` rather than being copied here.
+**It deduplicates a destination and enforces nothing.** Every documented tracker harvest calls it so none computes a mutable branch key; `scratch_census.py` remains the gate for material written outside the accounted namespace. A follow-up Session on one ticket deliberately reopens its predecessor's Ticket directory and finds the work. The unresolved concurrency and worktree-removal boundaries live in `scratch_census.DECLARED_LIMITS` rather than being copied here.
 
 ### Tracker scan
 
@@ -876,7 +877,7 @@ Every tool above reads a file somebody can point at. This one reads **what a pub
 
 ```bash
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
-H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
@@ -1100,7 +1101,7 @@ The tracker scan reads the tracker's PHI shapes. This one reads **whether a body
 
 ```bash
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
-H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
@@ -1890,7 +1891,7 @@ git config core.hooksPath tools/hooks
 
 After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py`, `tools/scratch_census.py`, and the staged spelling check on every commit in that clone; `tools/hooks/commit-msg` checks the proposed message for spelling and GitHub closing keywords. Both message checks are advisory.
 
-**Standing rule 1 is no longer the only thing that can refuse a commit here, and that changed deliberately.** Since #466 its second unconditional local check, `scratch_census.py`, refuses a rise above the owning checkout's module baseline or any unaccounted entry in another registered checkout; it is permanently absent from CI because no runner owns a scratch root. Since #83 a staged threshold sheet also runs `tools/threshold_sheet.py --all --quiet`, and a failing gate refuses. #181 narrowed both edges: the directory README does not trigger the grader, and a recommendation record never built under `--recs-root` prints `COVERAGE NOT RUN` through `--quiet` but does not refuse; explicit path errors, unreadable records, and findings from present records remain non-zero. Since #429, a catalog, registry, or threshold-sheet edit also runs `tools/threshold_coverage.py`; it refuses a missing or duplicate topic, an unrecorded state, or an orphaned sheet. The reasoning is narrow: a fabricated citation or a false corpus denominator is clinical guidance a consumer may rely on, while an absent uncommitted build artifact is a property of the machine. **The guideline checks cost nothing on a commit that touches none of their artifacts** — which is what keeps them from becoming checks people learn to `--no-verify` around — and both unconditional checks have their status OR-ed in, so nothing above can suppress either. `skills_mirror.py`, `spelling_scan.py`, and `closing_keyword_scan.py` stay advisory.
+**Standing rule 1 is no longer the only thing that can refuse a commit here, and that changed deliberately.** Since #466 its second unconditional local check, `scratch_census.py`, refuses a rise above the owning checkout's module baseline or the committing checkout's zero ratchet; peer worktrees report and are never graded. It is permanently absent from CI because no runner owns a scratch root. Since #83 a staged threshold sheet also runs `tools/threshold_sheet.py --all --quiet`, and a failing gate refuses. #181 narrowed both edges: the directory README does not trigger the grader, and a recommendation record never built under `--recs-root` prints `COVERAGE NOT RUN` through `--quiet` but does not refuse; explicit path errors, unreadable records, and findings from present records remain non-zero. Since #429, a catalog, registry, or threshold-sheet edit also runs `tools/threshold_coverage.py`; it refuses a missing or duplicate topic, an unrecorded state, or an orphaned sheet. The reasoning is narrow: a fabricated citation or a false corpus denominator is clinical guidance a consumer may rely on, while an absent uncommitted build artifact is a property of the machine. **The guideline checks cost nothing on a commit that touches none of their artifacts** — which is what keeps them from becoming checks people learn to `--no-verify` around — and both unconditional checks have their status OR-ed in, so nothing above can suppress either. `skills_mirror.py`, `spelling_scan.py`, and `closing_keyword_scan.py` stay advisory.
 
 **Two layers, and the asymmetry between them is the design.**
 

@@ -30,7 +30,7 @@ sequences, so a report can be compared across both mechanisms.
 Harvest first, then scan::
 
     : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
-    H=$(python tools/session_directory.py ticket "$TICKET_NUMBER")
+    H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
     mkdir -p "$H"
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"

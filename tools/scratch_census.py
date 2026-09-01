@@ -225,12 +225,15 @@ def main(argv: list[str]) -> int:
         accounted_error = error
 
     counts: list[RootCount] = []
+    absent: list[Path] = []
     unreadable: list[Path] = []
     for root in roots:
         try:
             counted = count_root(root, accounted)
             if counted is not None:
                 counts.append(counted)
+            else:
+                absent.append(root)
         except OSError:
             unreadable.append(root)
 
@@ -249,7 +252,6 @@ def main(argv: list[str]) -> int:
             print("NOT SCANNED: one or more required roots could not be read")
         return 2
     owning = roots[0]
-    state_not_scanned = False
     if argv == ["--worktrees"]:
         try:
             measured_roots = tuple(item.root for item in counts if item.root != owning)
@@ -257,7 +259,6 @@ def main(argv: list[str]) -> int:
             print(f"worktree state: {merged} merged; {clean} clean; {ahead} ahead")
         except CensusNotRun as error:
             print(f"worktree state: NOT SCANNED ({error})")
-            state_not_scanned = True
 
     owning_count = next((item for item in counts if item.root == owning), None)
     owning_finding = (
@@ -271,8 +272,20 @@ def main(argv: list[str]) -> int:
         committing_count is not None and committing_count.unaccounted > 0
     )
     peer_counts = [item for item in other_counts if item.root != checkout]
+    gating_unavailable = [
+        root for root in (*absent, *unreadable) if root in (owning, checkout)
+    ]
+    peer_unavailable = [
+        (root, "absent")
+        for root in absent
+        if root not in (owning, checkout)
+    ] + [
+        (root, "unreadable")
+        for root in unreadable
+        if root not in (owning, checkout)
+    ]
     finding = owning_finding or committing_finding
-    not_scanned = owning_count is None or bool(unreadable) or state_not_scanned
+    not_scanned = bool(gating_unavailable)
 
     if owning_count is not None:
         print(
@@ -286,12 +299,17 @@ def main(argv: list[str]) -> int:
             f"{committing_count.unaccounted} unaccounted, "
             f"{committing_count.unaccounted} above baseline"
         )
+    for root in gating_unavailable:
+        state = "unreadable" if root in unreadable else "absent"
+        print(f"GATING: {root / 'scratch'}: {state}; not scanned")
     for item in peer_counts:
         print(
             f"REPORT ONLY: {item.root / 'scratch'}: "
             f"{item.unaccounted} unaccounted; never graded"
         )
-    if not peer_counts:
+    for root, state in peer_unavailable:
+        print(f"REPORT ONLY: {root / 'scratch'}: {state}; never graded")
+    if not peer_counts and not peer_unavailable:
         print("REPORT ONLY: none")
 
     if owning_finding and owning_count is not None:
