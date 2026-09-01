@@ -1149,8 +1149,8 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
 
     Ruled by the clinician on 2026-08-19 -- refuse, with ``--force``. This renderer
     writes a fixed set of parts, so a different set is evidence of another writer or an
-    older renderer. #424 measured the limit: a committed closed-Word save preserved the
-    same set and pass this guard.
+    older renderer. #675 established that #424's no-op probe was not a save measurement;
+    an editor that preserves the same set remains the declared limit.
     """
 
     def setUp(self):
@@ -1204,8 +1204,12 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
     def test_words_lock_file_refuses_even_over_our_own_document(self):
         docx_write.write_docx("# Ours\n", self.path)
         (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
-        with self.assertRaises(docx_write.RefusedToOverwrite):
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
+        self.assertIn(
+            "Close Word, read the document, recover the edit, then pass --force",
+            str(caught.exception),
+        )
 
     def test_the_truncated_lock_name_word_actually_wrote_is_recognized(self):
         """#279 quotes the pair: ``nur5144-...`` locked by ``~$r5144-...``.
@@ -1252,19 +1256,27 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         with self.assertRaises(docx_write.RefusedToOverwrite):
             docx_write.write_docx("# New\n", self.path)
 
-    def test_the_part_set_refusal_names_both_causes_without_diagnosing_word(self):
-        """A message guessing Word reads as a diagnosis, and #424 proved it wrong.
-
-        A changed set can come from another writer or an older renderer. The committed Word measurement shows Word can
-        save while preserving the set, so it is deliberately not named as the cause.
-        """
+    def test_the_part_set_refusal_names_all_causes_and_the_recovery_order(self):
         self._archive_with_foreign_parts()
         with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
-        message = str(caught.exception)
+        message = str(caught.exception).casefold()
+        self.assertIn("an editor saved it (for example, word)", message)
         self.assertIn("another writer", message)
         self.assertIn("older version of this renderer", message)
-        self.assertNotIn("most likely Word", message)
+        self.assertIn("read it, recover the edit, then pass --force", message)
+
+    def test_the_part_set_refusal_reports_parts_on_both_sides_of_the_delta(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            for name, content in docx_write.parts("# Changed\n").items():
+                if name != "word/header1.xml":
+                    archive.writestr(name, content)
+            archive.writestr("docProps/core.xml", "<x/>")
+
+        message = docx_write.refusal(self.path)
+
+        self.assertIn("parts only in the archive: docProps/core.xml", message)
+        self.assertIn("current renderer parts missing from the archive: word/header1.xml", message)
 
     def test_the_command_line_refusal_is_two_and_writes_nothing(self):
         before = self._archive_with_foreign_parts()
@@ -1447,6 +1459,12 @@ class TheRefusalClaimsInStepEight(unittest.TestCase):
 
     def test_the_step_still_names_the_flag(self):
         self.assertIn("--force", self.skill_text())
+
+    def test_the_step_recovers_an_editor_change_into_the_authoritative_markdown(self):
+        text = self.skill_text()
+        self.assertIn("Markdown is the authoritative artifact", text)
+        self.assertIn("recover the edit", text)
+        self.assertIn("claim ledger", text)
 
     def test_the_command_really_exits_two_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as directory:

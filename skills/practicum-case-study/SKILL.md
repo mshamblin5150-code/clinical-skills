@@ -929,15 +929,17 @@ flag that proceeds anyway:
 python tools/docx_write.py output/case-studies/<course>-<module>-case-study-<date>.md output/case-studies/<course>-<module>-case-study-<date>.docx --force
 ```
 
-**Ask him before passing it, and that is this step's rule rather than part of his ruling.** What
-he ruled on #279 is the mechanism — refuse, with a flag — not that an agent must confirm each
-override. The reason to ask anyway is narrower and is about who is running the command: a refusal
-on the second signal means hand-edits exist in that `.docx`, re-rendering destroys them, and
-`output/` is gitignored so there is nothing to restore from. An irreversible write over the
-clinician's own work is not a call a run makes for him. The flag is right where the Markdown is
-the newer draft, and he is the one who knows that. **The check is the command's and not this step's** — #279's
-decision 2 is that a written instruction to look first is exactly what the ticket exists to
-reject — so there is nothing here to run before the render.
+**The Markdown is the authoritative artifact.** A destination-guard refusal can mean the
+clinician changed the Word document. Read that document, recover the edit into the Markdown and,
+where it changes a supported factual claim, the claim ledger before any forced render. Then ask
+him before passing `--force`, and that is this step's rule rather than part of his ruling. What he
+ruled on #279 is the mechanism — refuse, with a flag — not that an agent must confirm each
+override. The reason to ask anyway is narrower and is about who is running the command:
+re-rendering destroys the `.docx`, and `output/` is gitignored so there is nothing to restore
+from. An irreversible write over the clinician's own work is not a call a run makes for him. The
+flag is available after recovery; it is never a substitute for recovery. **The check is the
+command's and not this step's** — #279's decision 2 is that a written instruction to look first is
+exactly what the ticket exists to reject — so there is nothing here to run before the render.
 
 **A `warning:` line from that command means a table row put a cell separator into its own
 text.** That is the shape
