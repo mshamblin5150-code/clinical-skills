@@ -114,12 +114,12 @@
 | infectious diarrhea | unread |  | bound recommendation record available; full-document read pending |
 | intimate partner violence and elder abuse screening | unread |  | exact recommendation index available; full-document read pending |
 | iron deficiency anemia screening | sheet | iron-deficiency-anemia-screening.md | exact recommendation index available; full document distilled |
-| iron deficiency anemia screening and supplementation | unread |  | exact recommendation index available; full-document read pending |
+| iron deficiency anemia screening and supplementation | sheet | iron-deficiency-anemia-screening-and-supplementation.md | exact recommendation index available; full document distilled |
 | kidney transplant recipient care | unread |  | bound recommendation record available; full-document read pending |
 | kidney transplantation candidate evaluation | unread |  | bound recommendation record available; full-document read pending |
-| latent tuberculosis infection screening | unread |  | exact recommendation index available; full-document read pending |
+| latent tuberculosis infection screening | sheet | latent-tuberculosis-infection-screening.md | exact recommendation index available; full document distilled |
 | leishmaniasis | unread |  | bound recommendation record available; full-document read pending |
-| lipid disorder screening | unread |  | exact recommendation index available; full-document read pending |
+| lipid disorder screening | sheet | lipid-disorder-screening.md | exact recommendation index available; full document distilled |
 | lipid management in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
 | living kidney donor evaluation and care | unread |  | bound recommendation record available; full-document read pending |
 | lower extremity peripheral artery disease | unread |  | exact recommendation index available; full-document read pending |
@@ -137,7 +137,7 @@
 | obesity, behavioral weight loss intervention | unread |  | exact recommendation index available; full-document read pending |
 | obstructive sleep apnea screening | sheet | obstructive-sleep-apnea-screening.md | full-document read complete; exact recommendation index accounted |
 | opioid prescribing for pain | unread |  | no recommendation record; full-document read pending |
-| oral cancer screening | unread |  | exact recommendation index available; full-document read pending |
+| oral cancer screening | sheet | oral-cancer-screening.md | exact recommendation index available; full document distilled |
 | oral health screening and prevention | sheet | oral-health-screening-and-prevention.md | all 15 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | osteoporosis screening, fracture prevention | unread |  | exact recommendation index available; full-document read pending |
 | outpatient parenteral antimicrobial therapy | unread |  | bound recommendation record available; full-document read pending |
