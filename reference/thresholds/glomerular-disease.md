@@ -1,5 +1,4 @@
 # Glomerular disease — threshold sheet
- |  | CURRENT SOURCE FRAGMENT FOR ACCOUNTING ONLY — this occurrence carries no independently issued action.
 <!-- schema: threshold-sheet/2 -->
 
 Decision points and source-action accounting only, distilled from the complete source below. **Not a substitute for the guideline** and not a clinical instruction. The PDF is the 2021 guideline with a 2024 notice; it does not contain the replacement 2024 ANCA-associated vasculitis or lupus-nephritis chapters.
