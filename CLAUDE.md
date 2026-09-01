@@ -326,6 +326,39 @@ python tools/block_scan.py <a run directory>
 
 Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that file and a temp directory — **there is no committed `clinical-note` *run* whose tier block this could be tested against, and there will not be one**, so `fixtures/filled-anchor/notes` is the one real set it is pointed at. Two shapes are pinned deliberately, because the whole reading rests on telling them apart: an entry that **opens** with a field name, and a wrapped line that merely mentions one. One class reads `skills/clinical-note/SKILL.md` and asserts the rules it checks are still written there, on `test_spelling_scan.py`'s reasoning.
 
+### Refusal scan
+
+The block scan reads a `clinical-note` run's tier block. This one reads an **`icd10-cpt` run's
+refusal record**, and it is the mechanical half of the rule that a refused code has to say what it
+would have taken.
+
+```bash
+python tools/refusal_scan.py <a run directory>
+```
+
+**It reads one block and nothing else** — `--- NOT CODED, NOTHING ESTABLISHED IT ---`. A refusal
+inside it must weld `NOT CODED` to its code and a nonempty descriptor, state what would establish the
+code, and name what the encounter supports instead. **Codes in the differential are outside the block
+and do not inflate the count**, which is the narrowing that keeps the denominator honest: a note that
+proposes ten codes and refuses one is not a note with eleven refusals.
+
+**What it cannot reach is whether the descriptor text is official.** That is a comparison to the
+tabular and belongs to `icd10_lookup.py`; the row here is that a refusal says something rather than
+that what it says is right. `refusal_scan.ROWS` owns the row vocabulary and this section copies no
+row from it. **The module carries no declared-limits object**, so unlike its siblings the sentence
+above is the whole of what a clean run does not establish — stated here because an absent object is
+easy to read as an oversight when it has simply never been written.
+
+**Counts only by default, and `--show` is PHI** on `specificity_scan.py`'s terms and for its reason:
+a refused code with its reason is a diagnosis considered and rejected for one encounter.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a
+finding, 2 for every way of not having scanned, including **no worksheet refusal in the run**. That
+last limb matters for the usual reason: a run whose refusals landed in some other shape would
+otherwise report zero and read as a set with nothing to refuse.
+
+Covered by `tools/test_refusal_scan.py`.
+
 ### Word documents, both directions
 
 `practicum-case-study` reads faculty material that arrives as a `.docx` and submits a `.docx`, so the pair exists. **Both are stdlib only** — a `.docx` is a zip of XML parts, which `zipfile` and `xml.etree` open for nothing.
@@ -742,6 +775,85 @@ python tools/voice_corpus.py <export> --pairs --match "improve this"
 **What no row reaches is `voice_corpus.NOT_REACHED`, and this section deliberately copies none of it** — [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s repair adopted at the outset rather than after two copies drifted, and a test asserts both this file and the module docstring point at the object instead of listing it. The sharpest limb is about **whose words a pasted paragraph is**, and the object states it — a matcher reads a message by who sent it, so the corpus's split into typed chat and pasted documents stays a reading rather than a row. *(A first draft of this sentence quoted that limb verbatim, which is the copy the rule forbids, and the test caught it rather than a reader.)*
 
 Covered by `tools/test_voice_corpus.py`, which builds synthetic exports in that file and a temp directory. **The real export is deliberately not a fixture and there will not be one** — it is one file on one machine, it carries patient material, and its mined output is gitignored, which is `test_differential_scan.py`'s position exactly. **No count taken against it is asserted anywhere in that file.** Both of the module's load-bearing rules were driven red by mutation before they were believed: the one-hop walk, and the UUID dating fallback.
+
+### Voice model shape
+
+The section above reads the corpus a voice model is built **from**. This one reads the **model**,
+and it grades shape alone.
+
+```bash
+python tools/voice_model_scan.py [<voice-model.md>] [--show]
+```
+
+**With no path it reads the account-owned model through `repo_root.scratch_root()`**, which is the
+owning checkout's — a worktree has no model of its own and asking for one there is how the corpus
+census used to fail before #93.
+
+**It grades whether the model has the shape a model must have, and never whether it sounds like its
+clinician.** That second question has no mechanical form and the module says so rather than
+approximating it; `voice_model_scan.NOT_REACHED` owns the complete inventory and this section copies
+no row from it.
+
+**Counts only by default. `--show` prints finding detail from private working material and must not
+be pasted.**
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 for clean reached
+rows, 1 for a shape finding, 2 for every way of not having scanned, which the module enumerates in
+`EXIT_2_LIMBS` rather than in prose. **A finding wins over incomplete coverage**, on
+`differential_scan.py`'s ordering, so a malformed tail cannot hide a defect already established in a
+register the command could read.
+
+Covered by `tools/test_voice_model_scan.py`.
+
+### Discussion post grading
+
+`discussion-post` produces one graded initial post. This grades it against the bar that post was
+signed to.
+
+```bash
+python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [--docx <the render>]
+```
+
+**The source is a run directory and the draft is named separately**, because the two live apart: the
+provenance record under `scratch/runs/<course>-<module>-discussion/` and the handoff under
+`output/discussions/`. The rows, their vocabulary and their gated sets are
+`discussion_post_scan.ROWS`, `KINDS` and `GATED_ROW_SETS`; the coverage boundary is
+`DECLARED_LIMITS`. **This section points at all four and copies no row.**
+
+**`--docx` is a gate rather than an extra.** With it, the command grades the rendered document's
+heading styles and comment residue and reports paragraph-text parity with the Markdown. Without it
+those rows print `not graded` rather than `0`, which is [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
+ruling: an absent input never masquerades as a passing count.
+
+**Counts only by default; `--show` includes finding detail and is private working material.**
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 for passing
+mechanical rows, 1 for a finding, 2 when the run could not be completely scanned.
+
+Covered by `tools/test_discussion_post_scan.py` and `tools/test_discussion_post_skill.py`.
+
+### Discussion reply grading
+
+The post grader reads one initial post. This reads a run's **replies**, and the difference that
+matters is the roster: a reply is addressed to a named classmate and the grader checks that the name
+is one the run actually read.
+
+```bash
+python tools/discussion_reply_scan.py <a run directory>
+```
+
+**Its coverage ceiling is stated rather than implied**: every `posts/*.md` carrying one `AUTHOR:`
+line. Another post layout is unread, and the module says so. The rows and the complete inventory of
+what a clean run does not establish are `discussion_reply_scan.ROWS` and `NOT_REACHED`.
+
+**`--show` may name classmates**, so its output is private working material and must not be pasted —
+a stricter reason than the sibling's, and one `reference_scan.py`'s pasteable exception does not
+reach, because what this command can draw on is not bounded.
+
+**Exit status distinguishes not having scanned from having found nothing** — 0, 1 for a finding, 2
+when the run could not be completely scanned.
+
+Covered by `tools/test_discussion_reply_scan.py`.
 
 ### Tracker scan
 
@@ -1335,6 +1447,36 @@ Run `python tools/split_census.py "C:/codeing/guidelines-src"` for the current s
 Its parsers are covered by `tools/test_guidelines_extract.py` against committed `.txt` page excerpts in `tools/testdata/`, never against a PDF — `*.pdf` is globally gitignored and stays that way. `rebuild_text` is testable there too because it takes PyMuPDF's `rawdict` **dictionary** rather than a page, so the suite still opens nothing.
 
 **The ACIP excerpt has now been wrong in both directions, and the reason is the same one both times: the shape is the test.** It first put the browser print timestamp on a line of its own; that was corrected to the folded form because `pypdf` welds the page title in after the stamp, and the classifier had been passing the fixture while finding zero print-captures in the corpus. #83 moved the extractor to PyMuPDF, the four header parts land on four lines again, and the fixture was corrected back — **rebuilt from the real file on 2026-08-16 rather than edited into the shape expected**, which is precisely what the previous round failed to do. All three ACIP files re-checked as `print-capture` afterwards — the name that class carried until #185 renamed it `web-capture`, and re-checked under the new name on 2026-08-19.
+### Split census
+
+The extractor above infers a space where the geometry says a word ends. This audits those
+inferences with the extractor's **current** rule rather than with a saved verdict.
+
+```bash
+python tools/split_census.py "C:/codeing/guidelines-src"
+python tools/split_census.py "C:/codeing/guidelines-src" --classify
+```
+
+**Maintainer-only, and it needs PyMuPDF** — it opens the society PDF corpus, so it is one of the
+commands the *Corpus census* section names as exceptions to stdlib-only.
+
+**Two modes over one input.** The default prints `run -> pieces` shapes and the five digit-adjacent
+boundary classes. `--classify` rebuilds a lexicon from real PDF space glyphs — no outside dictionary,
+so the inference under test does not define its own ground truth — and separates `wrong`, `fix`,
+`ambiguous` and `undecidable`.
+
+**It consumes `guidelines_extract.walk_line_glyphs` rather than a copy**, which is what makes it an
+audit rather than a second opinion: it answers the live question about the rule in the tree, and a
+change to the extractor moves this command's answer without anyone editing it.
+
+**Its historical figures are `split_census.HISTORICAL_SHAPE_FIGURES`'s to state and are deliberately
+not repeated here**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
+terms — they are dated measurements against a corpus outside this repository, and the *Guideline text
+extraction* section above already records why the safety reading they came from covered one narrow
+population.
+
+Covered by `tools/test_split_census.py`.
+
 ### USPSTF recommendation table
 
 `reference/guidelines-uspstf.md` is **committed**, and for a different reason than the ICD-10 database: USPSTF recommendation statements are federal work and genuinely public domain, so unlike the other eight societies in the guideline corpus their content may be redistributed in full. 143 recommendations from all 90 USPSTF documents, one row each — topic, population, grade, interval, year, superseded-by pointer, derived threshold-sheet pointer, source file, page.
@@ -1545,6 +1687,82 @@ python tools/threshold_sheet.py --all
 
 **What no gate here reaches is written in the README and in the module docstring, the same day they were built.** The largest, and it is now narrowed rather than closed: **a sheet whose numbers are all real and all filed under the wrong heading passes every *automatic* gate in the directory.** Gate 5 sets the row's own heading beside an independent reader's description of what the number was about and **grades neither**, because comparing two free-text descriptions is a reading. So a green gate 5 is not a read pairing list, and the hole closes only where somebody runs a second read and looks at the pairs.
 
+### Threshold coverage registry
+
+The sheets above are the artifact. This is the **denominator** — one row per catalog topic, so a
+topic nobody has read is visible as unread rather than absent.
+
+```bash
+python tools/threshold_coverage.py
+```
+
+**It drafts or audits `reference/thresholds/coverage.md`**, whose states are
+`threshold_coverage.STATES`. The registry is the answer to the question a directory of sheets cannot
+answer: *which topics have been looked at*. A row in state `unread` is not a negative finding about a
+guideline — it is the registry doing its job.
+
+**It can refuse a commit.** Since #429 the pre-commit hook runs it when the catalog, the registry or
+a threshold sheet is staged, and it refuses a missing or duplicate topic, an unrecorded state, or an
+orphaned sheet. **That makes it one of the checks that can turn a commit away**, alongside standing
+rule 1, the local scratch census and `threshold_sheet.py`.
+
+**Exit status** — 0, 1 for a registry finding, 2 for every way of not having audited.
+
+Covered by `tools/test_threshold_coverage.py`.
+
+### Threshold sheet drafting
+
+The coverage registry says which topic to read next. This prints the skeleton for one.
+
+```bash
+python tools/threshold_draft.py <a catalog topic>
+```
+
+**It never writes a sheet, and that is the whole design.** The committed Markdown stays curated
+source of truth; this lifts the machine-settleable citation cells out of the recommendation records
+and prints them to stdout. A person places them.
+
+**A bound source deliberately drafts blank snippets, and the non-zero result that follows is the
+workflow rather than a broken draft.** `threshold_sheet.py`'s structure gate then refuses every row
+until a reader fills those cells from the rendered source pages — which is the two-tier arrangement
+that section already describes, arriving at the point where the sheet is created rather than where it
+is graded.
+
+**`threshold_draft.TOPIC_ALIASES` is where a catalog topic and a sheet name that differ are joined**,
+and a third alias name refuses the command and names
+[#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689) as the place to record the
+grouping — a limit that schedules its own review rather than growing quietly.
+
+**Exit status** — 0 for a printed skeleton, 2 for every way of not having drafted one. **There is no
+1**, because a draft has no *found nothing* to report.
+
+Covered by `tools/test_threshold_draft.py`.
+
+### USPSTF interval reach
+
+The table above derives `interval` from one recommendation statement per document. This measures
+what that choice does not read, and it exists because
+[ADR 0028](docs/adr/0028-the-uspstf-interval-derivation-reaches-one-sentence-and-that-reach-is-ruled-permanent.md) ruled
+the reach permanent rather than provisional.
+
+```bash
+python tools/uspstf_interval_reach.py
+```
+
+**Maintainer-only, counts only, and no source text crosses the command boundary** — the guideline
+corpus stays outside the repository, so this reports integers about documents it may not quote.
+
+**Its narrow reads are declined discriminators rather than candidate parsers.** Their false positives
+are part of ADR 0028's ruling, and they live here so that a corpus refresh or a change to
+`uspstf_table.INTERVAL_PHRASE` re-derives the measurement the ruling rests on instead of leaving it a
+dated sentence. That is a limit that recomputes itself, which is the arrangement
+[#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) asks for over a docstring.
+
+**Exit status** — 0 for a completed measurement, 2 for every way of not having measured. There is no
+1: nothing here is a finding about a document, only a count.
+
+Covered by `tools/test_uspstf_interval_reach.py`.
+
 ### Build artifacts stay out of the tree, and now there are two nets
 
 Four tools write outside every checkout and they share one guard — [#176](https://github.com/mshamblin5150-code/clinical-skills/issues/176). `.gitignore` now covers the same artifacts by name, and the split of labor is the point: **a guard refuses the write, and the ignore rule only stops the result being committed if a guard is missed.** Neither replaces the other.
@@ -1582,6 +1800,42 @@ recs-*.json
 **Its first version passed three of four assertions against a check that says yes to everything**, and that is the part worth keeping. `git check-ignore` asked about `tools/` answers *ignored*, citing a blank line in `.gitignore` — so any query written with a **trailing slash** comes back true. Every query is a file path now, and `TheInstrumentIsLive` asserts an uncovered path comes back false before anything else runs. This repo's recurring shape with the sign flipped: not a search that could not have worked answering like a settled negative, but one answering like a settled positive. **Which blank line is deliberately not stated** — the draft of this paragraph said 29, and the block above pushed it to 33 in the same commit, so the figure was stale before it was committed. **The PHI firewall itself is asserted rather than described**: `scratch/`, `output/`, `cases/` and `patients/` all match their own lines on real file paths, in `TheInstrumentIsLive`.
 
 **One rule that is deliberately absent**: a bare `*.sqlite`. It would catch a stray index anywhere and it would also hide `reference/icd10cm-2026.sqlite`, which is committed on purpose. `TheNetDoesNotSwallowWhatIsCommitted` walks `git ls-files` and asserts no tracked file is ignored, so a wider pattern fails rather than quietly hiding one.
+
+### Scratch census
+
+*The scratch root* above states the rule. This is the rule made runnable, and since #466 it runs
+unconditionally on every commit.
+
+```bash
+python tools/scratch_census.py
+```
+
+**It counts unaccounted top-level entries across every registered checkout that owns a scratch root**
+— the owning checkout against its grandfathered integer baseline, and every other checkout held at
+zero. `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor
+of documented entries; neither is restated here.
+
+**It never reads a scratch file's contents and never prints an unaccounted entry's name.** That is
+not tidiness: a `scratch/` filename may itself carry PHI and this repository is public, which is the
+whole reason [ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
+made the baseline an integer and refused a list.
+
+**Deletion is outside its authority.** A failing worktree is **drained** to the owning checkout — a
+move, never a delete — and the command classifies nothing about what moves. Disposing of an
+unaccounted entry is the clinician's word, per file.
+
+**Three limits are properties of the mechanism rather than gaps to be closed**, and they live in
+`scratch_census.DECLARED_LIMITS`: the integer baseline's one-entry swap hole, material written
+outside every checkout, and a separate clone's own worktree registry. This section points at that
+object and copies no row.
+
+**It can refuse a commit**, and it is one of the two that do so unconditionally. Its status is OR-ed
+into the hook's, so nothing above it can suppress it.
+
+**Exit status** — 0 clean, 1 for a rise above baseline or any unaccounted entry in another
+checkout, 2 for every way of not having counted.
+
+Covered by `tools/test_scratch_census.py`.
 
 ### Continuous integration
 
