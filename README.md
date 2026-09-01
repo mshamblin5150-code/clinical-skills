@@ -37,7 +37,7 @@ The deliverable is the completed note. Beside it, the run also produces a privat
 
 ## What ships with them
 
-The reference tier begins with [`reference/guidelines-catalog.md`](reference/guidelines-catalog.md), covering material from nine societies: USPSTF, IDSA, AHA/ACC, KDIGO, ACIP, ADA, CDC, GINA, and GOLD. The repository also includes the derived [`reference/guidelines-uspstf.md`](reference/guidelines-uspstf.md), topic decision sheets under [`reference/thresholds/`](reference/thresholds/), the 2026 ICD-10-CM code set in `reference/icd10cm-2026.sqlite`, and CDC BMI-for-age data in `reference/cdc-bmi-for-age-2022.csv`.
+The reference tier begins with [`reference/guidelines-catalog.md`](reference/guidelines-catalog.md), covering material from USPSTF, IDSA, AHA/ACC, KDIGO, ACIP, ADA, CDC, GINA, and GOLD. The repository also includes the derived [`reference/guidelines-uspstf.md`](reference/guidelines-uspstf.md), topic decision sheets under [`reference/thresholds/`](reference/thresholds/), the 2026 ICD-10-CM code set in `reference/icd10cm-2026.sqlite`, and CDC BMI-for-age data in `reference/cdc-bmi-for-age-2022.csv`.
 
 [`reference/thresholds/coverage.md`](reference/thresholds/coverage.md) is the live answer for threshold-sheet coverage. The source corpus PDFs remain outside this repository, and using the skills does not require them. These reference artifacts are committed, so a new edition reaches your clone with `git pull`.
 
@@ -88,7 +88,7 @@ You need Git and Python 3.10 or newer. No package installation is needed to use 
 
    Check the package name before accepting it: `Python.Python.2` appears in the same search results and is the obsolete major version. Close the terminal completely and reopen it after installation so the new PATH is loaded.
 
-   **macOS:** install Python unconditionally. The [2026-09-01 setup ruling](https://github.com/mshamblin5150-code/clinical-skills/issues/401#issuecomment-5499117118) measured Apple's command-line-tools Python at 3.9.6, below this repository's 3.10 floor. Install [Homebrew](https://brew.sh/) if needed, run the `shellenv` commands its installer prints to add Homebrew to your shell, and then run:
+   **macOS:** install Python unconditionally. The [2026-09-01 setup ruling](https://github.com/mshamblin5150-code/clinical-skills/issues/401#issuecomment-5499117118) records Apple's command-line-tools Python as 3.9.6 from primary-source research; that is below this repository's 3.10 floor. Install [Homebrew](https://brew.sh/) if needed, run the `shellenv` commands its installer prints to add Homebrew to your shell, and then run:
 
    ```bash
    brew install python@3.13
@@ -131,7 +131,7 @@ You need Git and Python 3.10 or newer. No package installation is needed to use 
 
 You cannot push to this repository unless the maintainer has granted you access. A commit in your local clone stays on your machine and is harmless by itself. A public fork is different: anything pushed there is public and permanent in Git history and downstream copies.
 
-Work in two gitignored folders. `scratch/` holds live working material such as day files, the patient identity map, the account profile, and writing samples. `output/` holds finished notes and coursework. Both can contain protected health information; the split is by stage, not sensitivity.
+Work in the gitignored `scratch/` and `output/` folders. `scratch/` holds live working material such as day files, the patient identity map, the account profile, and writing samples. `output/` holds finished notes and coursework. Both can contain protected health information; the split is by stage, not sensitivity.
 
 `/setup-clinical-skills` configures the repository hooks. To enable them manually in a clone, run:
 
@@ -141,7 +141,7 @@ git config core.hooksPath tools/hooks
 
 On each commit, `tools/phi_scan.py` refuses patient names and dates from the local corpus, PHI-shaped values, and attempts to force-add files under `scratch/` or `output/`. The hook also runs the repository's other local checks.
 
-The hook is a seatbelt, not a vault. Git does not clone hooks, `--no-verify` bypasses them, and no scanner can recognize every identifier. Keep real patient material only in the two ignored folders, inspect what is staged, and never push it to a fork.
+The hook is a seatbelt, not a vault. Git does not clone hooks, `--no-verify` bypasses them, and no scanner can recognize every identifier. Keep real patient material only in those ignored folders, inspect what is staged, and never push it to a fork.
 
 ## Maintaining
 
