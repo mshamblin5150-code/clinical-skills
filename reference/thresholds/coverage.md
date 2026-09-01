@@ -113,7 +113,7 @@
 | impaired visual acuity screening | sheet | impaired-visual-acuity-screening.md | full-document read complete; exact recommendation index accounted |
 | infectious diarrhea | unread |  | bound recommendation record available; full-document read pending |
 | intimate partner violence and elder abuse screening | unread |  | exact recommendation index available; full-document read pending |
-| iron deficiency anemia screening | unread |  | exact recommendation index available; full-document read pending |
+| iron deficiency anemia screening | sheet | iron-deficiency-anemia-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening and supplementation | unread |  | exact recommendation index available; full-document read pending |
 | kidney transplant recipient care | unread |  | bound recommendation record available; full-document read pending |
 | kidney transplantation candidate evaluation | unread |  | bound recommendation record available; full-document read pending |
@@ -126,7 +126,7 @@
 | lung cancer screening | unread |  | exact recommendation index available; full-document read pending |
 | lupus nephritis | unread |  | bound recommendation record available; full-document read pending |
 | Lyme disease | unread |  | bound recommendation record available; full-document read pending |
-| maternal immunization | unread |  | no recommendation record; full-document read pending |
+| maternal immunization | sheet | maternal-immunization.md | no recommendation record; full document distilled |
 | microbiology laboratory utilization for infectious disease diagnosis | unread |  | no recommendation record; full-document read pending |
 | native vertebral osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
 | nephrotic syndrome | unread |  | bound recommendation record available; full-document read pending |
@@ -145,7 +145,7 @@
 | pancreatic cancer screening | sheet | pancreatic-cancer-screening.md | exact recommendation index available; full document distilled |
 | perinatal depression prevention | unread |  | exact recommendation index available; full-document read pending |
 | peripheral artery disease screening, ankle-brachial index | sheet | peripheral-artery-disease-screening-ankle-brachial-index.md | exact recommendation index available; full document distilled |
-| postmenopausal hormone therapy for chronic disease prevention | unread |  | exact recommendation index available; full-document read pending |
+| postmenopausal hormone therapy for chronic disease prevention | sheet | postmenopausal-hormone-therapy-for-chronic-disease-prevention.md | exact recommendation index available; full document distilled |
 | prediabetes and type 2 diabetes screening | sheet | prediabetes-type-2-diabetes-screening.md | full source page coverage recorded in artifact |
 | preeclampsia prevention, low-dose aspirin | sheet | preeclampsia-prevention-low-dose-aspirin.md | full-document read complete; exact recommendation index accounted |
 | primary open-angle glaucoma screening | sheet | primary-open-angle-glaucoma-screening.md | full-document read complete; exact recommendation index accounted |
@@ -172,4 +172,4 @@
 | valvular heart disease | unread |  | exact recommendation index available; full-document read pending |
 | vision screening, amblyopia | unread |  | exact recommendation index available; full-document read pending |
 | vitamin and mineral supplementation for cardiovascular disease and cancer prevention | unread |  | exact recommendation index available; full-document read pending |
-| vitamin D deficiency screening | unread |  | exact recommendation index available; full-document read pending |
+| vitamin D deficiency screening | sheet | vitamin-d-deficiency-screening.md | exact recommendation index available; full document distilled |
