@@ -79,6 +79,28 @@ REREAD_FIELD = re.compile(
 )
 REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "VERDICT")
 POSTED_READING_VERDICTS = frozenset({"matches", "diverges"})
+AUTOMATED_RENDERED_SOURCES = frozenset(("word-pdf", "word-xps"))
+RENDERED_SOURCES = AUTOMATED_RENDERED_SOURCES | {"clinician"}
+RENDERED_RASTER_DPI = 120
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def png_read_error(pymupdf, path) -> str | None:
+    """Return why a retained page is not one readable PNG, or ``None``."""
+    if not path.is_file():
+        return "is not a regular file"
+    try:
+        with path.open("rb") as stream:
+            signature = stream.read(len(PNG_SIGNATURE))
+        if signature != PNG_SIGNATURE:
+            return "does not carry a PNG signature"
+        with pymupdf.open(str(path)) as document:
+            if len(document) != 1:
+                return "does not contain exactly one image page"
+            next(iter(document)).get_pixmap(dpi=RENDERED_RASTER_DPI)
+    except Exception as failure:
+        return f"is not decodable as PNG: {failure}"
+    return None
 
 
 @dataclass(frozen=True)

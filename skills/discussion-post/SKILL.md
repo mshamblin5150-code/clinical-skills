@@ -39,6 +39,7 @@ scratch/runs/<course>-<module>-discussion/
     differentiation.md
     reread.md
     voice-status.md
+    render/pass-N/
 ```
 
 Each sitting writes a new `board-<date>.md`; never overwrite an earlier snapshot. `posts/` holds
@@ -259,7 +260,7 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 body-number occurrence and every in-text citation occurrence to have its own claim record. It
 counts the word ceiling, invoked sources, and unfilled invoked properties without grading them. Its default output is
 counts only; `--show` includes private finding detail and must not be pasted.
-The `bold-headings`, `rendered-comments`, and `rendered-text` rows report `not graded` at this
+The `bold-headings`, `rendered-comments`, `rendered-text`, and `rendered-pages` rows report `not graded` at this
 stage because the document does not exist yet; step 7 renders it and reruns this grader with
 `--docx`.
 
@@ -276,8 +277,17 @@ Render the checked Markdown:
 
 ```bash
 python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date>.md output/discussions/<course>-<module>-discussion-<date>.docx --bold-headings
-python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --docx output/discussions/<course>-<module>-discussion-<date>.docx
+python tools/discussion_post_render.py scratch/runs/<course>-<module>-discussion --docx output/discussions/<course>-<module>-discussion-<date>.docx
 ```
+
+`discussion_post_render.py` creates a new retained `render/pass-N/` and writes one 120-dpi PNG per
+page. It asks a freshly spawned `Word.Application` to open the document read-only with conversion
+confirmation disabled, without touching `Application.Visible`. Its first route is
+`ExportAsFixedFormat2(path, 17)` followed by PyMuPDF; if Word's PDF route fails, it uses
+`SaveAs2(path, wdFormatXPS)` followed by the same reader. PyMuPDF opened directly on the `.docx`
+is not a route: it reflows the document and cannot supply Word's pagination. The command prints the
+source, Word-derived page count, and retained pixel directory. An exit of 2 means no complete pass
+was retained and the document was not visually checked.
 
 The `rendered-comments` row must be 0. It reads the Word artifact for either HTML-comment
 delimiter, so residue from a mid-line or multi-line form fails even though the renderer warns and
@@ -291,10 +301,46 @@ paragraph streams differ without losing prose.
 The Markdown is the authoritative artifact. If the renderer refuses an existing document, the
 refusal can mean Word or a person owns changes that Git cannot restore. Read the document and
 recover the edit into the Markdown and its claim ledger, and only then ask the clinician before passing
-`--force`. The flag is available after recovery; it is never a substitute for recovery. A
-vision-capable, non-authoring context then compares every rendered page with the Markdown and
+`--force`. The flag is available after recovery; it is never a substitute for recovery.
+
+A vision-capable, non-authoring context compares every retained page image with the Markdown and
 reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
-headings. A text-only reread does not substitute for the visual check.
+headings. A text-only reread does not substitute for the visual check. Word's page geometry may
+supply the denominator and never substitutes for a page image. If the automated routes cannot
+reach a page, ask the clinician to image only that remainder as PNG files, then rerun the command
+with `--expected-pages <Word count>` and one `--clinician-page <page>=<PNG>` for each unreachable
+page. The command retries the automated route, uses a supplied image only where rasterization still
+fails, refuses any supplied page it did not need, and records `SOURCE: clinician` for that pass. If
+both Word exports fail, supply every page by the same route. Name every page the clinician declines
+under `UNSEEN:`. The clinician is an escalation, not an equal first route, and the agent still
+performs the comparison for every page image it receives.
+
+After the comparison, append this exact record to the private `post.md`:
+
+```text
+## RENDERED: post.md
+PAGES: 3 of 3 imaged
+SOURCE: word-pdf
+UNSEEN: none
+READ: 2026-08-30
+VERDICT: clean - three pages compared; headings bold, references hang, nothing clipped
+```
+
+`SOURCE:` is `word-pdf`, `word-xps`, or `clinician`. Re-renders append: never replace an earlier
+record or overwrite its pixels. Each new comparison writes the next `render/pass-N/` and appends
+one matching record. Every record must parse, its stated imaged count must equal the PNG count in
+its own pass, and the last verdict must be `clean` with substantive reading detail.
+
+Now rerun the grader:
+
+```bash
+python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --docx output/discussions/<course>-<module>-discussion-<date>.docx
+```
+
+The `rendered-pages` row must be 0. A missing or malformed record, an unrecognized source, a
+record-to-pass count mismatch, a partial page count, anything other than `none` under `UNSEEN:`,
+or a last verdict that is not clean is a finding and makes the scan exit 1. The retained render
+directory is run evidence and survives cleanup.
 
 The clinician pastes from Word because direct bold on each heading survives as inline bold in the
 LMS. The paste discards the hanging indent, centering, page break, and first-line indent; those
@@ -339,7 +385,7 @@ Report the board key, signed-bar date, research-ledger exit, reference-scan exit
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, invoked-source count, unfilled-property count, pre-#496 marker count, paywalled-claim count,
 rendered-page verdict, and the recorded posted-reading verdict.
-Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`, and
-`reread.md`, plus `voice-status.md` when present, together under the board-keyed run. Remove every
+Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`,
+`reread.md`, and `render/`, plus `voice-status.md` when present, together under the board-keyed run. Remove every
 temporary per-agent
 path after the independent checks; if cleanup fails, report the exact remaining path.
