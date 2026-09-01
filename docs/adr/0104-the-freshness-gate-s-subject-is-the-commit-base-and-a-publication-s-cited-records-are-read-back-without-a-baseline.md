@@ -281,9 +281,27 @@ and passes a copy that agrees today.
 
 **#728 is respecified to ruling 6 and 10 alone** — the declaration — and moves to `ready-for-agent`.
 Its body's clipped quotation of `CLAUDE.md` is repaired, having been flagged unfixed by two separate
-sweeps, and its `implementation_map.py check` is corrected to `tools/map_scan.py`, which
+sweeps, and its `implementation_map.py check` is annotated: the command names an **out-of-tree**
+helper, and the module in *this* tree is `tools/map_scan.py`.
+
+**This paragraph said something stronger and it was false, which is this record's own subject arriving
+inside it.** It read *"its `implementation_map.py check` is corrected to `tools/map_scan.py`, which
 [ADR 0089](0089-the-map-gate-is-an-offline-grader-over-a-harvest-and-the-reconciliation-obligation-is-anchored-on-a-field-the-delta-sets.md)
-also carries in the wrong spelling at one of its two mentions.
+also carries in the wrong spelling at one of its two mentions"*, and #728's respecified body said
+flatly that the command **has never existed**. It exists: `implementation_map.py` lives at
+`~/.agents/skills/implementation-map/scripts/`, its `check` subcommand is declared at line 1270
+alongside the five siblings [#596](https://github.com/mshamblin5150-code/clinical-skills/issues/596)'s
+maintenance rule documents, and ADR 0089's mention sits inside a section headed *Measured before
+ruling*, where it names the instrument that took a dated pre-ruling measurement **before** ADR 0089
+ruling 8 created `tools/map_scan.py`. **Rewriting it would falsify the record rather than repair it,
+and the correction this paragraph recommended must not be made.**
+
+**The instrument is the finding.** #728's own comment of 04:17 wrote the true and narrower claim —
+*the name has never existed **in this repository*** — measured with `git ls-files`. The respec dropped
+the qualifier and kept the certainty, and `git ls-files` cannot see a file outside the checkout. That
+is a search that could not have reached the thing it was asked about, answering like a settled
+negative, published in the repair of the ticket about verdicts that outrun their reads. Found by the
+sweep of this branch's own work, in #596's body, which no relevance filter would have selected.
 
 **The readback is its own ticket**, citing rulings 1 through 5, 7 and 9. Finding 12 closed its one
 open premise, so it is `ready-for-agent` rather than `grilling`.
