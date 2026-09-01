@@ -176,6 +176,10 @@ _Avoid_: reference id, source id, match key
 The single word a reference entry is alphabetized and letter-disambiguated by. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
 _Avoid_: entry key, author key, sort key, match key
 
+**Reference bucket**:
+The narrowest source shape a reference entry's own signals support, declaring every APA nursing source class that shape can span rather than guessing one class. The vocabulary is `uptodate`, `statpearls`, `legal`, `cochrane`, `doi-work`, `identified-media`, `identified-web`, and `unresolved`. Coverage is **clean** when every spanned class has a form in the local APA sheet, a **finding** when none does, and **undecidable** when the bucket spans both; undecidable entries report and never fail a draft.
+_Avoid_: source class, reference type, guessed class, citation kind
+
 **Legal reference entry**:
 A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
 _Avoid_: statute reference, citation entry, regulation cite
