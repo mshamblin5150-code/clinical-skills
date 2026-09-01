@@ -93,14 +93,18 @@ moment it is filed -- which catches what ``--jq '.body | length'`` does not,
 since a lost body has a length of 2 and reads as a number rather than as a
 failure.
 
-**Nothing runs any of this, and that limit is declared rather than left to be
-found.** #130's decision 2 asked whether the documented step is enough or needs
-enforcing, and comment 16 grounded it: *nothing mechanical checks a body*, and
-``tools/hooks/`` holds only ``pre-commit``. **That sentence is still true.** A
-hook cannot help -- a commit is not a filing, and the tracker is not in the tree
--- so this narrows the gap to *a check exists and somebody has to run it* and
-does not close it. **A command nobody runs is a written instruction with extra
-steps**, which is #214's own thesis pointed back at this module.
+**No publication-time control runs this module's body-grading check, and that
+limit is declared rather than left to be found.** #130's decision 2 asked
+whether the documented step is enough or needs enforcing, and comment 16
+grounded it at the time: *nothing mechanical checks a body*, and
+``tools/hooks/`` held only ``pre-commit``. The repository now holds
+both ``commit-msg`` and ``pre-commit``, and ``tracker_publish_hook.py`` grades
+tracker title and body text at the publication event. ``tracker_bodies`` is not
+among that hook's checks. The surviving limit is therefore that a publish-time
+host exists and this module is not registered on it: *a check exists and
+somebody has to run it*. **A command nobody runs is a written instruction with
+extra steps**, which is #214's own thesis pointed back at this module. Whether
+this module should join the publish hook is #723's decision, not this module's.
 
 **A clean scan is not a body worth reading**, ``docs/agents/issue-tracker.md``
 says so beside the command, and a test asserts that sentence is still there.
