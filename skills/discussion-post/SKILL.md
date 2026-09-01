@@ -280,14 +280,15 @@ python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date
 python tools/discussion_post_render.py scratch/runs/<course>-<module>-discussion --docx output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-`discussion_post_render.py` creates a new retained `render/pass-N/` and writes one 120-dpi PNG per
-page. It asks a freshly spawned `Word.Application` to open the document read-only with conversion
+`discussion_post_render.py` creates a new retained `render/pass-N/`, keeps Word's page-faithful PDF
+or XPS there, and writes one 120-dpi PNG per page beside it. It asks a freshly spawned
+`Word.Application` to open the document read-only with conversion
 confirmation disabled, without touching `Application.Visible`. Its first route is
 `ExportAsFixedFormat2(path, 17)` followed by PyMuPDF; if Word's PDF route fails, it uses
 `SaveAs2(path, wdFormatXPS)` followed by the same reader. PyMuPDF opened directly on the `.docx`
 is not a route: it reflows the document and cannot supply Word's pagination. The command prints the
-source, Word-derived page count, and retained pixel directory. An exit of 2 means no complete pass
-was retained and the document was not visually checked.
+source, exported page count, and retained pass directory. An exit of 2 means no complete pass was
+retained and the document was not visually checked.
 
 The `rendered-comments` row must be 0. It reads the Word artifact for either HTML-comment
 delimiter, so residue from a mid-line or multi-line form fails even though the renderer warns and
@@ -305,15 +306,13 @@ recover the edit into the Markdown and its claim ledger, and only then ask the c
 
 A vision-capable, non-authoring context compares every retained page image with the Markdown and
 reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
-headings. A text-only reread does not substitute for the visual check. Word's page geometry may
-supply the denominator and never substitutes for a page image. If the automated routes cannot
-reach a page, ask the clinician to image only that remainder as PNG files, then rerun the command
-with `--expected-pages <Word count>` and one `--clinician-page <page>=<PNG>` for each unreachable
-page. The command retries the automated route, uses a supplied image only where rasterization still
-fails, refuses any supplied page it did not need, and records `SOURCE: clinician` for that pass. If
-both Word exports fail, supply every page by the same route. Name every page the clinician declines
-under `UNSEEN:`. The clinician is an escalation, not an equal first route, and the agent still
-performs the comparison for every page image it receives.
+headings. A text-only reread does not substitute for the visual check. Each pass is one
+rasterization: if the PDF route cannot image every page, its pixels are discarded before the XPS
+route begins, so the retained images always come from the retained export. If both Word exports
+fail, ask the clinician to export the document as PDF or XPS and rerun with
+`--clinician-export <PDF-or-XPS>`; this records `SOURCE: clinician` while the agent still
+rasterizes and compares every page. Name any page the reader did not compare under `UNSEEN:`. The
+clinician is an escalation, not an equal first route.
 
 After the comparison, append this exact record to the private `post.md`:
 
@@ -327,9 +326,11 @@ VERDICT: clean - three pages compared; headings bold, references hang, nothing c
 ```
 
 `SOURCE:` is `word-pdf`, `word-xps`, or `clinician`. Re-renders append: never replace an earlier
-record or overwrite its pixels. Each new comparison writes the next `render/pass-N/` and appends
-one matching record. Every record must parse, its stated imaged count must equal the PNG count in
-its own pass, and the last verdict must be `clean` with substantive reading detail.
+record or overwrite its evidence. Each new comparison writes the next `render/pass-N/` and appends
+one matching record. Every record must parse, its expected count must equal the retained export's
+page count, and its imaged count must equal the PNG count in its own pass. An earlier pass may stop
+short after finding a defect; only the last pass must image and compare every page, name
+`UNSEEN: none`, and carry a `clean` verdict with substantive reading detail.
 
 Now rerun the grader:
 
@@ -338,9 +339,11 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 ```
 
 The `rendered-pages` row must be 0. A missing or malformed record, an unrecognized source, a
-record-to-pass count mismatch, a partial page count, anything other than `none` under `UNSEEN:`,
-or a last verdict that is not clean is a finding and makes the scan exit 1. The retained render
-directory is run evidence and survives cleanup.
+record-to-pass count mismatch, or a missing or unreadable retained export is a finding. A partial
+page count or anything other than `none` under `UNSEEN:` is a finding on the last pass; it remains
+visible without failing an earlier pass abandoned after a defect. A last verdict that is not clean
+is also a finding. Any finding makes the scan exit 1. The retained render directory is run evidence
+and survives cleanup.
 
 The clinician pastes from Word because direct bold on each heading survives as inline bold in the
 LMS. The paste discards the hanging indent, centering, page break, and first-line indent; those

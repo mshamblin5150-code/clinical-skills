@@ -1,5 +1,13 @@
 # The rendered-page check names a spawned-Word route and its verdict is a counted record backed by kept pixels
 
+> **Reconciled during #676 implementation, 2026-09-01.** The repository-wide **Render pass**
+> definition introduced with ADR 0098 now governs this site too. One pass keeps one page-faithful
+> PDF or XPS and only images rasterized from that export; a failed route contributes no pixels to
+> the next route. The clinician escalation supplies an export rather than replacement page images.
+> Every record and retained export remains graded, but only the last pass must be complete, carry
+> `UNSEEN: none`, and end clean. This supersedes rulings 3, 6, 7, and 8 where their original text
+> conflicts. The original record below is preserved as the decision history.
+
 [#676](https://github.com/mshamblin5150-code/clinical-skills/issues/676) was filed over
 `skills/discussion-post/SKILL.md` step 7 requiring *"a vision-capable, non-authoring context"* to
 compare **every rendered page** with the Markdown while naming no way to rasterize the `.docx`. It

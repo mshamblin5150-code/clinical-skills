@@ -148,6 +148,13 @@ class Run:
         )
         pass_directory = self.root / "render" / f"pass-{render_pass}"
         pass_directory.mkdir(parents=True)
+        import pymupdf
+
+        export = pymupdf.open()
+        for _ in range(max(1, expected)):
+            export.new_page()
+        export.save(pass_directory / "post.pdf")
+        export.close()
         for page in range(1, seen + 1):
             (pass_directory / f"page-{page}.png").write_bytes(PNG)
 
@@ -207,6 +214,49 @@ class ACompletePostPasses(unittest.TestCase):
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(1, status)
+        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
+
+    def test_a_pass_without_its_page_faithful_export_fails_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
+            (run.root / "render" / "pass-1" / "post.pdf").unlink()
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
+
+    def test_the_retained_export_supplies_the_page_count_denominator(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
+            import pymupdf
+
+            export_path = run.root / "render" / "pass-1" / "post.pdf"
+            replacement = pymupdf.open()
+            for _ in range(3):
+                replacement.new_page()
+            replacement.save(export_path.with_suffix(".building"))
+            replacement.close()
+            export_path.with_suffix(".building").replace(export_path)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_the_recorded_automated_source_must_match_the_retained_export(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(source="word-xps")
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
         self.assertIn("rendered-pages: 1", stdout)
 
     def test_an_unimaged_page_fails_coverage(self):
@@ -249,7 +299,27 @@ class ACompletePostPasses(unittest.TestCase):
             self.assertEqual(1, status)
             self.assertIn("rendered-pages: 1", stdout)
 
-    def test_every_render_record_has_its_own_pixels_and_the_last_must_be_clean(self):
+    def test_an_incomplete_historical_pass_does_not_fail_a_complete_final_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(
+                verdict="defect - the reference heading is clipped",
+                seen=1,
+                expected=2,
+                unseen="2",
+                render_pass=1,
+            )
+            run.record_render(
+                render_pass=2,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_the_last_render_pass_must_be_complete_and_clean(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             document = run.root / "post.docx"
@@ -257,12 +327,15 @@ class ACompletePostPasses(unittest.TestCase):
             run.record_render(render_pass=1)
             run.record_render(
                 verdict="defect - the reference heading is clipped",
+                seen=1,
+                expected=2,
+                unseen="2",
                 render_pass=2,
             )
             status, stdout, _ = run.grade("--docx", str(document))
 
         self.assertEqual(1, status)
-        self.assertIn("rendered-pages: 1", stdout)
+        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
 
     def test_each_malformed_render_record_is_a_finding(self):
         replacements = (
