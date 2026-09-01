@@ -208,6 +208,12 @@ class Bar:
 
 
 @dataclass(frozen=True)
+class RenderPass:
+    pixels: tuple[Path, ...]
+    exports: tuple[Path, ...]
+
+
+@dataclass(frozen=True)
 class RunSource:
     path: Path
     draft: Path
@@ -221,7 +227,7 @@ class RunSource:
     rendered_paragraph_texts: tuple[str, ...]
     expected_paragraph_texts: tuple[str, ...]
     rendered_readings: tuple[RenderedReading, ...]
-    render_passes: tuple[tuple[Path, ...], ...]
+    render_passes: tuple[RenderPass, ...]
     refused_label: str | None
     post_url: str | None
     post_posted: str | None
@@ -489,11 +495,11 @@ def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
     return tuple(readings)
 
 
-def _render_passes(root: Path) -> tuple[tuple[Path, ...], ...]:
+def _render_passes(root: Path) -> tuple[RenderPass, ...]:
     render = root / "render"
     if not render.is_dir():
         return ()
-    numbered: list[tuple[int, tuple[Path, ...]]] = []
+    numbered: list[tuple[int, RenderPass]] = []
     for child in render.iterdir():
         match = re.fullmatch(r"pass-(\d+)", child.name)
         if child.is_dir() and match:
@@ -508,13 +514,18 @@ def _render_passes(root: Path) -> tuple[tuple[Path, ...], ...]:
                     ),
                 )
             )
-            numbered.append((int(match.group(1)), pixels))
+            exports = tuple(
+                path
+                for path in (child / "post.pdf", child / "post.xps")
+                if path.is_file()
+            )
+            numbered.append((int(match.group(1)), RenderPass(pixels, exports)))
     if not numbered:
         return ()
     numbered.sort()
     if [number for number, _ in numbered] != list(range(1, len(numbered) + 1)):
-        return tuple(files for _, files in numbered) + ((),)
-    return tuple(files for _, files in numbered)
+        return tuple(render_pass for _, render_pass in numbered) + (RenderPass((), ()),)
+    return tuple(render_pass for _, render_pass in numbered)
 
 
 def load(parsed: run_grader.Parsed) -> RunSource:
@@ -684,7 +695,13 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
         pymupdf = None
     for index, reading in enumerate(source.rendered_readings, start=1):
         detail: list[str] = list(reading.errors)
-        pixels = source.render_passes[index - 1] if index <= len(source.render_passes) else ()
+        is_last = index == len(source.rendered_readings)
+        render_pass = (
+            source.render_passes[index - 1]
+            if index <= len(source.render_passes)
+            else RenderPass((), ())
+        )
+        pixels = render_pass.pixels
         if reading.artifact != "post.md":
             detail.append("record artifact is not post.md")
         if reading.pages_seen is not None and reading.pages_seen < 1:
@@ -704,13 +721,55 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
             for pixel in pixels:
                 if failure := png_read_error(pymupdf, pixel):
                     detail.append(f"{pixel.name} {failure}")
+        if len(render_pass.exports) != 1:
+            detail.append(
+                f"pass-{index} keeps {len(render_pass.exports)} page-faithful export(s), not 1"
+            )
+        elif pymupdf is None:
+            detail.append("PyMuPDF is unavailable, so the retained export page count was not read")
+        else:
+            export = render_pass.exports[0]
+            try:
+                with pymupdf.open(str(export)) as document:
+                    export_pages = len(document)
+            except Exception as failure:
+                detail.append(f"{export.name} is not a readable retained export: {failure}")
+            else:
+                if export_pages < 1:
+                    detail.append(f"{export.name} contains no pages")
+                if is_last and len(pixels) != export_pages:
+                    detail.append(
+                        f"pass-{index} keeps {len(pixels)} page image(s) for "
+                        f"{export_pages} exported page(s)"
+                    )
+                if (
+                    reading.pages_expected is not None
+                    and reading.pages_expected != export_pages
+                ):
+                    detail.append(
+                        f"PAGES expected count is {reading.pages_expected}, not the "
+                        f"retained export's {export_pages}"
+                    )
+                expected_suffix = {
+                    "word-pdf": ".pdf",
+                    "word-xps": ".xps",
+                }.get(reading.source)
+                if expected_suffix is not None and export.suffix.lower() != expected_suffix:
+                    detail.append(
+                        f"SOURCE {reading.source} does not match retained {export.suffix.lower()} export"
+                    )
         if (
-            reading.pages_seen is not None
+            is_last
+            and reading.pages_seen is not None
             and reading.pages_expected is not None
             and reading.pages_seen != reading.pages_expected
         ):
             detail.append("not every expected page was imaged")
-        if reading.unseen is not None and reading.unseen.casefold() != "none":
+        if (
+            is_last
+            and reading.unseen is not None
+            and reading.unseen.casefold() != "none"
+        ):
             detail.append("UNSEEN names an unchecked page")
         if detail:
             findings.append(

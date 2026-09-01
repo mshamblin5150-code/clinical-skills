@@ -242,14 +242,9 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
                     [str(run.draft), str(document), "--bold-headings"]
                 )
                 run.record_render()
-                rendered_post_status = discussion_post_scan.main(
-                    [
-                        str(run.root),
-                        "--draft",
-                        str(run.draft),
-                        "--docx",
-                        str(document),
-                    ]
+                rendered_post_status, _, _ = run.grade(
+                    "--docx",
+                    str(document),
                 )
             with zipfile.ZipFile(document) as archive:
                 xml = ElementTree.fromstring(archive.read("word/document.xml"))
