@@ -7,9 +7,10 @@ counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
 and 2 means the run could not be completely scanned.
 
-``--docx`` names the rendered handoff, grades its heading style and comment residue,
-and reports paragraph-text parity with the Markdown. Without the option, those rows
-report ``not graded``; an absent input never masquerades as a passing count.
+``--docx`` names the rendered handoff, grades its heading style, comment residue,
+and page-reading record backed by retained pixels, and reports paragraph-text parity
+with the Markdown. Without the option, those rows report ``not graded``; an absent
+input never masquerades as a passing count.
 
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
@@ -38,6 +39,7 @@ from discussion_artifact import (
     INVOKED,
     InvokedSource,
     PostedReading,
+    RENDERED_SOURCES,
     RESTATEMENT,
     WORD,
     citation_occurrence_keys,
@@ -49,6 +51,7 @@ from discussion_artifact import (
     read_reference_section,
     reference_key,
     reference_keys,
+    png_read_error,
     split_references,
     strip_discussion_markers,
 )
@@ -65,6 +68,7 @@ UNTRACED_CITATION = "untraced-citation"
 BOLD_HEADINGS = "bold-headings"
 RENDERED_COMMENTS = "rendered-comments"
 RENDERED_TEXT = "rendered-text"
+RENDERED_PAGES = "rendered-pages"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
 MISSING_POSTED_READING = "missing-posted-reading"
 UNKNOWN_VERDICT = "unknown-verdict"
@@ -78,6 +82,7 @@ ROWS = {
     UNTRACED_CITATION: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
     RENDERED_COMMENTS: "the rendered document carries no HTML comment delimiter",
+    RENDERED_PAGES: "every rendered pass has a complete page reading backed by kept pixels",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
     MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
     UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
@@ -89,7 +94,7 @@ KINDS = tuple(ROWS)
 
 GATED_ROW_SETS = {
     "docx_graded": (
-        (BOLD_HEADINGS, RENDERED_COMMENTS),
+        (BOLD_HEADINGS, RENDERED_COMMENTS, RENDERED_PAGES),
         ("rendered_text_mismatches",),
     ),
     "reference_boundary_graded": (
@@ -146,7 +151,7 @@ DECLARED_LIMITS = (
     ),
     (
         "whether rendered-document rows were graded when --docx was omitted",
-        "Without --docx, the command does not inspect document XML, so the bold-headings, rendered-comments, and rendered-text rows are not graded even when the remaining report exits cleanly.",
+        "Without --docx, the command does not inspect document XML or retained page evidence, so the bold-headings, rendered-comments, rendered-pages, and rendered-text rows are not graded even when the remaining report exits cleanly.",
         EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -178,6 +183,12 @@ STATUTE = re.compile(
     + r"|§+\s*"
     + LEGAL_SECTION_NUMBER
 )
+RENDERED_BLOCK = re.compile(
+    r"(?ms)^## RENDERED:\s*(?P<artifact>[^\n]+?)\s*$"
+    r"(?P<body>.*?)(?=^##\s|\Z)"
+)
+RENDERED_PAGES_VALUE = re.compile(r"^(?P<seen>\d+) of (?P<expected>\d+) imaged$")
+RENDERED_FIELDS = ("PAGES", "SOURCE", "UNSEEN", "READ", "VERDICT")
 PAGE_LOCATOR = re.compile(
     r"(?i)\b(?:p{1,2}\.|pages?)\s*\d+(?:\s*[-–]\s*\d+)?"
 )
@@ -209,6 +220,8 @@ class RunSource:
     rendered_comment_paragraphs: int
     rendered_paragraph_texts: tuple[str, ...]
     expected_paragraph_texts: tuple[str, ...]
+    rendered_readings: tuple[RenderedReading, ...]
+    render_passes: tuple[tuple[Path, ...], ...]
     refused_label: str | None
     post_url: str | None
     post_posted: str | None
@@ -219,6 +232,18 @@ class RunSource:
 class ClaimRecord:
     numbers: frozenset[str]
     references: frozenset[tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class RenderedReading:
+    artifact: str
+    pages_seen: int | None
+    pages_expected: int | None
+    source: str | None
+    unseen: str | None
+    read: str | None
+    verdict: str | None
+    errors: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -417,6 +442,81 @@ def _docx_properties(path: Path) -> tuple[tuple[str, ...], int, tuple[str, ...]]
     return heading_styles, comment_paragraphs, _paragraph_texts(document)
 
 
+def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
+    readings: list[RenderedReading] = []
+    for block in RENDERED_BLOCK.finditer(text):
+        matches = tuple(FIELD.finditer(block.group("body")))
+        fields = {match.group("name"): match.group("value").strip() for match in matches}
+        errors: list[str] = []
+        if FIELD.sub("", block.group("body")).strip():
+            errors.append("unrecognized record content")
+        unknown_fields = sorted({match.group("name") for match in matches} - set(RENDERED_FIELDS))
+        if unknown_fields:
+            errors.append("unrecognized field(s): " + ", ".join(unknown_fields))
+        for name in RENDERED_FIELDS:
+            count = sum(match.group("name") == name for match in matches)
+            if count == 0:
+                errors.append(f"missing {name}")
+            elif count > 1:
+                errors.append(f"duplicate {name}")
+        page_match = RENDERED_PAGES_VALUE.fullmatch(fields.get("PAGES", ""))
+        if "PAGES" in fields and page_match is None:
+            errors.append("PAGES must say '<seen> of <expected> imaged'")
+        source = fields.get("SOURCE")
+        if source is not None and source not in RENDERED_SOURCES:
+            errors.append("unrecognized SOURCE")
+        read = fields.get("READ")
+        if read is not None:
+            try:
+                date.fromisoformat(read)
+            except ValueError:
+                errors.append("READ is not an ISO date")
+        verdict = fields.get("VERDICT")
+        if verdict is not None and not re.search(r"\S+\s+-\s+\S+", verdict):
+            errors.append("VERDICT needs a keyword and substantive reading")
+        readings.append(
+            RenderedReading(
+                artifact=block.group("artifact").strip(),
+                pages_seen=int(page_match.group("seen")) if page_match else None,
+                pages_expected=int(page_match.group("expected")) if page_match else None,
+                source=source,
+                unseen=fields.get("UNSEEN"),
+                read=read,
+                verdict=verdict,
+                errors=tuple(errors),
+            )
+        )
+    return tuple(readings)
+
+
+def _render_passes(root: Path) -> tuple[tuple[Path, ...], ...]:
+    render = root / "render"
+    if not render.is_dir():
+        return ()
+    numbered: list[tuple[int, tuple[Path, ...]]] = []
+    for child in render.iterdir():
+        match = re.fullmatch(r"pass-(\d+)", child.name)
+        if child.is_dir() and match:
+            pixels = tuple(
+                sorted(
+                    child.glob("*.png"),
+                    key=lambda path: (
+                        int(page.group(1))
+                        if (page := re.fullmatch(r"page-(\d+)\.png", path.name))
+                        else sys.maxsize,
+                        path.name,
+                    ),
+                )
+            )
+            numbered.append((int(match.group(1)), pixels))
+    if not numbered:
+        return ()
+    numbered.sort()
+    if [number for number, _ in numbered] != list(range(1, len(numbered) + 1)):
+        return tuple(files for _, files in numbered) + ((),)
+    return tuple(files for _, files in numbered)
+
+
 def load(parsed: run_grader.Parsed) -> RunSource:
     root = Path(parsed.source)
     if not root.is_dir():
@@ -470,6 +570,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             if reread_path.is_file()
             else ()
         )
+        post_text = post_path.read_text(encoding="utf-8") if post_path.is_file() else ""
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
     named_heading_styles, rendered_comment_paragraphs, rendered_paragraph_texts = (
@@ -487,6 +588,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         rendered_comment_paragraphs,
         rendered_paragraph_texts,
         _expected_paragraph_texts(draft_text) if docx is not None else (),
+        _rendered_readings(post_text) if docx is not None else (),
+        _render_passes(root) if docx is not None else (),
         section.refused_label,
         post_fields.get("POST-URL"),
         post_fields.get("POSTED"),
@@ -555,6 +658,72 @@ def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
     )
 
 
+def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
+    if source.docx is None:
+        return ()
+    findings: list[Finding] = []
+    if not source.rendered_readings:
+        return (
+            Finding(
+                RENDERED_PAGES,
+                "post.md",
+                "no RENDERED record for the rendered document",
+            ),
+        )
+    if len(source.rendered_readings) != len(source.render_passes):
+        findings.append(
+            Finding(
+                RENDERED_PAGES,
+                "render",
+                "RENDERED record count does not match retained pass directories",
+            )
+        )
+    try:
+        import pymupdf
+    except ImportError:
+        pymupdf = None
+    for index, reading in enumerate(source.rendered_readings, start=1):
+        detail: list[str] = list(reading.errors)
+        pixels = source.render_passes[index - 1] if index <= len(source.render_passes) else ()
+        if reading.artifact != "post.md":
+            detail.append("record artifact is not post.md")
+        if reading.pages_seen is not None and reading.pages_seen < 1:
+            detail.append("PAGES imaged count must be positive")
+        if reading.pages_expected is not None and reading.pages_expected < 1:
+            detail.append("PAGES expected count must be positive")
+        if reading.pages_seen is not None and len(pixels) != reading.pages_seen:
+            detail.append(
+                f"pass-{index} keeps {len(pixels)} page image(s), not {reading.pages_seen}"
+            )
+        expected_names = [f"page-{number}.png" for number in range(1, len(pixels) + 1)]
+        if [pixel.name for pixel in pixels] != expected_names:
+            detail.append(f"pass-{index} page image names are not consecutive from page-1.png")
+        if pymupdf is None and pixels:
+            detail.append("PyMuPDF is unavailable, so retained page pixels were not decoded")
+        elif pymupdf is not None:
+            for pixel in pixels:
+                if failure := png_read_error(pymupdf, pixel):
+                    detail.append(f"{pixel.name} {failure}")
+        if (
+            reading.pages_seen is not None
+            and reading.pages_expected is not None
+            and reading.pages_seen != reading.pages_expected
+        ):
+            detail.append("not every expected page was imaged")
+        if reading.unseen is not None and reading.unseen.casefold() != "none":
+            detail.append("UNSEEN names an unchecked page")
+        if detail:
+            findings.append(
+                Finding(RENDERED_PAGES, f"pass-{index}", "; ".join(detail))
+            )
+    last = source.rendered_readings[-1]
+    if last.verdict is not None and not last.verdict.casefold().startswith("clean -"):
+        findings.append(
+            Finding(RENDERED_PAGES, "post.md", "the last rendered verdict is not clean")
+        )
+    return tuple(findings)
+
+
 def survey(source: RunSource) -> Scan:
     if source.refused_label is not None:
         findings = (
@@ -567,7 +736,7 @@ def survey(source: RunSource) -> Scan:
             )
             if source.named_heading_styles
             else ()
-        ) + _rendered_comment_findings(source)
+        ) + _rendered_comment_findings(source) + _rendered_page_findings(source)
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -625,6 +794,7 @@ def survey(source: RunSource) -> Scan:
             )
         )
     findings.extend(_rendered_comment_findings(source))
+    findings.extend(_rendered_page_findings(source))
     requirements: list[tuple[str, str, tuple[int, ...]]] = []
     number_occurrences: Counter[str] = Counter()
     for value in numbers:
@@ -741,6 +911,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         if kind not in {
             BOLD_HEADINGS,
             RENDERED_COMMENTS,
+            RENDERED_PAGES,
             MISSING_POSTED_READING,
             UNKNOWN_VERDICT,
             BARE_VERDICT,
@@ -748,7 +919,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
-        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS} and not scan.docx_graded:
+        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, RENDERED_PAGES} and not scan.docx_graded:
             lines.append(f"{kind}: not graded")
         else:
             lines.append(
@@ -768,10 +939,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
+    rendered_page_failed = any(
+        finding.kind == RENDERED_PAGES for finding in scanned.findings
+    )
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings) and scanned.reference_boundary_graded,
+        findings_failed=bool(scanned.findings)
+        and (scanned.reference_boundary_graded or rendered_page_failed),
         coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=(
             (f"refused reference label in {source.draft.name}: {source.refused_label}",)

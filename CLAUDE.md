@@ -73,9 +73,11 @@ and [ADR 0059](docs/adr/0059-the-scratch-census-walks-every-checkout-that-owns-a
 **There is one scratch root per checkout that has one, not one per repository**, and that is ADR
 0059 ruling 1 — a worktree can own its own, and most of this repository's scratch material has
 lived in worktree roots rather than in the one `repo_root.scratch_root()` resolves to. So the rule
-above is applied **per root, in every registered checkout**: the owning checkout keeps a
-grandfathered integer baseline, and **every other checkout is held at zero unaccounted, from day
-one**. A failing worktree is **drained** to the owning checkout — a move, never a delete.
+above is maintained **per root, in every registered checkout**: the owning checkout keeps a
+grandfathered integer baseline, and every other checkout has a zero ratchet from day one. A commit
+grades only the owning root and the committing root; every peer root reports and is never graded.
+A failing gating root is **drained** under the owning checkout's Ticket directory — a move, never a
+delete.
 
 **The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
 unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
@@ -136,7 +138,7 @@ if __name__ == "__main__":
 
 **Called from the command path, never at import, and that is the shape rather than a habit.** Reconfiguring `sys.stdout` is a decision about a process; importing either `console_codec` or `run_grader` changes no stream. Ordinary tools call the helper under `__main__`; grader members delegate `main()` to `run_grader.run()`, which calls it before parsing, loading or printing. `tools/test_console_codec.py` parses both shapes and asserts that the direct tools call the helper and the shared runner owns it for its members. The check is an AST walk and not a substring search, because the first version was a substring search and `console_codec.py` passed it on the usage example in its own docstring: a module with no command line at all, graded as having one. That is `spelling_scan`'s mention-versus-use distinction arriving uninvited.
 
-**`docx_word_probe.py` is the most recent — written on #424's branch and calling `use_utf8` from its direct command path. `discussion_reply_scan.py` was the one before it — written on #399's branch and delegating its command path to `run_grader`. `voice_corpus.py` was the one before it — written on #388's branch against a base that already carried this rule. `guidelines_build.py` was the one before it — written on #383's branch on the same terms, and **it is the first to have arrived without naming itself here**: it carries a command line and calls the line correctly, so `test_console_codec.py` stayed green while this sentence went stale on `main`, which is that check asserting a floor working exactly as documented one paragraph above. It was caught by #388's branch running the freshness gate mid-session and reading the merge rather than trusting it, and **git could not have caught it** — #383 never touched this sentence, so there was nothing to conflict with, which is [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s *byte-identical* trap arriving in its quieter form: not two branches writing the same figure, but one branch writing none. `tracker_freshness.py` was the one before that — written on #320's branch on the same terms. `tracker_merge_receipt.py` and `tracker_branch_scope.py` were the two before it — written on one #290 branch on the same terms. `closing_keyword_scan.py` was the one before them — written on #183's branch on the same terms. It read 30, and `refusal_scan.py` was the one before it — written on #131's branch against a base that already carried this rule. It read 29, and `cdc_percentile.py` was the one before it — written on #123's branch against a base that already carried this rule. It read 28, and `case_study_scan.py` was the one before it — written on #277's branch against a base that already carried this rule. It read 27, and `name_index.py` was the one before it, written on #141's branch on the same terms. It read 26, and `tracker_bodies.py` was the one before it, written on #130's branch on the same terms. It read 25, and `tracker_scan.py` and `checks_ledger.py` were the two before it — written on separate branches, on the same day, against a base that already carried this rule, so neither could arrive the way the sixteenth and seventeenth did. It read 23, and `reference_scan.py` was the one before them, on the same terms. It read 22, and `research_ledger.py` was the one before that. It read 21, and `docx_read.py` and `docx_write.py` were the two before it, on one branch against a base that already carried the rule too. It read 19, and it read 17, and #83 added two at once — `guidelines_recs.py` and `threshold_sheet.py`, on one branch, so neither could arrive the way the fifteenth and sixteenth did.** **Those two branches are why the sentence above passed through 25 rather than 24, and the way that was nearly missed is worth more than the number.** Each branch moved 23 to 24 and named its own tool as the most recent. The *naming* halves differed, so git conflicted and a person had to look; the two `**24**`s were **byte-identical**, so git merged that one silently and the count was wrong in a tree neither branch had ever produced. [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s subject, and [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment* arriving on a **figure** rather than on an import — where no suite can catch it, because `test_console_codec.py` asserts a floor. It was caught only because the neighbor sentence forced the look, which is the argument for keeping the pair in one paragraph and is the second time this exact sentence has recorded it.
+**`discussion_post_render.py` is the most recent — written on #676's branch and calling `use_utf8` from its direct command path. `docx_word_probe.py` was the one before it — written on #424's branch and calling `use_utf8` from its direct command path. `discussion_reply_scan.py` was the one before it — written on #399's branch and delegating its command path to `run_grader`. `voice_corpus.py` was the one before it — written on #388's branch against a base that already carried this rule. `guidelines_build.py` was the one before it — written on #383's branch on the same terms, and **it is the first to have arrived without naming itself here**: it carries a command line and calls the line correctly, so `test_console_codec.py` stayed green while this sentence went stale on `main`, which is that check asserting a floor working exactly as documented one paragraph above. It was caught by #388's branch running the freshness gate mid-session and reading the merge rather than trusting it, and **git could not have caught it** — #383 never touched this sentence, so there was nothing to conflict with, which is [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s *byte-identical* trap arriving in its quieter form: not two branches writing the same figure, but one branch writing none. `tracker_freshness.py` was the one before that — written on #320's branch on the same terms. `tracker_merge_receipt.py` and `tracker_branch_scope.py` were the two before it — written on one #290 branch on the same terms. `closing_keyword_scan.py` was the one before them — written on #183's branch on the same terms. It read 30, and `refusal_scan.py` was the one before it — written on #131's branch against a base that already carried this rule. It read 29, and `cdc_percentile.py` was the one before it — written on #123's branch against a base that already carried this rule. It read 28, and `case_study_scan.py` was the one before it — written on #277's branch against a base that already carried this rule. It read 27, and `name_index.py` was the one before it, written on #141's branch on the same terms. It read 26, and `tracker_bodies.py` was the one before it, written on #130's branch on the same terms. It read 25, and `tracker_scan.py` and `checks_ledger.py` were the two before it — written on separate branches, on the same day, against a base that already carried this rule, so neither could arrive the way the sixteenth and seventeenth did. It read 23, and `reference_scan.py` was the one before them, on the same terms. It read 22, and `research_ledger.py` was the one before that. It read 21, and `docx_read.py` and `docx_write.py` were the two before it, on one branch against a base that already carried the rule too. It read 19, and it read 17, and #83 added two at once — `guidelines_recs.py` and `threshold_sheet.py`, on one branch, so neither could arrive the way the fifteenth and sixteenth did.** **Those two branches are why the sentence above passed through 25 rather than 24, and the way that was nearly missed is worth more than the number.** Each branch moved 23 to 24 and named its own tool as the most recent. The *naming* halves differed, so git conflicted and a person had to look; the two `**24**`s were **byte-identical**, so git merged that one silently and the count was wrong in a tree neither branch had ever produced. [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s subject, and [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment* arriving on a **figure** rather than on an import — where no suite can catch it, because `test_console_codec.py` asserts a floor. It was caught only because the neighbor sentence forced the look, which is the argument for keeping the pair in one paragraph and is the second time this exact sentence has recorded it.
 
 **It read 15, and the sixteenth arrived the same day from the other direction.** `tools/anchor_scan.py` was written on [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124)'s branch while this rule was being written on #150's, and the two merged an hour apart. **Neither branch's suite failed; the merged tree's did** — the new tool did not import a helper that did not exist when it was written, and nothing either side ran could have seen it. That is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment*, arriving on the mechanism built to make a fifteenth tool impossible to miss and catching the sixteenth one commit late.
 
@@ -834,8 +836,16 @@ Covered by `tools/test_voice_model_scan.py`.
 signed to.
 
 ```bash
+python tools/discussion_post_render.py <a run directory> --docx <the Word document>
 python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [--docx <the render>]
 ```
+
+**The render command creates the page evidence the scan grades.** It asks an owned Word process for
+PDF pixels, tries XPS when that route cannot reach every page, and accepts clinician PNGs only for
+the remainder after both automated routes. Each successful run retains a new consecutive
+`render/pass-N/`; a failed run retains no pass. The exact page resolution and source vocabulary are
+owned by `discussion_artifact`, and the full route and escalation contract is published in
+`skills/discussion-post/SKILL.md` rather than copied here.
 
 **The source is a run directory and the draft is named separately**, because the two live apart: the
 provenance record under `scratch/runs/<course>-<module>-discussion/` and the handoff under
@@ -853,7 +863,8 @@ ruling: an absent input never masquerades as a passing count.
 **Exit status distinguishes not having scanned from having found nothing** — 0 for passing
 mechanical rows, 1 for a finding, 2 when the run could not be completely scanned.
 
-Covered by `tools/test_discussion_post_scan.py` and `tools/test_discussion_post_skill.py`.
+Covered by `tools/test_discussion_post_render.py`, `tools/test_discussion_post_scan.py`, and
+`tools/test_discussion_post_skill.py`.
 
 ### Discussion reply grading
 
@@ -878,12 +889,19 @@ when the run could not be completely scanned.
 
 Covered by `tools/test_discussion_reply_scan.py`.
 
+### Scratch work
+
+`tools/scratch_work.py` is the one producer for agent working material under the `scratch/sessions/` namespace. A ticketed Session calls `python tools/scratch_work.py ticket "$TICKET_NUMBER"`; ticketless work calls `python tools/scratch_work.py sweep "$(date +%F)"`. Both forms resolve through `repo_root.scratch_root()`, create the selected child, and print its path. The ticket form prints a Ticket directory; the sweep form prints its named sibling. Neither can return a path at the scratch top level.
+
+**It deduplicates a destination and enforces nothing.** Every documented tracker harvest calls it so none computes a mutable branch key; `scratch_census.py` remains the gate for material written outside the accounted namespace. A follow-up Session on one ticket deliberately reopens its predecessor's Ticket directory and finds the work. The unresolved concurrency and worktree-removal boundaries live in `scratch_census.DECLARED_LIMITS` rather than being copied here.
+
 ### Tracker scan
 
 Every tool above reads a file somebody can point at. This one reads **what a public flip publishes that a file scanner does not**, and it is [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s remaining surface made runnable. `phi_scan --all` walks `git ls-files`, which is the tip and nothing else; #212's ruling comment was blocked on issue and pull-request text, pull-request diffs, and commit messages, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records the last of those as scanned by nothing.
 
 ```bash
-H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+: "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
@@ -1106,7 +1124,8 @@ scanner's own offline boundary.
 The tracker scan reads the tracker's PHI shapes. This one reads **whether a body landed intact**, and it covers [#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130)'s lost bodies plus [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s two encoding mechanisms. **How many there are is what the command prints**, and is deliberately stated nowhere in prose: nothing committed re-derives it, the harvest it is counted from is gitignored, and the next one to arrive moves it. That the #130 count *was* eight on 2026-08-19 is stated once below, because the finding beside it needs the denominator.
 
 ```bash
-H=scratch/sessions/$(git rev-parse --abbrev-ref HEAD)
+: "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
@@ -1833,30 +1852,29 @@ unconditionally on every commit.
 python tools/scratch_census.py
 ```
 
-**It counts unaccounted top-level entries across every registered checkout that owns a scratch root**
-— the owning checkout against its grandfathered integer baseline, and every other checkout held at
-zero. `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor
-of documented entries; neither is restated here.
+**It counts unaccounted top-level entries across every registered checkout that owns a scratch root.**
+The owning checkout is compared with its grandfathered integer baseline, the committing checkout
+with its zero ratchet, and every peer checkout reports and is never graded.
+`scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor of
+documented entries; neither is restated here.
 
 **It never reads a scratch file's contents and never prints an unaccounted entry's name.** That is
 not tidiness: a `scratch/` filename may itself carry PHI and this repository is public, which is the
 whole reason [ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
 made the baseline an integer and refused a list.
 
-**Deletion is outside its authority.** A failing worktree is **drained** to the owning checkout — a
-move, never a delete — and the command classifies nothing about what moves. Disposing of an
-unaccounted entry is the clinician's word, per file.
+**Deletion is outside its authority.** A rise is moved under the owning checkout's Ticket directory,
+never deleted, and the command classifies nothing about what moves. Disposing of an unaccounted
+entry is the clinician's word, per file.
 
-**Three limits are properties of the mechanism rather than gaps to be closed**, and they live in
-`scratch_census.DECLARED_LIMITS`: the integer baseline's one-entry swap hole, material written
-outside every checkout, and a separate clone's own worktree registry. This section points at that
-object and copies no row.
+**The mechanism's declared limits live in `scratch_census.DECLARED_LIMITS`.** This section points at
+that object and copies no row.
 
 **It can refuse a commit**, and it is one of the two that do so unconditionally. Its status is OR-ed
 into the hook's, so nothing above it can suppress it.
 
-**Exit status** — 0 clean, 1 for a rise above baseline or any unaccounted entry in another
-checkout, 2 for every way of not having counted.
+**Exit status** — 0 clean, 1 for a rise in the owning or committing checkout, 2 when a gating root
+or the accounted set was not scanned. A peer root never changes status.
 
 Covered by `tools/test_scratch_census.py`.
 
@@ -1896,7 +1914,7 @@ git config core.hooksPath tools/hooks
 
 After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py`, `tools/scratch_census.py`, and the staged spelling check on every commit in that clone; `tools/hooks/commit-msg` checks the proposed message for spelling and GitHub closing keywords. Both message checks are advisory.
 
-**Standing rule 1 is no longer the only thing that can refuse a commit here, and that changed deliberately.** Since #466 its second unconditional local check, `scratch_census.py`, refuses a rise above the owning checkout's module baseline or any unaccounted entry in another registered checkout; it is permanently absent from CI because no runner owns a scratch root. Since #83 a staged threshold sheet also runs `tools/threshold_sheet.py --all --quiet`, and a failing gate refuses. #181 narrowed both edges: the directory README does not trigger the grader, and a recommendation record never built under `--recs-root` prints `COVERAGE NOT RUN` through `--quiet` but does not refuse; explicit path errors, unreadable records, and findings from present records remain non-zero. Since #429, a catalog, registry, or threshold-sheet edit also runs `tools/threshold_coverage.py`; it refuses a missing or duplicate topic, an unrecorded state, or an orphaned sheet. The reasoning is narrow: a fabricated citation or a false corpus denominator is clinical guidance a consumer may rely on, while an absent uncommitted build artifact is a property of the machine. **The guideline checks cost nothing on a commit that touches none of their artifacts** — which is what keeps them from becoming checks people learn to `--no-verify` around — and both unconditional checks have their status OR-ed in, so nothing above can suppress either. `skills_mirror.py`, `spelling_scan.py`, and `closing_keyword_scan.py` stay advisory.
+**Standing rule 1 is no longer the only thing that can refuse a commit here, and that changed deliberately.** Since #466 its second unconditional local check, `scratch_census.py`, refuses a rise above the owning checkout's module baseline or the committing checkout's zero ratchet; peer worktrees report and are never graded. It is permanently absent from CI because no runner owns a scratch root. Since #83 a staged threshold sheet also runs `tools/threshold_sheet.py --all --quiet`, and a failing gate refuses. #181 narrowed both edges: the directory README does not trigger the grader, and a recommendation record never built under `--recs-root` prints `COVERAGE NOT RUN` through `--quiet` but does not refuse; explicit path errors, unreadable records, and findings from present records remain non-zero. Since #429, a catalog, registry, or threshold-sheet edit also runs `tools/threshold_coverage.py`; it refuses a missing or duplicate topic, an unrecorded state, or an orphaned sheet. The reasoning is narrow: a fabricated citation or a false corpus denominator is clinical guidance a consumer may rely on, while an absent uncommitted build artifact is a property of the machine. **The guideline checks cost nothing on a commit that touches none of their artifacts** — which is what keeps them from becoming checks people learn to `--no-verify` around — and both unconditional checks have their status OR-ed in, so nothing above can suppress either. `skills_mirror.py`, `spelling_scan.py`, and `closing_keyword_scan.py` stay advisory.
 
 **Two layers, and the asymmetry between them is the design.**
 

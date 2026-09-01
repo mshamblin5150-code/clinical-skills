@@ -59,10 +59,12 @@ class ScratchRepository(unittest.TestCase):
         git(self.root, *arguments)
         return worktree
 
-    def run_census(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+    def run_census(
+        self, *arguments: str, cwd: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(SCRIPT), *arguments],
-            cwd=self.root,
+            cwd=cwd or self.root,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -70,6 +72,51 @@ class ScratchRepository(unittest.TestCase):
 
 
 class ScratchCensusCommandTests(ScratchRepository):
+    def test_the_owning_count_has_a_one_entry_swap_hole(self) -> None:
+        self.assertIn(census.OWNING_SWAP_LIMIT, census.DECLARED_LIMITS)
+        (self.root / "scratch" / "residue-0").unlink()
+        (self.root / "scratch" / "replacement-private-entry").touch()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn(
+            f"{census.OWNING_BASELINE} unaccounted, 0 above baseline",
+            finished.stdout,
+        )
+
+    def test_material_outside_every_checkout_is_not_walked(self) -> None:
+        self.assertIn(census.OUTSIDE_CHECKOUT_LIMIT, census.DECLARED_LIMITS)
+        outside = self.root.parent / "outside-every-checkout"
+        outside.mkdir()
+        (outside / "private-entry").touch()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertNotIn(str(outside), finished.stdout + finished.stderr)
+
+    def test_a_separate_clone_has_an_invisible_worktree_registry(self) -> None:
+        self.assertIn(census.SEPARATE_CLONE_LIMIT, census.DECLARED_LIMITS)
+        separate = self.root.parent / "separate-clone"
+        separate.mkdir()
+        git(separate, "init", "--initial-branch=main")
+        (separate / "scratch").mkdir()
+        (separate / "scratch" / "private-entry").touch()
+
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertNotIn(str(separate), finished.stdout + finished.stderr)
+
+    def test_a_single_root_run_names_the_empty_report_only_population(self) -> None:
+        finished = self.run_census()
+
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("GATING:", finished.stdout)
+        self.assertIn("REPORT ONLY: none", finished.stdout)
+        self.assertNotIn("top levels:", finished.stdout)
+
     def test_an_accounted_worktree_root_and_the_owning_baseline_are_clean(self) -> None:
         other = self.add_worktree()
         (other / "scratch" / "sessions").mkdir(parents=True)
@@ -84,13 +131,18 @@ class ScratchCensusCommandTests(ScratchRepository):
             f"{census.OWNING_BASELINE + 1} files beneath", finished.stdout
         )
         self.assertIn(
-            f"{census.OWNING_BASELINE} owning-checkout unaccounted",
+            f"GATING: {self.root / 'scratch'}: "
+            f"{census.OWNING_BASELINE} unaccounted, 0 above baseline",
             finished.stdout,
         )
-        self.assertIn("0 other-checkout unaccounted", finished.stdout)
+        self.assertIn(
+            f"REPORT ONLY: {other / 'scratch'}: 0 unaccounted; never graded",
+            finished.stdout,
+        )
         self.assertIn("CLEAN", finished.stdout)
 
-    def test_a_loose_worktree_entry_is_a_count_only_finding(self) -> None:
+    def test_a_peer_loose_entry_reports_without_grading_the_commit(self) -> None:
+        self.assertIn(census.ABANDONED_WORKTREE_LIMIT, census.DECLARED_LIMITS)
         other = self.add_worktree()
         (other / "scratch").mkdir()
         private_name = "do-not-print-this-name"
@@ -98,9 +150,12 @@ class ScratchCensusCommandTests(ScratchRepository):
 
         finished = self.run_census()
 
-        self.assertEqual(finished.returncode, 1, finished.stderr)
-        self.assertIn("FINDING", finished.stdout)
-        self.assertIn("1 other-checkout unaccounted", finished.stdout)
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn(
+            f"REPORT ONLY: {other / 'scratch'}: 1 unaccounted; never graded",
+            finished.stdout,
+        )
+        self.assertNotIn("FINDING", finished.stdout)
         self.assertNotIn(private_name, finished.stdout + finished.stderr)
 
     def test_the_owning_checkout_refuses_only_above_its_ceiling(self) -> None:
@@ -111,10 +166,70 @@ class ScratchCensusCommandTests(ScratchRepository):
 
         self.assertEqual(finished.returncode, 1, finished.stderr)
         self.assertIn(
-            f"{census.OWNING_BASELINE + 1} owning-checkout unaccounted",
+            f"GATING: {self.root / 'scratch'}: "
+            f"{census.OWNING_BASELINE + 1} unaccounted, 1 above baseline",
+            finished.stdout,
+        )
+        self.assertIn(
+            "FINDING: 1 top-level entry above the owning checkout's ratchet",
+            finished.stdout,
+        )
+        self.assertIn(
+            "REMEDY: move it under scratch/sessions/ticket-<n>/",
+            finished.stdout,
+        )
+        self.assertIn(
+            "do not raise OWNING_BASELINE -- the ratchet's only value is that "
+            "it cannot be moved to meet the disk",
             finished.stdout,
         )
         self.assertNotIn(private_name, finished.stdout + finished.stderr)
+
+    def test_the_committing_worktree_is_a_gating_root(self) -> None:
+        other = self.add_worktree()
+        (other / "scratch").mkdir()
+        (other / "scratch" / "private-entry").touch()
+
+        finished = self.run_census(cwd=other)
+
+        self.assertEqual(finished.returncode, 1, finished.stderr)
+        self.assertIn(
+            f"GATING: {other / 'scratch'}: 1 unaccounted, 1 above baseline",
+            finished.stdout,
+        )
+
+    def test_a_nested_invocation_keeps_its_worktree_gating(self) -> None:
+        other = self.add_worktree()
+        (other / "scratch").mkdir()
+        (other / "scratch" / "private-entry").touch()
+        nested = other / "nested" / "directory"
+        nested.mkdir(parents=True)
+
+        finished = self.run_census(cwd=nested)
+
+        self.assertEqual(finished.returncode, 1, finished.stderr)
+        self.assertIn(
+            f"GATING: {other / 'scratch'}: 1 unaccounted, 1 above baseline",
+            finished.stdout,
+        )
+        self.assertNotIn(
+            f"REPORT ONLY: {other / 'scratch'}",
+            finished.stdout,
+        )
+
+    def test_two_drones_in_one_checkout_share_one_gating_root(self) -> None:
+        self.assertIn(census.SHARED_CHECKOUT_LIMIT, census.DECLARED_LIMITS)
+        other = self.add_worktree()
+        (other / "scratch").mkdir()
+        (other / "scratch" / "private-entry").touch()
+
+        first = self.run_census(cwd=other)
+        second = self.run_census(cwd=other)
+
+        line = f"GATING: {other / 'scratch'}: 1 unaccounted, 1 above baseline"
+        self.assertEqual((first.returncode, second.returncode), (1, 1))
+        self.assertIn(line, first.stdout)
+        self.assertIn(line, second.stdout)
 
     def test_an_absent_owning_scratch_root_is_not_a_clean_scan(self) -> None:
         for entry in (self.root / "scratch").iterdir():
@@ -124,10 +239,27 @@ class ScratchCensusCommandTests(ScratchRepository):
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 2, finished.stderr)
+        self.assertIn(
+            f"GATING: {self.root / 'scratch'}: absent; not scanned",
+            finished.stdout,
+        )
         self.assertIn("NOT SCANNED", finished.stdout)
         self.assertNotIn("CLEAN", finished.stdout)
 
-    def test_a_finding_wins_when_another_registered_checkout_is_unreadable(self) -> None:
+    def test_an_absent_committing_scratch_root_is_not_a_clean_scan(self) -> None:
+        other = self.add_worktree()
+
+        finished = self.run_census(cwd=other)
+
+        self.assertEqual(finished.returncode, 2, finished.stderr)
+        self.assertIn(
+            f"GATING: {other / 'scratch'}: absent; not scanned",
+            finished.stdout,
+        )
+        self.assertIn("NOT SCANNED", finished.stdout)
+        self.assertNotIn("CLEAN", finished.stdout)
+
+    def test_an_unreadable_peer_root_reports_without_refusing(self) -> None:
         failing = self.add_worktree("failing")
         (failing / "scratch").mkdir()
         (failing / "scratch" / "private-entry").touch()
@@ -136,11 +268,16 @@ class ScratchCensusCommandTests(ScratchRepository):
 
         finished = self.run_census()
 
-        self.assertEqual(finished.returncode, 1, finished.stderr)
+        self.assertEqual(finished.returncode, 0, finished.stderr)
         self.assertIn("1 unreadable", finished.stdout)
         self.assertIn(str(unreadable), finished.stdout)
-        self.assertIn("FINDING", finished.stdout)
-        self.assertIn("NOT SCANNED", finished.stdout)
+        self.assertNotIn("FINDING", finished.stdout)
+        self.assertIn(
+            f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded",
+            finished.stdout,
+        )
+        self.assertIn("CLEAN", finished.stdout)
+        self.assertNotIn("NOT SCANNED", finished.stdout)
 
     def test_worktree_state_is_measured_only_when_requested(self) -> None:
         (self.root / "README.md").write_text(
@@ -316,6 +453,8 @@ class AccountedSetTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("1 worktrees enumerated", output.getvalue())
         self.assertIn("scratch roots:", output.getvalue())
+        self.assertIn(f"GATING: {root / 'scratch'}:", output.getvalue())
+        self.assertIn("REPORT ONLY: none", output.getvalue())
         self.assertIn("forced grep failure", error.getvalue())
 
 
