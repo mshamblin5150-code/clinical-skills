@@ -37,7 +37,7 @@ The clinician's own first, graded, substantive contribution to a board. Its requ
 _Avoid_: main post, discussion post, original post
 
 **Reply**:
-A short conversational answer to one named classmate's initial post. A separate graded artifact with its own word floor, and never a second initial post.
+A short conversational answer to one named classmate's initial post. A separate graded artifact with its own **House floor**, and never a second initial post. *Short* here is a contrast against the **Initial post** and the peer critique, never an instruction: the length is whatever it takes to leave the point unambiguous.
 _Avoid_: response, comment, peer review
 
 **Graded artifact**:
@@ -93,8 +93,12 @@ The board's own statement of what one initial post must answer. It supplies that
 _Avoid_: question, assignment, instructions
 
 **Bar**:
-The stated minimum a graded contribution must meet — words, references, source recency, required elements. Written on the course syllabus rather than on the board, so a run that reads only the topic page has not read it.
+What a course states a graded contribution must meet — words, references, source recency, required elements. Usually written on the course syllabus and sometimes on the board's own **Prompt**, so a run that reads only the topic page may not have read it. **It states maxima as well as minima**, and a stated maximum is transcribed and never honored: [ADR 0103](docs/adr/0103-the-reply-word-bar-is-the-clinician-s-house-floor-and-a-stated-ceiling-is-never-honored.md) rules that a ceiling applied to evidence-bearing prose removes the clauses that bound a claim rather than the words that decorate it. Distinct from a **House floor**, which belongs to no course. This entry read *the stated minimum ... written on the course syllabus rather than on the board* until that record, and both halves were false against the tree.
 _Avoid_: rubric, requirements, spec
+
+**House floor**:
+The minimum this repository requires of a graded contribution whatever a course states. Not a **Bar**, which is the course's own statement and varies per board: a house floor is board-independent, and a lower stated Bar does not lower it. Its job is to refuse a contribution too thin to have said anything, never to set a target — length serves the point, so sitting at the floor is legitimate when the point is already across. **Its population is one**: the **Reply** has one, and the **Initial post**'s floor is course-stated and signed.
+_Avoid_: minimum, word count, requirement
 
 ### Tiers
 
