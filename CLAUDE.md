@@ -696,6 +696,12 @@ decode as one readable image is the numerator, so neither half is a line a reade
 python tools/render_scan.py <a run directory> [--show]
 ```
 
+[practicum-case-study](skills/practicum-case-study/SKILL.md) step 9's automated Word export is
+attempted under a process bound before the clinician export fallback. **That bound is a safety stop
+and not a timing measurement or evidence that the route
+works.** A call that reaches it goes directly to the clinician export; only a PDF attempt that
+returns a failure inside the bound proceeds to the bounded XPS attempt.
+
 Only the last pass is graded for completeness. An earlier pass may stop when its reader finds a
 layout defect; the report gives each pass's readable-image and exported-page counts without failing
 that historical short pass. A measurable short final pass is exit 1. Missing render evidence, a

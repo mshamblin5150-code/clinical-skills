@@ -1014,7 +1014,10 @@ pass-N sequence; a gap, a leading-zero alias, replacement, or overwrite is not a
 read-only with conversion confirmation disabled, and attempt a PDF export under a process bound;
 if that route returns a failure, attempt XPS under the same bound. Never use or quit a shared Word
 instance, never make the spawned instance visible, and never let an export call wait without a
-bound. Rasterize the returned export with PyMuPDF at 120 dpi into the pass directory.
+bound. **The bound is a safety stop, not a timing measurement**: it does not establish that the
+automated route works or that the chosen duration is calibrated. A call that reaches the bound did
+not return a failure, does not trigger the XPS attempt, and goes directly to the clinician export.
+Rasterize a returned export with PyMuPDF at 120 dpi into the pass directory.
 
 If the bounded automated route does not return successfully, ask the clinician to use
 `File > Export > Create PDF/XPS` in Word and place that export in the new pass directory. The

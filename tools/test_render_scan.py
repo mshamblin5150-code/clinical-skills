@@ -275,6 +275,12 @@ class TheSkillSaysWhatThisGrades(unittest.TestCase):
         self.assertIn("File > Export > Create PDF/XPS", self.skill)
         self.assertIn("The agent still rasterizes and compares every page", self.skill)
 
+    def test_the_bound_is_a_stop_and_not_a_measurement_or_second_attempt_trigger(self):
+        normalized = " ".join(self.skill.split())
+        self.assertIn("The bound is a safety stop, not a timing measurement", normalized)
+        self.assertIn("does not establish that the automated route works", normalized)
+        self.assertIn("goes directly to the clinician export", normalized)
+
     def test_the_substantiated_checks_ledger_verdict_is_not_replaced(self):
         self.assertIn(
             "Coverage does not replace the substantiated `the rendered document` verdict",
