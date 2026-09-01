@@ -102,7 +102,7 @@
 | high blood pressure screening | sheet | high-blood-pressure-screening.md | full-document read complete; exact recommendation index accounted |
 | high body mass index intervention | sheet | high-body-mass-index-intervention.md | full-document read complete; exact recommendation index accounted |
 | HIV preexposure prophylaxis | sheet | hiv-preexposure-prophylaxis.md | full-document read complete; exact recommendation index accounted |
-| HIV primary care | unread |  | no recommendation record; full-document read pending |
+| HIV primary care | sheet | hiv-primary-care.md | full-document read complete; no recommendation record |
 | HIV screening | sheet | hiv-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hospital-acquired and ventilator-associated pneumonia | sheet | hospital-acquired-and-ventilator-associated-pneumonia.md | full-document read complete |
 | hypertension screening | sheet | hypertension-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
@@ -118,13 +118,13 @@
 | kidney transplant recipient care | unread |  | bound recommendation record available; full-document read pending |
 | kidney transplantation candidate evaluation | unread |  | bound recommendation record available; full-document read pending |
 | latent tuberculosis infection screening | sheet | latent-tuberculosis-infection-screening.md | exact recommendation index available; full document distilled |
-| leishmaniasis | unread |  | bound recommendation record available; full-document read pending |
+| leishmaniasis | sheet | leishmaniasis.md | full-document read complete |
 | lipid disorder screening | sheet | lipid-disorder-screening.md | exact recommendation index available; full document distilled |
-| lipid management in chronic kidney disease | unread |  | bound recommendation record available; full-document read pending |
+| lipid management in chronic kidney disease | sheet | lipid-management-in-chronic-kidney-disease.md | full-document read complete |
 | living kidney donor evaluation and care | unread |  | bound recommendation record available; full-document read pending |
 | lower extremity peripheral artery disease | unread |  | exact recommendation index available; full-document read pending |
 | lung cancer screening | sheet | lung-cancer-screening.md | exact recommendation index available; full document distilled |
-| lupus nephritis | unread |  | bound recommendation record available; full-document read pending |
+| lupus nephritis | sheet | lupus-nephritis.md | full-document read complete |
 | Lyme disease | sheet | lyme-disease.md | full-document read complete |
 | maternal immunization | sheet | maternal-immunization.md | no recommendation record; full document distilled |
 | microbiology laboratory utilization for infectious disease diagnosis | unread |  | no recommendation record; full-document read pending |
