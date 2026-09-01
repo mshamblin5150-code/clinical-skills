@@ -1204,8 +1204,12 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
     def test_words_lock_file_refuses_even_over_our_own_document(self):
         docx_write.write_docx("# Ours\n", self.path)
         (self.root / ("~$" + self.path.name)).write_bytes(b"lock")
-        with self.assertRaises(docx_write.RefusedToOverwrite):
+        with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
+        self.assertIn(
+            "Close Word, read the document, recover the edit, then pass --force",
+            str(caught.exception),
+        )
 
     def test_the_truncated_lock_name_word_actually_wrote_is_recognized(self):
         """#279 quotes the pair: ``nur5144-...`` locked by ``~$r5144-...``.
@@ -1257,8 +1261,7 @@ class RefusingToDestroyHandEdits(unittest.TestCase):
         with self.assertRaises(docx_write.RefusedToOverwrite) as caught:
             docx_write.write_docx("# New\n", self.path)
         message = str(caught.exception).casefold()
-        self.assertIn("an editor saved it", message)
-        self.assertIn("word", message)
+        self.assertIn("an editor saved it (for example, word)", message)
         self.assertIn("another writer", message)
         self.assertIn("older version of this renderer", message)
         self.assertIn("read it, recover the edit, then pass --force", message)

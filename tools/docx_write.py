@@ -91,7 +91,8 @@ review, and a prose edit to either would have failed nothing, so the reader misl
 have been whichever one checked the file nearer to hand. That is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) arriving inside a
 change whose own subject is a second copy of a rule. **``--force`` is a promise and not a
-backup**: there is still nothing to recover from.
+backup**: after a refusal, follow the calling skill's recovered-edit procedure before
+forcing a render.
 
 Body paragraphs take a 0.5 inch first-line indent and a table is drawn with APA's
 horizontal rules rather than a grid -- both #220, and both carved out where APA carves
@@ -1254,8 +1255,11 @@ def refusal(destination: Path) -> str:
     for lock in lock_files(destination):
         if lock.exists():
             return (
-                "{d} is open in Word right now -- {l} is beside it. Close the document, "
-                "or pass --force to overwrite it anyway.".format(d=destination, l=lock.name)
+                "{d} is open in Word right now -- {l} is beside it. Close Word, read "
+                "the document, recover the edit, then pass --force; forcing first can "
+                "destroy work that output/ cannot recover.".format(
+                    d=destination, l=lock.name
+                )
             )
     if destination.exists() and not written_by_this_renderer(destination):
         delta = part_set_delta(destination)
