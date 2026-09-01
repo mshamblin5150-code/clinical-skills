@@ -91,7 +91,7 @@
 | group A streptococcal pharyngitis | sheet | group-a-streptococcal-pharyngitis.md | full-document read complete; bound recommendation record accounted |
 | healthcare-associated ventriculitis and meningitis | sheet | healthcare-associated-ventriculitis-and-meningitis.md | bound recommendation record available; full document distilled |
 | hearing loss screening | sheet | hearing-loss-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| heart failure | unread |  | exact recommendation index available; full-document read pending |
+| heart failure | sheet | heart-failure.md | exact recommendation index available; full document distilled |
 | heart failure in chronic kidney disease | non-source | heart-failure-in-chronic-kidney-disease.md | scope of work read across all 9 pages; document form is a declared non-source |
 | hepatitis B screening | sheet | hepatitis-b-screening.md | all 14 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | hepatitis C in chronic kidney disease | sheet | hepatitis-c-in-chronic-kidney-disease.md | full-document read complete; no recommendation record |
@@ -115,7 +115,7 @@
 | intimate partner violence and elder abuse screening | sheet | intimate-partner-violence-and-elder-abuse-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening | sheet | iron-deficiency-anemia-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening and supplementation | sheet | iron-deficiency-anemia-screening-and-supplementation.md | exact recommendation index available; full document distilled |
-| kidney transplant recipient care | unread |  | bound recommendation record available; full-document read pending |
+| kidney transplant recipient care | sheet | kidney-transplant-recipient-care.md | bound recommendation record available; full document distilled |
 | kidney transplantation candidate evaluation | sheet | kidney-transplantation-candidate-evaluation.md | bound recommendation record available; full document distilled |
 | latent tuberculosis infection screening | sheet | latent-tuberculosis-infection-screening.md | exact recommendation index available; full document distilled |
 | leishmaniasis | sheet | leishmaniasis.md | full-document read complete |
@@ -153,7 +153,7 @@
 | Rh(D) incompatibility screening | sheet | rhd-incompatibility-screening.md | full-document read complete; exact recommendation index accounted |
 | seasonal influenza | sheet | seasonal-influenza.md | full-document read complete; no recommendation record |
 | secondary stroke prevention | sheet | secondary-stroke-prevention.md | exact recommendation index available; full document distilled |
-| sepsis and septic shock | unread |  | bound recommendation record available; full-document read pending |
+| sepsis and septic shock | sheet | sepsis-and-septic-shock.md | bound recommendation record available; full document distilled |
 | sexually transmitted infection prevention counseling | sheet | sexually-transmitted-infection-prevention-counseling.md | exact recommendation index available; full document distilled |
 | skin and soft tissue infection | sheet | skin-and-soft-tissue-infection.md | full-document read complete |
 | skin cancer prevention counseling | sheet | skin-cancer-prevention-counseling.md | exact recommendation index available; full document distilled |
@@ -169,7 +169,7 @@
 | tuberculosis diagnosis | sheet | tuberculosis-diagnosis.md | bound recommendation record available; full document distilled |
 | unhealthy alcohol use screening and counseling | sheet | unhealthy-alcohol-use-screening-and-counseling.md | exact recommendation index available; full document distilled |
 | unhealthy drug use screening | sheet | unhealthy-drug-use-screening.md | exact recommendation index available; full document distilled |
-| valvular heart disease | unread |  | exact recommendation index available; full-document read pending |
+| valvular heart disease | sheet | valvular-heart-disease.md | exact recommendation index available; full document distilled |
 | vision screening, amblyopia | sheet | vision-screening-amblyopia.md | exact recommendation index available; full document distilled |
 | vitamin and mineral supplementation for cardiovascular disease and cancer prevention | sheet | vitamin-and-mineral-supplementation-for-cardiovascular-disease-and-cancer-prevention.md | exact recommendation index available; full document distilled |
 | vitamin D deficiency screening | sheet | vitamin-d-deficiency-screening.md | exact recommendation index available; full document distilled |

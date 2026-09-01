@@ -1914,8 +1914,20 @@ class RangeGate(unittest.TestCase):
             ("healthcare-associated-ventriculitis-and-meningitis.md", "intraventricular-dose-intraventricular-doses", "0.01-0.5 mg"),
             ("hepatitis-c-in-chronic-kidney-disease.md", "hepatic-venous-pressure", "10 mm Hg"),
             ("hepatitis-c-in-chronic-kidney-disease.md", "transplant-liver-severity", "10 mm Hg"),
+            ("heart-failure.md", "digoxin-dose-level", "0.125 mg"),
+            ("heart-failure.md", "oral-loop-diuretic-dose", "0.5 mg"),
+            ("heart-failure.md", "cardiogenic-shock-hemodynamic-definition", "15 mm Hg"),
+            ("heart-failure.md", "hfpef-score-inputs", "35 mm Hg"),
+            ("heart-failure.md", "structural-ventricular-thresholds", "35 mm Hg"),
+            ("heart-failure.md", "cardiogenic-shock-scai-stage-b", "30 mm Hg"),
+            ("heart-failure.md", "cardiogenic-shock-scai-stage-c", "15 mm Hg"),
+            ("kidney-transplant-recipient-care.md", "formal-165", "35 mm Hg"),
             ("lower-extremity-peripheral-artery-disease.md", "toe-pressure-severe-ischemia", "30 mm Hg"),
             ("lower-extremity-peripheral-artery-disease.md", "tcpo2-healing-threshold", "30 mm Hg"),
+            ("valvular-heart-disease.md", "as-severity-definition", "20 mm Hg"),
+            ("valvular-heart-disease.md", "ms-severity-definition", "5 mm Hg"),
+            ("valvular-heart-disease.md", "indexed-p23-timing-of-intervention-of-as-6", "10 mm Hg"),
+            ("valvular-heart-disease.md", "indexed-p45-intervention-for-rheumatic-ms-5", "15 mm Hg"),
         }
         for filename, quantity, value in accepted:
             with self.subTest(filename=filename, quantity=quantity, value=value):
