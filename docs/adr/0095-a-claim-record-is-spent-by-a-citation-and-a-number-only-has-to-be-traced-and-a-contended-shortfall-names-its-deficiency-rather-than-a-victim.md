@@ -50,9 +50,23 @@ the same under all six orderings.
 `untraced-number` dedupes occurrences and tests set membership; `discussion_post_scan`'s row of the
 same name builds one requirement per occurrence and matches them into distinct records. On identical
 prose and an identical ledger -- a figure restated once, one record carrying it -- the post scanner
-reports a finding and the reply scanner's rule reports nothing. Their own row descriptions already
-say different things: *"has its own claim record"* against *"traces to claims.md"*. The reply
-scanner implements the post scanner's sentence; the post scanner does not.
+reports a finding and the reply scanner's rule reports nothing.
+
+**Corrected 2026-09-01, hours after this record merged, by the exhaustive sweep of its own session.**
+This paragraph closed with *"Their own row descriptions already say different things: 'has its own
+claim record' against 'traces to claims.md'."* **The exhibit is mis-cited.** Its subject is the two
+scanners' rows under the one name `untraced-number`, and both of those say *traces to claims.md* --
+`discussion_post_scan.ROWS`, `discussion_reply_scan.ROWS`. The *own claim record* phrase belongs to
+the post scanner's **citation** row, `discussion_post_scan.py:76`. The contrast that is real is
+inside the post scanner: `untraced-citation` says *own* and `untraced-number` says *traces to*, which
+is what ruling 1 splits and what ruling 4 holds the number row to. Left legible rather than deleted
+because a ratified evidence sentence naming the wrong row is what a builder reads as license to edit
+a row description that is already correct.
+
+**The ruling is unaffected and re-derives.** The reply scanner implements the post scanner's
+`untraced-number` sentence; the post scanner does not, because its code matches per occurrence while
+its row says *traces to*. Ruling 4's *"The documented row sentence does not change; the code stops
+exceeding it"* stands exactly as written.
 
 ## Ruling 1 -- existence and distinctness are two rows, because only one of them is a fact
 
@@ -195,23 +209,83 @@ merged while this session was open and rules the shape of the two glossary entri
 are named now rather than left for that build to meet unruled, since its ruling 4 fails the suite on
 a fire with no row.
 
-**`Claim record` against `Claim ledger` is a narrowing, not a collision.** They share a first word,
-so 0092's predicate derives the pair as a candidate; the senses are compositional -- a record is one
-entry in the ledger -- so the ruled word is **narrowing**, which ruling 5 says is the majority case
-and is not a defect.
+**Corrected 2026-09-01, hours after this record merged, by the exhaustive sweep of its own session.**
+Both paragraphs below stated ADR 0092's predicate wrongly. The verdicts they reach are unchanged;
+the mechanisms they credited were not the predicate's. The original wording is quoted where it is
+wrong rather than deleted, because getting a neighboring record's rule wrong inside the record that
+promises to hand it clean rows is the failure worth leaving legible.
 
-**`Spend` is outside that predicate's reach and its clause is placed by 0092's rule anyway.** The
-second sense sits in the body of `Invoked source`, where a domain's behavior is spent as the
-argument and nothing is used up. That is a term against a usage rather than two entries sharing a
-first word, so candidacy derived by name cannot see it. Ruling 2's fallback governs the placement --
-neither term stands alone, so the clause goes on the newer -- and the newer is `Spend`, where it
-sits. **This is a declared gap in that predicate and not a claim that the pair is safe:** a sense
-divergence between an entry and another entry's prose is invisible to a name-keyed derivation, and
-0092's ruling 5 already states its tally is a floor.
+**`Claim record` against `Claim ledger` is a narrowing, and 0092's predicate cannot see the pair at
+all.** This record first said *"They share a first word, so 0092's predicate derives the pair as a
+candidate."* **That is false.** The predicate is *a single-word heading whose word also appears as a
+word in another heading* -- `docs/adr/0092-...md:60`. `CONTEXT.md` carries no bare `**Claim**`
+heading; both members are compounds, so no candidate is derived. That is the `Section` shape 0092
+already declares unreachable, arriving on a second pair. The senses are compositional -- a record is
+one entry in the ledger -- so the reading is **narrowing**, and it is recorded here because nothing
+derives it.
+
+**`Spend` is derived and does not fire, which is not the same as being out of reach.** This record
+first said it is *"outside that predicate's reach"* because its second sense sits in prose. **The
+first half is false and the second is the right reason for a different claim.** `**Spend**` is a
+single-word heading, so the predicate does derive it; it does not fire because `spend` appears in no
+other heading. The second sense sits in the body of `Invoked source`, where a domain's behavior is
+spent as the argument and nothing is used up -- and *that* is what a name-keyed derivation cannot
+see, because it is a heading against another entry's prose rather than a heading against a heading.
+Ruling 2's fallback governs the placement -- neither term stands alone, so the clause goes on the
+newer -- and the newer is `Spend`, where it sits. **This is a declared gap in that predicate and not
+a claim that the pair is safe**, and 0092's ruling 5 already states its tally is a floor.
+
+**A third shape came out of re-deriving the above and belongs to
+[#702](https://github.com/mshamblin5150-code/clinical-skills/issues/702) rather than here.** The
+predicate's fire count depends on a tokenizer 0092 does not declare. Splitting a heading on
+whitespace, `Binding` fires against nothing; splitting it on letter runs, `Binding` fires against
+`Declared no-binding`. Both members are real headings and the second is not the `Section` shape, so
+it is not covered by 0092's declared limit. Whichever way it is ruled, 0092's three stated fire
+counts move with it.
 
 ## Consequences
 
 The build is [#713](https://github.com/mshamblin5150-code/clinical-skills/issues/713). The affected
-surfaces are `tools/discussion_post_scan.py`, `tools/test_discussion_post_scan.py`, the distinctness
-sentence at `skills/discussion-post/SKILL.md:259`, and that skill's row table.
-`tools/discussion_reply_scan.py` is not edited: ruling 4 closes the divergence from this side.
+surfaces are `tools/discussion_post_scan.py`, `tools/test_discussion_post_scan.py`, and the
+distinctness sentence at `skills/discussion-post/SKILL.md:258-259`.
+`tools/discussion_reply_scan.py` is not edited: ruling 4 closes the divergence from this side, and
+ruling 8 declines report-row alignment with it deliberately rather than by omission.
+
+**Corrected 2026-09-01, hours after this record merged, by the exhaustive sweep of its own session.**
+This paragraph named *"and that skill's row table"*. **There is no such table** --
+`grep -c '^|' skills/discussion-post/SKILL.md` returns **0**, and that file carries no Markdown table
+of any kind. The rows are prose at `:257-263`. A Consequences list naming a surface the tree does not
+have is one a builder can tick off while the real surface goes unedited, which is the
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) shape arriving in the
+checklist this record hands the build. Four things the original list did not carry:
+
+**The prose sentence is falsified twice over and the wrong word appears twice.**
+`skills/discussion-post/SKILL.md:258-259` reads *"requires every body-number **occurrence** and every
+in-text citation **occurrence** to have its own claim record."* Ruling 4 retires the first
+`occurrence` and ruling 1 splits the second into existence and distinctness.
+
+**Nothing binds *these* rows to that sentence, and the precedent to extend now exists.**
+When this correction was first written, `tools/test_discussion_post_scan.py` referenced neither
+`ROWS` nor `KINDS` nor `SKILL.md`, and the claim was that no bind existed at all. **That was true for
+about an hour.** `TheRenderedDocumentContractIsPublished` arrived with
+[#675](https://github.com/mshamblin5150-code/clinical-skills/issues/675)'s build and asserts the
+skill names `bold-headings`, `rendered-comments` and `rendered-text` by name. It covers the
+rendered-document rows and reaches neither citation row nor the number row, so the exposure this
+paragraph describes is unchanged -- what changed is that the build now **extends** a bind in the same
+file rather than inventing one. Without that extension, `respent-record` ships as a rule only the
+scanner knows: [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) with no test
+between the two copies.
+
+**Two tests encode the retired rule in their names, not only in their fixtures.**
+`test_two_claims_using_the_same_number_need_two_records` and
+`test_one_record_cannot_discharge_two_numbers_and_a_citation`, both in
+`TheMechanicalBarRowsAreGraded`. Ruling 4 makes the first name false and ruling 2 makes the second's
+premise false. Renaming both is part of the edit. **They are named without line numbers on purpose**
+-- the first draft of this paragraph cited two, and #675's build moved both within the hour.
+
+**`claim records` must be a nullable field, and that moves a census row.**
+`tools/grader_conformance.py:126-129` asserts `nullable_fields == declared_fields | absent`, so a
+field joining a `GATED_ROW_SETS` field tuple cannot be a plain `int`. That takes
+`docs/adr/0080-...md:38`'s field census for this module from 8 to 9. ADR 0080 declares its figures
+dated, so this is staleness rather than falsification, and it is named here because ruling 7
+mentioned the conformance walk and not the census.
