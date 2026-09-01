@@ -122,7 +122,7 @@ neither term stands alone, and the anchor falls to the newer term — so `Drift`
 
 **Both halves select the same thing: the entry where a reader has just met the *unexpected* sense.**
 That is what `Session`, `Section number` and `Catalog topic` have in common, and it is what standing
-alone buys in the many-sided shapes, because four neighbours and three neighbours respectively teach
+alone buys in the many-sided shapes, because four neighbors and three neighbors respectively teach
 the other reading.
 
 **Following the stated precedent literally was refused**, and this is the half most easily got wrong.
