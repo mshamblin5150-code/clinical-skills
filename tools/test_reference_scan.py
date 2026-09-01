@@ -1303,12 +1303,15 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
         self.assertIn("Nursing Student References", section)
         self.assertIn("2026-08-30", section)
 
-    def test_section_eight_carries_the_official_form_and_federal_only_limit(self):
+    def test_section_eight_carries_the_official_form_and_cfr_only_limit(self):
         section = self.section_eight()
         self.assertIn("Professional and Vocational Regulations, 16 CCR § 1481 (2023)", section)
         self.assertIn("Name of the Statute, Title number Source § Section number(s) (Year)", section)
-        self.assertIn("federal", section.lower())
         self.assertIn("C.F.R.", section)
+        # #751: the limit is C.F.R.-only, not federal-only. A federal *statute*
+        # in the U.S.C. is as invisible to the reader as a state code, so the
+        # label must not say "federal" -- and this assertion used to require it.
+        self.assertNotIn("federal", section.lower())
 
     def test_discussion_post_points_to_the_apa_sheet(self):
         self.assertIn(

@@ -334,6 +334,6 @@ Name of the Statute, Title number Source § Section number(s) (Year)
 
 The regulation name is required; a section-only entry is not this form.
 
-**Federal-only limit.** APA's `Source` slot can hold any code, including the example's state
+**`C.F.R.`-only limit.** APA's `Source` slot can hold any code, including the example's state
 `CCR`. This repository's legal readers currently recognize `C.F.R.` alone, so this sheet does not
 claim that the scanner reaches state or foreign codes.
