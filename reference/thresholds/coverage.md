@@ -85,10 +85,10 @@
 | fracture prevention, vitamin D and calcium supplementation | sheet | fracture-prevention-vitamin-d-and-calcium-supplementation.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | genital herpes serologic screening | sheet | genital-herpes-serologic-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | gestational diabetes screening | sheet | gestational-diabetes-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
-| gestational weight gain counseling | unread |  | exact recommendation index available; full-document read pending |
+| gestational weight gain counseling | sheet | gestational-weight-gain-counseling.md | full-document read complete; exact recommendation index accounted |
 | glomerular disease | unread |  | bound recommendation record available; full-document read pending |
-| gonococcal ophthalmia neonatorum prophylaxis | unread |  | exact recommendation index available; full-document read pending |
-| group A streptococcal pharyngitis | unread |  | bound recommendation record available; full-document read pending |
+| gonococcal ophthalmia neonatorum prophylaxis | sheet | gonococcal-ophthalmia-neonatorum-prophylaxis.md | full-document read complete; exact recommendation index accounted |
+| group A streptococcal pharyngitis | sheet | group-a-streptococcal-pharyngitis.md | full-document read complete; bound recommendation record accounted |
 | healthcare-associated ventriculitis and meningitis | unread |  | bound recommendation record available; full-document read pending |
 | hearing loss screening | sheet | hearing-loss-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | heart failure | unread |  | exact recommendation index available; full-document read pending |
