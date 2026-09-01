@@ -1,10 +1,7 @@
 """Count unaccounted top-level entries across this repository's scratch roots.
 
-The ratchet deliberately has three limits which are properties of the mechanism:
-
-* its integer baseline has a one-entry swap hole in the owning checkout;
-* material written outside every checkout is outside the walk and any producer;
-* a separate clone has its own worktree registry and is invisible here.
+The ratchet's complete boundary lives in ``DECLARED_LIMITS``.  Each row names a
+mechanical path the census or the directory producer does not close.
 
 The command never reads scratch-file contents and never prints an unaccounted
 entry's name. Deletion is outside its authority; a failing worktree is drained
@@ -42,10 +39,31 @@ STANDING_ARTIFACTS = frozenset(
     }
 )
 
+OWNING_SWAP_LIMIT = "the owning-checkout integer baseline has a one-entry swap hole"
+OUTSIDE_CHECKOUT_LIMIT = (
+    "material outside every checkout is outside this walk and any producer"
+)
+SEPARATE_CLONE_LIMIT = (
+    "a separate clone has its own worktree registry and is invisible"
+)
+ABANDONED_WORKTREE_LIMIT = (
+    "an abandoned worktree's loose entry is gated by no later commit and its "
+    "removal can discard unrecoverable material without warning"
+)
+SHARED_TICKET_DIRECTORY_LIMIT = (
+    "two drones on one ticket at the same time share one ticket directory"
+)
+SHARED_CHECKOUT_LIMIT = (
+    "two drones sharing one checkout are one gating root to the census"
+)
+
 DECLARED_LIMITS = (
-    "the owning-checkout integer baseline has a one-entry swap hole",
-    "material outside every checkout is outside this walk and any producer",
-    "a separate clone has its own worktree registry and is invisible",
+    OWNING_SWAP_LIMIT,
+    OUTSIDE_CHECKOUT_LIMIT,
+    SEPARATE_CLONE_LIMIT,
+    ABANDONED_WORKTREE_LIMIT,
+    SHARED_TICKET_DIRECTORY_LIMIT,
+    SHARED_CHECKOUT_LIMIT,
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -94,6 +112,17 @@ def worktree_roots(checkout: Path) -> tuple[Path, ...]:
     if not roots:
         raise CensusNotRun("git worktree list returned no worktrees")
     return roots
+
+
+def enclosing_worktree(invocation: Path, roots: tuple[Path, ...]) -> Path:
+    matches = [
+        root
+        for root in roots
+        if invocation == root or invocation.is_relative_to(root)
+    ]
+    if not matches:
+        raise CensusNotRun("current directory is outside every registered worktree")
+    return max(matches, key=lambda root: len(root.parts))
 
 
 def accounted_names(checkout: Path) -> frozenset[str]:
@@ -191,9 +220,10 @@ def main(argv: list[str]) -> int:
         print("usage: scratch_census.py [--worktrees]", file=sys.stderr)
         return 2
 
-    checkout = Path.cwd().resolve()
+    invocation = Path.cwd().resolve()
     try:
-        roots = worktree_roots(checkout)
+        roots = worktree_roots(invocation)
+        checkout = enclosing_worktree(invocation, roots)
     except CensusNotRun as error:
         print("coverage: 0 worktrees enumerated; 0 unreadable")
         print(f"NOT SCANNED: {error}", file=sys.stderr)
@@ -207,12 +237,15 @@ def main(argv: list[str]) -> int:
         accounted_error = error
 
     counts: list[RootCount] = []
+    absent: list[Path] = []
     unreadable: list[Path] = []
     for root in roots:
         try:
             counted = count_root(root, accounted)
             if counted is not None:
                 counts.append(counted)
+            else:
+                absent.append(root)
         except OSError:
             unreadable.append(root)
 
@@ -225,13 +258,29 @@ def main(argv: list[str]) -> int:
         f"scratch roots: {len(counts)} checkouts own a scratch root; "
         f"{sum(item.files for item in counts)} files beneath"
     )
-    if accounted_error is not None:
-        print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
-        if unreadable:
-            print("NOT SCANNED: one or more required roots could not be read")
-        return 2
     owning = roots[0]
-    state_not_scanned = False
+    if accounted_error is not None:
+        gating_roots = {owning, checkout}
+        peer_reported = False
+        for root in roots:
+            if root in unreadable:
+                state = "unreadable"
+            elif root in absent:
+                state = "absent"
+            else:
+                state = "not scanned"
+            if root in gating_roots:
+                print(f"GATING: {root / 'scratch'}: {state}")
+            else:
+                peer_reported = True
+                print(
+                    f"REPORT ONLY: {root / 'scratch'}: {state}; never graded"
+                )
+        if not peer_reported:
+            print("REPORT ONLY: none")
+        print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
+        print("NOT SCANNED: the accounted set could not be derived")
+        return 2
     if argv == ["--worktrees"]:
         try:
             measured_roots = tuple(item.root for item in counts if item.root != owning)
@@ -239,28 +288,79 @@ def main(argv: list[str]) -> int:
             print(f"worktree state: {merged} merged; {clean} clean; {ahead} ahead")
         except CensusNotRun as error:
             print(f"worktree state: NOT SCANNED ({error})")
-            state_not_scanned = True
 
     owning_count = next((item for item in counts if item.root == owning), None)
     owning_finding = (
         owning_count is not None and owning_count.unaccounted > OWNING_BASELINE
     )
     other_counts = [item for item in counts if item.root != owning]
-    other_finding = any(item.unaccounted > 0 for item in other_counts)
-    finding = owning_finding or other_finding
-    not_scanned = owning_count is None or bool(unreadable) or state_not_scanned
-
-    print(
-        "top levels: {owning} owning-checkout unaccounted; "
-        "{other} other-checkout unaccounted across {roots} roots".format(
-            owning=owning_count.unaccounted if owning_count else 0,
-            other=sum(item.unaccounted for item in other_counts),
-            roots=len(other_counts),
-        )
+    committing_count = next(
+        (item for item in other_counts if item.root == checkout), None
     )
+    committing_finding = (
+        committing_count is not None and committing_count.unaccounted > 0
+    )
+    peer_counts = [item for item in other_counts if item.root != checkout]
+    gating_unavailable = [
+        root for root in (*absent, *unreadable) if root in (owning, checkout)
+    ]
+    peer_unavailable = [
+        (root, "absent")
+        for root in absent
+        if root not in (owning, checkout)
+    ] + [
+        (root, "unreadable")
+        for root in unreadable
+        if root not in (owning, checkout)
+    ]
+    finding = owning_finding or committing_finding
+    not_scanned = bool(gating_unavailable)
 
+    if owning_count is not None:
+        print(
+            f"GATING: {owning_count.root / 'scratch'}: "
+            f"{owning_count.unaccounted} unaccounted, "
+            f"{max(0, owning_count.unaccounted - OWNING_BASELINE)} above baseline"
+        )
+    if committing_count is not None:
+        print(
+            f"GATING: {committing_count.root / 'scratch'}: "
+            f"{committing_count.unaccounted} unaccounted, "
+            f"{committing_count.unaccounted} above baseline"
+        )
+    for root in gating_unavailable:
+        state = "unreadable" if root in unreadable else "absent"
+        print(f"GATING: {root / 'scratch'}: {state}; not scanned")
+    for item in peer_counts:
+        print(
+            f"REPORT ONLY: {item.root / 'scratch'}: "
+            f"{item.unaccounted} unaccounted; never graded"
+        )
+    for root, state in peer_unavailable:
+        print(f"REPORT ONLY: {root / 'scratch'}: {state}; never graded")
+    if not peer_counts and not peer_unavailable:
+        print("REPORT ONLY: none")
+
+    if owning_finding and owning_count is not None:
+        above = owning_count.unaccounted - OWNING_BASELINE
+        noun = "entry" if above == 1 else "entries"
+        print(
+            f"FINDING: {above} top-level {noun} above "
+            "the owning checkout's ratchet"
+        )
+    if committing_finding and committing_count is not None:
+        above = committing_count.unaccounted
+        noun = "entry" if above == 1 else "entries"
+        print(
+            f"FINDING: {above} top-level {noun} above "
+            "the committing checkout's ratchet"
+        )
     if finding:
-        print("FINDING: one or more scratch top-level ratchets were exceeded")
+        print("REMEDY: move it under scratch/sessions/ticket-<n>/")
+        print(
+            "        do not raise OWNING_BASELINE -- the ratchet's only value "
+            "is that it cannot be moved to meet the disk"
+        )
     elif not not_scanned:
         print("CLEAN: scratch top levels are within their ratchets")
     if not_scanned:

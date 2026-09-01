@@ -49,7 +49,7 @@ One occasion of working on a graded artifact. An artifact is usually written ove
 _Avoid_: session (in the agent sense — see **Session**), attempt, revision
 
 **Session**:
-One agent's working pass over this repo — it sweeps the tracker and writes residue into a **scratch root**. **It is not the unit that opens a branch, and it does not own a checkout**: several drones can share one checkout and therefore one branch, and one branch can carry several tickets. That clause read *the unit that opens a branch* until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md), which is why the session directory is keyed by the **ticket** and never by the branch. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
+One agent's working pass over this repo — it sweeps the tracker and writes residue into a **scratch root**. **It is not the unit that opens a branch, and it does not own a checkout**: several drones can share one checkout and therefore one branch, and one branch can carry several tickets. That clause read *the unit that opens a branch* until [ADR 0091](docs/adr/0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md), which is why the **Ticket directory** is keyed by the ticket and never by the branch. Distinct from a **Sitting**, which is a person's occasion of working on a graded artifact; that entry's _Avoid_ rejects `session` as a name for *a sitting*, not as a name for this. Two senses, one word, and the collision is recorded here rather than left latent.
 _Avoid_: run, pass, sweep
 
 **Scratch root**:
@@ -61,7 +61,7 @@ The clone a worktree belongs to — what `repo_root.main_repo_root()` walks up t
 _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clone
 
 **Ticket directory**:
-One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **sittings** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
+One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **Sessions** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
 _Avoid_: session directory, temp directory, workspace
 
 **Accounted**:
@@ -77,11 +77,11 @@ One of the documented top-level entries a tool or a skill writes at a named path
 _Avoid_: known-good list, allowlist, the exempt set
 
 **Ratchet**:
-The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout is held at zero from day one. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
+The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout has a zero ratchet from day one. A commit grades only the owning and committing roots; peer roots report and are never graded. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
 _Avoid_: threshold, limit, cap, budget
 
 **Drain**:
-Moving a failing worktree's top-level entries into the **owning checkout**'s scratch root. The only authorized remedy for a worktree, and a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. It runs *to* the owning checkout and never out of one, so it is not available to a session blocked by the owning root's own count.
+Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Run key**:

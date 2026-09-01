@@ -81,6 +81,7 @@ DECLARED_SECTIONS = {
     "refusal_scan": "Refusal scan",
     "research_ledger": "Research ledger",
     "scratch_census": "Scratch census",
+    "scratch_work": "Scratch work",
     "skills_mirror": "Skills mirror",
     "specificity_scan": "Specificity scan",
     "spelling_scan": "Spelling scan",
