@@ -48,7 +48,7 @@ A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit
 
 ### And a command that grades it
 
-**The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for four shapes: the literal `@-`, an empty or whitespace-only body, a body that is one bare `@token` — what `--body @notes.md` writes — and [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s double-encoded body.
+**The rule above was written down on 2026-08-11 and bodies kept being lost anyway** — which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. So `tools/tracker_bodies.py` grades a harvest for five shapes: the literal `@-`, an empty or whitespace-only body, a body that is one bare `@token` — what `--body @notes.md` writes — [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s double-encoded body, and [#723](https://github.com/mshamblin5150-code/clinical-skills/issues/723)'s raw C0 control character other than tab, line feed, or carriage return.
 
 ```bash
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
@@ -71,7 +71,7 @@ is deliberate -- a whole-tracker run on every comment would replay #264's
 historical findings rather than attach a result to the record that changed.
 Issue #260.
 
-**It opens no socket**, on `tracker_scan.py`'s terms — the fetch is a documented `gh` command whose output is a file. Into `scratch/` for that tool's reason too: the harvest is the tracker's entire text, and `scratch/` is the PHI firewall's own directory. **Its report names a URL and a row name and never a body**, so its output is safe to paste, and there is no `--show` to widen it. The fourth row catches both known encoding mechanisms: UTF-8 decoded through cp1252, and a literal `\uXXXX` escape left undecoded. It counts affected records rather than raw sequences. A shape inside inline or fenced code is a mention and does not fire.
+**It opens no socket**, on `tracker_scan.py`'s terms — the fetch is a documented `gh` command whose output is a file. Into `scratch/` for that tool's reason too: the harvest is the tracker's entire text, and `scratch/` is the PHI firewall's own directory. **Its report names a URL and a row name and never a body**, so its output is safe to paste, and there is no `--show` to widen it. The fourth row catches both known encoding mechanisms: UTF-8 decoded through cp1252, and a literal `\uXXXX` escape left undecoded. It counts affected records rather than raw sequences. A shape inside inline or fenced code is a mention and does not fire on that row. **The fifth row instead reads the raw body**, including code spans and leading or trailing Python whitespace, because a raw control character cannot be a mention.
 
 **It is also the read-back**, because it takes a single JSON object as well as a list — one command, and it catches the shape `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure:
 
@@ -81,11 +81,11 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 **`-` and not a path to a device.** This line first read `/dev/stdin`, which is not a file on the platform every commit here is made from — the command exited 2 saying *no harvest file named dev/stdin*, so a documented step could not run while reading as a checked one.
 
-**Nothing runs any of this, and saying so is the point.** `tools/hooks/` holds `pre-commit` and `commit-msg`, and neither owns a filing — the tracker is not in the tree, so no local hook can reach it. The gap this closes is *there was no check*; the gap it leaves is *a check exists and somebody has to run it*, and a command nobody runs is a written instruction with extra steps.
+**Both publication hosts now run the C0 predicate.** `tracker_publish_hook.py` refuses that damage in a title or body from the Claude Code publisher. `.github/workflows/tracker.yml` runs the full `tracker_bodies.py --github-event` grade over a body created or edited by either known publisher, so all five body-integrity rows report there after publication. The historical whole-tracker harvest remains a maintainer command: neither publication host replays it, and neither turns a clean body-shape result into a read ticket.
 
 **Do not grade this with `gh issue list`, and that is #130's own finding rather than a preference.** That command **`gh issue list` excludes pull requests**. Two of the eight lost bodies in this repo are pull requests — #98 and #71 — so every sweep that ran #130's reproduce command re-derived *six, not eight* and concluded the ticket's title was stale. **Its count was right** — its *three are still open* half really had gone stale, which is what made the whole title easy to dismiss — and the instrument could not see two of its members and had no way to say so. The `issues` REST endpoint returns both, and a `pull_request` key is which.
 
-**A clean scan is not a body worth reading.** The first three rows ask whether text landed; the fourth row reads only the two bounded encoding shapes above. A body truncated at a shell metacharacter, or the right words about the wrong ticket, has text, matches neither encoding shape, and passes.
+**A clean scan is not a body worth reading.** The first three rows ask whether text landed; the fourth reads only the two bounded encoding shapes above; the fifth reads only its bounded C0 set. A body truncated at a shell metacharacter, or the right words about the wrong ticket, can have text, match no row, and pass. The complete boundary belongs to `tracker_bodies.NOT_REACHED`.
 
 ### Commit finding rulings
 

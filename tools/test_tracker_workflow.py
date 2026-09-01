@@ -12,6 +12,7 @@ from pathlib import Path
 import phi_scan
 import test_module_sections
 import tracker_branch_scope
+import tracker_bodies
 import tracker_freshness
 import tracker_merge_receipt
 import tracker_publish_hook
@@ -203,6 +204,7 @@ class TheTriggerCountIsBoundToTheModule(unittest.TestCase):
 
 class DeclaredLimitsAreBound(unittest.TestCase):
     CASES = (
+        ("Tracker bodies", "tracker_bodies", tracker_bodies, True),
         ("Tracker branch scope", "tracker_branch_scope", tracker_branch_scope, False),
         ("Tracker merge receipt", "tracker_merge_receipt", tracker_merge_receipt, True),
         ("Tracker publish hook", "tracker_publish_hook", tracker_publish_hook, True),
@@ -277,6 +279,27 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
         self.assertIn("tracker_scan.py --github-event", text)
         self.assertIn("GITHUB_EVENT_PATH", text)
         self.assertNotIn("gh api", text)
+
+    def test_changed_bodies_run_the_body_shape_scan_and_report_coverage(self):
+        text = workflow_text()
+        step = text.partition("Changed tracker body integrity")[2].partition(
+            "\n      - name:"
+        )[0]
+
+        self.assertIn("tracker_bodies.py --github-event", step)
+        self.assertIn("GITHUB_EVENT_PATH", step)
+        self.assertIn("GITHUB_EVENT_NAME", step)
+        self.assertIn("GITHUB_STEP_SUMMARY", step)
+        self.assertIn("### Tracker body integrity", step)
+        self.assertIn("github.event.changes.body", step)
+        for action in ("opened", "created", "submitted", "edited"):
+            self.assertIn(f"github.event.action == '{action}'", step)
+        self.assertNotIn("github.event.action != 'edited'", step)
+        self.assertNotIn("github.event.action == 'labeled'", step)
+        self.assertNotIn("gh api", step)
+
+    def test_the_body_shape_workflow_uses_the_public_event_mode(self):
+        self.assertTrue(hasattr(tracker_bodies, "load_github_event"))
 
     def test_a_bodyless_review_does_not_report_did_not_scan(self):
         self.assertRegex(

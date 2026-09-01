@@ -849,7 +849,7 @@ sorted.
 | Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
-| An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
+| An entry whose declared source class requires a retrieval date but carries none | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
 | A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
 | Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
