@@ -108,7 +108,7 @@
 | hypertension screening | sheet | hypertension-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hypertensive disorders of pregnancy screening | sheet | hypertensive-disorders-of-pregnancy-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | hypertrophic cardiomyopathy | sheet | hypertrophic-cardiomyopathy.md | all 172 source pages accounted for on 2026-08-30; five null spans blindly corroborated |
-| IgA nephropathy and IgA vasculitis | unread |  | bound recommendation record available; full-document read pending |
+| IgA nephropathy and IgA vasculitis | sheet | iga-nephropathy-and-iga-vasculitis.md | bound recommendation record available; full document distilled |
 | illicit drug use prevention | sheet | illicit-drug-use-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | impaired visual acuity screening | sheet | impaired-visual-acuity-screening.md | full-document read complete; exact recommendation index accounted |
 | infectious diarrhea | sheet | infectious-diarrhea.md | full-document read complete |
@@ -116,18 +116,18 @@
 | iron deficiency anemia screening | sheet | iron-deficiency-anemia-screening.md | exact recommendation index available; full document distilled |
 | iron deficiency anemia screening and supplementation | sheet | iron-deficiency-anemia-screening-and-supplementation.md | exact recommendation index available; full document distilled |
 | kidney transplant recipient care | unread |  | bound recommendation record available; full-document read pending |
-| kidney transplantation candidate evaluation | unread |  | bound recommendation record available; full-document read pending |
+| kidney transplantation candidate evaluation | sheet | kidney-transplantation-candidate-evaluation.md | bound recommendation record available; full document distilled |
 | latent tuberculosis infection screening | sheet | latent-tuberculosis-infection-screening.md | exact recommendation index available; full document distilled |
 | leishmaniasis | sheet | leishmaniasis.md | full-document read complete |
 | lipid disorder screening | sheet | lipid-disorder-screening.md | exact recommendation index available; full document distilled |
 | lipid management in chronic kidney disease | sheet | lipid-management-in-chronic-kidney-disease.md | full-document read complete |
-| living kidney donor evaluation and care | unread |  | bound recommendation record available; full-document read pending |
+| living kidney donor evaluation and care | sheet | living-kidney-donor-evaluation-and-care.md | bound recommendation record available; full document distilled |
 | lower extremity peripheral artery disease | sheet | lower-extremity-peripheral-artery-disease.md | exact recommendation index available; full document distilled |
 | lung cancer screening | sheet | lung-cancer-screening.md | exact recommendation index available; full document distilled |
 | lupus nephritis | sheet | lupus-nephritis.md | full-document read complete |
 | Lyme disease | sheet | lyme-disease.md | full-document read complete |
 | maternal immunization | sheet | maternal-immunization.md | no recommendation record; full document distilled |
-| microbiology laboratory utilization for infectious disease diagnosis | unread |  | no recommendation record; full-document read pending |
+| microbiology laboratory utilization for infectious disease diagnosis | sheet | microbiology-laboratory-utilization-for-infectious-disease-diagnosis.md | full-document read complete; no recommendation record |
 | native vertebral osteomyelitis | sheet | native-vertebral-osteomyelitis.md | bound recommendation record available; full document distilled |
 | nephrotic syndrome | sheet | nephrotic-syndrome.md | full-document read complete |
 | neural tube defect prevention, folic acid | sheet | neural-tube-defect-prevention-folic-acid.md | full-document read complete; exact recommendation index accounted |
